@@ -1,3 +1,4 @@
+import math
 from typing import Any, Callable, Optional, Union
 
 import polars as pl
@@ -596,6 +597,33 @@ class Graph:
                 tgt_lbl = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(edge.target)
                 delta.edges_selected.append((src_lbl, tgt_lbl))
 
+    def _use_weights(self, weighted: bool | None) -> bool:
+        """Resolve a `weighted=` argument: `None` follows the graph's own `weighted` flag."""
+        return self.is_weighted() if weighted is None else bool(weighted)
+
+    def _bfs_tree_edges(self, start_id: int) -> list:
+        """The BFS tree edges `bfs()` follows, for step recording."""
+        return rust.bfs_search(self._graph, [start_id])[0]
+
+    def _dfs_tree_edges(self, start_id: int) -> list:
+        """The DFS tree edges `dfs()` follows, for step recording."""
+        return rust.dfs_search(self._graph, start_id)[2]
+
+    def _node_label(self, node_id: int) -> str:
+        """Label of a node for step logs (falls back to the ID)."""
+        label = self.get_label_from_id(node_id)
+        return str(label) if label else str(node_id)
+
+    def _path_delta(self, paths: list[list[int]], **kw) -> StepDelta:
+        """A StepDelta highlighting every node and edge on the given ID paths."""
+        nodes: list[str] = []
+        edges: list[tuple[str, str]] = []
+        for path in paths:
+            labels = [self._node_label(n) for n in path]
+            nodes.extend(lb for lb in labels if lb not in nodes)
+            edges.extend(e for e in zip(labels, labels[1:]) if e not in edges)
+        return StepDelta(nodes_selected=nodes, edges_selected=edges, **kw)
+
     def _record_step(
         self,
         kind: str,
@@ -604,8 +632,12 @@ class Graph:
         delta: Optional[StepDelta] = None,
         result: Any = None,
         sub_steps: Optional[list] = None,
+        narration: Optional[str] = None,
     ) -> Step:
-        """Append a step to the internal log and return it."""
+        """Append a step to the internal log and return it.
+
+        `narration=` replaces the auto-generated narration (a pending `note()` still wins).
+        """
         if delta is None:
             delta = StepDelta()
         if kind == KIND_SELECT:
@@ -622,13 +654,29 @@ class Graph:
         if self._pending_note is not None:
             step.narration = self._pending_note
             self._pending_note = None
+        elif narration is not None:
+            step.narration = narration
         else:
             step.narration = auto_narrate(step)
         self._steps.append(step)
         return step
 
-    def _record_traversal(self, algorithm: str, start, visited_order: list) -> None:
-        """Record a traversal as a single step with sub-steps for each node visit."""
+    def _record_traversal(
+        self,
+        algorithm: str,
+        start,
+        visited_order: list,
+        tree_edges: Optional[list] = None,
+        method: Optional[str] = None,
+        code: Optional[str] = None,
+        narration: Optional[str] = None,
+    ) -> None:
+        """Record a traversal as a single step with sub-steps for each node visit.
+
+        `tree_edges=` gives the search's actual `(parent_id, child_id)` edges. Without it, each
+        node's parent is guessed as its most recently visited neighbor, which is right for DFS
+        but not always for BFS. Nodes without a parent start a new tree (DFS forests).
+        """
         labels = []
         for nid in visited_order:
             obj = self.get_node(nid)
@@ -652,9 +700,8 @@ class Graph:
         for k in adjacency:
             adjacency[k] = list(dict.fromkeys(adjacency[k]))
 
-        # Infer tree edges
+        # Infer tree edges (used when the caller does not pass the real ones)
         order_idx = {lbl: i for i, lbl in enumerate(labels)}
-        tree_edges: list = []
         visited_set: set = set()
         parent_of: dict = {}
         for i, lbl in enumerate(labels):
@@ -670,9 +717,10 @@ class Graph:
                         best_pos = pos
                         best_parent = nb
             if best_parent is not None:
-                tree_edges.append((best_parent, lbl))
                 parent_of[lbl] = best_parent
             visited_set.add(lbl)
+        if tree_edges is not None:
+            parent_of = {self._node_label(c): self._node_label(p) for p, c in tree_edges}
 
         # Build sub-steps
         sub_steps = []
@@ -684,26 +732,32 @@ class Graph:
                 for nb in adjacency.get(v, []):
                     if nb not in visited_so_far:
                         frontier.add(nb)
+            parent = parent_of.get(lbl)
+            if parent is None:
+                sub_code = f"visit {lbl}"
+                sub_narration = f"Start at {lbl}" if i == 0 else f"Start a new tree at {lbl}"
+            else:
+                sub_code = f"{parent} → {lbl}"
+                sub_narration = f"Visit {lbl} from {parent}"
             sub = Step(
                 index=i,
                 kind=KIND_TRAVERSE,
                 method=algorithm,
-                code=f"visit {lbl}" if i == 0 else f"{parent_of.get(lbl, '?')} → {lbl}",
-                narration=f"Start at {lbl}"
-                if i == 0
-                else f"Visit {lbl} from {parent_of.get(lbl, '?')}",
+                code=sub_code,
+                narration=sub_narration,
                 delta=StepDelta(nodes_added=[lbl]),
             )
             sub_steps.append(sub)
 
-        start_label = labels[0] if labels else str(start)
-        code = f"G.{algorithm}(start={start!r})"
+        if code is None:
+            code = f"G.{algorithm}(start={start!r})"
         self._record_step(
             kind=KIND_TRAVERSE,
-            method=algorithm,
+            method=method or algorithm,
             code=code,
             sub_steps=sub_steps,
             result=visited_order,
+            narration=narration,
         )
 
     @property
@@ -1981,14 +2035,17 @@ class Graph:
                 edges_added.append((str(source), str(target)))
         self._recording_depth -= 1
 
-        pairs = repr([(int(s), int(t)) for s, t in edges_added])
-        code = f"G.add_edges_by_id({pairs})"
-        self._record_step(
-            KIND_BUILD_EDGES,
-            "add_edges_by_id",
-            code,
-            delta=StepDelta(edges_added=edges_added),
-        )
+        if self._recording_depth == 0:
+            pairs = repr([(int(s), int(t)) for s, t in edges_added])
+            code = f"G.add_edges_by_id({pairs})"
+            # The step player keys edges by node label
+            labeled = [(self._node_label(int(s)), self._node_label(int(t))) for s, t in edges_added]
+            self._record_step(
+                KIND_BUILD_EDGES,
+                "add_edges_by_id",
+                code,
+                delta=StepDelta(edges_added=labeled),
+            )
 
         return self
 
@@ -3151,6 +3208,10 @@ class Graph:
                         n_values = ndf.select(pl.col(attr_name).is_not_null().sum()).item()
                         n_total = ndf.height
                         coverage = f"{n_values} of {n_total} nodes"
+                    elif attr_name in (edf := self.get_edge_df()).columns:
+                        # Edge metrics (e.g. edge_betweenness_centrality) live on the edges
+                        n_values = edf.select(pl.col(attr_name).is_not_null().sum()).item()
+                        coverage = f"{n_values} of {edf.height} edges"
                     else:
                         coverage = "attr not found"
                 except Exception:
@@ -6954,6 +7015,117 @@ class Graph:
             return self._graph.label_from_id(node_id)
         except (ValueError, Exception):
             return None
+
+    def relabel_nodes(self, mapping: Union[dict, Callable[[str], str]]) -> "Graph":
+        """
+        Rename nodes.
+
+        ![Relabel nodes](/assets/graphs/relabel-nodes.light.svg){.lightbox fig-alt="Before: a six-node graph with each node's id in a pill, 1 to 6. The call renames B to X and E to Y; after it those two nodes carry their new labels in the accent color, while their ids 2 and 5, the edges, and the other labels are unchanged." width="100%"}
+
+        Changes node labels in place, leaving node IDs, attributes and edges untouched. This is
+        the tool for cleaning up names after import (fixing typos, normalizing case, swapping
+        accession numbers for gene symbols) or for making labels match another dataset before
+        a join.
+
+        `mapping=` is either a dictionary from existing nodes (IDs or labels) to new labels,
+        which renames only the nodes it mentions, or a function that receives each node's
+        current label and returns its new one, applied to every node. Renames happen all at
+        once, so labels can be swapped (`{"A": "B", "B": "A"}`). If the result would give two
+        nodes the same label, nothing is changed and a `ValueError` is raised.
+
+        Unlike NetworkX's `relabel_nodes()`, which builds new node keys, EdgeCase keeps each
+        node's integer ID, so anything stored by ID (selections, results from `return_dict=True`)
+        stays valid.
+
+        Parameters
+        ----------
+        mapping
+            A dictionary mapping node IDs or labels to new labels, or a function from the
+            current label to the new label. New labels must be strings.
+
+        Returns
+        -------
+        Graph
+            The graph itself, for chaining.
+
+        Raises
+        ------
+        ValueError
+            If a node in the mapping does not exist, or two nodes would end up with the same
+            label.
+        TypeError
+            If a new label is not a string.
+
+        Examples
+        --------
+        Rename a couple of nodes by label:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["a", "b", "c"])
+            .add_edges([("a", "b"), ("b", "c")])
+            .relabel_nodes({"a": "alpha", "b": "beta"})
+        )
+
+        graph.get_edges_str_repr(use_labels=True)
+        ```
+
+        A function renames every node at once:
+
+        ```{python}
+        graph.relabel_nodes(str.upper).get_node_df().select(["id", "label"])
+        ```
+
+        Swapping two labels works because all renames happen together:
+
+        ```{python}
+        graph.relabel_nodes({"ALPHA": "BETA", "BETA": "ALPHA"}).get_edges_str_repr(use_labels=True)
+        ```
+        """
+        if callable(mapping) and not isinstance(mapping, dict):
+            pairs = [(n, mapping(self._node_label(n))) for n in self.get_node_ids(limit=None)]
+        elif isinstance(mapping, dict):
+            pairs = [(self._resolve_node_id(k, auto_create=False), v) for k, v in mapping.items()]
+        else:
+            raise TypeError("mapping must be a dict or a callable")
+        for _, new in pairs:
+            if not isinstance(new, str):
+                raise TypeError(f"New labels must be strings, got {type(new).__name__}: {new!r}")
+        old = {n: self._node_label(n) for n, _ in pairs}
+        self._graph.relabel_nodes(pairs)
+
+        changed = {n: new for n, new in pairs if new != old[n]}
+        if changed and self._recording_depth == 0:
+            # The step player tracks nodes by label, so a rename is recorded as the old
+            # labels leaving and the new ones arriving, with their edges
+            moved_edges = [
+                (s, t) for _, s, t in self.get_edges_as_tuples() if s in changed or t in changed
+            ]
+            renames = ", ".join(f"{old[n]} → {new}" for n, new in list(changed.items())[:6])
+            more = f" and {len(changed) - 6} more" if len(changed) > 6 else ""
+            self._record_step(
+                KIND_MUTATE,
+                "relabel_nodes",
+                f"G.relabel_nodes(...)  # {len(changed)} node{'s' if len(changed) != 1 else ''}",
+                delta=StepDelta(
+                    nodes_removed=[old[n] for n in changed],
+                    nodes_added=list(changed.values()),
+                    nodes_mutated=list(changed.values()),
+                    edges_removed=[
+                        (old.get(s, self._node_label(s)), old.get(t, self._node_label(t)))
+                        for s, t in moved_edges
+                    ],
+                    edges_added=[
+                        (self._node_label(s), self._node_label(t)) for s, t in moved_edges
+                    ],
+                    attrs_changed={"label": len(changed)},
+                ),
+                narration=f"relabel_nodes() renamed {renames}{more}.",
+            )
+        return self
 
     def get_node_creation_order(self) -> list[int]:
         """
@@ -17478,6 +17650,84 @@ class Graph:
             return result
         return self
 
+    def triadic_census(self) -> dict[str, int]:
+        """
+        Count every triad of a directed graph by its type.
+
+        ![Triadic census](/assets/graphs/triadic-census.light.svg){.lightbox fig-alt="A directed graph on five nodes: A and B point at each other and both at C, and C, D, E form a directed cycle. Each of its 10 triads gets one of 16 types; the table lists the non-zero counts with the triads behind them: 2 each of 012, 102, 021U, and 021C, 1 cyclic triad 030C (C, D, E, accent color), and 1 120U (A, B, C, teal). Every other type is 0." width="100%"}
+
+        A triad is any set of three nodes. In a directed graph each pair of them is connected
+        mutually, one way, or not at all, giving 16 possible triad types (up to isomorphism).
+        The triadic census counts how many of each the graph contains, and is a classic
+        fingerprint of social structure (Holland & Leinhardt, 1976): transitive triads
+        (`030T`) signal hierarchy, cyclic ones (`030C`) the absence of rank, mutual pairs
+        (`102`, `201`, `300`) reciprocity, and so on. Comparing the census with random graphs
+        of the same size and density shows which patterns are over-represented.
+
+        Types use the standard MAN labels: the digits count **M**utual, **A**symmetric and
+        **N**ull pairs, and a letter tells apart types with the same counts (**D**own, **U**p,
+        **C**yclic, **T**ransitive), e.g. `021D` is one node pointing at both others. The
+        counts always add up to `n * (n - 1) * (n - 2) / 6`. Parallel edges count once and
+        self-loops are ignored. The algorithm (Batagelj & Mrvar, 2001) only visits connected
+        triads, so it scales to large sparse graphs. Results match NetworkX's
+        `triadic_census()`.
+
+        Returns
+        -------
+        dict[str, int]
+            The count of each of the 16 triad types, keyed by MAN label, in the standard order
+            `003, 012, 102, 021D, 021U, 021C, 111D, 111U, 030T, 030C, 201, 120D, 120U, 120C,
+            210, 300`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Examples
+        --------
+        A three-node cycle is a single cyclic triad; reversing one edge makes it transitive:
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+
+        flow = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        flow.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+
+        cycle.triadic_census()["030C"], flow.triadic_census()["030T"]
+        ```
+
+        On a larger network, the non-empty types tell the story at a glance:
+
+        ```{python}
+        graph = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D", "E"])
+        graph.add_edges([("A", "B"), ("B", "A"), ("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"),
+                         ("E", "C")])
+
+        {k: v for k, v in graph.triadic_census().items() if v}
+        ```
+        """
+        census = dict(rust.triadic_census(self._graph))
+
+        if self._recording_depth == 0:
+            connected = {k: v for k, v in census.items() if k not in ("003", "012", "102") and v}
+            top = sorted(connected.items(), key=lambda kv: (-kv[1], kv[0]))[:3]
+            summary = ", ".join(f"{k} ×{v}" for k, v in top)
+            self._record_step(
+                KIND_QUERY,
+                "triadic_census",
+                "G.triadic_census()",
+                result=census,
+                narration=(
+                    f"Triadic census of {sum(census.values())} triads"
+                    + (f"; most common connected types: {summary}." if top else ".")
+                ),
+            )
+        return census
+
     def motif_significance(
         self,
         size: int = 3,
@@ -17760,6 +18010,508 @@ class Graph:
             )
 
         return self
+
+    def square_clustering(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate the square clustering coefficient of every node.
+
+        ![Square clustering](/assets/graphs/square-clustering.light.svg){.lightbox fig-alt="A 2 by 3 grid, two squares side by side, has no triangles, so the ordinary clustering coefficient, listed in the last column, is 0 for every node. Square clustering sees the squares: the corners A, C, D and F score 0.50, and the middle nodes B and E 0.33, since one of their three neighbor pairs closes no square." width="100%"}
+
+        The ordinary clustering coefficient counts triangles; square clustering (Lind,
+        González & Herrmann, 2005) counts *squares*: for each pair of a node's neighbors, it
+        asks whether they share another neighbor, closing a four-cycle through the node. It
+        picks up local cohesion that triangles miss entirely, which matters in bipartite
+        networks (customers and products, authors and papers), where triangles are impossible
+        but squares are common, and in grid-like or spatial networks.
+
+        The score is the number of squares through the node divided by the number of possible
+        squares, as in NetworkX's `square_clustering()`. Nodes with fewer than two neighbors
+        score `0`. Self-loops are ignored; on a directed graph, neighbors are the nodes a node
+        points to.
+
+        Parameters
+        ----------
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"square_clustering"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores in `[0, 1]`.
+            If `return_dict=` is `False` (default): returns self.
+
+        Examples
+        --------
+        A 4-cycle has no triangles at all, but every node sits on its one square:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_cycle_graph(4)
+
+        triangles = square.clustering_coefficient(return_dict=True)
+        squares = square.square_clustering(return_dict=True)
+        sorted(triangles.items()), sorted(squares.items())
+        ```
+        """
+        scores = rust.square_clustering(self._graph)
+        return self._node_metric_result("square_clustering", scores, attr_name, return_dict, {})
+
+    def generalized_degree(self) -> dict[int, dict[int, int]]:
+        """
+        Count each node's edges by how many triangles they belong to.
+
+        ![Generalized degree](/assets/graphs/generalized-degree.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C, plus E hanging off D, with each edge labelled by the number of triangles it lies in. D's three edges, in accent, lie in 1, 1 and 0 triangles, so D maps to {0: 1, 1: 2}; the shared edge B–C lies in 2, giving B and C {1: 2, 2: 1}." width="100%"}
+
+        The generalized degree of a node (Hoang et al.) splits its degree by triangle
+        membership: for each `k`, how many of its edges lie in exactly `k` triangles. A node
+        whose edges sit in no triangles is a star center or bridge; one whose edges each sit in
+        many triangles is deep inside a dense cluster. The counts add up to the degree, and
+        `Σ k * count / 2` is the number of triangles through the node.
+
+        Parameters
+        ----------
+        None.
+
+        Returns
+        -------
+        dict[int, dict[int, int]]
+            For each node ID, a dictionary mapping a triangle count `k` to the number of the
+            node's edges in exactly `k` triangles. Nodes without edges map to an empty
+            dictionary.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        In a triangle with a pendant edge, C has two edges in one triangle each and one edge
+        (to D) in none:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        )
+
+        graph.generalized_degree()[graph.get_id_from_label("C")]
+        ```
+        """
+        result = {
+            n: dict(sorted(counts.items()))
+            for n, counts in sorted(rust.generalized_degree(self._graph).items())
+        }
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "generalized_degree",
+                "G.generalized_degree()",
+                result=result,
+                narration=f"Generalized degree of {len(result)} nodes.",
+            )
+        return result
+
+    def average_degree_connectivity(
+        self,
+        source: str = "in+out",
+        target: str = "in+out",
+        weighted: bool | None = None,
+    ) -> dict[int, float]:
+        """
+        Get the average neighbor degree of nodes, grouped by their own degree.
+
+        ![Average degree connectivity](/assets/graphs/average-degree-connectivity.light.svg){.lightbox fig-alt="Two hubs C and D of degree 3, linked to each other and to two leaves of degree 1 apiece. Every leaf's neighbor is a hub, so degree 1 maps to 3.0, while the hubs' six neighbors have degrees 1, 1, 3, 3, 1, 1, so degree 3 maps to 1.667: a falling curve, the mark of disassortative mixing." width="100%"}
+
+        For each degree `k`, the average degree of the neighbors of all nodes with degree `k`,
+        often written `k_nn(k)`. Plotted against `k`, it shows the network's degree mixing at
+        a glance: a rising curve means high-degree nodes link to each other (assortative, as in
+        many social networks), a falling curve means hubs link to low-degree nodes
+        (disassortative, as in many technological and biological networks). It is the
+        degree-resolved version of `get_assortativity_degree()` and the aggregate of
+        `average_neighbor_degree()`.
+
+        With weights, each neighbor's degree counts in proportion to the weight of the edge
+        to it. Values match NetworkX's `average_degree_connectivity()`, except on directed
+        graphs with `source="in+out"`: NetworkX's documentation describes in- and out-neighbors,
+        but its code averages over successors only while dividing by the total degree.
+        EdgeCase follows the documented definition, counting every incident edge.
+
+        Parameters
+        ----------
+        source
+            On directed graphs, which neighbors to average over and which degree groups nodes:
+            `"out"` (successors, by out-degree), `"in"` (predecessors, by in-degree), or
+            `"in+out"` (default, all neighbors, by total degree).
+        target
+            On directed graphs, which degree of the neighbors to average: `"in"`, `"out"`, or
+            `"in+out"` (default).
+        weighted
+            Whether to weight by edge weight. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        dict[int, float]
+            A dictionary mapping each degree `k` present in the graph to the average degree of
+            those nodes' neighbors, sorted by `k`.
+
+        Raises
+        ------
+        ValueError
+            If `source=` or `target=` is invalid, or set to something other than `"in+out"` on
+            an undirected graph.
+
+        Examples
+        --------
+        In a star, the leaves (degree 1) all point to the hub, while the hub's neighbors are
+        all leaves, the hallmark of a disassortative network:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_star_graph(5).average_degree_connectivity()
+        ```
+        """
+        result = rust.average_degree_connectivity(
+            self._graph, source, target, self._use_weights(weighted)
+        )
+        return dict(sorted(result.items()))
+
+    def _degree_pairs(self, x: str, y: str, weighted: bool | None) -> list:
+        use_w = self._use_weights(weighted)
+        triples = rust.degree_pairs(self._graph, x, y, use_w)
+        if use_w:
+            return triples
+        return [(int(a), int(b), c) for a, b, c in triples]
+
+    @staticmethod
+    def _mixing_from_counts(counts: dict, normalized: bool) -> dict:
+        total = sum(c for row in counts.values() for c in row.values())
+        if normalized and total:
+            return {a: {b: c / total for b, c in row.items()} for a, row in counts.items()}
+        return counts
+
+    @staticmethod
+    def _mixing_matrix(counts: dict, normalized: bool) -> tuple[list[list[float]], list]:
+        keys = set(counts) | {b for row in counts.values() for b in row}
+        try:
+            order = sorted(keys)
+        except TypeError:
+            order = sorted(keys, key=repr)
+        pos = {k: i for i, k in enumerate(order)}
+        matrix = [[0.0] * len(order) for _ in order]
+        for a, row in counts.items():
+            for b, c in row.items():
+                matrix[pos[a]][pos[b]] += c
+        total = sum(sum(r) for r in matrix)
+        if normalized and total:
+            matrix = [[v / total for v in r] for r in matrix]
+        return matrix, order
+
+    def degree_mixing_dict(
+        self,
+        x: str = "out",
+        y: str = "in",
+        weighted: bool | None = None,
+        normalized: bool = False,
+    ) -> dict:
+        """
+        Count edges by the degrees of their two endpoints.
+
+        ![Degree mixing dict](/assets/graphs/degree-mixing-dict.light.svg){.lightbox fig-alt="The hub-and-leaf graph with each degree in a badge. The four accent edges join degree 1 to degree 3, and the hub edge C–D joins 3 to 3. Counting every edge from both ends gives {1: {3: 4}, 3: {1: 4, 3: 2}}." width="100%"}
+
+        For every pair of degrees `(j, k)`, how many edges run from a node of degree `j` to a
+        node of degree `k`. This joint degree distribution is the raw material of degree
+        assortativity: if edges concentrate along `j = k`, similar nodes link to each other.
+        Undirected edges are counted from both ends, so the table is symmetric; on a directed
+        graph each edge is counted once, from its source's `x` degree to its target's `y`
+        degree. See `degree_mixing_matrix()` for the same counts as a matrix. Matches NetworkX's
+        `degree_mixing_dict()`.
+
+        Parameters
+        ----------
+        x
+            On directed graphs, the degree of each edge's source: `"out"` (default) or `"in"`.
+        y
+            On directed graphs, the degree of each edge's target: `"in"` (default) or `"out"`.
+        weighted
+            Whether degrees are weighted (sums of edge weights). If `None` (default), follows the
+            graph.
+        normalized
+            If `True`, return fractions of all counted edge ends instead of counts. Default is
+            `False`.
+
+        Returns
+        -------
+        dict
+            A nested dictionary `{j: {k: count}}`. Every degree that appears is a key.
+
+        Examples
+        --------
+        In a path of four nodes, the two end edges link degree 1 to degree 2, and the middle
+        edge links degree 2 to degree 2:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_path_graph(4).degree_mixing_dict()
+        ```
+        """
+        counts: dict = {}
+        for a, b, c in self._degree_pairs(x, y, weighted):
+            counts.setdefault(a, {})
+            counts.setdefault(b, {})
+            counts[a][b] = counts[a].get(b, 0) + c
+        return self._mixing_from_counts(counts, normalized)
+
+    def degree_mixing_matrix(
+        self,
+        x: str = "out",
+        y: str = "in",
+        weighted: bool | None = None,
+        normalized: bool = True,
+    ) -> tuple[list[list[float]], list]:
+        """
+        Get the degree mixing matrix (joint degree distribution of edge endpoints).
+
+        ![Degree mixing matrix](/assets/graphs/degree-mixing-matrix.light.svg){.lightbox fig-alt="The hub-and-leaf graph with each degree in a badge, and its 2 by 2 mixing matrix over the degrees 1 and 3. Of the ten edge ends, eight join a leaf to a hub, 0.4 in each off-diagonal cell (accent), and two join hub to hub, 0.2; no leaf touches a leaf." width="100%"}
+
+        The counts of `degree_mixing_dict()` as a matrix: entry `[i][j]` is the fraction (or,
+        with `normalized=False`, the number) of edge ends that join a node of the `i`-th degree
+        to a node of the `j`-th degree. Weight on the diagonal means assortative mixing (similar
+        degrees link up); weight off the diagonal, disassortative mixing. The degree
+        assortativity coefficient is the correlation of this distribution.
+
+        NetworkX's `degree_mixing_matrix()` returns only the matrix, with an arbitrary order of
+        degrees unless a `mapping=` is given. EdgeCase returns the matrix together with the
+        degrees labelling its rows and columns, in increasing order.
+
+        Parameters
+        ----------
+        x
+            On directed graphs, the degree of each edge's source: `"out"` (default) or `"in"`.
+        y
+            On directed graphs, the degree of each edge's target: `"in"` (default) or `"out"`.
+        weighted
+            Whether degrees are weighted. If `None` (default), follows the graph.
+        normalized
+            If `True` (default), entries sum to `1`. If `False`, they are counts.
+
+        Returns
+        -------
+        tuple[list[list[float]], list]
+            `(matrix, degrees)`: the square matrix as a list of rows, and the degree values
+            labelling rows and columns, sorted.
+
+        Examples
+        --------
+        A star is perfectly disassortative: every edge joins the hub to a leaf, so all the
+        weight sits off the diagonal:
+
+        ```{python}
+        import edgecase as ec
+
+        matrix, degrees = ec.Graph().add_star_graph(4).degree_mixing_matrix()
+        degrees, matrix
+        ```
+        """
+        counts = self.degree_mixing_dict(x, y, weighted, normalized=False)
+        return self._mixing_matrix(counts, normalized)
+
+    def _attribute_counts(self, attribute: str) -> dict:
+        values = self.get_node_attrs(attribute)
+        missing = [n for n in self.get_node_ids(limit=None) if n not in values]
+        if missing:
+            shown = ", ".join(repr(self._node_label(n)) for n in missing[:5])
+            raise ValueError(f"Nodes without the attribute {attribute!r}: {shown}")
+        counts: dict = {}
+        directed = self.is_directed()
+        for _, s, t in self.get_edges_as_tuples():
+            pairs = [(values[s], values[t])]
+            if not directed and s != t:
+                pairs.append((values[t], values[s]))
+            for a, b in pairs:
+                counts.setdefault(a, {})
+                counts.setdefault(b, {})
+                counts[a][b] = counts[a].get(b, 0) + 1
+        return counts
+
+    def attribute_mixing_dict(self, attribute: str, normalized: bool = False) -> dict:
+        """
+        Count edges by the attribute values of their two endpoints.
+
+        ![Attribute mixing dict](/assets/graphs/attribute-mixing-dict.light.svg){.lightbox fig-alt="Two triangles joined by one edge, with team x on A, B, C (teal) and team y on D, E, F (violet). Each triangle's three edges count from both ends, 6 within each team, and the one accent edge C–D links x to y once each way: {x: {x: 6, y: 1}, y: {x: 1, y: 6}}." width="100%"}
+
+        For every pair of values `(a, b)` of a categorical node attribute, how many edges run
+        from a node with value `a` to a node with value `b`. This is the basis of homophily
+        analysis: in a friendship network split by school year or party, most edges stay within
+        a group if like links with like. Undirected edges count from both ends (so the table is
+        symmetric); directed edges count once, source value first. See
+        `attribute_mixing_matrix()` for a matrix and `get_assortativity_nominal()` for the
+        single-number summary. Matches NetworkX's `attribute_mixing_dict()`.
+
+        Parameters
+        ----------
+        attribute
+            Name of the node attribute. Every node must have a value.
+        normalized
+            If `True`, return fractions of all counted edge ends instead of counts. Default is
+            `False`.
+
+        Returns
+        -------
+        dict
+            A nested dictionary `{a: {b: count}}`.
+
+        Raises
+        ------
+        ValueError
+            If some node has no value for the attribute.
+
+        Examples
+        --------
+        Two teams with one friendship across them:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("C", "D"), ("B", "C")])
+        )
+        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
+
+        graph.attribute_mixing_dict("team")
+        ```
+        """
+        return self._mixing_from_counts(self._attribute_counts(attribute), normalized)
+
+    def attribute_mixing_matrix(
+        self, attribute: str, normalized: bool = True
+    ) -> tuple[list[list[float]], list]:
+        """
+        Get the attribute mixing matrix (how often each pair of values is linked).
+
+        ![Attribute mixing matrix](/assets/graphs/attribute-mixing-matrix.light.svg){.lightbox fig-alt="The same two teams, x on A, B, C (teal) and y on D, E, F (violet), and their 2 by 2 mixing matrix. Twelve of the fourteen edge ends stay within a team, 0.43 in each diagonal cell (accent); the single cross edge C–D puts 0.07 in each off-diagonal cell." width="100%"}
+
+        The counts of `attribute_mixing_dict()` as a matrix: entry `[i][j]` is the fraction (or
+        count) of edge ends joining a node with the `i`-th value to a node with the `j`-th
+        value. A heavy diagonal means homophily; the nominal assortativity coefficient
+        (`get_assortativity_nominal()`) is computed from exactly this matrix.
+
+        NetworkX's `attribute_mixing_matrix()` returns only the matrix, ordered arbitrarily
+        unless a `mapping=` is given. EdgeCase returns the matrix together with the attribute
+        values labelling its rows and columns, sorted.
+
+        Parameters
+        ----------
+        attribute
+            Name of the node attribute. Every node must have a value.
+        normalized
+            If `True` (default), entries sum to `1`. If `False`, they are counts.
+
+        Returns
+        -------
+        tuple[list[list[float]], list]
+            `(matrix, values)`: the square matrix as a list of rows, and the attribute values
+            labelling rows and columns, sorted (by their text if values are not comparable).
+
+        Raises
+        ------
+        ValueError
+            If some node has no value for the attribute.
+
+        Examples
+        --------
+        Mostly within-team ties put most of the weight on the diagonal:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("C", "D"), ("B", "C")])
+        )
+        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
+
+        matrix, teams = graph.attribute_mixing_matrix("team")
+        teams, [[round(v, 3) for v in row] for row in matrix]
+        ```
+        """
+        return self._mixing_matrix(self._attribute_counts(attribute), normalized)
+
+    def degree_pearson_correlation_coefficient(
+        self, x: str = "out", y: str = "in", weighted: bool | None = None
+    ) -> float:
+        """
+        Get the Pearson correlation of degrees at either end of an edge.
+
+        ![Degree Pearson correlation](/assets/graphs/degree-pearson-correlation-coefficient.light.svg){.lightbox fig-alt="The hub-and-leaf graph with each degree in a badge. Over the ten edge ends the mean degree is 2.2; the degrees at the two ends of an edge have covariance -0.64 and variance 0.96, so their correlation is r = -0.667: hubs link to leaves." width="100%"}
+
+        Degree assortativity measured as the Pearson correlation between the degrees of the two
+        endpoints over all edges (Newman, 2002): positive when hubs link to hubs, negative when
+        hubs link to low-degree nodes. On an undirected graph this equals
+        `get_assortativity_degree()`; the directed `x=`/`y=` options choose which degree of
+        the source and target to correlate (for example, out-degree of the source against
+        in-degree of the target). Matches NetworkX's
+        `degree_pearson_correlation_coefficient()`.
+
+        Parameters
+        ----------
+        x
+            On directed graphs, the degree of each edge's source: `"out"` (default) or `"in"`.
+        y
+            On directed graphs, the degree of each edge's target: `"in"` (default) or `"out"`.
+        weighted
+            Whether degrees are weighted. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The correlation coefficient in `[-1, 1]` (NaN if all degrees are equal).
+
+        Examples
+        --------
+        A star is perfectly disassortative:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_star_graph(5).degree_pearson_correlation_coefficient()
+        ```
+        """
+        triples = self._degree_pairs(x, y, weighted)
+        n = sum(c for _, _, c in triples)
+        if n == 0:
+            return float("nan")
+        mx = sum(a * c for a, _, c in triples) / n
+        my = sum(b * c for _, b, c in triples) / n
+        cov = sum((a - mx) * (b - my) * c for a, b, c in triples)
+        vx = sum((a - mx) ** 2 * c for a, _, c in triples)
+        vy = sum((b - my) ** 2 * c for _, b, c in triples)
+        value = cov / math.sqrt(vx * vy) if vx > 0 and vy > 0 else float("nan")
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "degree_pearson_correlation_coefficient",
+                "G.degree_pearson_correlation_coefficient()",
+                result=value,
+                narration=f"Degree correlation r = {value:.3f}.",
+            )
+        return value
 
     def clustering_coefficient(
         self, attr_name: str | None = None, return_dict: bool = False
@@ -18136,12 +18888,15 @@ class Graph:
     # ==============================================================================
 
     def cmty_fast_greedy(
-        self, attr_name: str | None = None, return_dict: bool = False
+        self,
+        resolution: float = 1.0,
+        attr_name: str | None = None,
+        return_dict: bool = False,
     ) -> Union[dict[int, int], "Graph"]:
         r"""
         Detect communities using Fast Greedy (Clauset-Newman-Moore) algorithm.
 
-        ![Fast greedy communities](/assets/graphs/cmty-fast-greedy.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Greedily merging the pairs that raise modularity most stops at the two clusters, drawn as tinted regions in the accent color and teal. The card lists community 0 as D, E, F, G and community 1 as A, B, C." width="100%"}
+        ![Fast greedy communities](/assets/graphs/cmty-fast-greedy.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Greedily merging the pairs that raise modularity most stops at the two clusters, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
 
         This is a greedy modularity optimization algorithm that merges communities to maximize
         modularity. It's efficient for medium to large graphs and provides good quality communities.
@@ -18154,8 +18909,16 @@ class Graph:
         3. repeatedly merge the pair with highest ΔQ until no improvement
         4. return the partition with maximum modularity
 
+        Edge weights are used on a weighted graph (`Graph(weighted=True)`). The results match
+        NetworkX's `community.greedy_modularity_communities()` in modularity.
+
         Parameters
         ----------
+        resolution
+            The resolution parameter `γ` of modularity. Merges are scored by
+            `ΔQ = w_ij / m − 2γ a_i a_j`, so values above `1.0` stop merging earlier and give
+            more, smaller communities, while values below `1.0` give fewer, larger ones.
+            Default is `1.0` (standard modularity).
         attr_name
             column name to store community assignments in the node DataFrame. If `None` (default),
             automatically uses `cmty_fast_greedy`. Overwrites column if it already exists.
@@ -18180,7 +18943,10 @@ class Graph:
         ranked by the modularity gain $\Delta Q$ their union would produce, repeatedly pops
         the top pair, and stops once every candidate merge would strictly decrease
         modularity. The resulting partition is the one of maximum modularity along that
-        greedy trajectory. On sparse graphs the heap bookkeeping runs in $O(n \log^2 n)$
+        greedy trajectory. This implementation keeps one heap entry per community holding an
+        upper bound on its best gain; since a merge can only lower the gains of pairs it does
+        not touch, stale bounds are re-checked lazily when they reach the top. On sparse graphs
+        the heap bookkeeping runs in $O(n \log^2 n)$
         time with $O(n + m)$ memory, which made it the first modularity optimizer usable on
         graphs of a few hundred thousand nodes. Modern alternatives like Louvain
         (`cmty_louvain()`) typically reach higher modularity at similar or better cost, but
@@ -18205,6 +18971,18 @@ class Graph:
         len(set(communities.values()))
         ```
 
+        Raising `resolution=` makes merging stricter. On Zachary's karate club, the default
+        finds three communities, and `resolution=1.5` splits the network further:
+
+        ```{python}
+        karate = ec.karate_club()
+
+        (
+            len(set(karate.cmty_fast_greedy(return_dict=True).values())),
+            len(set(karate.cmty_fast_greedy(resolution=1.5, return_dict=True).values())),
+        )
+        ```
+
         Storing the result as a node attribute and chaining into `colorize_node_attrs()`
         visualizes the communities directly:
 
@@ -18224,7 +19002,7 @@ class Graph:
         )
         ```
         """
-        communities = self._graph.get_cmty_fast_greedy()
+        communities = rust.greedy_modularity(self._graph, resolution=resolution)
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -18235,7 +19013,8 @@ class Graph:
 
         # Track computation
         if not return_dict:
-            self._computations.append(("cmty_fast_greedy", {}, attr_name))
+            params = {"resolution": resolution} if resolution != 1.0 else {}
+            self._computations.append(("cmty_fast_greedy", params, attr_name))
 
         # Return dict if requested, otherwise return self for chaining
         if return_dict:
@@ -18581,7 +19360,7 @@ class Graph:
         r"""
         Detect communities using Louvain multi-level optimization algorithm.
 
-        ![Louvain communities](/assets/graphs/cmty-louvain.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Louvain puts each cluster in its own community, drawn as tinted regions in teal and the accent color. The card lists community 0 as D, E, F, G and community 1 as A, B, C." width="100%"}
+        ![Louvain communities](/assets/graphs/cmty-louvain.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Louvain puts each cluster in its own community, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
 
         The Louvain method is a hierarchical algorithm that maximizes modularity through iterative
         optimization. It's the most widely-used community detection algorithm in practice due to its
@@ -18623,10 +19402,15 @@ class Graph:
         reach coarse community structure in near-linear time. The `resolution=` parameter
         multiplies the null-model term inside $\Delta Q$: values below $1$ merge communities
         more aggressively (larger, fewer groups), values above $1$ resist merges (smaller,
-        more numerous groups), and the default of $1$ recovers standard modularity. Louvain
-        is deterministic given a fixed node ordering, but different orderings can produce
-        equally valid alternative partitions. Disconnected components are handled naturally;
-        self-loops and multi-edges are not currently supported.
+        more numerous groups), and the default of $1$ recovers standard modularity. Nodes are
+        visited in a fixed pseudo-random order, so results are deterministic; other orderings
+        can produce equally valid alternative partitions. Disconnected components are handled
+        naturally, parallel edges add up, and self-loops count toward their community's
+        internal weight. On a weighted graph (`Graph(weighted=True)`) edge weights are used.
+
+        Louvain can occasionally return a community that is internally disconnected (a known
+        weakness of the method). `cmty_leiden()` adds a refinement step that rules this out
+        and usually reaches slightly higher modularity.
 
         Examples
         --------
@@ -18823,6 +19607,505 @@ class Graph:
         if return_dict:
             return communities
         return self
+
+    def _membership_from(self, communities) -> dict[int, int]:
+        """Normalize a partition given as an attribute name, a dict, or a list of groups."""
+        if isinstance(communities, str):
+            raw = self.get_node_attrs(communities)
+            if not raw:
+                raise ValueError(f"No node attribute named {communities!r}")
+        elif isinstance(communities, dict):
+            raw = {self._resolve_node_id(k, auto_create=False): v for k, v in communities.items()}
+        else:
+            raw = {}
+            for i, group in enumerate(communities):
+                for node in group:
+                    nid = self._resolve_node_id(node, auto_create=False)
+                    if nid in raw:
+                        label = self._node_label(nid)
+                        raise ValueError(
+                            f"Node {label!r} appears in more than one community; "
+                            f"modularity needs a partition"
+                        )
+                    raw[nid] = i
+        missing = [n for n in self.get_node_ids(limit=None) if raw.get(n) is None]
+        if missing:
+            shown = ", ".join(repr(self._node_label(n)) for n in missing[:5])
+            more = f" and {len(missing) - 5} more" if len(missing) > 5 else ""
+            raise ValueError(f"Every node must be assigned to a community; missing {shown}{more}")
+        # Community keys can be any hashable value; map them to integers
+        codes: dict = {}
+        return {n: codes.setdefault(v, len(codes)) for n, v in raw.items()}
+
+    def modularity(self, communities, resolution: float = 1.0) -> float:
+        """
+        Score a partition of the nodes into communities by its modularity.
+
+        ![Modularity](/assets/graphs/modularity.light.svg){.lightbox fig-alt="The two-cluster graph with 9 edges, split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). The card scores each community as its share of edges inside minus the share expected by chance, 3/9 − (7/18)² and 5/9 − (11/18)², each 0.18, for a modularity Q of 0.36." width="100%"}
+
+        Modularity compares the fraction of edges that fall inside communities with the
+        fraction expected if edges were placed at random while keeping every node's degree. A
+        partition into dense, sparsely interconnected groups scores well above `0` (values of
+        `0.3` to `0.7` are typical of clear community structure); putting all nodes in one
+        community scores exactly `0`, and partitions that cut through dense regions score below
+        `0`.
+
+        For an undirected graph with `m` edges this is the Newman-Girvan modularity,
+
+        `Q = Σ_c [ L_c / m - γ (D_c / 2m)² ]`
+
+        where `L_c` is the number of edges inside community `c` and `D_c` is the sum of its
+        nodes' degrees. Directed graphs use the Leicht-Newman version, which compares edges
+        against out-degree × in-degree. On a weighted graph (`Graph(weighted=True)`) edge
+        weights replace edge counts. The results match NetworkX's
+        `community.modularity()`.
+
+        Use this to compare the output of different community detection methods, to pick a
+        `resolution=`, or to evaluate a partition you already have, such as known labels.
+
+        Parameters
+        ----------
+        communities
+            The partition to score, as any of: (1) the name of a node attribute holding
+            community labels (e.g. `"cmty_louvain"` after `cmty_louvain()`), (2) a dictionary
+            mapping node IDs or labels to community labels, as returned by the `cmty_*` methods
+            with `return_dict=True`, or (3) a list of node groups, each a list or set of node
+            IDs or labels. Every node must belong to exactly one community.
+        resolution
+            The resolution parameter `γ`. Values above `1` reward smaller communities and values
+            below `1` larger ones. Default is `1.0`.
+
+        Returns
+        -------
+        float
+            The modularity of the partition. A graph without edges scores `0`.
+
+        Raises
+        ------
+        ValueError
+            If a node is missing from the partition, appears in two groups, or a label or
+            attribute does not exist.
+
+        Examples
+        --------
+        Two triangles joined by a bridge: splitting them apart scores well, while keeping all
+        nodes together scores `0` and a split that cuts the triangles scores below `0`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        (
+            round(graph.modularity([["A", "B", "C"], ["D", "E", "F"]]), 3),
+            graph.modularity([["A", "B", "C", "D", "E", "F"]]),
+            round(graph.modularity([["A", "D"], ["B", "E"], ["C", "F"]]), 3),
+        )
+        ```
+
+        Community detection results can be scored directly, from the stored attribute or the
+        returned dictionary:
+
+        ```{python}
+        graph.cmty_leiden(seed=1)
+
+        graph.modularity("cmty_leiden"), graph.modularity(graph.cmty_louvain(return_dict=True))
+        ```
+        """
+        membership = self._membership_from(communities)
+        q = rust.modularity(self._graph, membership, resolution)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): c for n, c in sorted(membership.items())}
+            k = len(set(membership.values()))
+            arg = repr(communities) if isinstance(communities, str) else "communities"
+            res = f", resolution={resolution!r}" if resolution != 1.0 else ""
+            self._record_step(
+                KIND_QUERY,
+                "modularity",
+                f"G.modularity({arg}{res})",
+                delta=StepDelta(node_groups=groups),
+                result=q,
+                narration=f"Modularity of {k} communities: Q = {q:.3f}.",
+            )
+        return q
+
+    def partition_quality(self, communities) -> tuple[float, float]:
+        """
+        Score a partition by its coverage and performance.
+
+        ![Partition quality](/assets/graphs/partition-quality.light.svg){.lightbox fig-alt="The two-cluster graph split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). 8 of the 9 edges lie inside a community, all but the bridge C to D, so coverage is 8/9 = 0.889. Of the 21 node pairs, 19 are classified correctly (8 joined pairs inside a community and 11 unjoined pairs across), so performance is 19/21 = 0.905." width="100%"}
+
+        Two simple, interpretable scores for a division of the nodes into communities
+        (Fortunato, 2010), complementary to `modularity()`:
+
+        - **coverage**: the fraction of edges that fall inside a community. A good partition
+          keeps most edges internal, but putting every node in one community trivially scores
+          `1`, so coverage alone favors too few communities.
+        - **performance**: the fraction of node pairs the partition gets "right": pairs in the
+          same community that are connected, plus pairs in different communities that are not.
+          Splitting everything into singletons scores well when the graph is sparse, so
+          performance alone favors too many communities.
+
+        Read together, they show whether a partition both captures the edges and separates the
+        non-edges. Unlike modularity, neither score compares against a random baseline, and
+        neither uses edge weights. On directed graphs, performance counts ordered pairs. The
+        results match NetworkX's `community.partition_quality()` on simple graphs; parallel
+        edges count separately for coverage and once for performance, and self-loops count
+        only toward coverage.
+
+        Parameters
+        ----------
+        communities
+            The partition to score, given like the `communities=` argument of `modularity()`:
+            the name of a node attribute holding community labels, a dictionary mapping node
+            IDs or labels to community labels, or a list of node groups. Every node must belong
+            to exactly one community.
+
+        Returns
+        -------
+        tuple[float, float]
+            `(coverage, performance)`, each between `0` and `1`. A graph without edges has
+            coverage `0`; a graph with fewer than two nodes has performance `0`.
+
+        Raises
+        ------
+        ValueError
+            If a node is missing from the partition, appears in two groups, or a label or
+            attribute does not exist.
+
+        Examples
+        --------
+        Two triangles joined by a bridge: the natural split keeps 6 of the 7 edges inside
+        communities and classifies most node pairs correctly, while lumping everything together
+        reaches full coverage at the price of performance:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        split = graph.partition_quality([["A", "B", "C"], ["D", "E", "F"]])
+        lumped = graph.partition_quality([["A", "B", "C", "D", "E", "F"]])
+        [round(x, 3) for x in split], [round(x, 3) for x in lumped]
+        ```
+
+        Community detection results can be scored directly:
+
+        ```{python}
+        graph.cmty_leiden(seed=1)
+        graph.partition_quality("cmty_leiden")
+        ```
+        """
+        membership = self._membership_from(communities)
+        coverage, performance = rust.partition_quality(self._graph, membership)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): c for n, c in sorted(membership.items())}
+            k = len(set(membership.values()))
+            arg = repr(communities) if isinstance(communities, str) else "communities"
+            self._record_step(
+                KIND_QUERY,
+                "partition_quality",
+                f"G.partition_quality({arg})",
+                delta=StepDelta(node_groups=groups),
+                result=(coverage, performance),
+                narration=(
+                    f"{k} communities: coverage {coverage:.3f}, performance {performance:.3f}."
+                ),
+            )
+        return coverage, performance
+
+    def _store_communities(
+        self, method: str, membership: dict[int, int], attr_name: str, params: dict, code: str
+    ) -> None:
+        """Store a node → community map as an attribute and record a community step."""
+        for node_id, cid in membership.items():
+            self._graph.set_node_attr(node_id, attr_name, cid)
+        self._computations.append((method, params, attr_name))
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): c for n, c in sorted(membership.items())}
+            k = len(set(membership.values()))
+            self._record_step(
+                KIND_METRIC,
+                method,
+                code,
+                delta=StepDelta(attrs_changed={attr_name: len(membership)}, node_groups=groups),
+                narration=f"{method}() found {k} communit{'y' if k == 1 else 'ies'}.",
+            )
+
+    def cmty_leiden(
+        self,
+        resolution: float = 1.0,
+        seed: int | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities using the Leiden algorithm.
+
+        ![Leiden communities](/assets/graphs/cmty-leiden.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Leiden returns the two clusters as communities, each one connected, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
+
+        Leiden (Traag, Waltman & van Eck, 2019) finds a partition with high modularity, like
+        Louvain, and fixes Louvain's main flaw: Louvain can produce communities that are
+        internally disconnected, or held together by a single node. Leiden adds a refinement
+        step between Louvain's local moving and aggregation phases, which only ever merges
+        nodes into well-connected subsets, so **every community it returns is connected**. It
+        also tends to reach higher modularity, and does so quickly, which makes it the usual
+        recommendation over Louvain today.
+
+        The algorithm is repeated, each run starting from the previous partition, until
+        modularity stops improving. Edge weights are used on weighted graphs
+        (`Graph(weighted=True)`).
+
+        Parameters
+        ----------
+        resolution
+            The resolution parameter of modularity. Values above `1.0` produce more, smaller
+            communities; values below `1.0` fewer, larger ones. Default is `1.0`.
+        seed
+            Random seed. The algorithm visits nodes in random order, so different seeds can
+            give (usually slightly) different partitions. Set it for reproducible results.
+        attr_name
+            Name of the node attribute to store community labels in. If `None` (default),
+            uses `"cmty_leiden"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            community labels as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to community labels
+            (`0`, `1`, ..., numbered in order of the lowest node ID in each). If `return_dict=`
+            is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        Two triangles joined by a bridge split into their natural communities:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        communities = graph.cmty_leiden(seed=1, return_dict=True)
+        {graph.get_label_from_id(n): c for n, c in sorted(communities.items())}
+        ```
+
+        On Zachary's karate club, Leiden reaches the best modularity known for the network:
+
+        ```{python}
+        karate = ec.karate_club()
+        karate.cmty_leiden(seed=1)
+
+        labels = karate.get_node_attrs("cmty_leiden")
+        round(karate.modularity("cmty_leiden"), 4), len(set(labels.values()))
+        ```
+        """
+        membership = rust.leiden(self._graph, resolution=resolution, seed=seed)
+        if return_dict:
+            return membership
+        if attr_name is None:
+            attr_name = "cmty_leiden"
+        params = {}
+        if resolution != 1.0:
+            params["resolution"] = resolution
+        if seed is not None:
+            params["seed"] = seed
+        args = ", ".join([f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"])
+        self._store_communities(
+            "cmty_leiden", membership, attr_name, params, f"G.cmty_leiden({args})"
+        )
+        return self
+
+    def cmty_label_propagation(
+        self,
+        seed: int | None = None,
+        max_iter: int = 100,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Detect communities by asynchronous label propagation.
+
+        ![Label propagation communities](/assets/graphs/cmty-label-propagation.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Starting from one label per node, each node repeatedly adopts its neighbors' most common label; the labels settle on the two clusters, drawn in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
+
+        Every node starts with a label of its own. Nodes are then visited in random order, and
+        each adopts the label carried by the most edges (or the most edge weight, on a weighted
+        graph) among its neighbors, breaking ties at random. Labels spread through densely
+        connected regions and stall at sparse boundaries; when a full pass changes nothing,
+        each remaining label is a community (Raghavan, Albert & Kumara, 2007).
+
+        Label propagation needs no parameters and runs in near-linear time, so it scales to
+        very large graphs. It does not optimize any objective, and different seeds can give
+        different partitions, so it is best for a fast first look; use `cmty_leiden()` when
+        partition quality matters. Edge direction is ignored.
+
+        This is the unsupervised community detection method that NetworkX calls
+        `asyn_lpa_communities()`. It is different from `label_propagation()`, which spreads
+        a few *known* labels to classify the remaining nodes.
+
+        Parameters
+        ----------
+        seed
+            Random seed for the visiting order and tie-breaking. Set it for reproducible
+            results.
+        max_iter
+            Maximum number of passes over the nodes. Label propagation almost always settles
+            much sooner; the cap guards against rare oscillations. Default is `100`.
+        attr_name
+            Name of the node attribute to store community labels in. If `None` (default),
+            uses `"cmty_label_propagation"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            community labels as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to community labels
+            (`0`, `1`, ..., numbered in order of the lowest node ID in each). If `return_dict=`
+            is `False` (default): returns self.
+
+        Examples
+        --------
+        Two cliques joined by a single edge each settle on one label:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+                        ("D", "E")])
+        )
+
+        communities = graph.cmty_label_propagation(seed=3, return_dict=True)
+        {graph.get_label_from_id(n): c for n, c in sorted(communities.items())}
+        ```
+        """
+        if max_iter < 1:
+            raise ValueError(f"max_iter must be at least 1, got {max_iter}")
+        membership = rust.label_propagation_communities(self._graph, seed=seed, max_iter=max_iter)
+        if return_dict:
+            return membership
+        if attr_name is None:
+            attr_name = "cmty_label_propagation"
+        params = {}
+        if seed is not None:
+            params["seed"] = seed
+        if max_iter != 100:
+            params["max_iter"] = max_iter
+        args = ", ".join([f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"])
+        self._store_communities(
+            "cmty_label_propagation",
+            membership,
+            attr_name,
+            params,
+            f"G.cmty_label_propagation({args})",
+        )
+        return self
+
+    def cmty_k_clique(self, k: int = 3) -> list[list[int]]:
+        """
+        Find overlapping communities by k-clique percolation.
+
+        ![k-clique communities](/assets/graphs/cmty-k-clique.light.svg){.lightbox fig-alt="Two triangles A, B, C and B, C, D share an edge, so they merge into one community (accent color); triangle D, E, F shares only node D with it and forms a second community (teal). The two tinted regions overlap at D, which belongs to both. The pendant G is in no triangle and in no community." width="100%"}
+
+        The clique percolation method (Palla et al., 2005) builds communities out of cliques. A
+        *k-clique* is a set of `k` nodes that are all connected to one another. Two k-cliques
+        are adjacent if they share `k - 1` nodes, and a k-clique community is everything that
+        can be reached by "rolling" a k-clique from one adjacent k-clique to the next.
+
+        Unlike partitioning methods, communities found this way can **overlap**: a node in
+        several tightly knit groups belongs to all of them, which suits social networks where a
+        person has a family, a workplace and a sports team. Nodes in no k-clique (for example,
+        nodes of degree below `k - 1`) belong to no community. Larger `k` gives fewer, smaller,
+        more cohesive communities.
+
+        Parameters
+        ----------
+        k
+            The clique size. Must be at least `2`; with `k=2` the communities are the connected
+            components (minus isolated nodes). Default is `3` (triangles).
+
+        Returns
+        -------
+        list[list[int]]
+            The communities, each a sorted list of node IDs, largest first. Communities may
+            share nodes, and not every node needs to appear.
+
+        Raises
+        ------
+        ValueError
+            If `k` is below `2` or the graph is directed.
+
+        Examples
+        --------
+        Two triangle-rich groups share node D, which belongs to both communities, while the
+        pendant node G belongs to neither:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+                        ("D", "E"), ("D", "F"), ("E", "F"), ("F", "G")])
+        )
+
+        label = graph.get_label_from_id
+        [[label(n) for n in community] for community in graph.cmty_k_clique(k=3)]
+        ```
+        """
+        if k < 2:
+            raise ValueError(f"k must be at least 2, got {k}")
+        communities = rust.k_clique_communities(self._graph, k)
+
+        if self._recording_depth == 0:
+            groups: dict[str, int] = {}
+            for i, community in enumerate(communities):
+                for n in community:
+                    groups.setdefault(self._node_label(n), i)  # overlapping: first community
+            counts: dict[int, int] = {}
+            for community in communities:
+                for n in community:
+                    counts[n] = counts.get(n, 0) + 1
+            shared = sum(1 for c in counts.values() if c > 1)
+            note = f", {shared} node{'s' if shared != 1 else ''} shared" if shared else ""
+            self._record_step(
+                KIND_QUERY,
+                "cmty_k_clique",
+                f"G.cmty_k_clique(k={k})",
+                delta=StepDelta(node_groups=groups),
+                result=communities,
+                narration=f"{len(communities)} {k}-clique communities{note}.",
+            )
+        return communities
 
     def cmty_stochastic_block_model(
         self,
@@ -19072,6 +20355,9 @@ class Graph:
         Spreads known labels through the network: at each iteration every unlabeled node adopts the
         most common label among its neighbors (weighted by edge weight). Nodes whose labels are
         provided in `known_labels=` are held fixed throughout.
+
+        This method needs some labels to start from. To find communities with no labels at all
+        (what NetworkX calls `asyn_lpa_communities()`), use `cmty_label_propagation()`.
 
         This is a classic way to classify nodes when only a few of them have known classes: the
         assumption is that connected nodes tend to share a class (homophily), so labels "flow"
@@ -22655,6 +23941,155 @@ class Graph:
 
         return result
 
+    def ego_graph(
+        self,
+        node: Union[int, str],
+        radius: float = 1,
+        center: bool = True,
+        mode: str = "out",
+        weighted: bool | None = None,
+    ) -> "Graph":
+        """
+        Extract the neighborhood around a node as a new graph.
+
+        ![Ego graph](/assets/graphs/ego-graph.light.svg){.lightbox fig-alt="A six-node graph with node ids in pills; the ego C is outlined. Its radius-1 ego graph keeps C, its neighbors B, D, and E, and every edge among them, including B-D, which does not touch C, all in the accent color; A and F are dropped and shown dashed. The new graph keeps the labels but renumbers the ids 1 to 4." width="100%"}
+
+        The ego graph (or ego network) of a node is the subgraph induced by the node and every
+        node within `radius=` of it: its neighbors at radius 1, their neighbors too at radius 2,
+        and so on, along with all edges among them. Ego networks are the standard unit of
+        personal-network analysis in sociology ("who are this person's contacts, and how do
+        they know each other?"), and a convenient way to zoom in on one part of a large graph.
+
+        Distance follows the same rule as `shortest_path()`: hops on an unweighted graph, total
+        edge weight on a weighted graph (`Graph(weighted=True)`), unless `weighted=` says
+        otherwise. Note that with weights, `radius=` is a weight budget, not a hop count. Labels,
+        node attributes and edge attributes are kept in the new graph; as with `subgraph()`,
+        node IDs are renumbered from 1, so look nodes up by label.
+
+        This is a one-call version of `select_nodes_in_neighborhood()` followed by
+        `transform_to_subgraph_ws()`, and leaves the current selection alone.
+
+        Parameters
+        ----------
+        node
+            The center (the "ego"), as an integer ID or a string label.
+        radius
+            Include nodes at distance at most this from the center. Default is `1`.
+        center
+            If `True` (default), include the center node itself; if `False`, return only its
+            surroundings.
+        mode
+            Which way to measure distance on a directed graph: `"out"` follows edges from the
+            center (default), `"in"` follows them backward (who can reach the center), and
+            `"all"` ignores direction. Ignored for undirected graphs.
+        weighted
+            Whether to measure distance by edge weight. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        Graph
+            A new graph containing the ego network. The original graph is not modified.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `mode=` is invalid, `radius=` is negative, or weights
+            are used and one is negative.
+
+        Examples
+        --------
+        The radius-1 ego network of C holds C, its three neighbors, and the edges among them,
+        including B-D, which does not touch C:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D"),
+                        ("C", "E"), ("E", "F")])
+        )
+
+        ego = graph.ego_graph("C")
+        sorted(ego.get_edges_str_repr(use_labels=True))
+        ```
+
+        A larger radius reaches further out, and `center=False` leaves the ego out:
+
+        ```{python}
+        wider = graph.ego_graph("C", radius=2)
+        around = graph.ego_graph("C", center=False)
+        sorted(wider.get_node_df()["label"]), sorted(around.get_node_df()["label"])
+        ```
+
+        On a directed graph, `mode=` decides between followers and followees:
+
+        ```{python}
+        follows = (
+            ec.Graph(directed=True)
+            .add_nodes(["me", "a", "b", "c"])
+            .add_edges([("me", "a"), ("me", "b"), ("c", "me")])
+        )
+
+        (
+            sorted(follows.ego_graph("me", mode="out").get_node_df()["label"]),
+            sorted(follows.ego_graph("me", mode="in").get_node_df()["label"]),
+        )
+        ```
+        """
+        if radius < 0:
+            raise ValueError(f"radius must be non-negative, got {radius}")
+        if mode not in ("out", "in", "all", "total"):
+            raise ValueError(f"Invalid mode {mode!r}. Must be 'out', 'in', or 'all'")
+        node_id = self._resolve_node_id(node, auto_create=False)
+        within = rust.nodes_within(
+            self._graph, node_id, float(radius), mode, self._use_weights(weighted)
+        )
+        nodes = [n for n, _ in within if center or n != node_id]
+
+        self._recording_depth += 1
+        try:
+            result = self.subgraph(nodes)
+        finally:
+            self._recording_depth -= 1
+        result._record_step(
+            KIND_BUILD_NODES,
+            "ego_graph",
+            f"G.ego_graph({node!r})",
+            delta=StepDelta(
+                nodes_added=[
+                    result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                ],
+                edges_added=[
+                    (result._node_label(s), result._node_label(t))
+                    for _, s, t in result.get_edges_as_tuples()
+                ],
+            ),
+        )
+
+        if self._recording_depth == 0:
+            args = [repr(node)]
+            if radius != 1:
+                args.append(f"radius={radius!r}")
+            if not center:
+                args.append("center=False")
+            if mode != "out":
+                args.append(f"mode={mode!r}")
+            if weighted is not None:
+                args.append(f"weighted={weighted!r}")
+            self._record_step(
+                KIND_TRANSFORM,
+                "ego_graph",
+                f"G.ego_graph({', '.join(args)})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in sorted(nodes)]),
+                narration=(
+                    f"Ego graph of {self._node_label(node_id)}: {len(nodes)} nodes within "
+                    f"distance {radius:g}."
+                ),
+            )
+        return result
+
     def edge_subgraph(self, edges: list[int]) -> "Graph":
         """
         Extract a subgraph containing the specified edges and their endpoint nodes.
@@ -24800,7 +26235,10 @@ class Graph:
         return self
 
     def betweenness_centrality(
-        self, attr_name: str | None = None, return_dict: bool = False
+        self,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         """
         Calculate betweenness centrality scores for all nodes.
@@ -24818,10 +26256,17 @@ class Graph:
         - detecting potential bottlenecks or points of failure
 
         The algorithm computes shortest paths between all pairs of nodes and counts how many times
-        each node appears on these paths.
+        each node appears on these paths. On a weighted graph (`Graph(weighted=True)`), "shortest"
+        means lowest total edge weight, found with Dijkstra's algorithm, so that betweenness agrees
+        with `shortest_path()`; on an unweighted graph it means fewest hops.
 
         Parameters
         ----------
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph:
+            weights are used on a weighted graph (`Graph(weighted=True)`) and hop counts
+            otherwise, the same rule `shortest_path()` uses. Pass `True` or `False` to override.
+            Edges without a weight count as `1.0`; weights must be non-negative.
         attr_name
             Column name to store betweenness scores in the node DataFrame. If `None` (default),
             automatically uses `betweenness_centrality`. Overwrites column if it already exists.
@@ -24867,8 +26312,27 @@ class Graph:
         scores = graph.betweenness_centrality(return_dict=True)
         sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
         ```
+
+        On a weighted graph, paths follow the cheapest route. Here the direct edge A-C is so
+        heavy that traffic between A and C detours through B, which only then gains betweenness:
+
+        ```{python}
+        edges = [("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)]
+        weighted = ec.Graph(weighted=True).add_nodes(["A", "B", "C"]).add_edges(edges)
+
+        label = weighted.get_label_from_id
+        (
+            {label(n): s for n, s in weighted.betweenness_centrality(return_dict=True).items()},
+            {label(n): s for n, s in weighted.betweenness_centrality(
+                weighted=False, return_dict=True).items()},
+        )
+        ```
         """
-        result_ids = rust.betweenness_centrality(self._graph)
+        use_weights = self._use_weights(weighted)
+        if use_weights:
+            result_ids = rust.betweenness_centrality_weighted(self._graph)
+        else:
+            result_ids = rust.betweenness_centrality(self._graph)
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -24879,11 +26343,150 @@ class Graph:
 
         # Track computation
         if not return_dict:
-            self._computations.append(("betweenness_centrality", {}, attr_name))
+            params = {} if weighted is None else {"weighted": weighted}
+            self._computations.append(("betweenness_centrality", params, attr_name))
 
         # Return dict if requested, otherwise return self for chaining
         if return_dict:
             return result_ids
+        return self
+
+    def edge_betweenness_centrality(
+        self,
+        normalized: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate betweenness centrality scores for all edges.
+
+        ![Edge betweenness centrality](/assets/graphs/edge-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more shortest paths run through it. The bridge E-F, which every path from the triangles to the tail must cross, is thickest and in accent at 0.48, ahead of C-E at 0.36 and F-G at 0.29; the triangle edges A-B and C-D carry the least, 0.07." width="100%"}
+
+        Edge betweenness centrality measures how many shortest paths run through each edge. For
+        every pair of nodes, each shortest path between them contributes to the edges it uses;
+        when a pair has several shortest paths, each one counts for an equal share. Edges with
+        high scores carry a lot of the graph's traffic: they are bridges between clusters,
+        bottlenecks, and the first links to fail or congest.
+
+        This is the edge counterpart of `betweenness_centrality()`, and it is the quantity that
+        the Girvan-Newman method (`cmty_edge_btwns()`, `cmty_girvan_newman()`) removes edges by
+        to split a graph into communities. Use it on its own to:
+
+        - find the links whose loss would most lengthen paths in a network
+        - spot inter-community edges before running community detection
+        - weight or prune edges by how structurally important they are
+
+        Parallel edges are separate routes and split their shared paths between them;
+        self-loops score `0`. On a weighted graph (`Graph(weighted=True)`) shortest paths
+        minimize total edge weight (Dijkstra's algorithm), so only the cheapest parallel edges
+        carry paths; on an unweighted graph they minimize hops.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), divide scores by `n * (n - 1)`, the number of ordered node
+            pairs, so they fall in `[0, 1]`. If `False`, return raw path counts (halved for
+            undirected graphs so that each unordered pair is counted once). Both match
+            NetworkX's `edge_betweenness_centrality()`.
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph:
+            weights are used on a weighted graph (`Graph(weighted=True)`) and hop counts
+            otherwise, the same rule `shortest_path()` uses. Pass `True` or `False` to override.
+            Edges without a weight count as `1.0`; weights must be non-negative.
+        attr_name
+            Name of the edge attribute to store the scores in. If `None` (default),
+            automatically uses `"edge_betweenness_centrality"`. Overwrites the attribute if it
+            already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as an edge attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: dictionary mapping edge IDs to betweenness scores. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        Two triangles joined by a single edge: every path between the triangles must cross the
+        bridge, so it has by far the highest score:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+            .add_edge("C", "D")  # the bridge
+            .add_edges([("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        scores = graph.edge_betweenness_centrality(return_dict=True)
+        label = graph.get_label_from_id
+        {
+            "-".join(label(n) for n in graph.get_node_ids_by_edge_id(eid)): round(s, 3)
+            for eid, s in sorted(scores.items(), key=lambda kv: -kv[1])
+        }
+        ```
+
+        With `normalized=False` the scores are path counts. The bridge lies on the shortest
+        path of all `3 * 3 = 9` pairs that have one node in each triangle, plus none of the
+        within-triangle pairs:
+
+        ```{python}
+        raw = graph.edge_betweenness_centrality(normalized=False, return_dict=True)
+        max(raw.values())
+        ```
+
+        Without `return_dict=`, the scores are stored on the edges, where they can be used to
+        select or filter edges. The top row is the bridge, between node IDs 3 (`C`) and 4 (`D`):
+
+        ```{python}
+        graph.edge_betweenness_centrality(attr_name="ebc")
+
+        graph.get_edge_df().select(["source", "target", "ebc"]).sort("ebc", descending=True).head(3)
+        ```
+        """
+        if attr_name is None:
+            attr_name = "edge_betweenness_centrality"
+
+        scores = rust.edge_betweenness_centrality(
+            self._graph, normalized=normalized, weighted=self._use_weights(weighted)
+        )
+
+        if return_dict:
+            return scores
+
+        for edge_id, value in scores.items():
+            self._graph.set_edge_attr(edge_id, attr_name, value)
+
+        params = {} if normalized else {"normalized": False}
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._computations.append(("edge_betweenness_centrality", params, attr_name))
+
+        if self._recording_depth == 0:
+            emv: dict[tuple[str, str], float] = {}
+            for edge_id, value in scores.items():
+                ends = self.get_node_ids_by_edge_id(edge_id)
+                if ends is None:
+                    continue
+                key = tuple(self.get_label_from_id(n) or str(n) for n in ends)
+                # Parallel edges share one drawn edge in the player, so show their total
+                emv[key] = emv.get(key, 0.0) + float(value)
+            args = ", ".join(
+                [f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                "edge_betweenness_centrality",
+                f"G.edge_betweenness_centrality({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(scores)}, edge_metric_values=emv),
+            )
+
         return self
 
     def knotty_centrality(
@@ -26150,6 +27753,7 @@ class Graph:
         weights: str = None,
         normalized: bool = False,
         cutoff: int = -1,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -26164,7 +27768,8 @@ class Graph:
         for disconnected graphs.
 
         The formula is: `H(v) = Σ 1 / d(v,u)` for all `u ≠ v`, where `d(v,u)` is the shortest path
-        distance from `v` to `u`.
+        distance from `v` to `u`: the total edge weight on a weighted graph
+        (`Graph(weighted=True)`), the number of hops otherwise.
 
         When `normalized=True`, the result is divided by `(n - 1)`, giving the mean inverse
         distance, which is bounded between `0` and `1`.
@@ -26176,14 +27781,19 @@ class Graph:
             their direction (default), (2) `"in"` follows edges in reverse, and (3) `"all"` or
             `"total"` ignores edge directions (only for undirected graphs).
         weights
-            Optional edge attribute name for weighted distances. Currently not implemented; uses
-            unweighted shortest paths (hop count).
+            Not supported; passing a value raises `ValueError`. Edge weights are used through
+            `weighted=` instead.
         normalized
             If `True`, divides by `(n - 1)` to normalize scores to the `[0, 1]` range. If `False`
             (the default), returns raw sum of inverse distances.
         cutoff
-            Maximum path length to consider. Paths longer than cutoff are ignored. Use `-1`
-            (default) for no limit.
+            Maximum path length to consider (in hops, or in total weight when weights are used).
+            Paths longer than cutoff are ignored. Use `-1` (default) for no limit.
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph:
+            weights are used on a weighted graph (`Graph(weighted=True)`) and hop counts
+            otherwise, the same rule `shortest_path()` uses. Pass `True` or `False` to override.
+            Edges without a weight count as `1.0`; weights must be non-negative.
         attr_name
             Column name to store harmonic centrality scores in the node DataFrame. If `None`
             (default), automatically uses 'harmonic_centrality'. Overwrites column if it already
@@ -26291,6 +27901,7 @@ class Graph:
             weights=weights,
             normalized=normalized,
             cutoff=cutoff,
+            weighted=self._use_weights(weighted),
         )
 
         # Auto-generate attribute name if not provided
@@ -26311,12 +27922,1365 @@ class Graph:
                 params["normalized"] = normalized
             if cutoff != -1:
                 params["cutoff"] = cutoff
+            if weighted is not None:
+                params["weighted"] = weighted
             self._computations.append(("harmonic_centrality", params, attr_name))
 
         # Return dict if requested, otherwise return self for chaining
         if return_dict:
             return result_ids
         return self
+
+    def closeness_centrality(
+        self,
+        mode: str = "out",
+        wf_improved: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate closeness centrality scores for all nodes.
+
+        ![Closeness centrality](/assets/graphs/closeness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by closeness, the reciprocal of the mean distance to every other node. Hub C and bridge E are both an average of 1.5 hops from the rest and tie at 0.67, followed by D 0.60, B and F 0.50, A 0.46, and the pendant node G at 0.35." width="100%"}
+
+        Closeness centrality is the reciprocal of a node's average shortest-path distance to the
+        nodes it can reach. A node that is only a hop or two from everyone else scores close to
+        `1`, while a node on the periphery, many hops from most of the graph, scores low.
+
+        The formula is `C(v) = r / Σ d(v,u)`, summed over the `r` nodes `u` reachable from `v`.
+        In a disconnected graph that ratio alone would over-reward nodes in small components
+        (two nodes joined by one edge would both score `1`), so by default the score is also
+        multiplied by `r / (n - 1)`, the fraction of the graph that `v` can reach. This is the
+        Wasserman-Faust correction; set `wf_improved=False` to turn it off. On a connected graph
+        `r = n - 1` and the correction has no effect. Nodes that reach nothing score `0`.
+
+        On a weighted graph (`Graph(weighted=True)`) distances are total edge weights (Dijkstra's
+        algorithm), so closeness is consistent with `shortest_path_length()`; on an unweighted
+        graph they are hop counts. For a reachability-based measure
+        that sums `1 / d` instead of averaging `d`, see `harmonic_centrality()`.
+
+        Parameters
+        ----------
+        mode
+            Direction for measuring distances in directed graphs where: (1) `"out"` follows edges
+            in their direction, measuring how close `v` is *to* others (default), (2) `"in"`
+            follows edges in reverse, measuring how close others are *to* `v`, and (3) `"all"`
+            ignores edge directions. Ignored for undirected graphs. Note that NetworkX's
+            `closeness_centrality()` uses incoming distances, which corresponds to `mode="in"`.
+        wf_improved
+            If `True` (the default), scale each score by the fraction of other nodes it can reach
+            (the Wasserman-Faust correction). If `False`, use only the reachable nodes.
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph:
+            weights are used on a weighted graph (`Graph(weighted=True)`) and hop counts
+            otherwise, the same rule `shortest_path()` uses. Pass `True` or `False` to override.
+            Edges without a weight count as `1.0`; weights must be non-negative.
+        attr_name
+            Column name to store closeness scores in the node DataFrame. If `None` (default),
+            automatically uses `"closeness_centrality"`. Overwrites the column if it already
+            exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF
+            and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to closeness scores (range
+            `[0, 1]`). If `return_dict=` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        In a path, the middle node is the fewest hops from everyone else, so it has the highest
+        closeness while the two ends have the lowest:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        )
+
+        scores = graph.closeness_centrality(return_dict=True)
+        {graph.get_label_from_id(nid): round(c, 3) for nid, c in sorted(scores.items())}
+        ```
+
+        In a disconnected graph the Wasserman-Faust correction keeps the two nodes of a lone
+        edge from outranking the hub of a larger star. Turning it off shows the difference:
+
+        ```{python}
+        graph = (
+            ec.Graph()
+            .add_nodes(["Hub", "A", "B", "C", "X", "Y"])
+            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("X", "Y")])
+        )
+
+        corrected = graph.closeness_centrality(return_dict=True)
+        raw = graph.closeness_centrality(wf_improved=False, return_dict=True)
+        {
+            graph.get_label_from_id(nid): (round(corrected[nid], 2), round(raw[nid], 2))
+            for nid in sorted(corrected)
+        }
+        ```
+
+        In a directed graph, `mode=` decides whether distances are measured from or to each
+        node. In a chain, the source reaches everyone but nothing reaches it:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C")])
+        )
+
+        out_scores = graph.closeness_centrality(mode="out", return_dict=True)
+        in_scores = graph.closeness_centrality(mode="in", return_dict=True)
+        {
+            graph.get_label_from_id(nid): (round(out_scores[nid], 2), round(in_scores[nid], 2))
+            for nid in sorted(out_scores)
+        }
+        ```
+
+        Without `return_dict=`, the scores are stored as a node attribute for later use:
+
+        ```{python}
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D")])
+            .closeness_centrality(attr_name="closeness")
+        )
+
+        graph.get_node_df().select(["label", "closeness"])
+        ```
+        """
+        if mode not in ("out", "in", "all", "total"):
+            raise ValueError(f"Invalid mode {mode!r}. Must be 'out', 'in', or 'all'")
+
+        if attr_name is None:
+            attr_name = "closeness_centrality"
+
+        scores = rust.closeness_centrality(
+            self._graph, mode=mode, wf_improved=wf_improved, weighted=self._use_weights(weighted)
+        )
+
+        if return_dict:
+            return scores
+
+        for node_id, value in scores.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        params = {}
+        if mode != "out":
+            params["mode"] = mode
+        if not wf_improved:
+            params["wf_improved"] = wf_improved
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._computations.append(("closeness_centrality", params, attr_name))
+
+        if self._recording_depth == 0:
+            mv = {(self.get_label_from_id(nid) or str(nid)): float(v) for nid, v in scores.items()}
+            args = ", ".join(
+                [f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                "closeness_centrality",
+                f"G.closeness_centrality({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(scores)}, metric_values=mv),
+            )
+
+        return self
+
+    def degree_centrality(
+        self,
+        mode: str = "all",
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate degree centrality scores for all nodes.
+
+        ![Degree centrality](/assets/graphs/degree-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by degree centrality, each degree divided by n - 1 = 6. Hub C touches four of the six other nodes and tops the table at 0.67, followed by B, D and E at 0.50, A and F at 0.33, and the pendant node G at 0.17." width="100%"}
+
+        Degree centrality is a node's degree divided by `n - 1`, the largest degree any node can
+        have in a simple graph with `n` nodes. A score of `1` means the node is adjacent to every
+        other node; `0` means it is isolated. Dividing by `n - 1` makes scores comparable across
+        graphs of different sizes, which raw degrees from `degrees()` are not.
+
+        In directed graphs, `mode=` chooses which edges count: incoming edges (in-degree
+        centrality, often read as popularity or prestige), outgoing edges (out-degree
+        centrality, often read as activity or influence), or both.
+
+        A self-loop adds `2` to a node's total degree, and parallel edges each count, so scores
+        can exceed `1` on graphs that are not simple. This matches NetworkX's
+        `degree_centrality()`, `in_degree_centrality()`, and `out_degree_centrality()`.
+
+        Parameters
+        ----------
+        mode
+            Which degree to use in directed graphs where: (1) `"all"` counts incoming and
+            outgoing edges (default), (2) `"in"` counts incoming edges only, and (3) `"out"`
+            counts outgoing edges only. Ignored for undirected graphs.
+        attr_name
+            Column name to store degree centrality scores in the node DataFrame. If `None`
+            (default), automatically uses `"degree_centrality"`. Overwrites the column if it
+            already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores in NDF
+            and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to degree centrality
+            scores. If `return_dict=` is `False` (default): returns self for method chaining.
+
+        Examples
+        --------
+        The hub of a star is adjacent to every other node, so its degree centrality is `1`;
+        each leaf touches one of the four other nodes and scores `0.25`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["Hub", "A", "B", "C", "D"])
+            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D")])
+        )
+
+        scores = graph.degree_centrality(return_dict=True)
+        {graph.get_label_from_id(nid): score for nid, score in sorted(scores.items())}
+        ```
+
+        In a directed graph, in-degree and out-degree centrality can rank nodes very
+        differently. Here everyone follows "Celebrity", who follows no one back:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["Celebrity", "Fan1", "Fan2", "Fan3"])
+            .add_edges([("Fan1", "Celebrity"), ("Fan2", "Celebrity"), ("Fan3", "Celebrity")])
+            .add_edge("Fan1", "Fan2")
+            .degree_centrality(mode="in", attr_name="in_deg")
+            .degree_centrality(mode="out", attr_name="out_deg")
+        )
+
+        graph.get_node_df().select(["label", "in_deg", "out_deg"])
+        ```
+        """
+        if mode not in ("all", "total", "in", "out"):
+            raise ValueError(f"Invalid mode {mode!r}. Must be 'all', 'in', or 'out'")
+
+        if attr_name is None:
+            attr_name = "degree_centrality"
+
+        scores = rust.degree_centrality(self._graph, mode=mode)
+
+        if return_dict:
+            return scores
+
+        for node_id, value in scores.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+
+        params = {"mode": mode} if mode != "all" else {}
+        self._computations.append(("degree_centrality", params, attr_name))
+
+        if self._recording_depth == 0:
+            mv = {(self.get_label_from_id(nid) or str(nid)): float(v) for nid, v in scores.items()}
+            args = ", ".join(
+                [f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                "degree_centrality",
+                f"G.degree_centrality({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(scores)}, metric_values=mv),
+            )
+
+        return self
+
+    def _node_metric_result(
+        self,
+        method: str,
+        scores: dict,
+        attr_name: str | None,
+        return_dict: bool,
+        params: dict,
+    ) -> Union[dict, "Graph"]:
+        """Return a node -> score dict, or store it as an attribute and record a metric step."""
+        if return_dict:
+            return scores
+        if attr_name is None:
+            attr_name = method
+        for node_id, value in scores.items():
+            self._graph.set_node_attr(node_id, attr_name, value)
+        self._computations.append((method, params, attr_name))
+        if self._recording_depth == 0:
+            mv = {
+                self._node_label(n): float(v)
+                for n, v in sorted(scores.items())
+                if v is not None and not (isinstance(v, float) and math.isnan(v))
+            }
+            args = ", ".join(
+                [f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                method,
+                f"G.{method}({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(scores)}, metric_values=mv),
+            )
+        return self
+
+    def subgraph_centrality(
+        self, attr_name: str | None = None, return_dict: bool = False
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate subgraph centrality scores for all nodes.
+
+        ![Subgraph centrality](/assets/graphs/subgraph-centrality.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by subgraph centrality, which counts closed walks that start and end at each node. Hub C sits in three triangles and scores 6.17, ahead of D 4.74 and B 4.67, while the tail nodes F 2.32 and G 1.59, in no triangle, score least." width="100%"}
+
+        Subgraph centrality (Estrada & Rodríguez-Velázquez, 2005) counts the closed walks that
+        start and end at a node, weighting a walk of length `k` by `1/k!`. Short closed walks
+        (triangles, squares, back-and-forth steps) dominate, so the score rewards nodes that sit
+        inside many small, tightly knit structures rather than simply having many neighbors.
+        Mathematically it is the node's diagonal entry of `exp(A)`, the exponential of the
+        adjacency matrix; summing it over all nodes gives `get_estrada_index()`.
+
+        It is used in biology (proteins in dense functional modules score high) and to tell
+        apart nodes that a degree count would tie. Edges are treated as unweighted and parallel
+        edges count once. Undirected graphs only.
+
+        Parameters
+        ----------
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"subgraph_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores (each at least
+            `1`, from the empty walk). If `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        In a triangle with a tail, the triangle's nodes sit on more short closed walks than the
+        tail, even where degrees tie:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E")])
+        )
+
+        scores = graph.subgraph_centrality(return_dict=True)
+        {graph.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        ```
+        """
+        scores = rust.subgraph_centrality(self._graph)
+        return self._node_metric_result("subgraph_centrality", scores, attr_name, return_dict, {})
+
+    def current_flow_betweenness_centrality(
+        self,
+        normalized: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate current-flow (random-walk) betweenness for all nodes.
+
+        ![Current-flow betweenness centrality](/assets/graphs/current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by current-flow betweenness, the share of electrical current through each node when every pair in turn injects and draws a unit of current. The bridge E carries the most at 0.58, then the hub C 0.43 and the tail node F 0.33; the pendant G carries none." width="100%"}
+
+        Ordinary betweenness assumes everything travels along shortest paths. Current-flow
+        betweenness (Newman 2005; Brandes & Fleischer 2005) instead treats the graph as an
+        electrical network: for every pair of nodes, one unit of current enters at one and
+        leaves at the other, spreading over *all* paths in proportion to their conductance, and
+        a node's score is the total current passing through it. Equivalently, it counts how
+        often a random walk between the pair passes through the node.
+
+        This captures influence in networks where flow is not optimally routed (rumors, disease,
+        power grids), and gives credit to nodes on near-shortest alternative routes, which
+        shortest-path betweenness ignores. Edge weights act as conductances: heavier edges carry
+        more current. The graph must be undirected and connected.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), divide by `(n - 1)(n - 2) / 2`, the number of pairs not
+            involving the node, so scores lie in `[0, 1]`. Matches NetworkX.
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph
+            (weights on `Graph(weighted=True)`). Weights must be positive.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"current_flow_betweenness_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or a weight is not positive.
+
+        Examples
+        --------
+        In a square with one diagonal, shortest-path betweenness gives the corners off the
+        diagonal no credit, because the diagonal is always shortest. Current flow still sends
+        some of the traffic around through them:
+
+        ```{python}
+        import edgecase as ec
+
+        square = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        )
+
+        label = square.get_label_from_id
+        flow = square.current_flow_betweenness_centrality(return_dict=True)
+        paths = square.betweenness_centrality(return_dict=True)
+        {label(n): (round(flow[n], 3), round(paths[n], 3)) for n in sorted(flow)}
+        ```
+        """
+        scores = rust.current_flow_betweenness_centrality(
+            self._graph, normalized=normalized, weighted=self._use_weights(weighted)
+        )
+        params = {} if normalized else {"normalized": False}
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._node_metric_result(
+            "current_flow_betweenness_centrality", scores, attr_name, return_dict, params
+        )
+
+    def current_flow_closeness_centrality(
+        self,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate current-flow closeness (information centrality) for all nodes.
+
+        ![Current-flow closeness centrality](/assets/graphs/current-flow-closeness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by current-flow closeness, based on the effective resistance from each node to all others. The bridge E edges out the hub C, 0.159 to 0.156, ahead of D 0.147, while the pendant G, behind a single edge, scores 0.070." width="100%"}
+
+        Closeness centrality uses shortest-path distances; current-flow closeness uses
+        *effective resistance* instead, treating each edge as a resistor (Brandes & Fleischer
+        2005). The effective resistance between two nodes is small when they are joined by many
+        short, parallel routes, so it accounts for every path rather than only the shortest.
+        The score is the reciprocal of a node's total effective resistance to all others. It is
+        the same measure as Stephenson & Zelen's *information centrality*, which NetworkX also
+        exposes as `information_centrality()`.
+
+        Edge weights act as conductances (higher weight, lower resistance). The graph must be
+        undirected and connected. For the resistances themselves, see
+        `resistance_distance_matrix()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph.
+            Weights must be positive.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"current_flow_closeness_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or a weight is not positive.
+
+        Examples
+        --------
+        The hub of a star is electrically closest to everyone:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_star_graph(5)
+
+        scores = star.current_flow_closeness_centrality(return_dict=True)
+        {n: round(s, 3) for n, s in sorted(scores.items())}
+        ```
+        """
+        scores = rust.current_flow_closeness_centrality(
+            self._graph, weighted=self._use_weights(weighted)
+        )
+        params = {} if weighted is None else {"weighted": weighted}
+        return self._node_metric_result(
+            "current_flow_closeness_centrality", scores, attr_name, return_dict, params
+        )
+
+    def _group_ids(self, group) -> list[int]:
+        items = group if isinstance(group, (list, tuple, set)) else [group]
+        ids = list(dict.fromkeys(self._resolve_node_id(g, auto_create=False) for g in items))
+        if not ids:
+            raise ValueError("The group must contain at least one node")
+        return ids
+
+    def _record_group_step(self, method: str, group, ids: list[int], value: float) -> None:
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                method,
+                f"G.{method}({group!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in ids]),
+                result=value,
+                narration=f"{method}() of {len(ids)} nodes: {value:.3f}.",
+            )
+
+    def group_betweenness_centrality(
+        self,
+        group: list[Union[int, str]],
+        normalized: bool = True,
+        endpoints: bool = False,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Calculate the betweenness centrality of a group of nodes.
+
+        ![Group betweenness centrality](/assets/graphs/group-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph twice. Left, the group C, F intercepts 0.6 of the shortest-path traffic between the five outside nodes, including every path from the triangles to the pendant G. Right, the group A, B sits at the end of the strip, no shortest path between other nodes needs it, and it scores 0.0." width="100%"}
+
+        Group betweenness (Everett & Borgatti, 1999) measures how much a *set* of nodes, taken
+        together, sits between everyone else: for each pair of nodes outside the group, it adds
+        the fraction of their shortest paths that pass through at least one group member. A
+        path through two members counts once, so the score is not the sum of individual
+        betweenness values, and choosing members that cover *different* routes matters more
+        than choosing the individually most central nodes.
+
+        Typical uses are picking a team of brokers, monitoring points or checkpoints that
+        together intercept the most traffic. "Shortest" follows `shortest_path()`: hops on an
+        unweighted graph, total weight on a weighted one.
+
+        Parameters
+        ----------
+        group
+            The group's nodes, as integer IDs or string labels.
+        normalized
+            If `True` (default), divide by `(n - c)(n - c - 1)`, the number of ordered pairs
+            outside a group of size `c`, so the score lies in `[0, 1]`. If `False`, return the raw
+            sum (each unordered pair counted once on undirected graphs).
+        endpoints
+            If `True`, also count pairs with an endpoint in the group (every such path touches
+            the group). Default is `False`.
+        weighted
+            Whether to measure path length by edge weight. If `None` (default), follows the
+            graph.
+
+        Returns
+        -------
+        float
+            The group betweenness.
+
+        Raises
+        ------
+        ValueError
+            If the group is empty, contains a node that does not exist, or weights are used and
+            one is negative.
+
+        Examples
+        --------
+        In two triangles joined by a bridge C-D, the pair of bridge ends intercepts every path
+        between the triangles, while two nodes from the same triangle intercept far less:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        (
+            round(graph.group_betweenness_centrality(["C", "D"]), 3),
+            round(graph.group_betweenness_centrality(["A", "B"]), 3),
+        )
+        ```
+
+        Notes
+        -----
+        NetworkX's `group_betweenness_centrality()` can return values that disagree with this
+        definition (seen on directed graphs that are not strongly connected, where it can also
+        fail, and on some connected undirected graphs). EdgeCase counts shortest paths directly
+        and agrees with a brute-force count over all of them.
+        """
+        ids = self._group_ids(group)
+        value = rust.group_betweenness_centrality(
+            self._graph, ids, normalized, endpoints, self._use_weights(weighted)
+        )
+        self._record_group_step("group_betweenness_centrality", group, ids, value)
+        return value
+
+    def group_closeness_centrality(
+        self, group: list[Union[int, str]], weighted: bool | None = None
+    ) -> float:
+        """
+        Calculate the closeness centrality of a group of nodes.
+
+        ![Group closeness centrality](/assets/graphs/group-closeness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph twice, each outside node badged with its distance to the nearest group member. Left, every outside node is one hop from C or F, so the score is 5 / 5 = 1.0. Right, from A, B the distances are 1, 1, 2, 3 and 4, so the score is 5 / 11 = 0.455." width="100%"}
+
+        Group closeness (Everett & Borgatti, 1999) measures how near the rest of the network is
+        to a set of nodes: each node outside the group is as far away as its *nearest* member,
+        and the score is the number of outside nodes divided by the sum of those distances. A
+        high value means that, between them, the members can reach everyone quickly, which is
+        the criterion for placing several facilities, seeding a campaign from a few starting
+        points, or choosing a committee that is well connected to everyone.
+
+        On directed graphs the distance is measured *to* the group (how quickly others can
+        reach it), as in NetworkX. Nodes that cannot reach the group add nothing. Distances
+        follow `shortest_path()`: hops, or total weight on a weighted graph.
+
+        Parameters
+        ----------
+        group
+            The group's nodes, as integer IDs or string labels.
+        weighted
+            Whether to measure distance by edge weight. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The group closeness (`0` if no outside node can reach the group).
+
+        Raises
+        ------
+        ValueError
+            If the group is empty, contains a node that does not exist, or weights are used and
+            one is negative.
+
+        Examples
+        --------
+        On a path of seven nodes, two members spread out along it are closer to everyone than
+        two members side by side:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(7)
+
+        spread = path.group_closeness_centrality([2, 6])
+        bunched = path.group_closeness_centrality([3, 4])
+        round(spread, 3), round(bunched, 3)
+        ```
+        """
+        ids = self._group_ids(group)
+        value = rust.group_closeness_centrality(self._graph, ids, self._use_weights(weighted))
+        self._record_group_step("group_closeness_centrality", group, ids, value)
+        return value
+
+    def group_degree_centrality(self, group: list[Union[int, str]], mode: str = "all") -> float:
+        """
+        Calculate the degree centrality of a group of nodes.
+
+        ![Group degree centrality](/assets/graphs/group-degree-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph twice. Left, the group C, F: between them they touch all five outside nodes A, B, D, E and G, drawn in accent, so the score is 5 / 5 = 1.0. Right, the group A, B reaches only C and D, 2 of 5, for 0.4." width="100%"}
+
+        Group degree (Everett & Borgatti, 1999) is the share of nodes outside the group that
+        are adjacent to at least one member: the reach of the group in a single step. Because a
+        neighbor shared by two members counts once, members with *non-overlapping*
+        neighborhoods give the group a wider reach than members who know the same people.
+
+        Parameters
+        ----------
+        group
+            The group's nodes, as integer IDs or string labels.
+        mode
+            Which neighbors count on a directed graph: `"all"` (default) counts both directions,
+            `"out"` nodes the group points to (NetworkX's `group_out_degree_centrality()`, and
+            also what its `group_degree_centrality()` computes on directed graphs), and `"in"`
+            nodes pointing to the group (`group_in_degree_centrality()`). Ignored for undirected
+            graphs.
+
+        Returns
+        -------
+        float
+            The group degree centrality, between `0` and `1`.
+
+        Raises
+        ------
+        ValueError
+            If the group is empty, contains a node that does not exist, or `mode=` is invalid.
+
+        Examples
+        --------
+        The two hubs of a "double star" reach every leaf between them:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["h1", "h2", "a", "b", "c", "d"])
+            .add_edges([("h1", "a"), ("h1", "b"), ("h2", "c"), ("h2", "d"), ("h1", "h2")])
+        )
+
+        graph.group_degree_centrality(["h1", "h2"]), graph.group_degree_centrality(["h1", "a"])
+        ```
+        """
+        if mode not in ("all", "total", "in", "out"):
+            raise ValueError(f"Invalid mode {mode!r}. Must be 'all', 'in', or 'out'")
+        ids = self._group_ids(group)
+        value = rust.group_degree_centrality(self._graph, ids, mode)
+        self._record_group_step("group_degree_centrality", group, ids, value)
+        return value
+
+    def voterank(self, count: int | None = None) -> list[int]:
+        """
+        Find a set of influential spreaders with VoteRank.
+
+        ![VoteRank spreaders](/assets/graphs/voterank.light.svg){.lightbox fig-alt="The shared seven-node graph with the two spreaders VoteRank elects filled in accent and numbered in election order: first B, which ties on three votes and has the lowest id, then E in the other cluster, because B's neighbors lose voting power once B is elected. The card returns B, E." width="100%"}
+
+        VoteRank (Zhang et al., 2016) picks seed nodes for spreading something (information, a
+        product, an intervention) one at a time by voting. Every node starts with one vote and
+        votes for each of its neighbors; the node with the most votes is elected. The winner then
+        stops voting, and its neighbors' voting ability drops by `1 / average degree`, so the next
+        winner tends to sit in a different part of the network. The result spreads seeds out,
+        avoiding the overlap you get by simply taking the highest-degree nodes.
+
+        On a directed graph a node collects votes from the nodes it points to, as in NetworkX.
+        Ties go to the lowest node ID.
+
+        Parameters
+        ----------
+        count
+            How many spreaders to pick. If `None` (default), keep electing until no node has a
+            positive vote, or every node is chosen.
+
+        Returns
+        -------
+        list[int]
+            The elected node IDs, in election order.
+
+        Raises
+        ------
+        ValueError
+            If `count=` is negative.
+
+        Examples
+        --------
+        Two stars joined by their hubs: VoteRank elects one hub, then the other, rather than
+        two nodes from the same star:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["h1", "a", "b", "c", "h2", "d", "e", "f"])
+            .add_edges([("h1", "a"), ("h1", "b"), ("h1", "c"), ("h1", "h2"),
+                        ("h2", "d"), ("h2", "e"), ("h2", "f")])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.voterank(count=2)]
+        ```
+        """
+        if count is not None and count < 0:
+            raise ValueError(f"count must be non-negative, got {count}")
+        elected = rust.voterank(self._graph, count)
+
+        if self._recording_depth == 0:
+            ranks = {self._node_label(n): i for i, n in enumerate(elected)}
+            self._record_step(
+                KIND_QUERY,
+                "voterank",
+                "G.voterank()" if count is None else f"G.voterank(count={count!r})",
+                delta=StepDelta(nodes_selected=list(ranks), node_groups=ranks),
+                result=elected,
+                narration=f"VoteRank elected {len(elected)} spreaders: "
+                + ", ".join(list(ranks)[:6])
+                + (" …" if len(elected) > 6 else "")
+                + ".",
+            )
+        return elected
+
+    def trophic_levels(
+        self,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate the trophic level of every node in a directed graph.
+
+        ![Trophic levels](/assets/graphs/trophic-levels.light.svg){.lightbox fig-alt="A food web drawn left to right by trophic level: grass G feeds rabbit R and mouse M, both feed fox F, and mouse and fox feed owl O. Grass is basal at level 1, the rabbit and mouse sit at 2, the fox at 3, and the owl, eating at levels 2 and 3, at 3.5, the top of the table." width="100%"}
+
+        Trophic levels come from food-web ecology (Levine, 1980), where an edge points from
+        prey to predator. Basal nodes, those with no incoming edges (plants), have level 1, and
+        every other node sits one level above the average level of what feeds it, weighted by
+        edge weight. The result is a continuous hierarchy: a node fed half by plants (level 1)
+        and half by herbivores (level 2) gets level 2.5.
+
+        The same idea measures position in any flow or dependency network: citation chains,
+        supply chains, or the layering of a software system. Every node must be reachable from
+        a basal node, or levels are undefined. Edge weights are used on a weighted graph
+        (`Graph(weighted=True)`), unless `weighted=` says otherwise. Self-loops (cannibalism)
+        count toward a node's diet. See also `trophic_differences()` and
+        `trophic_incoherence_parameter()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to weight diets by edge weight. If `None` (default), follows the graph.
+        attr_name
+            Name of the node attribute to store levels in. If `None` (default), uses
+            `"trophic_levels"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            levels as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to levels (basal nodes are
+            `1.0`). If `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, has no basal node, or has a node not reachable from one.
+
+        Examples
+        --------
+        A small food web: the fox eats rabbits and mice (both level 2), so it sits at level 3;
+        the owl eats mice (2) and foxes (3), so it sits at 1 + (2 + 3) / 2 = 3.5:
+
+        ```{python}
+        import edgecase as ec
+
+        web = (
+            ec.Graph(directed=True)
+            .add_nodes(["grass", "rabbit", "mouse", "fox", "owl"])
+            .add_edges([("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
+                        ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")])
+        )
+
+        levels = web.trophic_levels(return_dict=True)
+        {web.get_label_from_id(n): level for n, level in sorted(levels.items())}
+        ```
+        """
+        scores = rust.trophic_levels(self._graph, weighted=self._use_weights(weighted))
+        params = {} if weighted is None else {"weighted": weighted}
+        return self._node_metric_result("trophic_levels", scores, attr_name, return_dict, params)
+
+    def trophic_differences(self, weighted: bool | None = None) -> dict[int, float]:
+        """
+        Get the trophic level difference across every edge.
+
+        ![Trophic differences](/assets/graphs/trophic-differences.light.svg){.lightbox fig-alt="The same food web, laid out by trophic level, with each edge labelled by the level of the predator minus the level of the prey. Mouse to owl jumps 1.5 levels and is drawn in accent, fox to owl only 0.5, and the other four edges exactly 1." width="100%"}
+
+        For each edge from `u` to `v`, the difference `level(v) - level(u)` between the trophic
+        levels of its endpoints (see `trophic_levels()`). In a perfectly layered network every
+        difference is exactly 1; differences far from 1 mark edges that skip levels (an
+        omnivore eating at several levels) or run "backwards" against the hierarchy.
+
+        Parameters
+        ----------
+        weighted
+            Whether trophic levels weight diets by edge weight. If `None` (default), follows the
+            graph.
+
+        Returns
+        -------
+        dict[int, float]
+            A dictionary mapping edge IDs to level differences.
+
+        Raises
+        ------
+        ValueError
+            As for `trophic_levels()`.
+
+        Examples
+        --------
+        The owl's two meals differ: the edge from the mouse jumps 1.5 levels, the edge from the
+        fox only 0.5:
+
+        ```{python}
+        import edgecase as ec
+
+        web = (
+            ec.Graph(directed=True)
+            .add_nodes(["grass", "rabbit", "mouse", "fox", "owl"])
+            .add_edges([("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
+                        ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")])
+        )
+
+        label = web.get_label_from_id
+        {
+            f"{label(s)}->{label(t)}": d
+            for (eid, s, t), d in zip(web.get_edges_as_tuples(), web.trophic_differences().values())
+        }
+        ```
+        """
+        levels = rust.trophic_levels(self._graph, weighted=self._use_weights(weighted))
+        return {eid: levels[t] - levels[s] for eid, s, t in self.get_edges_as_tuples()}
+
+    def trophic_incoherence_parameter(
+        self, weighted: bool | None = None, cannibalism: bool = False
+    ) -> float:
+        """
+        Measure how far a directed network is from a perfect trophic hierarchy.
+
+        ![Trophic incoherence parameter](/assets/graphs/trophic-incoherence-parameter.light.svg){.lightbox fig-alt="The food web of grass, rabbit, mouse, fox and owl, laid out by trophic level with each edge labelled by its level difference: four edges of exactly 1, mouse to owl 1.5 and fox to owl 0.5. The card takes their mean, 1.0, and their standard deviation, q = 0.29; a perfectly layered web would score 0." width="100%"}
+
+        The trophic incoherence parameter `q` (Johnson et al., 2014) is the standard deviation
+        of the trophic differences over all edges (see `trophic_differences()`). A perfectly
+        layered network, where every edge climbs exactly one level, has `q = 0`; higher values
+        mean edges skip levels or loop back. Trophic coherence predicts stability in food webs
+        and appears in gene regulation, neural and other directed networks: coherent networks
+        tend to have few cycles and to be more stable.
+
+        Parameters
+        ----------
+        weighted
+            Whether trophic levels weight diets by edge weight. If `None` (default), follows the
+            graph.
+        cannibalism
+            If `False` (default), self-loops are removed before computing levels and
+            differences, as in NetworkX. If `True`, they are kept.
+
+        Returns
+        -------
+        float
+            The trophic incoherence parameter `q` (population standard deviation).
+
+        Raises
+        ------
+        ValueError
+            As for `trophic_levels()`.
+
+        Examples
+        --------
+        A food chain is perfectly coherent; adding an omnivore link that skips a level makes it
+        less so:
+
+        ```{python}
+        import edgecase as ec
+
+        chain = ec.Graph(directed=True).add_nodes(["plant", "herbivore", "carnivore"])
+        chain.add_edges([("plant", "herbivore"), ("herbivore", "carnivore")])
+        coherent = chain.trophic_incoherence_parameter()
+
+        chain.add_edge("plant", "carnivore")
+        coherent, round(chain.trophic_incoherence_parameter(), 3)
+        ```
+        """
+        levels = rust.trophic_levels(
+            self._graph, weighted=self._use_weights(weighted), skip_self_loops=not cannibalism
+        )
+        diffs = [
+            levels[t] - levels[s]
+            for _, s, t in self.get_edges_as_tuples()
+            if cannibalism or s != t
+        ]
+        if not diffs:
+            return 0.0
+        mean = sum(diffs) / len(diffs)
+        value = math.sqrt(sum((d - mean) ** 2 for d in diffs) / len(diffs))
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "trophic_incoherence_parameter",
+                "G.trophic_incoherence_parameter()",
+                result=value,
+                narration=f"Trophic incoherence q = {value:.3f}.",
+            )
+        return value
+
+    def local_reaching_centrality(
+        self,
+        weighted: bool | None = None,
+        normalized: bool = True,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate the local reaching centrality of every node.
+
+        ![Local reaching centrality](/assets/graphs/local-reaching-centrality.light.svg){.lightbox fig-alt="A five-node directed out-tree, like an org chart: A heads B and C, and B heads D and E. Each node is shaded by the share of the other four nodes it can reach. A reaches all of them and scores 1.00, B reaches D and E for 0.50, and the leaves C, D and E reach no one and score 0." width="100%"}
+
+        Local reaching centrality (Mones, Vicsek & Vicsek, 2012) measures how much of the
+        network a node can reach, and how easily:
+
+        - on an unweighted directed graph, it is the share of other nodes reachable from the
+          node, which separates sources at the top of a hierarchy from sinks at the bottom
+        - on an unweighted undirected graph, it averages `1 / distance` over all other nodes
+          (unreachable ones count 0), like a normalized harmonic centrality
+        - on a weighted graph, it averages the mean edge weight along the strongest path to each
+          reachable node, where strong edges count as short (distance = total weight / weight)
+
+        It is the building block of `global_reaching_centrality()`, which measures how
+        hierarchical the whole network is. Values match NetworkX, which computes one node at a
+        time. With weights, if several equally strong paths reach a node, their mean weights can
+        differ, and the two libraries may pick different ones.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph. Weights must be
+            positive.
+        normalized
+            With weights, divide by the mean edge weight so scores are comparable across graphs.
+            Default is `True`. Ignored without weights.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"local_reaching_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph has fewer than two nodes or no edges, or a weight is not positive.
+
+        Examples
+        --------
+        In a reporting tree, the head of the organization reaches everyone and each leaf
+        reaches no one:
+
+        ```{python}
+        import edgecase as ec
+
+        org = (
+            ec.Graph(directed=True)
+            .add_nodes(["ceo", "cto", "cfo", "dev1", "dev2"])
+            .add_edges([("ceo", "cto"), ("ceo", "cfo"), ("cto", "dev1"), ("cto", "dev2")])
+        )
+
+        scores = org.local_reaching_centrality(return_dict=True)
+        {org.get_label_from_id(n): s for n, s in sorted(scores.items())}
+        ```
+        """
+        scores = rust.local_reaching_centrality(
+            self._graph, weighted=self._use_weights(weighted), normalized=normalized
+        )
+        params = {} if normalized else {"normalized": False}
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._node_metric_result(
+            "local_reaching_centrality", scores, attr_name, return_dict, params
+        )
+
+    def global_reaching_centrality(
+        self, weighted: bool | None = None, normalized: bool = True
+    ) -> float:
+        """
+        Measure how hierarchical a network is with global reaching centrality.
+
+        ![Global reaching centrality](/assets/graphs/global-reaching-centrality.light.svg){.lightbox fig-alt="Left, a five-node out-tree, each node badged with the share of other nodes it reaches: A 1, B 0.5, and the leaves 0. Averaging each node's gap to the top value gives (0 + 0.5 + 1 + 1 + 1) / 4 = 0.875, a strong hierarchy. Right, in a directed 4-cycle every node reaches all others, there is no gap, and the score is 0.0." width="100%"}
+
+        Global reaching centrality (Mones, Vicsek & Vicsek, 2012) compares every node's local
+        reaching centrality (see `local_reaching_centrality()`) with the highest one:
+        `GRC = Σ (C_max - C(v)) / (n - 1)`. A strict hierarchy, where one node reaches
+        everything and others reach little, scores near `1`; a network where everyone reaches
+        about as much as everyone else (a cycle, a complete graph) scores near `0`. It is a
+        single-number test of whether a directed network is organized top-down, used for
+        organizational charts, food webs, citation and dominance networks.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+        normalized
+            With weights, normalize local reaching centrality by the mean edge weight. Default
+            is `True`.
+
+        Returns
+        -------
+        float
+            The global reaching centrality.
+
+        Raises
+        ------
+        ValueError
+            If the graph has fewer than two nodes or no edges, or a weight is not positive.
+
+        Examples
+        --------
+        An out-tree is strongly hierarchical; a directed cycle is not hierarchical at all:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = ec.Graph(directed=True).add_nodes(["r", "a", "b", "c"])
+        tree.add_edges([("r", "a"), ("r", "b"), ("a", "c")])
+        cycle = ec.Graph(directed=True).add_nodes(["a", "b", "c", "d"])
+        cycle.add_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
+
+        round(tree.global_reaching_centrality(), 3), cycle.global_reaching_centrality()
+        ```
+        """
+        local = rust.local_reaching_centrality(
+            self._graph, weighted=self._use_weights(weighted), normalized=normalized
+        )
+        top = max(local.values())
+        value = sum(top - c for c in local.values()) / (len(local) - 1)
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "global_reaching_centrality",
+                "G.global_reaching_centrality()",
+                result=value,
+                narration=f"Global reaching centrality: {value:.3f}.",
+            )
+        return value
+
+    def betweenness_centrality_subset(
+        self,
+        sources: list[Union[int, str]],
+        targets: list[Union[int, str]],
+        normalized: bool = False,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate betweenness counting only paths from given sources to given targets.
+
+        ![Subset betweenness centrality](/assets/graphs/betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only shortest paths from A or B to G count. They all leave the triangles through E and F, which share the top at 1.00, while C scores 0.75 and D 0.25; the endpoints themselves score 0." width="100%"}
+
+        Ordinary betweenness counts shortest paths between every pair of nodes. Subset
+        betweenness (Brandes, 2008) only counts paths that start in `sources=` and end in
+        `targets=`, so it answers a focused question: which nodes carry the traffic from *these*
+        origins to *those* destinations? Examples are the junctions between residential areas
+        and business districts, or the proteins linking a set of receptors to a set of
+        transcription factors.
+
+        "Shortest" follows `shortest_path()`: hops, or total weight on a weighted graph.
+        Scaling follows NetworkX: raw values by default (halved on undirected graphs, since
+        each path is seen from both ends), or divided by `(n - 1)(n - 2)` with `normalized=True`.
+
+        Parameters
+        ----------
+        sources
+            Starting nodes, as integer IDs or string labels.
+        targets
+            Destination nodes, as integer IDs or string labels.
+        normalized
+            If `True`, divide by `(n - 1)(n - 2)`. Default is `False`, as in NetworkX.
+        weighted
+            Whether to measure path length by edge weight. If `None` (default), follows the
+            graph.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"betweenness_centrality_subset"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or weights are used and one is negative.
+
+        Examples
+        --------
+        On a path A-B-C-D-E, traffic from A to C only passes through B, so D gets no credit:
+
+        ```{python}
+        import edgecase as ec
+
+        path = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        )
+
+        scores = path.betweenness_centrality_subset(["A"], ["C"], return_dict=True)
+        {path.get_label_from_id(n): s for n, s in sorted(scores.items())}
+        ```
+        """
+        src = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
+        scores = rust.betweenness_centrality_subset(
+            self._graph, src, tgt, normalized, self._use_weights(weighted)
+        )
+        params = {"sources": sources, "targets": targets}
+        if normalized:
+            params["normalized"] = True
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._node_metric_result(
+            "betweenness_centrality_subset", scores, attr_name, return_dict, params
+        )
+
+    def effective_size(
+        self,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float | None], "Graph"]:
+        """
+        Calculate Burt's effective size of every node's network.
+
+        ![Effective size](/assets/graphs/effective-size.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by Burt's effective size: the number of contacts minus how redundant they are with one another. Hub C has four contacts that partly know each other and scores 2.50, the bridge E 2.33, and F, whose two contacts E and G are unlinked, a full 2.00; A and G score 1.00." width="100%"}
+
+        Effective size (Burt, 1992) is the number of a node's contacts, discounted for
+        redundancy: contacts who are tied to one another bring overlapping information and
+        count for less. A node whose contacts all know each other has an effective size close to
+        1; a broker whose contacts are strangers to one another has an effective size equal to
+        its degree. It is the classic measure of *structural holes*, the gaps in a network that
+        a well-placed broker can bridge. For the complementary measure of how constrained a node
+        is, see `constraint()`.
+
+        For an unweighted undirected graph this is `degree - 2t / degree`, where `t` is the
+        number of ties among the node's contacts. Weighted and directed graphs use Burt's
+        general formula, with tie strengths as proportions of each node's total. Self-loops are
+        ignored.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights as tie strengths. If `None` (default), follows the graph.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"effective_size"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float | None], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to effective sizes
+            (`None` for nodes without contacts). If `return_dict=` is `False` (default): returns
+            self.
+
+        Examples
+        --------
+        The broker B links three contacts who do not know one another and keeps its full
+        effective size of 3, while C, whose two contacts know each other, has only 1:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["B", "A", "X", "Y", "C", "D", "E"])
+            .add_edges([("B", "A"), ("B", "X"), ("B", "Y"), ("C", "D"), ("C", "E"), ("D", "E")])
+        )
+
+        sizes = graph.effective_size(return_dict=True)
+        {graph.get_label_from_id(n): s for n, s in sorted(sizes.items())}
+        ```
+
+        Notes
+        -----
+        On weighted graphs NetworkX's `effective_size()` takes a sparse-matrix shortcut whose
+        results disagree with its own per-node formula; EdgeCase follows the formula (and
+        NetworkX's result when it is called with an explicit `nodes=` list). On directed graphs
+        NetworkX returns NaN for any node without outgoing edges; EdgeCase counts incoming ties
+        as contacts too and returns `None` only for nodes with no ties at all.
+        """
+        scores = rust.effective_size(self._graph, weighted=self._use_weights(weighted))
+        params = {} if weighted is None else {"weighted": weighted}
+        return self._node_metric_result("effective_size", scores, attr_name, return_dict, params)
+
+    def local_constraint(
+        self, node_1: Union[int, str], node_2: Union[int, str], weighted: bool | None = None
+    ) -> float:
+        """
+        Measure how much one contact constrains a node (Burt's local constraint).
+
+        ![Local constraint](/assets/graphs/local-constraint.light.svg){.lightbox fig-alt="The shared seven-node graph with the queried pair A and B outlined. A puts half its ties into B directly (0.50) and reaches B again through their mutual contact C, drawn in accent: A's half share in C times C's quarter share in B adds 0.125. The card squares the sum, (0.50 + 0.125)² = 0.39." width="100%"}
+
+        Burt's constraint (see `constraint()`) is a sum over a node's contacts; local constraint
+        is one term of that sum: how much `node_2` limits `node_1`'s room to maneuver. It is
+        `(p_12 + Σ_k p_1k p_k2)^2`, where `p_ij` is the share of `i`'s ties invested in `j`: the
+        direct investment in `node_2` plus the indirect investment through mutual contacts `k`.
+        A contact that `node_1` relies on heavily, directly and through everyone else it knows,
+        is highly constraining.
+
+        Parameters
+        ----------
+        node_1
+            The node whose constraint is measured, as an integer ID or a string label.
+        node_2
+            The contact, as an integer ID or a string label.
+        weighted
+            Whether to use edge weights as tie strengths. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The local constraint of `node_1` with respect to `node_2`.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist.
+
+        Examples
+        --------
+        Summing local constraint over a node's contacts gives its overall constraint:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        )
+
+        a = graph.get_id_from_label("A")
+        parts = [graph.local_constraint("A", other) for other in ["B", "C"]]
+        round(sum(parts), 4), round(graph.constraint(return_dict=True)[a], 4)
+        ```
+        """
+        u = self._resolve_node_id(node_1, auto_create=False)
+        v = self._resolve_node_id(node_2, auto_create=False)
+        return rust.local_constraint(self._graph, u, v, self._use_weights(weighted))
 
     def authority_centrality(
         self,
@@ -28943,8 +31907,9 @@ class Graph:
         ![Eccentricity](/assets/graphs/eccentricity.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by eccentricity, the distance to the farthest node. The outer nodes A, B and G are four hops from their farthest node and are darkest; C, D and F have eccentricity 3, and the bridge E only 2." width="100%"}
 
         Eccentricity of a node is the maximum distance from that node to any other reachable node in
-        the graph. It measures how far a node is from the most distant node it can reach. Returns
-        `None` for nodes in disconnected graphs where some nodes are unreachable.
+        the graph. It measures how far a node is from the most distant node it can reach. In a
+        disconnected graph, eccentricity is measured within each node's own component (as igraph
+        does), so an isolated node has eccentricity `0`.
 
         Parameters
         ----------
@@ -28958,9 +31923,9 @@ class Graph:
         Returns
         -------
         dict[int, int | None] or Graph
-            If `return_dict=` is `True`: Dictionary mapping node IDs to eccentricity values. Values
-            are `None` for nodes in disconnected components. If `return_dict=` is `False`: Returns
-            self for method chaining.
+            If `return_dict=` is `True`: Dictionary mapping node IDs to eccentricity values,
+            measured within each node's component. If `return_dict=` is `False`: Returns self for
+            method chaining.
 
         Examples
         --------
@@ -29025,7 +31990,8 @@ class Graph:
         `radiality(v) = (diameter + 1 - eccentricity(v)) / (n - 1)`
 
         where `n` is the number of nodes. Higher radiality indicates a more central position in the
-        network. Returns `None` for nodes in disconnected graphs.
+        network. Radiality compares every node against one graph-wide diameter, so it is only
+        defined for connected graphs; in a disconnected graph every node gets `None`.
 
         Parameters
         ----------
@@ -29040,8 +32006,8 @@ class Graph:
         -------
         dict[int, float | None] or Graph
             If `return_dict=` is `True`: Dictionary mapping node IDs to radiality scores (`0.0` to
-            `1.0`). Values are `None` for nodes in disconnected components. If `return_dict=` is
-            `False` returns self for method chaining.
+            `1.0`). Values are `None` for every node if the graph is disconnected. If
+            `return_dict=` is `False` returns self for method chaining.
 
         Examples
         --------
@@ -29901,6 +32867,742 @@ class Graph:
 
         return all_pairs_shortest_path(self._graph)
 
+    def _distances_out(self, raw: dict[int, float]) -> dict[int, Union[int, float]]:
+        """Hop counts are whole numbers on unweighted graphs; keep weights as floats."""
+        if self.is_weighted():
+            return raw
+        return {k: int(v) for k, v in raw.items()}
+
+    def shortest_path_length(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> Union[int, float, None]:
+        """
+        Get the length of the shortest path between two nodes.
+
+        ![Shortest path length](/assets/graphs/shortest-path-length.light.svg){.lightbox fig-alt="The directed weighted graph with three routes from A to F, costing 4, 6, and 5. On a weighted graph the distance is the cheapest total weight, so the route A, B, C, F is drawn in the accent color and the card reads 1 + 2 + 1 = 4.0; on the unweighted graph the same call counts hops and returns 2." width="100%"}
+
+        Returns the distance from `source=` to `target=` without building the path itself. On an
+        unweighted graph (the default) the distance is the number of hops, returned as an `int`.
+        On a weighted graph (`Graph(weighted=True)`) it is the lowest total edge weight, found
+        with Dijkstra's algorithm, returned as a `float`; edges without a weight count as `1.0`.
+        This is the same notion of "shortest" that `shortest_path()` uses, so the two always
+        agree.
+
+        Directed graphs are followed in edge direction. A node is at distance `0` from itself.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+
+        Returns
+        -------
+        int | float | None
+            The shortest-path distance, or `None` if `target=` cannot be reached from `source=`.
+
+        Raises
+        ------
+        ValueError
+            If a label does not exist in the graph, or a weighted graph has a negative edge
+            weight (use `bellman_ford_shortest_path()` for those).
+
+        Examples
+        --------
+        In this directed graph the fewest-hops route from A to F takes two hops, but the
+        cheapest route by weight is the three-hop path through B and C:
+
+        ```{python}
+        import edgecase as ec
+
+        edges = [
+            ("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
+            ("A", "D", 3.0), ("D", "F", 3.0),
+        ]
+        hops = ec.Graph(directed=True).add_nodes(list("ABCDF")).add_edges(edges)
+        weights = ec.Graph(directed=True, weighted=True).add_nodes(list("ABCDF")).add_edges(edges)
+
+        hops.shortest_path_length("A", "F"), weights.shortest_path_length("A", "F")
+        ```
+
+        Edges only run forward, so there is no way back from F to A:
+
+        ```{python}
+        hops.shortest_path_length("F", "A") is None
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        raw = rust.shortest_path_length(self._graph, source_id, target_id)
+        dist = None if raw is None else self._distances_out({0: raw})[0]
+
+        if self._recording_depth == 0:
+            s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
+            narration = (
+                f"No path from {s_lbl} to {t_lbl}."
+                if dist is None
+                else f"Shortest path from {s_lbl} to {t_lbl} has length {dist:g}."
+            )
+            self._record_step(
+                KIND_QUERY,
+                "shortest_path_length",
+                f"G.shortest_path_length({source!r}, {target!r})",
+                delta=StepDelta(nodes_selected=list(dict.fromkeys([s_lbl, t_lbl]))),
+                result=dist,
+                narration=narration,
+            )
+        return dist
+
+    def has_path(self, source: Union[int, str], target: Union[int, str]) -> bool:
+        """
+        Check whether a path exists from one node to another.
+
+        ![Has path](/assets/graphs/has-path.light.svg){.lightbox fig-alt="Left: a five-node directed graph in which the arrows lead from A through B and C to D (the path in the accent color), so a path from A to D exists and has_path() returns True. Right: the same graph with the edge between C and D reversed (in the accent color); no arrow enters D any more, so has_path() returns False." width="100%"}
+
+        Returns `True` if `target=` can be reached from `source=` by following edges, in their
+        direction on a directed graph. This is a plain reachability test: it stops as soon as the
+        target is found and ignores edge weights, so it is cheaper than computing a shortest path
+        when only the yes/no answer matters. Every node has a path to itself.
+
+        On an undirected graph, `has_path(u, v)` is `True` exactly when `u` and `v` are in the
+        same connected component.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+
+        Returns
+        -------
+        bool
+            `True` if a path exists, otherwise `False`.
+
+        Raises
+        ------
+        ValueError
+            If a label does not exist in the graph.
+
+        Examples
+        --------
+        In a directed chain, every node can reach the nodes downstream of it, but not the ones
+        upstream:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C")])
+        )
+
+        graph.has_path("A", "C"), graph.has_path("C", "A"), graph.has_path("A", "D")
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        found = rust.has_path(self._graph, source_id, target_id)
+
+        if self._recording_depth == 0:
+            s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
+            self._record_step(
+                KIND_QUERY,
+                "has_path",
+                f"G.has_path({source!r}, {target!r})",
+                delta=StepDelta(nodes_selected=list(dict.fromkeys([s_lbl, t_lbl]))),
+                result=found,
+                narration=(
+                    f"{t_lbl} is reachable from {s_lbl}."
+                    if found
+                    else f"No path from {s_lbl} to {t_lbl}."
+                ),
+            )
+        return found
+
+    def bidirectional_dijkstra(
+        self, source: Union[int, str], target: Union[int, str]
+    ) -> tuple[Union[int, float], list[int]] | None:
+        """
+        Find a shortest path by searching from both ends at once.
+
+        ![Bidirectional Dijkstra](/assets/graphs/bidirectional-dijkstra.light.svg){.lightbox fig-alt="The directed weighted graph with three routes from A to F. One search grows forward from A and settles A and B (teal region), the other grows backward from F and settles F and C (violet region); they meet across the edge B to C, and D and E are never settled. The returned path A, B, C, F is in the accent color, with length 1 + 2 + 1 = 4.0." width="100%"}
+
+        Runs two searches at the same time: one forward from `source=` and one backward from
+        `target=` (along edges in reverse on a directed graph). Each search grows a ball of
+        settled nodes, and the shortest path is found where the two balls meet. Because two
+        small balls cover far fewer nodes than one large one, this usually settles much less of
+        the graph than a one-sided search, which pays off on large road-like or spatial
+        networks when only one source-target pair is needed.
+
+        The result is a shortest path under the same rule `shortest_path()` uses: lowest total
+        edge weight on a weighted graph (`Graph(weighted=True)`), fewest hops otherwise. Both
+        the length and the path are returned, so no second call is needed.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+
+        Returns
+        -------
+        tuple[int | float, list[int]] | None
+            A `(length, path)` tuple: the path length (`int` hops on an unweighted graph,
+            `float` total weight on a weighted graph) and the path as a list of node IDs from
+            `source=` to `target=`. `None` if there is no path.
+
+        Raises
+        ------
+        ValueError
+            If a label does not exist in the graph, or a weighted graph has a negative edge
+            weight.
+
+        Examples
+        --------
+        On a weighted graph the cheaper three-hop route through B and C beats the two-hop route
+        through D:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(["A", "B", "C", "D", "F"])
+            .add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
+                        ("A", "D", 3.0), ("D", "F", 3.0)])
+        )
+
+        length, path = graph.bidirectional_dijkstra("A", "F")
+        length, [graph.get_label_from_id(n) for n in path]
+        ```
+
+        There is no path against the edge directions:
+
+        ```{python}
+        graph.bidirectional_dijkstra("F", "A") is None
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        found = rust.bidirectional_dijkstra(self._graph, source_id, target_id)
+        result = None
+        if found is not None:
+            length, path = found
+            result = (self._distances_out({0: length})[0], path)
+
+        if self._recording_depth == 0:
+            s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
+            if result is None:
+                delta = StepDelta(nodes_selected=list(dict.fromkeys([s_lbl, t_lbl])))
+                narration = f"No path from {s_lbl} to {t_lbl}."
+            else:
+                delta = self._path_delta([result[1]])
+                narration = (
+                    f"Shortest path from {s_lbl} to {t_lbl}, length {result[0]:g}, found by "
+                    f"searching from both ends."
+                )
+            self._record_step(
+                KIND_QUERY,
+                "bidirectional_dijkstra",
+                f"G.bidirectional_dijkstra({source!r}, {target!r})",
+                delta=delta,
+                result=result,
+                narration=narration,
+            )
+        return result
+
+    def all_shortest_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        max_paths: int | None = None,
+    ) -> list[list[int]]:
+        """
+        Find every shortest path between two nodes.
+
+        ![All shortest paths](/assets/graphs/all-shortest-paths.light.svg){.lightbox fig-alt="The directed graph with three routes from A to F, unweighted. Two routes tie at two hops and both are returned: A, D, F in the accent color and A, E, F in teal. The three-hop route through B and C stays faint." width="100%"}
+
+        `shortest_path()` returns one shortest route; this method returns all of them. Two
+        paths count as distinct if they visit different nodes, so on a graph with many equally
+        short routes (grids, lattices, dense networks) the list shows how much redundancy there
+        is between two nodes, and which intermediate nodes every route must pass through.
+
+        "Shortest" follows the same rule as `shortest_path()`: fewest hops on an unweighted
+        graph, lowest total weight on a weighted graph (`Graph(weighted=True)`). Directed graphs
+        are followed in edge direction.
+
+        The number of shortest paths can grow exponentially with the size of the graph (a grid
+        has a binomial number of corner-to-corner paths), so `max_paths=` can cap the result.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+        max_paths
+            Stop after this many paths. If `None` (default), return them all.
+
+        Returns
+        -------
+        list[list[int]]
+            Each shortest path as a list of node IDs from `source=` to `target=`, sorted
+            lexicographically by node ID. Empty if there is no path.
+
+        Raises
+        ------
+        ValueError
+            If a label does not exist in the graph, or a weighted graph has a negative edge
+            weight.
+
+        Examples
+        --------
+        A 3 x 3 grid has six shortest paths between opposite corners, all four hops long:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
+
+        paths = grid.all_shortest_paths(1, 9)
+        len(paths), paths[0]
+        ```
+
+        In this diamond, B and C offer two equally short routes from A to D; the edge weights
+        break the tie once the graph is weighted:
+
+        ```{python}
+        edges = [("A", "B", 1.0), ("A", "C", 2.0), ("B", "D", 1.0), ("C", "D", 1.0)]
+        hops = ec.Graph().add_nodes(list("ABCD")).add_edges(edges)
+        weights = ec.Graph(weighted=True).add_nodes(list("ABCD")).add_edges(edges)
+
+        label = hops.get_label_from_id
+        (
+            [[label(n) for n in p] for p in hops.all_shortest_paths("A", "D")],
+            [[label(n) for n in p] for p in weights.all_shortest_paths("A", "D")],
+        )
+        ```
+        """
+        if max_paths is not None and max_paths < 1:
+            raise ValueError(f"max_paths must be at least 1, got {max_paths}")
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        paths = rust.all_shortest_paths(self._graph, source_id, target_id, max_paths)
+
+        if self._recording_depth == 0:
+            s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
+            n = len(paths)
+            self._record_step(
+                KIND_QUERY,
+                "all_shortest_paths",
+                f"G.all_shortest_paths({source!r}, {target!r})",
+                delta=self._path_delta(paths),
+                result=paths,
+                narration=(
+                    f"{n} shortest path{'s' if n != 1 else ''} from {s_lbl} to {t_lbl}."
+                    if n
+                    else f"No path from {s_lbl} to {t_lbl}."
+                ),
+            )
+        return paths
+
+    def single_source_shortest_path(
+        self, source: Union[int, str], cutoff: float | None = None
+    ) -> dict[int, list[int]]:
+        """
+        Find a shortest path from one node to every node it can reach.
+
+        ![Single-source shortest paths](/assets/graphs/single-source-shortest-path.light.svg){.lightbox fig-alt="The directed weighted graph with the source A outlined. The cheapest path from A to every other node together forms a tree, drawn in the accent color: B, D, and E hang off A directly, C and F are reached through B. The edges D to F and E to F are not used. The card lists each node's path." width="100%"}
+
+        Runs one search from `source=` and returns a shortest path to each reachable node. Taken
+        together the paths form a *shortest-path tree* rooted at the source: every node's path
+        is its parent's path plus one more edge. This is far cheaper than calling
+        `shortest_path()` once per target, and is the building block for routing tables,
+        broadcast trees, and "how do I get everywhere from here" questions.
+
+        "Shortest" follows the same rule as `shortest_path()`: fewest hops on an unweighted
+        graph, lowest total weight (Dijkstra's algorithm) on a weighted graph. Directed graphs
+        are followed in edge direction. When several shortest paths lead to a node, one is
+        chosen; use `all_shortest_paths()` to see them all.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        cutoff
+            Only return paths whose length (hops, or total weight on a weighted graph) is at
+            most this value. If `None` (default), there is no limit.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Maps each reachable node ID to a shortest path (a list of node IDs starting at
+            `source=`). The source maps to `[source]`. Unreachable nodes are absent.
+
+        Raises
+        ------
+        ValueError
+            If the label does not exist in the graph, or a weighted graph has a negative edge
+            weight.
+
+        Examples
+        --------
+        From the hub of a small tree, every path branches out from the root:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("D", "E")])
+        )
+
+        paths = graph.single_source_shortest_path("A")
+        label = graph.get_label_from_id
+        {label(t): [label(n) for n in p] for t, p in sorted(paths.items())}
+        ```
+
+        With `cutoff=2`, only nodes within two hops are returned:
+
+        ```{python}
+        sorted(label(t) for t in graph.single_source_shortest_path("A", cutoff=2))
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        paths = rust.multi_source_paths(self._graph, [source_id], cutoff)
+
+        if self._recording_depth == 0:
+            s_lbl = self._node_label(source_id)
+            args = f"{source!r}" + (f", cutoff={cutoff!r}" if cutoff is not None else "")
+            self._record_step(
+                KIND_QUERY,
+                "single_source_shortest_path",
+                f"G.single_source_shortest_path({args})",
+                delta=self._path_delta([p for _, p in sorted(paths.items())]),
+                result=paths,
+                narration=f"Shortest-path tree from {s_lbl} reaches {len(paths) - 1} other nodes.",
+            )
+        return paths
+
+    def single_source_shortest_path_length(
+        self,
+        source: Union[int, str],
+        cutoff: float | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, Union[int, float]], "Graph"]:
+        """
+        Get the shortest-path distance from one node to every node it can reach.
+
+        ![Single-source shortest path lengths](/assets/graphs/single-source-shortest-path-length.light.svg){.lightbox fig-alt="The directed weighted graph with the source A outlined and each node's distance from A in a badge: A 0.0, B 1.0, E 2.0, C and D 3.0, and F 4.0, reached along the accent edges. The table lists the same distances from nearest to farthest." width="100%"}
+
+        Runs one search from `source=` and records how far away every reachable node is: the
+        number of hops on an unweighted graph, or the lowest total edge weight (Dijkstra's
+        algorithm) on a weighted graph (`Graph(weighted=True)`). Directed graphs are followed in
+        edge direction.
+
+        Distances from a single point of interest are useful for:
+
+        - ego-network analysis ("everyone within two steps of this person")
+        - service areas and catchments ("which stations are within 10 minutes")
+        - shading or sizing nodes by how far they are from a focal node
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        cutoff
+            Only include nodes at distance at most this value. If `None` (default), there is
+            no limit.
+        attr_name
+            Name of the node attribute to store distances in. If `None` (default), uses
+            `"single_source_shortest_path_length"`. Nodes that are not reached get a null value.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            distances as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int | float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping each reachable node ID to its
+            distance (`int` hops on an unweighted graph, `float` on a weighted graph); the
+            source maps to `0`. If `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the label does not exist in the graph, or a weighted graph has a negative edge
+            weight.
+
+        Examples
+        --------
+        Distances from one end of a path count up hop by hop:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        )
+
+        dist = graph.single_source_shortest_path_length("A", return_dict=True)
+        {graph.get_label_from_id(n): d for n, d in sorted(dist.items())}
+        ```
+
+        Without `return_dict=`, the distances are stored on the nodes; with `cutoff=` the
+        nodes beyond it are left null:
+
+        ```{python}
+        (
+            graph
+            .single_source_shortest_path_length("C", cutoff=1, attr_name="near_C")
+            .get_node_df()
+            .select(["label", "near_C"])
+        )
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        dist = self._distances_out(rust.multi_source_distances(self._graph, [source_id], cutoff))
+
+        if return_dict:
+            return dist
+
+        if attr_name is None:
+            attr_name = "single_source_shortest_path_length"
+        for node_id in self.get_node_ids(limit=None):
+            self._graph.set_node_attr(node_id, attr_name, dist.get(node_id))
+
+        params = {"source": source}
+        if cutoff is not None:
+            params["cutoff"] = cutoff
+        self._computations.append(("single_source_shortest_path_length", params, attr_name))
+
+        if self._recording_depth == 0:
+            mv = {self._node_label(n): float(d) for n, d in sorted(dist.items())}
+            far = max(mv.items(), key=lambda kv: kv[1])
+            args = ", ".join(
+                [repr(source)]
+                + ([f"cutoff={cutoff!r}"] if cutoff is not None else [])
+                + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                "single_source_shortest_path_length",
+                f"G.single_source_shortest_path_length({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(dist)}, metric_values=mv),
+                narration=(
+                    f"Distances from {self._node_label(source_id)} to {len(dist)} nodes; "
+                    f"farthest: {far[0]} ({far[1]:g})."
+                ),
+            )
+        return self
+
+    def multi_source_shortest_path(
+        self, sources: list[Union[int, str]], cutoff: float | None = None
+    ) -> dict[int, list[int]]:
+        """
+        Find a shortest path to every node from whichever source is nearest.
+
+        ![Multi-source shortest paths](/assets/graphs/multi-source-shortest-path.light.svg){.lightbox fig-alt="A two-by-four ladder with sources A and G. Each node is reached from whichever source is nearer, which splits the graph into two catchment areas: A serves B and E (accent color), G serves C, D, F, and H (teal). The shortest-path tree edges take their catchment's color, and each source has a halo. The card lists each catchment and the path to D, [G, C, D]." width="100%"}
+
+        Runs one search that starts from all `sources=` at once, as if they were a single node.
+        Each reachable node gets a shortest path from the source closest to it, so the result
+        splits the graph into *catchment areas* (a graph Voronoi partition): read `path[0]` to
+        see which source serves a node.
+
+        Typical uses are nearest-facility questions: the closest hospital to every
+        neighborhood, the nearest server to every client, or the closest seed gene to every
+        protein in a network.
+
+        "Shortest" follows the same rule as `shortest_path()`: fewest hops on an unweighted
+        graph, lowest total weight (Dijkstra's algorithm) on a weighted graph. Directed graphs
+        are followed in edge direction. When two sources are equally close, one is chosen.
+
+        Parameters
+        ----------
+        sources
+            The starting nodes, as integer IDs or string labels. At least one is required.
+        cutoff
+            Only return paths whose length is at most this value. If `None` (default), there is
+            no limit.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Maps each reachable node ID to a shortest path (a list of node IDs) that starts at
+            its nearest source. Each source maps to a one-node path. Unreachable nodes are
+            absent.
+
+        Raises
+        ------
+        ValueError
+            If `sources=` is empty or contains a label that does not exist, or a weighted graph
+            has a negative edge weight.
+
+        Examples
+        --------
+        With sources at both ends of a path, each node is served from the nearer end:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")])
+        )
+
+        paths = graph.multi_source_shortest_path(["A", "F"])
+        label = graph.get_label_from_id
+        {label(t): [label(n) for n in p] for t, p in sorted(paths.items())}
+        ```
+
+        The first node of each path is the nearest source, which gives each node's catchment:
+
+        ```{python}
+        {label(t): label(p[0]) for t, p in sorted(paths.items())}
+        ```
+        """
+        source_ids = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        paths = rust.multi_source_paths(self._graph, source_ids, cutoff)
+
+        if self._recording_depth == 0:
+            order = list(dict.fromkeys(source_ids))
+            groups = {self._node_label(t): order.index(p[0]) for t, p in sorted(paths.items())}
+            tree = [p[-2:] for _, p in sorted(paths.items()) if len(p) >= 2]
+            delta = self._path_delta(tree)
+            delta.nodes_selected = []  # color nodes by catchment; highlight the tree edges
+            delta.node_groups = groups
+            args = f"{sources!r}" + (f", cutoff={cutoff!r}" if cutoff is not None else "")
+            self._record_step(
+                KIND_QUERY,
+                "multi_source_shortest_path",
+                f"G.multi_source_shortest_path({args})",
+                delta=delta,
+                result=paths,
+                narration=(
+                    f"{len(paths)} nodes split among their nearest of {len(order)} sources."
+                ),
+            )
+        return paths
+
+    def multi_source_shortest_path_length(
+        self,
+        sources: list[Union[int, str]],
+        cutoff: float | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, Union[int, float]], "Graph"]:
+        """
+        Get the distance from every node to its nearest source.
+
+        ![Multi-source shortest path lengths](/assets/graphs/multi-source-shortest-path-length.light.svg){.lightbox fig-alt="A two-by-four ladder with sources A and G outlined, each node's distance to the nearer source in a badge. The sources are at 0; B, C, E, F, and H are one hop from a source; D, in the far corner, is the only node at distance 2. The table groups the nodes by distance." width="100%"}
+
+        Runs one search that starts from all `sources=` at once and records, for every
+        reachable node, the distance to the closest of them: hops on an unweighted graph, total
+        edge weight (Dijkstra's algorithm) on a weighted graph. Sources are at distance `0`.
+        Directed graphs are followed in edge direction.
+
+        This answers "how far is everything from the nearest X" in a single pass, which is much
+        cheaper than one search per source. Use `multi_source_shortest_path()` to also learn
+        *which* source is nearest.
+
+        Parameters
+        ----------
+        sources
+            The starting nodes, as integer IDs or string labels. At least one is required.
+        cutoff
+            Only include nodes at distance at most this value. If `None` (default), there is
+            no limit.
+        attr_name
+            Name of the node attribute to store distances in. If `None` (default), uses
+            `"multi_source_shortest_path_length"`. Nodes that are not reached get a null value.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            distances as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, int | float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping each reachable node ID to its
+            distance from the nearest source. If `return_dict=` is `False` (default): returns
+            self.
+
+        Raises
+        ------
+        ValueError
+            If `sources=` is empty or contains a label that does not exist, or a weighted graph
+            has a negative edge weight.
+
+        Examples
+        --------
+        On a 4 x 4 grid with sources in two opposite corners, no node is more than three
+        steps from a source:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(rows=4, cols=4)
+
+        dist = grid.multi_source_shortest_path_length([1, 16], return_dict=True)
+        max(dist.values())
+        ```
+
+        Stored as a node attribute, the distances are ready for shading a plot:
+
+        ```{python}
+        (
+            grid
+            .multi_source_shortest_path_length([1, 16], attr_name="to_corner")
+            .get_node_df()
+            .select(["label", "to_corner"])
+            .head(5)
+        )
+        ```
+        """
+        source_ids = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        dist = self._distances_out(rust.multi_source_distances(self._graph, source_ids, cutoff))
+
+        if return_dict:
+            return dist
+
+        if attr_name is None:
+            attr_name = "multi_source_shortest_path_length"
+        for node_id in self.get_node_ids(limit=None):
+            self._graph.set_node_attr(node_id, attr_name, dist.get(node_id))
+
+        params = {"sources": sources}
+        if cutoff is not None:
+            params["cutoff"] = cutoff
+        self._computations.append(("multi_source_shortest_path_length", params, attr_name))
+
+        if self._recording_depth == 0:
+            mv = {self._node_label(n): float(d) for n, d in sorted(dist.items())}
+            far = max(mv.items(), key=lambda kv: kv[1])
+            args = ", ".join(
+                [repr(sources)]
+                + ([f"cutoff={cutoff!r}"] if cutoff is not None else [])
+                + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                "multi_source_shortest_path_length",
+                f"G.multi_source_shortest_path_length({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(dist)}, metric_values=mv),
+                narration=(
+                    f"Distances to the nearest of {len(set(source_ids))} sources for "
+                    f"{len(dist)} nodes; farthest: {far[0]} ({far[1]:g})."
+                ),
+            )
+        return self
+
     def k_shortest_paths(
         self,
         source: Union[int, str],
@@ -30160,7 +33862,9 @@ class Graph:
 
         if return_list:
             if self._recording_depth == 0:
-                self._record_traversal("bfs", start, visited_order)
+                self._record_traversal(
+                    "bfs", start, visited_order, tree_edges=self._bfs_tree_edges(start_id)
+                )
             return visited_order
 
         # Store traversal positions as node attributes
@@ -30178,7 +33882,9 @@ class Graph:
         self._computations.append(("bfs", params, attr_name))
 
         if self._recording_depth == 0:
-            self._record_traversal("bfs", start, visited_order)
+            self._record_traversal(
+                "bfs", start, visited_order, tree_edges=self._bfs_tree_edges(start_id)
+            )
 
         return self
 
@@ -30290,7 +33996,9 @@ class Graph:
 
         if return_list:
             if self._recording_depth == 0:
-                self._record_traversal("dfs", start, visited_order)
+                self._record_traversal(
+                    "dfs", start, visited_order, tree_edges=self._dfs_tree_edges(start_id)
+                )
             return visited_order
 
         # Store traversal positions as node attributes
@@ -30308,13 +34016,510 @@ class Graph:
         self._computations.append(("dfs", params, attr_name))
 
         if self._recording_depth == 0:
-            self._record_traversal("dfs", start, visited_order)
+            self._record_traversal(
+                "dfs", start, visited_order, tree_edges=self._dfs_tree_edges(start_id)
+            )
 
         return self
 
     # ==============================================================================
     # Path and Topological Analysis
     # ==============================================================================
+
+    def _traversal_args(self, source, depth_limit, mode, source_name: str = "source") -> str:
+        """Code-string arguments for traversal step logs (non-defaults only)."""
+        args = [] if source is None else [repr(source)]
+        if depth_limit is not None:
+            args.append(f"depth_limit={depth_limit!r}")
+        if mode != "out":
+            args.append(f"mode={mode!r}")
+        return ", ".join(args)
+
+    def _check_traversal_args(self, depth_limit, mode) -> None:
+        if depth_limit is not None and depth_limit < 0:
+            raise ValueError(f"depth_limit must be non-negative, got {depth_limit}")
+        if mode not in ("out", "in", "all", "total"):
+            raise ValueError(f"Invalid mode {mode!r}. Must be 'out', 'in', or 'all'")
+
+    def bfs_edges(
+        self,
+        source: Union[int, str],
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> list[tuple[int, int]]:
+        """
+        Get the edges a breadth-first search follows.
+
+        ![BFS edges](/assets/graphs/bfs-edges.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined). The tree edges are numbered in discovery order: A finds both B and C before moving on, so C is reached directly from A and the edge B-C is not used; the separate pair E-F is never reached. The card lists (A, B), (A, C), (C, D)." width="100%"}
+
+        A breadth-first search explores the graph in rings around `source=`: first every
+        neighbor, then every neighbor's unvisited neighbors, and so on. Each newly reached node
+        is discovered along exactly one edge, from the node that found it. Those edges, in
+        discovery order, form the BFS tree, and following them from the source gives a
+        fewest-hops path to every reachable node.
+
+        `bfs()` returns only the visit order; this returns the tree itself, which tells you *how*
+        each node was reached. Neighbors are explored in edge insertion order, the same order
+        `bfs()` uses, so the children of each edge appear in `bfs()` order.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        depth_limit
+            Stop expanding at this many hops from the source. If `None` (default), there is no
+            limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default) follows them
+            forward, `"in"` backward, and `"all"` in both directions. Ignored for undirected
+            graphs.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            `(parent, child)` node-ID pairs in the order the children were discovered.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        Examples
+        --------
+        In a triangle with a tail, C is reached directly from A, not through B, because BFS
+        looks at all of A's neighbors before moving on:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        )
+
+        label = graph.get_label_from_id
+        [(label(p), label(c)) for p, c in graph.bfs_edges("A")]
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = self._resolve_node_id(source, auto_create=False)
+        edges, layers = rust.bfs_search(self._graph, [source_id], depth_limit, mode)
+
+        if self._recording_depth == 0:
+            order = [n for layer in layers for n in layer]
+            self._record_traversal(
+                "bfs",
+                source,
+                order,
+                tree_edges=edges,
+                method="bfs_edges",
+                code=f"G.bfs_edges({self._traversal_args(source, depth_limit, mode)})",
+                narration=f"BFS tree from {self._node_label(source_id)}: {len(edges)} edges.",
+            )
+        return edges
+
+    def bfs_tree(
+        self,
+        source: Union[int, str],
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> "Graph":
+        """
+        Build the breadth-first search tree as a new graph.
+
+        ![BFS tree](/assets/graphs/bfs-tree.light.svg){.lightbox fig-alt="Left: a six-node graph with the root A outlined. Right: bfs_tree() returns a new directed graph keeping only the edges the breadth-first search discovered, A to B, A to C, B to D, B to E, and D to F, as accent arrows; the unused edges C-E and E-F are dashed. Every root path is a fewest-hops path, so the tree has depth 3." width="100%"}
+
+        Returns the tree a breadth-first search from `source=` builds, as a directed graph with
+        an edge from each node to every node it discovered (see `bfs_edges()`). Every path from
+        the root in this tree is a fewest-hops path in the original graph, which makes it handy
+        for drawing a network as levels around a focal node, for routing, or for reasoning
+        about distances as a tree.
+
+        Nodes keep their IDs, labels and attributes; each tree edge copies the weight and
+        attributes of the original edge it follows. Nodes the search does not reach are left
+        out.
+
+        Parameters
+        ----------
+        source
+            The root, as an integer ID or a string label.
+        depth_limit
+            Stop expanding at this many hops from the source. If `None` (default), there is no
+            limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        Graph
+            A new directed graph: the BFS tree rooted at `source=`. The original graph is not
+            modified.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        Examples
+        --------
+        The BFS tree of a 3 x 3 grid from a corner fans out along the rows and columns:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
+        tree = grid.bfs_tree(1)
+
+        tree.is_arborescence(), tree.count_edges(), tree.get_edges_str_repr(use_labels=True)[:4]
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = self._resolve_node_id(source, auto_create=False)
+        edges, layers = rust.bfs_search(self._graph, [source_id], depth_limit, mode)
+        order = [n for layer in layers for n in layer]
+        result = Graph._from_rust(rust.tree_graph(self._graph, order, edges))
+        self._record_tree_build(result, "bfs_tree", order, edges)
+
+        if self._recording_depth == 0:
+            self._record_traversal(
+                "bfs",
+                source,
+                order,
+                tree_edges=edges,
+                method="bfs_tree",
+                code=f"G.bfs_tree({self._traversal_args(source, depth_limit, mode)})",
+                narration=f"BFS tree from {self._node_label(source_id)}: {len(order)} nodes.",
+            )
+        return result
+
+    def _record_tree_build(self, result: "Graph", method: str, order: list, edges: list) -> None:
+        """Give a traversal tree its own build step, so `result.play()` shows it."""
+        result._record_step(
+            KIND_BUILD_NODES,
+            method,
+            f"G.{method}(...)",
+            delta=StepDelta(
+                nodes_added=[self._node_label(n) for n in order],
+                edges_added=[(self._node_label(p), self._node_label(c)) for p, c in edges],
+            ),
+        )
+
+    def bfs_layers(
+        self, sources: Union[int, str, list[Union[int, str]]], mode: str = "out"
+    ) -> list[list[int]]:
+        """
+        Group nodes by their hop distance from one or more sources.
+
+        ![BFS layers](/assets/graphs/bfs-layers.light.svg){.lightbox fig-alt="An eight-node graph searched from two sources at opposite ends, A and H. Each node is colored by its hop distance to the nearer source: A and H form layer 0 (accent), B, C, F, G layer 1 (teal), and D, E, where the two searches meet, layer 2 (violet). The card lists the three layers." width="100%"}
+
+        Layer 0 holds the sources, layer 1 every node one hop away, layer 2 the nodes first
+        reached at two hops, and so on: the rings a breadth-first search explores. With several
+        sources, each node lands in the layer of its distance to the *nearest* source.
+
+        Layers are useful for drawing a graph in concentric levels, for "friends of friends"
+        style queries (layer 2), and as a fast, unweighted counterpart of
+        `multi_source_shortest_path_length()`. Nodes that cannot be reached appear in no layer.
+
+        Parameters
+        ----------
+        sources
+            One starting node or a list of them, as integer IDs or string labels.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        list[list[int]]
+            The layers in order, each listing node IDs in discovery order.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist or `mode=` is invalid.
+
+        Examples
+        --------
+        From one end of a path, each layer holds one node; from both ends, the layers meet in
+        the middle:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(6)
+
+        path.bfs_layers(1), path.bfs_layers([1, 6])
+        ```
+        """
+        self._check_traversal_args(None, mode)
+        items = sources if isinstance(sources, (list, tuple, set)) else [sources]
+        ids = [self._resolve_node_id(s, auto_create=False) for s in items]
+        _, layers = rust.bfs_search(self._graph, ids, None, mode)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): k for k, layer in enumerate(layers) for n in layer}
+            self._record_step(
+                KIND_QUERY,
+                "bfs_layers",
+                f"G.bfs_layers({sources!r}{'' if mode == 'out' else f', mode={mode!r}'})",
+                delta=StepDelta(node_groups=groups),
+                result=layers,
+                narration=f"{len(groups)} nodes in {len(layers)} BFS layers.",
+            )
+        return layers
+
+    def dfs_edges(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> list[tuple[int, int]]:
+        """
+        Get the edges a depth-first search follows.
+
+        ![DFS edges](/assets/graphs/dfs-edges.light.svg){.lightbox fig-alt="The same graph searched depth-first with no source. The tree edges are numbered in discovery order: from A the search dives to B and then C, so C is reached through B rather than from A, and the edge A-C is not used. It then restarts at E for the separate pair. The card lists (A, B), (B, C), (C, D), (E, F)." width="100%"}
+
+        A depth-first search goes as deep as it can along one branch before backing up to try
+        the next. Each newly reached node is discovered along one edge from the node that found
+        it, and those edges, in discovery order, form the DFS tree. DFS trees underlie many
+        classic algorithms (cycle detection, topological sorting, strongly connected
+        components, articulation points) because every non-tree edge connects a node to one of
+        its ancestors or descendants.
+
+        With `source=None` (default), the search restarts from every node not yet reached, in
+        ID order, so the result covers the whole graph as a DFS forest. Neighbors are explored
+        in edge insertion order, the same order `dfs()` uses.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label. If `None` (default), search
+            from every unvisited node in turn.
+        depth_limit
+            Do not go deeper than this many hops from the start of each tree. If `None`
+            (default), there is no limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            `(parent, child)` node-ID pairs in the order the children were discovered.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        Examples
+        --------
+        Unlike BFS, DFS reaches C through B, because it follows B's branch to the end before
+        returning to A:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        )
+
+        label = graph.get_label_from_id
+        [(label(p), label(c)) for p, c in graph.dfs_edges("A")]
+        ```
+
+        Without a source, the search covers every component:
+
+        ```{python}
+        graph.add_nodes(["E", "F"]).add_edge("E", "F")
+        [(label(p), label(c)) for p, c in graph.dfs_edges()]
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        pre, _, edges = rust.dfs_search(self._graph, source_id, depth_limit, mode)
+
+        if self._recording_depth == 0:
+            self._record_traversal(
+                "dfs",
+                source,
+                pre,
+                tree_edges=edges,
+                method="dfs_edges",
+                code=f"G.dfs_edges({self._traversal_args(source, depth_limit, mode)})",
+                narration=f"DFS tree: {len(edges)} edges over {len(pre)} nodes.",
+            )
+        return edges
+
+    def dfs_tree(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> "Graph":
+        """
+        Build the depth-first search tree as a new graph.
+
+        ![DFS tree](/assets/graphs/dfs-tree.light.svg){.lightbox fig-alt="Left: the same six-node graph with the root A outlined. Right: dfs_tree() keeps the edges the depth-first search discovered, which snake through the graph as one long path, A to B, D, F, E, and finally C (accent arrows); A-C and B-E are dashed. The tree has depth 5, against 3 for the BFS tree." width="100%"}
+
+        Returns the tree (or, with `source=None`, the forest) a depth-first search builds, as a
+        directed graph with an edge from each node to every node it discovered (see
+        `dfs_edges()`). DFS trees tend to be long and narrow, in contrast with the short, bushy
+        trees of `bfs_tree()`, and are a natural skeleton for maze-like or hierarchical
+        structures.
+
+        Nodes keep their IDs, labels and attributes; each tree edge copies the weight and
+        attributes of the original edge it follows. Nodes the search does not reach are left
+        out.
+
+        Parameters
+        ----------
+        source
+            The root, as an integer ID or a string label. If `None` (default), build a forest
+            covering every node.
+        depth_limit
+            Do not go deeper than this many hops from each root. If `None` (default), there is
+            no limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        Graph
+            A new directed graph: the DFS tree or forest. The original graph is not modified.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        Examples
+        --------
+        From a corner of a 3 x 3 grid, the DFS tree snakes through the grid as a single path,
+        while the BFS tree branches out:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
+
+        dfs_depth = len(grid.dfs_tree(1).dag_longest_path()) - 1
+        bfs_depth = len(grid.bfs_tree(1).dag_longest_path()) - 1
+        dfs_depth, bfs_depth
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        pre, _, edges = rust.dfs_search(self._graph, source_id, depth_limit, mode)
+        result = Graph._from_rust(rust.tree_graph(self._graph, pre, edges))
+        self._record_tree_build(result, "dfs_tree", pre, edges)
+
+        if self._recording_depth == 0:
+            self._record_traversal(
+                "dfs",
+                source,
+                pre,
+                tree_edges=edges,
+                method="dfs_tree",
+                code=f"G.dfs_tree({self._traversal_args(source, depth_limit, mode)})",
+                narration=f"DFS tree: {len(pre)} nodes.",
+            )
+        return result
+
+    def dfs_postorder_nodes(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> list[int]:
+        """
+        List nodes in depth-first postorder.
+
+        ![DFS postorder](/assets/graphs/dfs-postorder-nodes.light.svg){.lightbox fig-alt="A seven-node tree searched depth-first from the root A (outlined). Numbered badges give the order nodes finish: D and E finish before their parent B, F and G before C, and the root A finishes last. The card lists D, E, B, F, G, C, A, beside the preorder A, B, D, E, C, F, G that dfs() returns." width="100%"}
+
+        In a depth-first search, a node is *finished* once every node below it has been
+        explored. Postorder lists nodes in the order they finish, so every node comes after
+        all of its DFS descendants. This is the order to process a tree bottom-up (children
+        before parents), and in a DAG, the reverse of the postorder is a topological order.
+        `dfs()` gives the complementary preorder, the order nodes are first reached.
+
+        With `source=None` (default), the search covers every node, restarting from unvisited
+        nodes in ID order. Neighbors are explored in edge insertion order, as in `dfs()`.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label. If `None` (default), search
+            from every unvisited node in turn.
+        depth_limit
+            Do not go deeper than this many hops from the start of each tree. Nodes at the limit
+            are still listed (NetworkX's `dfs_postorder_nodes()` omits them, unlike its
+            preorder). If `None` (default), there is no limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        list[int]
+            Node IDs in postorder.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        Examples
+        --------
+        In a small tree, the leaves finish first and the root last:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = (
+            ec.Graph(directed=True)
+            .add_nodes(["root", "a", "b", "a1", "a2"])
+            .add_edges([("root", "a"), ("root", "b"), ("a", "a1"), ("a", "a2")])
+        )
+
+        [tree.get_label_from_id(n) for n in tree.dfs_postorder_nodes("root")]
+        ```
+
+        Reversing the postorder of a DAG gives a valid topological order:
+
+        ```{python}
+        order = list(reversed(tree.dfs_postorder_nodes()))
+        position = {n: i for i, n in enumerate(order)}
+        all(position[s] < position[t] for _, s, t in tree.get_edges_as_tuples())
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        pre, post, edges = rust.dfs_search(self._graph, source_id, depth_limit, mode)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): i for i, n in enumerate(post)}
+            self._record_step(
+                KIND_QUERY,
+                "dfs_postorder_nodes",
+                f"G.dfs_postorder_nodes({self._traversal_args(source, depth_limit, mode)})",
+                delta=StepDelta(
+                    node_groups=groups,
+                    edges_selected=[(self._node_label(p), self._node_label(c)) for p, c in edges],
+                ),
+                result=post,
+                narration=(
+                    f"Postorder: {' → '.join(self._node_label(n) for n in post[:8])}"
+                    + (" …" if len(post) > 8 else "")
+                    + "."
+                ),
+            )
+        return post
 
     def get_all_simple_paths(
         self,
@@ -31153,6 +35358,584 @@ class Graph:
         ```
         """
         return self._graph.get_topological_sort_order()
+
+    def ancestors(self, node: Union[int, str]) -> list[int]:
+        """
+        Get every node that can reach a given node.
+
+        ![Ancestors](/assets/graphs/ancestors.light.svg){.lightbox fig-alt="A seven-node DAG flowing left to right, with the query node F outlined. Following arrows backward from F reaches its parent D and, through D, both A and B, shown in the accent color with the edges used. C and E cannot reach F. The card lists A, B, D." width="100%"}
+
+        In a directed graph, the ancestors of a node are all nodes with a path *to* it: its
+        parents, their parents, and so on up to the roots. In a dependency graph these are
+        everything the node depends on, directly or indirectly; in a citation network, the
+        work it builds on; in a phylogeny, its lineage.
+
+        The graph does not need to be acyclic. On an undirected graph, every other node in the
+        same connected component counts as an ancestor (and as a descendant). The node itself is
+        not included.
+
+        Parameters
+        ----------
+        node
+            The node whose ancestors to find, as an integer ID or a string label.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the nodes that can reach `node=`.
+
+        Raises
+        ------
+        ValueError
+            If the label does not exist in the graph.
+
+        Examples
+        --------
+        In a small build pipeline, packaging depends on compiling and testing, which in turn
+        depend on fetching the source:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["fetch", "compile", "test", "package", "docs"])
+            .add_edges([
+                ("fetch", "compile"), ("compile", "test"),
+                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
+            ])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.ancestors("package")]
+        ```
+        """
+        node_id = self._resolve_node_id(node, auto_create=False)
+        result = rust.ancestors(self._graph, node_id)
+
+        if self._recording_depth == 0:
+            delta = StepDelta(nodes_selected=[self._node_label(n) for n in result])
+            self._record_step(
+                KIND_QUERY,
+                "ancestors",
+                f"G.ancestors({node!r})",
+                delta=delta,
+                result=result,
+                narration=f"{len(result)} ancestors of {self._node_label(node_id)}.",
+            )
+        return result
+
+    def descendants(self, node: Union[int, str]) -> list[int]:
+        """
+        Get every node reachable from a given node.
+
+        ![Descendants](/assets/graphs/descendants.light.svg){.lightbox fig-alt="A seven-node DAG flowing left to right, with the query node C outlined. Following arrows forward from C reaches E and then G, shown in the accent color with the edges used; D and F lie on another branch and are not reached. The card lists E, G." width="100%"}
+
+        In a directed graph, the descendants of a node are all nodes it has a path *to*: its
+        children, their children, and so on down to the leaves. In a dependency graph these are
+        everything affected if the node changes; in a supply chain, every downstream stage; in a
+        transmission network, everyone a case could have infected.
+
+        The graph does not need to be acyclic. On an undirected graph, every other node in the
+        same connected component counts as a descendant. The node itself is not included. For
+        the reverse direction, see `ancestors()`.
+
+        Parameters
+        ----------
+        node
+            The node whose descendants to find, as an integer ID or a string label.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the nodes reachable from `node=`.
+
+        Raises
+        ------
+        ValueError
+            If the label does not exist in the graph.
+
+        Examples
+        --------
+        Changing `compile` in this build pipeline affects testing and packaging, but not the
+        documentation, which only depends on the fetched source:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["fetch", "compile", "test", "package", "docs"])
+            .add_edges([
+                ("fetch", "compile"), ("compile", "test"),
+                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
+            ])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.descendants("compile")]
+        ```
+        """
+        node_id = self._resolve_node_id(node, auto_create=False)
+        result = rust.descendants(self._graph, node_id)
+
+        if self._recording_depth == 0:
+            delta = StepDelta(nodes_selected=[self._node_label(n) for n in result])
+            self._record_step(
+                KIND_QUERY,
+                "descendants",
+                f"G.descendants({node!r})",
+                delta=delta,
+                result=result,
+                narration=f"{len(result)} descendants of {self._node_label(node_id)}.",
+            )
+        return result
+
+    def topological_generations(self) -> list[list[int]]:
+        """
+        Group the nodes of a DAG into topological generations.
+
+        ![Topological generations](/assets/graphs/topological-generations.light.svg){.lightbox fig-alt="A seven-node DAG laid out in four columns, one per generation, each in its own color and tinted region: the sources A, B (accent), then C, D (teal), E, F (violet), and finally G (gold). Every arrow points to a later generation. The card lists the generations 0 to 3." width="100%"}
+
+        Generation 0 holds the nodes with no incoming edges (the sources). Removing them leaves
+        a new set of sources, which form generation 1, and so on. A node's generation is
+        therefore the number of edges on the *longest* path that reaches it from a source.
+
+        Nodes in the same generation never depend on one another, which makes generations the
+        natural schedule for parallel work: every task in a generation can run at once, as soon
+        as the previous generation has finished. They are also the layers of a layered
+        (Sugiyama-style) drawing of the DAG.
+
+        Every ordering that lists the generations in sequence is a valid topological order,
+        as returned by `get_topological_sort_order()`.
+
+        Returns
+        -------
+        list[list[int]]
+            One list of node IDs per generation, in order, each sorted by ID.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or contains a cycle.
+
+        Examples
+        --------
+        In this build pipeline, `fetch` comes first; `compile` and `docs` can then run in
+        parallel; `test` waits for `compile`, and `package` waits for `test`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["fetch", "compile", "test", "package", "docs"])
+            .add_edges([
+                ("fetch", "compile"), ("compile", "test"),
+                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
+            ])
+        )
+
+        [[graph.get_label_from_id(n) for n in gen] for gen in graph.topological_generations()]
+        ```
+        """
+        gens = rust.topological_generations(self._graph)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): i for i, gen in enumerate(gens) for n in gen}
+            self._record_step(
+                KIND_QUERY,
+                "topological_generations",
+                "G.topological_generations()",
+                delta=StepDelta(node_groups=groups),
+                result=gens,
+                narration=f"{len(groups)} nodes in {len(gens)} topological generations.",
+            )
+        return gens
+
+    def all_topological_sorts(self, max_sorts: int | None = None) -> list[list[int]]:
+        """
+        List every topological ordering of a DAG.
+
+        ![All topological sorts](/assets/graphs/all-topological-sorts.light.svg){.lightbox fig-alt="A five-node DAG flowing left to right: A and B both point to C, which points to D and E. A and B can come in either order, and so can D and E, while C is always third. The card lists all four orderings in lexicographic order, from A, B, C, D, E to B, A, C, E, D." width="100%"}
+
+        A topological ordering lists the nodes so that every edge points forward: each node
+        comes after everything it depends on. `get_topological_sort_order()` returns one such
+        ordering; most DAGs have many, and this method enumerates them all. The number of
+        orderings measures how much freedom a schedule has: a chain has exactly one, while
+        tasks with no dependencies at all can run in any of `n!` orders.
+
+        Use it to explore every valid schedule for a small set of tasks, to check whether a
+        given sequence is valid, or to count the linear extensions of a partial order. Because
+        the count grows factorially, `max_sorts=` can cap the result on larger graphs.
+
+        Parameters
+        ----------
+        max_sorts
+            Stop after this many orderings. If `None` (default), return them all.
+
+        Returns
+        -------
+        list[list[int]]
+            Each topological ordering as a list of node IDs, in lexicographic order of node IDs.
+            An empty graph has one (empty) ordering.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or contains a cycle, or `max_sorts=` is below 1.
+
+        Examples
+        --------
+        Getting dressed: socks and underwear can go on in either order, but shoes need both,
+        and trousers need underwear:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["underwear", "socks", "trousers", "shoes"])
+            .add_edges([("underwear", "trousers"), ("trousers", "shoes"), ("socks", "shoes")])
+        )
+
+        label = graph.get_label_from_id
+        [[label(n) for n in order] for order in graph.all_topological_sorts()]
+        ```
+
+        Four independent tasks can run in any order, so `max_sorts=` keeps the result small:
+
+        ```{python}
+        free = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+
+        len(free.all_topological_sorts()), len(free.all_topological_sorts(max_sorts=5))
+        ```
+        """
+        if max_sorts is not None and max_sorts < 1:
+            raise ValueError(f"max_sorts must be at least 1, got {max_sorts}")
+        orders = rust.all_topological_sorts(self._graph, max_sorts)
+
+        if self._recording_depth == 0:
+            first = orders[0] if orders else []
+            k = len(orders)
+            capped = max_sorts is not None and k == max_sorts
+            narration = f"{k} topological ordering{'s' if k != 1 else ''}"
+            if capped:
+                narration += f" (capped at {max_sorts})"
+            if first:
+                narration += f"; first: {' → '.join(self._node_label(n) for n in first)}"
+            code = "G.all_topological_sorts()"
+            if max_sorts is not None:
+                code = f"G.all_topological_sorts(max_sorts={max_sorts!r})"
+            # Number each node by its position in the first ordering
+            positions = {self._node_label(n): i for i, n in enumerate(first)}
+            self._record_step(
+                KIND_QUERY,
+                "all_topological_sorts",
+                code,
+                delta=StepDelta(node_groups=positions),
+                result=orders,
+                narration=narration + ".",
+            )
+        return orders
+
+    def dag_longest_path(self) -> list[int]:
+        """
+        Find the longest path in a directed acyclic graph.
+
+        ![DAG longest path](/assets/graphs/dag-longest-path.light.svg){.lightbox fig-alt="A seven-node DAG whose edges carry task durations. The heaviest chain of tasks, the critical path B, D, F, G, is drawn in the accent color: its durations 3 + 4 + 2 add up to 9.0, more than any other route from a source to G." width="100%"}
+
+        In a DAG of tasks and dependencies, the longest path is the *critical path*: the chain
+        of tasks that determines the earliest possible finish time, so that any delay along it
+        delays the whole project. On an unweighted graph its length is the number of edges; on
+        a weighted graph (`Graph(weighted=True)`) it is the total edge weight, so weights can
+        carry task durations. Edges without a weight count as `1.0`, and of several parallel
+        edges the heaviest counts.
+
+        Unlike shortest paths, longest paths are only well defined without cycles, so the graph
+        must be a DAG. The length is available from `dag_longest_path_length()`.
+
+        Returns
+        -------
+        list[int]
+            The node IDs along a longest path, in order. When several paths tie, the one ending
+            at (and then extending from) the lowest node ID is returned. An empty graph gives an
+            empty list; a graph without edges gives a single node.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or contains a cycle.
+
+        Examples
+        --------
+        With task durations as weights, the critical path runs through the slow test suite,
+        even though the documentation branch starts with the longer first task:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(["fetch", "compile", "test", "package", "docs", "publish"])
+            .add_edges([
+                ("fetch", "compile", 3.0), ("compile", "test", 10.0),
+                ("test", "package", 2.0), ("fetch", "docs", 4.0), ("docs", "publish", 1.0),
+            ])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.dag_longest_path()]
+        ```
+        """
+        path, length = rust.dag_longest_path(self._graph)
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "dag_longest_path",
+                "G.dag_longest_path()",
+                delta=self._path_delta([path]),
+                result=path,
+                narration=(
+                    f"Longest path: {' → '.join(self._node_label(n) for n in path)} "
+                    f"(length {self._distances_out({0: length})[0]:g})."
+                ),
+            )
+        return path
+
+    def dag_longest_path_length(self) -> Union[int, float]:
+        """
+        Get the length of the longest path in a directed acyclic graph.
+
+        ![DAG longest path length](/assets/graphs/dag-longest-path-length.light.svg){.lightbox fig-alt="The seven-node DAG with task durations on its edges. The longest path, B, D, F, G in the accent color, has total weight 3 + 4 + 2 = 9.0, which the card gives as the result; ignoring the weights, the longest path has 3 edges." width="100%"}
+
+        The length of the path returned by `dag_longest_path()`: the number of edges on an
+        unweighted graph (an `int`), or the total edge weight on a weighted graph
+        (`Graph(weighted=True)`, a `float`). In a scheduling DAG with task durations as weights,
+        this is the shortest possible time to finish every task, however many run in parallel.
+        On an unweighted graph it equals the number of topological generations minus one.
+
+        Returns
+        -------
+        int | float
+            The longest-path length; `0` for a graph without edges.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or contains a cycle.
+
+        Examples
+        --------
+        The pipeline below cannot finish in under 15 time units, the duration of its critical
+        path through `test`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(["fetch", "compile", "test", "package", "docs", "publish"])
+            .add_edges([
+                ("fetch", "compile", 3.0), ("compile", "test", 10.0),
+                ("test", "package", 2.0), ("fetch", "docs", 4.0), ("docs", "publish", 1.0),
+            ])
+        )
+
+        graph.dag_longest_path_length()
+        ```
+        """
+        path, length = rust.dag_longest_path(self._graph)
+        length = self._distances_out({0: length})[0]
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "dag_longest_path_length",
+                "G.dag_longest_path_length()",
+                delta=self._path_delta([path]),
+                result=length,
+                narration=f"Longest path length: {length:g}.",
+            )
+        return length
+
+    def condensation(self) -> "Graph":
+        """
+        Collapse each strongly connected component into a single node.
+
+        ![Condensation](/assets/graphs/condensation.light.svg){.lightbox fig-alt="Left: a directed graph whose strongly connected components are shaded: the cycle A, B, C (accent color), the two-way pair D, E (teal), and the single nodes F (violet) and G (gold). Right: the condensation has one node per component, labeled {A,B,C}, {D,E}, F and G, joined by the edges that ran between components, {A,B,C} to {D,E} and F to G; the result is acyclic." width="100%"}
+
+        A strongly connected component (SCC) is a maximal group of nodes that can all reach one
+        another. Replacing each SCC with one node, and keeping an edge between two components
+        whenever any edge ran between their members, gives the *condensation*: a directed
+        acyclic graph that shows the large-scale flow of the network once its cycles are
+        folded away. It is the standard first step for applying DAG methods (topological order,
+        longest paths, ancestors) to a graph that has cycles.
+
+        Each node of the result carries:
+
+        - a `label`: the original label for a single-node component, or the member labels in
+          braces for a larger one, e.g. `"{A,B,C}"`
+        - `members`: the list of member labels
+        - `size`: the number of members
+
+        Components are added in topological order, so following the new node IDs in increasing
+        order never goes against an edge. Parallel edges between the same two components are
+        merged into one.
+
+        Returns
+        -------
+        Graph
+            A new directed acyclic graph. The original graph is not modified.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Examples
+        --------
+        Two cycles joined by a one-way edge condense into a two-node DAG, and the isolated
+        node E becomes a component of its own:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "D"), ("D", "C")])
+        )
+
+        dag = graph.condensation()
+        dag.get_node_df().select(["id", "label", "members", "size"])
+        ```
+
+        The condensation is acyclic, so DAG methods apply:
+
+        ```{python}
+        dag.is_dag(), [dag.get_label_from_id(n) for n in dag.dag_longest_path()]
+        ```
+        """
+        components, edges = rust.condensation(self._graph)
+        labels = [[self._node_label(n) for n in comp] for comp in components]
+
+        result = Graph(directed=True)
+        result._recording_depth += 1
+        ids = []
+        for members in labels:
+            name = members[0] if len(members) == 1 else "{" + ",".join(members) + "}"
+            result.add_node(name)
+            nid = result.get_id_from_label(name)
+            result._graph.set_node_attr(nid, "members", members)
+            result._graph.set_node_attr(nid, "size", len(members))
+            ids.append(nid)
+        if edges:
+            result.add_edges_by_id([(ids[a], ids[b]) for a, b in edges])
+        result._recording_depth -= 1
+        result._record_step(
+            KIND_BUILD_NODES,
+            "condensation",
+            "G.condensation()",
+            delta=StepDelta(
+                nodes_added=[result._node_label(n) for n in ids],
+                edges_added=[
+                    (result._node_label(ids[a]), result._node_label(ids[b])) for a, b in edges
+                ],
+            ),
+        )
+
+        if self._recording_depth == 0:
+            groups = {lb: i for i, comp in enumerate(labels) for lb in comp}
+            self._record_step(
+                KIND_TRANSFORM,
+                "condensation",
+                "G.condensation()",
+                delta=StepDelta(node_groups=groups),
+                narration=(
+                    f"condensation() folded {len(groups)} nodes into {len(labels)} "
+                    f"strongly connected components."
+                ),
+            )
+        return result
+
+    def lowest_common_ancestor(
+        self, node_1: Union[int, str], node_2: Union[int, str]
+    ) -> int | None:
+        """
+        Find the lowest common ancestor of two nodes in a DAG.
+
+        ![Lowest common ancestor](/assets/graphs/lowest-common-ancestor.light.svg){.lightbox fig-alt="A seven-node DAG with the query nodes E and F outlined. A, B, and D all have paths to both, but D is the closest, so it is the lowest common ancestor, shown in the accent color with its edges to E and F. The card lists the common ancestors A, B, D and the answer D." width="100%"}
+
+        A common ancestor of two nodes is a node with a path to both. The *lowest* common
+        ancestor (LCA) is the one closest to them: no other common ancestor lies below it. In a
+        taxonomy or phylogeny this is the most specific group the two share (the most recent
+        common ancestor); in version control, the merge base of two branches; in an
+        organization chart, the first manager both people report to.
+
+        As is usual for LCAs, a node counts as its own ancestor, so if one node is an ancestor
+        of the other, it is the answer. A general DAG can have several lowest common ancestors
+        (in a tree there is exactly one); in that case the deepest one, measured by its longest
+        path from a source, is returned, with ties going to the lowest node ID.
+
+        Parameters
+        ----------
+        node_1
+            The first node, as an integer ID or a string label.
+        node_2
+            The second node, as an integer ID or a string label.
+
+        Returns
+        -------
+        int | None
+            The ID of the lowest common ancestor, or `None` if the two nodes have no common
+            ancestor.
+
+        Raises
+        ------
+        ValueError
+            If a label does not exist, or the graph is undirected or contains a cycle.
+
+        Examples
+        --------
+        In this small taxonomy, cats and dogs meet at Carnivora, while a cat and a mouse only
+        meet at Mammalia:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = (
+            ec.Graph(directed=True)
+            .add_nodes(["Mammalia", "Carnivora", "Rodentia", "cat", "dog", "mouse"])
+            .add_edges([
+                ("Mammalia", "Carnivora"), ("Mammalia", "Rodentia"),
+                ("Carnivora", "cat"), ("Carnivora", "dog"), ("Rodentia", "mouse"),
+            ])
+        )
+
+        label = tree.get_label_from_id
+        label(tree.lowest_common_ancestor("cat", "dog")), label(
+            tree.lowest_common_ancestor("cat", "mouse")
+        )
+        ```
+        """
+        id_1 = self._resolve_node_id(node_1, auto_create=False)
+        id_2 = self._resolve_node_id(node_2, auto_create=False)
+        lca = rust.lowest_common_ancestor(self._graph, id_1, id_2)
+
+        if self._recording_depth == 0:
+            l1, l2 = self._node_label(id_1), self._node_label(id_2)
+            self._record_step(
+                KIND_QUERY,
+                "lowest_common_ancestor",
+                f"G.lowest_common_ancestor({node_1!r}, {node_2!r})",
+                delta=StepDelta(nodes_selected=[] if lca is None else [self._node_label(lca)]),
+                result=lca,
+                narration=(
+                    f"{l1} and {l2} share no ancestor."
+                    if lca is None
+                    else f"Lowest common ancestor of {l1} and {l2}: {self._node_label(lca)}."
+                ),
+            )
+        return lca
 
     def transitive_closure(self) -> "Graph":
         r"""
@@ -32031,6 +36814,274 @@ class Graph:
     # Bridges and Connectivity
     # ==============================================================================
 
+    def eulerian_path(
+        self, source: Union[int, str, None] = None, edges: bool = False
+    ) -> list[int] | None:
+        """
+        Find an Eulerian path in the graph if one exists.
+
+        ![Eulerian path](/assets/graphs/eulerian-path.light.svg){.lightbox fig-alt="The house of Santa Claus: a square with both diagonals and a roof. Only the bottom corners D and E (outlined) have odd degree, so the Eulerian path runs from one to the other, using each of the eight edges once; edges are numbered in the order the path takes them, and the card lists D, E, C, B, D, C, A, B, E." width="100%"}
+
+        An Eulerian path is a trail that uses every edge exactly once (nodes may repeat). It
+        exists when the edges form one connected piece and, on an undirected graph, either every
+        node has even degree (the path is then a closed circuit) or exactly two nodes have odd
+        degree, which must be its two ends. On a directed graph, every node must have as many
+        edges in as out, except possibly one start node with one extra out-edge and one end
+        node with one extra in-edge.
+
+        This is the classic "draw the figure without lifting your pen" problem, and it appears
+        in route planning (snow ploughs, mail delivery, street inspection), DNA fragment
+        assembly (de Bruijn graphs), and circuit design. `is_semieulerian()` and
+        `is_eulerian()` test for the two cases; `eulerian_circuit()` returns closed trails only.
+
+        As in those methods, isolated nodes are ignored.
+
+        Parameters
+        ----------
+        source
+            Where the path should start, as an integer ID or a string label. If the graph only
+            has an open path, this must be one of its two possible ends. If `None` (default), a
+            valid start is chosen.
+        edges
+            If `False` (default), return the path as node IDs. If `True`, return edge IDs, which
+            are unambiguous when the graph has parallel edges.
+
+        Returns
+        -------
+        list[int] | None
+            The path as node IDs (one more than the number of edges; the first and last are the
+            same for a circuit) or, with `edges=True`, edge IDs. `None` if no Eulerian path
+            exists (from `source=`, if given).
+
+        Raises
+        ------
+        ValueError
+            If `source=` does not exist.
+
+        Examples
+        --------
+        The "house of Santa Claus" (a square with both diagonals and a roof) has exactly two odd
+        nodes, the bottom corners, so it can be drawn in one stroke from one to the other:
+
+        ```{python}
+        import edgecase as ec
+
+        house = (
+            ec.Graph()
+            .add_nodes(["bl", "br", "tl", "tr", "roof"])
+            .add_edges([("bl", "br"), ("bl", "tl"), ("br", "tr"), ("tl", "tr"),
+                        ("tl", "roof"), ("tr", "roof"), ("bl", "tr"), ("br", "tl")])
+        )
+
+        [house.get_label_from_id(n) for n in house.eulerian_path()]
+        ```
+
+        Starting from a node that cannot be an end gives `None`:
+
+        ```{python}
+        house.eulerian_path(source="roof") is None
+        ```
+        """
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        found = rust.eulerian_path(self._graph, source_id)
+        result = None if found is None else (found[1] if edges else found[0])
+
+        if self._recording_depth == 0:
+            if found is None:
+                delta, narration = StepDelta(), "No Eulerian path."
+            else:
+                nodes = found[0]
+                labels = [self._node_label(n) for n in nodes]
+                delta = StepDelta(
+                    nodes_selected=list(dict.fromkeys(labels)),
+                    edges_selected=list(dict.fromkeys(zip(labels, labels[1:]))),
+                )
+                closed = len(nodes) > 1 and nodes[0] == nodes[-1]
+                kind = "circuit" if closed else "path"
+                narration = (
+                    f"Eulerian {kind} through {len(found[1])} edges, from {labels[0]}."
+                    if labels
+                    else "Empty graph."
+                )
+            args = [] if source is None else [repr(source)]
+            if edges:
+                args.append("edges=True")
+            self._record_step(
+                KIND_QUERY,
+                "eulerian_path",
+                f"G.eulerian_path({', '.join(args)})",
+                delta=delta,
+                result=result,
+                narration=narration,
+            )
+        return result
+
+    def has_eulerian_path(self, source: Union[int, str, None] = None) -> bool:
+        """
+        Check whether the graph has an Eulerian path.
+
+        ![Has Eulerian path](/assets/graphs/has-eulerian-path.light.svg){.lightbox fig-alt="Left: the house of Santa Claus, a square with both diagonals and a roof; badges give each node's degree and only the bottom corners D and E are odd (outlined), so one stroke can draw it and has_eulerian_path() returns True. Right: without the roof (dashed), all four corners have degree 3 (shown in the accent color), so has_eulerian_path() returns False." width="100%"}
+
+        Returns `True` if some trail uses every edge exactly once: either a closed circuit
+        (`is_eulerian()`) or an open path between two nodes (`is_semieulerian()`). With
+        `source=`, it checks for such a trail starting at that node, which for an open path
+        means the node must be one of the two ends (on an undirected graph, an odd-degree node;
+        on a directed graph, the node with one more out-edge than in-edges).
+
+        Isolated nodes are ignored, as in `is_eulerian()`. NetworkX instead requires the whole
+        graph to be connected, so results differ only for graphs with isolated nodes.
+
+        Parameters
+        ----------
+        source
+            Optionally require the path to start here, as an integer ID or a string label.
+
+        Returns
+        -------
+        bool
+            `True` if an Eulerian path exists (from `source=`, if given).
+
+        Raises
+        ------
+        ValueError
+            If `source=` does not exist.
+
+        Examples
+        --------
+        A path graph can be traced end to end, but only from one of its ends:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(4)
+
+        path.has_eulerian_path(), path.has_eulerian_path(source=1), path.has_eulerian_path(source=2)
+        ```
+
+        A star with three leaves has four odd nodes, so no single stroke covers it:
+
+        ```{python}
+        ec.Graph().add_star_graph(4).has_eulerian_path()
+        ```
+        """
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        result = rust.has_eulerian_path(self._graph, source_id)
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "has_eulerian_path",
+                "G.has_eulerian_path()" if source is None else f"G.has_eulerian_path({source!r})",
+                result=result,
+                narration="An Eulerian path exists." if result else "No Eulerian path.",
+            )
+        return result
+
+    def eulerize(self, weighted: bool | None = None) -> "Graph":
+        """
+        Make the graph Eulerian by duplicating as few edges as possible.
+
+        ![Eulerize](/assets/graphs/eulerize.light.svg){.lightbox fig-alt="Left: a square with a roof; badges give each node's degree, and only the top corners B and C are odd (accent color). Right: eulerize() returns a new graph with the edge B-C duplicated (accent arc), the cheapest fix, so every degree is even and the graph has an Eulerian circuit." width="100%"}
+
+        A graph has an Eulerian circuit only if every node has even degree. `eulerize()` fixes
+        the odd-degree nodes by pairing them up and duplicating the edges along a shortest path
+        between each pair, choosing the pairing that adds the least in total. This is the
+        construction behind the *Chinese postman problem*: the shortest closed route that
+        traverses every street at least once is an Eulerian circuit of the eulerized graph,
+        and the duplicated edges are the streets walked twice.
+
+        Path lengths count hops, or total edge weight on a weighted graph
+        (`Graph(weighted=True)`), unless `weighted=` says otherwise; with weights, the added
+        edges have the smallest total weight. The pairing is exact for up to 20 odd-degree
+        nodes and a close approximation (greedy pairing improved by local swaps) beyond that.
+
+        The result is a new graph with the same nodes (IDs, labels and attributes kept) and
+        edges, plus the duplicates. Each duplicate copies its original edge's weight and
+        attributes and is marked with the edge attribute `eulerize_added = True`; the original
+        edges get `eulerize_added = False`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to measure path lengths by edge weight. If `None` (default), follows the
+            graph.
+
+        Returns
+        -------
+        Graph
+            A new graph that is Eulerian (`is_eulerian()` returns `True`). The original graph is
+            not modified.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or not connected (isolated nodes are ignored), or weights
+            are used and one is negative.
+
+        Examples
+        --------
+        A path of four nodes has odd ends; duplicating its three edges makes a there-and-back
+        circuit:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(4)
+        walk = path.eulerize()
+
+        walk.count_edges(), walk.is_eulerian(), walk.eulerian_circuit()
+        ```
+
+        The duplicates are marked, so the extra distance of the postman route is easy to read.
+        In a square with a roof, only the top corners have odd degree, so the edge between
+        them is walked twice:
+
+        ```{python}
+        house = (
+            ec.Graph()
+            .add_nodes(["bl", "br", "tl", "tr", "roof"])
+            .add_edges([("bl", "br"), ("bl", "tl"), ("br", "tr"), ("tl", "tr"),
+                        ("tl", "roof"), ("tr", "roof")])
+        )
+
+        walk = house.eulerize()
+        added = walk.get_edge_df().filter(eulerize_added=True)
+        label = walk.get_label_from_id
+        [(label(s), label(t)) for s, t in added.select(["source", "target"]).iter_rows()]
+        ```
+        """
+        result_rust, added = rust.eulerize(self._graph, self._use_weights(weighted))
+        result = Graph._from_rust(result_rust)
+        added_pairs = []
+        for eid in added:
+            ends = result.get_node_ids_by_edge_id(eid)
+            if ends is not None:
+                added_pairs.append((result._node_label(ends[0]), result._node_label(ends[1])))
+        all_ids = sorted(result.get_node_ids(limit=None))
+        result._record_step(
+            KIND_BUILD_EDGES,
+            "eulerize",
+            "G.eulerize()",
+            delta=StepDelta(
+                nodes_added=[result._node_label(n) for n in all_ids],
+                edges_added=[
+                    (result._node_label(s), result._node_label(t))
+                    for _, s, t in result.get_edges_as_tuples()
+                ],
+            ),
+        )
+
+        if self._recording_depth == 0:
+            word = "edge" if len(added) == 1 else "edges"
+            self._record_step(
+                KIND_TRANSFORM,
+                "eulerize",
+                "G.eulerize()" if weighted is None else f"G.eulerize(weighted={weighted!r})",
+                delta=StepDelta(edges_selected=list(dict.fromkeys(added_pairs))),
+                narration=f"eulerize() duplicated {len(added)} {word}.",
+            )
+        return result
+
     def bridges(self) -> list[int]:
         """
         Find all bridge edges in the graph.
@@ -32503,6 +37554,239 @@ class Graph:
         """
         return self._graph.get_articulation_points()
 
+    def biconnected_components(self, edges: bool = False) -> list[list[int]]:
+        """
+        Find the biconnected components of the graph.
+
+        ![Biconnected components](/assets/graphs/biconnected-components.light.svg){.lightbox fig-alt="Two triangles joined by the path C, D, E, plus an isolated node H. Each block has its own tinted region and color: A, B, C; the bridge C, D; the bridge D, E; and E, F, G. The articulation points C, D, and E sit where two regions overlap, because each belongs to two blocks; H belongs to none." width="100%"}
+
+        A biconnected component (or *block*) is a maximal piece of the graph that stays
+        connected if any single node is removed. Blocks are separated by articulation points:
+        a node whose removal disconnects the graph belongs to every block it joins, while all
+        other nodes belong to exactly one. A bridge edge forms a two-node block of its own.
+
+        Breaking a network into blocks shows where it is robust (inside a block, every pair of
+        nodes is linked by two node-disjoint paths) and where it hinges on single nodes (the
+        articulation points between blocks). Typical uses include vulnerability analysis of
+        infrastructure, finding the tightly redundant cores of a network, and building the
+        block-cut tree for further algorithms.
+
+        Isolated nodes belong to no block and self-loops are ignored; parallel edges stay in
+        the same block. For the cut nodes alone, see `get_articulation_points()`; for the bridge
+        edges, `bridges()`.
+
+        Parameters
+        ----------
+        edges
+            If `False` (default), return each block's node IDs. If `True`, return each block's
+            edge IDs instead (every non-loop edge belongs to exactly one block).
+
+        Returns
+        -------
+        list[list[int]]
+            The blocks, each a sorted list of node IDs (or edge IDs with `edges=True`), ordered
+            by their smallest node ID.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        Two triangles hanging off a shared node C, plus a pendant edge: C belongs to both
+        triangle blocks, and the pendant edge E-F is a block of its own:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                        ("C", "D"), ("D", "E"), ("E", "C"), ("E", "F")])
+        )
+
+        label = graph.get_label_from_id
+        [[label(n) for n in block] for block in graph.biconnected_components()]
+        ```
+
+        With `edges=True` each block is reported by its edges, which partition the edge set:
+
+        ```{python}
+        graph.biconnected_components(edges=True)
+        ```
+        """
+        blocks = rust.biconnected_components(self._graph)
+        result = [list(e) if edges else list(n) for n, e in blocks]
+
+        if self._recording_depth == 0:
+            groups: dict[str, int] = {}
+            counts: dict[int, int] = {}
+            for i, (nodes, _) in enumerate(blocks):
+                for n in nodes:
+                    groups.setdefault(self._node_label(n), i)
+                    counts[n] = counts.get(n, 0) + 1
+            cuts = [self._node_label(n) for n in sorted(counts) if counts[n] > 1]
+            narration = f"{len(blocks)} biconnected component{'s' if len(blocks) != 1 else ''}"
+            narration += f"; articulation points: {', '.join(cuts)}." if cuts else "."
+            self._record_step(
+                KIND_QUERY,
+                "biconnected_components",
+                "G.biconnected_components(edges=True)" if edges else "G.biconnected_components()",
+                delta=StepDelta(node_groups=groups),
+                result=result,
+                narration=narration,
+            )
+        return result
+
+    def is_biconnected(self) -> bool:
+        """
+        Check whether the graph is biconnected.
+
+        ![Is biconnected](/assets/graphs/is-biconnected.light.svg){.lightbox fig-alt="Left: two triangles joined by the edges C-D and B-F, so every pair of nodes has two routes with no other node in common, and is_biconnected() returns True. Right: the same triangles joined by C-D and B-D instead; every route between the two sides now passes through D (shown in the accent color), so is_biconnected() returns False." width="100%"}
+
+        A graph is biconnected if it is connected, has at least two nodes, and stays connected
+        after removing any single node; equivalently, it has no articulation points and forms
+        a single biconnected component. Biconnected networks have no single point of failure:
+        every pair of nodes is joined by two paths that share no intermediate node.
+
+        A single edge between two nodes counts as biconnected (removing either node leaves one
+        node, which is trivially connected). Graphs with fewer than two nodes are not.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is biconnected, otherwise `False`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Examples
+        --------
+        A cycle survives the loss of any one node; a path does not:
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph().add_cycle_graph(5)
+        path = ec.Graph().add_path_graph(5)
+
+        cycle.is_biconnected(), path.is_biconnected()
+        ```
+        """
+        blocks = rust.biconnected_components(self._graph)
+        n = self.count_nodes()
+        result = len(blocks) == 1 and len(blocks[0][0]) == n and n >= 2
+
+        if self._recording_depth == 0:
+            counts: dict[int, int] = {}
+            for nodes, _ in blocks:
+                for v in nodes:
+                    counts[v] = counts.get(v, 0) + 1
+            cuts = [self._node_label(v) for v in sorted(counts) if counts[v] > 1]
+            if result:
+                narration = "The graph is biconnected."
+            elif cuts:
+                narration = f"Not biconnected: removing {', '.join(cuts)} disconnects it."
+            else:
+                narration = "Not biconnected."
+            self._record_step(
+                KIND_QUERY,
+                "is_biconnected",
+                "G.is_biconnected()",
+                delta=StepDelta(nodes_selected=cuts),
+                result=result,
+                narration=narration,
+            )
+        return result
+
+    def local_bridges(
+        self, with_span: bool = True, weighted: bool | None = None
+    ) -> Union[list[tuple[int, Union[int, float]]], list[int]]:
+        """
+        Find the local bridges of the graph.
+
+        ![Local bridges](/assets/graphs/local-bridges.light.svg){.lightbox fig-alt="Two triangles joined directly by the edge C–D and the long way round through G, plus a pendant node H. The four accent edges C–D, A–G, G–F, and E–H lie on no triangle. The table lists each with its edge id and span: without it, its ends are 4 hops apart, or never reconnect (inf) for the true bridge E–H." width="100%"}
+
+        A local bridge is an edge whose endpoints have no neighbor in common, so the edge lies
+        on no triangle. Every bridge is a local bridge, but a local bridge need not disconnect
+        anything: it is simply a shortcut, and without it the two endpoints would be farther
+        apart. That distance, the *span*, measures how much of a shortcut the edge is.
+
+        Local bridges are the "weak ties" of Granovetter's theory: links between otherwise
+        separate social circles, which tend to carry novel information. They also mark the
+        edges that hold communities together, which makes them useful for spotting
+        inter-community links and long-range connections in spatial networks.
+
+        Parameters
+        ----------
+        with_span
+            If `True` (default), return each local bridge with its span. If `False`, return just
+            the edge IDs.
+        weighted
+            How to measure the span. If `None` (default), follows the graph: total edge weight
+            on a weighted graph (`Graph(weighted=True)`), hop count otherwise. Pass `True` or
+            `False` to override. Which edges are local bridges does not depend on weights.
+
+        Returns
+        -------
+        list[tuple[int, int | float]] | list[int]
+            With `with_span=True`: `(edge_id, span)` pairs sorted by edge ID, where the span is
+            the shortest-path distance between the endpoints once the edge is removed (an
+            `int` hop count, or a `float` with weights), and `float("inf")` if the edge is a
+            bridge. With `with_span=False`: the sorted edge IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or weights are used and one is negative.
+
+        Examples
+        --------
+        Two triangles joined directly by C-D and the long way round through G. The edges
+        between the triangles lie on no triangle, so they are local bridges; without C-D, C and
+        D are four hops apart. The pendant edge E-H is a true bridge, with infinite span:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("D", "E"), ("E", "F"), ("F", "D"),
+                        ("C", "D"), ("A", "G"), ("G", "F"), ("E", "H")])
+        )
+
+        ends = graph.get_node_ids_by_edge_id
+        label = graph.get_label_from_id
+        [("-".join(label(n) for n in ends(e)), span) for e, span in graph.local_bridges()]
+        ```
+        """
+        found = rust.local_bridges(self._graph, self._use_weights(weighted))
+        use_hops = not self._use_weights(weighted)
+        pairs = [(e, int(span) if use_hops and math.isfinite(span) else span) for e, span in found]
+        result = pairs if with_span else [e for e, _ in pairs]
+
+        if self._recording_depth == 0:
+            edges = []
+            for e, _ in pairs:
+                ends = self.get_node_ids_by_edge_id(e)
+                if ends is not None:
+                    edges.append((self._node_label(ends[0]), self._node_label(ends[1])))
+            n = len(pairs)
+            self._record_step(
+                KIND_QUERY,
+                "local_bridges",
+                "G.local_bridges()",
+                delta=StepDelta(edges_selected=edges),
+                result=result,
+                narration=f"{n} local bridge{'s' if n != 1 else ''}.",
+            )
+        return result
+
     def get_periphery(self) -> list[int]:
         r"""
         Get periphery nodes (nodes with maximum eccentricity).
@@ -32579,6 +37863,211 @@ class Graph:
         ```
         """
         return self._graph.get_periphery()
+
+    def get_center(self) -> list[int]:
+        """
+        Get the center nodes (nodes with minimum eccentricity).
+
+        ![Center](/assets/graphs/get-center.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The middle nodes C and D have the minimum eccentricity 2 and are drawn in the accent color. The card returns their node ids, 3 and 4." width="100%"}
+
+        The eccentricity of a node is the largest hop distance from it to any node it can
+        reach. Center nodes have the smallest eccentricity, equal to the graph's radius, so
+        from them every other node is as near as possible in the worst case. This is the
+        classic answer to "where should a single facility go so that nobody is too far away"
+        (the minimax location), and the counterpart of `get_periphery()`.
+
+        Distances are computed by breadth-first search, so edge weights are ignored, as in
+        `eccentricity()` and `get_periphery()`. On a directed graph, distances follow edge
+        direction and only reachable nodes count, so a sink (which reaches nothing) has
+        eccentricity `0` and is always central. On a disconnected graph, eccentricities are
+        measured within each component
+        (as in `get_radius()`), so an isolated node, with eccentricity `0`, is always central;
+        call this on a connected graph (or one component) for a meaningful answer. For the
+        node minimizing the *total* distance instead, see `get_barycenter()`.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the center nodes. Empty for an empty graph.
+
+        Examples
+        --------
+        The middle of a path is its center; a path with an even number of nodes has two:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_path_graph(5).get_center(), ec.Graph().add_path_graph(6).get_center()
+        ```
+
+        The center is pulled toward long branches: here the chain D-E-F-G moves it off the
+        hub A and onto D and E:
+
+        ```{python}
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("D", "E"), ("E", "F"), ("F", "G")])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.get_center()]
+        ```
+        """
+        ecc = self._graph.get_eccentricity()
+        values = [e for e in ecc.values() if e is not None]
+        result = sorted(n for n, e in ecc.items() if values and e == min(values))
+
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "get_center",
+                "G.get_center()",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in result]),
+                result=result,
+                narration=(
+                    f"Center: {', '.join(self._node_label(n) for n in result)} "
+                    f"(eccentricity {min(values)})."
+                    if result
+                    else "The graph is empty."
+                ),
+            )
+        return result
+
+    def get_barycenter(self, weighted: bool | None = None) -> list[int]:
+        """
+        Get the barycenter nodes (nodes with minimum total distance to all others).
+
+        ![Barycenter](/assets/graphs/get-barycenter.light.svg){.lightbox fig-alt="A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its total distance to all the others. D has the smallest total, 9, so it is the barycenter, in the accent color; the card returns its id 4. The center, which minimizes the farthest distance instead, is E, one step down the tail." width="100%"}
+
+        The barycenter (or *median*) of a graph is the set of nodes whose sum of shortest-path
+        distances to every other node is smallest. Where `get_center()` minimizes the worst-case
+        distance, the barycenter minimizes the average: it is the best place for a facility
+        when every trip counts, not just the longest one. The two can differ when the graph is
+        lopsided, since many nearby nodes pull the barycenter toward them.
+
+        Distances follow the same rule as `shortest_path()`: total edge weight on a weighted
+        graph (`Graph(weighted=True)`), hop count otherwise, unless `weighted=` says otherwise.
+        On a directed graph they follow edge direction. Total distance is only finite when
+        every node can reach every other, so the graph must be connected (strongly connected if
+        directed). The minimum total itself is the closeness denominator: the barycenter nodes
+        are exactly those with the highest `closeness_centrality()` on a connected graph.
+
+        Parameters
+        ----------
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph.
+            Edges without a weight count as `1.0`; weights must be non-negative.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the barycenter nodes. Empty for an empty graph.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not connected (not strongly connected, if directed), or weights are
+            used and one is negative.
+
+        Examples
+        --------
+        A star with a long tail: the tail end G is far from everything, so the center (which
+        minimizes the worst case) shifts down the tail, while the barycenter (which minimizes
+        the total) stays at the hub, close to the many leaves:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["hub", "A", "B", "C", "X", "D", "E", "F", "G"])
+            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C"), ("hub", "X"),
+                        ("hub", "D"), ("D", "E"), ("E", "F"), ("F", "G")])
+        )
+
+        label = graph.get_label_from_id
+        [label(n) for n in graph.get_center()], [label(n) for n in graph.get_barycenter()]
+        ```
+        """
+        use_weights = self._use_weights(weighted)
+        nodes, total = rust.barycenter(self._graph, use_weights)
+        result = sorted(nodes)
+
+        if self._recording_depth == 0:
+            total_out = total if use_weights else int(total)
+            code = "G.get_barycenter()"
+            if weighted is not None:
+                code = f"G.get_barycenter(weighted={weighted!r})"
+            self._record_step(
+                KIND_QUERY,
+                "get_barycenter",
+                code,
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in result]),
+                result=result,
+                narration=(
+                    f"Barycenter: {', '.join(self._node_label(n) for n in result)} "
+                    f"(total distance {total_out:g})."
+                    if result
+                    else "The graph is empty."
+                ),
+            )
+        return result
+
+    def isolates(self) -> list[int]:
+        """
+        Get the isolated nodes (nodes with no edges).
+
+        ![Isolates](/assets/graphs/isolates.light.svg){.lightbox fig-alt="Eight nodes with ids 1 to 8, joined by five edges into one chain, except nodes 4 and 6, which touch no edge. Those two isolates are drawn in the accent color, and the card returns their ids [4, 6]." width="100%"}
+
+        An isolate is a node with degree zero: no edges in or out. Isolates often signal data
+        problems (records that failed to link, entities filtered out of every relationship) or
+        simply members with no ties, and many analyses drop them first. On a directed graph a
+        node is isolated only if it has neither incoming nor outgoing edges. A node with a
+        self-loop is not isolated.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the isolated nodes.
+
+        Examples
+        --------
+        Nodes that never appear in an edge are isolates:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C")])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.isolates()]
+        ```
+
+        Removing them leaves only the connected part, ready for analysis:
+
+        ```{python}
+        for node in graph.isolates():
+            graph.delete_node(node)
+
+        graph.count_nodes()
+        ```
+        """
+        result = rust.isolates(self._graph)
+
+        if self._recording_depth == 0:
+            n = len(result)
+            self._record_step(
+                KIND_QUERY,
+                "isolates",
+                "G.isolates()",
+                delta=StepDelta(nodes_selected=[self._node_label(v) for v in result]),
+                result=result,
+                narration=f"{n} isolated node{'s' if n != 1 else ''}.",
+            )
+        return result
 
     def get_node_connectivity(self) -> int:
         """
@@ -32761,6 +38250,173 @@ class Graph:
         source_id = self._resolve_node_id(source)
         target_id = self._resolve_node_id(target)
         return self._graph.node_connectivity_between(source_id, target_id)
+
+    def edge_disjoint_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        max_paths: int | None = None,
+    ) -> list[list[int]]:
+        """
+        Find the largest set of paths between two nodes that share no edge.
+
+        ![Edge-disjoint paths](/assets/graphs/edge-disjoint-paths.light.svg){.lightbox fig-alt="Two triangles sharing node C, plus a detour from A to E through F. Three paths from A to E use no edge twice: A, C, E in the accent color, A, F, E in teal, and the long way A, B, C, D, E in violet. Two of them pass through C, which edge-disjoint paths may share." width="100%"}
+
+        Edge-disjoint paths may pass through the same node but never use the same edge. By
+        Menger's theorem, the largest number of them equals the number of edges that must be
+        removed to separate the two nodes (`get_min_cut_between()`), so the paths are a
+        concrete witness of how robustly the nodes are connected: this many links can fail
+        before the nodes lose touch. They are also the routes for spreading traffic across
+        independent links.
+
+        The paths come from a unit-capacity maximum flow, decomposed into individual routes.
+        Each edge is used at most once, whatever its weight or capacity; parallel edges are
+        separate edges. Directed graphs are followed in edge direction.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+        max_paths
+            Stop after finding this many paths. If `None` (default), find as many as possible.
+
+        Returns
+        -------
+        list[list[int]]
+            The paths as lists of node IDs from `source=` to `target=`, shortest first. Empty if
+            the target is unreachable.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, `source=` equals `target=`, or `max_paths=` is below 1.
+
+        Examples
+        --------
+        Two triangles sharing node C: every path from A to E must pass through C, but there are
+        still two routes that share no edge:
+
+        ```{python}
+        import edgecase as ec
+
+        bowtie = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        )
+
+        label = bowtie.get_label_from_id
+        [[label(n) for n in path] for path in bowtie.edge_disjoint_paths("A", "E")]
+        ```
+
+        The count matches the size of the minimum edge cut:
+
+        ```{python}
+        len(bowtie.edge_disjoint_paths("A", "E")), bowtie.get_min_cut_between("A", "E")
+        ```
+        """
+        if max_paths is not None and max_paths < 1:
+            raise ValueError(f"max_paths must be at least 1, got {max_paths}")
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        paths = rust.edge_disjoint_paths(self._graph, source_id, target_id, max_paths)
+        self._record_disjoint("edge_disjoint_paths", source, target, source_id, target_id, paths)
+        return paths
+
+    def node_disjoint_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        max_paths: int | None = None,
+    ) -> list[list[int]]:
+        """
+        Find the largest set of paths between two nodes that share no intermediate node.
+
+        ![Node-disjoint paths](/assets/graphs/node-disjoint-paths.light.svg){.lightbox fig-alt="The same graph: two triangles sharing node C, plus a detour from A to E through F. Only two paths from A to E avoid each other's inner nodes, A, C, E in the accent color and A, F, E in teal; the third edge-disjoint route, A, B, C, D, E, would reuse C, so B and D stay faint." width="100%"}
+
+        Node-disjoint (or internally disjoint) paths share only their two endpoints: no node in
+        between is used twice. This is a stronger requirement than edge-disjointness, since a
+        single failed node can no longer break more than one route. By Menger's theorem, the
+        largest number of such paths equals the number of nodes that must be removed to
+        separate the endpoints (`get_node_connectivity_between()`).
+
+        The paths come from a maximum flow in which every node other than the endpoints can
+        carry one unit, decomposed into individual routes. Directed graphs are followed in edge
+        direction. If the endpoints are adjacent, the direct edge counts as one path.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        target
+            The destination node, as an integer ID or a string label.
+        max_paths
+            Stop after finding this many paths. If `None` (default), find as many as possible.
+
+        Returns
+        -------
+        list[list[int]]
+            The paths as lists of node IDs from `source=` to `target=`, shortest first. Empty if
+            the target is unreachable.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, `source=` equals `target=`, or `max_paths=` is below 1.
+
+        Examples
+        --------
+        In the same bowtie, the shared node C means A and E have only one node-disjoint route,
+        even though they have two edge-disjoint ones:
+
+        ```{python}
+        import edgecase as ec
+
+        bowtie = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        )
+
+        len(bowtie.node_disjoint_paths("A", "E")), len(bowtie.edge_disjoint_paths("A", "E"))
+        ```
+
+        A cube has three node-disjoint routes between opposite corners, one through each
+        neighbor of the start:
+
+        ```{python}
+        cube = ec.Graph().add_nodes([str(i) for i in range(8)])
+        cube.add_edges([(str(a), str(b)) for a in range(8) for b in range(a + 1, 8)
+                        if bin(a ^ b).count("1") == 1])
+
+        label = cube.get_label_from_id
+        [[label(n) for n in path] for path in cube.node_disjoint_paths("0", "7")]
+        ```
+        """
+        if max_paths is not None and max_paths < 1:
+            raise ValueError(f"max_paths must be at least 1, got {max_paths}")
+        source_id = self._resolve_node_id(source, auto_create=False)
+        target_id = self._resolve_node_id(target, auto_create=False)
+        paths = rust.node_disjoint_paths(self._graph, source_id, target_id, max_paths)
+        self._record_disjoint("node_disjoint_paths", source, target, source_id, target_id, paths)
+        return paths
+
+    def _record_disjoint(self, method, source, target, source_id, target_id, paths) -> None:
+        if self._recording_depth != 0:
+            return
+        kind = "edge" if method.startswith("edge") else "node"
+        s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
+        n = len(paths)
+        self._record_step(
+            KIND_QUERY,
+            method,
+            f"G.{method}({source!r}, {target!r})",
+            delta=self._path_delta(paths),
+            result=paths,
+            narration=f"{n} {kind}-disjoint path{'s' if n != 1 else ''} from {s_lbl} to {t_lbl}.",
+        )
 
     def get_edge_connectivity(self) -> int:
         """
@@ -33352,6 +39008,887 @@ class Graph:
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return self._graph.minimum_node_cut(source_id, sink_id)
+
+    def _cut_step(
+        self, method: str, code: str, value: float, side_a: list, side_b: list
+    ) -> None:
+        """Record a cut: both sides as node groups, crossing edges highlighted."""
+        a = set(side_a)
+        crossing = []
+        for _, s, t in self.get_edges_as_tuples():
+            if (s in a) != (t in a):
+                crossing.append((self._node_label(s), self._node_label(t)))
+        groups = {self._node_label(n): 0 for n in side_a}
+        groups.update({self._node_label(n): 1 for n in side_b})
+        self._record_step(
+            KIND_QUERY,
+            method,
+            code,
+            delta=StepDelta(node_groups=groups, edges_selected=list(dict.fromkeys(crossing))),
+            result=(value, (side_a, side_b)),
+            narration=(
+                f"Minimum cut of value {value:g}: {len(crossing)} "
+                f"edge{'s' if len(crossing) != 1 else ''} between {len(side_a)} and "
+                f"{len(side_b)} nodes."
+            ),
+        )
+
+    def minimum_cut(
+        self, source: Union[int, str], sink: Union[int, str], capacity: str | None = None
+    ) -> tuple[float, tuple[list[int], list[int]]]:
+        """
+        Find a minimum cut separating two nodes, with both sides of the cut.
+
+        ![Minimum cut](/assets/graphs/minimum-cut.light.svg){.lightbox fig-alt="A weighted graph whose weights are capacities, with source A and sink F outlined. The cheapest way to separate them cuts the two accent edges B–D and C–E, of capacity 1 + 2 = 3.0. The two sides are shaded: A, B, C, G with the source (teal) and D, E, F with the sink (violet), as listed on the card." width="100%"}
+
+        A cut splits the nodes into two sides, one holding `source=` and the other `sink=`; its
+        value is the total capacity of the edges running from the source side to the sink side.
+        By the max-flow min-cut theorem the smallest possible value equals the maximum flow
+        from source to sink, so the minimum cut is the bottleneck that limits the flow: in a
+        pipeline or transport network, the links to upgrade; in a dependency or trust network,
+        the weakest seam between two parts.
+
+        `max_flow_value()` gives the value and `minimum_edge_cut()` the cut edges for unit
+        capacities; this method returns the value together with the partition itself. When
+        several minimum cuts exist, the one returned is the cut closest to the source: the
+        source side is exactly the nodes still reachable from the source once a maximum flow is
+        in place. (NetworkX's `minimum_cut()` returns the cut closest to the sink instead, so
+        for such graphs the two partitions can differ while having the same value.)
+
+        Capacities are read as in `max_flow()`: from the edge attribute named by `capacity=`,
+        else an attribute called `"capacity"`, else the edge weight on a weighted graph, else
+        `1.0`. On an undirected graph, each edge can carry flow either way.
+
+        Parameters
+        ----------
+        source
+            The node on the source side, as an integer ID or a string label.
+        sink
+            The node on the sink side, as an integer ID or a string label.
+        capacity
+            Name of the edge attribute holding capacities (see above). If `None` (default), use
+            the `"capacity"` attribute, the weight, or `1.0`.
+
+        Returns
+        -------
+        tuple[float, tuple[list[int], list[int]]]
+            `(cut_value, (source_side, sink_side))`, each side a sorted list of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, `source=` equals `sink=`, or a capacity is negative.
+
+        Examples
+        --------
+        Two well-connected clusters joined by a single thin link: the minimum cut runs through
+        that link and splits the clusters apart:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        value, (left, right) = graph.minimum_cut("A", "F")
+        label = graph.get_label_from_id
+        value, [label(n) for n in left], [label(n) for n in right]
+        ```
+
+        Capacities change where the bottleneck is. Here the pipe out of the source is the
+        narrowest point:
+
+        ```{python}
+        pipes = ec.Graph(directed=True).add_nodes(["s", "a", "b", "t"])
+        pipes.add_edge("s", "a", capacity=2)
+        pipes.add_edge("a", "b", capacity=5)
+        pipes.add_edge("b", "t", capacity=4)
+
+        value, (left, right) = pipes.minimum_cut("s", "t")
+        value, [pipes.get_label_from_id(n) for n in left]
+        ```
+        """
+        source_id = self._resolve_node_id(source, auto_create=False)
+        sink_id = self._resolve_node_id(sink, auto_create=False)
+        value, side_a, side_b = rust.minimum_cut(self._graph, source_id, sink_id, capacity)
+
+        if self._recording_depth == 0:
+            args = f"{source!r}, {sink!r}" + (f", capacity={capacity!r}" if capacity else "")
+            self._cut_step("minimum_cut", f"G.minimum_cut({args})", value, side_a, side_b)
+        return value, (side_a, side_b)
+
+    def _cut(self, S, T=None, weighted: bool | None = None):
+        s_ids = self._group_ids(S)
+        t_ids = None if T is None else self._group_ids(T)
+        profile = rust.cut_profile(self._graph, s_ids, t_ids, self._use_weights(weighted))
+        return s_ids, t_ids, profile
+
+    def _record_set_step(self, method: str, s_ids, t_ids, value, edges=None, nodes=None) -> None:
+        if self._recording_depth != 0:
+            return
+        groups = {self._node_label(n): 0 for n in s_ids}
+        if t_ids is not None:
+            groups.update({self._node_label(n): 1 for n in t_ids})
+        delta = StepDelta(node_groups=groups)
+        if edges is not None:
+            pairs = []
+            for e in edges:
+                ends = self.get_node_ids_by_edge_id(e)
+                if ends is not None:
+                    pairs.append((self._node_label(ends[0]), self._node_label(ends[1])))
+            delta.edges_selected = pairs
+        if nodes is not None:
+            delta.nodes_selected = [self._node_label(n) for n in nodes]
+        shown = f"{value:.3f}" if isinstance(value, float) else f"{len(value)} items"
+        self._record_step(
+            KIND_QUERY,
+            method,
+            f"G.{method}(S{'' if t_ids is None else ', T'})",
+            delta=delta,
+            result=value,
+            narration=f"{method}() for a set of {len(s_ids)} nodes: {shown}.",
+        )
+
+    def cut_size(
+        self,
+        S: list[Union[int, str]],
+        T: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Get the size of the cut between two sets of nodes.
+
+        ![Cut size](/assets/graphs/cut-size.light.svg){.lightbox fig-alt="A seven-node graph split into the set S = A, B, C (teal) and the rest D, E, F, G (violet). Three accent edges cross between them, B–D, C–D and C–E, so the cut size is 3.0." width="100%"}
+
+        The number of edges with one end in `S` and the other in `T` (or their total weight on a
+        weighted graph). `T` defaults to every node not in `S`, so the cut size measures how
+        strongly a group is tied to the rest of the network: small cuts separate natural
+        communities, which is what partitioning and community detection look for. On a directed
+        graph, edges in both directions count. The other cut measures (`conductance()`,
+        `normalized_cut_size()`, `edge_expansion()`, `mixing_expansion()`) build on it.
+
+        Parameters
+        ----------
+        S
+            One set of nodes, as integer IDs or string labels.
+        T
+            The other set. If `None` (default), all nodes not in `S`.
+        weighted
+            Whether to sum edge weights instead of counting edges. If `None` (default), follows
+            the graph.
+
+        Returns
+        -------
+        float
+            The cut size.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        Two triangles joined by one edge have a cut of size 1 between them:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        graph.cut_size(["A", "B", "C"]), graph.cut_size(["A", "B"])
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T, weighted)
+        self._record_set_step("cut_size", s_ids, t_ids, p[0], edges=p[6])
+        return p[0]
+
+    def volume(self, S: list[Union[int, str]], weighted: bool | None = None) -> float:
+        """
+        Get the volume of a set of nodes (the sum of their degrees).
+
+        ![Volume](/assets/graphs/volume.light.svg){.lightbox fig-alt="The same graph and set S = A, B, C, with each member's degree in a badge: A 2, B 3, C 4. The volume of S is the sum of its degrees, 2 + 3 + 4 = 9.0, which counts the edge ends S holds, including its three edges to the rest." width="100%"}
+
+        The volume of a node set is the sum of its members' degrees (out-degrees on a directed
+        graph, total edge weight on a weighted one): roughly, how many edge ends the set holds.
+        It is the size measure used to normalize cuts, so that `conductance()` and
+        `normalized_cut_size()` compare a cut against how much the set is connected overall,
+        rather than how many nodes it has. `S=` is treated as a set: a node listed twice is
+        counted once (NetworkX would count its degree twice).
+
+        Parameters
+        ----------
+        S
+            The nodes, as integer IDs or string labels.
+        weighted
+            Whether to sum weighted degrees. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The volume.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        The three nodes of one triangle in the two-triangle graph have degrees 2, 2 and 3:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        graph.volume(["A", "B", "C"])
+        ```
+        """
+        s_ids, _, p = self._cut(S, None, weighted)
+        self._record_set_step("volume", s_ids, None, p[1])
+        return p[1]
+
+    def normalized_cut_size(
+        self,
+        S: list[Union[int, str]],
+        T: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Get the normalized cut size between two sets of nodes.
+
+        ![Normalized cut size](/assets/graphs/normalized-cut-size.light.svg){.lightbox fig-alt="The same graph and set S, with every degree in a badge. Three edges cross the cut (accent); S holds 9 edge ends and the rest 11, so the normalized cut is 3 · (1/9 + 1/11) = 0.606." width="100%"}
+
+        The cut size divided by the volume of each side and summed:
+        `cut * (1 / vol(S) + 1 / vol(T))` (Shi & Malik, 2000). Unlike the plain cut, it
+        penalizes lopsided splits, since slicing off a single lightly connected node gives a
+        small cut but a tiny volume. Minimizing it is the objective behind spectral clustering
+        and image segmentation. `T` defaults to the complement of `S`.
+
+        Parameters
+        ----------
+        S
+            One set of nodes, as integer IDs or string labels.
+        T
+            The other set. If `None` (default), all nodes not in `S`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The normalized cut size.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty, a node does not exist, or a side has zero volume.
+
+        Examples
+        --------
+        Splitting the two triangles apart is cheap; splitting off one node is not:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        triangle = graph.normalized_cut_size(["A", "B", "C"])
+        single = graph.normalized_cut_size(["A"])
+        round(triangle, 3), round(single, 3)
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T, weighted)
+        if p[1] == 0 or p[2] == 0:
+            raise ValueError("Both sides of the cut need a positive volume")
+        value = p[0] * (1 / p[1] + 1 / p[2])
+        self._record_set_step("normalized_cut_size", s_ids, t_ids, value, edges=p[6])
+        return value
+
+    def conductance(
+        self,
+        S: list[Union[int, str]],
+        T: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Get the conductance of the cut between two sets of nodes.
+
+        ![Conductance](/assets/graphs/conductance.light.svg){.lightbox fig-alt="The same graph and set S, with every degree in a badge. Three edges cross the cut (accent), and the smaller side by volume is S with 9 edge ends against 11, so a third of S's edge ends leave it: conductance 3 / 9 = 0.333." width="100%"}
+
+        Conductance is the cut size divided by the volume of the smaller side:
+        `cut / min(vol(S), vol(T))`. It is the share of the smaller side's edge ends that leave
+        it, so a value near `0` marks a well-separated cluster and a value near `1` a set that
+        is mostly connected outward. It is the standard quality score for a single community
+        (low conductance means a good one), the quantity random walks are slow to cross, and
+        the basis of local graph partitioning. `T` defaults to the complement of `S`.
+
+        Parameters
+        ----------
+        S
+            One set of nodes, as integer IDs or string labels.
+        T
+            The other set. If `None` (default), all nodes not in `S`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The conductance.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty, a node does not exist, or a side has zero volume.
+
+        Examples
+        --------
+        One triangle of the two-triangle graph is a good cluster; a split through a triangle is
+        not:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        round(graph.conductance(["A", "B", "C"]), 3), round(graph.conductance(["A", "D"]), 3)
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T, weighted)
+        smaller = min(p[1], p[2])
+        if smaller == 0:
+            raise ValueError("Both sides of the cut need a positive volume")
+        value = p[0] / smaller
+        self._record_set_step("conductance", s_ids, t_ids, value, edges=p[6])
+        return value
+
+    def edge_expansion(
+        self,
+        S: list[Union[int, str]],
+        T: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Get the edge expansion of a set of nodes.
+
+        ![Edge expansion](/assets/graphs/edge-expansion.light.svg){.lightbox fig-alt="The same graph and set S. Three edges cross the cut (accent) and the smaller side by node count is S, with 3 nodes against 4, so the edge expansion is 3 / 3 = 1.0 crossing edge per member." width="100%"}
+
+        Edge expansion is the cut size divided by the number of nodes on the smaller side:
+        `cut / min(|S|, |T|)`. It measures how many edges leave a set per member. The smallest
+        edge expansion over all sets (the Cheeger constant) tells how well connected a graph is
+        as a whole: expander graphs, where every set has many outgoing edges, are robust and mix
+        random walks quickly. `T` defaults to the complement of `S`.
+
+        Parameters
+        ----------
+        S
+            One set of nodes, as integer IDs or string labels.
+        T
+            The other set. If `None` (default), all nodes not in `S`.
+        weighted
+            Whether to use edge weights in the cut. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The edge expansion.
+
+        Raises
+        ------
+        ValueError
+            If `S=` or `T=` is empty or a node does not exist.
+
+        Examples
+        --------
+        One edge leaves each triangle of the two-triangle graph, shared by three nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        round(graph.edge_expansion(["A", "B", "C"]), 3)
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T, weighted)
+        smaller = min(p[3], p[4])
+        if smaller == 0:
+            raise ValueError("Both sides of the cut need at least one node")
+        value = p[0] / smaller
+        self._record_set_step("edge_expansion", s_ids, t_ids, value, edges=p[6])
+        return value
+
+    def mixing_expansion(
+        self,
+        S: list[Union[int, str]],
+        T: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> float:
+        """
+        Get the mixing expansion of a set of nodes.
+
+        ![Mixing expansion](/assets/graphs/mixing-expansion.light.svg){.lightbox fig-alt="The same graph and set S. Three of its ten edges cross the cut (accent), so 3 of the 20 edge ends in the graph lie on the cut: mixing expansion 3 / 20 = 0.15." width="100%"}
+
+        Mixing expansion is the cut size divided by twice the number of edges in the graph:
+        `cut / (2m)`, the share of all edge ends that sit on cut edges. It compares a cut with
+        the size of the whole network rather than with the set, which makes it a natural
+        measure when the cut is meant to be a small fraction of all connections (for example,
+        how much traffic crosses between two regions). `T` defaults to the complement of `S`.
+        As in NetworkX, the denominator counts edges, even when the cut uses weights.
+
+        Parameters
+        ----------
+        S
+            One set of nodes, as integer IDs or string labels.
+        T
+            The other set. If `None` (default), all nodes not in `S`.
+        weighted
+            Whether to use edge weights in the cut. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        float
+            The mixing expansion.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty, a node does not exist, or the graph has no edges.
+
+        Examples
+        --------
+        One of seven edges crosses between the triangles, so 1 / 14 of all edge ends lie on the
+        cut:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        graph.mixing_expansion(["A", "B", "C"]) == 1 / 14
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T, weighted)
+        if p[5] == 0:
+            raise ValueError("The graph has no edges")
+        value = p[0] / (2 * p[5])
+        self._record_set_step("mixing_expansion", s_ids, t_ids, value, edges=p[6])
+        return value
+
+    def node_expansion(self, S: list[Union[int, str]]) -> float:
+        """
+        Get the node expansion of a set of nodes.
+
+        ![Node expansion](/assets/graphs/node-expansion.light.svg){.lightbox fig-alt="The same graph and set S. Every neighbor of a member counts, members included: A, B and C are adjacent to each other, and D and E lie across the cut, all five in accent. Five neighbors over three members gives node expansion 5 / 3 = 1.667." width="100%"}
+
+        The number of nodes adjacent to the set divided by the size of the set, as in NetworkX's
+        `node_expansion()`. Note that this counts *every* neighbor of a member, including other
+        members; for neighbors outside the set only (the vertex expansion of expander-graph
+        theory), use `boundary_expansion()`. On a directed graph, neighbors are nodes the set
+        points to. Self-loops are ignored (NetworkX counts a node with a self-loop as its own
+        neighbor), and `S=` is treated as a set, so repeated nodes count once.
+
+        Parameters
+        ----------
+        S
+            The nodes, as integer IDs or string labels.
+
+        Returns
+        -------
+        float
+            The node expansion.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        The triangle A, B, C has four distinct neighbors, counting its own members: A, B and C
+        (each adjacent to the others) plus D. Only D lies outside it:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        graph.node_expansion(["A", "B", "C"]), graph.boundary_expansion(["A", "B", "C"])
+        ```
+        """
+        s_ids, _, p = self._cut(S)
+        value = p[8] / p[3]
+        self._record_set_step("node_expansion", s_ids, None, value)
+        return value
+
+    def boundary_expansion(self, S: list[Union[int, str]]) -> float:
+        """
+        Get the boundary (vertex) expansion of a set of nodes.
+
+        ![Boundary expansion](/assets/graphs/boundary-expansion.light.svg){.lightbox fig-alt="The same graph and set S. Only neighbors outside S count: D and E, in accent, each touch the triangle. Two outside neighbors over three members gives boundary expansion 2 / 3 = 0.667." width="100%"}
+
+        The number of nodes *outside* the set that are adjacent to it (its node boundary, see
+        `node_boundary()`) divided by the size of the set. This is the vertex expansion of
+        expander-graph theory: in a good expander, every small set has many outside neighbors,
+        so information spreads quickly and no small group can be isolated by removing few
+        nodes. On a directed graph, neighbors are nodes the set points to.
+
+        Parameters
+        ----------
+        S
+            The nodes, as integer IDs or string labels.
+
+        Returns
+        -------
+        float
+            The boundary expansion.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        The hub of a star reaches every leaf, so its boundary is as large as the graph allows:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_star_graph(5)
+
+        star.boundary_expansion([1]), star.boundary_expansion([2])
+        ```
+        """
+        s_ids, _, p = self._cut(S)
+        value = len(p[7]) / p[3]
+        self._record_set_step("boundary_expansion", s_ids, None, value, nodes=p[7])
+        return value
+
+    def node_boundary(
+        self, S: list[Union[int, str]], T: list[Union[int, str]] | None = None
+    ) -> list[int]:
+        """
+        Get the nodes outside a set that are adjacent to it.
+
+        ![Node boundary](/assets/graphs/node-boundary.light.svg){.lightbox fig-alt="The same graph and set S. The nodes outside S with a neighbor inside it are D and E, in accent; F and G are further away. The call returns their node ids, 4 and 5." width="100%"}
+
+        The node boundary of `S` is every node not in `S` that has a neighbor in `S`: the
+        first ring around the set. With `T=`, only boundary nodes in `T` are kept. On a directed
+        graph, these are the nodes `S` points to. Boundaries describe the frontier of a region,
+        the next nodes to infect or inform from a seed set, or the contacts that separate a
+        group from the rest. Matches NetworkX's `node_boundary()`.
+
+        Parameters
+        ----------
+        S
+            The nodes, as integer IDs or string labels.
+        T
+            Optionally restrict the boundary to these nodes.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the boundary nodes.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        The boundary of one triangle in the two-triangle graph is the single node across the
+        bridge:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        [graph.get_label_from_id(n) for n in graph.node_boundary(["A", "B", "C"])]
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T)
+        self._record_set_step("node_boundary", s_ids, t_ids, p[7], nodes=p[7])
+        return p[7]
+
+    def edge_boundary(
+        self, S: list[Union[int, str]], T: list[Union[int, str]] | None = None
+    ) -> list[int]:
+        """
+        Get the edges leaving a set of nodes.
+
+        ![Edge boundary](/assets/graphs/edge-boundary.light.svg){.lightbox fig-alt="The same graph and set S. The edges with exactly one end in S are B–D, C–D and C–E, in accent and labelled with their edge ids. The call returns those ids, 4, 5 and 6." width="100%"}
+
+        The edge boundary of `S` is every edge with exactly one end in `S` (with `T=`, edges
+        between `S` and `T`). On a directed graph, only edges leaving `S` count, as in NetworkX's
+        `edge_boundary()`. These are the edges a cut would remove; their number (or total
+        weight) is `cut_size()` on undirected graphs.
+
+        Parameters
+        ----------
+        S
+            The nodes, as integer IDs or string labels.
+        T
+            Optionally only count edges ending in these nodes.
+
+        Returns
+        -------
+        list[int]
+            Sorted IDs of the boundary edges.
+
+        Raises
+        ------
+        ValueError
+            If `S=` is empty or a node does not exist.
+
+        Examples
+        --------
+        Only the bridge leaves the first triangle:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        ends = graph.get_node_ids_by_edge_id
+        label = graph.get_label_from_id
+        [[label(n) for n in ends(e)] for e in graph.edge_boundary(["A", "B", "C"])]
+        ```
+        """
+        s_ids, t_ids, p = self._cut(S, T)
+        self._record_set_step("edge_boundary", s_ids, t_ids, p[6], edges=p[6])
+        return p[6]
+
+    def stoer_wagner(
+        self, capacity: str | None = None
+    ) -> tuple[float, tuple[list[int], list[int]]]:
+        """
+        Find a global minimum cut of an undirected graph.
+
+        ![Stoer-Wagner minimum cut](/assets/graphs/stoer-wagner.light.svg){.lightbox fig-alt="The same weighted graph, with no source or sink. The cheapest split of the whole graph is not between the two triangles (capacity 3) but around G: its two light accent edges A–G and C–G cost 1 + 1 = 2.0. The card gives that value and the two sides, A to F (teal) and G alone (violet)." width="100%"}
+
+        The global minimum cut is the cheapest way to split the graph into two non-empty parts,
+        over all possible pairs of sides, without fixing a source or sink in advance. Its value
+        is the graph's edge connectivity when every edge has capacity 1, and in general it
+        measures how easily the network falls apart: a low value means some group of nodes
+        hangs on by a few (or light) edges. The Stoer-Wagner algorithm finds it directly,
+        without running a max-flow computation for every pair of nodes.
+
+        Capacities are read as in `max_flow()`: from the edge attribute named by `capacity=`,
+        else an attribute called `"capacity"`, else the edge weight on a weighted graph, else
+        `1.0`. Parallel edges add up and self-loops are ignored. A disconnected graph has a
+        minimum cut of `0`, between a component and the rest.
+
+        Parameters
+        ----------
+        capacity
+            Name of the edge attribute holding capacities (see above). If `None` (default), use
+            the `"capacity"` attribute, the weight, or `1.0`.
+
+        Returns
+        -------
+        tuple[float, tuple[list[int], list[int]]]
+            `(cut_value, (side_a, side_b))`, each side a sorted list of node IDs, with the side
+            holding the smallest node ID first.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, has fewer than two nodes, or has a negative capacity.
+
+        Examples
+        --------
+        Two triangles joined by one edge: the global minimum cut is that single bridge:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        value, (one, other) = graph.stoer_wagner()
+        label = graph.get_label_from_id
+        value, [label(n) for n in one], [label(n) for n in other]
+        ```
+
+        With weights as capacities, a heavy bridge is no longer the weak point; a lightly tied
+        node is:
+
+        ```{python}
+        weighted = (
+            ec.Graph(weighted=True)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 3.0), ("B", "C", 4.0), ("C", "A", 3.0), ("C", "D", 1.5)])
+        )
+
+        value, (one, other) = weighted.stoer_wagner()
+        value, [weighted.get_label_from_id(n) for n in other]
+        ```
+        """
+        value, side_a, side_b = rust.stoer_wagner(self._graph, capacity)
+
+        if self._recording_depth == 0:
+            code = "G.stoer_wagner()"
+            if capacity is not None:
+                code = f"G.stoer_wagner(capacity={capacity!r})"
+            self._cut_step("stoer_wagner", code, value, side_a, side_b)
+        return value, (side_a, side_b)
+
+    def gomory_hu_tree(self, capacity: str | None = None) -> "Graph":
+        """
+        Build the Gomory-Hu tree, which encodes every pairwise minimum cut.
+
+        ![Gomory-Hu tree](/assets/graphs/gomory-hu-tree.light.svg){.lightbox fig-alt="Left: the weighted cut graph, whose minimum cut between A and F is the accent pair of edges B–D and C–E, capacity 3. Right: its Gomory-Hu tree, six edges weighted with pairwise cut values. On the tree path from A to F (weights 7, 3, 6, 6) the lightest edge, C–E with weight 3, is in the accent color: it gives the same cut value 3." width="100%"}
+
+        A Gomory-Hu tree is a weighted tree on the same nodes with a remarkable property: the
+        minimum cut between any two nodes of the original graph equals the smallest edge weight
+        on the tree path between them, and removing that tree edge splits the nodes into the
+        two sides of such a cut. It condenses all `n * (n - 1) / 2` pairwise minimum cuts into
+        `n - 1` edges, computed with only `n - 1` maximum-flow runs (Gusfield's algorithm).
+        A graph can have several valid Gomory-Hu trees (NetworkX may return a different one),
+        but every one of them gives the same pairwise cut values.
+
+        Use it to answer many min-cut or max-flow queries quickly, to find the most and least
+        robustly connected pairs in a network, or to cluster nodes by cut strength (removing the
+        lightest tree edges splits the graph along its weakest seams).
+
+        Capacities are read as in `max_flow()`: from the edge attribute named by `capacity=`,
+        else an attribute called `"capacity"`, else the edge weight on a weighted graph, else
+        `1.0`.
+
+        Parameters
+        ----------
+        capacity
+            Name of the edge attribute holding capacities (see above). If `None` (default), use
+            the `"capacity"` attribute, the weight, or `1.0`.
+
+        Returns
+        -------
+        Graph
+            A new undirected, weighted graph on the same nodes (IDs, labels and attributes kept)
+            whose `n - 1` edges carry the cut values as weights. On a disconnected graph some
+            weights are `0`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or a capacity is negative.
+
+        Examples
+        --------
+        In two triangles joined by a bridge, pairs inside a triangle can only be separated by
+        cutting two edges, while any pair across the bridge needs just one:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        tree = graph.gomory_hu_tree()
+        tree.get_edges_str_repr(use_labels=True), tree.get_edge_attrs_by_id("weight")
+        ```
+
+        The minimum cut between A and F is the lightest edge on their tree path, which matches
+        a direct computation:
+
+        ```{python}
+        path = tree.shortest_path("A", "F", return_list=True)
+        weights = [
+            tree.get_edge(tree.find_edge_ids(u, v)[0]).weight for u, v in zip(path, path[1:])
+        ]
+        min(weights), graph.max_flow_value("A", "F")
+        ```
+        """
+        edges = rust.gomory_hu(self._graph, capacity)
+        result = Graph._from_rust(rust.weighted_tree_graph(self._graph, edges))
+        all_ids = sorted(result.get_node_ids(limit=None))
+        result._record_step(
+            KIND_BUILD_EDGES,
+            "gomory_hu_tree",
+            "G.gomory_hu_tree()",
+            delta=StepDelta(
+                nodes_added=[result._node_label(n) for n in all_ids],
+                edges_added=[(result._node_label(a), result._node_label(b)) for a, b, _ in edges],
+            ),
+        )
+
+        if self._recording_depth == 0:
+            weakest = min((w for _, _, w in edges), default=0.0)
+            code = "G.gomory_hu_tree()"
+            if capacity is not None:
+                code = f"G.gomory_hu_tree(capacity={capacity!r})"
+            self._record_step(
+                KIND_TRANSFORM,
+                "gomory_hu_tree",
+                code,
+                narration=(
+                    f"Gomory-Hu tree with {len(edges)} edges; the weakest pairwise cut has "
+                    f"value {weakest:g}."
+                ),
+            )
+        return result
 
     def minimum_edge_cut(
         self, source: Union[int, str], sink: Union[int, str]
@@ -36603,6 +43140,796 @@ class Graph:
     # Edge Type Analysis
     # ==============================================================================
 
+    def _branching(self, kind: str, method: str, weight_attr: str | None) -> "Graph":
+        """Shared driver for the four Edmonds branching and arborescence methods."""
+        eids = rust.optimum_branching(self._graph, kind, weight_attr)
+        result = Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
+        code = (
+            f"G.{method}()" if weight_attr is None else f"G.{method}(weight_attr={weight_attr!r})"
+        )
+        values = rust.edge_values(self._graph, eids, weight_attr) if eids else []
+        self._record_spanning_result(
+            result,
+            method,
+            code,
+            eids,
+            f"{method}(): {len(eids)} edges with total weight {sum(values):g}.",
+        )
+        return result
+
+    def _record_spanning_result(
+        self, result: "Graph", method: str, code: str, eids: list[int], narration: str
+    ) -> None:
+        """Build step on a spanning subgraph result, and a transform step on the source that
+        highlights the chosen edges."""
+        pairs = []
+        for e in eids:
+            ends = self.get_node_ids_by_edge_id(e)
+            pairs.append((self._node_label(ends[0]), self._node_label(ends[1])))
+        result._record_step(
+            KIND_BUILD_EDGES,
+            method,
+            code,
+            delta=StepDelta(
+                nodes_added=[
+                    result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                ],
+                edges_added=pairs,
+            ),
+        )
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                method,
+                code,
+                delta=StepDelta(edges_selected=pairs),
+                narration=narration,
+            )
+
+    def maximum_branching(self, weight_attr: str | None = None) -> "Graph":
+        r"""
+        Find a maximum-weight branching of a directed graph (Edmonds' algorithm).
+
+        ![Maximum branching](/assets/graphs/maximum-branching.light.svg){.lightbox fig-alt="A weighted directed graph on four nodes: A points to B (3) and D (1), and B, C, D form the cycle B→C (5), C→D (4), D→B (6). The heaviest in-edges would close that cycle, so Edmonds' algorithm drops D→B (dashed) and keeps A→B, B→C, and C→D in the accent color, a single tree rooted at A; A→D is faded. The card lists the three edges and their total weight 3 + 5 + 4 = 12." width="100%"}
+
+        A branching is a directed forest: no cycles, and every node has at most one incoming
+        edge, so each tree hangs from its own root with all edges pointing away from it. The
+        maximum branching is the branching whose edges have the largest possible total weight.
+        Think of every edge `u -> v` as a vote of confidence in "`v` comes from `u`": the
+        maximum branching assigns each node at most one parent so that the total confidence is
+        as high as possible, without ever creating a cycle of parents.
+
+        Maximum branchings are used for:
+
+        - reconstructing hierarchies or lineages from pairwise scores (who derived from whom,
+          which document was copied from which, phylogenies and cascades)
+        - dependency parsing in natural language processing, where words choose their heads
+        - the directed counterpart of a maximum spanning forest
+
+        Only edges with positive weight help, so edges of weight zero or less are never chosen
+        and the branching need not span the graph (use `maximum_spanning_arborescence()` to
+        force a single tree that reaches every node). Self-loops are never chosen. The original
+        graph is not modified.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of the edge attribute holding the weights. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+
+        Returns
+        -------
+        Graph
+            A new directed graph with every node of the original (IDs, labels and attributes
+            kept) and only the branching's edges (weights and attributes copied).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or an edge value is NaN.
+
+        Technical Notes
+        ---------------
+        Edmonds' algorithm (1967) first gives every node its heaviest positive incoming edge.
+        If these choices contain no cycle they form the optimum. Otherwise each cycle $C$ is
+        contracted into a single node, and an edge $(u, v)$ entering $C$ at $v$ gets the
+        adjusted weight $w(u, v) - w(e_v) + \min_{e \in C} w(e)$, where $e_v$ is the cycle
+        edge into $v$ (Karp 1971): choosing it means swapping $e_v$ out of the cycle, instead
+        of the lightest cycle edge. The contracted problem is solved recursively, and each
+        cycle is expanded by dropping either the edge into the node where the solution enters
+        it or, if nothing enters, its lightest edge. This implementation runs in
+        $O(V E)$ time. When several branchings tie, a different one than NetworkX's may be
+        returned, but the total weight is the same.
+
+        Examples
+        --------
+        Three editors each forwarded a story, and the edge weights score how confident we are
+        that one copied from another. The heaviest choice of "source" for each copy forms a
+        cycle, B -> C -> D -> B, which Edmonds' algorithm breaks at its weakest edge:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [("A", "B", 3.0), ("B", "C", 5.0), ("C", "D", 4.0), ("D", "B", 6.0), ("A", "D", 1.0)]
+        )
+
+        branching = g.maximum_branching()
+        branching.get_edges_str_repr(use_labels=True)
+        ```
+
+        The result is a single tree rooted at A, with total weight 3 + 5 + 4 = 12. Dropping
+        D -> B (6) instead of B's other in-edge would have stranded the whole cycle:
+
+        ```{python}
+        sum(branching.get_edge(e).weight for e in branching.get_edge_ids(limit=None)), branching.is_arborescence()
+        ```
+
+        Edges with non-positive weights never pay off, so they are left out even when that
+        splits the result into several trees:
+
+        ```{python}
+        g2 = ec.Graph(directed=True, weighted=True)
+        g2.add_nodes(["A", "B", "C"])
+        g2.add_edges([("A", "B", 2.0), ("B", "C", -1.0)])
+        g2.maximum_branching().get_edges_str_repr(use_labels=True)
+        ```
+        """
+        return self._branching("max_branching", "maximum_branching", weight_attr)
+
+    def minimum_branching(self, weight_attr: str | None = None) -> "Graph":
+        r"""
+        Find a minimum-weight branching of a directed graph (Edmonds' algorithm).
+
+        ![Minimum branching](/assets/graphs/minimum-branching.light.svg){.lightbox fig-alt="A weighted directed triangle: A→B (−2), A→C (−1), C→B (−3), and B→C (4). Only negative edges lower the total, and each node may keep one parent, so the minimum branching takes C→B and A→C, in the accent color, while A→B and B→C are faded. The card lists the two edges and their total weight −3 − 1 = −4." width="100%"}
+
+        A branching is a directed forest in which every node has at most one incoming edge.
+        The minimum branching has the smallest possible total weight. Because the empty
+        branching (no edges at all) has weight zero, only edges with *negative* weight can
+        lower the total, so on a graph whose weights are all positive the result has no edges.
+        That matches NetworkX, and makes this method useful mainly for signed costs (negative
+        values meaning gains). To connect every node as cheaply as possible, use
+        `minimum_spanning_arborescence()` instead.
+
+        Self-loops are never chosen, and the original graph is not modified.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of the edge attribute holding the weights. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+
+        Returns
+        -------
+        Graph
+            A new directed graph with every node of the original (IDs, labels and attributes
+            kept) and only the branching's edges (weights and attributes copied).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or an edge value is NaN.
+
+        Technical Notes
+        ---------------
+        The minimum branching is the maximum branching for the negated weights, found with
+        Edmonds' cycle-contraction algorithm in $O(V E)$ time; see `maximum_branching()`.
+
+        Examples
+        --------
+        With signed costs, the method keeps the profitable (negative) edges, as long as no node
+        gets two parents and no cycle forms:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        g.add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", -2.0), ("C", "B", -3.0), ("A", "C", -1.0), ("B", "C", 4.0)])
+
+        # B takes its cheaper parent C (-3), and C keeps A (-1): total -4
+        g.minimum_branching().get_edges_str_repr(use_labels=True)
+        ```
+
+        When every weight is positive, no edge lowers the total, so the result is empty:
+
+        ```{python}
+        positive = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B"])
+        positive.add_edge("A", "B", weight=1.0)
+        positive.minimum_branching().count_edges()
+        ```
+        """
+        return self._branching("min_branching", "minimum_branching", weight_attr)
+
+    def maximum_spanning_arborescence(self, weight_attr: str | None = None) -> "Graph":
+        r"""
+        Find a maximum-weight spanning arborescence of a directed graph (Edmonds' algorithm).
+
+        ![Maximum spanning arborescence](/assets/graphs/maximum-spanning-arborescence.light.svg){.lightbox fig-alt="A weighted directed graph: A→B (3), B→C (−2), A→C (−5), and C→D (4). Node C can only be reached through a negative edge, and a spanning arborescence must reach every node, so it takes the less costly B→C: the tree A→B, B→C, C→D in the accent color, total 3 − 2 + 4 = 5, with A→C faded. The card contrasts it with the maximum branching, which leaves C without a parent and keeps only A→B and C→D, total 7." width="100%"}
+
+        A spanning arborescence is a directed tree that reaches every node from a single root:
+        the root has no incoming edge and every other node has exactly one. Among all spanning
+        arborescences (over every possible root), this method returns one with the largest
+        total edge weight. Unlike `maximum_branching()`, it must use exactly `n - 1` edges,
+        so it may include low or negative weights when that is the only way to reach a node.
+
+        Typical uses include choosing the most plausible single-origin explanation of a
+        process (a broadcast or contagion tree, a phylogeny with a common ancestor) and
+        dependency parsing, where every word but the root takes exactly one head.
+
+        Self-loops are never chosen, and the original graph is not modified.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of the edge attribute holding the weights. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+
+        Returns
+        -------
+        Graph
+            A new directed graph with every node of the original (IDs, labels and attributes
+            kept) and the `n - 1` arborescence edges (weights and attributes copied).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, an edge value is NaN, or no spanning arborescence
+            exists (no single node can reach all the others).
+
+        Technical Notes
+        ---------------
+        Edmonds' algorithm is run with weights ordered lexicographically as (edge count, total
+        weight): every edge counts as one unit of the first component, so the optimum first
+        takes as many edges as possible and only then maximizes the weight. This makes the
+        result a spanning arborescence whenever one exists, without adding a large constant to
+        the weights (which would cost floating-point precision). It runs in $O(V E)$ time.
+
+        Examples
+        --------
+        C can only be reached through negative-weight edges, so `maximum_branching()` leaves it
+        without a parent. The spanning arborescence has to reach it, and takes the less costly
+        of its two in-edges, B -> C (-2):
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 3.0), ("B", "C", -2.0), ("A", "C", -5.0), ("C", "D", 4.0)])
+
+        tree = g.maximum_spanning_arborescence()
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+
+        The arborescence has `n - 1 = 3` edges and total weight 5, while the maximum branching
+        has only two edges (total 7) and splits into two trees:
+
+        ```{python}
+        tree.count_edges(), g.maximum_branching().get_edges_str_repr(use_labels=True)
+        ```
+
+        If no node can reach all the others, there is no spanning arborescence:
+
+        ```{python}
+        split = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        split.add_edges([("A", "B"), ("C", "B")])
+        try:
+            split.maximum_spanning_arborescence()
+        except ValueError as err:
+            print(err)
+        ```
+        """
+        return self._branching("max_arborescence", "maximum_spanning_arborescence", weight_attr)
+
+    def minimum_spanning_arborescence(self, weight_attr: str | None = None) -> "Graph":
+        r"""
+        Find a minimum-weight spanning arborescence of a directed graph (Edmonds' algorithm).
+
+        ![Minimum spanning arborescence](/assets/graphs/minimum-spanning-arborescence.light.svg){.lightbox fig-alt="One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest tree reaching every station from the root A, outlined in the accent color, uses A→C, C→B, and B→D, in the accent color; the other links are faded. The card lists the three edges and their total cost 1 + 2 + 3 = 6." width="100%"}
+
+        A spanning arborescence is a directed tree in which a single root reaches every node:
+        the root has no incoming edge and every other node has exactly one. This method returns
+        the cheapest one over every possible root. It is the directed counterpart of the
+        minimum spanning tree, and answers questions like "what is the cheapest way to
+        broadcast from one site to all others over one-way links?". Edge direction matters:
+        an edge `u -> v` can only carry the signal from `u` to `v`.
+
+        Self-loops are never chosen, and the original graph is not modified.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of the edge attribute holding the weights. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+
+        Returns
+        -------
+        Graph
+            A new directed graph with every node of the original (IDs, labels and attributes
+            kept) and the `n - 1` arborescence edges (weights and attributes copied).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, an edge value is NaN, or no spanning arborescence
+            exists (no single node can reach all the others).
+
+        Technical Notes
+        ---------------
+        This is the Chu-Liu/Edmonds algorithm: Edmonds' cycle contraction on the negated
+        weights, with the edge count ranked first so that every node gets a parent except the
+        root (see `maximum_spanning_arborescence()`). It runs in $O(V E)$ time. Ties between
+        equally cheap arborescences may be broken differently than in NetworkX.
+
+        Examples
+        --------
+        One-way links between four relay stations, weighted by cost. The cheapest way to
+        reach every station starts at A, the only station with no incoming link:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [
+                ("A", "B", 4.0), ("A", "C", 1.0), ("C", "B", 2.0),
+                ("B", "D", 3.0), ("C", "D", 6.0), ("D", "C", 1.0),
+            ]
+        )
+
+        tree = g.minimum_spanning_arborescence()
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+
+        The total cost is 1 + 2 + 3 = 6, cheaper than any tree using the direct edge A -> B:
+
+        ```{python}
+        sum(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
+        ```
+        """
+        return self._branching("min_arborescence", "minimum_spanning_arborescence", weight_attr)
+
+    def is_branching(self) -> bool:
+        """
+        Check if the graph is a branching (a directed forest).
+
+        ![Is branching](/assets/graphs/is-branching.light.svg){.lightbox fig-alt="Left: a directed forest of two trees, A pointing to B and C, and D pointing to E; every node has at most one incoming edge, so is_branching() returns True. Right: the same graph plus an edge from D to C (shown in the accent color); C now has two parents, A and D, so is_branching() returns False." width="100%"}
+
+        A branching is a directed graph with no cycles, even when edge directions are ignored,
+        in which every node has at most one incoming edge. Each of its weakly connected
+        components is then an arborescence: a tree hanging from a root with all edges pointing
+        away from it. A branching that is a single tree is an arborescence (see
+        `is_arborescence()`), just as an undirected forest made of one tree is a tree.
+
+        Branchings are what `maximum_branching()` and `minimum_branching()` return, and they
+        model any "each item has at most one parent" structure: org charts with several heads,
+        file systems with several roots, or the infection trees of separate outbreaks.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is a branching. Undirected and empty graphs return `False`.
+
+        Technical Notes
+        ---------------
+        The check makes a single pass over the edges, counting in-degrees and merging the
+        endpoints in a union-find structure: a second incoming edge, or an edge whose ends are
+        already connected (which includes self-loops and parallel edges), rules out a
+        branching. It runs in nearly $O(V + E)$ time.
+
+        Examples
+        --------
+        Two separate trees, each rooted at its own node, form a branching:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True)
+        g.add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("A", "C"), ("D", "E")])
+
+        # Returns (True, False): a branching, but not a single arborescence
+        g.is_branching(), g.is_arborescence()
+        ```
+
+        Giving C a second parent breaks the "at most one incoming edge" rule:
+
+        ```{python}
+        g.add_edge("D", "C")
+        g.is_branching()
+        ```
+        """
+        value = rust.is_branching(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_branching",
+                "G.is_branching()",
+                result=value,
+                narration=f"is_branching(): {value}.",
+            )
+        return value
+
+    def number_of_spanning_trees(
+        self, root: Union[int, str, None] = None, weighted: bool | None = None
+    ) -> "int | float":
+        r"""
+        Count the spanning trees of the graph (Kirchhoff's matrix-tree theorem).
+
+        ![Number of spanning trees](/assets/graphs/number-of-spanning-trees.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A–C in the accent color. Right: its 8 spanning trees as miniatures in two rows. The top row holds the 4 trees of the plain square, each dropping one side; the bottom row holds the 4 trees that use the diagonal. The heading gives the count, 8, and a note under the rows the sum 4 + 4 = 8." width="100%"}
+
+        A spanning tree connects all `n` nodes with `n - 1` edges and no cycle. Counting them
+        measures redundancy: a tree has exactly one spanning tree (lose any edge and it falls
+        apart), while a complete graph on `n` nodes has $n^{n-2}$ (Cayley's formula). The count
+        is used as a reliability measure for communication networks, in statistical physics
+        and in enumerative combinatorics, and it can be huge even for small graphs.
+
+        On a directed graph, the method counts spanning arborescences rooted at `root=`: trees
+        in which every node can be reached from the root along edge directions. On a weighted
+        graph (or with `weighted=True`), each tree counts as the product of its edge weights,
+        which gives the normalizing constant for sampling trees in proportion to their weight
+        (see `random_spanning_tree()`); pass `weighted=False` for a plain count.
+
+        Parallel edges count as distinct (each choice gives a different tree) and self-loops
+        are ignored. A disconnected graph has no spanning tree, so the result is `0`.
+
+        Parameters
+        ----------
+        root
+            Required on a directed graph, where it is the root of the arborescences (as an
+            integer ID or string label). Ignored on undirected graphs.
+        weighted
+            Whether to weight each tree by the product of its edge weights. If `None` (default),
+            follows the graph's `weighted` flag.
+
+        Returns
+        -------
+        int or float
+            Unweighted counts are exact integers, however large. Weighted counts are floats.
+
+        Raises
+        ------
+        ValueError
+            If the graph is empty, or `root=` is missing or unknown on a directed graph.
+
+        Technical Notes
+        ---------------
+        By Kirchhoff's theorem the number of spanning trees equals any cofactor of the Laplacian
+        $L = D - A$: delete one row and the matching column and take the determinant. For
+        arborescences rooted at $r$ (Tutte's directed version) the in-degree Laplacian is used
+        and the row and column of $r$ are deleted. Unweighted determinants are computed
+        exactly: with Bareiss' fraction-free elimination in 128-bit integers when the
+        intermediate values fit, and otherwise modulo enough 61-bit primes to exceed Hadamard's
+        bound on the determinant, combined with the Chinese remainder theorem. Each pass costs
+        $O(V^3)$ operations. Weighted determinants use a floating-point LU decomposition.
+
+        Examples
+        --------
+        A 4-cycle has four spanning trees (drop any one edge), and adding a diagonal raises the
+        count to eight:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        before = square.number_of_spanning_trees()
+        square.add_edge("A", "C")
+
+        # Returns (4, 8)
+        before, square.number_of_spanning_trees()
+        ```
+
+        Cayley's formula gives $6^4 = 1296$ for the complete graph on six nodes:
+
+        ```{python}
+        ec.Graph().add_full_graph(6).number_of_spanning_trees()
+        ```
+
+        On a directed graph the count depends on the root. This directed triangle with an extra
+        edge A -> C has two arborescences rooted at A (A -> B -> C, and A -> B with A -> C) but
+        only one rooted at B (B -> C -> A):
+
+        ```{python}
+        d = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        d.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
+        d.number_of_spanning_trees(root="A"), d.number_of_spanning_trees(root="B")
+        ```
+        """
+        root_id = None
+        if root is not None and self.is_directed():
+            root_id = self._resolve_node_id(root, auto_create=False)
+        use = self._use_weights(weighted)
+        value = rust.number_of_spanning_trees(self._graph, root_id, use)
+        if isinstance(value, list):
+            # Residues modulo primes, for counts beyond 128 bits: combine them exactly (CRT)
+            total, modulus = 0, 1
+            for p, r in value:
+                total += modulus * ((r - total) * pow(modulus, -1, p) % p)
+                modulus *= p
+            value = total
+        if self._recording_depth == 0:
+            code = (
+                "G.number_of_spanning_trees()"
+                if root is None
+                else (f"G.number_of_spanning_trees(root={root!r})")
+            )
+            shown = f"{value:,}" if isinstance(value, int) else f"{value:.6g}"
+            delta = StepDelta()
+            if root_id is not None:
+                delta.nodes_selected = [self._node_label(root_id)]
+            self._record_step(
+                KIND_QUERY,
+                "number_of_spanning_trees",
+                code,
+                delta=delta,
+                result=value,
+                narration=f"number_of_spanning_trees(): {shown}.",
+            )
+        return value
+
+    def random_spanning_tree(
+        self, weighted: bool | None = None, seed: int | None = None
+    ) -> "Graph":
+        r"""
+        Draw a random spanning tree of a connected undirected graph.
+
+        ![Random spanning tree](/assets/graphs/random-spanning-tree.light.svg){.lightbox fig-alt="Left: a 4 by 4 grid graph, 16 nodes and 24 edges. Right: the spanning tree drawn with seed 7, its 15 edges in the accent color and the 9 unused grid edges dashed. Every node is reached by exactly one route, so the tree reads as a maze." width="100%"}
+
+        Every spanning tree is equally likely on an unweighted graph. On a weighted graph (or
+        with `weighted=True`), a tree is chosen with probability proportional to the product
+        of its edge weights, so heavier edges are more likely to appear. Random spanning trees
+        are used to generate random mazes, to build sparse random backbones of a network, in
+        Monte Carlo estimates of network reliability, and as a null model for tree-shaped data.
+
+        Self-loops are never chosen, and edges with weight zero are never chosen. Among
+        parallel edges, each is a separate candidate. The original graph is not modified.
+
+        Parameters
+        ----------
+        weighted
+            Whether to draw trees in proportion to the product of their edge weights. If `None`
+            (default), follows the graph's `weighted` flag.
+        seed
+            Seed for the random number generator, for reproducible results. If `None`
+            (default), a fresh random tree is drawn on each call.
+
+        Returns
+        -------
+        Graph
+            A new undirected graph with every node of the original (IDs, labels and attributes
+            kept) and the `n - 1` tree edges (weights and attributes copied).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, empty, disconnected (counting only positive-weight edges
+            when weighted), or has a negative weight.
+
+        Technical Notes
+        ---------------
+        Wilson's algorithm (1996) grows the tree from a random root. From each node not yet in
+        the tree it runs a random walk until the walk hits the tree, erases the loops of that
+        walk, and grafts the remaining path onto the tree. With walks that step along an edge
+        with probability proportional to its weight, the result follows the weighted uniform
+        spanning tree distribution exactly, $P(T) \propto \prod_{e \in T} w(e)$. The expected
+        running time is the mean hitting time of the random walk, which is close to linear for
+        well-connected graphs. NetworkX also offers an additive (sum of weights) distribution,
+        which is not supported here.
+
+        Examples
+        --------
+        Random spanning trees of a grid are mazes: every cell is reachable from every other by
+        exactly one route.
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(4, 4)
+        maze = grid.random_spanning_tree(seed=7)
+        maze.count_edges(), maze.is_tree()
+        ```
+
+        The same seed gives the same tree:
+
+        ```{python}
+        again = grid.random_spanning_tree(seed=7)
+        sorted(maze.get_edges_str_repr(use_labels=True)) == sorted(
+            again.get_edges_str_repr(use_labels=True)
+        )
+        ```
+
+        On a weighted triangle, the tree that leaves out the light edge has weight
+        `4 * 4 = 16` against `4 * 1 = 4` for each of the others, so it is drawn about two
+        thirds of the time:
+
+        ```{python}
+        tri = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+        tri.add_edges([("A", "B", 4.0), ("B", "C", 4.0), ("C", "A", 1.0)])
+        draws = [tri.random_spanning_tree(seed=s) for s in range(3000)]
+        sum(t.find_edge_ids("C", "A") == [] for t in draws) / 3000
+        ```
+        """
+        eids = rust.random_spanning_tree(self._graph, self._use_weights(weighted), seed)
+        result = Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
+        code = (
+            "G.random_spanning_tree()"
+            if seed is None
+            else (f"G.random_spanning_tree(seed={seed!r})")
+        )
+        self._record_spanning_result(
+            result,
+            "random_spanning_tree",
+            code,
+            eids,
+            f"random_spanning_tree(): a random tree with {len(eids)} edges.",
+        )
+        return result
+
+    def to_prufer_sequence(self) -> list[int]:
+        """
+        Encode an undirected tree as its Prüfer sequence.
+
+        ![To Prüfer sequence](/assets/graphs/to-prufer-sequence.light.svg){.lightbox fig-alt="A tree on node ids 1 to 6: 3–1, 1–5, 5–2, 5–6, and 6–4. Repeatedly removing the smallest leaf and writing down its neighbor removes 2, 3, 1, and 4 in that order (filled order badges), along the four edges in the accent color; removing 3 turns 1 into a leaf, so it goes next. The card shows the removed leaves and the returned sequence [5, 1, 5, 6]." width="100%"}
+
+        The Prüfer sequence is a compact code for a labeled tree: a tree on `n` nodes becomes a
+        list of `n - 2` node IDs, and every such list decodes back to exactly one tree. It is
+        built by repeatedly removing the smallest leaf and writing down its neighbor. The
+        correspondence proves Cayley's formula (there are $n^{n-2}$ labeled trees), and it is
+        handy for storing trees compactly, for generating uniformly random trees (draw a random
+        sequence), and for genetic algorithms that evolve trees.
+
+        "Smallest" refers to node IDs in ascending order. A node appears in the sequence once
+        for every neighbor it has beyond the first, so leaves never appear.
+
+        Returns
+        -------
+        list[int]
+            The `n - 2` node IDs of the sequence. Rebuild the tree with
+            `Graph.from_prufer_sequence()`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, has fewer than two nodes, or is not a tree.
+
+        Technical Notes
+        ---------------
+        The encoder runs in $O(n)$ time with the linear-time scheme also used by NetworkX:
+        a pointer moves up through the node IDs looking for the next leaf, except when
+        removing a leaf turns its neighbor into a leaf with a smaller ID, which is then taken
+        right away. NetworkX numbers nodes `0` to `n - 1`; here the nodes are ranked by ID,
+        so on a graph whose IDs are `1` to `n` the sequence matches NetworkX's shifted by one.
+
+        Examples
+        --------
+        In a star, every leaf hangs off the center, so the center is written down `n - 2`
+        times:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
+        star.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+        [star.get_label_from_id(n) for n in star.to_prufer_sequence()]
+        ```
+
+        A path writes down each inner node once:
+
+        ```{python}
+        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        [path.get_label_from_id(n) for n in path.to_prufer_sequence()]
+        ```
+        """
+        seq = rust.to_prufer_sequence(self._graph)
+        if self._recording_depth == 0:
+            counts: dict[str, int] = {}
+            for n in seq:
+                counts[self._node_label(n)] = counts.get(self._node_label(n), 0) + 1
+            self._record_step(
+                KIND_QUERY,
+                "to_prufer_sequence",
+                "G.to_prufer_sequence()",
+                delta=StepDelta(metric_values={k: float(v) for k, v in counts.items()}),
+                result=seq,
+                narration=(
+                    "to_prufer_sequence(): " + ", ".join(self._node_label(n) for n in seq) + "."
+                ),
+            )
+        return seq
+
+    @classmethod
+    def from_prufer_sequence(cls, sequence: list, nodes: list[str] | None = None) -> "Graph":
+        """
+        Build the undirected tree encoded by a Prüfer sequence.
+
+        ![From Prüfer sequence](/assets/graphs/from-prufer-sequence.light.svg){.lightbox fig-alt="Left: a card with the node names A to F, smallest first, and the sequence D, D, E, E. Each entry joins the smallest remaining leaf to it: A–D, B–D, C–E, and D–E; the last two nodes left, E and F, are then joined. Right: the decoded six-node tree, with D and E, the nodes named in the sequence, and the four edges added for its entries in the accent color, and the final edge E–F plain." width="100%"}
+
+        A Prüfer sequence of length `k` encodes exactly one labeled tree on `k + 2` nodes, so
+        any list of node references decodes to a tree. This is the inverse of
+        `to_prufer_sequence()`. Drawing the sequence at random gives a uniformly random labeled
+        tree, which is the classic way to sample trees.
+
+        The nodes can be given in two ways. With `nodes=None`, the tree has nodes labeled `"1"`
+        to `"k + 2"` (with IDs `1` to `k + 2`), and the sequence holds integers in that range.
+        With a `nodes=` list of `k + 2` distinct labels, the sequence holds labels from it, and
+        the list order defines which node counts as "smaller" during decoding.
+
+        Parameters
+        ----------
+        sequence
+            The Prüfer sequence: integers from `1` to `len(sequence) + 2`, or labels from
+            `nodes=`.
+        nodes
+            Optional list of `len(sequence) + 2` distinct node labels, smallest first.
+
+        Returns
+        -------
+        Graph
+            A new undirected, unweighted tree with `len(sequence) + 2` nodes.
+
+        Raises
+        ------
+        ValueError
+            If `nodes=` has the wrong length or repeats a label, or the sequence refers to a
+            node that does not exist.
+
+        Technical Notes
+        ---------------
+        The decoder mirrors the encoder: it keeps the current smallest leaf, joins it to the
+        next sequence entry, and decrements that entry's remaining degree; a node whose degree
+        drops to one becomes a leaf. After the sequence is used up, the last two remaining
+        nodes are joined. It runs in $O(n)$ time.
+
+        Examples
+        --------
+        The sequence `[3, 3, 3]` puts node 3 at the center of a star on five nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = ec.Graph.from_prufer_sequence([3, 3, 3])
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+
+        Encoding and decoding round-trip, here with named nodes:
+
+        ```{python}
+        names = ["A", "B", "C", "D", "E", "F"]
+        t = ec.Graph.from_prufer_sequence(["D", "D", "E", "E"], nodes=names)
+        [t.get_label_from_id(n) for n in t.to_prufer_sequence()]
+        ```
+        """
+        k = len(sequence) + 2
+        if nodes is None:
+            labels = [str(i) for i in range(1, k + 1)]
+            rank = {i: i - 1 for i in range(1, k + 1)}
+        else:
+            labels = [str(x) for x in nodes]
+            if len(labels) != k or len(set(labels)) != k:
+                raise ValueError(
+                    f"nodes= must hold {k} distinct labels for a sequence of length {k - 2}"
+                )
+            rank = {x: i for i, x in enumerate(nodes)}
+        try:
+            positions = [rank[x] for x in sequence]
+        except (KeyError, TypeError) as err:
+            raise ValueError(f"invalid Prüfer sequence: unknown node {err}") from None
+        edges = rust.from_prufer_sequence(positions)
+        graph = cls()
+        graph.add_nodes(labels)
+        graph.add_edges([(labels[a], labels[b]) for a, b in edges])
+        return graph
+
     def which_multiple(self) -> list[int]:
         """
         Find edge IDs of multiple edges (duplicate edges between same node pairs).
@@ -37820,6 +45147,782 @@ class Graph:
     # ==============================================================================
     # Network Efficiency
     # ==============================================================================
+
+    def _record_matrix_step(self, method: str, code: str, rows: int, cols: int) -> None:
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                method,
+                code,
+                narration=f"{method}(): a {rows} x {cols} matrix.",
+            )
+
+    def adjacency_matrix(
+        self, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get the adjacency matrix of the graph.
+
+        ![Adjacency matrix](/assets/graphs/adjacency-matrix.light.svg){.lightbox fig-alt="The shared four-node graph A, B, C, D with node ids 1 to 4, and its 4 by 4 adjacency matrix with rows and columns in id order. Each of the five edges puts a 1 in two cells (accent), so the matrix is symmetric; A and D, which are not adjacent, get 0, as does the diagonal." width="100%"}
+
+        Entry `[i][j]` is the number of edges (or their total weight) from the `i`-th node to the
+        `j`-th node. On an undirected graph the matrix is symmetric, and a self-loop puts its
+        weight once on the diagonal, as in NetworkX's `adjacency_matrix()`. Parallel edges add
+        up. The adjacency matrix is the starting point of spectral graph theory: its powers
+        count walks, and its eigenvalues are returned by `get_spectrum()`.
+
+        The matrix is dense (a list of rows), so it suits graphs of up to a few thousand nodes.
+        For an edge-list oriented export, see the top-level `to_adjacency_matrix()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether entries hold edge weights instead of edge counts. If `None` (default),
+            follows the graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling its
+            rows and columns, in increasing order.
+
+        Examples
+        --------
+        A directed triangle with one weighted edge doubled up:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 2.0), ("B", "C", 1.0), ("C", "A", 1.0), ("A", "B", 0.5)])
+        )
+
+        matrix, nodes = graph.adjacency_matrix()
+        nodes, matrix
+        ```
+        """
+        matrix, ids = rust.adjacency_matrix(self._graph, self._use_weights(weighted))
+        self._record_matrix_step("adjacency_matrix", "G.adjacency_matrix()", len(ids), len(ids))
+        return matrix, ids
+
+    def incidence_matrix(
+        self, oriented: bool = False, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int], list[int]]:
+        """
+        Get the node-edge incidence matrix of the graph.
+
+        ![Incidence matrix](/assets/graphs/incidence-matrix.light.svg){.lightbox fig-alt="The shared four-node graph with its five edges directed and numbered 1 to 5, and its oriented incidence matrix: one row per node, one column per edge. Each column holds -1 at the edge's source (teal) and 1 at its target (accent), so it sums to 0; edge 1, from A to B, gives A -1 and B 1." width="100%"}
+
+        Rows are nodes and columns are edges: entry `[i][j]` is nonzero when the `i`-th node is
+        an endpoint of the `j`-th edge. In the unoriented matrix both endpoints get `1` (or the
+        edge weight); in the oriented matrix the source gets `-1` and the target `+1`, so each
+        column sums to zero. The oriented incidence matrix `B` factors the Laplacian as
+        `L = B Bᵀ` and underlies network flow, circuit and cycle-space computations. Self-loops
+        give all-zero columns, as in NetworkX's `incidence_matrix()`.
+
+        Parameters
+        ----------
+        oriented
+            If `True`, mark each edge's source with a negative entry. Default is `False`.
+        weighted
+            Whether entries hold edge weights instead of `1`. If `None` (default), follows the
+            graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int], list[int]]
+            `(matrix, node_ids, edge_ids)`: the matrix as a list of rows (one per node), the node
+            IDs labelling rows, and the edge IDs labelling columns, both in increasing order.
+
+        Examples
+        --------
+        In a path A-B-C, the oriented incidence matrix multiplied by its transpose gives the
+        Laplacian:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        b, nodes, edges = path.incidence_matrix(oriented=True)
+        laplacian = [[sum(b[i][k] * b[j][k] for k in range(len(edges))) for j in range(3)]
+                     for i in range(3)]
+
+        b, laplacian == path.laplacian_matrix()[0]
+        ```
+        """
+        matrix, ids, eids = rust.incidence_matrix(
+            self._graph, oriented, self._use_weights(weighted)
+        )
+        self._record_matrix_step(
+            "incidence_matrix",
+            "G.incidence_matrix()" if not oriented else "G.incidence_matrix(oriented=True)",
+            len(ids),
+            len(eids),
+        )
+        return matrix, ids, eids
+
+    def laplacian_matrix(
+        self, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get the Laplacian matrix of the graph.
+
+        ![Laplacian matrix](/assets/graphs/laplacian-matrix.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C plus a pendant E, each node badged with its degree, and the 5 by 5 Laplacian D minus A. The degrees 2, 3, 3, 3, 1 run down the diagonal (accent), each edge puts -1 in its two cells, and every row sums to 0." width="100%"}
+
+        The Laplacian `L = D - A` has each node's degree on the diagonal and `-1` (or minus the
+        edge weight) for every edge. It is the central matrix of spectral graph theory: its
+        smallest eigenvalue is always `0`, the number of zero eigenvalues counts connected
+        components, the second smallest is the algebraic connectivity, and quadratic forms
+        `xᵀLx` measure how much a node labelling changes across edges, which is what spectral
+        clustering and graph signal processing minimize. On a directed graph, `D` holds
+        out-degrees (the matrix is then not symmetric). Self-loops cancel out, as in NetworkX's
+        `laplacian_matrix()`. Its spectrum is returned by `get_laplacian_spectrum()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
+            and columns, in increasing order.
+
+        Examples
+        --------
+        Every row of a Laplacian sums to zero:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_star_graph(4)
+        matrix, nodes = star.laplacian_matrix()
+
+        matrix, [sum(row) for row in matrix]
+        ```
+        """
+        matrix, ids = rust.laplacian_matrix(self._graph, False, self._use_weights(weighted))
+        self._record_matrix_step("laplacian_matrix", "G.laplacian_matrix()", len(ids), len(ids))
+        return matrix, ids
+
+    def normalized_laplacian_matrix(
+        self, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get the symmetric normalized Laplacian matrix of the graph.
+
+        ![Normalized Laplacian matrix](/assets/graphs/normalized-laplacian-matrix.light.svg){.lightbox fig-alt="The same five-node graph with degree badges and its normalized Laplacian: 1 on the diagonal and, for each edge, minus one over the square root of its two degrees. Edges at A (degrees 2 and 3) give -0.41, edges between degree-3 nodes -0.33, and the highlighted D–E (3 and 1) -0.58." width="100%"}
+
+        The normalized Laplacian `D^-½ (D - A) D^-½` rescales each entry by the degrees of its
+        endpoints, so that high-degree nodes do not dominate. Its eigenvalues always lie in
+        `[0, 2]` (with `2` only for bipartite components), which makes spectra comparable across
+        graphs of different sizes and densities; it is the matrix behind normalized spectral
+        clustering (Shi-Malik, Ng-Jordan-Weiss) and is closely tied to random walks on the
+        graph. Isolated nodes get an all-zero row and column. Matches NetworkX's
+        `normalized_laplacian_matrix()`; its eigenvalues are
+        `get_laplacian_spectrum(normalized=True)`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
+            and columns, in increasing order.
+
+        Examples
+        --------
+        Diagonal entries are `1` for every node with edges:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(3)
+        matrix, nodes = path.normalized_laplacian_matrix()
+        [[round(v, 3) for v in row] for row in matrix]
+        ```
+        """
+        matrix, ids = rust.laplacian_matrix(self._graph, True, self._use_weights(weighted))
+        self._record_matrix_step(
+            "normalized_laplacian_matrix", "G.normalized_laplacian_matrix()", len(ids), len(ids)
+        )
+        return matrix, ids
+
+    def directed_laplacian_matrix(
+        self,
+        walk_type: str | None = None,
+        alpha: float = 0.95,
+        weighted: bool | None = None,
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get Chung's directed Laplacian matrix of a directed graph.
+
+        ![Directed Laplacian matrix](/assets/graphs/directed-laplacian-matrix.light.svg){.lightbox fig-alt="A directed four-cycle A, B, C, D with a chord from A to C, and its directed Laplacian, built from a random walk on the arcs. The matrix is symmetric even though the graph is not: the one-way arc A to B gives -0.35 in both the A, B and B, A cells (highlighted), the chord -0.25, and B and D, with no arc, 0." width="100%"}
+
+        The ordinary Laplacian of a directed graph is not symmetric, which breaks most spectral
+        tools. Chung (2005) defines a symmetric directed Laplacian from a random walk on the
+        graph: `L = I - (Φ^½ P Φ^-½ + Φ^-½ Pᵀ Φ^½) / 2`, where `P` is the walk's transition matrix
+        and `Φ` its stationary distribution. Its eigenvalues are real, the smallest is `0`, and
+        it supports a directed version of Cheeger's inequality and spectral partitioning.
+
+        The walk follows NetworkX's `directed_laplacian_matrix()`: with `walk_type=None` it is
+        an ordinary random walk if the graph is strongly connected and aperiodic, a lazy walk
+        (staying put half the time) if it is strongly connected but periodic, and otherwise a
+        PageRank walk that teleports with probability `1 - alpha`, which guarantees a unique
+        stationary distribution.
+
+        Parameters
+        ----------
+        walk_type
+            `"random"`, `"lazy"`, `"pagerank"`, or `None` (default) to choose automatically as
+            described above.
+        alpha
+            Damping factor of the PageRank walk, strictly between `0` and `1`. Default is
+            `0.95`.
+        weighted
+            Whether transition probabilities follow edge weights. If `None` (default), follows the
+            graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the symmetric matrix as a list of rows, and the node IDs
+            labelling rows and columns, in increasing order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, `walk_type=` or `alpha=` is invalid, or a random or lazy
+            walk is requested on a graph with a node without out-edges.
+
+        Examples
+        --------
+        The result is symmetric even though the graph is not:
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
+
+        matrix, nodes = cycle.directed_laplacian_matrix()
+        [[round(v, 3) for v in row] for row in matrix]
+        ```
+        """
+        matrix, ids, used = rust.directed_laplacian_matrix(
+            self._graph, walk_type, alpha, self._use_weights(weighted)
+        )
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "directed_laplacian_matrix",
+                "G.directed_laplacian_matrix()",
+                narration=f"Directed Laplacian ({used} walk): a {len(ids)} x {len(ids)} matrix.",
+            )
+        return matrix, ids
+
+    def modularity_matrix(
+        self, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get the modularity matrix of the graph.
+
+        ![Modularity matrix](/assets/graphs/modularity-matrix.light.svg){.lightbox fig-alt="Two triangles A, B, C and D, E, F joined by the edge C–D, each node badged with its degree, and the 6 by 6 modularity matrix: actual edges minus those expected from the degrees, rounded to one decimal. The positive cells (accent) form one block per triangle plus C–D at 0.4; pairs across the triangles, such as C and E at -0.4, and the diagonal are negative." width="100%"}
+
+        The modularity matrix compares the actual edges with those expected at random given the
+        degrees: `B = A - k kᵀ / 2m` on an undirected graph, where `k` holds the degrees and `m`
+        is the number of edges (Newman, 2006). Positive entries mark pairs that are more
+        connected than chance. The modularity of a partition is a sum over `B` (see
+        `modularity()`), and its leading eigenvector splits the graph into two communities, the
+        basis of the leading-eigenvector method (`cmty_l_eigenvec()`). On a directed graph this
+        is the Leicht-Newman matrix `A - k_out k_inᵀ / m`. Matches NetworkX's
+        `modularity_matrix()` / `directed_modularity_matrix()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
+            and columns, in increasing order.
+
+        Examples
+        --------
+        Every row of the undirected modularity matrix sums to zero:
+
+        ```{python}
+        import edgecase as ec
+
+        matrix, nodes = ec.Graph().add_path_graph(4).modularity_matrix()
+        [[round(v, 3) for v in row] for row in matrix]
+        ```
+        """
+        matrix, ids = rust.modularity_matrix(self._graph, self._use_weights(weighted))
+        self._record_matrix_step("modularity_matrix", "G.modularity_matrix()", len(ids), len(ids))
+        return matrix, ids
+
+    def bethe_hessian_matrix(
+        self, r: float | None = None, weighted: bool | None = None
+    ) -> tuple[list[list[float]], list[int]]:
+        """
+        Get the Bethe Hessian matrix of an undirected graph.
+
+        ![Bethe Hessian matrix](/assets/graphs/bethe-hessian-matrix.light.svg){.lightbox fig-alt="The same five-node graph with degree badges and its Bethe Hessian at the default r = 1.67 (32 / 12 - 1, from the degrees). Each edge gives -r = -1.67 and the diagonal (accent) holds r² - 1 + degree: 3.78 for A, 4.78 for B, C and D, and 2.78 for E. At r = 1 it would be the Laplacian." width="100%"}
+
+        The Bethe Hessian `H(r) = (r² - 1) I - r A + D` (Saade, Krzakala & Zdeborová, 2014) is a
+        regularized Laplacian built for community detection in large sparse networks, where
+        ordinary spectral methods break down: there, the number of its negative eigenvalues
+        estimates the number of communities, and the corresponding eigenvectors reveal them. At
+        `r = 1` it is exactly the Laplacian. The default `r` is the average excess degree
+        `Σ d² / Σ d - 1` (unweighted degrees), as in NetworkX's `bethe_hessian_matrix()`; Saade et
+        al. recommend its square root, which you can pass explicitly.
+
+        Parameters
+        ----------
+        r
+            The regularizer. If `None` (default), uses `Σ d² / Σ d - 1`.
+        weighted
+            Whether the adjacency and degree terms use edge weights. If `None` (default), follows
+            the graph.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int]]
+            `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
+            and columns, in increasing order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or `r=` is omitted on a graph without edges.
+
+        Examples
+        --------
+        At `r = 1` the Bethe Hessian is the Laplacian:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(4)
+        bethe, nodes = path.bethe_hessian_matrix(r=1)
+
+        bethe, bethe == path.laplacian_matrix()[0]
+        ```
+        """
+        matrix, ids, _ = rust.bethe_hessian_matrix(self._graph, r, self._use_weights(weighted))
+        self._record_matrix_step(
+            "bethe_hessian_matrix", "G.bethe_hessian_matrix()", len(ids), len(ids)
+        )
+        return matrix, ids
+
+    def modularity_spectrum(self, weighted: bool | None = None) -> list:
+        """
+        Get the eigenvalues of the modularity matrix.
+
+        ![Modularity spectrum](/assets/graphs/modularity-spectrum.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, and a bar chart of the six eigenvalues of its modularity matrix in increasing order: -1.73, -1.00, -1.00, -0.43, 0.00 and 1.73. The single large positive eigenvalue, in the accent color, signals a two-way community split." width="100%"}
+
+        The eigenvalues of `modularity_matrix()`, in increasing order. Large positive
+        eigenvalues signal community structure: `k` clearly positive eigenvalues suggest about
+        `k + 1` communities (one positive eigenvalue already means a good two-way split), and
+        the leading eigenvector gives the best two-way split by modularity. On a directed graph the modularity matrix is not symmetric
+        and its eigenvalues can be complex. Matches NetworkX's `modularity_spectrum()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        list
+            The eigenvalues in increasing order (by real part, then imaginary part, if complex):
+            `float` values on undirected graphs, `complex` on directed ones.
+
+        Examples
+        --------
+        Two dense groups give one large positive eigenvalue, the signal of a two-way split
+        (two communities):
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(list("ABCDEF"))
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                         ("D", "E"), ("E", "F"), ("F", "D")])
+
+        [round(v, 3) for v in graph.modularity_spectrum()]
+        ```
+        """
+        return rust.modularity_spectrum(self._graph, self._use_weights(weighted))
+
+    def bethe_hessian_spectrum(
+        self, r: float | None = None, weighted: bool | None = None
+    ) -> list[float]:
+        """
+        Get the eigenvalues of the Bethe Hessian matrix.
+
+        ![Bethe Hessian spectrum](/assets/graphs/bethe-hessian-spectrum.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, and a bar chart of the six eigenvalues of its Bethe Hessian at the default r = 1.43, in increasing order: 0.031, 0.748, 4.194, 4.469, 4.469 and 6.334. The two small eigenvalues, in the accent color, stand well apart from the rest, matching the two triangle communities." width="100%"}
+
+        The eigenvalues of `bethe_hessian_matrix()`, in increasing order. On large sparse
+        networks, the number of negative eigenvalues at a suitable `r` (Saade et al. recommend
+        the square root of the default) estimates the number of communities. At `r = 1` the
+        spectrum is the Laplacian spectrum. Matches NetworkX's `bethe_hessian_spectrum()`.
+
+        Parameters
+        ----------
+        r
+            The regularizer. If `None` (default), uses `Σ d² / Σ d - 1`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        list[float]
+            The eigenvalues in increasing order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or `r=` is omitted on a graph without edges.
+
+        Examples
+        --------
+        The spectrum at the default `r`, and at `r = 1`, where its smallest value is the
+        Laplacian's `0`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(list("ABCDEF"))
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                         ("D", "E"), ("E", "F"), ("F", "D")])
+
+        (
+            [round(v, 3) for v in graph.bethe_hessian_spectrum()],
+            [round(v, 3) for v in graph.bethe_hessian_spectrum(r=1)],
+        )
+        ```
+        """
+        return rust.bethe_hessian_spectrum(self._graph, r, self._use_weights(weighted))
+
+    def algebraic_connectivity(
+        self, normalized: bool = False, weighted: bool | None = None
+    ) -> float:
+        """
+        Get the algebraic connectivity of an undirected graph.
+
+        ![Algebraic connectivity](/assets/graphs/algebraic-connectivity.light.svg){.lightbox fig-alt="Left, a six-node cycle whose closing edge F–A is in the accent color; right, the same nodes without that edge (dashed), a path. The cycle's algebraic connectivity is 1.0 and the path's only 0.268: the path is much easier to cut in two." width="100%"}
+
+        The algebraic connectivity (Fiedler, 1973) is the second smallest eigenvalue of the
+        Laplacian. It is `0` exactly when the graph is disconnected, and grows the harder the
+        graph is to cut apart: it bounds the edge and node connectivity from below, and controls
+        how fast random walks mix, synchronization spreads, and consensus is reached. Bottleneck
+        graphs (two clusters joined by a thin link, long paths) have small values; expanders and
+        dense graphs have large ones. The matching eigenvector is `fiedler_vector()`.
+
+        Large graphs use a sparse eigensolver, so this scales to big networks. Matches NetworkX's
+        `algebraic_connectivity()`.
+
+        Parameters
+        ----------
+        normalized
+            If `True`, use the normalized Laplacian (see `normalized_laplacian_matrix()`).
+            Default is `False`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph. Weights must be
+            non-negative.
+
+        Returns
+        -------
+        float
+            The algebraic connectivity (`0.0` for a disconnected graph).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, has fewer than two nodes, or has a negative weight.
+
+        Examples
+        --------
+        A cycle is better connected than a path with the same nodes, and a complete graph best
+        of all:
+
+        ```{python}
+        import edgecase as ec
+
+        (
+            round(ec.Graph().add_path_graph(6).algebraic_connectivity(), 3),
+            round(ec.Graph().add_cycle_graph(6).algebraic_connectivity(), 3),
+            round(ec.Graph().add_full_graph(6).algebraic_connectivity(), 3),
+        )
+        ```
+        """
+        value = rust.algebraic_connectivity(self._graph, normalized, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "algebraic_connectivity",
+                "G.algebraic_connectivity()",
+                result=value,
+                narration=f"Algebraic connectivity: {value:.4g}.",
+            )
+        return value
+
+    def fiedler_vector(
+        self,
+        normalized: bool = False,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Get the Fiedler vector of a connected undirected graph.
+
+        ![Fiedler vector](/assets/graphs/fiedler-vector.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, each node shaded by its Fiedler vector entry: positive in the accent color, negative in teal, darker for larger values. The values change smoothly, A and B 0.46, C 0.26, then across the bridge D -0.26 and E and F -0.46, so their sign splits the graph at C–D." width="100%"}
+
+        The Fiedler vector is the eigenvector of the second smallest Laplacian eigenvalue (the
+        algebraic connectivity). It assigns each node a number such that connected nodes get
+        similar values, while the whole vector is as spread out as possible: the smoothest
+        non-constant labelling of the graph. Splitting nodes by sign gives a good two-way cut
+        (`spectral_bisection()`), sorting by value gives an ordering that keeps neighbors close
+        (`spectral_ordering()`), and plotting it reveals the graph's main axis.
+
+        The vector has unit length. Its overall sign is arbitrary mathematically; EdgeCase fixes
+        it so the first non-negligible entry (in node-ID order) is positive. Large graphs use a
+        sparse eigensolver.
+
+        Parameters
+        ----------
+        normalized
+            If `True`, use the normalized Laplacian. Default is `False`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph. Weights must be
+            non-negative.
+        attr_name
+            Name of the node attribute to store values in. If `None` (default), uses
+            `"fiedler_vector"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            values as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to Fiedler vector entries.
+            If `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, disconnected, has fewer than two nodes, or has a negative
+            weight.
+
+        Examples
+        --------
+        On a path, the Fiedler vector runs smoothly from one end to the other:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(5)
+        {n: round(v, 3) for n, v in sorted(path.fiedler_vector(return_dict=True).items())}
+        ```
+        """
+        scores = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
+        params = {} if not normalized else {"normalized": True}
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._node_metric_result("fiedler_vector", scores, attr_name, return_dict, params)
+
+    def spectral_ordering(
+        self, normalized: bool = False, weighted: bool | None = None
+    ) -> list[int]:
+        """
+        Order nodes so that neighbors end up close together, using the Fiedler vector.
+
+        ![Spectral ordering](/assets/graphs/spectral-ordering.light.svg){.lightbox fig-alt="A five-node path A–B–C–D–E whose nodes were added in the shuffled order D, B, E, A, C, so their ids are out of path order. Sorting by the Fiedler vector returns the ids [4, 2, 5, 1, 3], which are A, B, C, D, E: the filled order badges run straight along the path." width="100%"}
+
+        Sorting nodes by their Fiedler vector entries (see `fiedler_vector()`) produces a linear
+        ordering in which connected nodes tend to be near each other. This is spectral seriation:
+        it is used to reorder adjacency matrices so that structure shows up as blocks along the
+        diagonal, to lay out nodes on a line, to reduce matrix bandwidth, and to sequence items
+        (archaeological artifacts, genome fragments) from pairwise similarities.
+
+        Each connected component is ordered separately, components in order of their smallest
+        node ID; components of one or two nodes keep ID order. Ties are broken by node ID, and
+        since the Fiedler vector's sign is arbitrary, an ordering and its reverse are equally
+        valid (NetworkX may return either). Matches NetworkX's `spectral_ordering()` up to
+        these choices.
+
+        Parameters
+        ----------
+        normalized
+            If `True`, use the normalized Laplacian. Default is `False`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        list[int]
+            All node IDs in spectral order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or empty, or has a negative weight.
+
+        Examples
+        --------
+        Shuffled labels on a path come back in path order:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(["D", "B", "E", "A", "C"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        [graph.get_label_from_id(n) for n in graph.spectral_ordering()]
+        ```
+        """
+        order = rust.spectral_ordering(self._graph, normalized, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "spectral_ordering",
+                "G.spectral_ordering()",
+                delta=StepDelta(node_groups={self._node_label(n): i for i, n in enumerate(order)}),
+                result=order,
+                narration=f"Spectral ordering of {len(order)} nodes.",
+            )
+        return order
+
+    def spectral_bisection(
+        self, normalized: bool = False, weighted: bool | None = None
+    ) -> tuple[list[int], list[int]]:
+        """
+        Split a connected undirected graph in two by the sign of its Fiedler vector.
+
+        ![Spectral bisection](/assets/graphs/spectral-bisection.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D. Splitting the nodes by the sign of their Fiedler vector entries cuts only that edge (accent): the negative side D, E, F (teal) and the non-negative side A, B, C (violet), returned as the id lists [4, 5, 6] and [1, 2, 3]." width="100%"}
+
+        Spectral bisection divides the nodes into those with a negative Fiedler vector entry and
+        those with a non-negative one (see `fiedler_vector()`). Because the Fiedler vector is the
+        smoothest non-constant labelling of the graph, the split tends to cut few edges while
+        keeping both sides reasonably balanced: it approximates the minimum ratio cut. Applied
+        recursively it gives a simple hierarchical partitioning, and it is the classic first step
+        of graph partitioning for parallel computing and image segmentation.
+
+        Parameters
+        ----------
+        normalized
+            If `True`, use the normalized Laplacian (approximating the normalized cut). Default is
+            `False`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        tuple[list[int], list[int]]
+            `(negative_side, non_negative_side)`, each a sorted list of node IDs. Matches
+            NetworkX's `spectral_bisection()` up to the arbitrary sign of the Fiedler vector,
+            which can swap the two sides.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, disconnected, has fewer than two nodes, or has a negative
+            weight.
+
+        Examples
+        --------
+        Two triangles joined by a bridge split along the bridge:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(list("ABCDEF"))
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                         ("D", "E"), ("E", "F"), ("F", "D")])
+
+        left, right = graph.spectral_bisection()
+        [graph.get_label_from_id(n) for n in left], [graph.get_label_from_id(n) for n in right]
+        ```
+        """
+        vec = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
+        negative = sorted(n for n, v in vec.items() if v < 0)
+        rest = sorted(n for n, v in vec.items() if v >= 0)
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): 0 for n in negative}
+            groups.update({self._node_label(n): 1 for n in rest})
+            self._record_step(
+                KIND_QUERY,
+                "spectral_bisection",
+                "G.spectral_bisection()",
+                delta=StepDelta(node_groups=dict(sorted(groups.items()))),
+                result=(negative, rest),
+                narration=f"Spectral bisection: {len(negative)} and {len(rest)} nodes.",
+            )
+        return negative, rest
+
+    def kemeny_constant(self, weighted: bool | None = None) -> float:
+        """
+        Get the Kemeny constant of a connected undirected graph.
+
+        ![Kemeny constant](/assets/graphs/kemeny-constant.light.svg){.lightbox fig-alt="Left, the complete graph on six nodes: the nine edges it adds to the six-node cycle are in the accent color, and a random walk reaches a target drawn from its stationary distribution in 4.167 steps on average. Right, the cycle alone needs 5.833. The value does not depend on the start node; smaller is better connected." width="100%"}
+
+        The Kemeny constant is the expected number of steps a random walk needs to reach a
+        target node chosen at random from the walk's stationary distribution. Remarkably, it does
+        not depend on where the walk starts. It measures how quickly the network can be navigated
+        or mixed as a whole: smaller is better connected. It is computed from the spectrum as
+        `Σ_{i≥2} 1 / (1 - λ_i)`, over all but the largest eigenvalue of the normalized adjacency
+        `D^-½ A D^-½`, and matches NetworkX's `kemeny_constant()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether the walk follows edge weights. If `None` (default), follows the graph. Weights
+            must be non-negative.
+
+        Returns
+        -------
+        float
+            The Kemeny constant.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, empty or disconnected, or has a negative weight.
+
+        Examples
+        --------
+        A complete graph is navigated faster than a cycle of the same size:
+
+        ```{python}
+        import edgecase as ec
+
+        complete = ec.Graph().add_full_graph(6).kemeny_constant()
+        cycle = ec.Graph().add_cycle_graph(6).kemeny_constant()
+        round(complete, 3), round(cycle, 3)
+        ```
+        """
+        value = rust.kemeny_constant(self._graph, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "kemeny_constant",
+                "G.kemeny_constant()",
+                result=value,
+                narration=f"Kemeny constant: {value:.4g}.",
+            )
+        return value
 
     def global_efficiency(self) -> float:
         r"""
