@@ -357,7 +357,8 @@ class TestMotifCensusErrors:
 class TestMotifCensusChaining:
     def test_return_self(self):
         g = make_triangle()
-        result = g.motif_census(size=3)
+        with pytest.warns(UserWarning, match="doesn't store its result"):
+            result = g.motif_census(size=3, return_dict=False)
         assert result is g
 
     def test_return_dict(self):
@@ -365,11 +366,15 @@ class TestMotifCensusChaining:
         result = g.motif_census(size=3, return_dict=True)
         assert isinstance(result, dict)
 
+    def test_default_returns_dict(self):
+        """Regression: the default return_dict=False computed the census and threw it away."""
+        assert make_triangle().motif_census(size=3) == {"triangle": 1}
+
     def test_computations_tracked(self):
         g = make_triangle()
-        g.motif_census(size=3)
-        found = any(c[0] == "motif_census" for c in g._computations)
-        assert found
+        with pytest.warns(UserWarning):
+            g.motif_census(size=3, return_dict=False)
+        assert ("motif_census", {"size": 3}, None) in g._computations
 
     def test_computations_not_tracked_with_return_dict(self):
         g = make_triangle()
@@ -484,7 +489,8 @@ class TestMotifSignificanceErrors:
 class TestMotifSignificanceChaining:
     def test_return_self(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=5, seed=23)
+        with pytest.warns(UserWarning, match="doesn't store its result"):
+            result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
         assert result is g
 
     def test_return_dict(self):
@@ -492,10 +498,15 @@ class TestMotifSignificanceChaining:
         result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
         assert isinstance(result, dict)
 
+    def test_default_returns_dict(self):
+        result = make_triangle_with_tail().motif_significance(size=3, n_random=5, seed=23)
+        assert set(result) == {"path", "triangle"}
+
     def test_computations_tracked(self):
         g = make_triangle_with_tail()
-        g.motif_significance(size=3, n_random=5, seed=23)
-        found = any(c[0] == "motif_significance" for c in g._computations)
+        with pytest.warns(UserWarning):
+            g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
+        found = any(c[0] == "motif_significance" and c[2] is None for c in g._computations)
         assert found
 
 
