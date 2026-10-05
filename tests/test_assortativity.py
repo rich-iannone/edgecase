@@ -1,5 +1,9 @@
-import pytest
 import math
+import random
+
+import edgecase as ec
+import networkx as nx
+import pytest
 from edgecase import Graph
 
 
@@ -550,3 +554,93 @@ class TestEdgeCases:
 
         assert isinstance(r_nominal, float)
         assert isinstance(r_numeric, float)
+
+
+# Average degree connectivity, degree/attribute mixing and Pearson degree correlation,
+# validated against NetworkX (directed and undirected, with weights).
+
+
+def _cases():
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G0 = nx.gnp_random_graph(
+                14, rnd.choice([0.15, 0.25, 0.4]), seed=seed, directed=directed
+            )
+            G = (nx.DiGraph if directed else nx.Graph)()
+            G.add_nodes_from(range(14))
+            for u, v in G0.edges:
+                G.add_edge(u, v, weight=rnd.choice([0.5, 1, 2, 3]))
+            g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(14)])
+            gw = ec.Graph(directed=directed, weighted=True).add_nodes([str(v) for v in range(14)])
+            for u, v, d in G.edges(data=True):
+                g.add_edge(str(u), str(v))
+                gw.add_edge(str(u), str(v), weight=d["weight"])
+            yield G, g, gw, rnd
+
+
+class TestDegreeAndAttributeMixing:
+    def test_average_degree_connectivity(self):
+        for G, g, gw, _ in _cases():
+            options = [("in+out", "in+out")]
+            if G.is_directed():
+                options += [(s, t) for s in ("in", "out") for t in ("in", "out", "in+out")]
+            for s, t in options:
+                if G.is_directed() and s == "in+out":
+                    continue  # NetworkX deviates from its documented definition here
+                for gg, w in ((g, None), (gw, "weight")):
+                    ours = gg.average_degree_connectivity(s, t)
+                    assert ours == pytest.approx(
+                        nx.average_degree_connectivity(G, source=s, target=t, weight=w)
+                    )
+
+    def test_directed_in_plus_out_uses_all_incident_edges(self):
+        d = ec.Graph(directed=True).add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("c", "a")])
+        # a has degree 2; its neighbors b and c both have total degree 1
+        assert d.average_degree_connectivity()[2] == pytest.approx(1.0)
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_path_graph(3).average_degree_connectivity(source="in")
+
+    def test_degree_mixing_and_pearson(self):
+        for G, g, gw, _ in _cases():
+            pairs = [("out", "in")]
+            if G.is_directed():
+                pairs += [("in", "out"), ("out", "out"), ("in", "in")]
+            for x, y in pairs:
+                for gg, w in ((g, None), (gw, "weight")):
+                    assert gg.degree_mixing_dict(x, y) == nx.degree_mixing_dict(
+                        G, x=x, y=y, weight=w
+                    )
+                    if G.number_of_edges() > 2:
+                        ours = gg.degree_pearson_correlation_coefficient(x, y)
+                        ref = nx.degree_pearson_correlation_coefficient(G, x=x, y=y, weight=w)
+                        assert (math.isnan(ours) and math.isnan(ref)) or ours == pytest.approx(ref)
+                matrix, degrees = g.degree_mixing_matrix(x, y)
+                ref = nx.degree_mixing_matrix(
+                    G, x=x, y=y, mapping={d: i for i, d in enumerate(degrees)}
+                )
+                assert sum(matrix, []) == pytest.approx(ref.flatten().tolist())
+
+    def test_attribute_mixing(self):
+        for G, g, _, rnd in _cases():
+            team = {v: rnd.choice("abc") for v in G}
+            nx.set_node_attributes(G, team, "team")
+            g.set_node_attrs("team", {g.get_id_from_label(str(v)): t for v, t in team.items()})
+            assert g.attribute_mixing_dict("team") == nx.attribute_mixing_dict(G, "team")
+            matrix, values = g.attribute_mixing_matrix("team", normalized=False)
+            ref = nx.attribute_mixing_matrix(
+                G, "team", mapping={v: i for i, v in enumerate(values)}, normalized=False
+            )
+            assert sum(matrix, []) == pytest.approx(ref.flatten().tolist())
+
+    def test_examples_and_errors(self):
+        assert ec.Graph().add_path_graph(4).degree_mixing_dict() == {1: {2: 2}, 2: {1: 2, 2: 2}}
+        matrix, degrees = ec.Graph().add_star_graph(4).degree_mixing_matrix()
+        assert degrees == [1, 3] and matrix == [[0.0, 0.5], [0.5, 0.0]]
+        assert ec.Graph().add_star_graph(
+            5
+        ).degree_pearson_correlation_coefficient() == pytest.approx(-1)
+        g = ec.Graph().add_nodes(["A", "B"]).add_edge("A", "B")
+        g.set_node_attrs("team", {1: "x"})
+        with pytest.raises(ValueError, match="without the attribute"):
+            g.attribute_mixing_dict("team")
