@@ -2041,25 +2041,20 @@ impl Graph {
             ));
         }
 
-        let mut forward_edges: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
-        let mut mutual_count = 0;
-
+        // Distinct (source, target) pairs, so parallel edges count once
+        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
         for edge in &self.edges {
             // Skip self-loops
-            if edge.source == edge.target {
-                continue;
-            }
-
-            let reverse_pair = (edge.target, edge.source);
-
-            // If we've seen the reverse edge, this is a mutual pair
-            if forward_edges.contains(&reverse_pair) {
-                mutual_count += 1;
-            } else {
-                // Add this edge to the set
-                forward_edges.insert((edge.source, edge.target));
+            if edge.source != edge.target {
+                edge_pairs.insert((edge.source, edge.target));
             }
         }
+
+        // Count each mutual pair once, from its lower-ID end
+        let mutual_count = edge_pairs
+            .iter()
+            .filter(|&&(src, tgt)| src < tgt && edge_pairs.contains(&(tgt, src)))
+            .count();
 
         Ok(mutual_count)
     }
