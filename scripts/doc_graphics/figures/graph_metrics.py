@@ -43,10 +43,17 @@ modularity and Bethe Hessian spectra are bar charts on PAIR, like
 on six nodes: the cycle beside the path (its closing edge accent / removed)
 and the complete graph beside the cycle (the added chords accent).
 
+The small-world coefficients share `SW`, an eight-node ring whose every
+second node also joins a square of chords, so it has four triangles. Its
+reference values come from edgecase's internal `small_world()` (the pieces
+the step narration shows): the card gives each ratio's numbers and ends in
+sigma or omega in accent; the seed is in the caption. transforms.py draws
+random_reference and lattice_reference on the same ring.
+
 Every number on a card is what edgecase returns for the depicted graph.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
+from core import R_SMALL, SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
 
 from figures.node_metrics_local import TREE, TREE_ARCS, food_web
 
@@ -898,3 +905,71 @@ def kemeny_constant(s: Scene) -> None:
     s.graph(place(coords, left, unit=UNIT),
             C6_EDGES + [(a, b, {"style": "accent"}) for a, b in chords], prefix="l.")
     s.graph(place(coords, right, unit=UNIT), C6_EDGES, prefix="r.")
+
+
+# --- later additions: small-world coefficients ------------------------------
+#
+# SW: a ring of eight nodes plus the chords A-C, C-E, E-G, G-A, which close
+# four triangles around the ring. Random references (degree-preserving) lose
+# most of them; path lengths barely change. Values use seed=1 and NetworkX's
+# default niter / nrand.
+SW_NODES = list("ABCDEFGH")
+# Small nodes on a regular octagon (clockwise from A at the top) keep every
+# chord, including the references' rewired ones, clear of the nodes it skips.
+SW = ring(SW_NODES)
+SW_EDGES = (list(zip(SW_NODES, SW_NODES[1:] + SW_NODES[:1]))
+            + [("A", "C"), ("C", "E"), ("E", "G"), ("G", "A")])
+
+
+def sw_graph(edges=SW_EDGES):
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(SW_NODES)
+    g.add_edges(edges)
+    return g
+
+
+def _small_world(kind: str, niter: int) -> tuple[float, tuple[float, float, float, float]]:
+    from edgecase import _core
+
+    g = sw_graph()
+    value, parts = _core.small_world(g._graph, kind, niter, 10, 1)
+    method = getattr(g, f"small_world_{kind}")
+    assert method(seed=1) == value  # the public call returns the same number
+    return value, parts
+
+
+@figure("small_world_sigma", "graph-metrics", "Small-world coefficient sigma",
+        "An eight-node ring with four chords that close four triangles. Its transitivity C is "
+        "0.43, against 0.354 averaged over 10 degree-preserving random references, while its "
+        "average path length L, 1.643, is close to the references' 1.707. The card divides "
+        "the two ratios, (0.43 / 0.354) / (1.643 / 1.707), for sigma = 1.260: above 1, "
+        "so the graph counts as small-world.")
+def small_world_sigma(s: Scene) -> None:
+    value, (c, length, cr, lr) = _small_world("sigma", 100)
+    assert (round(c, 3), round(length, 3), round(cr, 3), round(lr, 3)) == (
+        0.429, 1.643, 0.354, 1.707)
+    assert round(value, 3) == 1.26
+    left, right = compute(s, "g", "g.small_world_sigma(seed=1)")
+    s.graph(place(SW, left, unit=UNIT, r=R_SMALL), SW_EDGES, r=R_SMALL)
+    s.card_centered(right, [f"C / C_r  {c:.3f} / {cr:.3f}", f"L / L_r  {length:.3f} / {lr:.3f}",
+                            (f"sigma    {value:.3f}", "accent")],
+                    title="(C / C_r) / (L / L_r)")
+
+
+@figure("small_world_omega", "graph-metrics", "Small-world coefficient omega",
+        "An eight-node ring with four chords that close four triangles. The random references "
+        "average a path length L_r of 1.689 against the graph's 1.643, and the best lattice "
+        "reference clusters no more than the graph itself, C_l = C = 0.667. The card computes "
+        "1.689 / 1.643 minus 0.667 / 0.667, omega = 0.028: near 0, the small-world middle "
+        "between a lattice (-1) and a random graph (1).")
+def small_world_omega(s: Scene) -> None:
+    value, (c, length, cl, lr) = _small_world("omega", 5)
+    assert (round(c, 3), round(length, 3), round(cl, 3), round(lr, 3)) == (
+        0.667, 1.643, 0.667, 1.689)
+    assert round(value, 3) == 0.028
+    left, right = compute(s, "g", "g.small_world_omega(seed=1)")
+    s.graph(place(SW, left, unit=UNIT, r=R_SMALL), SW_EDGES, r=R_SMALL)
+    s.card_centered(right, [f"L_r / L  {lr:.3f} / {length:.3f}", f"C / C_l  {c:.3f} / {cl:.3f}",
+                            (f"omega    {value:.3f}", "accent")],
+                    title="L_r / L − C / C_l")
