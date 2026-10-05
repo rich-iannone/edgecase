@@ -348,6 +348,8 @@ reference:
         - Graph.eccentricity
         - Graph.radiality
         - Graph.bellman_ford_shortest_path
+        - Graph.negative_edge_cycle
+        - Graph.find_negative_cycle
         - Graph.shortest_path
         - Graph.shortest_path_length
         - Graph.has_path
@@ -395,6 +397,11 @@ reference:
         - Graph.dag_longest_path_length
         - Graph.lowest_common_ancestor
         - Graph.condensation
+        - Graph.immediate_dominators
+        - Graph.dominance_frontiers
+        - Graph.is_d_separator
+        - Graph.is_minimal_d_separator
+        - Graph.find_minimal_d_separator
 
     - title: Eulerian Paths
       desc: Methods for Eulerian path and circuit detection
@@ -421,6 +428,10 @@ reference:
       contents:
         - Graph.local_clustering_coefficient
         - Graph.square_clustering
+        - Graph.small_world_sigma
+        - Graph.small_world_omega
+        - Graph.random_reference
+        - Graph.lattice_reference
         - Graph.generalized_degree
         - Graph.clustering_coefficient
         - Graph.get_edge_clustering_coefficient
@@ -538,6 +549,16 @@ reference:
         - Graph.differential_edges
         - Graph.graph_edit_distance
 
+    - title: Isomorphism and Graph Hashing
+      desc: Exact (sub)graph isomorphism, invariants and Weisfeiler-Lehman hashes
+      contents:
+        - Graph.find_isomorphism
+        - Graph.could_be_isomorphic
+        - Graph.is_subgraph_isomorphic
+        - Graph.subgraph_isomorphisms
+        - Graph.weisfeiler_lehman_graph_hash
+        - Graph.weisfeiler_lehman_subgraph_hashes
+
     - title: Link Analysis
       desc: Methods for analyzing links and connections
       contents:
@@ -548,6 +569,10 @@ reference:
       contents:
         - Graph.common_neighbors
         - Graph.jaccard_coefficient
+        - Graph.common_neighbor_centrality
+        - Graph.cn_soundarajan_hopcroft
+        - Graph.ra_index_soundarajan_hopcroft
+        - Graph.within_inter_cluster
         - Graph.adamic_adar_index
         - Graph.resource_allocation_index
         - Graph.preferential_attachment
@@ -560,6 +585,7 @@ reference:
         - Graph.get_jaccard_similarity
         - Graph.get_cosine_similarity
         - Graph.get_overlap_similarity
+        - Graph.simrank_similarity
         - Graph.simrank_star_similarity
         - Graph.simrank_star_similarity_pair
 
@@ -585,6 +611,11 @@ reference:
         - Graph.get_node_connectivity
         - Graph.get_node_connectivity_between
         - Graph.get_edge_connectivity
+        - Graph.average_node_connectivity
+        - Graph.is_k_edge_connected
+        - Graph.k_edge_components
+        - Graph.k_edge_subgraphs
+        - Graph.chain_decomposition
         - Graph.get_adhesion
         - Graph.get_cohesion
         - Graph.get_density
@@ -664,12 +695,31 @@ reference:
         - Graph.is_valid_coloring
         - Graph.chromatic_number_upper_bound
 
-    - title: Matching
-      desc: Methods for finding matchings
+    - title: Matching and Covering
+      desc: Methods for finding matchings, edge covers and vertex covers
       contents:
         - Graph.is_matching
+        - Graph.is_maximal_matching
+        - Graph.is_perfect_matching
         - Graph.maximal_matching
         - Graph.max_weight_matching
+        - Graph.min_weight_matching
+        - Graph.bipartite_maximum_matching
+        - Graph.bipartite_min_weight_full_matching
+        - Graph.bipartite_vertex_cover
+        - Graph.min_weighted_vertex_cover
+        - Graph.is_vertex_cover
+        - Graph.min_edge_cover
+        - Graph.is_edge_cover
+
+    - title: Approximation and Optimization
+      desc: Heuristics for NP-hard routing, partitioning and decomposition problems
+      contents:
+        - Graph.traveling_salesman
+        - Graph.metric_closure
+        - Graph.tree_decomposition
+        - Graph.densest_subgraph
+        - Graph.max_cut
 
     - title: Independent Sets
       desc: Methods for finding independent sets
