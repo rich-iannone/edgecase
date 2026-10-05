@@ -1,5 +1,11 @@
+import itertools
+import random
+
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
+from edgecase.steps import KIND_QUERY, KIND_TRANSFORM
 
 
 class TestMinimumEdgeCut:
@@ -450,3 +456,256 @@ class TestMinimumCutRealWorld:
         dist_id = G.get_id_from_label("Distributor")
 
         assert dist_id in bottleneck
+
+
+# Cut and boundary measures (cut_size, volume, normalized_cut_size, conductance, expansions,
+# node/edge boundary), validated against NetworkX.
+
+
+def _cases():
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G0 = nx.gnp_random_graph(
+                14, rnd.choice([0.15, 0.25, 0.4]), seed=seed, directed=directed
+            )
+            G = (nx.DiGraph if directed else nx.Graph)()
+            G.add_nodes_from(range(14))
+            for u, v in G0.edges:
+                G.add_edge(u, v, weight=rnd.choice([0.5, 1, 2, 3]))
+            g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(14)])
+            gw = ec.Graph(directed=directed, weighted=True).add_nodes([str(v) for v in range(14)])
+            for u, v, d in G.edges(data=True):
+                g.add_edge(str(u), str(v))
+                gw.add_edge(str(u), str(v), weight=d["weight"])
+            yield G, g, gw, rnd
+
+
+def _two_triangles():
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDEF"))
+        .add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+    )
+
+
+def _ids(g, nodes):
+    return [g.get_id_from_label(str(v)) for v in nodes]
+
+
+def _lab(g, nid):
+    return int(g.get_label_from_id(nid))
+
+
+def _random(seed: int, directed: bool, n: int = 12):
+    rnd = random.Random(seed)
+    G0 = nx.gnp_random_graph(n, rnd.choice([0.2, 0.3, 0.45]), seed=seed, directed=directed)
+    G = (nx.DiGraph if directed else nx.Graph)()
+    G.add_nodes_from(range(n))
+    for u, v in G0.edges:
+        G.add_edge(u, v, capacity=rnd.choice([1, 2, 3, 5]))
+    g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(n)])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), capacity=d["capacity"])
+    return G, g
+
+
+def _labs(g, ids):
+    return [int(g.get_label_from_id(i)) for i in ids]
+
+
+def _id(g, v):
+    return g.get_id_from_label(str(v))
+
+
+class TestCutMeasures:
+    def test_against_networkx(self):
+        for G, g, gw, rnd in _cases():
+            S = rnd.sample(range(14), 5)
+            T = [v for v in rnd.sample(range(14), 6) if v not in S]
+            complement = set(G) - set(S)
+            s_ids, t_ids = _ids(g, S), _ids(g, T)
+            for gg, w in ((g, None), (gw, "weight")):
+                assert gg.cut_size(s_ids, t_ids) == pytest.approx(nx.cut_size(G, S, T, weight=w))
+                assert gg.cut_size(s_ids) == pytest.approx(nx.cut_size(G, S, complement, weight=w))
+                assert gg.volume(s_ids) == pytest.approx(nx.volume(G, S, weight=w))
+                if nx.volume(G, S, weight=w) and nx.volume(G, complement, weight=w):
+                    assert gg.normalized_cut_size(s_ids) == pytest.approx(
+                        nx.normalized_cut_size(G, S, weight=w)
+                    )
+                    assert gg.conductance(s_ids) == pytest.approx(nx.conductance(G, S, weight=w))
+                assert gg.edge_expansion(s_ids) == pytest.approx(nx.edge_expansion(G, S, weight=w))
+                if G.number_of_edges():
+                    assert gg.mixing_expansion(s_ids, t_ids) == pytest.approx(
+                        nx.mixing_expansion(G, S, T, weight=w)
+                    )
+            assert g.node_expansion(s_ids) == pytest.approx(nx.node_expansion(G, S))
+            assert g.boundary_expansion(s_ids) == pytest.approx(nx.boundary_expansion(G, S))
+            assert sorted(_lab(g, n) for n in g.node_boundary(s_ids)) == sorted(
+                nx.node_boundary(G, S)
+            )
+            assert sorted(_lab(g, n) for n in g.node_boundary(s_ids, t_ids)) == sorted(
+                nx.node_boundary(G, S, T)
+            )
+            ours = sorted(
+                tuple(sorted(_lab(g, x) for x in g.get_node_ids_by_edge_id(e)))
+                for e in g.edge_boundary(s_ids)
+            )
+            assert ours == sorted(tuple(sorted(e)) for e in nx.edge_boundary(G, S))
+
+    def test_two_triangles(self):
+        g = _two_triangles()
+        tri = ["A", "B", "C"]
+        assert g.cut_size(tri) == 1 and g.volume(tri) == 7
+        assert g.conductance(tri) == pytest.approx(1 / 7)
+        assert g.normalized_cut_size(tri) == pytest.approx(2 / 7)
+        assert g.edge_expansion(tri) == pytest.approx(1 / 3)
+        assert g.mixing_expansion(tri) == pytest.approx(1 / 14)
+        assert g.node_expansion(tri) == pytest.approx(4 / 3)
+        assert g.boundary_expansion(tri) == pytest.approx(1 / 3)
+        assert g.node_boundary(tri) == [g.get_id_from_label("D")]
+        assert g.edge_boundary(tri) == g.find_edge_ids("C", "D")
+
+    def test_errors(self):
+        g = _two_triangles()
+        with pytest.raises(ValueError, match="at least one"):
+            g.cut_size([])
+        with pytest.raises(ValueError):
+            g.volume(["nope"])
+        lonely = ec.Graph().add_nodes(["A", "B"])
+        with pytest.raises(ValueError, match="volume"):
+            lonely.conductance(["A"])
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.conductance(["A", "B", "C"])
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY
+        assert step.delta.node_groups == {"A": 0, "B": 0, "C": 0}
+        assert step.delta.edges_selected == [("C", "D")]
+        g.node_boundary(["A", "B", "C"])
+        assert g.steps[-1].delta.nodes_selected == ["D"]
+
+
+# s-t minimum cut partitions, Stoer-Wagner and Gomory-Hu trees, validated against NetworkX.
+
+
+class TestMinimumCut:
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_value_and_partition_match_networkx(self, directed):
+        for seed in range(20):
+            G, g = _random(seed, directed)
+            for s, t in itertools.islice(itertools.permutations(range(12), 2), 0, 132, 17):
+                value, (side, rest) = g.minimum_cut(_id(g, s), _id(g, t))
+                assert value == pytest.approx(nx.minimum_cut_value(G, s, t))
+                left = set(_labs(g, side))
+                assert s in left and t not in left
+                assert sorted(side + rest) == sorted(g.get_node_ids(limit=None))
+                crossing = sum(
+                    d["capacity"]
+                    for u, v, d in G.edges(data=True)
+                    if (u in left and v not in left)
+                    or (not directed and v in left and u not in left)
+                )
+                assert crossing == pytest.approx(value)
+
+    def test_source_side_is_closest_to_source(self):
+        g = ec.Graph(directed=True).add_nodes(["s", "a", "b", "t"])
+        g.add_edge("s", "a", capacity=2)
+        g.add_edge("a", "b", capacity=5)
+        g.add_edge("b", "t", capacity=4)
+        value, (side, rest) = g.minimum_cut("s", "t")
+        assert value == 2.0 and [g.get_label_from_id(n) for n in side] == ["s"]
+
+    def test_capacity_attribute_name_and_errors(self):
+        g = ec.Graph().add_nodes(["A", "B", "C"])
+        g.add_edge("A", "B", width=3)
+        g.add_edge("B", "C", width=7)
+        assert g.minimum_cut("A", "C", capacity="width")[0] == 3.0
+        assert g.minimum_cut("A", "C")[0] == 1.0  # no "capacity" attribute: unit capacities
+        with pytest.raises(ValueError, match="different"):
+            g.minimum_cut("A", "A")
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.minimum_cut("A", "F")
+        step = g.steps[-1]
+        assert step.kind == KIND_QUERY
+        assert step.delta.node_groups == {"A": 0, "B": 0, "C": 0, "D": 1, "E": 1, "F": 1}
+        assert step.delta.edges_selected == [("C", "D")]
+        assert step.narration == "Minimum cut of value 1: 1 edge between 3 and 3 nodes."
+
+
+class TestStoerWagner:
+    def test_value_matches_networkx(self):
+        for seed in range(25):
+            G, g = _random(seed, False)
+            if G.number_of_edges() == 0 or not nx.is_connected(G):
+                continue
+            value, (a, b) = g.stoer_wagner()
+            assert value == pytest.approx(nx.stoer_wagner(G, weight="capacity")[0])
+            left = set(_labs(g, a))
+            crossing = sum(
+                d["capacity"] for u, v, d in G.edges(data=True) if (u in left) != (v in left)
+            )
+            assert crossing == pytest.approx(value)
+            assert min(a) < min(b)  # side with the smallest ID first
+
+    def test_examples_and_edge_cases(self):
+        value, (a, b) = _two_triangles().stoer_wagner()
+        assert value == 1.0 and len(a) == len(b) == 3
+        w = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        w.add_edges([("A", "B", 3.0), ("B", "C", 4.0), ("C", "A", 3.0), ("C", "D", 1.5)])
+        value, (_, other) = w.stoer_wagner()
+        assert value == 1.5 and [w.get_label_from_id(n) for n in other] == ["D"]
+        split = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        assert split.stoer_wagner()[0] == 0.0
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A", "B"]).stoer_wagner()
+        with pytest.raises(ValueError, match="two nodes"):
+            ec.Graph().add_nodes(["A"]).stoer_wagner()
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.stoer_wagner()
+        assert g.steps[-1].delta.edges_selected == [("C", "D")]
+
+
+class TestGomoryHu:
+    def test_tree_encodes_all_pairwise_cuts(self):
+        for seed in range(12):
+            G, g = _random(seed, False)
+            tree = g.gomory_hu_tree()
+            assert tree.count_edges() == g.count_nodes() - 1 and not tree.is_directed()
+            T = nx.Graph()
+            T.add_nodes_from(range(12))
+            for eid in tree.get_edge_ids(limit=None):
+                s, t = tree.get_node_ids_by_edge_id(eid)
+                T.add_edge(
+                    int(tree.get_label_from_id(s)),
+                    int(tree.get_label_from_id(t)),
+                    w=tree.get_edge(eid).weight,
+                )
+            assert nx.is_tree(T)
+            for u, v in itertools.combinations(range(12), 2):
+                path = nx.shortest_path(T, u, v)
+                smallest = min(T[a][b]["w"] for a, b in zip(path, path[1:]))
+                assert smallest == pytest.approx(nx.maximum_flow_value(G, u, v))
+
+    def test_keeps_nodes_and_rejects_directed(self):
+        g = _two_triangles()
+        g.set_node_attrs("x", {1: "keep"})
+        tree = g.gomory_hu_tree()
+        assert tree.get_node_attrs("x") == {1: "keep"} and tree.is_weighted()
+        weights = sorted(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
+        assert weights == [1.0, 2.0, 2.0, 2.0, 2.0]
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).gomory_hu_tree()
+
+    def test_steps(self):
+        g = _two_triangles()
+        tree = g.gomory_hu_tree()
+        assert g.steps[-1].kind == KIND_TRANSFORM and len(tree.steps) == 1
+        assert "weakest pairwise cut has value 1" in g.steps[-1].narration
