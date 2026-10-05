@@ -1,3 +1,8 @@
+import random
+
+import edgecase as ec
+import networkx as nx
+import pytest
 from edgecase import Graph
 
 
@@ -423,3 +428,76 @@ class TestTreeMethodsIntegration:
         assert g.count_nodes() == 4
         assert g.count_edges() == 3  # n-1 edges
         assert g.count_weakly_connected_components() == 1
+
+
+# Branching recognition and Prüfer sequences, validated against NetworkX.
+
+
+def _digraphs(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        n = rnd.randint(1, 10)
+        G = nx.gnp_random_graph(n, rnd.choice([0.2, 0.4, 0.7]), seed=seed, directed=True)
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.choice([rnd.uniform(-3, 5), rnd.randint(-2, 4)])
+        yield G, rnd
+
+
+def _build(G, weighted=True):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in sorted(G)])
+    for u, v, d in G.edges(data=True):
+        if weighted:
+            g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+        else:
+            g.add_edge(str(u), str(v))
+    return g
+
+
+class TestIsBranching:
+    def test_is_branching(self):
+        for G, _ in _digraphs():
+            if len(G):
+                assert _build(G).is_branching() == nx.is_branching(G)
+        assert not ec.Graph().add_path_graph(3).is_branching()
+        loop = ec.Graph(directed=True).add_nodes(["A"])
+        loop.add_edge("A", "A")
+        assert not loop.is_branching()
+
+
+class TestPruferSequences:
+    def test_against_networkx(self):
+        for seed in range(100):
+            n = random.Random(seed).randint(2, 15)
+            T = nx.random_labeled_tree(n, seed=seed)
+            g = ec.Graph().add_nodes([str(v) for v in range(n)])
+            g.add_edges([(str(u), str(v)) for u, v in T.edges])
+            ours = [int(g.get_label_from_id(x)) for x in g.to_prufer_sequence()]
+            assert ours == nx.to_prufer_sequence(T)
+            back = ec.Graph.from_prufer_sequence(
+                [str(v) for v in ours], nodes=[str(v) for v in range(n)]
+            )
+            assert sorted(
+                sorted(e.split("--")) for e in back.get_edges_str_repr(use_labels=True)
+            ) == (sorted(sorted((str(u), str(v))) for u, v in T.edges))
+
+    def test_round_trip_with_default_nodes(self):
+        tree = ec.Graph.from_prufer_sequence([3, 3, 3])
+        assert sorted(tree.get_node_ids(limit=None)) == [1, 2, 3, 4, 5]
+        assert tree.to_prufer_sequence() == [3, 3, 3]
+        assert ec.Graph.from_prufer_sequence([]).count_edges() == 1
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match="not a tree"):
+            ec.Graph().add_cycle_graph(4).to_prufer_sequence()
+        with pytest.raises(ValueError, match="fewer than two"):
+            ec.Graph().add_nodes(["A"]).to_prufer_sequence()
+        with pytest.raises(ValueError, match="invalid"):
+            ec.Graph.from_prufer_sequence([9])
+        with pytest.raises(ValueError, match="distinct"):
+            ec.Graph.from_prufer_sequence(["A"], nodes=["A", "A", "B"])
+
+    def test_steps(self):
+        star = ec.Graph.from_prufer_sequence([1, 1])
+        star.to_prufer_sequence()
+        assert star.steps[-1].delta.metric_values == {"1": 2.0}
