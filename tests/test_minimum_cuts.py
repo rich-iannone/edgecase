@@ -259,10 +259,14 @@ class TestMinimumNodeCut:
                 if i < j:
                     G.add_edge(i, j)
 
-        cut = G.minimum_node_cut(1, 5)
+        # In K5 every pair is adjacent, so no node cut exists
+        with pytest.raises(ValueError, match="adjacent"):
+            G.minimum_node_cut(1, 5)
 
-        # In K5, need to remove 3 nodes to disconnect any two
-        assert len(cut) == 3
+        # Without the 1-5 edge, all 3 other nodes must go
+        G.delete_edge(1, 5)
+        cut = G.minimum_node_cut(1, 5)
+        assert cut == {2, 3, 4}
 
     def test_directed_graph(self):
         """Test on directed graph."""
@@ -332,20 +336,49 @@ class TestMinimumNodeCut:
         with pytest.raises(ValueError, match="does not exist"):
             G.minimum_node_cut(1, 999)
 
-    def test_adjacent_nodes(self):
-        """Test when source and sink are adjacent."""
-        G = Graph()
-        for i in [1, 2, 3]:
-            G.add_node(i)
-        G.add_edge(1, 2)
-        G.add_edge(1, 3)
-        G.add_edge(3, 2)  # Alternative path
+    def test_adjacent_source_and_sink_raise(self):
+        """Regression: adjacent source and sink returned set() or a set that didn't separate them."""
+        # Triangle plus a second detour: used to return {C, D}, leaving the A-B edge intact
+        G = Graph().add_edges(
+            [("A", "B"), ("B", "C"), ("A", "C"), ("A", "D"), ("D", "B")], auto_create_nodes=True
+        )
+        with pytest.raises(ValueError, match="adjacent"):
+            G.minimum_node_cut("A", "B")
+        # Stored the other way round on an undirected graph
+        with pytest.raises(ValueError, match="adjacent"):
+            G.minimum_node_cut("B", "A")
+        # A lone edge used to return set(), indistinguishable from "already disconnected"
+        single = Graph().add_edges([("A", "B")], auto_create_nodes=True)
+        with pytest.raises(ValueError, match="adjacent"):
+            single.minimum_node_cut("A", "B")
 
-        cut = G.minimum_node_cut(1, 2)
+    def test_directed_adjacency_follows_edge_direction(self):
+        """Only a source -> sink edge makes the cut impossible on a directed graph."""
+        G = Graph(directed=True).add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], auto_create_nodes=True
+        )
+        with pytest.raises(ValueError, match="adjacent"):
+            G.minimum_node_cut("A", "B")
+        # B -> A only runs through C
+        assert G.minimum_node_cut("B", "A") == {G.get_id_from_label("C")}
 
-        # Need to remove node 3 to force only direct connection
-        assert len(cut) == 1
-        assert 3 in cut
+    def test_matches_networkx_on_non_adjacent_pairs(self):
+        for seed in range(25):
+            G = nx.gnp_random_graph(12, 0.3, seed=seed)
+            g = Graph().add_nodes([str(n) for n in G])
+            if G.number_of_edges():
+                g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            rng = random.Random(seed)
+            for _ in range(5):
+                s, t = rng.sample(sorted(G), 2)
+                if G.has_edge(s, t):
+                    continue
+                cut = {int(g.get_label_from_id(n)) for n in g.minimum_node_cut(str(s), str(t))}
+                assert len(cut) == len(nx.minimum_node_cut(G, s, t))
+                if cut:
+                    H = G.copy()
+                    H.remove_nodes_from(cut)
+                    assert not nx.has_path(H, s, t)
 
     def test_hub_and_spoke(self):
         """Test hub-and-spoke topology."""
