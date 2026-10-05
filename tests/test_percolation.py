@@ -28,7 +28,7 @@ class TestPercolationCentrality:
         graph = Graph(directed=False)
         graph.add_node("A")
         result = graph.percolation_centrality(return_dict=True)
-        assert result["A"] == 0.0
+        assert result[graph.get_id_from_label("A")] == 0.0
 
     def test_path_graph_default_states(self):
         """Path graph with default states (all 1.0)."""
@@ -36,10 +36,9 @@ class TestPercolationCentrality:
         graph.add_path_graph(5)  # nodes 1-2-3-4-5
         result = graph.percolation_centrality(return_dict=True)
 
-        # Middle nodes should have higher centrality than endpoints
-        # Node 3 is in the center (labels are strings)
-        assert result["3"] > result["1"]
-        assert result["3"] > result["5"]
+        # Middle nodes should have higher centrality than endpoints (keyed by node ID)
+        assert result[3] > result[1]
+        assert result[3] > result[5]
 
     def test_path_graph_custom_states(self):
         """Path graph with custom percolation states."""
@@ -69,10 +68,10 @@ class TestPercolationCentrality:
         graph.add_star_graph(5)  # center is node 1
         result = graph.percolation_centrality(return_dict=True)
 
-        # Center node ("1") should have highest centrality (labels are strings)
-        center_centrality = result["1"]
+        # Center node (ID 1) should have highest centrality
+        center_centrality = result[1]
         for node, centrality in result.items():
-            if node != "1":
+            if node != 1:
                 assert center_centrality >= centrality
 
     def test_complete_graph(self):
@@ -115,10 +114,11 @@ class TestPercolationCentrality:
     def test_default_states_equal_betweenness(self):
         """With every state equal, percolation centrality is normalized betweenness."""
         g = self._two_diamonds()
-        pc = g.percolation_centrality(return_dict=True)  # keyed by label
-        bc = g.betweenness_centrality(return_dict=True)  # keyed by id
+        pc = g.percolation_centrality(return_dict=True)
+        bc = g.betweenness_centrality(return_dict=True)
+        assert pc.keys() == bc.keys()
         for node_id, value in bc.items():
-            assert pc[g.get_label_from_id(node_id)] == pytest.approx(value)
+            assert pc[node_id] == pytest.approx(value)
 
     def test_matches_networkx_with_states(self):
         """Percolation centrality matches NetworkX for non-uniform states."""
@@ -130,7 +130,44 @@ class TestPercolationCentrality:
         ]), states=states)
         got = g.percolation_centrality(states=states, return_dict=True)
         for n in want:
-            assert got[n] == pytest.approx(want[n])
+            assert got[g.get_id_from_label(n)] == pytest.approx(want[n])
+
+    def test_states_accept_ids_and_labels(self):
+        g = self._two_diamonds()
+        by_label = {n: (1.0 if n in "AG" else 0.0) for n in "ABCDEFG"}
+        by_id = {g.get_id_from_label(n): v for n, v in by_label.items()}
+        assert g.percolation_centrality(states=by_id, return_dict=True) == pytest.approx(
+            g.percolation_centrality(states=by_label, return_dict=True)
+        )
+        with pytest.raises(ValueError, match="does not exist"):
+            g.percolation_centrality(states={999: 1.0}, return_dict=True)
+
+    def test_weight_matches_networkx(self):
+        """Regression: weight= was accepted but ignored (paths always counted in hops)."""
+        edges = [
+            ("A", "B", 1.0), ("A", "C", 4.0), ("B", "C", 1.0), ("B", "D", 5.0),
+            ("C", "D", 1.0), ("D", "E", 2.0), ("D", "F", 1.0), ("E", "G", 1.0), ("F", "G", 3.0),
+        ]
+        g = Graph()
+        for label in "ABCDEFG":
+            g.add_node(label=label)
+        for u, v, w in edges:
+            g.add_edge(u, v, cost=w)
+        G = nx.Graph()
+        G.add_weighted_edges_from(edges, weight="cost")
+        states = {n: (0.9 if n in "AE" else 0.2) for n in "ABCDEFG"}
+        want = nx.percolation_centrality(G, states=states, weight="cost")
+        got = g.percolation_centrality(states=states, weight="cost", return_dict=True)
+        for n in want:
+            assert got[g.get_id_from_label(n)] == pytest.approx(want[n])
+        hops = g.percolation_centrality(states=states, return_dict=True)
+        assert hops != pytest.approx(got)
+
+    def test_weight_missing_on_an_edge_raises(self):
+        g = Graph().add_nodes(["A", "B", "C"])
+        g.add_edge("A", "B", cost=1.0).add_edge("B", "C")
+        with pytest.raises(ValueError, match="no numeric 'cost' attribute"):
+            g.percolation_centrality(weight="cost", return_dict=True)
 
 
 class TestNodePercolation:
