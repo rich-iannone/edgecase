@@ -4018,6 +4018,13 @@ def render_steps(
                     k: round(v, 4) if v is not None else 0.0
                     for k, v in step.delta.metric_values.items()
                 }
+            if step.delta.node_groups:
+                delta_obj["ng"] = dict(step.delta.node_groups)
+            if step.delta.edge_metric_values:
+                delta_obj["emv"] = [
+                    [src, tgt, round(v, 4) if v is not None else 0.0]
+                    for (src, tgt), v in step.delta.edge_metric_values.items()
+                ]
             step_data.append(
                 {
                     "kind": step.kind,
@@ -4941,6 +4948,10 @@ def render_steps(
   var COL_MUT='#f59e0b';
   var COL_SEL='{sel_color}';
 
+  // Categorical palette for node groups (communities, generations, components)
+  var GROUP_COLS=['#2563eb','#f59e0b','#10b981','#ef4444','#8b5cf6','#ec4899','#14b8a6','#a16207','#64748b','#84cc16'];
+  function groupColor(k){{ return GROUP_COLS[((k%GROUP_COLS.length)+GROUP_COLS.length)%GROUP_COLS.length]; }}
+
   function metricColor(t){{
     var lo=[{metric_lo_r},{metric_lo_g},{metric_lo_b}];
     var hi=[{metric_hi_r},{metric_hi_g},{metric_hi_b}];
@@ -5024,6 +5035,24 @@ def render_steps(
       if(mvMax===mvMin) mvMax=mvMin+1;
     }}
 
+    // Node groups (e.g. communities): categorical colors
+    var ng=(d.ng && Object.keys(d.ng).length)?d.ng:null;
+
+    // Edge metric values (e.g. edge betweenness) — same [0,1] normalization
+    var emv=null;
+    var emvMin=0,emvMax=1;
+    if(d.emv && d.emv.length){{
+      emv=new Map();
+      d.emv.forEach(function(e){{
+        emv.set(e[0]+'\\0'+e[1],e[2]);
+        if(!directed) emv.set(e[1]+'\\0'+e[0],e[2]);
+      }});
+      var evals=d.emv.map(function(e){{return e[2];}});
+      emvMin=Math.min.apply(null,evals);
+      emvMax=Math.max.apply(null,evals);
+      if(emvMax===emvMin) emvMax=emvMin+1;
+    }}
+
     // Nodes
     var circles=svg.querySelectorAll('.step-node');
     for(var i=0;i<circles.length;i++){{
@@ -5079,6 +5108,14 @@ def render_steps(
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_DEFAULT);
         el.setAttribute('stroke',COL_MUT);
+        el.setAttribute('r','{node_size:.1f}');
+      }} else if(ng && ng.hasOwnProperty(lbl)){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('fill',groupColor(ng[lbl]));
+        el.setAttribute('r','{node_size:.1f}');
+      }} else if(ng){{
+        el.setAttribute('opacity','0.3');
+        el.setAttribute('fill',COL_DEFAULT);
         el.setAttribute('r','{node_size:.1f}');
       }} else if(mv && mv.hasOwnProperty(lbl)){{
         var t=(mv[lbl]-mvMin)/(mvMax-mvMin);
@@ -5223,6 +5260,20 @@ def render_steps(
         el.setAttribute('stroke-width','{edge_width * 2:.1f}');
         el.removeAttribute('stroke-dasharray');
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_MUT);
+      }} else if(emv && emv.has(key)){{
+        var et=(emv.get(key)-emvMin)/(emvMax-emvMin);
+        var ec=metricColor(et);
+        el.setAttribute('opacity','1');
+        el.setAttribute('stroke',ec);
+        el.setAttribute('stroke-width',''+(({edge_width:.1f})*(1+3*et)).toFixed(1));
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',ec);
+      }} else if(emv){{
+        el.setAttribute('opacity','0.3');
+        el.setAttribute('stroke',COL_EDGE);
+        el.setAttribute('stroke-width','{edge_width:.1f}');
+        el.removeAttribute('stroke-dasharray');
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
       }} else if(hasMut && mutE.size===0 && s.method.indexOf('edge')!==-1){{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_MUT);
