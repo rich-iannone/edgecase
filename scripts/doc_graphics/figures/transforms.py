@@ -20,7 +20,7 @@ the odd nodes are `accent` on the left, and each duplicated edge is an `accent`
 arc bowed beside the original on the right, where every badge is even.
 """
 
-from core import SIZE_NOTE, Scene, figure, place, transform
+from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, transform
 
 from figures.paths import HOUSE, HOUSE_EDGES
 from figures.predicates import _degrees
@@ -342,3 +342,95 @@ def eulerize(s: Scene) -> None:
     # the duplicate bows down into the square, away from the roof
     s.graph(rp, HOUSE_EDGES + [("B", "C", {"style": "accent", "bend": 10})], prefix="r.")
     _degrees(s, "r.", HOUSE_EDGES + [("B", "C")], where={"A": "e"})
+
+
+# --- later additions: distance closure and tree decomposition ---------------
+#
+# Both figures rebuild their docstring example in edgecase and assert the
+# result, so a library change breaks the build instead of the picture.
+# metric_closure reuses CHAIN (and the closure arcs of transitive_closure),
+# undirected and with unit weights, so the two closures look alike.
+
+
+def _ec_edges(h) -> dict[frozenset, float]:
+    """{frozenset(labels): weight} for every edge of an edgecase graph."""
+    out = {}
+    for eid in h.get_edge_ids(limit=None):
+        e = h.get_edge(eid)
+        out[frozenset((h.get_label_from_id(e.source), h.get_label_from_id(e.target)))] = e.weight
+    return out
+
+
+@figure("metric_closure", "transforms", "Metric closure",
+        "Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric "
+        "closure joins every pair of nodes, weighted by the shortest-path distance between "
+        "them. It keeps the three unit edges and adds the accent shortcuts A–C with weight "
+        "2, B–D with weight 2, and A–D with weight 3.")
+def metric_closure(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = transform(s, "g", "g.metric_closure()")
+    g = ec.Graph(weighted=True).add_nodes(list(CHAIN))
+    g.add_edges([(a, b, 1.0) for a, b in CHAIN_EDGES])
+    dist = _ec_edges(g.metric_closure())
+    new = {frozenset(("A", "C")): 2, frozenset(("B", "D")): 2, frozenset(("A", "D")): 3}
+    assert dist == {frozenset(e): 1.0 for e in CHAIN_EDGES} | new
+    lp, rp = _both(CHAIN, left, right)
+    s.graph(lp, [(a, b, {"weight": 1}) for a, b in CHAIN_EDGES], prefix="l.")
+    s.graph(rp, [(a, b, {"weight": 1}) for a, b in CHAIN_EDGES]
+            + [(a, b, {"style": "accent", "bend": k, "weight": int(dist[frozenset((a, b))])})
+               for a, b, k in CHAIN_ARCS], prefix="r.")
+
+
+# tree_decomposition docstring: a 5-cycle has treewidth 2. The dashed chords
+# B–E and C–E cut it into the three triangles that become the bags.
+CYCLE5 = ring(list("ABCDE"), radius=1.0)
+CYCLE5_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")]
+BAG_UNIT = 28  # one scale for the three mini triangles inside the bags
+
+
+@figure("tree_decomposition", "transforms", "Tree decomposition",
+        "Left: a five-node cycle A to E; the dashed accent chords B–E and C–E split it into "
+        "three triangles. Right: the returned tree of bags, each bag a shaded box holding "
+        "one triangle: {A,B,E}, {B,C,E}, and {C,D,E}, joined in a chain; neighboring bags "
+        "share two nodes, and every cycle edge lies inside a bag. The largest bag has 3 "
+        "nodes, so the card gives the width 3 − 1 = 2.")
+def tree_decomposition(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = transform(s, "g", "g.tree_decomposition()")
+    g = ec.Graph().add_nodes(list(CYCLE5))
+    g.add_edges(CYCLE5_EDGES)
+    width, tree = g.tree_decomposition()
+    labels = {tree.get_label_from_id(n) for n in tree.get_node_ids(limit=None)}
+    bags = ["ABE", "BCE", "CDE"]  # drawn left to right along the chain
+    assert width == 2 and labels == {"{" + ",".join(b) + "}" for b in bags}
+    assert set(_ec_edges(tree)) == {frozenset(("{A,B,E}", "{B,C,E}")),
+                                    frozenset(("{B,C,E}", "{C,D,E}"))}
+    chords = [("B", "E"), ("C", "E")]
+    s.graph(place(CYCLE5, left, unit=UNIT), CYCLE5_EDGES
+            + [(a, b, {"style": "ghost"}) for a, b in chords], prefix="l.")
+    # one box per bag, its triangle drawn with the cycle's own geometry; all
+    # boxes share one size so the chain reads as a row of equal bags
+    gb = Box(right.x0, right.y0, right.x1, right.y1 - 56)
+    slot = gb.w / len(bags)
+    placed = [place({k: CYCLE5[k] for k in bag},
+                    Box(gb.x0 + i * slot, gb.y0, gb.x0 + (i + 1) * slot, gb.y1),
+                    unit=BAG_UNIT, r=R_SMALL) for i, bag in enumerate(bags)]
+    pad = R_SMALL + 6
+    bw = max(max(x for x, _ in p.values()) - min(x for x, _ in p.values()) for p in placed)
+    bh = max(max(y for _, y in p.values()) - min(y for _, y in p.values()) for p in placed)
+    bw, bh = bw + 2 * pad, bh + 2 * pad
+    rects = []
+    for i, (bag, pos) in enumerate(zip(bags, placed)):
+        cx = gb.x0 + (i + 0.5) * slot
+        rects.append(s.rect(cx - bw / 2, gb.cy - bh / 2, bw, bh, rx=10, stroke="accent",
+                            stroke_opacity=1, fill="tint", fill_color="accent",
+                            fill_opacity=0.55, role="region"))
+        inside = [(a, b) for a, b in CYCLE5_EDGES if a in bag and b in bag]
+        s.graph(pos, inside + [(a, b, {"style": "ghost"}) for a, b in chords
+                               if a in bag and b in bag], r=R_SMALL, prefix=f"b{i}.")
+    for r0, r1 in zip(rects, rects[1:]):
+        s.line(r0.x + r0.w, gb.cy, r1.x, gb.cy, width=STROKE, role="tree_edge")
+    s.card_centered(Box(right.x0, right.y1 - 56, right.x1, right.y1), [
+        (f"width  3 − 1 = {width}", "accent")], title="largest bag − 1")
