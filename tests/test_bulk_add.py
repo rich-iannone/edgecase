@@ -1,8 +1,7 @@
 """Tests for the item shapes accepted by add_edges() and add_nodes()."""
 
-import pytest
-
 import edgecase as ec
+import pytest
 
 
 def _edges(g):
@@ -140,3 +139,13 @@ class TestAddNodesShapes:
         with pytest.raises(TypeError):
             g.add_nodes(bad)
         assert g.count_nodes() == 0
+
+
+# Step recording for add_edges_by_id().
+
+
+class TestAddEdgesByIdSteps:
+    def test_add_edges_by_id_records_labels_and_respects_compounds(self):
+        g = ec.Graph().add_nodes(["A", "B"])
+        g.add_edges_by_id([(1, 2)])
+        assert g.steps[-1].delta.edges_added == [("A", "B")]
