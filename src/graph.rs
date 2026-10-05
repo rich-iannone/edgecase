@@ -2024,7 +2024,13 @@ impl Graph {
         let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(self.num_edges(), Default::default());
 
         for edge in &self.edges {
-            *edge_pairs.entry((edge.source, edge.target)).or_insert(0) += 1;
+            // Undirected A-B and B-A are the same pair, as in is_simple()
+            let key = if !self.directed && edge.source > edge.target {
+                (edge.target, edge.source)
+            } else {
+                (edge.source, edge.target)
+            };
+            *edge_pairs.entry(key).or_insert(0) += 1;
         }
 
         // Count edges beyond the first for each pair
