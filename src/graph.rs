@@ -2328,12 +2328,36 @@ impl Graph {
             return None;
         }
 
-        // Compute eccentricities and return min
-        let eccentricities = self.compute_eccentricities();
-        eccentricities
-            .values()
-            .filter_map(|&ecc| ecc)
-            .min()
+        self.center_eccentricities().into_values().min()
+    }
+
+    /// Eccentricities of the nodes eligible to be central (used by the radius and the center).
+    ///
+    /// A node's eccentricity only covers what it can reach, so a node reaching nothing (an
+    /// isolated node, a sink) would have eccentricity 0 and pull the radius to 0. Only nodes that
+    /// reach every node of their weakly connected component count, which on undirected graphs
+    /// is every node. Single-node components are skipped unless every component is a single
+    /// node (a graph without edges between distinct nodes), where each node is its own center
+    /// with eccentricity 0. Empty when no node qualifies, e.g. a directed in-star.
+    fn center_eccentricities(&self) -> FxHashMap<u64, usize> {
+        let components = self.weakly_connected_components();
+        let all_singletons = components.iter().all(|c| c.len() == 1);
+        let mut result: FxHashMap<u64, usize> = FxHashMap::default();
+        for component in &components {
+            if component.len() == 1 {
+                if all_singletons {
+                    result.insert(component[0], 0);
+                }
+                continue;
+            }
+            for &node in component {
+                let distances = self.bfs_distances(node);
+                if distances.len() == component.len() {
+                    result.insert(node, distances.values().max().copied().unwrap_or(0));
+                }
+            }
+        }
+        result
     }
 
     /// Get mean distance (average shortest path length)
