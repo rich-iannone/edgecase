@@ -26,6 +26,8 @@ written result (colors / sizes) with the badges in the result colors. The
 plain setters (`set_node_attrs`, `set_edge_attrs`) mirror the selection
 family's `*_ws` setters: the elements named in the call are `soft` in both
 panels and only their values (badges / edge labels) change, turning accent.
+`relabel_nodes` is the label version: renamed nodes `soft` → `accent` with
+their new labels, ink id pills on both sides to show that ids survive.
 """
 
 from core import SIZE_NOTE, Box, Scene, figure, place, transform
@@ -378,3 +380,27 @@ def set_node_attr_to_display(s: Scene) -> None:
     top = min(y for _, y in _place(H, left).values())
     s.text(left.cx, top - 44, "display: None", size=SIZE_NOTE, opacity=0.6)
     s.text(right.cx, top - 44, 'display: "name"', size=SIZE_NOTE, color="accent", weight=600)
+
+
+# --- renaming ----------------------------------------------------------------
+#
+# relabel_nodes follows the plain setters: the renamed nodes are `soft` on the
+# left and `accent` (with their new labels) on the right. Every node carries
+# its integer id in an ink pill on both sides, since ids are what survive.
+
+H_ID = {k: str(i) for i, k in enumerate(H, 1)}  # insertion order: A=1 … F=6
+
+
+@figure("relabel_nodes", "mutation", "Relabel nodes",
+        "Before: a six-node graph with each node's id in a pill, 1 to 6. The call renames B "
+        "to X and E to Y; after it those two nodes carry their new labels in the accent "
+        "color, while their ids 2 and 5, the edges, and the other labels are unchanged.")
+def relabel_nodes(s: Scene) -> None:
+    left, right = transform(s, "g", 'g.relabel_nodes({"B": "X", "E": "Y"})')
+    new = {"B": "X", "E": "Y"}
+    s.graph(_place(H, left), H_EDGES, styles={k: "soft" for k in new}, prefix="l.")
+    s.graph(_place(H, right), H_EDGES, styles={k: "accent" for k in new}, labels=new,
+            prefix="r.")
+    for prefix in ("l.", "r."):
+        for k, i in H_ID.items():
+            s.badge(prefix + k, i, where="n" if H[k][1] == 0 else "s", color="ink")
