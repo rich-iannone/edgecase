@@ -9,8 +9,20 @@ other.
 All whole-graph metrics use ONE shared graph (`STRIP_*`: a strip of three
 triangles A–E with a two-node tail F–G) so sibling measures can be compared
 directly: degree, harmonic and PageRank favor the hub C; betweenness and
-radiality favor the bridge E; average neighbor degree favors A; eccentricity
-is largest at the periphery (A, B, G).
+radiality favor the bridge E; closeness ties C and E; average neighbor degree
+favors A; eccentricity is largest at the periphery (A, B, G).
+
+Per-edge metrics (`edge_betweenness_centrality`) use the same graph with
+edge heat: stroke width grows with the score, the top edge is `accent`, and
+the table lists edge → score sorted high to low.
+
+Group centralities (`group_degree_centrality`, `group_closeness_centrality`,
+`group_betweenness_centrality`) score a node SET, so they use `contrast` on
+the strip graph with the same two groups every time: the spread pair {C, F}
+(left, its score in accent) beside the bunched pair {A, B}. Members are
+`soft` (the group you pass in, named in a note line `S = [...]`); reached
+outside nodes are `accent` (degree) or carry their distance to the group as a
+badge (closeness).
 
 Single-node getters (`get_degree`, `get_in_degree`, `get_out_degree`,
 `get_node_vitality`) show the queried node `soft`, the counted elements
@@ -18,7 +30,7 @@ Single-node getters (`get_degree`, `get_in_degree`, `get_out_degree`,
 for the depicted graph (rounded to 2 decimals).
 """
 
-from core import Scene, compute, figure, place
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place
 
 UNIT = 80  # one scale for the whole family
 
@@ -30,18 +42,18 @@ STRIP_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("C",
                ("D", "E"), ("E", "F"), ("F", "G")]
 
 
-def _fmt(v: float) -> str:
-    return str(v) if isinstance(v, int) else f"{v:.2f}"
+def _fmt(v: float, digits: int = 2) -> str:
+    return str(v) if isinstance(v, int) else f"{v:.{digits}f}"
 
 
-def _rows(scores: dict[str, float], max_rows: int = 7) -> list[list[str]]:
+def _rows(scores: dict[str, float], max_rows: int = 7, digits: int = 2) -> list[list[str]]:
     """Table body sorted high→low; ties share a row; long tails end in '…'.
 
     Seven rows (every node of the shared graph) still fit the content area.
     """
     groups: dict[str, list[str]] = {}
     for k, v in sorted(scores.items(), key=lambda kv: (-kv[1], kv[0])):
-        groups.setdefault(_fmt(v), []).append(k)
+        groups.setdefault(_fmt(v, digits), []).append(k)
     rows = [[", ".join(ks), v] for v, ks in groups.items()]
     if len(rows) > max_rows:
         rows = rows[:max_rows - 1] + [["…", "…"]]
@@ -49,14 +61,14 @@ def _rows(scores: dict[str, float], max_rows: int = 7) -> list[list[str]]:
 
 
 def _metric(s: Scene, call: str, header: str, scores: dict[str, float],
-            col_w: tuple[float, float] = (64, 64)) -> None:
+            col_w: tuple[float, float] = (64, 64), digits: int = 2) -> None:
     """The family template: heat-shaded strip graph → sorted score table."""
     left, right = compute(s, "g", call)
     pos = place(STRIP_COORDS, left, unit=UNIT)
     top = max(scores.values())
     s.graph(pos, STRIP_EDGES, heat={k: v / top for k, v in scores.items()},
             styles={k: "accent" for k, v in scores.items() if v == top})
-    rows = [["node", header]] + _rows(scores)
+    rows = [["node", header]] + _rows(scores, digits=digits)
     s.table_centered(right, rows, list(col_w), highlight={(1, 0): "accent", (1, 1): "accent"})
 
 
@@ -81,6 +93,25 @@ def betweenness_centrality(s: Scene) -> None:
     # normalized by default
     _metric(s, "g.betweenness_centrality()", "score",
             {"A": 0.0, "B": 0.03, "C": 0.33, "D": 0.1, "E": 0.53, "F": 0.33, "G": 0.0})
+
+
+@figure("degree_centrality", "node-metrics", "Degree centrality",
+        "The shared seven-node graph shaded by degree centrality, each degree divided by "
+        "n - 1 = 6. Hub C touches four of the six other nodes and tops the table at 0.67, "
+        "followed by B, D and E at 0.50, A and F at 0.33, and the pendant node G at 0.17.")
+def degree_centrality(s: Scene) -> None:
+    _metric(s, "g.degree_centrality()", "score",
+            {"A": 0.33, "B": 0.5, "C": 0.67, "D": 0.5, "E": 0.5, "F": 0.33, "G": 0.17})
+
+
+@figure("closeness_centrality", "node-metrics", "Closeness centrality",
+        "The shared seven-node graph shaded by closeness, the reciprocal of the mean distance "
+        "to every other node. Hub C and bridge E are both an average of 1.5 hops from the "
+        "rest and tie at 0.67, followed by D 0.60, B and F 0.50, A 0.46, and the pendant "
+        "node G at 0.35.")
+def closeness_centrality(s: Scene) -> None:
+    _metric(s, "g.closeness_centrality()", "score",
+            {"A": 0.46, "B": 0.5, "C": 0.67, "D": 0.6, "E": 0.67, "F": 0.5, "G": 0.35})
 
 
 @figure("harmonic_centrality", "node-metrics", "Harmonic centrality",
@@ -209,7 +240,31 @@ def get_node_vitality(s: Scene) -> None:
     s.card_centered(right, ["W(G)       82", "W(G − C)   70", ("vitality   12", "accent")])
 
 
-# --- per-edge metric ------------------------------------------------------------
+# --- per-edge metrics -----------------------------------------------------------
+
+EDGE_W_MIN, EDGE_W_MAX = 1.5, 6.0  # edge heat: stroke width range
+
+
+@figure("edge_betweenness_centrality", "node-metrics", "Edge betweenness centrality",
+        "The shared seven-node graph with each edge drawn thicker the more shortest paths "
+        "run through it. The bridge E-F, which every path from the triangles to the tail "
+        "must cross, is thickest and in accent at 0.48, ahead of C-E at 0.36 and F-G at "
+        "0.29; the triangle edges A-B and C-D carry the least, 0.07.")
+def edge_betweenness_centrality(s: Scene) -> None:
+    left, right = compute(s, "g", "g.edge_betweenness_centrality()")
+    pos = place(STRIP_COORDS, left, unit=UNIT)
+    # normalized by n(n - 1) = 42 ordered pairs, as edgecase returns by default
+    scores = {("A", "B"): 0.07, ("A", "C"): 0.21, ("B", "C"): 0.12, ("B", "D"): 0.14,
+              ("C", "D"): 0.07, ("C", "E"): 0.36, ("D", "E"): 0.21, ("E", "F"): 0.48,
+              ("F", "G"): 0.29}
+    top = max(scores.values())
+    s.graph(pos, [])
+    for (a, b), v in scores.items():
+        s.edge(a, b, style="accent" if v == top else "default",
+               width=EDGE_W_MIN + (EDGE_W_MAX - EDGE_W_MIN) * v / top)
+    rows = [["edge", "score"]] + _rows({f"{a}–{b}": v for (a, b), v in scores.items()})
+    s.table_centered(right, rows, [84, 64], highlight={(1, 0): "accent", (1, 1): "accent"})
+
 
 
 @figure("get_edge_clustering_coefficient", "node-metrics", "Edge clustering coefficient",
@@ -226,3 +281,63 @@ def get_edge_clustering_coefficient(s: Scene) -> None:
     # offset=True by default: (z + 1) / s with s = min(d_C - 1, d_D - 1)
     s.card_centered(right, ["triangles z  2", "possible s   2",
                             ("(z + 1) / s  1.5", "accent")], title="edge C–D")
+
+
+# --- group centralities: one node set, two contrasting groups ------------------------
+
+GROUP_SPREAD, GROUP_BUNCHED = ["C", "F"], ["A", "B"]
+
+
+def _group_panel(s: Scene, box: Box, group: list[str], prefix: str, *,
+                 accent: set[str] = frozenset(), badges: dict[str, int] | None = None) -> None:
+    s.text(box.cx, box.y0 + 8, f"S = [{', '.join(group)}]", size=SIZE_NOTE, opacity=0.6)
+    gb = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+    pos = place(STRIP_COORDS, gb, unit=UNIT)
+    styles = {k: "accent" for k in accent} | {k: "soft" for k in group}
+    edges = [(a, b, {"style": "accent"}) if ({a, b} & set(group) and {a, b} & accent) else (a, b)
+             for a, b in STRIP_EDGES]
+    s.graph(pos, edges, styles=styles, prefix=prefix)
+    for k, v in (badges or {}).items():
+        s.badge(prefix + k, str(v))
+
+
+def _outside_neighbors(group: list[str]) -> set[str]:
+    return {b if a in group else a for a, b in STRIP_EDGES
+            if (a in group) != (b in group)}
+
+
+@figure("group_degree_centrality", "node-metrics", "Group degree centrality",
+        "The shared seven-node graph twice. Left, the group C, F: between them they touch "
+        "all five outside nodes A, B, D, E and G, drawn in accent, so the score is 5 / 5 = "
+        "1.0. Right, the group A, B reaches only C and D, 2 of 5, for 0.4.")
+def group_degree_centrality(s: Scene) -> None:
+    left, right = contrast(s, "g.group_degree_centrality(S)", "g.group_degree_centrality(S)",
+                           "1.0", "0.4")
+    _group_panel(s, left, GROUP_SPREAD, "l.", accent=_outside_neighbors(GROUP_SPREAD))
+    _group_panel(s, right, GROUP_BUNCHED, "r.", accent=_outside_neighbors(GROUP_BUNCHED))
+
+
+@figure("group_closeness_centrality", "node-metrics", "Group closeness centrality",
+        "The shared seven-node graph twice, each outside node badged with its distance to "
+        "the nearest group member. Left, every outside node is one hop from C or F, so the "
+        "score is 5 / 5 = 1.0. Right, from A, B the distances are 1, 1, 2, 3 and 4, so the "
+        "score is 5 / 11 = 0.455.")
+def group_closeness_centrality(s: Scene) -> None:
+    left, right = contrast(s, "g.group_closeness_centrality(S)",
+                           "g.group_closeness_centrality(S)", "1.0", "0.455")
+    _group_panel(s, left, GROUP_SPREAD, "l.",
+                 badges={"A": 1, "B": 1, "D": 1, "E": 1, "G": 1})
+    _group_panel(s, right, GROUP_BUNCHED, "r.",
+                 badges={"C": 1, "D": 1, "E": 2, "F": 3, "G": 4})
+
+
+@figure("group_betweenness_centrality", "node-metrics", "Group betweenness centrality",
+        "The shared seven-node graph twice. Left, the group C, F intercepts 0.6 of the "
+        "shortest-path traffic between the five outside nodes, including every path from the "
+        "triangles to the pendant G. Right, the group A, B sits at the end of the strip, no shortest path "
+        "between other nodes needs it, and it scores 0.0.")
+def group_betweenness_centrality(s: Scene) -> None:
+    left, right = contrast(s, "g.group_betweenness_centrality(S)",
+                           "g.group_betweenness_centrality(S)", "0.6", "0.0")
+    _group_panel(s, left, GROUP_SPREAD, "l.")
+    _group_panel(s, right, GROUP_BUNCHED, "r.")
