@@ -10,6 +10,23 @@ use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
+/// Neighbors of every node with edge direction ignored, one entry per edge end.
+///
+/// Bipartiteness is a property of the underlying undirected graph, so the partitions and
+/// everything built on them follow edges both ways. On undirected graphs this is the usual
+/// adjacency: parallel edges repeat a neighbor and a self-loop lists the node twice (which
+/// makes the graph non-bipartite, as it should). `Graph::neighbors()` alone would only follow
+/// out-edges on directed graphs.
+fn undirected_adjacency(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
+    let mut adj: FxHashMap<u64, Vec<u64>> =
+        graph.get_node_ids().into_iter().map(|id| (id, Vec::new())).collect();
+    for edge in graph.get_edges_internal() {
+        adj.entry(edge.source).or_default().push(edge.target);
+        adj.entry(edge.target).or_default().push(edge.source);
+    }
+    adj
+}
+
 /// Return the two partitions of a bipartite graph using BFS 2-coloring.
 ///
 /// Returns (set_0, set_1) where set_0 contains nodes colored 0 and
@@ -27,6 +44,7 @@ pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
     // (get_node_ids() is hash-ordered, which made `which=0` effectively arbitrary.)
     let mut node_ids = graph.get_node_ids();
     node_ids.sort_unstable();
+    let adj = undirected_adjacency(graph);
     let mut color: FxHashMap<u64, u8> =
         FxHashMap::with_capacity_and_hasher(n, Default::default());
 
@@ -45,8 +63,8 @@ pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
             let current_color = *color.get(&current).unwrap();
             let next_color = 1 - current_color;
 
-            if let Ok(neighbors) = graph.neighbors(current) {
-                for &neighbor in &neighbors {
+            if let Some(neighbors) = adj.get(&current) {
+                for &neighbor in neighbors {
                     if let Some(&neighbor_color) = color.get(&neighbor) {
                         if neighbor_color == current_color {
                             return Err(pyo3::exceptions::PyValueError::new_err(
@@ -109,9 +127,10 @@ pub fn bipartite_projection(
     // For each node in the other partition, collect its neighbors in the project partition
     // then create edges between all pairs of those neighbors
     let mut edge_weights: FxHashMap<(u64, u64), f64> = FxHashMap::default();
+    let adj = undirected_adjacency(graph);
 
     for &other_node in &other_set {
-        if let Ok(neighbors) = graph.neighbors(other_node) {
+        if let Some(neighbors) = adj.get(&other_node) {
             let project_neighbors: Vec<u64> = neighbors
                 .iter()
                 .filter(|n| project_members.contains(n))
@@ -167,9 +186,10 @@ pub fn bipartite_degree_centrality(
 
     let norm = 1.0 / other_size as f64;
     let mut result = FxHashMap::default();
+    let adj = undirected_adjacency(graph);
 
     for &node_id in &target_set {
-        let degree = graph.neighbors(node_id).map(|n| n.len()).unwrap_or(0);
+        let degree = adj.get(&node_id).map(|n| n.len()).unwrap_or(0);
         result.insert(node_id, degree as f64 * norm);
     }
 
@@ -181,15 +201,15 @@ pub fn bipartite_degree_centrality(
 /// Must be a FIFO queue: each node's distance is fixed when it is first discovered, which
 /// is only the shortest distance if nodes are expanded in breadth-first order. (A LIFO
 /// stack explores depth-first and can overstate distances on graphs with cycles.)
-fn bfs_distances(graph: &Graph, source: u64) -> FxHashMap<u64, f64> {
+fn bfs_distances(adj: &FxHashMap<u64, Vec<u64>>, source: u64) -> FxHashMap<u64, f64> {
     let mut dist: FxHashMap<u64, f64> = FxHashMap::default();
     dist.insert(source, 0.0);
     let mut queue: std::collections::VecDeque<u64> = std::collections::VecDeque::from([source]);
 
     while let Some(current) = queue.pop_front() {
         let current_dist = dist[&current];
-        if let Ok(neighbors) = graph.neighbors(current) {
-            for &neighbor in &neighbors {
+        if let Some(neighbors) = adj.get(&current) {
+            for &neighbor in neighbors {
                 if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(neighbor) {
                     e.insert(current_dist + 1.0);
                     queue.push_back(neighbor);
@@ -232,9 +252,10 @@ pub fn bipartite_closeness_centrality(
     }
 
     let mut result = FxHashMap::default();
+    let adj = undirected_adjacency(graph);
 
     for &node_id in &target_set {
-        let distances = bfs_distances(graph, node_id);
+        let distances = bfs_distances(&adj, node_id);
         let total_dist: f64 = other_members
             .iter()
             .filter_map(|&other| distances.get(&other))
@@ -284,6 +305,7 @@ pub fn bipartite_betweenness_centrality(
     let target_members: FxHashSet<u64> = target_set.iter().copied().collect();
 
     let mut betweenness: FxHashMap<u64, f64> = target_set.iter().map(|&id| (id, 0.0)).collect();
+    let adj = undirected_adjacency(graph);
 
     // Brandes-like algorithm: BFS from each node in the other partition
     for &source in &other_set {
@@ -303,8 +325,8 @@ pub fn bipartite_betweenness_centrality(
             stack.push(v);
             let v_dist = dist[&v];
 
-            if let Ok(neighbors) = graph.neighbors(v) {
-                for &w in &neighbors {
+            if let Some(neighbors) = adj.get(&v) {
+                for &w in neighbors {
                     if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(w) {
                         e.insert(v_dist + 1);
                         queue.push_back(w);
