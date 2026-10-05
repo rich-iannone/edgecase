@@ -13,9 +13,25 @@ degrees (C: 3, D: 2), which is what separates Adamic-Adar and resource
 allocation from the plain count. SimRank* and communicability reuse it too.
 The two graph-vs-graph comparisons (edge overlap, edit distance) draw G and H
 side by side in the input panel, with the matched or edited parts in accent.
+The isomorphism and hashing methods follow their docstring examples and use
+node-group colors for classes: find_isomorphism gives each matched pair one
+color (accent / g2 / g3) in both graphs and the card, the Weisfeiler-Lehman
+figures color nodes by hash class, and simrank_similarity draws its
+students and courses as two columns with names beside the nodes.
+
+The later link-prediction scores follow their docstring examples, each
+asserted with edgecase. common_neighbor_centrality scores the pairs of the
+path A-B-C-D: the pair A, C `soft` with a dashed (`ghost`) candidate link,
+their shared neighbor B in accent, and a pair / cn / d / score table with the
+formula in a note line. The three community-aware scores
+(cn_soundarajan_hopcroft, ra_index_soundarajan_hopcroft, within_inter_cluster)
+share one four-node square (`CMTY`): community 0 (A, B, D) and community 1
+(C) are `g2` / `g3` hulls, the pair A, D is `soft` with a dashed candidate
+link, and the common neighbors the score counts are accent (C stays plain
+where the score ignores it); the card shows the formula's numbers.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, figure, place
+from core import SIZE_LABEL, SIZE_NOTE, Box, Scene, compute, figure, place
 
 UNIT = 60  # one graph scale for the whole family
 
@@ -356,3 +372,276 @@ def graph_edit_distance(s: Scene) -> None:
           h_pos={"A": (0, 0), "B": (1.5, 0), "E": (0, 1.5), "D": (1.5, 1.5)})
     s.card_centered(right, ["delete  node C, edge A–C", "insert  node E, edge D–E",
                             ("distance = 2 + 2 = 4", "accent")], w=CARD_W, title="cost 1 per edit")
+
+
+# --- isomorphism and structural hashes -------------------------------------
+
+
+def _name(s: Scene, node_id: str, text: str, where: str, color: str = "ink") -> None:
+    """A node name too long for its circle, set just outside it (n, s, e or w)."""
+    n = s.nodes[node_id]
+    dx = {"w": -(n.r + 5), "e": n.r + 5}.get(where, 0)
+    dy = {"n": -(n.r + 10), "s": n.r + 10}.get(where, 0)
+    anchor = {"w": "end", "e": "start"}.get(where, "middle")
+    s.text(n.x + dx, n.y + dy, text, size=SIZE_LABEL, mono=False, weight=600, anchor=anchor,
+           color=color, role="name")
+
+
+def _halves(s: Scene, left: Box, a_cap: str, b_cap: str) -> tuple[Box, Box]:
+    """Split the input panel into two graphs, each captioned (the template's caption moves)."""
+    abox, bbox = Box(left.x0, left.y0, left.cx, left.y1), Box(left.cx, left.y0, left.x1, left.y1)
+    cap = next(t for t in s.texts if t.role == "caption" and t.text == a_cap)
+    cap.x = abox.cx
+    s.caption(bbox.cx, b_cap, max_w=bbox.w)
+    return abox, bbox
+
+
+# find_isomorphism docstring: one workflow exported twice under different names.
+FLOW_A = {"fetch": (0, 1), "build": (1, 0), "test": (2, 1)}
+FLOW_A_EDGES = [("fetch", "build"), ("build", "test"), ("fetch", "test")]
+FLOW_B = {"s1": (0, 0.15), "s2": (1.7, 0), "s3": (0.8, 1.2)}
+FLOW_B_EDGES = [("s2", "s3"), ("s1", "s3"), ("s1", "s2")]
+
+
+@figure("find_isomorphism", "similarity", "Find isomorphism",
+        "Two directed graphs drawn differently. Graph a is a workflow where fetch points to "
+        "build and test, and build points to test; graph b has nodes s1, s2, s3 with s1 "
+        "pointing to s2 and s3, and s2 pointing to s3. Matching colors pair each node of a "
+        "with its partner in b, and the card returns the mapping fetch to s1 (accent), build "
+        "to s2 (teal), and test to s3 (violet), under which every edge of a lands on an edge "
+        "of b.")
+def find_isomorphism(s: Scene) -> None:
+    import edgecase as ec
+
+    a = ec.Graph(directed=True).add_nodes(list(FLOW_A))
+    a.add_edges(FLOW_A_EDGES)
+    b = ec.Graph(directed=True).add_nodes(list(FLOW_B))
+    b.add_edges(FLOW_B_EDGES)
+    got = {a.get_label_from_id(k): b.get_label_from_id(v) for k, v in a.find_isomorphism(b).items()}
+    assert got == {"fetch": "s1", "build": "s2", "test": "s3"}
+    assert a.find_isomorphism(ec.Graph(directed=True).add_path_graph(3)) is None
+    left, right = compute(s, "a", "a.find_isomorphism(b)")
+    abox, bbox = _halves(s, left, "a", "b")
+    colors = dict(zip(FLOW_A, ("accent", "g2", "g3")))
+    s.graph(place(FLOW_A, Box(abox.x0, abox.y0, abox.x1, abox.y1 - 14), unit=UNIT),
+            FLOW_A_EDGES, directed=True, styles=colors, labels=False, prefix="a.")
+    for k, where in zip(FLOW_A, ("s", "n", "s")):
+        _name(s, "a." + k, k, where, colors[k])
+    s.graph(place(FLOW_B, bbox, unit=UNIT), FLOW_B_EDGES, directed=True,
+            styles={got[k]: c for k, c in colors.items()}, prefix="b.")
+    s.card_centered(right, [(f"{k:<5}  →  {v}", colors[k]) for k, v in got.items()],
+                    w=CARD_W, title="node of a → node of b")
+
+
+# weisfeiler_lehman_graph_hash docstring: a triangle with a tail, relabeled.
+TAIL_A = {"A": (0, 0), "B": (0, 1.4), "C": (1.1, 0.7), "D": (2.2, 0.7)}
+TAIL_A_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+TAIL_B = {"w": (0.7, 0), "x": (0.7, 1), "y": (0, 2), "z": (1.4, 2)}
+TAIL_B_EDGES = [("z", "y"), ("y", "x"), ("x", "z"), ("w", "x")]
+
+
+@figure("weisfeiler_lehman_graph_hash", "similarity", "Weisfeiler-Lehman graph hash",
+        "Two drawings of a triangle with a one-edge tail, one labeled A to D and one labeled "
+        "w to z. Node colors mark the classes that neighborhood aggregation finds: the "
+        "degree-3 node (C, x) in accent, the two other triangle nodes (A, B and y, z) in "
+        "teal, and the tail end (D, w) in violet. Both graphs reduce to the same class counts, "
+        "so the card shows the same hash, starting c0454391, for each, and equal is True.")
+def weisfeiler_lehman_graph_hash(s: Scene) -> None:
+    import edgecase as ec
+
+    a = ec.Graph().add_nodes(list(TAIL_A))
+    a.add_edges(TAIL_A_EDGES)
+    b = ec.Graph().add_nodes(list(TAIL_B))
+    b.add_edges(TAIL_B_EDGES)
+    ha, hb = a.weisfeiler_lehman_graph_hash(), b.weisfeiler_lehman_graph_hash()
+    assert ha == hb and ha.startswith("c0454391")
+    hexagon = ec.Graph().add_cycle_graph(6)
+    two = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+    assert hexagon.weisfeiler_lehman_graph_hash() == two.weisfeiler_lehman_graph_hash()
+    left, right = compute(s, "a", "a.weisfeiler_lehman_graph_hash()")
+    abox, bbox = _halves(s, left, "a", "b")
+    s.graph(place(TAIL_A, abox, unit=UNIT), TAIL_A_EDGES,
+            styles={"C": "accent", "A": "g2", "B": "g2", "D": "g3"}, prefix="a.")
+    s.graph(place(TAIL_B, bbox, unit=UNIT * 0.8), TAIL_B_EDGES,
+            styles={"x": "accent", "y": "g2", "z": "g2", "w": "g3"}, prefix="b.")
+    s.card_centered(right, [f"a  {ha[:8]}…", f"b  {hb[:8]}…", ("equal  True", "accent")],
+                    w=CARD_W, title="hash, first 8 hex digits")
+
+
+# weisfeiler_lehman_subgraph_hashes docstring: a five-node path.
+PATH5 = {k: (i, 0) for i, k in enumerate("ABCDE")}
+PATH5_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+
+
+@figure("weisfeiler_lehman_subgraph_hashes", "similarity", "Weisfeiler-Lehman subgraph hashes",
+        "A path of five nodes, A to E, colored by their second-round hashes: the two ends A "
+        "and E share one hash (accent), the inner nodes B and D share another (teal), and the "
+        "middle node C has its own (violet). The card lists the first six hex digits of each "
+        "class in matching colors: 68f978 for A and E, b51b1d for B and D, and 0ea5aa for C.")
+def weisfeiler_lehman_subgraph_hashes(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(PATH5))
+    g.add_edges(PATH5_EDGES)
+    second = {g.get_label_from_id(n): h[1][:6]
+              for n, h in g.weisfeiler_lehman_subgraph_hashes(iterations=2).items()}
+    classes = {"accent": "AE", "g2": "BD", "g3": "C"}
+    for nodes in classes.values():
+        assert len({second[k] for k in nodes}) == 1
+    assert len(set(second.values())) == 3
+    assert (second["A"], second["B"], second["C"]) == ("68f978", "b51b1d", "0ea5aa")
+    left, right = compute(s, "g", "g.weisfeiler_lehman_subgraph_hashes()")
+    s.graph(place(PATH5, left, unit=UNIT * 1.3), PATH5_EDGES,
+            styles={k: c for c, nodes in classes.items() for k in nodes})
+    s.card_centered(right, [(f"{', '.join(nodes):<4}  {second[nodes[0]]}", c)
+                            for c, nodes in classes.items()],
+                    w=CARD_W, title="round 2, first 6 hex digits")
+
+
+# simrank_similarity docstring: students and the courses they take.
+STUDENTS = ["ann", "bob", "cy"]
+COURSES = ["math", "art", "bio"]
+ENROLL = [("ann", "math"), ("ann", "art"), ("bob", "math"), ("bob", "art"), ("cy", "bio")]
+
+
+@figure("simrank_similarity", "similarity", "SimRank similarity",
+        "Students ann, bob, and cy in a column on the left, courses math, art, and bio on the "
+        "right. ann and bob, outlined in the accent color, take the same two courses, math and "
+        "art (accent), while cy only takes bio. ann and bob are never linked directly, yet "
+        "SimRank with C = 0.9 rates them 0.818 because their neighbors are alike; ann and cy "
+        "share nothing and score 0.0.")
+def simrank_similarity(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(STUDENTS + COURSES)
+    g.add_edges(ENROLL)
+    ab, ac = g.simrank_similarity("ann", "bob"), g.simrank_similarity("ann", "cy")
+    assert round(ab, 3) == 0.818 and ac == 0.0
+    left, right = compute(s, "g", 'g.simrank_similarity("ann", "bob")')
+    coords = {k: (0, i) for i, k in enumerate(STUDENTS)} | {k: (2.6, i) for i, k in
+                                                            enumerate(COURSES)}
+    styles = {"ann": "soft", "bob": "soft", "math": "accent", "art": "accent"}
+    s.graph(place(coords, left, unit=UNIT), [(a, b, {"style": "accent"}) if b != "bio" else
+                                            (a, b) for a, b in ENROLL],
+            styles=styles, labels=False)
+    for k in coords:
+        _name(s, k, k, "w" if k in STUDENTS else "e", "accent" if k in styles else "ink")
+    s.card_centered(right, [(f"s(ann, bob) = {ab:.3f}", "accent"), f"s(ann, cy)  = {ac:.1f}"],
+                    w=CARD_W, title="importance_factor C = 0.9")
+
+
+# --- later additions: link prediction with distance and communities --------
+
+
+def _link_graph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(nodes)
+    g.add_edges(edges)
+    return g
+
+
+def _scores(g, method: str, *args) -> dict:
+    return {(g.get_label_from_id(u), g.get_label_from_id(v)): sc
+            for u, v, sc in getattr(g, method)(*args)}
+
+
+PATH4 = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+PATH4_EDGES = [("A", "B"), ("B", "C"), ("C", "D")]
+
+
+@figure("common_neighbor_centrality", "similarity", "Common neighbor centrality",
+        "A path A, B, C, D. The candidate link A–C (dashed) joins nodes that share the "
+        "neighbor B (accent) and are 2 steps apart. With alpha 0.8 and 4 nodes, the table "
+        "scores every non-adjacent pair as 0.8 times the shared neighbors plus 0.2 times 4 "
+        "over the distance: A–C and B–D score 1.2, and A–D, with no shared neighbor and 3 "
+        "steps apart, only 0.267.")
+def common_neighbor_centrality(s: Scene) -> None:
+    g = _link_graph(list(PATH4), PATH4_EDGES)
+    got = {k: round(v, 3) for k, v in _scores(g, "common_neighbor_centrality").items()}
+    assert got == {("A", "C"): 1.2, ("A", "D"): 0.267, ("B", "D"): 1.2}
+    left, right = compute(s, "g", "g.common_neighbor_centrality()")
+    gbox = Box(left.x0, left.y0 + 30, left.x1, left.y1)  # room for the candidate arc
+    s.graph(place(PATH4, gbox, unit=UNIT * 1.5),
+            [("A", "B", {"style": "accent"}), ("B", "C", {"style": "accent"}), ("C", "D"),
+             ("A", "C", {"style": "ghost", "bend": -30})],
+            styles={"A": "soft", "C": "soft", "B": "accent"})
+    rows = [["pair", "cn", "d", "score"], ["A, C", "1", "2", "1.2"], ["A, D", "0", "3", "0.267"],
+            ["B, D", "1", "2", "1.2"]]
+    top = right.cy - 40 + 8
+    s.text(right.cx, top - 12, "0.8·cn + 0.2·4 / d", size=SIZE_NOTE, opacity=0.6)
+    s.table(right.cx - 98, top, rows, [56, 36, 36, 68],
+            highlight={(1, j): "accent" for j in range(4)})
+
+
+# The community docstrings' square: A, B, D in community 0 and C in community 1.
+CMTY = {"A": (0, 0.7), "B": (1, 0), "C": (1, 1.6), "D": (2, 0.7)}
+CMTY_EDGES = [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")]
+CMTY_OF = {"A": 0, "B": 0, "C": 1, "D": 0}
+
+
+def _cmty_graph():
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes([(k, {"community": c}) for k, c in CMTY_OF.items()])
+    g.add_edges(CMTY_EDGES)
+    return g
+
+
+def _cmty(s: Scene, box: Box, counted: str) -> None:
+    """The community square: pair A, D soft, the `counted` common neighbors accent."""
+    pos = place(CMTY, box, unit=UNIT * 1.15)
+    s.graph(pos, [(a, b, {"style": "accent"}) if (set(counted) & {a, b}) else (a, b)
+                  for a, b in CMTY_EDGES] + [("A", "D", {"style": "ghost"})],
+            styles={"A": "soft", "D": "soft", **dict.fromkeys(counted, "accent")})
+    s.hull(["A", "B", "D"], "g2")
+    s.hull(["C"], "g3")
+    bx, by = pos["B"]
+    s.text(bx + 30, by, "community 0", size=SIZE_NOTE, anchor="start", color="g2")
+    cx, cy = pos["C"]
+    s.text(cx + 30, cy, "community 1", size=SIZE_NOTE, anchor="start", color="g3")
+
+
+@figure("cn_soundarajan_hopcroft", "similarity", "Common neighbors with community bonus",
+        "Four nodes in a square: A, B and D form community 0 (teal region) and C is community "
+        "1 (violet region). The candidate link A–D (dashed) has two common neighbors, both in "
+        "the accent color. B shares the pair's community, so it counts twice; C does not, so "
+        "it counts once. The card adds 2 + 1 for a score of 3.0.")
+def cn_soundarajan_hopcroft(s: Scene) -> None:
+    g = _cmty_graph()
+    got = _scores(g, "cn_soundarajan_hopcroft", [("A", "D")])
+    assert got == {("A", "D"): 3.0}
+    left, right = compute(s, "g", 'g.cn_soundarajan_hopcroft(pairs)')
+    _cmty(s, left, "BC")
+    s.card_centered(right, ["B  same community   2", "C  other community  1",
+                            ("score  2 + 1 = 3.0", "accent")], w=CARD_W, title="pairs = [(A, D)]")
+
+
+@figure("ra_index_soundarajan_hopcroft", "similarity", "Resource allocation with communities",
+        "Four nodes in a square: A, B and D form community 0 (teal region) and C is community "
+        "1 (violet region). Of the two common neighbors of the candidate link A–D (dashed), "
+        "only B (accent) is in the pair's community, so only B counts, with 1 over its degree "
+        "2. C is ignored. The card gives the score 0.5.")
+def ra_index_soundarajan_hopcroft(s: Scene) -> None:
+    g = _cmty_graph()
+    got = _scores(g, "ra_index_soundarajan_hopcroft", [("A", "D")])
+    assert got == {("A", "D"): 0.5}
+    left, right = compute(s, "g", 'g.ra_index_soundarajan_hopcroft(pairs)')
+    _cmty(s, left, "B")
+    s.card_centered(right, ["B  1 / deg 2   0.5", "C  other community  0",
+                            ("score  0.5", "accent")], w=CARD_W, title="pairs = [(A, D)]")
+
+
+@figure("within_inter_cluster", "similarity", "Within-inter-cluster ratio",
+        "Four nodes in a square: A, B and D form community 0 (teal region) and C is community "
+        "1 (violet region). The candidate link A–D (dashed) has one common neighbor inside "
+        "its community, B (accent), and one outside, C. The card divides 1 within by 1 inter "
+        "plus delta 0.001, a score of 0.999.")
+def within_inter_cluster(s: Scene) -> None:
+    g = _cmty_graph()
+    got = {k: round(v, 3) for k, v in _scores(g, "within_inter_cluster", [("A", "D")]).items()}
+    assert got == {("A", "D"): 0.999}
+    left, right = compute(s, "g", 'g.within_inter_cluster(pairs)')
+    _cmty(s, left, "B")
+    s.card_centered(right, ["within  {B}  1", "inter   {C}  1",
+                            ("1 / (1 + 0.001) = 0.999", "accent")], w=CARD_W, title="pairs = [(A, D)]")
