@@ -1,9 +1,9 @@
 """Tests for null model generators: configuration model, degree-preserving rewire,
 expected degree graph, stochastic block model generation."""
 
-import pytest
 import edgecase as ec
-
+import networkx as nx
+import pytest
 
 # =============================================================================
 # Fixtures
@@ -244,3 +244,51 @@ class TestGenerateSBM:
         g = ec.Graph()
         sbm = g.generate_stochastic_block_model([5, 5], [0.0, 0.0, 0.0, 0.0], seed=23)
         assert sbm.count_edges() == 0
+
+
+class TestSmallWorldReferences:
+    """Degree-preserving random and lattice references and the sigma / omega coefficients."""
+
+    @staticmethod
+    def _degrees(g):
+        return sorted(g.get_degree(n) for n in g.get_node_ids(limit=None))
+
+    def test_references_preserve_degrees_and_connectivity(self):
+        g = ec.Graph().add_smallworld_graph(n=40, k=4, p=0.2, seed=1)
+        for method in (g.random_reference, g.lattice_reference):
+            r = method(niter=3, seed=2)
+            assert self._degrees(r) == self._degrees(g) and r.is_connected()
+            assert sorted(r.get_node_ids(limit=None)) == sorted(g.get_node_ids(limit=None))
+            again = method(niter=3, seed=2)
+            assert r.get_edges_str_repr() == again.get_edges_str_repr()
+
+    def test_lattice_raises_and_random_lowers_clustering(self):
+        ws = ec.Graph().add_smallworld_graph(n=60, k=6, p=0.05, seed=1)
+        er = ec.Graph().add_gnp_graph(n=60, p=0.12, seed=2)
+        assert ws.random_reference(niter=5, seed=3).get_avg_clustering_coefficient() < (
+            ws.get_avg_clustering_coefficient()
+        )
+        if er.is_connected():
+            assert er.lattice_reference(niter=10, seed=4).get_avg_clustering_coefficient() > (
+                er.get_avg_clustering_coefficient()
+            )
+
+    def test_sigma_and_omega_agree_with_networkx_in_range(self):
+        G = nx.connected_watts_strogatz_graph(80, 6, 0.1, seed=1)
+        g = ec.Graph().add_nodes([str(n) for n in G])
+        g.add_edges([(str(u), str(v)) for u, v in G.edges])
+        sigma = g.small_world_sigma(niter=10, nrand=5, seed=3)
+        # NetworkX reference values (nx.sigma / nx.omega with the same arguments, seed=3), which
+        # take ~20 s to recompute: sigma 5.730, omega -0.2423
+        assert sigma == pytest.approx(5.730, rel=0.2)
+        assert sigma > 1
+        omega = g.small_world_omega(niter=5, nrand=5, seed=3)
+        assert omega == pytest.approx(-0.2423, abs=0.15)
+        assert -1 < omega < 1
+
+    def test_errors(self):
+        with pytest.raises(ValueError, match="four nodes"):
+            ec.Graph().add_path_graph(3).random_reference()
+        split = ec.Graph().add_cycle_graph(4).add_cycle_graph(4)
+        with pytest.raises(ValueError, match="connected"):
+            split.small_world_sigma(niter=1, nrand=1, seed=1)
