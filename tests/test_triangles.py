@@ -1,6 +1,9 @@
-import pytest
+import random
 
 import edgecase as ec
+import networkx as nx
+import pytest
+from edgecase.steps import KIND_METRIC
 
 
 class TestTriangleCounting:
@@ -568,3 +571,66 @@ class TestParallelEdgesAndSelfLoops:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+# Square clustering and generalized degree, validated against NetworkX.
+
+
+def _cases():
+    for seed in range(15):
+        rnd = random.Random(seed)
+        for directed in (False, True):
+            G0 = nx.gnp_random_graph(
+                14, rnd.choice([0.15, 0.25, 0.4]), seed=seed, directed=directed
+            )
+            G = (nx.DiGraph if directed else nx.Graph)()
+            G.add_nodes_from(range(14))
+            for u, v in G0.edges:
+                G.add_edge(u, v, weight=rnd.choice([0.5, 1, 2, 3]))
+            g = ec.Graph(directed=directed).add_nodes([str(v) for v in range(14)])
+            gw = ec.Graph(directed=directed, weighted=True).add_nodes([str(v) for v in range(14)])
+            for u, v, d in G.edges(data=True):
+                g.add_edge(str(u), str(v))
+                gw.add_edge(str(u), str(v), weight=d["weight"])
+            yield G, g, gw, rnd
+
+
+def _two_triangles():
+    return (
+        ec.Graph()
+        .add_nodes(list("ABCDEF"))
+        .add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+    )
+
+
+def _lab(g, nid):
+    return int(g.get_label_from_id(nid))
+
+
+class TestSquareClusteringGeneralizedDegree:
+    def test_square_clustering_and_generalized_degree(self):
+        for G, g, _, _ in _cases():
+            ours = {_lab(g, k): v for k, v in g.square_clustering(return_dict=True).items()}
+            assert ours == pytest.approx(nx.square_clustering(G))
+            if not G.is_directed():
+                gd = {_lab(g, k): v for k, v in g.generalized_degree().items()}
+                assert gd == {k: dict(v) for k, v in nx.generalized_degree(G).items()}
+
+    def test_examples(self):
+        square = ec.Graph().add_cycle_graph(4)
+        assert set(square.square_clustering(return_dict=True).values()) == {1.0}
+        g = (
+            ec.Graph()
+            .add_nodes(list("ABCD"))
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        )
+        assert g.generalized_degree()[g.get_id_from_label("C")] == {0: 1, 1: 2}
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_nodes(["A"]).generalized_degree()
+
+    def test_steps(self):
+        g = _two_triangles()
+        g.square_clustering()
+        assert g.steps[-1].kind == KIND_METRIC
