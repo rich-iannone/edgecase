@@ -160,6 +160,7 @@ reference:
         - Graph.get_node_ids_by_edge_id
         - Graph.get_id_from_label
         - Graph.get_label_from_id
+        - Graph.relabel_nodes
         - Graph.get_node_creation_order
         - Graph.get_edge_creation_order
         - Graph.get_edges_as_tuples
@@ -184,6 +185,7 @@ reference:
         - Graph.is_tree
         - Graph.is_forest
         - Graph.is_arborescence
+        - Graph.is_branching
         - Graph.is_planar
         - Graph.is_isomorphic
         - Graph.is_regular
@@ -280,7 +282,10 @@ reference:
       contents:
         - Graph.pagerank
         - Graph.constraint
+        - Graph.degree_centrality
+        - Graph.closeness_centrality
         - Graph.betweenness_centrality
+        - Graph.edge_betweenness_centrality
         - Graph.load_centrality
         - Graph.second_order_centrality
         - Graph.communicability
@@ -303,6 +308,21 @@ reference:
         - Graph.bridging_centrality
         - Graph.laplacian_centrality
         - Graph.knotty_centrality
+        - Graph.subgraph_centrality
+        - Graph.current_flow_betweenness_centrality
+        - Graph.current_flow_closeness_centrality
+        - Graph.group_betweenness_centrality
+        - Graph.group_closeness_centrality
+        - Graph.group_degree_centrality
+        - Graph.voterank
+        - Graph.trophic_levels
+        - Graph.trophic_differences
+        - Graph.trophic_incoherence_parameter
+        - Graph.local_reaching_centrality
+        - Graph.global_reaching_centrality
+        - Graph.betweenness_centrality_subset
+        - Graph.effective_size
+        - Graph.local_constraint
 
     - title: Core Decomposition
       desc: Methods for k-core, k-shell, and related decompositions
@@ -329,12 +349,26 @@ reference:
         - Graph.radiality
         - Graph.bellman_ford_shortest_path
         - Graph.shortest_path
+        - Graph.shortest_path_length
+        - Graph.has_path
+        - Graph.bidirectional_dijkstra
+        - Graph.all_shortest_paths
+        - Graph.single_source_shortest_path
+        - Graph.single_source_shortest_path_length
+        - Graph.multi_source_shortest_path
+        - Graph.multi_source_shortest_path_length
         - Graph.ada_star_search
         - Graph.all_pairs_shortest_path_length
         - Graph.all_pairs_shortest_path
         - Graph.k_shortest_paths
         - Graph.bfs
+        - Graph.bfs_edges
+        - Graph.bfs_tree
+        - Graph.bfs_layers
         - Graph.dfs
+        - Graph.dfs_edges
+        - Graph.dfs_tree
+        - Graph.dfs_postorder_nodes
 
     - title: Path Analysis
       desc: Methods for analyzing paths and walks
@@ -350,12 +384,27 @@ reference:
         - Graph.count_trails
         - Graph.enumerate_trails
 
+    - title: Directed Acyclic Graphs
+      desc: Methods for reachability, ordering, and longest paths in DAGs
+      contents:
+        - Graph.ancestors
+        - Graph.descendants
+        - Graph.topological_generations
+        - Graph.all_topological_sorts
+        - Graph.dag_longest_path
+        - Graph.dag_longest_path_length
+        - Graph.lowest_common_ancestor
+        - Graph.condensation
+
     - title: Eulerian Paths
       desc: Methods for Eulerian path and circuit detection
       contents:
         - Graph.is_eulerian
         - Graph.is_semieulerian
         - Graph.eulerian_circuit
+        - Graph.eulerian_path
+        - Graph.has_eulerian_path
+        - Graph.eulerize
 
     - title: Cycle Detection
       desc: Methods for finding cycles in graphs
@@ -371,6 +420,8 @@ reference:
       desc: Methods for computing clustering coefficients
       contents:
         - Graph.local_clustering_coefficient
+        - Graph.square_clustering
+        - Graph.generalized_degree
         - Graph.clustering_coefficient
         - Graph.get_edge_clustering_coefficient
         - Graph.get_avg_clustering_coefficient
@@ -386,6 +437,7 @@ reference:
       desc: Methods for counting and testing significance of network motifs
       contents:
         - Graph.motif_census
+        - Graph.triadic_census
         - Graph.motif_significance
 
     - title: Clique Operations
@@ -404,7 +456,12 @@ reference:
         - Graph.cmty_l_eigenvec
         - Graph.cmty_louvain
         - Graph.cmty_walktrap
+        - Graph.cmty_leiden
+        - Graph.cmty_label_propagation
+        - Graph.cmty_k_clique
         - Graph.cmty_stochastic_block_model
+        - Graph.modularity
+        - Graph.partition_quality
 
     - title: Network Propagation
       desc: Methods for propagating scores through the network
@@ -511,6 +568,7 @@ reference:
       contents:
         - Graph.bridges
         - Graph.has_bridges
+        - Graph.local_bridges
         - Graph.get_node_vitality
 
     - title: Connectivity and Flow
@@ -518,7 +576,12 @@ reference:
       contents:
         - Graph.get_all_connected_nodes
         - Graph.get_articulation_points
+        - Graph.biconnected_components
+        - Graph.is_biconnected
         - Graph.get_periphery
+        - Graph.get_center
+        - Graph.get_barycenter
+        - Graph.isolates
         - Graph.get_node_connectivity
         - Graph.get_node_connectivity_between
         - Graph.get_edge_connectivity
@@ -529,6 +592,21 @@ reference:
         - Graph.k_components
         - Graph.get_min_cut_between
         - Graph.minimum_node_cut
+        - Graph.minimum_cut
+        - Graph.cut_size
+        - Graph.volume
+        - Graph.normalized_cut_size
+        - Graph.conductance
+        - Graph.edge_expansion
+        - Graph.mixing_expansion
+        - Graph.node_expansion
+        - Graph.boundary_expansion
+        - Graph.node_boundary
+        - Graph.edge_boundary
+        - Graph.stoer_wagner
+        - Graph.gomory_hu_tree
+        - Graph.edge_disjoint_paths
+        - Graph.node_disjoint_paths
         - Graph.minimum_edge_cut
         - Graph.max_flow
         - Graph.max_flow_value
@@ -573,6 +651,7 @@ reference:
         - Graph.transform_with_spanner
         - Graph.transform_to_subgraph_ws
         - Graph.subgraph
+        - Graph.ego_graph
         - Graph.edge_subgraph
         - Graph.fully_connect_nodes_ws
         - Graph.add_reverse_edges_ws
@@ -615,6 +694,14 @@ reference:
         - Graph.steiner_tree
         - Graph.directed_steiner_tree
         - Graph.all_spanning_trees
+        - Graph.number_of_spanning_trees
+        - Graph.random_spanning_tree
+        - Graph.maximum_branching
+        - Graph.minimum_branching
+        - Graph.maximum_spanning_arborescence
+        - Graph.minimum_spanning_arborescence
+        - Graph.to_prufer_sequence
+        - Graph.from_prufer_sequence
 
     - title: Edge Analysis
       desc: Methods for analyzing edge types
@@ -634,6 +721,12 @@ reference:
       desc: Methods for measuring assortativity
       contents:
         - Graph.get_assortativity_degree
+        - Graph.average_degree_connectivity
+        - Graph.degree_mixing_dict
+        - Graph.degree_mixing_matrix
+        - Graph.attribute_mixing_dict
+        - Graph.attribute_mixing_matrix
+        - Graph.degree_pearson_correlation_coefficient
         - Graph.get_assortativity_nominal
         - Graph.get_assortativity
 
@@ -642,6 +735,20 @@ reference:
       contents:
         - Graph.get_spectrum
         - Graph.get_laplacian_spectrum
+        - Graph.adjacency_matrix
+        - Graph.incidence_matrix
+        - Graph.laplacian_matrix
+        - Graph.normalized_laplacian_matrix
+        - Graph.directed_laplacian_matrix
+        - Graph.modularity_matrix
+        - Graph.bethe_hessian_matrix
+        - Graph.modularity_spectrum
+        - Graph.bethe_hessian_spectrum
+        - Graph.algebraic_connectivity
+        - Graph.fiedler_vector
+        - Graph.spectral_ordering
+        - Graph.spectral_bisection
+        - Graph.kemeny_constant
 
     - title: Network Efficiency
       desc: Methods for measuring network efficiency
