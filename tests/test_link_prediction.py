@@ -1,3 +1,7 @@
+import random
+
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
 
@@ -425,3 +429,54 @@ class TestLinkPredictionNetworkX:
         pa_preds = graph.preferential_attachment([(2, 3)])
         _, _, score = pa_preds[0]
         assert score == 1  # 1 * 1
+
+
+class TestCommunityLinkPrediction:
+    """CCPA and the Soundarajan-Hopcroft / within-inter-cluster scores, against NetworkX."""
+
+    def test_against_networkx(self):
+        for seed in range(60):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(2, 11), 0.35, seed=seed)
+            for n in G:
+                G.nodes[n]["community"] = rnd.randint(0, 1)
+            g = ec.Graph().add_nodes([(str(n), {"community": G.nodes[n]["community"]}) for n in G])
+            for u, v in G.edges:
+                g.add_edge(str(u), str(v))
+            lab = {g.get_id_from_label(str(n)): n for n in G}
+            for ours, ref in [
+                (
+                    g.common_neighbor_centrality(alpha=0.7),
+                    nx.common_neighbor_centrality(G, alpha=0.7),
+                ),
+                (g.common_neighbor_centrality(alpha=1), nx.common_neighbor_centrality(G, alpha=1)),
+                (g.cn_soundarajan_hopcroft(), nx.cn_soundarajan_hopcroft(G)),
+                (g.ra_index_soundarajan_hopcroft(), nx.ra_index_soundarajan_hopcroft(G)),
+                (g.within_inter_cluster(), nx.within_inter_cluster(G)),
+            ]:
+                expected = {frozenset((u, v)): s for u, v, s in ref}
+                got = {frozenset((lab[u], lab[v])): s for u, v, s in ours}
+                assert got.keys() == expected.keys()
+                assert all(got[k] == pytest.approx(expected[k]) for k in expected)
+
+    def test_ebunch_and_errors(self):
+        g = ec.Graph().add_nodes(
+            [
+                ("A", {"community": 0}),
+                ("B", {"community": 0}),
+                ("C", {"community": 1}),
+                ("D", {"community": 0}),
+            ]
+        )
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        assert g.cn_soundarajan_hopcroft([("A", "D")])[0][2] == 3.0
+        assert g.ra_index_soundarajan_hopcroft([("A", "D")])[0][2] == 0.5
+        assert g.within_inter_cluster([("A", "D")])[0][2] == pytest.approx(1 / 1.001)
+        with pytest.raises(ValueError, match="community"):
+            g.cn_soundarajan_hopcroft(community="team")
+        with pytest.raises(ValueError, match="delta"):
+            g.within_inter_cluster(delta=0)
+        with pytest.raises(ValueError, match="self"):
+            g.common_neighbor_centrality([("A", "A")])
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).common_neighbor_centrality()
