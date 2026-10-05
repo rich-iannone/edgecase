@@ -1957,8 +1957,8 @@ impl Graph {
         let n = self.num_nodes();
         let mut distribution: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
-        for &node_id in self.nodes.keys() {
-            let deg = self.degree(node_id);
+        // Total degree (in + out on directed graphs), matching get_degree()
+        for (_, deg) in self.degrees_by_type("total") {
             *distribution.entry(deg).or_insert(0) += 1;
         }
 
@@ -1968,44 +1968,8 @@ impl Graph {
     /// Check if graph is bipartite using BFS coloring
     #[inline]
     fn is_bipartite(&self) -> bool {
-        let n = self.num_nodes();
-        if n == 0 {
-            return true;
-        }
-
-        let mut color: FxHashMap<u64, i8> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-        // Check all connected components
-        for &start_node in self.nodes.keys() {
-            if color.contains_key(&start_node) {
-                continue;
-            }
-
-            // BFS coloring
-            let mut queue: Vec<u64> = Vec::with_capacity(n);
-            queue.push(start_node);
-            color.insert(start_node, 0);
-
-            while let Some(current) = queue.pop() {
-                let current_color = *color.get(&current).unwrap();
-                let next_color = 1 - current_color;
-
-                if let Some(neighbors) = self.adjacency_list.get(&current) {
-                    for &neighbor in neighbors {
-                        if let Some(&neighbor_color) = color.get(&neighbor) {
-                            if neighbor_color == current_color {
-                                return false; // Same color as current - not bipartite
-                            }
-                        } else {
-                            color.insert(neighbor, next_color);
-                            queue.push(neighbor);
-                        }
-                    }
-                }
-            }
-        }
-
-        true
+        // Same 2-coloring as bipartite_sets(), which ignores edge direction, so the two agree
+        crate::algorithms::bipartite::bipartite_sets(self).is_ok()
     }
 
     /// Count self-loops in the graph
