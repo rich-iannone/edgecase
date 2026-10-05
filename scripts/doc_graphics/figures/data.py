@@ -14,11 +14,16 @@ parallel edges) or the directed diamond (reciprocal pairs), with the counted
 edges in `accent` and the count or list in the card. The attribute getters
 keep the id pills / edge-id boxes (the result is keyed by id) and show the
 values only in the card; elements lacking the attribute are `muted`.
+`adjacency_matrix` and `incidence_matrix` draw the matrix as graph_metrics'
+labelled table (nonzero / +1 cells accent, -1 cells g2) next to the diamond
+with its id pills and edge-id boxes.
 """
 
 import math
 
 from core import EMPH_STROKE, SIZE_NOTE, Box, Scene, compute, contrast, figure, place
+
+from figures.graph_metrics import _matrix
 
 UNIT = 100  # one graph scale for the whole family
 
@@ -560,3 +565,45 @@ def describe(s: Scene) -> None:
     _diamond(s, left)
     s.table_centered(right, DESCRIBE_ROWS, [152, 88], row_h=17, header=False,
                      highlight={(0, 1): "accent", (1, 1): "accent"})
+
+
+# -- matrices -------------------------------------------------------------------
+#
+# adjacency_matrix / incidence_matrix return (matrix, node_ids[, edge_ids]).
+# They use graph_metrics' matrix table (labels as headers, note line above):
+# rows are the diamond's nodes A–D (ids 1–4, in the id pills), incidence
+# columns are the edge ids 1–5 (the boxed numbers on the edges).
+
+
+@figure("adjacency_matrix", "data", "Adjacency matrix",
+        "The shared four-node graph A, B, C, D with node ids 1 to 4, and its 4 by 4 "
+        "adjacency matrix with rows and columns in id order. Each of the five edges puts a 1 "
+        "in two cells (accent), so the matrix is symmetric; A and D, which are not adjacent, "
+        "get 0, as does the diagonal.")
+def adjacency_matrix(s: Scene) -> None:
+    left, right = compute(s, "g", "g.adjacency_matrix()")
+    _diamond(s, left)
+    _ids(s)
+    ids = list("ABCD")
+    adj = {frozenset(e) for e in D_EDGES}
+    vals = [[1 if frozenset((a, b)) in adj else 0 for b in ids] for a in ids]
+    _matrix(s, right, ids, vals, "node_ids = [1, 2, 3, 4]",
+            highlight={(i, j): "accent" for i in range(4) for j in range(4) if vals[i][j]})
+
+
+@figure("incidence_matrix", "data", "Incidence matrix",
+        "The shared four-node graph with its five edges directed and numbered 1 to 5, and "
+        "its oriented incidence matrix: one row per node, one column per edge. Each column "
+        "holds -1 at the edge's source (teal) and 1 at its target (accent), so it sums to 0; "
+        "edge 1, from A to B, gives A -1 and B 1.")
+def incidence_matrix(s: Scene) -> None:
+    left, right = compute(s, "g", "g.incidence_matrix(oriented=True)")
+    _diamond(s, left, directed=True)
+    _edge_ids(s)
+    _ids(s)
+    ids = list("ABCD")
+    vals = [[-1 if a == u else 1 if b == u else 0 for a, b in D_EDGES] for u in ids]
+    hl = {(i, j): "accent" if v > 0 else "g2" for i, row in enumerate(vals)
+          for j, v in enumerate(row) if v}
+    _matrix(s, right, ids, vals, "rows: node_ids, cols: edge_ids",
+            cols=[str(i) for i in range(1, 6)], col_w=36, highlight=hl)
