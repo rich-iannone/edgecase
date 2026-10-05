@@ -326,6 +326,7 @@ class Graph:
         # Track computations and aesthetics for describe()
         self._computations = []  # List of (method_name, params, attr_name) tuples
         self._aesthetics = []  # List of (attr_name, source_attr, operation) tuples
+        self._display_attr: str | None = None  # set_node_attr_to_display(); plot() label default
 
         # Step recording (always on)
         import weakref
