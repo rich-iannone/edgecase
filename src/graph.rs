@@ -3806,28 +3806,30 @@ impl Graph {
     /// number of steps. Returns the sequence of vertices visited.
     ///
     /// # Arguments
-    /// * `start` - Label of the starting vertex
+    /// * `start` - ID of the starting vertex
     /// * `steps` - Number of steps to take
     /// * `mode` - Direction to follow: "out" (default), "in", "all"
     /// * `stuck` - What to do if stuck: "return" (default) or "error"
     /// * `seed` - Optional random seed for reproducibility
     ///
     /// # Returns
-    /// Vector of vertex labels of length steps + 1 (including start vertex)
+    /// Vector of vertex IDs of length steps + 1 (including start vertex), shorter if the walk
+    /// gets stuck with `stuck="return"`
     #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None))]
     pub fn random_walk(
         &self,
-        start: &str,
+        start: u64,
         steps: usize,
         mode: &str,
         stuck: &str,
         seed: Option<u64>,
-    ) -> PyResult<Vec<String>> {
-        let start_id = self.id_from_label(start).map_err(|_| {
-            PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Start vertex '{}' not found", start)
-            )
-        })?;
+    ) -> PyResult<Vec<u64>> {
+        if !self.nodes.contains_key(&start) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Start node {} does not exist", start)
+            ));
+        }
+        let start_id = start;
 
         let mut rng: ChaCha8Rng = if let Some(s) = seed {
             ChaCha8Rng::seed_from_u64(s)
