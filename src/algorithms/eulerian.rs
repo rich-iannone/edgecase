@@ -292,6 +292,391 @@ fn is_connected_for_euler(graph: &Graph) -> bool {
     true
 }
 
+// ---------------------------------------------------------------------------------------------
+// Eulerian paths and eulerization
+// ---------------------------------------------------------------------------------------------
+
+/// Edge-labelled adjacency (sorted node IDs): `adj[i] = [(j, edge_id)]`, both directions for
+/// undirected graphs, plus out/in degrees (a self-loop adds one to each, i.e. 2 to the degree).
+struct EulerAdj {
+    ids: Vec<u64>,
+    idx: FxHashMap<u64, usize>,
+    adj: Vec<Vec<(usize, u64)>>,
+    outd: Vec<i64>,
+    ind: Vec<i64>,
+    m: usize,
+}
+
+fn euler_adjacency(graph: &Graph) -> EulerAdj {
+    let mut ids: Vec<u64> = graph.get_nodes().keys().copied().collect();
+    ids.sort_unstable();
+    let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let n = ids.len();
+    let mut adj: Vec<Vec<(usize, u64)>> = vec![Vec::new(); n];
+    let mut outd = vec![0i64; n];
+    let mut ind = vec![0i64; n];
+    let directed = graph.is_directed();
+    let edges = graph.get_edges_internal();
+    for e in edges {
+        let (s, t) = (idx[&e.source], idx[&e.target]);
+        adj[s].push((t, e.id));
+        outd[s] += 1;
+        ind[t] += 1;
+        // an undirected self-loop is listed once (it is traversed once)
+        if !directed && s != t {
+            adj[t].push((s, e.id));
+        }
+    }
+    EulerAdj { ids, idx, adj, outd, ind, m: edges.len() }
+}
+
+/// Hierholzer's algorithm from `start`, returning (nodes, edge IDs) of a trail that uses every
+/// edge reachable from `start` exactly once.
+fn hierholzer_trail(ea: &EulerAdj, start: usize) -> (Vec<u64>, Vec<u64>) {
+    let mut ptr = vec![0usize; ea.ids.len()];
+    let mut used: FxHashSet<u64> = FxHashSet::default();
+    // stack of (node, edge used to arrive)
+    let mut stack: Vec<(usize, Option<u64>)> = vec![(start, None)];
+    let mut nodes_rev: Vec<u64> = Vec::new();
+    let mut edges_rev: Vec<u64> = Vec::new();
+    while let Some(&(v, arrived)) = stack.last() {
+        let mut advanced = false;
+        while ptr[v] < ea.adj[v].len() {
+            let (w, eid) = ea.adj[v][ptr[v]];
+            ptr[v] += 1;
+            if used.insert(eid) {
+                stack.push((w, Some(eid)));
+                advanced = true;
+                break;
+            }
+        }
+        if !advanced {
+            stack.pop();
+            nodes_rev.push(ea.ids[v]);
+            if let Some(e) = arrived {
+                edges_rev.push(e);
+            }
+        }
+    }
+    nodes_rev.reverse();
+    edges_rev.reverse();
+    (nodes_rev, edges_rev)
+}
+
+/// Where an Eulerian path must start, or None if the graph has none.
+///
+/// Isolated nodes are ignored, as in `is_eulerian()`. If `source` is given it must be a valid
+/// start: for a circuit any node with edges, otherwise the odd-degree node (undirected) or the
+/// node with one more out-edge than in-edges (directed).
+fn euler_start(graph: &Graph, ea: &EulerAdj, source: Option<u64>) -> PyResult<Option<usize>> {
+    if !is_connected_for_euler(graph) {
+        return Ok(None);
+    }
+    let n = ea.ids.len();
+    let directed = graph.is_directed();
+    let src = match source {
+        Some(s) => Some(*ea.idx.get(&s).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("Node {} not found in graph", s))
+        })?),
+        None => None,
+    };
+    let mut starts: Vec<usize> = Vec::new();
+    if directed {
+        let mut ends = 0;
+        for v in 0..n {
+            let d = ea.outd[v] - ea.ind[v];
+            if d == 1 {
+                starts.push(v);
+            } else if d == -1 {
+                ends += 1;
+            } else if d != 0 {
+                return Ok(None);
+            }
+        }
+        if starts.len() > 1 || ends != starts.len() {
+            return Ok(None);
+        }
+    } else {
+        for v in 0..n {
+            if (ea.outd[v] + ea.ind[v]) % 2 == 1 {
+                starts.push(v);
+            }
+        }
+        if starts.len() != 0 && starts.len() != 2 {
+            return Ok(None);
+        }
+    }
+    let has_edges = |v: usize| ea.outd[v] + ea.ind[v] > 0;
+    if starts.is_empty() {
+        // Eulerian circuit: start anywhere with edges
+        return Ok(match src {
+            Some(s) if has_edges(s) || ea.m == 0 => Some(s),
+            Some(_) => None,
+            None => (0..n).find(|&v| has_edges(v)).or(if n > 0 { Some(0) } else { None }),
+        });
+    }
+    Ok(match src {
+        Some(s) if starts.contains(&s) => Some(s),
+        Some(_) => None,
+        None => Some(starts[0]),
+    })
+}
+
+/// An Eulerian path (a trail using every edge exactly once), as `(node_ids, edge_ids)`, or None
+/// if the graph has none. On an Eulerian graph this is a circuit. Isolated nodes are ignored.
+#[pyfunction]
+#[pyo3(signature = (graph, source=None))]
+pub fn eulerian_path(
+    graph: &Graph,
+    source: Option<u64>,
+) -> PyResult<Option<(Vec<u64>, Vec<u64>)>> {
+    let ea = euler_adjacency(graph);
+    let Some(start) = euler_start(graph, &ea, source)? else {
+        return Ok(None);
+    };
+    if ea.ids.is_empty() {
+        return Ok(Some((Vec::new(), Vec::new())));
+    }
+    let (nodes, edges) = hierholzer_trail(&ea, start);
+    if edges.len() != ea.m {
+        return Ok(None);
+    }
+    Ok(Some((nodes, edges)))
+}
+
+/// Whether the graph has an Eulerian path (starting at `source`, if given).
+#[pyfunction]
+#[pyo3(signature = (graph, source=None))]
+pub fn has_eulerian_path(graph: &Graph, source: Option<u64>) -> PyResult<bool> {
+    let ea = euler_adjacency(graph);
+    Ok(euler_start(graph, &ea, source)?.is_some())
+}
+
+/// Minimum-cost perfect matching of `k` items (k even) given a cost matrix.
+///
+/// Exact bitmask DP for k <= 20; beyond that, greedy pairing improved by 2-opt swaps (an
+/// approximation). Returns pairs of indices.
+fn min_cost_pairing(cost: &[Vec<f64>]) -> Vec<(usize, usize)> {
+    let k = cost.len();
+    if k == 0 {
+        return Vec::new();
+    }
+    if k <= 20 {
+        let full = (1usize << k) - 1;
+        let mut dp = vec![f64::INFINITY; 1 << k];
+        let mut choice = vec![(0usize, 0usize); 1 << k];
+        dp[0] = 0.0;
+        for mask in 0..=full {
+            if dp[mask].is_infinite() {
+                continue;
+            }
+            // lowest unpaired item is paired next
+            let Some(i) = (0..k).find(|&i| mask & (1 << i) == 0) else {
+                continue;
+            };
+            for j in (i + 1)..k {
+                if mask & (1 << j) == 0 {
+                    let nm = mask | (1 << i) | (1 << j);
+                    let c = dp[mask] + cost[i][j];
+                    if c < dp[nm] {
+                        dp[nm] = c;
+                        choice[nm] = (i, j);
+                    }
+                }
+            }
+        }
+        let mut pairs = Vec::new();
+        let mut mask = full;
+        while mask != 0 {
+            let (i, j) = choice[mask];
+            pairs.push((i, j));
+            mask &= !((1 << i) | (1 << j));
+        }
+        pairs.sort_unstable();
+        return pairs;
+    }
+    // Greedy: cheapest available pair first
+    let mut cand: Vec<(f64, usize, usize)> = Vec::new();
+    for i in 0..k {
+        for j in (i + 1)..k {
+            cand.push((cost[i][j], i, j));
+        }
+    }
+    cand.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then((a.1, a.2).cmp(&(b.1, b.2))));
+    let mut taken = vec![false; k];
+    let mut pairs: Vec<(usize, usize)> = Vec::new();
+    for (_, i, j) in cand {
+        if !taken[i] && !taken[j] {
+            taken[i] = true;
+            taken[j] = true;
+            pairs.push((i, j));
+        }
+    }
+    // 2-opt: re-pair two pairs if that lowers the total
+    let mut improved = true;
+    while improved {
+        improved = false;
+        for a in 0..pairs.len() {
+            for b in (a + 1)..pairs.len() {
+                let (p, q) = pairs[a];
+                let (r, s) = pairs[b];
+                let now = cost[p][q] + cost[r][s];
+                let alt1 = cost[p][r] + cost[q][s];
+                let alt2 = cost[p][s] + cost[q][r];
+                if alt1 + 1e-12 < now && alt1 <= alt2 {
+                    pairs[a] = (p, r);
+                    pairs[b] = (q, s);
+                    improved = true;
+                } else if alt2 + 1e-12 < now {
+                    pairs[a] = (p, s);
+                    pairs[b] = (q, r);
+                    improved = true;
+                }
+            }
+        }
+    }
+    pairs
+}
+
+/// Eulerize an undirected graph: duplicate the fewest (or lightest) edges so that every node has
+/// even degree, pairing odd-degree nodes by a minimum-cost matching of their shortest-path
+/// distances and duplicating each pair's shortest path (the Chinese postman construction).
+///
+/// Returns a new graph with the same nodes (IDs kept) and edges, plus the duplicates, which get
+/// the original edge's weight and a copy of its attributes with `eulerize_added = True`. Uses
+/// hop counts, or weights when `weighted`. Raises unless the graph is undirected and connected
+/// (ignoring isolated nodes).
+#[pyfunction]
+#[pyo3(signature = (graph, weighted=false))]
+pub fn eulerize(py: Python, graph: &Graph, weighted: bool) -> PyResult<(Graph, Vec<u64>)> {
+    use crate::graph::{Edge, Node};
+    use std::collections::BinaryHeap;
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "eulerize() requires an undirected graph",
+        ));
+    }
+    if !is_connected_for_euler(graph) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "eulerize() requires a connected graph (isolated nodes are ignored)",
+        ));
+    }
+    let ea = euler_adjacency(graph);
+    let n = ea.ids.len();
+    let weight_of: FxHashMap<u64, f64> = graph
+        .get_edges_internal()
+        .iter()
+        .map(|e| (e.id, if weighted { e.weight.unwrap_or(1.0) } else { 1.0 }))
+        .collect();
+    if weight_of.values().any(|&w| w < 0.0) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "eulerize() requires non-negative edge weights",
+        ));
+    }
+    let odd: Vec<usize> = (0..n).filter(|&v| (ea.outd[v] + ea.ind[v]) % 2 == 1).collect();
+
+    // Shortest paths from each odd node (Dijkstra; ties keep the first predecessor found)
+    let mut dist_rows: Vec<Vec<f64>> = Vec::with_capacity(odd.len());
+    let mut pred_rows: Vec<Vec<Option<(usize, u64)>>> = Vec::with_capacity(odd.len());
+    for &s in &odd {
+        let mut dist = vec![f64::INFINITY; n];
+        let mut pred: Vec<Option<(usize, u64)>> = vec![None; n];
+        dist[s] = 0.0;
+        let mut heap = BinaryHeap::new();
+        heap.push((std::cmp::Reverse(OrdF(0.0)), s));
+        while let Some((std::cmp::Reverse(OrdF(d)), v)) = heap.pop() {
+            if d > dist[v] {
+                continue;
+            }
+            for &(w, eid) in &ea.adj[v] {
+                let nd = d + weight_of[&eid];
+                if nd < dist[w] {
+                    dist[w] = nd;
+                    pred[w] = Some((v, eid));
+                    heap.push((std::cmp::Reverse(OrdF(nd)), w));
+                }
+            }
+        }
+        dist_rows.push(dist);
+        pred_rows.push(pred);
+    }
+    let cost: Vec<Vec<f64>> = (0..odd.len())
+        .map(|a| (0..odd.len()).map(|b| dist_rows[a][odd[b]]).collect())
+        .collect();
+    let mut duplicates: Vec<u64> = Vec::new();
+    for (a, b) in min_cost_pairing(&cost) {
+        let mut v = odd[b];
+        while let Some((p, eid)) = pred_rows[a][v] {
+            duplicates.push(eid);
+            v = p;
+        }
+    }
+
+    // Build the result: same nodes (IDs kept) and edges, then the duplicates
+    let mut result = Graph::new_rust(false, graph.is_weighted());
+    let copy_attrs = |attrs: &Option<Py<pyo3::types::PyDict>>| -> PyResult<Option<Py<pyo3::types::PyDict>>> {
+        Ok(match attrs {
+            Some(d) => Some(d.bind(py).copy()?.unbind()),
+            None => None,
+        })
+    };
+    let nodes = graph.get_nodes();
+    for &id in &ea.ids {
+        let node = &nodes[&id];
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes: copy_attrs(&node.attributes)?,
+        })?;
+    }
+    let by_id: FxHashMap<u64, &Edge> =
+        graph.get_edges_internal().iter().map(|e| (e.id, e)).collect();
+    for e in graph.get_edges_internal() {
+        // keep original edge IDs; duplicates get fresh IDs after them. Originals are marked
+        // `eulerize_added = False` (not left null) so filters on either value work.
+        let attrs = match copy_attrs(&e.attributes)? {
+            Some(d) => d,
+            None => pyo3::types::PyDict::new(py).unbind(),
+        };
+        attrs.bind(py).set_item("eulerize_added", false)?;
+        result.add_edge_rust(Edge {
+            id: e.id,
+            source: e.source,
+            target: e.target,
+            weight: e.weight,
+            attributes: Some(attrs),
+        })?;
+    }
+    let mut added_ids = Vec::with_capacity(duplicates.len());
+    for eid in &duplicates {
+        let e = by_id[eid];
+        let attrs = match copy_attrs(&e.attributes)? {
+            Some(d) => d,
+            None => pyo3::types::PyDict::new(py).unbind(),
+        };
+        attrs.bind(py).set_item("eulerize_added", true)?;
+        let new_id = result.add_edge_rust(Edge {
+            id: 0,
+            source: e.source,
+            target: e.target,
+            weight: e.weight,
+            attributes: Some(attrs),
+        })?;
+        added_ids.push(new_id);
+    }
+    Ok((result, added_ids))
+}
+
+#[derive(PartialEq, PartialOrd, Clone, Copy)]
+struct OrdF(f64);
+impl Eq for OrdF {}
+#[allow(clippy::derive_ord_xor_partial_ord)]
+impl Ord for OrdF {
+    fn cmp(&self, o: &Self) -> std::cmp::Ordering {
+        self.0.partial_cmp(&o.0).unwrap_or(std::cmp::Ordering::Equal)
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
