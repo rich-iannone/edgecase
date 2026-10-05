@@ -1054,3 +1054,30 @@ class TestHasNodeInvalidIdentifiers:
         assert G.has_node(1) is True
         assert G.has_node(True) is False
         assert G.has_node(False) is False
+
+
+class TestGetSimilarNeighborsTolerances:
+    """Regression: tol_pct= matched nothing for negative values, and tol_abs= silently overrode
+    it when both were given."""
+
+    def _graph(self, center):
+        g = ec.Graph().add_nodes(
+            [("C", {"v": center}), ("N1", {"v": -95.0}), ("N2", {"v": -120.0}), ("N3", {"v": -85.0})]
+        )
+        g.add_edges([("C", "N1"), ("C", "N2"), ("C", "N3")])
+        return g
+
+    def test_pct_window_for_negative_value(self):
+        g = self._graph(-100.0)
+        # -100 with (10, 20): from -110 to -80
+        got = g.get_similar_neighbors("C", "v", tol_pct=(10, 20))
+        assert sorted(g.get_label_from_id(n) for n in got) == ["N1", "N3"]
+
+    def test_both_tolerances_raise(self):
+        with pytest.raises(ValueError, match="at most one"):
+            self._graph(-100.0).get_similar_neighbors("C", "v", tol_abs=(1, 1), tol_pct=(1, 1))
+
+    def test_negative_offsets_raise(self):
+        with pytest.raises(ValueError, match="non-negative"):
+            self._graph(-100.0).get_similar_neighbors("C", "v", tol_abs=(-1, 1))
+
