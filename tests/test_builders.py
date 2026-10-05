@@ -258,3 +258,41 @@ class TestGraphBuildersIntegration:
 
 if __name__ == "__main__":
     pytest.main([__file__, "-v"])
+
+
+class TestStructuralGeneratorsUnlabelled:
+    """Regression: label=False raised ValueError because edges were wired up by label."""
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_label_false_builds_same_structure(self, directed):
+        for build in (
+            lambda g, **kw: g.add_path_graph(5, **kw),
+            lambda g, **kw: g.add_cycle_graph(5, **kw),
+            lambda g, **kw: g.add_star_graph(5, **kw),
+            lambda g, **kw: g.add_full_graph(4, **kw),
+        ):
+            labelled = build(ec.Graph(directed=directed))
+            bare = build(ec.Graph(directed=directed), label=False)
+            assert all(bare.get_label_from_id(n) is None for n in bare.get_node_ids())
+            assert sorted(bare.get_edges_as_tuples()) == sorted(labelled.get_edges_as_tuples())
+
+    def test_label_false_after_existing_nodes(self):
+        # New edges must join the new nodes, not nodes already in the graph
+        g = ec.Graph().add_nodes(["X", "Y"])
+        before = set(g.get_node_ids())
+        g.add_cycle_graph(4, label=False, rel="ring")
+        new = set(g.get_node_ids()) - before
+        assert len(new) == 4
+        assert g.count_edges() == 4
+        for _, s, t in g.get_edges_as_tuples():
+            assert s in new and t in new
+        assert g.get_edge_attrs("rel") and set(g.get_edge_attrs("rel").values()) == {"ring"}
+
+    def test_cycle_closes_on_its_own_nodes_after_deletion(self):
+        # count_nodes() no longer matches the highest ID after a deletion
+        g = ec.Graph().add_nodes(["X", "Y", "Z"]).delete_node("X")
+        g.add_cycle_graph(3, label=False)
+        new = sorted(set(g.get_node_ids()) - {g.get_id_from_label("Y"), g.get_id_from_label("Z")})
+        assert sorted(tuple(sorted((s, t))) for _, s, t in g.get_edges_as_tuples()) == [
+            (new[0], new[1]), (new[0], new[2]), (new[1], new[2])
+        ]
