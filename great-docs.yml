@@ -468,6 +468,16 @@ reference:
         - Graph.find_cliques
         - Graph.max_clique
         - Graph.clique_number
+        - Graph.enumerate_all_cliques
+        - Graph.max_weight_clique
+        - Graph.node_clique_number
+        - Graph.number_of_cliques
+        - Graph.make_max_clique_graph
+        - Graph.is_chordal
+        - Graph.chordal_graph_cliques
+        - Graph.chordal_graph_treewidth
+        - Graph.complete_to_chordal_graph
+        - Graph.find_induced_nodes
 
     - title: Community Detection
       desc: Methods for detecting communities
@@ -661,6 +671,10 @@ reference:
         - Graph.count_strongly_connected_components
         - Graph.weakly_connected_components
         - Graph.strongly_connected_components
+        - Graph.attracting_components
+        - Graph.is_attracting_component
+        - Graph.is_semiconnected
+        - Graph.node_connected_component
         - Graph.is_strongly_connected
         - Graph.is_weakly_connected
 
