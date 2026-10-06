@@ -360,6 +360,23 @@ impl Graph {
 
     /// Add a node to the graph
     fn add_node(&mut self, mut node: Node) -> PyResult<u64> {
+        // IDs and labels are unique: check both before changing anything (an existing ID used to
+        // overwrite that node, and a repeated label left the earlier node unreachable by label)
+        if node.id != 0 && self.nodes.contains_key(&node.id) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node with ID {} already exists",
+                node.id
+            )));
+        }
+        if let Some(ref label) = node.label {
+            if self.node_labels.contains_key(label) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node with label '{}' already exists",
+                    label
+                )));
+            }
+        }
+
         // Auto-assign node ID if it's 0 (default/unset)
         let node_id = if node.id == 0 {
             let new_id = self.next_node_id;
@@ -379,11 +396,7 @@ impl Graph {
             self.node_labels.insert(label.clone(), node_id);
         }
 
-        // Track creation order only if this is a new node
-        if !self.nodes.contains_key(&node_id) {
-            self.node_creation_order.push(node_id);
-        }
-
+        self.node_creation_order.push(node_id);
         self.nodes.insert(node_id, node);
         self.adjacency_list
             .entry(node_id)
@@ -1660,22 +1673,20 @@ impl Graph {
         let elements: Vec<usize> = (0..n).collect();
         let combinations = Self::generate_combinations(&elements, k);
 
-        // Add nodes for each combination
-        // Node IDs are assigned sequentially, labels are comma-separated subsets
+        // Labels are comma-separated sorted subsets; check them all before adding any node
+        let labels: Vec<String> = combinations
+            .iter()
+            .map(|combo| combo.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
+            .collect();
+        self.check_new_labels(&labels)?;
+
+        // Add nodes for each combination; node IDs are assigned sequentially
         let mut node_ids = Vec::with_capacity(combinations.len());
-        for combo in &combinations {
+        for label in labels {
             let node_id = self.next_node_id;
             self.next_node_id += 1;
             node_ids.push(node_id);
-
-            // Label as comma-separated sorted elements
-            let label = combo.iter()
-                .map(|x| x.to_string())
-                .collect::<Vec<_>>()
-                .join(",");
-
-            let node = Node::new(node_id, Some(label), None);
-            self.add_node(node)?;
+            self.add_node(Node::new(node_id, Some(label), None))?;
         }
 
         // Add edges between combinations that differ by exactly one element
@@ -1757,29 +1768,28 @@ impl Graph {
         };
 
         // Generate random positions in [0, 1]^dim for each node
-        let mut positions: Vec<Vec<f64>> = Vec::with_capacity(n);
-        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        let positions: Vec<Vec<f64>> = (0..n)
+            .map(|_| (0..dim).map(|_| rng.gen::<f64>()).collect())
+            .collect();
 
-        for _ in 0..n {
+        // Store each position as JSON in its label; check them all before adding any node
+        let labels: Vec<String> = positions
+            .iter()
+            .map(|pos| {
+                format!(
+                    "[{}]",
+                    pos.iter().map(|x| format!("{:.6}", x)).collect::<Vec<_>>().join(", ")
+                )
+            })
+            .collect();
+        self.check_new_labels(&labels)?;
+
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        for label in labels {
             let node_id = self.next_node_id;
             self.next_node_id += 1;
             node_ids.push(node_id);
-
-            // Generate position in unit hypercube
-            let pos: Vec<f64> = (0..dim)
-                .map(|_| rng.gen::<f64>())
-                .collect();
-
-            // Store position as JSON in label for later retrieval
-            let pos_str = format!("[{}]", pos.iter()
-                .map(|x| format!("{:.6}", x))
-                .collect::<Vec<_>>()
-                .join(", "));
-
-            let node = Node::new(node_id, Some(pos_str), None);
-            self.add_node(node)?;
-
-            positions.push(pos);
+            self.add_node(Node::new(node_id, Some(label), None))?;
         }
 
         // Pre-compute radius^p for comparison
@@ -8239,6 +8249,21 @@ impl Graph {
     /// Get the adjacency list (internal method)
     pub fn get_adjacency_list(&self) -> &FxHashMap<u64, Vec<u64>> {
         &self.adjacency_list
+    }
+
+    /// Raise `ValueError` if any label is already used in the graph or repeats within `labels`
+    /// (so a generator can check every label before adding a node)
+    pub(crate) fn check_new_labels(&self, labels: &[String]) -> PyResult<()> {
+        let mut seen: FxHashSet<&str> = FxHashSet::default();
+        for label in labels {
+            if self.node_labels.contains_key(label) || !seen.insert(label.as_str()) {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node with label '{}' already exists",
+                    label
+                )));
+            }
+        }
+        Ok(())
     }
 
     /// Get edges vector (internal method for algorithms)
