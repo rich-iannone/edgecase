@@ -378,6 +378,13 @@ reference:
         - Graph.bfs_edges
         - Graph.bfs_tree
         - Graph.bfs_layers
+        - Graph.bfs_predecessors
+        - Graph.bfs_successors
+        - Graph.dfs_predecessors
+        - Graph.dfs_successors
+        - Graph.descendants_at_distance
+        - Graph.edge_bfs
+        - Graph.edge_dfs
         - Graph.dfs
         - Graph.dfs_edges
         - Graph.dfs_tree
@@ -516,6 +523,13 @@ reference:
       contents:
         - Graph.bipartite_sets
         - Graph.bipartite_projection
+        - Graph.biadjacency_matrix
+        - Graph.is_bipartite_node_set
+        - Graph.latapy_clustering
+        - Graph.robins_alexander_clustering
+        - Graph.node_redundancy
+        - Graph.spectral_bipartivity
+        - Graph.birank
         - Graph.bipartite_degree_centrality
         - Graph.bipartite_closeness_centrality
         - Graph.bipartite_betweenness_centrality
