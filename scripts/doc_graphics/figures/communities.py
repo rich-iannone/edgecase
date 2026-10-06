@@ -25,9 +25,20 @@ inside the overlap, and nodes in no community are `muted`.
 `attracting_components` follows the same rule (A, in no attracting component,
 is `muted`); `node_connected_component` shows one component: the query node
 `soft`, the rest of its component `accent` inside a hull, other nodes `muted`.
+
+Later additions share `TWO`, the docstrings' two K4 groups joined by D–E:
+`cmty_fluid` and `cmty_fast_label_propagation` draw the usual partition;
+`greedy_source_expansion` draws the source `soft`, the local community as an
+accent hull, its boundary node (members with outside neighbors) `g2` and the
+rest `muted`; `harmonic_function` and `local_and_global_consistency` follow
+`label_propagation` (seed labels as badges, predicted classes as accent / g2).
+`cmty_louvain_levels` / `cmty_leiden_levels` are `transform`s on a 2 x 4
+ladder: level 0 on the left, level 1 on the right. `kernighan_lin_bisection`
+follows connectivity's cut recipe (sides g2 / g3, cut edges accent), from the
+starting split to the result; `lukes_partitioning` dashes its one cut edge.
 """
 
-from core import Box, Scene, compute, figure, place, transform
+from core import SIZE_NOTE, Box, Scene, compute, figure, place, transform
 
 UNIT = 80  # one density for the whole family
 
@@ -573,3 +584,237 @@ def cmty_k_clique(s: Scene) -> None:
     s.hull(sorted(c2), "g2")
     s.card_centered(right, [("[A, B, C, D]", "accent"), ("[D, E, F]", "g2"),
                             "D in both, G in none"], title="communities")
+
+
+# --- later additions: more partitioners on two K4 groups ----------------------
+#
+# Every figure below rebuilds its docstring example in edgecase and asserts the
+# result (seeded methods: the seeded result), so a library change breaks the
+# build. TWO is the docstrings' graph: two K4 groups A-D and E-H joined by D-E,
+# each drawn planar (C and F sit inside their group's outer triangle).
+TWO = {"A": (0, 0), "B": (0, 1.2), "C": (0.42, 0.6), "D": (1.2, 0.6), "E": (2.2, 0.6),
+       "F": (2.98, 0.6), "G": (3.4, 0), "H": (3.4, 1.2)}
+TWO_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+TWO_GROUPS = [list("ABCD"), list("EFGH")]
+TWO_CARD = [("0 → A, B, C, D", "accent"), ("1 → E, F, G, H", "g2")]
+
+
+def _ec_graph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(nodes))
+    g.add_edges(list(edges))
+    return g
+
+
+def _groups(g, membership: dict) -> list[list[str]]:
+    """Node-to-community dict -> label lists, ordered by community number."""
+    out: dict = {}
+    for n, c in sorted(membership.items()):
+        out.setdefault(c, []).append(g.get_label_from_id(n))
+    return [sorted(v) for _, v in sorted(out.items())]
+
+
+@figure("cmty_fluid", "communities", "Fluid communities",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge "
+        "D to E. Asked for k = 2 communities with seed 3, two fluids start at random nodes "
+        "and spread until each fills one group, drawn as tinted regions in the accent color "
+        "and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H.")
+def cmty_fluid(s: Scene) -> None:
+    g = _ec_graph(TWO, TWO_EDGES)
+    assert _groups(g, g.cmty_fluid(2, seed=3, return_dict=True)) == TWO_GROUPS
+    left, right = compute(s, "g", "g.cmty_fluid(2, seed=3)")
+    _partition(s, place(TWO, left, unit=UNIT), TWO_EDGES, TWO_GROUPS)
+    s.card_centered(right, TWO_CARD, title="community")
+
+
+@figure("cmty_fast_label_propagation", "communities", "Fast label propagation communities",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge "
+        "D to E. Every node starts with its own label and adopts its neighbors' most common "
+        "label, revisiting only nodes whose neighborhood changed; with seed 1 the labels "
+        "settle on the two groups, drawn in the accent color and teal. The card lists "
+        "community 0 as A, B, C, D and community 1 as E, F, G, H.")
+def cmty_fast_label_propagation(s: Scene) -> None:
+    g = _ec_graph(TWO, TWO_EDGES)
+    assert _groups(g, g.cmty_fast_label_propagation(seed=1, return_dict=True)) == TWO_GROUPS
+    left, right = compute(s, "g", "g.cmty_fast_label_propagation(seed=1)")
+    _partition(s, place(TWO, left, unit=UNIT), TWO_EDGES, TWO_GROUPS)
+    s.card_centered(right, TWO_CARD, title="community")
+
+
+@figure("greedy_source_expansion", "communities", "Greedy source expansion",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. "
+        "Growing a local community from the source A (outlined), the expansion takes A's "
+        "whole group and then the bridge node E, and stops: the community A, B, C, D, E is "
+        "the tinted region in the accent color. E, drawn in teal, is its boundary, the one "
+        "member with neighbors outside (F, G, H, faded).")
+def greedy_source_expansion(s: Scene) -> None:
+    g = _ec_graph(TWO, TWO_EDGES)
+    comm = sorted(g.get_label_from_id(n) for n in g.greedy_source_expansion("A"))
+    assert comm == list("ABCDE")
+    # Clauset's boundary: members with at least one neighbor outside the community
+    nbrs = {k: {b if a == k else a for a, b in TWO_EDGES if k in (a, b)} for k in TWO}
+    boundary = [k for k in comm if nbrs[k] - set(comm)]
+    assert boundary == ["E"]
+    left, right = compute(s, "g", 'g.greedy_source_expansion("A")')
+    styles = {**dict.fromkeys(comm, "accent"), "A": "soft", "E": "g2",
+              **dict.fromkeys("FGH", "muted")}
+
+    def style(a, b):
+        if a in comm and b in comm:
+            return {"style": "accent"}
+        return {} if "E" in (a, b) else {"style": "muted"}
+    s.graph(place(TWO, left, unit=UNIT), [(a, b, style(a, b)) for a, b in TWO_EDGES],
+            styles=styles)
+    s.hull(comm, "accent")
+    s.card_centered(right, [("{A, B, C, D, E}", "accent"), ("boundary  E", "g2"),
+                            "source    A"], title="local community")
+
+
+def _classify(s: Scene, method: str) -> None:
+    """Two K4 groups with A labeled red, H labeled blue -> predicted label per node."""
+    g = _ec_graph(TWO, TWO_EDGES)
+    g.set_node_attrs("label", {g.get_id_from_label("A"): "red",
+                               g.get_id_from_label("H"): "blue"})
+    pred = {g.get_label_from_id(n): v for n, v in getattr(g, method)().items()}
+    assert pred == {**dict.fromkeys("ABCD", "red"), **dict.fromkeys("EFGH", "blue")}
+    left, right = compute(s, "g", f"g.{method}()")
+    _partition(s, place(TWO, left, unit=UNIT), TWO_EDGES, TWO_GROUPS)
+    # the two labels you pass in, as badges on their nodes (as in label_propagation)
+    s.badge("A", "red", where="w")
+    s.badge("H", "blue", where="e", color="g2")
+    s.card_centered(right, [("red  → A, B, C, D", "accent"), ("blue → E, F, G, H", "g2")],
+                    title="predicted label")
+
+
+@figure("harmonic_function", "communities", "Harmonic function",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. "
+        "Only A is labeled red and H blue, shown as badges. Each unlabeled node takes the "
+        "average of its neighbors' class scores, so A's group is predicted red (accent "
+        "color) and H's group blue (teal), as the card lists.")
+def harmonic_function(s: Scene) -> None:
+    _classify(s, "harmonic_function")
+
+
+@figure("local_and_global_consistency", "communities", "Local and global consistency",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. "
+        "Only A is labeled red and H blue, shown as badges. Spreading the labels with the "
+        "normalized adjacency, each node mixing its neighbors' scores with its own start, "
+        "predicts red (accent color) for A, B, C, D and blue (teal) for E, F, G, H, as the "
+        "card lists; both seeds keep their labels.")
+def local_and_global_consistency(s: Scene) -> None:
+    _classify(s, "local_and_global_consistency")
+
+
+# --- later additions: hierarchy levels ----------------------------------------
+#
+# A 2 x 4 ladder (A-D on top, E-H below). With seed 0, Louvain and Leiden both
+# first pair the nodes along the rails (4 communities), then merge the pairs
+# into the two halves of the ladder (2 communities). Same layout in both panels;
+# level 0 uses accent / g2 / g3 / g4, level 1 accent / g2.
+LADDER4 = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0), "E": (0, 1), "F": (1, 1),
+           "G": (2, 1), "H": (3, 1)}
+LADDER4_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("E", "F"), ("F", "G"), ("G", "H"),
+                 ("A", "E"), ("B", "F"), ("C", "G"), ("D", "H")]
+LEVEL0 = [list("AB"), list("CD"), list("EF"), list("GH")]
+LEVEL1 = [list("ABEF"), list("CDGH")]
+
+
+def _levels(s: Scene, method: str) -> None:
+    g = _ec_graph(LADDER4, LADDER4_EDGES)
+    levels = [_groups(g, lv) for lv in getattr(g, method)(seed=0)]
+    assert levels == [LEVEL0, LEVEL1]
+    left, right = transform(s, f"g.{method}(seed=0)[0]", f"g.{method}(seed=0)[1]")
+    _partition(s, place(LADDER4, left, unit=UNIT), LADDER4_EDGES, LEVEL0, prefix="l.")
+    _partition(s, place(LADDER4, right, unit=UNIT), LADDER4_EDGES, LEVEL1, prefix="r.")
+
+
+@figure("cmty_louvain_levels", "communities", "Louvain community levels",
+        "A two-by-four ladder, A to D on top and E to H below. Left, Louvain's first level "
+        "(seed 0) pairs neighbors along the rails into four communities, A, B in the accent "
+        "color, C, D in teal, E, F in violet and G, H in gold. Right, the next level merges "
+        "those pairs into two communities, the left half A, B, E, F (accent) and the right "
+        "half C, D, G, H (teal).")
+def cmty_louvain_levels(s: Scene) -> None:
+    _levels(s, "cmty_louvain_levels")
+
+
+@figure("cmty_leiden_levels", "communities", "Leiden community levels",
+        "A two-by-four ladder, A to D on top and E to H below. Left, Leiden's first level "
+        "(seed 0) pairs neighbors along the rails into four communities, A, B in the accent "
+        "color, C, D in teal, E, F in violet and G, H in gold. Right, after refinement and "
+        "aggregation the next level merges them into two communities, A, B, E, F (accent) "
+        "and C, D, G, H (teal).")
+def cmty_leiden_levels(s: Scene) -> None:
+    _levels(s, "cmty_leiden_levels")
+
+
+# --- later additions: bisection and tree partitioning -------------------------
+#
+# kernighan_lin_bisection follows connectivity's cut recipe (as spectral_bisection
+# does): the two sides are g2 / g3, the cut edges accent. It is a `transform`
+# from the starting split you pass (sides as node colors, they interleave) to the
+# improved one (sides as hulls), each panel with its cut size in a note line.
+# lukes_partitioning draws its clusters like communities, with the one cut tree
+# edge dashed (`removed`), as cmty_edge_btwns draws its cut bridge.
+SQUARES = {"A": (0, 0), "B": (0, 1.1), "C": (1, 1.1), "D": (1, 0), "E": (2, 0), "F": (2, 1.1),
+           "G": (3, 1.1), "H": (3, 0)}
+SQUARES_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C"),
+                 ("E", "F"), ("F", "G"), ("G", "H"), ("H", "E"), ("E", "G"),
+                 ("D", "E"), ("C", "F")]
+KL_START = (list("ABEF"), list("CDGH"))
+
+
+def _sides(s: Scene, box: Box, sides, note: str, note_color, *, hulls: bool, prefix: str):
+    side = {k: c for part, c in zip(sides, ("g2", "g3")) for k in part}
+    s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, color=note_color)
+    gb = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+    s.graph(place(SQUARES, gb, unit=UNIT),
+            [(a, b, {"style": side[a] if side[a] == side[b] else "accent"})
+             for a, b in SQUARES_EDGES], styles=side, prefix=prefix)
+    if hulls:
+        for part, c in zip(sides, ("g2", "g3")):
+            s.hull([prefix + k for k in part], c)
+
+
+@figure("kernighan_lin_bisection", "communities", "Kernighan-Lin bisection",
+        "Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E "
+        "and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H "
+        "(violet), cuts 8 edges, in the accent color. Right, after swapping pairs of nodes "
+        "the halves are A, B, C, D and E, F, G, H, and only the two accent edges D to E and "
+        "C to F are cut, a cut size of 2.0.")
+def kernighan_lin_bisection(s: Scene) -> None:
+    g = _ec_graph(SQUARES, SQUARES_EDGES)
+    start_cut = g.cut_size(KL_START[0])
+    a, b = g.kernighan_lin_bisection(partition=KL_START)
+    sides = [sorted(g.get_label_from_id(n) for n in part) for part in (a, b)]
+    assert sides == TWO_GROUPS and start_cut == 8.0 and g.cut_size(list(a)) == 2.0
+    left, right = transform(s, 'p = (list("ABEF"), list("CDGH"))',
+                            "g.kernighan_lin_bisection(partition=p)")
+    _sides(s, left, KL_START, "start: 8 edges cut", "ink", hulls=False, prefix="l.")
+    _sides(s, right, sides, "result: cut size 2.0", "accent", hulls=True, prefix="r.")
+
+
+# a gentle zigzag, with extra room at the cut C-D so the two hulls stay apart
+PATH6 = {k: (0.8 * i + (0.35 if i >= 3 else 0), 0.4 * (i % 2)) for i, k in enumerate("ABCDEF")}
+PATH6_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")]
+
+
+@figure("lukes_partitioning", "communities", "Lukes partitioning",
+        "A path of six nodes, A to F, cut into connected clusters of at most three nodes. "
+        "The best split cuts only the middle edge C to D (dashed), keeping 4 of the 5 edges "
+        "inside clusters: A, B, C in the accent color and D, E, F in teal, as the card "
+        "lists.")
+def lukes_partitioning(s: Scene) -> None:
+    g = _ec_graph(PATH6, PATH6_EDGES)
+    clusters = sorted(sorted(g.get_label_from_id(n) for n in c) for c in g.lukes_partitioning(3))
+    assert clusters == [list("ABC"), list("DEF")]
+    kept = sum(any(a in c and b in c for c in clusters) for a, b in PATH6_EDGES)
+    assert kept == 4
+    left, right = compute(s, "g", "g.lukes_partitioning(3)")
+    _partition(s, place(PATH6, left, unit=UNIT), PATH6_EDGES, clusters,
+               edge_kw={("C", "D"): {"style": "removed"}})
+    s.card_centered(right, [("{A, B, C}", "accent"), ("{D, E, F}", "g2"),
+                            "kept  4 of 5 edges"], title="clusters, max_size 3")
