@@ -936,3 +936,151 @@ class TestBidirectionalDijkstra:
         assert step.delta.nodes_selected == ["A", "B", "C"]
         assert step.delta.edges_selected == [("A", "B"), ("B", "C")]
         assert "length 2" in step.narration
+
+
+# Shortest-path extras (A*, predecessors, single-target, all shortest paths, Floyd-Warshall,
+# Johnson, Yen's simple paths, edge paths), validated against NetworkX.
+
+
+def _extras_cases(count=120):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        directed = seed % 2 == 0
+        kind = seed % 4  # unweighted, integer, float, possibly negative (directed)
+        G = nx.gnp_random_graph(rnd.randint(1, 9), 0.35, seed=seed, directed=directed)
+        for u, v in G.edges:
+            G[u][v]["weight"] = [1, rnd.randint(1, 3), rnd.uniform(0.5, 3), rnd.randint(-1, 4)][kind]
+        if kind == 3 and (not directed or nx.negative_edge_cycle(G)):
+            for u, v in G.edges:
+                G[u][v]["weight"] = abs(G[u][v]["weight"]) + 1
+        weighted = kind != 0
+        g = ec.Graph(directed=directed, weighted=weighted).add_nodes([str(n) for n in G])
+        for u, v, d in G.edges(data=True):
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        yield G, g, weighted
+
+
+def _relabel(g, mapping):
+    return {int(g.get_label_from_id(k)): v for k, v in mapping.items()}
+
+
+class TestPathExtras:
+    def test_predecessor_and_single_target(self):
+        for G, g, weighted in _extras_cases():
+            negative = any(w < 0 for *_, w in G.edges(data="weight"))
+            for s in list(G)[:3]:
+                pred, dist = g.predecessor(str(s), return_distances=True)
+                if not weighted:
+                    rp, rd = nx.predecessor(G, s), nx.single_source_shortest_path_length(G, s)
+                elif negative:
+                    rp, rd = nx.bellman_ford_predecessor_and_distance(G, s)
+                else:
+                    rp, rd = nx.dijkstra_predecessor_and_distance(G, s)
+                ours = {k: sorted(int(g.get_label_from_id(p)) for p in v) for k, v in _relabel(g, pred).items()}
+                assert ours == {k: sorted(v) for k, v in rp.items()}
+                assert _relabel(g, dist) == pytest.approx(dict(rd))
+                to_s = _relabel(g, g.single_target_shortest_path_length(str(s)))
+                rev = G.reverse() if G.is_directed() else G
+                ref = (
+                    nx.single_source_bellman_ford_path_length(rev, s)
+                    if weighted
+                    else nx.single_source_shortest_path_length(rev, s)
+                )
+                assert to_s == pytest.approx(dict(ref))
+                paths = g.single_target_shortest_path(str(s))
+                assert set(paths) == set(g.single_target_shortest_path_length(str(s)))
+
+    def test_all_pairs_negative_weights(self):
+        for G, g, weighted in _extras_cases():
+            w = "weight" if weighted else None
+            dist = g.floyd_warshall()
+            ref = nx.floyd_warshall(G, weight=w)
+            for s, row in _relabel(g, dist).items():
+                expected = {t: d for t, d in ref[s].items() if not math.isinf(d)}
+                assert {int(g.get_label_from_id(t)): d for t, d in row.items()} == pytest.approx(expected)
+            if weighted:
+                cost = lambda p: sum(G[a][b]["weight"] for a, b in zip(p, p[1:]))  # noqa: E731
+                ref = nx.johnson(G, weight="weight")
+                for s, row in g.johnson().items():
+                    for t, path in row.items():
+                        path = [int(g.get_label_from_id(x)) for x in path]
+                        expected = ref[int(g.get_label_from_id(s))][int(g.get_label_from_id(t))]
+                        assert cost(path) == pytest.approx(cost(expected))
+
+    def test_all_shortest_paths_and_simple_paths(self):
+        for G, g, weighted in _extras_cases(80):
+            if len(G) < 2 or any(w < 0 for *_, w in G.edges(data="weight")):
+                continue
+            w = "weight" if weighted else None
+            a, b = list(G)[0], list(G)[-1]
+            ours = g.single_source_all_shortest_paths(str(a))
+            ref = dict(nx.single_source_all_shortest_paths(G, a, weight=w))
+            for t, paths in ref.items():
+                mine = ours[g.get_id_from_label(str(t))]
+                assert sorted(tuple(int(g.get_label_from_id(x)) for x in p) for p in mine) == sorted(
+                    map(tuple, paths)
+                )
+            try:
+                expected = list(nx.shortest_simple_paths(G, a, b, weight=w))
+            except nx.NetworkXNoPath:
+                expected = []
+            found = [[int(g.get_label_from_id(x)) for x in p] for p in g.shortest_simple_paths(str(a), str(b))]
+            assert sorted(map(tuple, found)) == sorted(map(tuple, expected))
+            cost = (lambda p: sum(G[x][y]["weight"] for x, y in zip(p, p[1:]))) if weighted else len  # noqa: E731
+            assert [cost(p) for p in found] == pytest.approx([cost(p) for p in expected])
+            assert len(g.all_simple_edge_paths(str(a), str(b))) == len(
+                list(nx.all_simple_edge_paths(G, a, b))
+            )
+
+    def test_astar(self):
+        G = nx.grid_2d_graph(7, 7)
+        rnd = random.Random(1)
+        for u, v in G.edges:
+            G[u][v]["weight"] = rnd.uniform(1, 2)
+        G = nx.convert_node_labels_to_integers(G, label_attribute="pos")
+        g = ec.Graph(weighted=True).add_nodes([str(n) for n in G])
+        for u, v, d in G.edges(data=True):
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        pos = {g.get_id_from_label(str(n)): G.nodes[n]["pos"] for n in G}
+
+        def manhattan(u, t):
+            return abs(pos[u][0] - pos[t][0]) + abs(pos[u][1] - pos[t][1])
+
+        for s, t in [(0, 48), (5, 30), (12, 12)]:
+            expected = nx.astar_path_length(G, s, t, weight="weight")
+            assert g.astar_path_length(str(s), str(t), heuristic=manhattan) == pytest.approx(expected)
+            assert g.astar_path_length(str(s), str(t)) == pytest.approx(expected)
+        lonely = ec.Graph().add_nodes(["A", "B"])
+        assert lonely.astar_path("A", "B") is None
+        assert ec.Graph().add_path_graph(4).astar_path_length(1, 4) == 3
+
+    def test_examples_and_errors(self):
+        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)])
+        a, b = g.get_id_from_label("A"), g.get_id_from_label("B")
+        dist, pred = g.floyd_warshall(return_predecessors=True)
+        assert dist[a][b] == 1.0 and pred[a][b] == g.get_id_from_label("C")
+        assert g.johnson()[a][b] == [a, g.get_id_from_label("C"), b]
+        with pytest.raises(ValueError, match="negative"):
+            g.astar_path("A", "B")
+        cyc = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B"])
+        cyc.add_edges([("A", "B", 1.0), ("B", "A", -2.0)])
+        for method in (cyc.floyd_warshall, cyc.johnson):
+            with pytest.raises(ValueError, match="negative cycle"):
+                method()
+        multi = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("A", "B"), ("B", "C")])
+        assert len(multi.all_simple_edge_paths("A", "C")) == 2
+        assert multi.all_simple_edge_paths("A", "C", cutoff=1) == []
+        assert list(itertools.islice(multi.shortest_simple_paths("A", "C"), 5)) == [[1, 2, 3]]
+        with pytest.raises(ValueError, match="different"):
+            multi.shortest_simple_paths("A", "A")
+
+    def test_steps(self):
+        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        square.predecessor("A")
+        step = square.steps[-1]
+        assert step.kind == KIND_METRIC and step.delta.metric_values["C"] == 2.0
+        square.astar_path("A", "C")
+        assert square.steps[-1].kind == KIND_QUERY
+        assert square.steps[-1].narration == "A* path of length 2 from A to C."
