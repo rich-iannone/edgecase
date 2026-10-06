@@ -140,6 +140,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::community_extra::spread_labels, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::community_levels, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::linalg::exp_cosh_diagonals, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::directed_laplacian_matrix, m)?)?;
