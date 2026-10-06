@@ -569,7 +569,9 @@ class TestEdgeWeightLookupAfterMutation:
         ids = g.get_edge_ids()
         g.get_edge(ids[0])  # builds the index
         g.delete_edge_by_id(ids[0])
-        assert g.get_edge(ids[0]) is None
+        assert not g.has_edge_id(ids[0])
+        with pytest.raises(ValueError, match="does not exist"):
+            g.get_edge(ids[0])
         for edge_id in ids[1:]:
             assert g.get_edge(edge_id).id == edge_id
 
