@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Fast label propagation communities</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<g opacity="0.13"><path d="M 90.0 50.0 L 186.0 98.0 L 90.0 146.0 Z" fill="#c2410c" stroke="#c2410c" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<g opacity="0.13"><path d="M 266.0 98.0 L 362.0 50.0 L 362.0 146.0 Z" fill="#0e7490" stroke="#0e7490" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<rect x="553.5" y="58.0" width="141.0" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 90.00 66.00 L 90.00 130.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 99.18 63.11 L 114.42 84.89" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 104.31 57.16 L 171.69 90.84" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 99.18 132.89 L 114.42 111.11" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 104.31 138.84 L 171.69 105.16" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 139.60 98.00 L 170.00 98.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 282.00 98.00 L 312.40 98.00" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 280.31 90.84 L 347.69 57.16" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 280.31 105.16 L 347.69 138.84" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 337.58 84.89 L 352.82 63.11" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 337.58 111.11 L 352.82 132.89" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 362.00 66.00 L 362.00 130.00" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 202.00 98.00 L 250.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="90.0" cy="50.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="90.0" y="50.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="90.0" cy="146.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="90.0" y="146.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="123.6" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="123.6" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="186.0" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="186.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<circle cx="266.0" cy="98.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="266.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">E</text>
+<circle cx="328.4" cy="98.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="328.4" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">F</text>
+<circle cx="362.0" cy="50.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="362.0" y="50.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">G</text>
+<circle cx="362.0" cy="146.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="362.0" y="146.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">H</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="612.6" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.cmty_fast_label_propagation(seed=1)</text>
+<text x="567.5" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">community</text>
+<text x="567.5" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">0 → A, B, C, D</text>
+<text x="567.5" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">1 → E, F, G, H</text>
+</svg>
