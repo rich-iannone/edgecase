@@ -2084,17 +2084,9 @@ class Graph:
     def _node_id_or_raise(self, node: Union[int, str]) -> int:
         """Resolve a node ID or label, raising `ValueError` if it isn't in the graph.
 
-        `_resolve_node_id()` raises for an unknown label but passes any integer through, so
-        methods use this when an unknown integer ID should fail the same way.
+        Same as `_resolve_node_id(node)`, which now checks integer IDs too.
         """
-        node_id = self._resolve_node_id(node, auto_create=False)
-        try:
-            exists = not isinstance(node, bool) and self._graph.has_node_id(node_id)
-        except OverflowError:  # negative or beyond u64: can't be a node ID
-            exists = False
-        if not exists:
-            raise ValueError(f"Node {node!r} does not exist in the graph")
-        return node_id
+        return self._resolve_node_id(node, auto_create=False)
 
     def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
         """
@@ -2119,11 +2111,22 @@ class Graph:
         Raises
         ------
         ValueError
-            If `node` is a label not found in the graph and `auto_create=` is `False`.
+            If `node` is an integer ID that doesn't exist, or a label not found in the graph
+            and `auto_create=` is `False`. (`auto_create=` never creates nodes for integers.)
         TypeError
-            If `node=` is neither an integer nor a string.
+            If `node=` is neither an integer nor a string (a `bool` counts as neither).
         """
+        if isinstance(node, bool):
+            raise TypeError(f"Node identifier must be int or str, got {type(node)}")
         if isinstance(node, int):
+            # An unknown ID fails like an unknown label, rather than flowing on as a quiet
+            # default further down
+            try:
+                exists = self._graph.has_node_id(node)
+            except OverflowError:  # negative or beyond u64: can't be a node ID
+                exists = False
+            if not exists:
+                raise ValueError(f"Node {node!r} does not exist in the graph")
             return node
         elif isinstance(node, str):
             # Try to resolve label to ID
@@ -4055,9 +4058,11 @@ class Graph:
             is run automatically from it. Labels are not resolved here, so pass IDs.
         tree_edges
             Explicit tree edges as `(source, target)` node ID pairs, where `target` is the node
-            reached through that edge. If `None` (default), they are inferred from the visit order
-            by attaching each node to its most recently visited neighbor (on directed graphs, its
-            most recently visited predecessor, since the tree edge must point to the node).
+            reached through that edge. If `None` (default) and BFS is run from `start=`, the edges
+            BFS followed are used. Otherwise they are inferred from the visit order by attaching
+            each node to an already-visited neighbor (on directed graphs, a predecessor, since the
+            tree edge must point to the node): the earliest-visited one when `algorithm=` starts
+            with `"BFS"` (the BFS parent), else the most recently visited one (the DFS parent).
         algorithm
             Label shown in the controls (e.g., `"BFS"`, `"DFS"`). Default is `""`, which shows no
             label, except when BFS is run automatically from `start=`, in which case it becomes
@@ -4133,7 +4138,11 @@ class Graph:
         if visit_order is None:
             if start is None:
                 raise ValueError("Either visit_order or start must be provided")
-            visit_order = self.bfs(start, return_list=True)
+            start_id = self._node_id_or_raise(start)
+            visit_order = self.bfs(start_id, return_list=True)
+            if tree_edges is None:
+                # The edges BFS actually followed, rather than inferring them
+                tree_edges = self._bfs_tree_edges(start_id)
             if not algorithm:
                 algorithm = "BFS"
 
@@ -6372,7 +6381,7 @@ class Graph:
     # Node and Edge Accessors
     # ==============================================================================
 
-    def get_node(self, node: Union[int, str]) -> Optional[rust.Node]:
+    def get_node(self, node: Union[int, str]) -> rust.Node:
         """
         Get a node object by ID or label.
 
@@ -6387,10 +6396,9 @@ class Graph:
         when debugging how a graph was built or reading a few attributes inside a loop. To look
         at many nodes at once, `get_node_df()` returns all of them as a table.
 
-        How a missing node is handled depends on how it was referred to: an integer ID that
-        doesn't exist returns `None`, while a label that doesn't exist raises a `ValueError`.
-        The `attributes` dict is not a copy: changing it changes the attributes stored in the
-        graph, so treat it as read-only and use `set_node_attrs()` for deliberate changes.
+        A node that doesn't exist raises a `ValueError`, whether it was given as an ID or a
+        label; use `has_node()` to test for existence. The `attributes` dict is a copy, so
+        changing it doesn't change the graph; use `set_node_attrs()` for that.
 
         Parameters
         ----------
@@ -6401,13 +6409,13 @@ class Graph:
 
         Returns
         -------
-        Node | None
-            `Node` object, or `None` if `node=` is an integer ID that isn't in the graph.
+        Node
+            The `Node` object.
 
         Raises
         ------
         ValueError
-            If `node=` is a label that doesn't match any node.
+            If `node=` is an ID or label that doesn't match any node.
         TypeError
             If `node=` is neither an `int` nor a `str`.
 
@@ -6444,11 +6452,11 @@ class Graph:
         graph.get_node(2)
         ```
 
-        An ID that isn't in the graph returns `None`, which makes it easy to test for
-        existence:
+        An ID that isn't in the graph raises, so test with `has_node()` first when a node may be
+        missing:
 
         ```{python}
-        graph.get_node(99) is None
+        graph.has_node(99)
         ```
 
         """
@@ -6477,9 +6485,8 @@ class Graph:
         `get_edge_df()`.
 
         In an undirected graph, `source` and `target` simply record the order in which the
-        endpoints were given to `add_edge()`. As with `get_node()`, the `attributes` dict is not
-        a copy: changing it changes the attributes stored in the graph, so treat it as
-        read-only.
+        endpoints were given to `add_edge()`. As with `get_node()`, the `attributes` dict is a
+        copy, so changing it doesn't change the graph; use `set_edge_attrs()` for that.
 
         Parameters
         ----------
@@ -10676,10 +10683,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `mode=` is not one of `"out"`, `"in"`, or `"all"`, or if `node=` is a label that
-            doesn't belong to any node.
-        KeyError
-            If `node=` is an integer ID that doesn't exist and `mode=` is `"out"` or `"all"`.
+            If `mode=` is not one of `"out"`, `"in"`, or `"all"`, or if `node=` is an ID or label
+            that doesn't belong to any node.
         TypeError
             If `node=` is neither an `int` nor a `str`.
 
@@ -10806,7 +10811,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, or if `node=` is a label not found in the graph.
+            If the graph is undirected, or if `node=` is an ID or label not found in the graph.
 
         Examples
         --------
@@ -10882,7 +10887,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, or if `node=` is a label not found in the graph.
+            If the graph is undirected, or if `node=` is an ID or label not found in the graph.
 
         Examples
         --------
@@ -10942,8 +10947,8 @@ class Graph:
         Parameters
         ----------
         node
-            The reference node, given as an integer node ID or a string label. An unknown label
-            raises `ValueError`; an unknown integer ID raises `KeyError`.
+            The reference node, given as an integer node ID or a string label. An unknown ID or
+            label raises `ValueError`.
 
         Returns
         -------
@@ -11021,8 +11026,8 @@ class Graph:
         Parameters
         ----------
         node_1
-            The first node, given as an integer node ID or a string label. An unknown label raises
-            `ValueError`; an unknown integer ID raises `KeyError`.
+            The first node, given as an integer node ID or a string label. An unknown ID or label
+            raises `ValueError`.
         node_2
             The second node, accepted in the same forms as `node_1=`. The operation is symmetric,
             so swapping `node_1=` and `node_2=` gives the same set of nodes.
@@ -11159,7 +11164,7 @@ class Graph:
         ------
         ValueError
             If the starting node's value for `node_attr=` exists but is not numeric (`int` or
-            `float`), if `node=` is a label not found in the graph, if both `tol_abs=` and
+            `float`), if `node=` is an ID or label not found in the graph, if both `tol_abs=` and
             `tol_pct=` are given, or if a tolerance offset is negative.
 
         Technical Notes
@@ -14263,8 +14268,8 @@ class Graph:
             returned.
         nodes
             The nodes to query, given as node IDs (`int`) or labels (`str`), which may be mixed.
-            If `None` (the default), all nodes are queried. An unknown label raises a
-            `ValueError`, while an unknown integer ID is silently ignored.
+            If `None` (the default), all nodes are queried. An unknown ID or label raises a
+            `ValueError`.
 
         Returns
         -------
@@ -26048,9 +26053,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `node=` is a label that does not exist in the graph.
-        KeyError
-            If `node=` is an integer ID that does not exist in the graph.
+            If `node=` is an ID or label that does not exist in the graph.
 
         Examples
         --------
@@ -33538,7 +33541,7 @@ class Graph:
         ------
         ValueError
             If the graph contains a negative weight cycle reachable from `source=`, or if
-            `source=` or `target=` is a label that does not exist in the graph.
+            `source=` or `target=` is an ID or label that does not exist in the graph.
 
         Technical Notes
         ---------------
@@ -33719,7 +33722,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `source=` or `target=` is a label that does not exist in the graph.
+            If `source=` or `target=` is an ID or label that does not exist in the graph.
 
         Examples
         --------
@@ -34858,8 +34861,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `sources=` is empty or contains a label that does not exist, or a weighted graph
-            has a negative edge weight.
+            If `sources=` is empty or contains an ID or label that does not exist, or a weighted
+            graph has a negative edge weight.
 
         Examples
         --------
@@ -34953,8 +34956,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `sources=` is empty or contains a label that does not exist, or a weighted graph
-            has a negative edge weight.
+            If `sources=` is empty or contains an ID or label that does not exist, or a weighted
+            graph has a negative edge weight.
 
         Examples
         --------
@@ -36105,7 +36108,8 @@ class Graph:
         ----------
         nodes
             The sequence of nodes to check, in path order. Each element may be an integer node ID
-            or a string label, and the two can be mixed. An empty list and a one-element list
+            or a string label (a string is always a label, even `"3"`), and the two can be mixed.
+            A node that doesn't exist makes the result `False`. An empty list and a one-element list
             naming an existing node both count as valid (trivial) simple paths.
 
         Returns
@@ -36231,22 +36235,15 @@ class Graph:
         )
         ```
         """
-        # Convert node IDs to labels for Rust
-        node_labels = []
+        # Resolve to IDs (int = ID, str = label); a node that doesn't exist means "not a path"
+        node_ids = []
         for node in nodes:
             try:
-                node_id = self._resolve_node_id(node, auto_create=False)
-                label = self.get_label_from_id(node_id)
-                # If no label, use string of node ID
-                if label is None:
-                    label = str(node_id)
-                node_labels.append(label)
-            except (ValueError, KeyError):
-                # Node doesn't exist
+                node_ids.append(self._node_id_or_raise(node))
+            except (ValueError, TypeError):
                 return False
 
-        # Call Rust implementation
-        return self._graph.is_simple_path(node_labels)
+        return self._graph.is_simple_path(node_ids)
 
     def random_walk(
         self,
@@ -39300,9 +39297,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `node=` is a string label that does not exist in the graph.
-        KeyError
-            If `node=` is an integer ID that does not exist in the graph.
+            If `node=` is an ID or label that does not exist in the graph.
 
         Examples
         --------
@@ -46313,7 +46308,7 @@ class Graph:
 
     def expand_seed_set(
         self,
-        seeds: list[str],
+        seeds: list[int | str],
         max_size: int | None = None,
         min_score: float = 0.0,
     ) -> list[int]:
@@ -46349,8 +46344,9 @@ class Graph:
         Parameters
         ----------
         seeds
-            List of seed node labels (strings). All seeds are included in the result. At least one
-            seed is required, and every label must exist in the graph.
+            List of seed nodes, as integer IDs or string labels (the two can be mixed). All seeds
+            are included in the result. At least one seed is required, and every one must exist in
+            the graph.
         max_size
             Maximum number of nodes in the final module, seeds included. If `None` (the default),
             the limit is three times the number of distinct seeds. If `max_size=` is not larger
@@ -46410,7 +46406,8 @@ class Graph:
         """
         from edgecase._core import expand_seed_set as _expand
 
-        return _expand(self._graph, seeds, max_size, min_score)
+        seed_ids = [self._node_id_or_raise(seed) for seed in seeds]
+        return _expand(self._graph, seed_ids, max_size, min_score)
 
     def all_spanning_trees(
         self,
