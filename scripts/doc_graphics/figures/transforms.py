@@ -26,6 +26,8 @@ edges a reference drops are accent on the left; the edges it creates are
 accent on the right (dropped edges are not repeated there, to keep the ring
 legible). A small card under each graph gives its average clustering and
 degree sequence, which never changes. Both assert their results.
+power(2) draws the path A–E in both panels with the skip-one edges it adds as
+accent arcs, like the closures.
 """
 
 from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, transform
@@ -507,3 +509,31 @@ def lattice_reference(s: Scene) -> None:
     assert _degrees_of(lat) == _degrees_of(g)
     assert round(lat.get_avg_clustering_coefficient(), 3) == 0.667
     _reference(s, "g.lattice_reference(seed=1)", g, lat)
+
+
+# --- later additions: graph power ----------------------------------------------
+#
+# power(2) of the docstring's path A–E: the input path in both panels, the
+# skip-one links it adds as accent arcs (above, below, above, so none passes
+# through the node it skips). Asserted against edgecase.
+
+PATH5 = {k: (i, 0) for i, k in enumerate("ABCDE")}
+PATH5_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+SKIP_ARCS = [("A", "C", -24), ("B", "D", 24), ("C", "E", -24)]
+
+
+@figure("power", "transforms", "Graph power",
+        "Left: a path A, B, C, D, E with four edges. Right: its square, power(2), joins every "
+        "pair at distance at most 2. It keeps the four path edges and adds three accent "
+        "skip-one edges, A–C, B–D, and C–E, for 7 edges in all.")
+def power(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = transform(s, "g", "g.power(2)")
+    g = ec.Graph().add_nodes(list(PATH5)).add_edges(PATH5_EDGES)
+    want = {frozenset(e) for e in PATH5_EDGES} | {frozenset((a, b)) for a, b, _ in SKIP_ARCS}
+    assert set(_ec_edges(g.power(2))) == want
+    lp, rp = _both(PATH5, left, right)
+    s.graph(lp, PATH5_EDGES, prefix="l.")
+    s.graph(rp, PATH5_EDGES + [(a, b, {"style": "accent", "bend": k}) for a, b, k in SKIP_ARCS],
+            prefix="r.")
