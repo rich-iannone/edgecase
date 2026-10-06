@@ -26,11 +26,13 @@ edges a reference drops are accent on the left; the edges it creates are
 accent on the right (dropped edges are not repeated there, to keep the ring
 legible). A small card under each graph gives its average clustering and
 degree sequence, which never changes. Both assert their results.
+complete_to_chordal_graph uses add_cycle_graph(5) on a ring, the fill edges
+accent on the right and the elimination numbering alpha in filled badges.
 power(2) draws the path A–E in both panels with the skip-one edges it adds as
 accent arcs, like the closures.
 """
 
-from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, transform
+from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, shift, transform
 
 from figures.graph_metrics import SW, SW_EDGES, sw_graph
 from figures.paths import HOUSE, HOUSE_EDGES
@@ -445,6 +447,39 @@ def tree_decomposition(s: Scene) -> None:
         s.line(r0.x + r0.w, gb.cy, r1.x, gb.cy, width=STROKE, role="tree_edge")
     s.card_centered(Box(right.x0, right.y1 - 56, right.x1, right.y1), [
         (f"width  3 − 1 = {width}", "accent")], title="largest bag − 1")
+
+
+# complete_to_chordal_graph docstring: add_cycle_graph(5), ids and labels 1..5,
+# on the same ring as tree_decomposition. Fill edges are accent on the right;
+# the returned elimination numbering alpha sits in filled badges.
+RING5 = ring(list("12345"), radius=1.0)
+RING5_EDGES = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "5"), ("1", "5")]
+
+
+@figure("complete_to_chordal_graph", "transforms", "Complete to chordal graph",
+        "Left: a five-node cycle 1 to 5, which has no chords and so is not chordal. "
+        "Right: the returned graph keeps every cycle edge and adds two fill edges in the "
+        "accent color, 2 to 5 and 3 to 5, cutting the cycle into three triangles. Filled "
+        "badges give the elimination numbering alpha: node 1 is 5, node 2 is 4, node 5 "
+        "is 3, node 3 is 2, and node 4 is 1.")
+def complete_to_chordal_graph(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(5)
+    chordal, alpha = g.complete_to_chordal_graph()
+    alpha = {g.get_label_from_id(n): a for n, a in alpha.items()}
+    assert alpha == {"1": 5, "2": 4, "3": 2, "4": 1, "5": 3}
+    fill = set(_ec_edges(chordal)) - set(_ec_edges(g))
+    assert fill == {frozenset(("2", "5")), frozenset(("3", "5"))} and chordal.is_chordal()
+    left, right = transform(s, "g", "g.complete_to_chordal_graph()")
+    # a smaller ring than tree_decomposition's, nudged down, leaves room for the badges
+    s.graph(shift(place(RING5, left, unit=64), 0, 8), RING5_EDGES, prefix="l.")
+    s.graph(shift(place(RING5, right, unit=64), 0, 8),
+            RING5_EDGES + [(a, b, {"style": "accent"}) for a, b in (("2", "5"), ("3", "5"))],
+            prefix="r.")
+    out = {"1": "n", "2": "ne", "3": "e", "4": "w", "5": "nw"}  # away from the ring
+    for k, a in alpha.items():
+        s.badge("r." + k, str(a), where=out[k], filled=True)
 
 
 # --- later additions: small-world references ----------------------------------
