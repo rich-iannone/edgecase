@@ -1,7 +1,11 @@
+import collections
+import random
+
 import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
-from edgecase.steps import KIND_MUTATE
+from edgecase.steps import KIND_BUILD_EDGES, KIND_MUTATE, KIND_TRANSFORM
 
 
 class TestGraphUnion:
@@ -679,3 +683,170 @@ class TestRelabelNodes:
         n = len(g.steps)
         g.relabel_nodes({"alpha": "alpha"})  # no-op rename records nothing
         assert len(g.steps) == n
+
+
+# Graph products, powers, full joins and n-ary operators, validated against NetworkX (product
+# nodes are compared through their "(g, h)" labels).
+
+
+def _nx_build(G, weighted=False):
+    g = ec.Graph(directed=G.is_directed(), weighted=weighted)
+    g.add_nodes([str(n) for n in G])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+    return g
+
+
+def _edge_counter(g):
+    out = collections.Counter()
+    for _, s, t in g.get_edges_as_tuples():
+        a, b = g.get_label_from_id(s), g.get_label_from_id(t)
+        out[(a, b) if g.is_directed() else tuple(sorted((a, b)))] += 1
+    return out
+
+
+def _nx_counter(P, directed):
+    def label(x):
+        return f"({x[0]}, {x[1]})" if isinstance(x, tuple) else str(x)
+
+    out = collections.Counter()
+    for a, b in P.edges():
+        a, b = label(a), label(b)
+        out[(a, b) if directed else tuple(sorted((a, b)))] += 1
+    return out
+
+
+class TestGraphProducts:
+    PRODUCTS = {
+        "cartesian_product": nx.cartesian_product,
+        "tensor_product": nx.tensor_product,
+        "strong_product": nx.strong_product,
+        "lexicographic_product": nx.lexicographic_product,
+        "corona_product": nx.corona_product,
+        "modular_product": nx.modular_product,
+    }
+
+    def test_against_networkx(self):
+        for seed in range(80):
+            rnd = random.Random(seed)
+            directed = seed % 3 == 0
+            G = nx.gnp_random_graph(rnd.randint(1, 5), 0.5, seed=seed, directed=directed)
+            H = nx.gnp_random_graph(rnd.randint(1, 4), 0.5, seed=seed + 7, directed=directed)
+            H = nx.relabel_nodes(H, {i: "abcd"[i] for i in H})
+            if seed % 5 == 0 and len(G):
+                G.add_edge(0, 0)
+            g, h = _nx_build(G), _nx_build(H)
+            for method, ref in self.PRODUCTS.items():
+                if directed and method in ("corona_product", "modular_product"):
+                    with pytest.raises(ValueError, match="undirected"):
+                        getattr(g, method)(h)
+                    continue
+                product = getattr(g, method)(h)
+                expected = ref(G, H)
+                assert product.count_nodes() == expected.number_of_nodes()
+                assert _edge_counter(product) == _nx_counter(expected, directed)
+            if len(H) and not directed:
+                root = sorted(H)[0]
+                assert _edge_counter(g.rooted_product(h, root)) == _nx_counter(
+                    nx.rooted_product(G, H, root), False
+                )
+
+    def test_multigraph_factors_keep_parallel_edges(self):
+        G = nx.MultiGraph([(0, 1), (0, 1), (1, 2)])
+        H = nx.MultiGraph([("a", "b"), ("b", "c"), ("b", "c")])
+        g, h = _nx_build(G), _nx_build(H)
+        for method, ref in list(self.PRODUCTS.items())[:4]:
+            assert getattr(g, method)(h).count_edges() == ref(G, H).number_of_edges()
+
+    def test_power_against_networkx(self):
+        for seed in range(40):
+            G = nx.gnp_random_graph(random.Random(seed).randint(1, 9), 0.3, seed=seed)
+            g = _nx_build(G)
+            for k in (1, 2, 3):
+                assert _edge_counter(g.power(k)) == _nx_counter(nx.power(G, k), False)
+        with pytest.raises(ValueError, match="positive"):
+            ec.Graph().add_path_graph(3).power(0)
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).power(2)
+
+    def test_numbering_attributes_and_weights(self):
+        a = ec.Graph(weighted=True).add_nodes([("A", {"c": "x"}), "B"])
+        a.add_edge("A", "B", weight=2.0)
+        b = ec.Graph(weighted=True).add_nodes(["p", "q"]).add_edge("p", "q", weight=3.0)
+        cart = a.cartesian_product(b)
+        assert [cart.get_label_from_id(i) for i in range(1, 5)] == [
+            "(A, p)",
+            "(A, q)",
+            "(B, p)",
+            "(B, q)",
+        ]
+        assert cart.get_node_attrs("c")[1] == ("x", None)
+        assert sorted(cart.get_edge(e).weight for e in cart.get_edge_ids()) == [2, 2, 3, 3]
+        tensor = a.tensor_product(b)
+        assert {tensor.get_edge(e).weight for e in tensor.get_edge_ids()} == {6.0}
+        with pytest.raises(ValueError, match="directed"):
+            a.cartesian_product(ec.Graph(directed=True).add_path_graph(2))
+        with pytest.raises(ValueError, match="not found"):
+            a.rooted_product(b, root="nope")
+
+    def test_examples(self):
+        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+        cube = edge.cartesian_product(edge).cartesian_product(edge)
+        assert cube.count_edges() == 12 and cube.is_k_regular(3)
+        triangle = ec.Graph().add_cycle_graph(3)
+        assert triangle.tensor_product(edge).is_isomorphic(ec.Graph().add_cycle_graph(6))
+        p3 = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
+        assert p3.strong_product(p3).count_edges() == 20
+        comb = ec.Graph().add_path_graph(4).rooted_product(edge, root="0")
+        assert comb.is_tree() and comb.count_nodes() == 8
+        sunlet = triangle.corona_product(ec.Graph().add_nodes(["x"]))
+        assert sunlet.count_nodes() == 6 and sunlet.count_edges() == 6
+
+
+class TestJoinsAndNaryOperators:
+    def test_full_join(self):
+        wheel = ec.Graph().add_cycle_graph(5).full_join(ec.Graph().add_nodes(["hub"]))
+        assert wheel.count_edges() == 10 and wheel.get_degree("hub") == 5
+        k23 = ec.Graph().add_nodes(["a", "b"]).full_join(ec.Graph().add_nodes(["x", "y", "z"]))
+        assert k23.count_edges() == 6 and k23.is_bipartite()
+        d = (
+            ec.Graph(directed=True)
+            .add_nodes(["a"])
+            .full_join(ec.Graph(directed=True).add_nodes(["b", "c"]))
+        )
+        assert d.count_edges() == 4
+        G = nx.full_join(nx.cycle_graph(4), nx.path_graph(3), rename=("g", "h"))
+        g = ec.Graph().add_cycle_graph(4).full_join(ec.Graph().add_path_graph(3))
+        assert g.count_edges() == G.number_of_edges()
+        with pytest.raises(ValueError, match="directedness"):
+            ec.Graph().full_join(ec.Graph(directed=True))
+
+    def test_nary_operators(self):
+        def snapshot(pairs):
+            g = ec.Graph()
+            for _ in range(4):
+                g.add_node()
+            return g.add_edges(pairs)
+
+        days = [snapshot([(1, 2), (2, 3)]), snapshot([(1, 2), (3, 4)]), snapshot([(1, 2), (2, 3)])]
+        assert ec.Graph.union_all(days).count_edges() == 3
+        assert ec.Graph.compose_all(days).count_edges() == 3
+        assert ec.Graph.intersection_all(days).count_edges() == 1
+        combined = ec.Graph.disjoint_union_all(days)
+        assert combined.count_nodes() == 12 and combined.count_edges() == 6
+        single = ec.Graph.union_all([days[0]])
+        assert single is not days[0] and single.count_edges() == 2
+        with pytest.raises(ValueError, match="at least one"):
+            ec.Graph.union_all([])
+        with pytest.raises(TypeError, match="Graph"):
+            ec.Graph.union_all([days[0], "nope"])
+
+    def test_steps(self):
+        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+        square = edge.cartesian_product(edge)
+        assert edge.steps[-1].kind == KIND_TRANSFORM
+        assert edge.steps[-1].narration == "cartesian_product(): 4 nodes and 4 edges."
+        assert square.steps[-1].kind == KIND_BUILD_EDGES
+        path = ec.Graph().add_path_graph(4)
+        path.power(2)
+        assert path.steps[-1].narration == "power(2): 2 edges added for pairs within distance 2."
