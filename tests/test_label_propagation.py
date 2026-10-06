@@ -1,6 +1,9 @@
-import pytest
-import edgecase as ec
+import random
 
+import edgecase as ec
+import networkx as nx
+import pytest
+from networkx.algorithms import node_classification as nx_nc
 
 # ---------------------------------------------------------------------------
 # Helpers
@@ -231,3 +234,63 @@ class TestLabelPropagationDirected:
         c = g.get_id_from_label("C")
         assert result[b] == 0
         assert result[c] == 0
+
+
+class TestNodeClassification:
+    """harmonic_function and local_and_global_consistency, validated against NetworkX (nodes
+    whose top class scores tie exactly are skipped: NetworkX resolves those by rounding)."""
+
+    def test_against_networkx(self):
+        for seed in range(80):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(2, 14), 0.3, seed=seed)
+            weighted = seed % 3 == 0
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.uniform(0.5, 2) if weighted else 1
+            for n in rnd.sample(list(G), max(1, len(G) // 3)):
+                G.nodes[n]["cls"] = rnd.choice("xyz")
+            g = ec.Graph(weighted=weighted).add_nodes(
+                [(str(n), {"cls": G.nodes[n]["cls"]}) if "cls" in G.nodes[n] else str(n) for n in G]
+            )
+            for u, v, d in G.edges(data=True):
+                g.add_edge(str(u), str(v), weight=d["weight"])
+            for ours, ref in [
+                (g.harmonic_function("cls"), nx_nc.harmonic_function(G, label_name="cls")),
+                (
+                    g.local_and_global_consistency("cls"),
+                    nx_nc.local_and_global_consistency(G, label_name="cls"),
+                ),
+            ]:
+                mine = [ours[g.get_id_from_label(str(n))] for n in G]
+                differ = [i for i, (a, b) in enumerate(zip(mine, ref)) if a != b]
+                assert len(differ) <= 3  # only exact ties may differ
+
+    def test_example_and_errors(self):
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [
+                ("A", "B"),
+                ("A", "C"),
+                ("A", "D"),
+                ("B", "C"),
+                ("B", "D"),
+                ("C", "D"),
+                ("E", "F"),
+                ("E", "G"),
+                ("E", "H"),
+                ("F", "G"),
+                ("F", "H"),
+                ("G", "H"),
+                ("D", "E"),
+            ]
+        )
+        g.set_node_attrs(
+            "label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"}
+        )
+        predicted = g.harmonic_function()
+        assert {g.get_label_from_id(n): v for n, v in predicted.items()} == dict(
+            zip("ABCDEFGH", ["red"] * 4 + ["blue"] * 4)
+        )
+        assert g.local_and_global_consistency()[g.get_id_from_label("D")] == "red"
+        with pytest.raises(ValueError, match="labeled"):
+            g.harmonic_function(label_name="missing")
