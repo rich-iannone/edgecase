@@ -52,177 +52,55 @@ pub fn node_vitality(graph: &Graph, node: u64, weighted: bool) -> PyResult<f64> 
             - weighted_sum_of_distances(&adj, &node_ids, Some(node)));
     }
 
-    // Compute sum of distances in original graph
-    let original_sum = compute_sum_of_distances(graph, None);
-
-    // Compute sum of distances with node removed
-    let without_node_sum = compute_sum_of_distances(graph, Some(node));
-
-    // Vitality is the difference
-    Ok(original_sum - without_node_sum)
+    // Hop adjacency built once (it used to be rebuilt from the whole edge list at every BFS
+    // step); sum of distances with and without the node
+    let adj = hop_adjacency(graph);
+    Ok(hop_sum_of_distances(&adj, &node_ids, None)
+        - hop_sum_of_distances(&adj, &node_ids, Some(node)))
 }
 
-/// Compute sum of all pairwise shortest path distances
-///
-/// # Arguments
-///
-/// * `graph` - The graph to analyze
-/// * `exclude_node` - Optional node to exclude (simulate its removal)
-///
-/// # Returns
-///
-/// Sum of all finite shortest path distances
-fn compute_sum_of_distances(graph: &Graph, exclude_node: Option<u64>) -> f64 {
-    let node_ids = graph.get_node_ids();
-    let mut total_distance = 0.0;
-
-    // For each source node
-    for &source in &node_ids {
-        // Skip if this is the excluded node
-        if Some(source) == exclude_node {
+/// Out-neighbors (or neighbors, if undirected) of every node, one entry per edge; self-loops
+/// skipped since they never shorten a path
+fn hop_adjacency(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
+    let mut adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    for edge in graph.get_edges_internal() {
+        if edge.source == edge.target {
             continue;
         }
-
-        // BFS from this source to compute distances
-        let distances = bfs_distances(graph, source, exclude_node);
-
-        // Sum up all finite distances
-        for (&target, &dist) in &distances {
-            // Skip self-distances and excluded node
-            if target != source && Some(target) != exclude_node
-                && dist < f64::INFINITY {
-                    total_distance += dist;
-                }
+        adj.entry(edge.source).or_default().push(edge.target);
+        if !graph.is_directed() {
+            adj.entry(edge.target).or_default().push(edge.source);
         }
     }
-
-    total_distance
+    adj
 }
 
-/// BFS to compute shortest path distances from a source node
-///
-/// # Arguments
-///
-/// * `graph` - The graph to traverse
-/// * `source` - Source node for BFS
-/// * `exclude_node` - Optional node to exclude from traversal
-///
-/// # Returns
-///
-/// Map of node IDs to their shortest distances from source
-fn bfs_distances(
-    graph: &Graph,
-    source: u64,
-    exclude_node: Option<u64>,
-) -> FxHashMap<u64, f64> {
-    let mut distances: FxHashMap<u64, f64> = FxHashMap::default();
-    let mut queue = VecDeque::new();
-
-    // Initialize source
-    distances.insert(source, 0.0);
-    queue.push_back(source);
-
-    while let Some(current) = queue.pop_front() {
-        let current_dist = distances[&current];
-
-        // Get neighbors based on graph directionality
-        let neighbors = if graph.is_directed() {
-            // For directed graphs, only follow outgoing edges
-            get_out_neighbors(graph, current, exclude_node)
-        } else {
-            // For undirected graphs, get all neighbors
-            get_neighbors(graph, current, exclude_node)
-        };
-
-        for neighbor in neighbors {
-            // Skip if already visited
-            if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
-                e.insert(current_dist + 1.0);
-                queue.push_back(neighbor);
+/// Sum of all finite hop distances over ordered pairs, with `exclude` (if any) removed
+fn hop_sum_of_distances(
+    adj: &FxHashMap<u64, Vec<u64>>,
+    node_ids: &[u64],
+    exclude: Option<u64>,
+) -> f64 {
+    let mut total = 0.0;
+    for &source in node_ids {
+        if Some(source) == exclude {
+            continue;
+        }
+        let mut dist: FxHashMap<u64, usize> = FxHashMap::default();
+        dist.insert(source, 0);
+        let mut queue = VecDeque::from([source]);
+        while let Some(v) = queue.pop_front() {
+            let d = dist[&v];
+            for &w in adj.get(&v).map(Vec::as_slice).unwrap_or(&[]) {
+                if Some(w) != exclude && !dist.contains_key(&w) {
+                    dist.insert(w, d + 1);
+                    queue.push_back(w);
+                }
             }
         }
+        total += dist.values().sum::<usize>() as f64;
     }
-
-    // Set unreachable nodes to infinity
-    for &node in &graph.get_node_ids() {
-        if node != source && Some(node) != exclude_node && !distances.contains_key(&node) {
-            distances.insert(node, f64::INFINITY);
-        }
-    }
-
-    distances
-}
-
-/// Get neighbors of a node (undirected graph)
-///
-/// # Arguments
-///
-/// * `graph` - The graph
-/// * `node` - Node to get neighbors for
-/// * `exclude_node` - Optional node to exclude
-///
-/// # Returns
-///
-/// Vector of neighbor node IDs
-fn get_neighbors(graph: &Graph, node: u64, exclude_node: Option<u64>) -> Vec<u64> {
-    let mut neighbors = Vec::new();
-
-    // Get all edges
-    let edges = graph.get_edges_internal();
-
-    for edge in edges {
-        let source = edge.source;
-        let target = edge.target;
-
-        // Skip edges involving excluded node
-        if Some(source) == exclude_node || Some(target) == exclude_node {
-            continue;
-        }
-
-        // Add neighbor if this edge connects to our node
-        if source == node && target != node {
-            neighbors.push(target);
-        } else if target == node && source != node {
-            neighbors.push(source);
-        }
-    }
-
-    neighbors
-}
-
-/// Get outgoing neighbors of a node (directed graph)
-///
-/// # Arguments
-///
-/// * `graph` - The graph
-/// * `node` - Node to get outgoing neighbors for
-/// * `exclude_node` - Optional node to exclude
-///
-/// # Returns
-///
-/// Vector of outgoing neighbor node IDs
-fn get_out_neighbors(graph: &Graph, node: u64, exclude_node: Option<u64>) -> Vec<u64> {
-    let mut neighbors = Vec::new();
-
-    // Get all edges
-    let edges = graph.get_edges_internal();
-
-    for edge in edges {
-        let source = edge.source;
-        let target = edge.target;
-
-        // Skip edges involving excluded node
-        if Some(source) == exclude_node || Some(target) == exclude_node {
-            continue;
-        }
-
-        // Only add targets where source is our node
-        if source == node && target != node {
-            neighbors.push(target);
-        }
-    }
-
-    neighbors
+    total
 }
 
 #[cfg(test)]
@@ -235,7 +113,7 @@ mod tests {
         graph.add_test_node("A");
         let node_id = graph.id_from_label("A").unwrap();
 
-        let vitality = node_vitality(&graph, node_id).unwrap();
+        let vitality = node_vitality(&graph, node_id, false).unwrap();
         assert_eq!(vitality, 0.0);
     }
 
@@ -245,8 +123,8 @@ mod tests {
         let nodes = graph.add_test_path(3);
 
         // Middle node is most vital (connects the path)
-        let middle_vitality = node_vitality(&graph, nodes[1]).unwrap();
-        let end_vitality = node_vitality(&graph, nodes[0]).unwrap();
+        let middle_vitality = node_vitality(&graph, nodes[1], false).unwrap();
+        let end_vitality = node_vitality(&graph, nodes[0], false).unwrap();
 
         // Removing middle node disconnects graph (infinite distances)
         // Removing end node just removes 2 paths
@@ -259,8 +137,8 @@ mod tests {
         let nodes = graph.add_test_star(4);
 
         // First node is hub in star graph
-        let hub_vitality = node_vitality(&graph, nodes[0]).unwrap();
-        let leaf_vitality = node_vitality(&graph, nodes[1]).unwrap();
+        let hub_vitality = node_vitality(&graph, nodes[0], false).unwrap();
+        let leaf_vitality = node_vitality(&graph, nodes[1], false).unwrap();
 
         // Hub is most vital (removal disconnects all leaves)
         assert!(hub_vitality.is_infinite() || hub_vitality > leaf_vitality);
