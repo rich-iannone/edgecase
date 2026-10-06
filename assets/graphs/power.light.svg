@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Graph power</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="362.0" y1="98.0" x2="390.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="398.0,98.0 389.0,102.5 389.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 50.00 98.00 L 92.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 124.00 98.00 L 166.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 198.00 98.00 L 240.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 272.00 98.00 L 314.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 446.00 98.00 L 488.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 520.00 98.00 L 562.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 594.00 98.00 L 636.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 668.00 98.00 L 710.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 444.06 89.75 L 447.02 88.23 L 449.98 86.79 L 452.94 85.43 L 455.90 84.14 L 458.86 82.93 L 461.82 81.80 L 464.78 80.74 L 467.74 79.76 L 470.70 78.86 L 473.66 78.03 L 476.62 77.29 L 479.58 76.61 L 482.54 76.02 L 485.50 75.50 L 488.46 75.06 L 491.42 74.69 L 494.38 74.41 L 497.34 74.19 L 500.30 74.06 L 503.26 74.00 L 506.22 74.02 L 509.18 74.12 L 512.14 74.29 L 515.10 74.54 L 518.06 74.87 L 521.02 75.27 L 523.98 75.75 L 526.94 76.31 L 529.90 76.94 L 532.86 77.65 L 535.82 78.44 L 538.78 79.30 L 541.74 80.24 L 544.70 81.26 L 547.66 82.35 L 550.62 83.53 L 553.58 84.77 L 556.54 86.10 L 559.50 87.50 L 562.46 88.98 L 563.94 89.75" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 518.06 106.25 L 521.02 107.77 L 523.98 109.21 L 526.94 110.57 L 529.90 111.86 L 532.86 113.07 L 535.82 114.20 L 538.78 115.26 L 541.74 116.24 L 544.70 117.14 L 547.66 117.97 L 550.62 118.71 L 553.58 119.39 L 556.54 119.98 L 559.50 120.50 L 562.46 120.94 L 565.42 121.31 L 568.38 121.59 L 571.34 121.81 L 574.30 121.94 L 577.26 122.00 L 580.22 121.98 L 583.18 121.88 L 586.14 121.71 L 589.10 121.46 L 592.06 121.13 L 595.02 120.73 L 597.98 120.25 L 600.94 119.69 L 603.90 119.06 L 606.86 118.35 L 609.82 117.56 L 612.78 116.70 L 615.74 115.76 L 618.70 114.74 L 621.66 113.65 L 624.62 112.47 L 627.58 111.23 L 630.54 109.90 L 633.50 108.50 L 636.46 107.02 L 637.94 106.25" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 592.06 89.75 L 595.02 88.23 L 597.98 86.79 L 600.94 85.43 L 603.90 84.14 L 606.86 82.93 L 609.82 81.80 L 612.78 80.74 L 615.74 79.76 L 618.70 78.86 L 621.66 78.03 L 624.62 77.29 L 627.58 76.61 L 630.54 76.02 L 633.50 75.50 L 636.46 75.06 L 639.42 74.69 L 642.38 74.41 L 645.34 74.19 L 648.30 74.06 L 651.26 74.00 L 654.22 74.02 L 657.18 74.12 L 660.14 74.29 L 663.10 74.54 L 666.06 74.87 L 669.02 75.27 L 671.98 75.75 L 674.94 76.31 L 677.90 76.94 L 680.86 77.65 L 683.82 78.44 L 686.78 79.30 L 689.74 80.24 L 692.70 81.26 L 695.66 82.35 L 698.62 83.53 L 701.58 84.77 L 704.54 86.10 L 707.50 87.50 L 710.46 88.98 L 711.94 89.75" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="34.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="34.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="108.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="108.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="182.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="182.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="256.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="256.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="330.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="330.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<circle cx="430.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="430.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="504.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="504.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="578.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="578.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="652.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="652.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<circle cx="726.0" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="726.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<text x="182.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="578.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.power(2)</text>
+</svg>
