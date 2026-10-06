@@ -189,10 +189,12 @@ def test_graph_maintains_node_uniqueness(node_ids: list[str]) -> None:
     for i, node_label in enumerate(node_ids, start=1):
         graph.add_node(Node(i, node_label))
 
-    # Add same nodes again (same IDs)
+    # Adding the same nodes again (same IDs and labels) is rejected and changes nothing
     for i, node_label in enumerate(node_ids, start=1):
-        graph.add_node(Node(i, node_label))
+        with pytest.raises(ValueError, match="already exists"):
+            graph.add_node(Node(i, node_label))
+    # ...and so is an existing label under a new ID
+    with pytest.raises(ValueError, match="already exists"):
+        graph.add_node(Node(len(node_ids) + 1, node_ids[0]))
 
-    # Should still have same number of unique nodes
-    # Note: Current implementation allows duplicates, this test documents that
-    # In a real implementation, you'd want to prevent duplicates
+    assert graph.count_nodes() == len(node_ids)
