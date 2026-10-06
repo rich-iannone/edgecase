@@ -363,6 +363,17 @@ reference:
         - Graph.all_pairs_shortest_path_length
         - Graph.all_pairs_shortest_path
         - Graph.k_shortest_paths
+        - Graph.shortest_simple_paths
+        - Graph.all_simple_edge_paths
+        - Graph.astar_path
+        - Graph.astar_path_length
+        - Graph.predecessor
+        - Graph.single_target_shortest_path
+        - Graph.single_target_shortest_path_length
+        - Graph.single_source_all_shortest_paths
+        - Graph.all_pairs_all_shortest_paths
+        - Graph.floyd_warshall
+        - Graph.johnson
         - Graph.bfs
         - Graph.bfs_edges
         - Graph.bfs_tree
