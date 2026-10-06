@@ -133,6 +133,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::chordal::enumerate_all_cliques, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::max_weight_clique, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::with_extra_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::fluid_communities, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::kernighan_lin, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::fast_label_propagation, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::lukes_partitioning, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::spread_labels, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_detection::community_levels, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
