@@ -495,3 +495,48 @@ class TestDegreesFromIndex:
         assert g.get_degree("A") == 2 and g.get_degree("B") == 4
         assert g.degrees(return_dict=True) == {1: 2, 2: 4}
 
+
+
+class TestUniqueLabelsAndIds:
+    """Labels weren't checked for uniqueness: a repeated label left the earlier node unreachable
+    by label, and re-adding an existing ID overwrote that node."""
+
+    def test_add_node_rejects_existing_label(self):
+        g = ec.Graph().add_node(label="A", x=1)
+        with pytest.raises(ValueError, match="Node with label 'A' already exists"):
+            g.add_node(label="A")
+        assert g.count_nodes() == 1 and g.get_node_attrs("x") == {1: 1}
+
+    def test_add_nodes_is_atomic(self):
+        g = ec.Graph().add_nodes(["A"])
+        with pytest.raises(ValueError, match="'A' already exists"):
+            g.add_nodes(["B", "A"])
+        with pytest.raises(ValueError, match="'C' already exists"):
+            g.add_nodes(["C", "D", "C"])
+        assert g.count_nodes() == 1
+
+    def test_existing_id_is_not_overwritten(self):
+        from edgecase import _core as rust
+
+        g = ec.Graph().add_node(label="A", x=1)
+        with pytest.raises(ValueError, match="Node with ID 1 already exists"):
+            g._graph.add_node(rust.Node(id=1, label="B", attributes=None))
+        assert g.get_label_from_id(1) == "A" and g.get_node_attrs("x") == {1: 1}
+
+    @pytest.mark.parametrize(
+        "build",
+        [
+            lambda g: g.add_johnson_graph(4, 2),
+            lambda g: g.add_random_geometric_graph(5, 0.5, seed=1),
+        ],
+    )
+    def test_content_labelled_generators_check_first(self, build):
+        g = build(ec.Graph())
+        n, m = g.count_nodes(), g.count_edges()
+        with pytest.raises(ValueError, match="already exists"):
+            build(g)
+        assert (g.count_nodes(), g.count_edges()) == (n, m)
+
+    def test_unlabelled_nodes_are_unaffected(self):
+        g = ec.Graph().add_node().add_node().add_path_graph(3, label=False)
+        assert g.count_nodes() == 5
