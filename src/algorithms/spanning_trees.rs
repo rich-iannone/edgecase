@@ -686,7 +686,7 @@ pub fn prize_collecting_steiner_tree(
 #[pyo3(signature = (graph, seeds, max_size=None, min_score=0.0))]
 pub fn expand_seed_set(
     graph: &Graph,
-    seeds: Vec<String>,
+    seeds: Vec<u64>,
     max_size: Option<usize>,
     min_score: f64,
 ) -> PyResult<Vec<u64>> {
@@ -696,21 +696,14 @@ pub fn expand_seed_set(
         ));
     }
 
-    let mut module: FxHashSet<u64> = FxHashSet::default();
-
-    for label in &seeds {
-        match graph.id_from_label(label) {
-            Ok(node_id) => {
-                module.insert(node_id);
-            }
-            Err(_) => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Seed node '{}' does not exist in the graph",
-                    label
-                )));
-            }
-        }
+    // Seeds are node IDs (Python resolves labels)
+    if let Some(missing) = seeds.iter().find(|&&id| !graph.has_node_id(id)) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Seed node {} does not exist in the graph",
+            missing
+        )));
     }
+    let mut module: FxHashSet<u64> = seeds.into_iter().collect();
 
     let max = max_size.unwrap_or(module.len() * 3);
 
