@@ -114,7 +114,7 @@ class TestContractNodes:
         g = Graph(directed=False)
         g.add_path_graph(3)
 
-        with pytest.raises(KeyError):
+        with pytest.raises(ValueError, match="Node 99 does not exist"):
             g.contract_nodes(1, 99)
 
 
