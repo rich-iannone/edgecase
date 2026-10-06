@@ -396,16 +396,14 @@ class TestKShortestPaths:
         assert len(paths[0][0]) == 5  # 5 nodes
 
     def test_invalid_nodes(self):
-        """Test with non-existent nodes."""
+        """An unknown ID raises, like an unknown label (it used to return [])."""
         graph = Graph()
         graph.add_path_graph(3)
 
-        # Non-existent node
-        paths = graph.k_shortest_paths(1, 999, k=5)
-        assert len(paths) == 0
-
-        paths = graph.k_shortest_paths(999, 1, k=5)
-        assert len(paths) == 0
+        with pytest.raises(ValueError, match="Node 999 does not exist"):
+            graph.k_shortest_paths(1, 999, k=5)
+        with pytest.raises(ValueError, match="Node 999 does not exist"):
+            graph.k_shortest_paths(999, 1, k=5)
 
 
 class TestAdvancedPathsIntegration:
