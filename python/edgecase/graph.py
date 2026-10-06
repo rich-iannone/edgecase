@@ -12302,11 +12302,11 @@ class Graph:
         [web.get_label_from_id(nid) for nid in web.get_selected_node_ids()]
         ```
 
-        As a side effect, the PageRank scores computed for the ranking are stored on the
-        nodes, so they can be inspected in the node table afterwards:
+        The scores are only used for ranking and aren't stored on the nodes. To keep them, run
+        the measure itself:
 
         ```{python}
-        web.get_node_df().select("label", "pagerank")
+        web.pagerank(damping=0.85).get_node_df().select("label", "pagerank")
         ```
 
         """
@@ -20953,7 +20953,7 @@ class Graph:
         (
             graph
             .cmty_walktrap(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="tab10")
+            .colorize_node_attrs(node_attr_from="community", palette="tableau")
             .describe()
         )
         ```
