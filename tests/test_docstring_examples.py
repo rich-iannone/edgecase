@@ -15,14 +15,16 @@ def extract_code_blocks_from_docstring(docstring: str) -> List[str]:
     """Extract Python code blocks from a docstring.
 
     Looks for code blocks marked with:
+    - ```{python} ... ``` (Quarto, which the docs build executes; used by nearly every example)
     - ```python ... ```
     - ```pycon ... ``` (interactive Python)
     - >>> ... (doctest style)
     """
     code_blocks = []
 
-    # Pattern 1: Fenced code blocks (```python or ```pycon)
-    fenced_pattern = r"```(?:python|pycon)\s*\n(.*?)```"
+    # Pattern 1: Fenced code blocks (```{python}, ```python or ```pycon). The Quarto form used to
+    # be missed, so almost no docstring examples were actually run.
+    fenced_pattern = r"```(?:\{python\}|python|pycon)[ \t]*\n(.*?)```"
     for match in re.finditer(fenced_pattern, docstring, re.DOTALL):
         code = match.group(1).strip()
         if code:
