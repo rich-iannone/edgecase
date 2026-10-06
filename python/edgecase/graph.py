@@ -18305,6 +18305,615 @@ class Graph:
         """
         return self._graph.max_clique()
 
+    def is_chordal(self) -> bool:
+        r"""
+        Check if an undirected graph is chordal (triangulated).
+
+        ![Is chordal](/assets/graphs/is-chordal.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A to C, which splits it into two triangles, so every cycle of four or more nodes has a chord and is_chordal() returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown in the accent color) has no chord, so is_chordal() returns False." width="100%"}
+
+        A graph is chordal when every cycle of four or more nodes has a *chord*, an edge joining
+        two nodes of the cycle that are not consecutive on it; equivalently, it has no induced
+        cycle longer than a triangle. Trees, complete graphs, interval graphs and k-trees are
+        all chordal. Chordal graphs are where many hard problems become easy: maximum cliques,
+        optimal colorings and tree decompositions can all be read off a perfect elimination
+        ordering, which is why sparse matrix factorization, Bayesian network inference
+        (junction trees) and phylogenetics rely on them.
+
+        Parallel edges count once and self-loops are ignored.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is chordal. Graphs with at most three nodes always are.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        Maximum cardinality search (Tarjan and Yannakakis, 1984) numbers the nodes one at a
+        time, always picking the node with the most numbered neighbors; the graph is chordal
+        exactly when, for every node, its previously numbered neighbors form a clique, in which
+        case the reverse order is a perfect elimination ordering. Results match NetworkX's
+        `is_chordal`.
+
+        Examples
+        --------
+        A square is the smallest graph that is not chordal; adding a diagonal makes it chordal:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        before = square.is_chordal()
+        square.add_edge("A", "C")
+
+        before, square.is_chordal()
+        ```
+        """
+        value = rust.is_chordal(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_chordal",
+                "G.is_chordal()",
+                result=value,
+                narration=f"is_chordal(): {value}.",
+            )
+        return value
+
+    def chordal_graph_cliques(self) -> list[list[int]]:
+        r"""
+        List the maximal cliques of a chordal graph.
+
+        ![Chordal graph cliques](/assets/graphs/chordal-graph-cliques.light.svg){.lightbox fig-alt="A chordal graph: two triangles A, B, C and B, C, D sharing the edge B to C, plus a pendant E on D. Its maximal cliques are tinted regions, A, B, C in the accent color, B, C, D in teal and D, E in violet, overlapping where they share nodes. The card lists them in the same colors: [A, B, C], [B, C, D], [D, E]." width="100%"}
+
+        On a chordal graph (see `is_chordal()`) the maximal cliques can be found in linear time,
+        and there are at most as many of them as nodes, whereas general graphs can have
+        exponentially many. The cliques of a chordal graph are the bags of its clique tree (the
+        junction tree used for exact inference in graphical models), and the largest one gives
+        its treewidth plus one.
+
+        Isolated nodes are cliques of size one.
+
+        Returns
+        -------
+        list[list[int]]
+            The maximal cliques as sorted lists of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or not chordal.
+
+        Technical Notes
+        ---------------
+        A single maximum cardinality search per component: each newly numbered node with its
+        numbered neighbors is a clique, and a clique is reported when the next one stops
+        containing it. $O(V + E)$ besides the set operations. Matches NetworkX's
+        `chordal_graph_cliques`.
+
+        Examples
+        --------
+        Two triangles sharing an edge (a "diamond") plus a pendant node:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"), ("D", "E")])
+
+        [[g.get_label_from_id(n) for n in c] for c in g.chordal_graph_cliques()]
+        ```
+        """
+        cliques = rust.chordal_graph_cliques(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "chordal_graph_cliques",
+                "G.chordal_graph_cliques()",
+                result=cliques,
+                narration=f"{len(cliques)} maximal cliques.",
+            )
+        return cliques
+
+    def chordal_graph_treewidth(self) -> int:
+        """
+        Compute the treewidth of a chordal graph.
+
+        ![Chordal graph treewidth](/assets/graphs/chordal-graph-treewidth.light.svg){.lightbox fig-alt="The same chordal graph: triangles A, B, C and B, C, D sharing an edge, plus a pendant E. Its largest cliques have three nodes; A, B, C is drawn in the accent color and B, C, D ties it. The card gives the treewidth as the largest clique size minus one, 3 − 1 = 2." width="100%"}
+
+        The treewidth measures how tree-like a graph is (see `tree_decomposition()`). It is
+        NP-hard to compute in general, but for a chordal graph it is simply the size of the
+        largest clique minus one, found in linear time. Use it to gauge the cost of inference
+        on a triangulated graphical model or of dynamic programming over a clique tree.
+
+        Returns
+        -------
+        int
+            The treewidth (`-1` for an empty graph).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or not chordal.
+
+        Technical Notes
+        ---------------
+        The maximal cliques of `chordal_graph_cliques()` are exactly the bags of an optimal tree
+        decomposition, so the width is the largest clique size minus one. Matches NetworkX's
+        `chordal_graph_treewidth`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"), ("D", "E")])
+        g.chordal_graph_treewidth()
+        ```
+        """
+        cliques = rust.chordal_graph_cliques(self._graph)
+        return max((len(c) for c in cliques), default=0) - 1
+
+    def complete_to_chordal_graph(self) -> tuple["Graph", dict[int, int]]:
+        r"""
+        Add a minimal set of edges that makes the graph chordal (minimal triangulation).
+
+        ![Complete to chordal graph](/assets/graphs/complete-to-chordal-graph.light.svg){.lightbox fig-alt="Left: a five-node cycle 1 to 5, which has no chords and so is not chordal. Right: the returned graph keeps every cycle edge and adds two fill edges in the accent color, 2 to 5 and 3 to 5, cutting the cycle into three triangles. Filled badges give the elimination numbering alpha: node 1 is 5, node 2 is 4, node 5 is 3, node 3 is 2, and node 4 is 1." width="100%"}
+
+        Every graph can be made chordal by adding *fill* edges. This method adds an inclusion-
+        minimal set of them (no fill edge can be dropped while staying chordal), which keeps the
+        triangulation close to the original graph. Triangulating is the first step of building a
+        junction tree for exact inference in Bayesian and Markov networks, of ordering sparse
+        Cholesky factorizations, and of computing tree decompositions.
+
+        Parallel edges count once and self-loops are ignored when searching; the original edges
+        are all kept.
+
+        Returns
+        -------
+        tuple[Graph, dict[int, int]]
+            A new graph with every node and edge of this one plus the fill edges, and the
+            elimination numbering `alpha` (node ID to a position from `n` down to `1`, in the
+            order the nodes were visited). Eliminating nodes in increasing `alpha` adds no
+            further edges.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        MCS-M (Berry, Blair, Heggernes and Peyton, 2004) visits nodes by largest weight; when
+        node `z` is visited, every unvisited `y` that can be reached from `z` through unvisited
+        nodes of smaller weight than `y` gets its weight increased, and becomes a fill neighbor
+        of `z` if not already adjacent. Here the reachability test is one bottleneck search per
+        visited node, $O(V E \log V)$ overall. The fill edges and the numbering match NetworkX's
+        `complete_to_chordal_graph` (which returns all-zero numbers for an already chordal
+        graph; EdgeCase always returns the ordering).
+
+        Examples
+        --------
+        A 5-cycle needs two chords to become chordal:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_cycle_graph(5)
+        chordal, alpha = ring.complete_to_chordal_graph()
+        chordal.count_edges() - ring.count_edges(), chordal.is_chordal()
+        ```
+        """
+        chords, alpha = rust.complete_to_chordal(self._graph)
+        result = Graph._from_rust(rust.with_extra_edges(self._graph, chords))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "complete_to_chordal_graph",
+                "G.complete_to_chordal_graph()",
+                delta=StepDelta(
+                    edges_selected=[(self._node_label(a), self._node_label(b)) for a, b in chords]
+                ),
+                narration=f"complete_to_chordal_graph(): {len(chords)} fill edges added.",
+            )
+        return result, dict(alpha)
+
+    def find_induced_nodes(self, s: Union[int, str], t: Union[int, str]) -> list[int]:
+        """
+        Find the nodes on induced paths between two nodes of a chordal graph.
+
+        ![Find induced nodes](/assets/graphs/find-induced-nodes.light.svg){.lightbox fig-alt="A path A, B, C, D, a tree and so chordal, queried from A to D (both outlined). The dashed accent arc is the hypothetical edge A to D: it would close the cycle A, B, C, D, so every node on the induced path between them is returned. B and C are in the accent color and the card lists [A, B, C, D]." width="100%"}
+
+        In a chordal graph, this returns the nodes lying on induced paths (paths with no
+        shortcuts) between `s` and `t`: the nodes that would join a cycle with `s` and `t` if
+        the edge `s`-`t` were added. They identify which variables become connected when two
+        variables are linked in a triangulated graphical model. When `s` and `t` are adjacent,
+        or no induced path of length two or more exists, the result is empty.
+
+        Parameters
+        ----------
+        s, t
+            The two nodes, as IDs or labels.
+
+        Returns
+        -------
+        list[int]
+            The node IDs found, sorted (always including `t` when not empty).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, not chordal, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        Following NetworkX's `find_induced_nodes`: the edge `s`-`t` is added, and maximum
+        cardinality searches from `s` repeatedly find a chordless triple, whose nodes are joined
+        to `s` until the graph is chordal again. When several missing edges could complete a
+        triple, EdgeCase takes the one with the lowest node IDs while NetworkX follows Python's
+        set order, so on some graphs the two return different (equally valid) node sets; whether
+        the result is empty never differs.
+
+        Examples
+        --------
+        In a path A-B-C-D (a tree, hence chordal), the induced path from A to D is the whole
+        path:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        [path.get_label_from_id(n) for n in path.find_induced_nodes("A", "D")]
+        ```
+        """
+        s_id = self._resolve_node_id(s, auto_create=False)
+        t_id = self._resolve_node_id(t, auto_create=False)
+        nodes = rust.find_induced_nodes(self._graph, s_id, t_id)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "find_induced_nodes",
+                f"G.find_induced_nodes({self._node_label(s_id)!r}, {self._node_label(t_id)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in nodes]),
+                result=nodes,
+                narration=f"{len(nodes)} induced nodes between {self._node_label(s_id)} and "
+                f"{self._node_label(t_id)}.",
+            )
+        return nodes
+
+    def enumerate_all_cliques(self) -> list[list[int]]:
+        """
+        List every clique of an undirected graph, smallest first.
+
+        ![Enumerate all cliques](/assets/graphs/enumerate-all-cliques.light.svg){.lightbox fig-alt="Left: a triangle of nodes 1, 2, 3. Right: its seven cliques as miniature triangles in rows by size, each clique in the accent color: the three single nodes [1], [2], [3], the three edges [1, 2], [1, 3], [2, 3], and the whole triangle [1, 2, 3]." width="100%"}
+
+        Unlike `find_cliques()`, which reports only maximal cliques, this lists all of them:
+        every single node, every edge, every triangle, and so on, ordered by size. Counting
+        cliques of each size gives the clique profile used in network comparison, motif-style
+        statistics and topological data analysis (the cliques are the simplices of the clique
+        complex).
+
+        The number of cliques can be exponential in the size of the largest one, so use it on
+        sparse or small graphs. Parallel edges count once and self-loops are ignored.
+
+        Returns
+        -------
+        list[list[int]]
+            The cliques as lists of node IDs, in non-decreasing order of size.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        A breadth-first expansion: each clique is extended only by common neighbors with a
+        larger ID than its last node, so every clique is produced exactly once, in the same
+        order as NetworkX's `enumerate_all_cliques`.
+
+        Examples
+        --------
+        A triangle has 7 cliques: three nodes, three edges and the triangle itself:
+
+        ```{python}
+        import edgecase as ec
+
+        triangle = ec.Graph().add_cycle_graph(3)
+        triangle.enumerate_all_cliques()
+        ```
+        """
+        cliques = rust.enumerate_all_cliques(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "enumerate_all_cliques",
+                "G.enumerate_all_cliques()",
+                result=cliques,
+                narration=f"{len(cliques)} cliques, the largest of size "
+                f"{max((len(c) for c in cliques), default=0)}.",
+            )
+        return cliques
+
+    def max_weight_clique(self, weight_attr: str | None = None) -> tuple[list[int], "int | float"]:
+        r"""
+        Find a clique with the largest total node weight.
+
+        ![Maximum weight clique](/assets/graphs/max-weight-clique.light.svg){.lightbox fig-alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="100%"}
+
+        With node weights (values, scores, sizes), the maximum-weight clique is the most
+        valuable group of mutually connected nodes: the highest-scoring set of compatible
+        features, the most valuable group of mutually compatible items or people, or the best
+        consistent set of matches in structure alignment. Without weights it is a maximum
+        clique, like `max_clique()`.
+
+        Parallel edges count once and self-loops are ignored.
+
+        Parameters
+        ----------
+        weight_attr
+            Name of a node attribute holding non-negative weights. If `None` (default), every
+            node weighs 1. Every node must have the attribute.
+
+        Returns
+        -------
+        tuple[list[int], int | float]
+            The clique's node IDs (sorted) and its total weight (`int` when unweighted).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or a weight is missing, negative or not a number.
+
+        Technical Notes
+        ---------------
+        Branch and bound: candidates are colored greedily (heaviest first), and since a clique
+        uses at most one node of each color class, the sum of the heaviest weight in each class
+        bounds what the candidates can add (in the spirit of Kumlander, 2004, and Tavares et
+        al.). The problem is NP-hard, but the bound prunes well on sparse graphs. The weight
+        found matches NetworkX's `max_weight_clique`.
+
+        Examples
+        --------
+        The triangle A-B-C has three nodes, but B-D is heavier:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(
+            [("A", {"w": 1}), ("B", {"w": 2}), ("C", {"w": 1}), ("D", {"w": 5})]
+        )
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D")])
+
+        nodes, weight = g.max_weight_clique(weight_attr="w")
+        [g.get_label_from_id(n) for n in nodes], weight
+        ```
+        """
+        nodes, weight = rust.max_weight_clique(self._graph, weight_attr)
+        if weight == int(weight):
+            weight = int(weight)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "max_weight_clique",
+                "G.max_weight_clique()",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(n) for n in nodes],
+                    edges_selected=[
+                        (self._node_label(a), self._node_label(b))
+                        for i, a in enumerate(nodes)
+                        for b in nodes[i + 1 :]
+                    ],
+                ),
+                result=(nodes, weight),
+                narration=f"Maximum-weight clique of {len(nodes)} nodes, weight {weight:g}.",
+            )
+        return nodes, weight
+
+    def _clique_stats(self, nodes, size: bool) -> dict[int, int]:
+        ids = (
+            sorted(self.get_node_ids(limit=None))
+            if nodes is None
+            else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        self._recording_depth += 1
+        try:
+            cliques = self.find_cliques()
+        finally:
+            self._recording_depth -= 1
+        out = dict.fromkeys(ids, 0)
+        for c in cliques:
+            for n in c:
+                if n in out:
+                    out[n] = max(out[n], len(c)) if size else out[n] + 1
+        return out
+
+    def node_clique_number(self, nodes: list[Union[int, str]] | None = None) -> dict[int, int]:
+        """
+        Find the size of the largest clique containing each node.
+
+        ![Node clique number](/assets/graphs/node-clique-number.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by the size of the largest clique containing it: A, B and C are in the triangle, size 3, and D only in the edge, size 2, as the table lists." width="100%"}
+
+        For every node, the number of nodes in the largest maximal clique it belongs to. It
+        measures how embedded a node is in a tightly knit group: a node in a large clique sits
+        in a dense core (a close team, a protein complex), while a node whose largest clique is
+        an edge has no triangles at all. The maximum over all nodes is the clique number (see
+        `clique_number()`).
+
+        Parameters
+        ----------
+        nodes
+            Optional list of nodes (IDs or labels) to report. If `None` (default), all nodes.
+
+        Returns
+        -------
+        dict[int, int]
+            Node ID to the size of its largest clique (`1` for an isolated node).
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist.
+
+        Technical Notes
+        ---------------
+        Computed from the maximal cliques of `find_cliques()` (Bron-Kerbosch), as in NetworkX's
+        `node_clique_number`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+
+        {g.get_label_from_id(n): k for n, k in g.node_clique_number().items()}
+        ```
+        """
+        result = self._clique_stats(nodes, True)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "node_clique_number",
+                "G.node_clique_number()",
+                delta=StepDelta(
+                    metric_values={self._node_label(n): float(v) for n, v in result.items()}
+                ),
+                narration="Size of the largest clique at each node.",
+            )
+        return result
+
+    def number_of_cliques(self, nodes: list[Union[int, str]] | None = None) -> dict[int, int]:
+        """
+        Count the maximal cliques that contain each node.
+
+        ![Number of cliques per node](/assets/graphs/number-of-cliques.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by how many maximal cliques contain it: C sits in both, so it has 2 and the darkest shading, while A, B and D have 1 each, as the table lists." width="100%"}
+
+        For every node, how many maximal cliques it belongs to. Nodes in many cliques bridge
+        several tightly knit groups (people in several close circles, proteins in several
+        complexes), which makes this a simple overlap and brokerage indicator.
+
+        Parameters
+        ----------
+        nodes
+            Optional list of nodes (IDs or labels) to report. If `None` (default), all nodes.
+
+        Returns
+        -------
+        dict[int, int]
+            Node ID to the number of maximal cliques containing it.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist.
+
+        Technical Notes
+        ---------------
+        Counts memberships in the maximal cliques of `find_cliques()`, as NetworkX's
+        `number_of_cliques` does.
+
+        Examples
+        --------
+        Node C sits in the triangle and in the edge C-D:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+
+        {g.get_label_from_id(n): k for n, k in g.number_of_cliques().items()}
+        ```
+        """
+        result = self._clique_stats(nodes, False)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "number_of_cliques",
+                "G.number_of_cliques()",
+                delta=StepDelta(
+                    metric_values={self._node_label(n): float(v) for n, v in result.items()}
+                ),
+                narration="Number of maximal cliques at each node.",
+            )
+        return result
+
+    def make_max_clique_graph(self) -> "Graph":
+        """
+        Build the clique graph: one node per maximal clique, linked when cliques overlap.
+
+        ![Maximal clique graph](/assets/graphs/make-max-clique-graph.light.svg){.lightbox fig-alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="100%"}
+
+        Each maximal clique of this graph becomes a node, and two are joined when the cliques
+        share at least one node. The clique graph shows how a network's tight groups overlap and
+        chain together, a coarse view used in community analysis (it underlies clique
+        percolation) and in the theory of clique graphs and intersection graphs.
+
+        Returns
+        -------
+        Graph
+            A new undirected graph. Each node is labeled with its clique's members, such as
+            `"{A,B,C}"`, and stores their node IDs in the attribute `"clique"`.
+
+        Technical Notes
+        ---------------
+        The maximal cliques come from `find_cliques()`, and every pair is tested for overlap,
+        $O(k^2 s)$ for $k$ cliques of size up to $s$. Matches NetworkX's `make_max_clique_graph`
+        (which numbers the cliques 0, 1, ... instead of labeling them by members).
+
+        Examples
+        --------
+        Two triangles sharing node C, plus a tail C-D: three maximal cliques, all overlapping at
+        C:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "F"), ("F", "C"),
+                     ("C", "D")])
+
+        cg = g.make_max_clique_graph()
+        sorted(cg.get_label_from_id(n) for n in cg.get_node_ids()), cg.count_edges()
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            cliques = [sorted(c) for c in self.find_cliques()]
+        finally:
+            self._recording_depth -= 1
+        labels = ["{" + ",".join(self._node_label(n) for n in c) + "}" for c in cliques]
+        result = Graph()
+        if cliques:
+            result.add_nodes([(lab, {"clique": c}) for lab, c in zip(labels, cliques)])
+            sets = [set(c) for c in cliques]
+            pairs = [
+                (labels[i], labels[j])
+                for i in range(len(sets))
+                for j in range(i + 1, len(sets))
+                if sets[i] & sets[j]
+            ]
+            if pairs:
+                result.add_edges(pairs)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "make_max_clique_graph",
+                "G.make_max_clique_graph()",
+                narration=f"Clique graph of {len(cliques)} maximal cliques.",
+            )
+        return result
+
     def clique_number(self) -> int:
         r"""
         Get the clique number (size of the maximum clique).
@@ -44728,6 +45337,250 @@ class Graph:
         ```
         """
         return self._graph.is_strongly_connected()
+
+    def _condensation_parts(self):
+        self._recording_depth += 1
+        try:
+            sccs = self.strongly_connected_components()
+        finally:
+            self._recording_depth -= 1
+        comp = {n: i for i, c in enumerate(sccs) for n in c}
+        succ = [set() for _ in sccs]
+        for _, s, t in self.get_edges_as_tuples():
+            a, b = comp[s], comp[t]
+            if a != b:
+                succ[a].add(b)
+        return sccs, succ
+
+    def attracting_components(self) -> list[set[int]]:
+        """
+        Find the attracting components of a directed graph.
+
+        ![Attracting components](/assets/graphs/attracting-components.light.svg){.lightbox fig-alt="A directed graph: A points to B and to D, and B and C point to each other. A random walk that leaves A never comes back: it ends up circling B and C or stuck at D. Those are the attracting components, D in the accent color and B, C in teal, listed on the card as {D} and {B, C}; A, in neither, is faded." width="100%"}
+
+        An attracting component is a strongly connected component with no edges leaving it:
+        once a walk enters, it can never leave. They are the "sinks" of the condensation. In a
+        Markov chain they are the closed communicating classes, which hold all of the long-run
+        probability; in a web or citation graph they are traps for random surfers; in a state
+        machine they are terminal behaviors.
+
+        Returns
+        -------
+        list[set[int]]
+            The attracting components as sets of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Strongly connected components are found first; a component is attracting when no edge
+        goes from it to another component, $O(V + E)$ in total. Matches NetworkX's
+        `attracting_components`.
+
+        Examples
+        --------
+        A random walk on this graph ends up circling B-C or stuck at D:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "B"), ("A", "D")])
+
+        [sorted(g.get_label_from_id(n) for n in c) for c in g.attracting_components()]
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("attracting_components() requires a directed graph")
+        sccs, succ = self._condensation_parts()
+        result = [set(c) for c, out in zip(sccs, succ) if not out]
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "attracting_components",
+                "G.attracting_components()",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): i for i, c in enumerate(result) for n in c}
+                ),
+                result=result,
+                narration=f"{len(result)} attracting components.",
+            )
+        return result
+
+    def is_attracting_component(self) -> bool:
+        """
+        Check if a directed graph is a single attracting component.
+
+        ![Is attracting component](/assets/graphs/is-attracting-component.light.svg){.lightbox fig-alt="Left: a directed cycle A to B to C to A; a walk can go anywhere and never leave, so the whole graph is one attracting component and is_attracting_component() returns True. Right: the same triangle with the edge between C and A reversed to point from A to C (shown in the accent color); walks now end at C, the only attracting component, which leaves out A and B, so is_attracting_component() returns False." width="100%"}
+
+        True when the whole graph is one attracting component: strongly connected, so a walk can
+        get from anywhere to anywhere and never leave. For a Markov chain this is
+        irreducibility.
+
+        Returns
+        -------
+        bool
+            `True` if the graph has exactly one attracting component and it contains every node.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Uses `attracting_components()`; matches NetworkX's `is_attracting_component`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        cycle.is_attracting_component()
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            comps = self.attracting_components()
+        finally:
+            self._recording_depth -= 1
+        return len(comps) == 1 and len(comps[0]) == self.count_nodes()
+
+    def is_semiconnected(self) -> bool:
+        """
+        Check if a directed graph is semiconnected.
+
+        ![Is semiconnected](/assets/graphs/is-semiconnected.light.svg){.lightbox fig-alt="Left: a chain A to B to C; for every pair one node reaches the other, so is_semiconnected() returns True. Right: a fork, A to B and A to C; B and C (shown in the accent color) cannot reach each other in either direction, so is_semiconnected() returns False." width="100%"}
+
+        A directed graph is semiconnected when, for every pair of nodes, at least one can reach
+        the other. It sits between weak connectivity (connected ignoring direction) and strong
+        connectivity (each reaches the other). Semiconnected graphs are exactly those whose
+        strongly connected components can be lined up in a single chain, as in a pipeline where
+        every stage feeds into the next.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is semiconnected.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or empty.
+
+        Technical Notes
+        ---------------
+        The condensation (the DAG of strongly connected components) must have a Hamiltonian
+        path, which for a DAG means a topological order whose consecutive components are all
+        joined by an edge. $O(V + E)$. Matches NetworkX's `is_semiconnected`.
+
+        Examples
+        --------
+        A chain is semiconnected; two branches out of a common source are not, since neither
+        branch reaches the other:
+
+        ```{python}
+        import edgecase as ec
+
+        chain = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        chain.add_edges([("A", "B"), ("B", "C")])
+        fork = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        fork.add_edges([("A", "B"), ("A", "C")])
+
+        chain.is_semiconnected(), fork.is_semiconnected()
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("is_semiconnected() requires a directed graph")
+        if self.count_nodes() == 0:
+            raise ValueError("connectivity is undefined for an empty graph")
+        sccs, succ = self._condensation_parts()
+        indeg = [0] * len(sccs)
+        for out in succ:
+            for b in out:
+                indeg[b] += 1
+        ready = [i for i, d in enumerate(indeg) if d == 0]
+        order = []
+        while ready:
+            if len(ready) > 1:
+                return False
+            a = ready.pop()
+            order.append(a)
+            for b in succ[a]:
+                indeg[b] -= 1
+                if indeg[b] == 0:
+                    ready.append(b)
+        return all(b in succ[a] for a, b in zip(order, order[1:]))
+
+    def node_connected_component(self, node: Union[int, str]) -> set[int]:
+        """
+        Find the connected component that contains a node.
+
+        ![Connected component of a node](/assets/graphs/node-connected-component.light.svg){.lightbox fig-alt="Two separate pieces, the path A, B, C and the edge D to E. Starting from A (outlined), everything reachable lies in its component, the tinted region in the accent color holding A, B and C; D and E are faded. The card shows {A, B, C}." width="100%"}
+
+        Returns every node reachable from `node` when edge direction is ignored (its weakly
+        connected component on a directed graph). Use it to extract the part of a network a given
+        entity belongs to, without computing every component.
+
+        Parameters
+        ----------
+        node
+            The node, as an ID or label.
+
+        Returns
+        -------
+        set[int]
+            The node IDs of its component, including `node`.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist.
+
+        Technical Notes
+        ---------------
+        A breadth-first search from the node over edges in both directions, $O(V + E)$ for the
+        component found. Matches NetworkX's `node_connected_component` (undirected graphs only
+        there).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("B", "C"), ("D", "E")])
+
+        sorted(g.get_label_from_id(n) for n in g.node_connected_component("A"))
+        ```
+        """
+        start = self._resolve_node_id(node, auto_create=False)
+        nbrs: dict[int, list[int]] = {}
+        for _, s, t in self.get_edges_as_tuples():
+            nbrs.setdefault(s, []).append(t)
+            nbrs.setdefault(t, []).append(s)
+        seen = {start}
+        stack = [start]
+        while stack:
+            for w in nbrs.get(stack.pop(), []):
+                if w not in seen:
+                    seen.add(w)
+                    stack.append(w)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "node_connected_component",
+                f"G.node_connected_component({self._node_label(start)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in sorted(seen)]),
+                result=seen,
+                narration=f"The component of {self._node_label(start)} has {len(seen)} nodes.",
+            )
+        return seen
 
     def is_weakly_connected(self) -> bool:
         """
