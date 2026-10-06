@@ -491,6 +491,15 @@ reference:
         - Graph.cmty_leiden
         - Graph.cmty_label_propagation
         - Graph.cmty_k_clique
+        - Graph.cmty_fluid
+        - Graph.cmty_fast_label_propagation
+        - Graph.cmty_louvain_levels
+        - Graph.cmty_leiden_levels
+        - Graph.kernighan_lin_bisection
+        - Graph.lukes_partitioning
+        - Graph.greedy_source_expansion
+        - Graph.harmonic_function
+        - Graph.local_and_global_consistency
         - Graph.cmty_stochastic_block_model
         - Graph.modularity
         - Graph.partition_quality
