@@ -3130,6 +3130,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Fast greedy communities](/assets/graphs/cmty-fast-greedy.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Greedily merging the pairs that raise modularity most stops at the two clusters, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
 ```
 
+### `cmty_fast_label_propagation()` — Fast label propagation communities
+
+<img src="cmty-fast-label-propagation.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Every node starts with its own label and adopts its neighbors&#x27; most common label, revisiting only nodes whose neighborhood changed; with seed 1 the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="570">
+
+```markdown
+![Fast label propagation communities](/assets/graphs/cmty-fast-label-propagation.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Every node starts with its own label and adopts its neighbors' most common label, revisiting only nodes whose neighborhood changed; with seed 1 the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+```
+
+### `cmty_fluid()` — Fluid communities
+
+<img src="cmty-fluid.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Asked for k = 2 communities with seed 3, two fluids start at random nodes and spread until each fills one group, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="570">
+
+```markdown
+![Fluid communities](/assets/graphs/cmty-fluid.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Asked for k = 2 communities with seed 3, two fluids start at random nodes and spread until each fills one group, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+```
+
 ### `cmty_girvan_newman()` — Girvan-Newman communities
 
 <img src="cmty-girvan-newman.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. It shares cmty_edge_btwns()&#x27;s implementation, so the result is identical: community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="570">
@@ -3170,12 +3186,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Leiden communities](/assets/graphs/cmty-leiden.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Leiden returns the two clusters as communities, each one connected, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
 ```
 
+### `cmty_leiden_levels()` — Leiden community levels
+
+<img src="cmty-leiden-levels.light.svg" alt="A two-by-four ladder, A to D on top and E to H below. Left, Leiden&#x27;s first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, after refinement and aggregation the next level merges them into two communities, A, B, E, F (accent) and C, D, G, H (teal)." width="570">
+
+```markdown
+![Leiden community levels](/assets/graphs/cmty-leiden-levels.light.svg){.lightbox fig-alt="A two-by-four ladder, A to D on top and E to H below. Left, Leiden's first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, after refinement and aggregation the next level merges them into two communities, A, B, E, F (accent) and C, D, G, H (teal)." width="100%"}
+```
+
 ### `cmty_louvain()` — Louvain communities
 
 <img src="cmty-louvain.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Louvain puts each cluster in its own community, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="570">
 
 ```markdown
 ![Louvain communities](/assets/graphs/cmty-louvain.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Louvain puts each cluster in its own community, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C and community 1 as D, E, F, G." width="100%"}
+```
+
+### `cmty_louvain_levels()` — Louvain community levels
+
+<img src="cmty-louvain-levels.light.svg" alt="A two-by-four ladder, A to D on top and E to H below. Left, Louvain&#x27;s first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, the next level merges those pairs into two communities, the left half A, B, E, F (accent) and the right half C, D, G, H (teal)." width="570">
+
+```markdown
+![Louvain community levels](/assets/graphs/cmty-louvain-levels.light.svg){.lightbox fig-alt="A two-by-four ladder, A to D on top and E to H below. Left, Louvain's first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, the next level merges those pairs into two communities, the left half A, B, E, F (accent) and the right half C, D, G, H (teal)." width="100%"}
 ```
 
 ### `cmty_stochastic_block_model()` — Stochastic block model
@@ -3234,6 +3266,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Greedy coloring](/assets/graphs/greedy-color.light.svg){.lightbox fig-alt="A strip of four triangles on six nodes, each node filled with the color of its class: C and F in the accent color, A and D in teal, B and E in violet. No edge joins two nodes of the same color, and the card lists the three classes 0, 1, 2." width="100%"}
 ```
 
+### `greedy_source_expansion()` — Greedy source expansion
+
+<img src="greedy-source-expansion.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Growing a local community from the source A (outlined), the expansion takes A&#x27;s whole group and then the bridge node E, and stops: the community A, B, C, D, E is the tinted region in the accent color. E, drawn in teal, is its boundary, the one member with neighbors outside (F, G, H, faded)." width="570">
+
+```markdown
+![Greedy source expansion](/assets/graphs/greedy-source-expansion.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Growing a local community from the source A (outlined), the expansion takes A's whole group and then the bridge node E, and stops: the community A, B, C, D, E is the tinted region in the accent color. E, drawn in teal, is its boundary, the one member with neighbors outside (F, G, H, faded)." width="100%"}
+```
+
+### `harmonic_function()` — Harmonic function
+
+<img src="harmonic-function.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Each unlabeled node takes the average of its neighbors&#x27; class scores, so A&#x27;s group is predicted red (accent color) and H&#x27;s group blue (teal), as the card lists." width="570">
+
+```markdown
+![Harmonic function](/assets/graphs/harmonic-function.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Each unlabeled node takes the average of its neighbors' class scores, so A's group is predicted red (accent color) and H's group blue (teal), as the card lists." width="100%"}
+```
+
 ### `k_components()` — k-components
 
 <img src="k-components.light.svg" alt="The shared eight-node core graph: a dense cluster A, B, C, D, a ring through E, F, G, and a pendant H. The whole graph is the 1-component (gray); dropping H, which hangs on a single cut vertex, leaves A to G, the 2-component (teal); and the cluster A, B, C, D survives the loss of any two nodes, so it is the 3-component (accent). The table lists the components at each level k." width="570">
@@ -3282,6 +3330,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![k-truss](/assets/graphs/k-truss.light.svg){.lightbox fig-alt="Left: the eight-node graph with a dense cluster A to D, a ring E, F, G and a pendant H. Right: the 3-truss keeps only edges that lie in a triangle: the six edges of A to D plus C to E and D to E, in the accent color. The chordless loop through F and G and the pendant edge are in no triangle and are dashed, along with F, G, H." width="100%"}
 ```
 
+### `kernighan_lin_bisection()` — Kernighan-Lin bisection
+
+<img src="kernighan-lin-bisection.light.svg" alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color. Right, after swapping pairs of nodes the halves are A, B, C, D and E, F, G, H, and only the two accent edges D to E and C to F are cut, a cut size of 2.0." width="570">
+
+```markdown
+![Kernighan-Lin bisection](/assets/graphs/kernighan-lin-bisection.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color. Right, after swapping pairs of nodes the halves are A, B, C, D and E, F, G, H, and only the two accent edges D to E and C to F are cut, a cut size of 2.0." width="100%"}
+```
+
 ### `label_propagation()` — Label propagation
 
 <img src="label-propagation.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the edge C to D. Only A (id 1) and G (id 7) are given labels, 0 and 1, shown as badges; every other node adopts the label most common among its neighbors, so the triangle ends with label 0 (accent) and D, E, F, G with label 1 (teal)." width="570">
@@ -3296,6 +3352,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Largest component size](/assets/graphs/largest-component-size.light.svg){.lightbox fig-alt="A directed graph with two weak components: A to E, highlighted in the accent color, and the pair F, G in plain ink. The card gives the component sizes 5 and 2 and the largest, 5." width="100%"}
+```
+
+### `local_and_global_consistency()` — Local and global consistency
+
+<img src="local-and-global-consistency.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Spreading the labels with the normalized adjacency, each node mixing its neighbors&#x27; scores with its own start, predicts red (accent color) for A, B, C, D and blue (teal) for E, F, G, H, as the card lists; both seeds keep their labels." width="570">
+
+```markdown
+![Local and global consistency](/assets/graphs/local-and-global-consistency.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Spreading the labels with the normalized adjacency, each node mixing its neighbors' scores with its own start, predicts red (accent color) for A, B, C, D and blue (teal) for E, F, G, H, as the card lists; both seeds keep their labels." width="100%"}
+```
+
+### `lukes_partitioning()` — Lukes partitioning
+
+<img src="lukes-partitioning.light.svg" alt="A path of six nodes, A to F, cut into connected clusters of at most three nodes. The best split cuts only the middle edge C to D (dashed), keeping 4 of the 5 edges inside clusters: A, B, C in the accent color and D, E, F in teal, as the card lists." width="570">
+
+```markdown
+![Lukes partitioning](/assets/graphs/lukes-partitioning.light.svg){.lightbox fig-alt="A path of six nodes, A to F, cut into connected clusters of at most three nodes. The best split cuts only the middle edge C to D (dashed), keeping 4 of the 5 edges inside clusters: A, B, C in the accent color and D, E, F in teal, as the card lists." width="100%"}
 ```
 
 ### `modularity()` — Modularity
