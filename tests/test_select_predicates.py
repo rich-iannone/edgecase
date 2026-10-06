@@ -255,12 +255,12 @@ class TestGetNodeAndEdge:
         assert node.attributes.get("score") == 100
 
     def test_get_node_not_exists(self):
-        """Get a non-existent node returns None."""
+        """A non-existent ID raises, like a non-existent label (it used to return None)."""
         G = Graph()
         G.add_node("A")
 
-        node = G.get_node(999)  # Try with non-existent node ID
-        assert node is None
+        with pytest.raises(ValueError, match="Node 999 does not exist"):
+            G.get_node(999)
 
     def test_get_edge_exists(self):
         """Get an existing edge."""
