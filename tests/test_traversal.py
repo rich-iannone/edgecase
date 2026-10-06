@@ -360,7 +360,9 @@ class TestConditionalTraversal:
     def test_add_to_selection_keeps_existing_selection(self, method):
         """Regression: add_to_selection=True still cleared the selection first."""
         g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "X"])
-        g.add_edges([("A", "B"), ("B", "C")] if method == "trav_out_until" else [("C", "B"), ("B", "A")])
+        g.add_edges(
+            [("A", "B"), ("B", "C")] if method == "trav_out_until" else [("C", "B"), ("B", "A")]
+        )
         a, c, x = (g.get_id_from_label(n) for n in "ACX")
         g.select_nodes_by_id([a, x])
         getattr(g, method)(lambda nid: nid == c, add_to_selection=True)
@@ -1066,3 +1068,73 @@ class TestDfsEdgesAndOrders:
         assert step.code == "G.dfs_edges('A')"
         g.add_nodes(["E"]).dfs_edges()
         assert g.steps[-1].sub_steps[-1].narration == "Start a new tree at E"
+
+
+class TestTraversalMaps:
+    """BFS/DFS predecessor and successor maps, descendants at a distance, and edge BFS/DFS on
+    multigraphs, validated against NetworkX."""
+
+    def test_maps_against_networkx(self):
+        for seed in range(100):
+            rnd = random.Random(seed)
+            directed = seed % 2 == 0
+            G = nx.gnp_random_graph(rnd.randint(1, 10), 0.3, seed=seed, directed=directed)
+            g = ec.Graph(directed=directed).add_nodes([str(n) for n in G])
+            for u, v in G.edges:
+                g.add_edge(str(u), str(v))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            assert {lab(k): lab(v) for k, v in g.bfs_predecessors("0").items()} == dict(
+                nx.bfs_predecessors(G, 0)
+            )
+            assert {lab(k): [lab(x) for x in v] for k, v in g.bfs_successors("0").items()} == dict(
+                nx.bfs_successors(G, 0)
+            )
+            assert {
+                lab(k): lab(v) for k, v in g.dfs_predecessors("0").items()
+            } == nx.dfs_predecessors(G, 0)
+            assert {
+                lab(k): [lab(x) for x in v] for k, v in g.dfs_successors().items()
+            } == nx.dfs_successors(G)
+            for d in range(4):
+                assert {
+                    lab(x) for x in g.descendants_at_distance("0", d)
+                } == nx.descendants_at_distance(G, 0, d)
+
+    def test_edge_traversals_on_multigraphs(self):
+        for seed in range(100):
+            rnd = random.Random(seed)
+            directed = seed % 2 == 0
+            G = (nx.MultiDiGraph if directed else nx.MultiGraph)()
+            n = rnd.randint(1, 7)
+            G.add_nodes_from(range(n))
+            g = ec.Graph(directed=directed).add_nodes([str(i) for i in range(n)])
+            for _ in range(rnd.randint(0, 12)):
+                u, v = rnd.randrange(n), rnd.randrange(n)
+                G.add_edge(u, v)
+                g.add_edge(str(u), str(v))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            for orientation in (
+                [None, "original", "reverse", "ignore"] if directed else [None, "original"]
+            ):
+                for src in (None, 0):
+                    for ours_fn, ref_fn in ((g.edge_bfs, nx.edge_bfs), (g.edge_dfs, nx.edge_dfs)):
+                        ours = ours_fn(None if src is None else "0", orientation=orientation)
+                        ref = list(ref_fn(G, src, orientation=orientation))
+                        assert [(lab(e[0]), lab(e[1])) + tuple(e[3:]) for e in ours] == [
+                            (r[0], r[1]) + tuple(r[3:]) for r in ref
+                        ]
+
+    def test_examples_and_errors(self):
+        g = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        )
+        assert len(g.edge_bfs("A")) == 3 and len(g.bfs_edges("A")) == 2
+        a, b, c = (g.get_id_from_label(x) for x in "ABC")
+        assert g.bfs_successors("C", mode="in") == {c: [b], b: [a]}
+        lonely = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("B", "A")
+        assert lonely.bfs_successors("A") == {lonely.get_id_from_label("A"): []}
+        assert g.descendants_at_distance("A", 9) == set()
+        with pytest.raises(ValueError, match="orientation"):
+            g.edge_bfs(orientation="sideways")
