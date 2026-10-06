@@ -23,12 +23,15 @@ host g), named in notes above them; could_be_isomorphic shows the compared
 per-node property as badges. is_chordal, is_semiconnected and
 is_attracting_component rebuild their docstring examples (square vs. square
 with a diagonal, chain vs. fork, cycle vs. cycle with one edge reversed) and
-assert the answers. Graph scale is the default `UNIT` throughout.
+assert the answers. is_bipartite_node_set draws its docstring path ann, party,
+bob, talk with node_metrics_local.two_rows; on the False side the odd-length path
+separating the candidates is `accent`. Graph scale is the default `UNIT` throughout.
 """
 
 
 from core import R_SMALL, SIZE_NOTE, Box, Scene, contrast, figure, place, ring
 
+from figures.node_metrics_local import two_rows
 from figures.paths import HOUSE, SANTA_EDGES
 
 
@@ -830,3 +833,30 @@ def has_path(s: Scene) -> None:
             directed=True, styles=ends, prefix="l.")
     s.graph(place(REACH, right), REACH_EDGES + [("D", "C", {"style": "accent"})],
             directed=True, styles=ends, prefix="r.")
+
+
+# is_bipartite_node_set docstring: the path ann - party - bob - talk in two rows.
+@figure("is_bipartite_node_set", "predicates", "Is bipartite node set",
+        "The path ann, party, bob, talk drawn in two rows, people on top and events below, "
+        "with the candidate set outlined. Left: ann and bob form one whole side of the "
+        "split, so is_bipartite_node_set returns True. Right: ann and talk are three hops "
+        "apart along the accent path, so they sit on opposite sides; talk (accent) breaks "
+        "the set and the call returns False.")
+def is_bipartite_node_set(s: Scene) -> None:
+    import edgecase as ec
+
+    edges = [("ann", "party"), ("bob", "party"), ("bob", "talk")]
+    g = ec.Graph().add_nodes(["ann", "bob", "party", "talk"])
+    g.add_edges(edges)
+    assert g.is_bipartite_node_set(["ann", "bob"]) is True
+    assert g.is_bipartite_node_set(["ann", "talk"]) is False
+    left, right = contrast(s, "g.is_bipartite_node_set(nodes)", "g.is_bipartite_node_set(nodes)")
+    for box, chosen, p in ((left, ["ann", "bob"], "l."), (right, ["ann", "talk"], "r.")):
+        gb = _note(s, box, f"nodes = [{', '.join(chosen)}]")
+        bad = "talk" in chosen
+        styles = {k: "soft" for k in chosen}
+        if bad:
+            styles["talk"] = "accent"
+        two_rows(s, gb, ["ann", "bob"], ["party", "talk"],
+                 [(a, b, {"style": "accent"}) for a, b in edges] if bad else edges,
+                 styles=styles, prefix=p)
