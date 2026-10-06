@@ -24,6 +24,7 @@ import math
 from core import EMPH_STROKE, SIZE_NOTE, Box, Scene, compute, contrast, figure, place
 
 from figures.graph_metrics import _matrix
+from figures.node_metrics_local import two_rows
 
 UNIT = 100  # one graph scale for the whole family
 
@@ -607,3 +608,27 @@ def incidence_matrix(s: Scene) -> None:
           for j, v in enumerate(row) if v}
     _matrix(s, right, ids, vals, "rows: node_ids, cols: edge_ids",
             cols=[str(i) for i in range(1, 6)], col_w=36, highlight=hl)
+
+
+@figure("biadjacency_matrix", "data", "Biadjacency matrix",
+        "A two-mode graph: ann and bob on top, the events party and talk below. ann attended "
+        "both events and bob only talk, three edges in the accent color. The 2 by 2 "
+        "biadjacency matrix has a row per person and a column per event: row ann is 1, 1 and "
+        "row bob is 0, 1, each 1 (accent) one edge.")
+def biadjacency_matrix(s: Scene) -> None:
+    import edgecase as ec
+
+    people, events = ["ann", "bob"], ["party", "talk"]
+    edges = [("ann", "party"), ("ann", "talk"), ("bob", "talk")]
+    g = ec.Graph().add_nodes(people + events)
+    g.add_edges(edges)
+    m, rows, cols = g.biadjacency_matrix(row_nodes=people)
+    assert m == [[1.0, 1.0], [0.0, 1.0]]
+    assert [g.get_label_from_id(n) for n in rows + cols] == people + events
+    left, right = compute(s, "g", "g.biadjacency_matrix(row_nodes=people)")
+    two_rows(s, left, people, events, [(a, b, {"style": "accent"}) for a, b in edges],
+             sides=("rows", "columns"))
+    vals = [[int(v) for v in row] for row in m]
+    _matrix(s, right, people, vals, "1 = edge between row and column", cols=events,
+            head_w=40, col_w=52,
+            highlight={(i, j): "accent" for i in range(2) for j in range(2) if vals[i][j]})
