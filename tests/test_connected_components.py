@@ -542,3 +542,45 @@ class TestBiconnectedComponents:
         assert step.delta.node_groups["C"] == 0 and step.delta.node_groups["F"] == 2
         g.is_biconnected()
         assert g.steps[-1].delta.nodes_selected == ["C", "E"]
+
+
+class TestComponentExtras:
+    """attracting_components, is_attracting_component, is_semiconnected and
+    node_connected_component, validated against NetworkX."""
+
+    def test_against_networkx(self):
+        for seed in range(150):
+            rnd = random.Random(seed)
+            D = nx.gnp_random_graph(
+                rnd.randint(1, 10), rnd.choice([0.1, 0.2, 0.35]), seed=seed, directed=True
+            )
+            g = ec.Graph(directed=True).add_nodes([str(n) for n in D])
+            for u, v in D.edges:
+                g.add_edge(str(u), str(v))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            ours = sorted(sorted(lab(n) for n in c) for c in g.attracting_components())
+            assert ours == sorted(sorted(c) for c in nx.attracting_components(D))
+            assert g.is_attracting_component() == nx.is_attracting_component(D)
+            assert g.is_semiconnected() == nx.is_semiconnected(D)
+            U = D.to_undirected()
+            for n in list(U)[:3]:
+                assert {lab(x) for x in g.node_connected_component(str(n))} == (
+                    nx.node_connected_component(U, n)
+                )
+
+    def test_examples_and_errors(self):
+        chain = (
+            ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        )
+        fork = (
+            ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("A", "C")])
+        )
+        assert chain.is_semiconnected() and not fork.is_semiconnected()
+        assert [len(c) for c in fork.attracting_components()] == [1, 1]
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_path_graph(3).attracting_components()
+        with pytest.raises(ValueError, match="empty"):
+            ec.Graph(directed=True).is_semiconnected()
+        g = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        assert len(g.node_connected_component("C")) == 1
+        assert g.steps[-1].delta.nodes_selected == ["C"]
