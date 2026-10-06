@@ -35893,6 +35893,846 @@ class Graph:
             )
         return self
 
+    @staticmethod
+    def _as_number(value: float, weighted: bool):
+        return value if weighted else int(value)
+
+    def astar_path(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        heuristic=None,
+        weighted: bool | None = None,
+    ) -> list[int] | None:
+        r"""
+        Find a shortest path with the A* search algorithm.
+
+        ![A* path](/assets/graphs/astar-path.light.svg){.lightbox fig-alt="A six-by-six grid searched from its top-left corner (0,0) to the bottom-right corner (5,5), outlined. Each node is labeled with the Manhattan-distance heuristic h, its estimated remaining distance to the target, from 10 down to 0. The returned shortest path, 10 hops along the top row and down the right column, is in the accent color; along it the steps taken plus h always sum to 10." width="100%"}
+
+        A* is Dijkstra's algorithm steered by a *heuristic*: an estimate of the remaining
+        distance from a node to the target. Nodes that look closer to the target are explored
+        first, so with a good estimate A* finds the same shortest path after visiting far fewer
+        nodes. It is the standard algorithm for route planning on road networks and maps, game
+        and robot path finding, and puzzle solving, where a natural estimate exists (straight-
+        line distance, Manhattan distance on a grid, number of misplaced tiles).
+
+        The heuristic must never overestimate the true remaining distance (it must be
+        *admissible*); otherwise the path may not be shortest. Without a heuristic, A* is
+        exactly Dijkstra's algorithm.
+
+        Parameters
+        ----------
+        source, target
+            The endpoints, as IDs or labels.
+        heuristic
+            Optional function `heuristic(node_id, target_id) -> float` estimating the distance
+            from a node to the target. If `None` (default), every estimate is `0`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag. Weights must be non-negative.
+
+        Returns
+        -------
+        list[int] or None
+            The node IDs of a shortest path from `source` to `target`, or `None` if the target
+            cannot be reached.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist or a weight is negative.
+
+        Technical Notes
+        ---------------
+        A* (Hart, Nilsson and Raphael, 1968) pops nodes in order of $g(v) + h(v)$, the distance
+        so far plus the estimate. With an admissible and consistent $h$ the first time the
+        target is popped its distance is optimal, and the number of nodes expanded never exceeds
+        Dijkstra's. The heuristic is called once per discovered node (results are cached). The
+        path length agrees with NetworkX's `astar_path_length`.
+
+        Examples
+        --------
+        On a 6 x 6 grid with Manhattan distance as the heuristic, A* walks straight toward the
+        corner:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(6, 6)
+        position = {n: divmod(i, 6) for i, n in enumerate(sorted(grid.get_node_ids(limit=None)))}
+
+        def manhattan(node, target):
+            (r1, c1), (r2, c2) = position[node], position[target]
+            return abs(r1 - r2) + abs(c1 - c2)
+
+        ids = sorted(grid.get_node_ids(limit=None))
+        path = grid.astar_path(ids[0], ids[-1], heuristic=manhattan)
+        len(path) - 1
+        ```
+        """
+        found = self._astar(source, target, heuristic, weighted)
+        return None if found is None else found[1]
+
+    def astar_path_length(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        heuristic=None,
+        weighted: bool | None = None,
+    ) -> "int | float | None":
+        """
+        Find the length of a shortest path with the A* search algorithm.
+
+        ![A* path length](/assets/graphs/astar-path-length.light.svg){.lightbox fig-alt="Four towns A, B, C, D joined by roads: A–B 4, B–D 4, A–C 2 and C–D 7. From A (outlined) to D (outlined) the route through C starts cheaper but totals 9, so A* returns the route through B, drawn in the accent color, with length 4 + 4 = 8.0." width="100%"}
+
+        Runs the same search as `astar_path()` and returns the total length of the path found:
+        the number of edges on an unweighted graph, or the sum of edge weights on a weighted
+        one. See `astar_path()` for how the heuristic speeds up the search.
+
+        Parameters
+        ----------
+        source, target
+            The endpoints, as IDs or labels.
+        heuristic
+            Optional function `heuristic(node_id, target_id) -> float` that never overestimates
+            the remaining distance. If `None` (default), every estimate is `0`.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        int, float, or None
+            The path length (`int` hops when unweighted), or `None` if the target cannot be
+            reached.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist or a weight is negative.
+
+        Technical Notes
+        ---------------
+        Identical to `astar_path()`; see there.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        roads = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        roads.add_edges([("A", "B", 4.0), ("B", "D", 4.0), ("A", "C", 2.0), ("C", "D", 7.0)])
+
+        roads.astar_path_length("A", "D")
+        ```
+        """
+        found = self._astar(source, target, heuristic, weighted)
+        return None if found is None else found[0]
+
+    def _astar(self, source, target, heuristic, weighted):
+        s = self._resolve_node_id(source, auto_create=False)
+        t = self._resolve_node_id(target, auto_create=False)
+        use = self._use_weights(weighted)
+        found = rust.astar(self._graph, s, t, heuristic, use)
+        if found is not None:
+            found = (self._as_number(found[0], use), found[1])
+        if self._recording_depth == 0:
+            delta = self._path_delta([found[1]]) if found else StepDelta()
+            self._record_step(
+                KIND_QUERY,
+                "astar_path",
+                f"G.astar_path({self._node_label(s)!r}, {self._node_label(t)!r})",
+                delta=delta,
+                result=found,
+                narration=(
+                    f"A* path of length {found[0]:g} from {self._node_label(s)} to "
+                    f"{self._node_label(t)}."
+                    if found
+                    else f"No path from {self._node_label(s)} to {self._node_label(t)}."
+                ),
+            )
+        return found
+
+    def predecessor(
+        self,
+        source: Union[int, str],
+        weighted: bool | None = None,
+        cutoff: float | None = None,
+        return_distances: bool = False,
+    ) -> "dict[int, list[int]] | tuple[dict[int, list[int]], dict[int, int | float]]":
+        r"""
+        List every predecessor of each node on shortest paths from a source.
+
+        ![Shortest-path predecessors](/assets/graphs/predecessor.light.svg){.lightbox fig-alt="A square of four nodes A, B, C, D searched from A (outlined). The arrows form the shortest-path DAG: A precedes B and D, one hop away, and C, two hops away, is reached equally fast through B or D, so C (accent color) has two predecessors. The card lists A: none, B: A, C: B and D, D: A." width="100%"}
+
+        For every node reachable from `source`, returns the nodes that come immediately before
+        it on *some* shortest path. When several shortest paths exist, all their predecessors
+        are listed, so this dictionary encodes every shortest path at once (the shortest-path
+        DAG). It is the building block for counting or enumerating shortest paths, for
+        betweenness-style calculations, and for routing tables with equal-cost alternatives.
+
+        The search adapts to the graph: breadth-first search on unweighted graphs, Dijkstra's
+        algorithm with non-negative weights, and Bellman-Ford with negative weights (directed
+        graphs only).
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+        cutoff
+            Optional maximum distance; nodes farther away are left out.
+        return_distances
+            If `True`, also return the distances.
+
+        Returns
+        -------
+        dict[int, list[int]] or tuple
+            For every reached node ID, the list of its predecessor IDs (the source maps to an
+            empty list). With `return_distances=True`, a `(predecessors, distances)` pair, the
+            distances being `int` hops when unweighted.
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist, an undirected graph has a negative edge, or a negative
+            cycle is reachable.
+
+        Technical Notes
+        ---------------
+        A node `u` is a predecessor of `v` when $d(u) + w(u, v) = d(v)$. Equal-cost ties are
+        detected with exact floating-point comparison, as in NetworkX's `predecessor`,
+        `dijkstra_predecessor_and_distance` and `bellman_ford_predecessor_and_distance`, whose
+        results this method matches. Costs: $O(V + E)$ for BFS, $O(E \log V)$ for Dijkstra and
+        $O(VE)$ for Bellman-Ford.
+
+        Examples
+        --------
+        In a square A-B-C-D, the node opposite A is reached by two shortest paths, so it has two
+        predecessors:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+
+        preds = square.predecessor("A")
+        {square.get_label_from_id(n): [square.get_label_from_id(p) for p in ps]
+         for n, ps in preds.items()}
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        use = self._use_weights(weighted)
+        preds, dist = rust.shortest_path_predecessors(self._graph, [s], use, False, cutoff)
+        pred = dict(preds)
+        distances = {n: self._as_number(d, use) for n, d in dist}
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "predecessor",
+                f"G.predecessor({self._node_label(s)!r})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(s)],
+                    metric_values={self._node_label(n): float(d) for n, d in distances.items()},
+                    edges_selected=[
+                        (self._node_label(p), self._node_label(n))
+                        for n, ps in pred.items()
+                        for p in ps
+                    ],
+                ),
+                narration=f"Shortest-path predecessors of {len(pred)} nodes from "
+                f"{self._node_label(s)}.",
+            )
+        return (pred, distances) if return_distances else pred
+
+    def _target_search(self, target, cutoff, weighted):
+        t = self._resolve_node_id(target, auto_create=False)
+        use = self._use_weights(weighted)
+        preds, dist = rust.shortest_path_predecessors(self._graph, [t], use, True, cutoff)
+        return t, use, dict(preds), {n: self._as_number(d, use) for n, d in dist}
+
+    def single_target_shortest_path(
+        self,
+        target: Union[int, str],
+        cutoff: float | None = None,
+        weighted: bool | None = None,
+    ) -> dict[int, list[int]]:
+        """
+        Find a shortest path from every node to a target.
+
+        ![Single-target shortest paths](/assets/graphs/single-target-shortest-path.light.svg){.lightbox fig-alt="A one-way street network: shop to home, home to park, park to station. With the target station (outlined), every node that can reach it gets the shortest path from itself to the station, following the arrows (accent color): shop goes through home and park, home through park, park directly, and station maps to itself." width="100%"}
+
+        The mirror image of `single_source_shortest_path()`: for every node that can reach
+        `target`, one shortest path from that node *to* the target (following edge direction).
+        Use it to route everything toward a sink, such as all traffic toward an exit, all
+        requests toward a server, or every state toward a goal state. On an undirected graph it
+        gives the source paths reversed.
+
+        Parameters
+        ----------
+        target
+            The destination node, as an ID or label.
+        cutoff
+            Optional maximum distance; nodes farther away are left out.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag. Negative weights are allowed on directed graphs (Bellman-Ford).
+
+        Returns
+        -------
+        dict[int, list[int]]
+            For every node that reaches `target`, a path as node IDs ending at `target` (the
+            target maps to `[target]`).
+
+        Raises
+        ------
+        ValueError
+            If the target does not exist or a negative cycle can reach it.
+
+        Technical Notes
+        ---------------
+        One search over reversed edges from the target (breadth-first, Dijkstra or
+        Bellman-Ford, as in `predecessor()`); each path follows the first recorded next hop.
+        Matches the lengths of NetworkX's `single_target_shortest_path`.
+
+        Examples
+        --------
+        In a one-way street network, which routes lead to the station?
+
+        ```{python}
+        import edgecase as ec
+
+        streets = ec.Graph(directed=True).add_nodes(["home", "park", "shop", "station"])
+        streets.add_edges([("home", "park"), ("park", "station"), ("shop", "home")])
+
+        paths = streets.single_target_shortest_path("station")
+        {streets.get_label_from_id(n): [streets.get_label_from_id(x) for x in p]
+         for n, p in paths.items()}
+        ```
+        """
+        t, use, nxt, dist = self._target_search(target, cutoff, weighted)
+        paths = {}
+        for n in dist:
+            path, x = [n], n
+            while x != t:
+                x = nxt[x][0]
+                path.append(x)
+            paths[n] = path
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "single_target_shortest_path",
+                f"G.single_target_shortest_path({self._node_label(t)!r})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(t)],
+                    edges_selected=[
+                        (self._node_label(n), self._node_label(nxt[n][0])) for n in dist if n != t
+                    ],
+                ),
+                result=paths,
+                narration=f"{len(paths) - 1} nodes reach {self._node_label(t)}.",
+            )
+        return paths
+
+    def single_target_shortest_path_length(
+        self,
+        target: Union[int, str],
+        cutoff: float | None = None,
+        weighted: bool | None = None,
+    ) -> dict[int, "int | float"]:
+        """
+        Find the shortest-path distance from every node to a target.
+
+        ![Single-target shortest path lengths](/assets/graphs/single-target-shortest-path-length.light.svg){.lightbox fig-alt="The one-way street network shop to home to park to station. Each node shows its distance to the target station (outlined) in hops, shaded darker the closer it is: station 0, park 1, home 2, shop 3. The table lists the same distances." width="100%"}
+
+        Like `single_target_shortest_path()` but returns only the distances: how far each node
+        is from the target, following edge direction. Typical uses are "time to the nearest
+        exit" or "hops to the sink" maps.
+
+        Parameters
+        ----------
+        target
+            The destination node, as an ID or label.
+        cutoff
+            Optional maximum distance; nodes farther away are left out.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        dict[int, int | float]
+            For every node that reaches `target`, its distance (`int` hops when unweighted).
+
+        Raises
+        ------
+        ValueError
+            If the target does not exist or a negative cycle can reach it.
+
+        Technical Notes
+        ---------------
+        A single search over reversed edges. Matches NetworkX's
+        `single_target_shortest_path_length`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        streets = ec.Graph(directed=True).add_nodes(["home", "park", "shop", "station"])
+        streets.add_edges([("home", "park"), ("park", "station"), ("shop", "home")])
+
+        lengths = streets.single_target_shortest_path_length("station")
+        {streets.get_label_from_id(n): d for n, d in lengths.items()}
+        ```
+        """
+        t, use, _, dist = self._target_search(target, cutoff, weighted)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "single_target_shortest_path_length",
+                f"G.single_target_shortest_path_length({self._node_label(t)!r})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(t)],
+                    metric_values={self._node_label(n): float(d) for n, d in dist.items()},
+                ),
+                narration=f"Distances to {self._node_label(t)} from {len(dist)} nodes.",
+            )
+        return dist
+
+    @staticmethod
+    def _paths_from_preds(pred: dict, source: int, target: int) -> list[list[int]]:
+        out = []
+        stack = [(target, [target])]
+        while stack:
+            node, path = stack.pop()
+            if node == source:
+                out.append(path[::-1])
+                continue
+            for p in pred.get(node, []):
+                stack.append((p, path + [p]))
+        return sorted(out)
+
+    def single_source_all_shortest_paths(
+        self, source: Union[int, str], weighted: bool | None = None
+    ) -> dict[int, list[list[int]]]:
+        """
+        List every shortest path from a source to each reachable node.
+
+        ![Single-source all shortest paths](/assets/graphs/single-source-all-shortest-paths.light.svg){.lightbox fig-alt="A three-by-three grid A to I searched from the corner A (outlined). Badges count the shortest paths from A to each node; they add up like Pascal's triangle, so the far corner I has 6. The six 4-hop paths from A to I are drawn on the right as small copies of the grid, each path in the accent color." width="100%"}
+
+        Where `single_source_shortest_path()` gives one shortest path per node, this method
+        returns all of them, which matters whenever ties are common (unweighted graphs, grids,
+        networks with integer costs): load balancing over equal-cost routes, counting
+        alternatives, or checking how robust a route is.
+
+        The number of shortest paths can grow exponentially with distance (a grid has binomially
+        many), so use this on small graphs or short distances.
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        dict[int, list[list[int]]]
+            For every reachable node ID, its shortest paths as node ID lists, sorted (the source
+            maps to `[[source]]`).
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or a negative cycle is reachable.
+
+        Technical Notes
+        ---------------
+        The predecessor lists of `predecessor()` define a DAG whose source-to-node paths are
+        exactly the shortest paths; they are enumerated by depth-first search. Matches NetworkX's
+        `single_source_all_shortest_paths`.
+
+        Examples
+        --------
+        In a 3 x 3 grid there are 6 shortest paths between opposite corners:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(3, 3)
+        ids = sorted(grid.get_node_ids(limit=None))
+        paths = grid.single_source_all_shortest_paths(ids[0])
+        len(paths[ids[-1]])
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        use = self._use_weights(weighted)
+        preds, _ = rust.shortest_path_predecessors(self._graph, [s], use, False, None)
+        pred = dict(preds)
+        result = {t: self._paths_from_preds(pred, s, t) for t in sorted(pred)}
+        if self._recording_depth == 0:
+            total = sum(len(v) for v in result.values())
+            self._record_step(
+                KIND_QUERY,
+                "single_source_all_shortest_paths",
+                f"G.single_source_all_shortest_paths({self._node_label(s)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(s)]),
+                result=result,
+                narration=f"{total} shortest paths from {self._node_label(s)} to "
+                f"{len(result)} nodes.",
+            )
+        return result
+
+    def all_pairs_all_shortest_paths(
+        self, weighted: bool | None = None
+    ) -> dict[int, dict[int, list[list[int]]]]:
+        """
+        List every shortest path between every pair of nodes.
+
+        ![All-pairs all shortest paths](/assets/graphs/all-pairs-all-shortest-paths.light.svg){.lightbox fig-alt="A four-node cycle 1, 2, 3, 4. Between opposite corners there are two equally short routes, such as 1, 2, 3 (accent color) and 1, 4, 3 (teal). The matrix counts the shortest paths for every source and target: 2 for the four opposite pairs (highlighted) and 1 otherwise, 20 paths in total." width="100%"}
+
+        Runs `single_source_all_shortest_paths()` from every node. The output can be very large,
+        since the number of shortest paths grows quickly with graph size; it is meant for small
+        graphs, teaching, and exhaustive checks.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        dict[int, dict[int, list[list[int]]]]
+            `result[source][target]` is the sorted list of shortest paths.
+
+        Raises
+        ------
+        ValueError
+            If a negative cycle exists.
+
+        Technical Notes
+        ---------------
+        One predecessor search per source plus path enumeration; matches NetworkX's
+        `all_pairs_all_shortest_paths`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_cycle_graph(4)
+        everything = square.all_pairs_all_shortest_paths()
+        sum(len(paths) for row in everything.values() for paths in row.values())
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            result = {
+                s: self.single_source_all_shortest_paths(s, weighted)
+                for s in sorted(self.get_node_ids(limit=None))
+            }
+        finally:
+            self._recording_depth -= 1
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "all_pairs_all_shortest_paths",
+                "G.all_pairs_all_shortest_paths()",
+                result=result,
+                narration=f"All shortest paths between {len(result)} sources and their targets.",
+            )
+        return result
+
+    def floyd_warshall(
+        self, weighted: bool | None = None, return_predecessors: bool = False
+    ) -> "dict[int, dict[int, int | float]] | tuple[dict, dict]":
+        r"""
+        Compute all-pairs shortest-path distances with the Floyd-Warshall algorithm.
+
+        ![Floyd-Warshall distances](/assets/graphs/floyd-warshall.light.svg){.lightbox fig-alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. The negative shortcut makes the long way round, A, C, B (accent color), cheaper than the direct edge: 2 + (−1) = 1. The distance matrix highlights dist A to B = 1.0; pairs with no path, such as B to A, are left out (shown as a dot)." width="100%"}
+
+        Floyd-Warshall fills in the full table of shortest distances between every pair of
+        nodes. Unlike `all_pairs_shortest_path_length()`, it accepts negative edge weights (as
+        long as no cycle has negative total weight), which arise with costs that can be gains,
+        such as profits, log-probabilities or energy recovery. It is also a compact choice for
+        small, dense graphs.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+        return_predecessors
+            If `True`, also return `pred[source][target]`, the node before `target` on a
+            shortest path from `source`, from which any path can be rebuilt.
+
+        Returns
+        -------
+        dict or tuple
+            `dist[source][target]` for every reachable pair (each node at distance `0` from
+            itself; unreachable pairs are omitted). With `return_predecessors=True`, a
+            `(dist, pred)` pair.
+
+        Raises
+        ------
+        ValueError
+            If the graph has a negative cycle (or an undirected graph has a negative edge).
+
+        Technical Notes
+        ---------------
+        The triple loop $d(i, j) \leftarrow \min(d(i, j), d(i, k) + d(k, j))$ over every
+        intermediate node $k$ takes $O(V^3)$ time and $O(V^2)$ memory, independent of the number
+        of edges; for sparse graphs with negative weights, `johnson()` is faster. A negative
+        diagonal entry reveals a negative cycle. Distances match NetworkX's `floyd_warshall`
+        (which also lists unreachable pairs as infinity).
+
+        Examples
+        --------
+        A shortcut with a negative cost makes the long way round the cheapest:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)])
+
+        dist = g.floyd_warshall()
+        dist[g.get_id_from_label("A")][g.get_id_from_label("B")]
+        ```
+        """
+        use = self._use_weights(weighted)
+        ids, dmat, pmat = rust.floyd_warshall(self._graph, use)
+        dist, pred = {}, {}
+        for i, s in enumerate(ids):
+            dist[s] = {
+                t: self._as_number(dmat[i][j], use)
+                for j, t in enumerate(ids)
+                if dmat[i][j] != float("inf")
+            }
+            pred[s] = {ids[j]: ids[p] for j, p in enumerate(pmat[i]) if p >= 0 and j != i}
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "floyd_warshall",
+                "G.floyd_warshall()",
+                result=dist,
+                narration=f"Floyd-Warshall distances for {len(ids)} nodes.",
+            )
+        return (dist, pred) if return_predecessors else dist
+
+    def johnson(self, weighted: bool | None = None) -> dict[int, dict[int, list[int]]]:
+        r"""
+        Find all-pairs shortest paths with Johnson's algorithm (negative weights allowed).
+
+        ![Johnson all-pairs shortest paths](/assets/graphs/johnson.light.svg){.lightbox fig-alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. Johnson's algorithm reweights the edges to remove the negative one without changing which paths are shortest, then runs Dijkstra from every node. The path it returns from A to B is A, C, B (accent color), costing 2 + (−1) = 1, less than the direct edge's 4." width="100%"}
+
+        Johnson's algorithm computes a shortest path between every pair of nodes on a graph that
+        may have negative edge weights (but no negative cycles). It reweights the edges with
+        node potentials so that all weights become non-negative without changing which paths are
+        shortest, then runs Dijkstra's algorithm from every node. On sparse graphs it is much
+        faster than `floyd_warshall()`.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        dict[int, dict[int, list[int]]]
+            `result[source][target]` is a shortest path as node IDs, for every reachable pair.
+
+        Raises
+        ------
+        ValueError
+            If the graph has a negative cycle (or an undirected graph has a negative edge).
+
+        Technical Notes
+        ---------------
+        Bellman-Ford from a virtual source joined to every node gives potentials $h$ with
+        $w'(u, v) = w(u, v) + h(u) - h(v) \ge 0$; every path's reweighted length differs from its
+        true length by $h(s) - h(t)$, so shortest paths are preserved (Johnson, 1977). Total time
+        $O(VE + V E \log V)$. Path lengths match NetworkX's `johnson`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)])
+
+        paths = g.johnson()
+        [g.get_label_from_id(n) for n in paths[g.get_id_from_label("A")][g.get_id_from_label("B")]]
+        ```
+        """
+        result = {s: dict(row) for s, row in rust.johnson(self._graph, self._use_weights(weighted))}
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "johnson",
+                "G.johnson()",
+                result=result,
+                narration=f"Johnson all-pairs shortest paths for {len(result)} sources.",
+            )
+        return result
+
+    def shortest_simple_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        weighted: bool | None = None,
+    ):
+        r"""
+        Generate simple paths between two nodes, shortest first.
+
+        ![Shortest simple paths](/assets/graphs/shortest-simple-paths.light.svg){.lightbox fig-alt="A weighted diamond A, B, C, D with a rung B to C. The iterator yields simple paths from A (outlined) to D (outlined) cheapest first; the first three are A, B, D with length 2 (accent color), A, C, D with length 3 (teal) and A, C, B, D with length 3 (violet). The card ranks them 1, 2, 3." width="100%"}
+
+        Returns a lazy iterator that yields every simple path (no repeated node) from `source`
+        to `target` in order of increasing length. Take as many as you need: the next path is
+        only computed when requested, so `itertools.islice(g.shortest_simple_paths(a, b), 5)`
+        is cheap even when there are millions of paths. Use it for alternative routes,
+        backup paths, or ranking options beyond the single best one. `k_shortest_paths()`
+        returns a fixed number of paths with their lengths instead.
+
+        Parameters
+        ----------
+        source, target
+            The endpoints, as IDs or labels (they must differ).
+        weighted
+            Whether to rank by total edge weight. If `None` (default), follows the graph's
+            `weighted` flag; without weights, paths are ranked by number of edges. Weights must
+            be non-negative.
+
+        Returns
+        -------
+        iterator of list[int]
+            Paths as lists of node IDs, shortest first.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, the endpoints are equal, or a weight is negative.
+
+        Technical Notes
+        ---------------
+        Yen's algorithm (1971): each new path deviates from a previously found one at some spur
+        node, after blocking the edges that earlier paths with the same prefix used; the cheapest
+        candidate is taken next. Each step costs up to one Dijkstra run per node of the previous
+        path. Parallel edges are treated as one (the lightest). Paths and their order agree with
+        NetworkX's `shortest_simple_paths`.
+
+        Examples
+        --------
+        ```{python}
+        import itertools
+
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0), ("C", "D", 2.0),
+                     ("B", "C", 1.0)])
+
+        [[g.get_label_from_id(n) for n in p]
+         for p in itertools.islice(g.shortest_simple_paths("A", "D"), 3)]
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        t = self._resolve_node_id(target, auto_create=False)
+        it = rust.shortest_simple_paths(self._graph, s, t, self._use_weights(weighted))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "shortest_simple_paths",
+                f"G.shortest_simple_paths({self._node_label(s)!r}, {self._node_label(t)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(s), self._node_label(t)]),
+                narration=f"Enumerating simple paths from {self._node_label(s)} to "
+                f"{self._node_label(t)}, shortest first.",
+            )
+        return it
+
+    def all_simple_edge_paths(
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        cutoff: int | None = None,
+    ) -> list[list[int]]:
+        """
+        List every simple path between two nodes as a sequence of edge IDs.
+
+        ![All simple edge paths](/assets/graphs/all-simple-edge-paths.light.svg){.lightbox fig-alt="Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one edge between B and C (id 3). Both routes visit the same nodes but use different edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in teal; both share edge 3." width="100%"}
+
+        Like `get_all_simple_paths()`, but each path is given by its edges rather than its nodes,
+        so parallel edges produce distinct paths: two flights on the same route, two cables
+        between the same racks, or two reactions linking the same metabolites are told apart. A
+        path never visits a node twice. Edge direction is followed on directed graphs.
+
+        The number of simple paths can grow exponentially; use `cutoff=` to bound their length.
+
+        Parameters
+        ----------
+        source, target
+            The endpoints, as IDs or labels.
+        cutoff
+            Optional maximum number of edges per path.
+
+        Returns
+        -------
+        list[list[int]]
+            Each path as the list of its edge IDs, in travel order. Empty when `source` and
+            `target` are the same node.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist.
+
+        Technical Notes
+        ---------------
+        Depth-first search over edges with the current path's nodes blocked, as in NetworkX's
+        `all_simple_edge_paths` (which yields `(u, v, key)` triples on multigraphs).
+
+        Examples
+        --------
+        Two parallel links from A to B, then one to C, give two distinct edge paths:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("A", "B"), ("B", "C")])
+
+        g.all_simple_edge_paths("A", "C")
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        t = self._resolve_node_id(target, auto_create=False)
+        paths = rust.simple_edge_paths(self._graph, s, t, cutoff)
+        if self._recording_depth == 0:
+            delta = StepDelta(nodes_selected=[self._node_label(s), self._node_label(t)])
+            if paths:
+                pairs = []
+                for e in paths[0]:
+                    a, b = self.get_node_ids_by_edge_id(e)
+                    pairs.append((self._node_label(a), self._node_label(b)))
+                delta.edges_selected = pairs
+            self._record_step(
+                KIND_QUERY,
+                "all_simple_edge_paths",
+                f"G.all_simple_edge_paths({self._node_label(s)!r}, {self._node_label(t)!r})",
+                delta=delta,
+                result=paths,
+                narration=f"{len(paths)} simple edge paths.",
+            )
+        return paths
+
     def k_shortest_paths(
         self,
         source: Union[int, str],
