@@ -4,6 +4,7 @@ from typing import Any, Callable, Optional, Union
 import polars as pl
 
 from edgecase import _core as rust
+from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.steps import (
     KIND_ANNOTATE,
     KIND_BUILD_EDGES,
@@ -1101,10 +1102,10 @@ class Graph:
 
         Raises
         ------
+        NodeNotFoundError
+            If `from_node=` or `to_node=` refers to a node that doesn't exist. Nothing is added.
         ValueError
-            If another node already has this label (nothing is added). If `from_node=` or
-            `to_node=` refers to a node that doesn't exist; the new node has already been added at
-            that point, so it remains in the graph without the edge.
+            If another node already has this label. Nothing is added.
 
         Examples
         --------
@@ -1166,6 +1167,10 @@ class Graph:
         ```
 
         """
+        # Resolve the nodes to connect first, so a missing one raises before anything is added
+        from_id = self._resolve_node_id(from_node) if from_node is not None else None
+        to_id = self._resolve_node_id(to_node) if to_node is not None else None
+
         # Handle direct Rust Node object (for backward compatibility)
         if isinstance(label, rust.Node):
             new_id = self._graph.add_node(label)
@@ -1183,14 +1188,14 @@ class Graph:
             new_id = self._graph.add_node(node)
 
         # Add edges if from_node or to_node specified
-        if from_node is not None:
+        if from_id is not None:
             self._recording_depth += 1
-            self.add_edge(new_id, from_node)
+            self.add_edge(new_id, from_id)
             self._recording_depth -= 1
 
-        if to_node is not None:
+        if to_id is not None:
             self._recording_depth += 1
-            self.add_edge(to_node, new_id)
+            self.add_edge(to_id, new_id)
             self._recording_depth -= 1
 
         # Record step (only at top-level)
@@ -2135,7 +2140,7 @@ class Graph:
             except OverflowError:  # negative or beyond u64: can't be a node ID
                 exists = False
             if not exists:
-                raise ValueError(f"Node {node!r} does not exist in the graph")
+                raise NodeNotFoundError(f"Node {node!r} does not exist in the graph")
             return node
         elif isinstance(node, str):
             # Try to resolve label to ID
@@ -2149,7 +2154,7 @@ class Graph:
                     self.add_node(label=node)
                     return self._graph.id_from_label(node)
                 else:
-                    raise ValueError(f"Node with label '{node}' not found in graph")
+                    raise NodeNotFoundError(f"Node with label '{node}' not found in graph")
         else:
             raise TypeError(f"Node identifier must be int or str, got {type(node)}")
 
@@ -2225,8 +2230,10 @@ class Graph:
 
         Raises
         ------
-        KeyError
+        NodeNotFoundError
             If the node doesn't exist in the graph (either an unknown label or an unknown ID).
+            It is a subclass of `KeyError` (which this method has always raised) and of
+            `ValueError`.
 
         Examples
         --------
@@ -2273,11 +2280,8 @@ class Graph:
         ```
 
         """
-        try:
-            node_id = self._resolve_node_id(node, auto_create=False)
-        except ValueError as e:
-            # Convert ValueError to KeyError for consistency
-            raise KeyError(str(e))
+        # NodeNotFoundError is also a KeyError, which this method has always raised
+        node_id = self._resolve_node_id(node, auto_create=False)
 
         node_label = self.get_label_from_id(node_id) or str(node)
 
@@ -2337,12 +2341,14 @@ class Graph:
 
         Raises
         ------
-        KeyError
+        EdgeNotFoundError
             If no edge exists matching the criteria (no edge between the two nodes, or no edge
-            with the given ID).
+            with the given ID). It is a subclass of both `KeyError` and `ValueError`.
+        NodeNotFoundError
+            If `source=` or `target=` doesn't match any node (also a `KeyError` and a
+            `ValueError`).
         ValueError
-            If neither (`source`, `target`) nor `id` is provided, or if a label given for
-            `source=` or `target=` doesn't match any node.
+            If neither (`source`, `target`) nor `id` is provided.
 
         Examples
         --------
@@ -2406,6 +2412,8 @@ class Graph:
         """
         if id is not None:
             # Delete by edge ID
+            if not self._graph.has_edge_id(id):
+                raise EdgeNotFoundError(f"Edge with ID {id} does not exist")
             self._graph.delete_edge_by_id(id)
         elif source is not None and target is not None:
             # Resolve labels to IDs
@@ -2416,7 +2424,7 @@ class Graph:
             if len(edge_ids) > 0:
                 self._graph.delete_edge_by_id(edge_ids[0])
             else:
-                raise KeyError(f"No edge found from '{source}' to '{target}'")
+                raise EdgeNotFoundError(f"No edge found from '{source}' to '{target}'")
         else:
             raise ValueError("Must specify either (source, target) or id")
 
@@ -6480,7 +6488,7 @@ class Graph:
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
 
-    def get_edge(self, edge_id: int) -> Optional[rust.Edge]:
+    def get_edge(self, edge_id: int) -> rust.Edge:
         """
         Get an edge object by an edge ID.
 
@@ -6509,13 +6517,17 @@ class Graph:
         ----------
         edge_id
             The integer ID of the edge to retrieve. Edge IDs are assigned automatically,
-            starting at `1`, in the order edges are added. An ID that doesn't exist returns
-            `None`.
+            starting at `1`, in the order edges are added.
 
         Returns
         -------
-        Edge | None
-            `Edge` object, or `None` if no edge has that ID.
+        Edge
+            The `Edge` object.
+
+        Raises
+        ------
+        EdgeNotFoundError
+            If no edge has this ID (a subclass of both `ValueError` and `KeyError`).
 
         Examples
         --------
@@ -6560,14 +6572,17 @@ class Graph:
         graph.get_edge(edge_id)
         ```
 
-        An edge ID that doesn't exist returns `None` rather than raising:
+        An edge ID that doesn't exist raises; `has_edge_id()` checks first:
 
         ```{python}
-        graph.get_edge(99) is None
+        graph.has_edge_id(99)
         ```
 
         """
-        return self._graph.get_edge(edge_id)
+        edge = self._graph.get_edge(edge_id)
+        if edge is None:
+            raise EdgeNotFoundError(f"Edge with ID {edge_id} does not exist")
+        return edge
 
     # ==============================================================================
     # Graph Inspection
@@ -6894,7 +6909,7 @@ class Graph:
         ![Label from id](/assets/graphs/get-label-from-id.light.svg){.lightbox fig-alt="The shared four-node graph with node ids in pills. The queried id 2 is highlighted, and the node it belongs to, B, is filled in the accent color. The card returns the label B." width="100%"}
 
         Translates an internal `u64` node ID to its human-readable string label. Returns `None` if
-        the node doesn't exist or has no label assigned.
+        the node has no label assigned, and raises `NodeNotFoundError` if it doesn't exist.
 
         Many methods return node IDs -- `get_node_ids()`, `neighbors()`, shortest paths, and
         the dictionaries from centrality and community methods with `return_dict=True` -- so this
@@ -6902,23 +6917,27 @@ class Graph:
         `{graph.get_label_from_id(nid): value for nid, value in result.items()}`.
         `get_id_from_label()` does the reverse translation.
 
-        The method never raises. Keep in mind that `None` is ambiguous: it is returned both for
-        IDs that aren't in the graph and for nodes that exist but have no label (as with nodes
-        made by random generators like `add_gnp_graph()`). Use `get_node()` if you need to tell
-        the two cases apart.
+        `None` therefore always means a node that exists but has no label (as with nodes made by
+        random generators like `add_gnp_graph()`); use `has_node()` first if an ID may be
+        missing.
 
         Parameters
         ----------
         node_id
             The integer node ID to look up, as returned by `get_node_ids()`,
-            `get_id_from_label()`, and similar methods. Values that aren't valid IDs return
-            `None`.
+            `get_id_from_label()`, and similar methods.
 
         Returns
         -------
         str | None
-            The string label if it exists, or `None` if the node has no label or doesn't exist in
-            the graph.
+            The string label, or `None` if the node has no label.
+
+        Raises
+        ------
+        NodeNotFoundError
+            If no node has this ID (a subclass of both `ValueError` and `KeyError`).
+        TypeError
+            If `node_id=` isn't an `int`.
 
         Examples
         --------
@@ -6937,10 +6956,10 @@ class Graph:
         graph.get_label_from_id(1)
         ```
 
-        A node ID that doesn't exist returns `None`:
+        A node ID that doesn't exist raises, so check with `has_node()` when it may be missing:
 
         ```{python}
-        graph.get_label_from_id(999)
+        graph.has_node(999)
         ```
 
         Results keyed by node ID become much easier to read once the IDs are swapped for
@@ -6958,14 +6977,15 @@ class Graph:
         ```{python}
         random_graph = ec.Graph().add_gnp_graph(n=3, p=0.5, seed=1)
 
-        random_graph.get_label_from_id(1), random_graph.get_node(1) is not None
+        random_graph.get_label_from_id(1), random_graph.has_node(1)
         ```
 
         """
-        try:
-            return self._graph.label_from_id(node_id)
-        except (ValueError, Exception):
-            return None
+        # None means "exists but unlabelled"; an unknown ID raises like everywhere else
+        if isinstance(node_id, bool) or not isinstance(node_id, int):
+            raise TypeError(f"node_id must be an int, got {type(node_id)}")
+        self._resolve_node_id(node_id)
+        return self._graph.label_from_id(node_id)
 
     def relabel_nodes(self, mapping: Union[dict, Callable[[str], str]]) -> "Graph":
         """
@@ -11548,8 +11568,9 @@ class Graph:
 
         Raises
         ------
-        KeyError
-            If any node ID doesn't exist in the graph.
+        NodeNotFoundError
+            If any node ID doesn't exist in the graph (a subclass of both `KeyError` and
+            `ValueError`).
         TypeError
             If `node_ids=` contains a non-integer such as a label.
 
@@ -11603,7 +11624,10 @@ class Graph:
         ```
 
         """
-        self._graph.select_nodes_by_id(node_ids)
+        try:
+            self._graph.select_nodes_by_id(node_ids)
+        except KeyError as e:  # Rust checks every ID first, so nothing was selected
+            raise NodeNotFoundError(e.args[0]) from None
 
         if self._recording_depth == 0:
             code = f"G.select_nodes_by_id(...)  # {len(node_ids)} selected"
@@ -11647,8 +11671,9 @@ class Graph:
 
         Raises
         ------
-        KeyError
-            If any edge ID doesn't exist in the graph.
+        EdgeNotFoundError
+            If any edge ID doesn't exist in the graph (a subclass of both `KeyError` and
+            `ValueError`).
 
         Examples
         --------
@@ -11690,7 +11715,10 @@ class Graph:
         ```
 
         """
-        self._graph.select_edges_by_id(edge_ids)
+        try:
+            self._graph.select_edges_by_id(edge_ids)
+        except KeyError as e:  # Rust checks every ID first, so nothing was selected
+            raise EdgeNotFoundError(e.args[0]) from None
 
         if self._recording_depth == 0:
             code = f"G.select_edges_by_id(...)  # {len(edge_ids)} selected"
