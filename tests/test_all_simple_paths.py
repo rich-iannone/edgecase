@@ -409,7 +409,7 @@ class TestUnlabelledAndMissingEndpoints:
 
     def test_missing_integer_id_raises_value_error(self):
         g = Graph().add_path_graph(3)
-        with pytest.raises(ValueError, match="Source node 999 does not exist"):
+        with pytest.raises(ValueError, match="Node 999 does not exist"):
             g.get_all_simple_paths(999, 1)
-        with pytest.raises(ValueError, match="Target node 999 does not exist"):
+        with pytest.raises(ValueError, match="Node 999 does not exist"):
             g.get_all_simple_paths(1, 999)
