@@ -39,15 +39,11 @@ def test_add_single_node(empty_graph):
 
 
 def test_add_duplicate_node(empty_graph):
-    """Adding duplicate label creates nodes with different IDs"""
+    """Labels are unique: adding an existing label raises and adds nothing"""
     empty_graph.add_node("A")
-    empty_graph.add_node("A")
-    # Two nodes with same label but different IDs
-    assert empty_graph.count_nodes() == 2
-    # Both nodes have label "A", but different internal IDs
-    node_ids = empty_graph.get_node_ids(limit=None)
-    assert len(node_ids) == 2
-    assert node_ids[0] != node_ids[1]
+    with pytest.raises(ValueError, match="Node with label 'A' already exists"):
+        empty_graph.add_node("A")
+    assert empty_graph.count_nodes() == 1
 
 
 def test_add_multiple_nodes(empty_graph):
