@@ -253,15 +253,31 @@ pub fn edge_values(py: Python, graph: &Graph, edge_ids: Vec<u64>, weight_attr: O
         .collect()
 }
 
-/// A graph with every node of `graph` (IDs, labels and attributes kept) and only the given
-/// edges (weights and attributes copied), with the same directedness and weighting.
+/// A graph with every node of `graph` (or only `node_ids`, if given) and only the given edges,
+/// with the same directedness and weighting. Node and edge IDs, labels, weights and (copied)
+/// attributes are all kept.
 #[pyfunction]
-pub fn spanning_subgraph(py: Python, graph: &Graph, edge_ids: Vec<u64>) -> PyResult<Graph> {
+#[pyo3(signature = (graph, edge_ids, node_ids=None))]
+pub fn spanning_subgraph(
+    py: Python,
+    graph: &Graph,
+    edge_ids: Vec<u64>,
+    node_ids: Option<Vec<u64>>,
+) -> PyResult<Graph> {
     let mut result = Graph::new_rust(graph.is_directed(), graph.is_weighted());
-    let (ids, _) = sorted_ids(graph);
+    let ids = match node_ids {
+        Some(mut ids) => {
+            ids.sort_unstable();
+            ids.dedup();
+            ids
+        }
+        None => sorted_ids(graph).0,
+    };
     let nodes = graph.get_nodes();
     for id in ids {
-        let node = &nodes[&id];
+        let Some(node) = nodes.get(&id) else {
+            return value_err(format!("Node with ID {id} not found in graph"));
+        };
         let attributes = match &node.attributes {
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
@@ -277,7 +293,7 @@ pub fn spanning_subgraph(py: Python, graph: &Graph, edge_ids: Vec<u64>) -> PyRes
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_edge_rust(Edge { id: 0, source: e.source, target: e.target, weight: e.weight, attributes })?;
+        result.add_edge_rust(Edge { id: eid, source: e.source, target: e.target, weight: e.weight, attributes })?;
     }
     Ok(result)
 }
