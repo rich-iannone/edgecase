@@ -8492,6 +8492,7 @@ class Graph:
     def bipartite_projection(
         self,
         which: int = 0,
+        weighting: str = "count",
     ) -> "Graph":
         """
         Project a bipartite graph onto one of its partitions.
@@ -8527,17 +8528,31 @@ class Graph:
             is the side containing the component's lowest node ID, so it's often clearest to
             look up the partition that holds a known node (see the examples). Any other value
             raises an error.
+        weighting
+            How projected edges are weighted, for nodes `u` and `v` with neighbor sets `N(u)`
+            and `N(v)` in the other partition:
+
+            - `"count"` (default): the number of shared neighbors, `|N(u) & N(v)|`
+            - `"collaboration"`: Newman's collaboration weight, the sum over shared neighbors
+              `n` of `1 / (deg(n) - 1)`, so a shared paper with many authors counts for less
+            - `"jaccard"`: `|N(u) & N(v)| / |N(u) | N(v)|`
+            - `"overlap"`: `|N(u) & N(v)| / min(|N(u)|, |N(v)|)`
+
+            These match NetworkX's `weighted_projected_graph`,
+            `collaboration_weighted_projected_graph` and `overlap_weighted_projected_graph`
+            (with `jaccard=True` and `jaccard=False`).
 
         Returns
         -------
         Graph
             A new undirected, weighted graph containing only the nodes of the chosen partition,
-            with edges weighted by shared-neighbor counts.
+            with edges weighted as chosen by `weighting=`.
 
         Raises
         ------
         ValueError
-            If the graph is not bipartite, or if `which=` is not `0` or `1`.
+            If the graph is not bipartite, `which=` is not `0` or `1`, or `weighting=` is
+            unknown.
 
         Examples
         --------
@@ -8620,10 +8635,666 @@ class Graph:
                 rust.Node(id=node_id, label=node.label, attributes=node.attributes)
             )
 
+        if weighting not in ("count", "collaboration", "jaccard", "overlap"):
+            raise ValueError("weighting= must be 'count', 'collaboration', 'jaccard' or 'overlap'")
+        nbrs = self._neighbor_sets() if weighting != "count" else {}
         for source_id, target_id, weight in edges:
+            if weighting != "count":
+                a, b = nbrs[source_id], nbrs[target_id]
+                shared = a & b
+                if weighting == "collaboration":
+                    weight = sum(1.0 / (len(nbrs[n]) - 1) for n in shared if len(nbrs[n]) > 1)
+                elif weighting == "jaccard":
+                    weight = len(shared) / len(a | b)
+                else:
+                    weight = len(shared) / min(len(a), len(b))
             proj.add_edge(source_id, target_id, weight=weight)
 
         return proj
+
+    def _neighbor_sets(self) -> dict[int, set[int]]:
+        """Distinct neighbors of every node, ignoring edge direction (self-loops included)."""
+        nbrs: dict[int, set[int]] = {n: set() for n in self.get_node_ids(limit=None)}
+        for _, s, t in self.get_edges_as_tuples():
+            nbrs[s].add(t)
+            nbrs[t].add(s)
+        return nbrs
+
+    def latapy_clustering(
+        self, nodes: list[Union[int, str]] | None = None, mode: str = "dot"
+    ) -> dict[int, float]:
+        r"""
+        Compute the bipartite clustering coefficient of each node (Latapy et al.).
+
+        ![Latapy bipartite clustering](/assets/graphs/latapy-clustering.light.svg){.lightbox fig-alt="People ann, bob and cy on top and the events party, talk and game below, all teal. Each person is shaded by the mean Jaccard overlap of their events with those of the people two steps away. ann and bob attended the same two events (overlap 1) and share one of cy's three (1/3), so both score 0.67; cy overlaps each of them by 1/3 and scores 0.33." width="100%"}
+
+        A bipartite graph has no triangles, so the usual clustering coefficient is always zero.
+        Latapy, Magnien and Del Vecchio (2008) measure clustering instead by how much a node's
+        neighborhood overlaps with the neighborhoods of nodes two steps away (on its own side):
+        two authors who share many papers, or two customers who bought the same products, have
+        overlapping neighborhoods. The coefficient of a node is the average overlap with all
+        nodes at distance two, which shows how cohesive its local bipartite neighborhood is.
+
+        The overlap of two neighborhoods $N(u)$ and $N(v)$ is chosen by `mode=`:
+
+        - `"dot"` (default): $|N(u) \cap N(v)| / |N(u) \cup N(v)|$ (Jaccard)
+        - `"min"`: $|N(u) \cap N(v)| / \min(|N(u)|, |N(v)|)$
+        - `"max"`: $|N(u) \cap N(v)| / \max(|N(u)|, |N(v)|)$
+
+        Edge direction and parallel edges are ignored.
+
+        Parameters
+        ----------
+        nodes
+            Optional nodes (IDs or labels) to report. If `None` (default), all nodes.
+        mode
+            `"dot"` (default), `"min"` or `"max"`.
+
+        Returns
+        -------
+        dict[int, float]
+            Node ID to its clustering coefficient, between 0 and 1.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not bipartite, `mode` is unknown, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        For each node, the second neighborhood is collected and every pair is compared with set
+        operations, $O(\sum_v \sum_{u \in N_2(v)} \deg)$ overall. Matches NetworkX's
+        `bipartite.latapy_clustering` (also called `bipartite.clustering`).
+
+        Examples
+        --------
+        Two people who attended the same two events have identical neighborhoods, while a third
+        shares only one event with them:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "party", "talk", "game"])
+        g.add_edges(
+            [("ann", "party"), ("ann", "talk"), ("bob", "party"), ("bob", "talk"),
+             ("cy", "talk"), ("cy", "game")]
+        )
+
+        cc = g.latapy_clustering(nodes=["ann", "bob", "cy"])
+        {g.get_label_from_id(n): round(c, 3) for n, c in cc.items()}
+        ```
+        """
+        overlap = {
+            "dot": lambda a, b: len(a & b) / len(a | b),
+            "min": lambda a, b: len(a & b) / min(len(a), len(b)),
+            "max": lambda a, b: len(a & b) / max(len(a), len(b)),
+        }
+        if mode not in overlap:
+            raise ValueError("mode= must be 'dot', 'min' or 'max'")
+        if not self.is_bipartite():
+            raise ValueError("the graph is not bipartite")
+        f = overlap[mode]
+        nbrs = self._neighbor_sets()
+        targets = (
+            sorted(nbrs)
+            if nodes is None
+            else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        result = {}
+        for v in targets:
+            second = {u for x in nbrs[v] for u in nbrs[x]} - {v}
+            cc = sum(f(nbrs[u], nbrs[v]) for u in second)
+            result[v] = cc / len(second) if cc > 0 else 0.0
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "latapy_clustering",
+                "G.latapy_clustering()",
+                delta=StepDelta(metric_values={self._node_label(n): c for n, c in result.items()}),
+                narration=f"Bipartite clustering ({mode}) for {len(result)} nodes.",
+            )
+        return result
+
+    def robins_alexander_clustering(self) -> float:
+        r"""
+        Compute the Robins-Alexander bipartite clustering coefficient of the whole graph.
+
+        ![Robins-Alexander clustering](/assets/graphs/robins-alexander-clustering.light.svg){.lightbox fig-alt="The complete bipartite graph K(2,3): a and b on top, each joined to x, y and z below. Every path of length three closes into a square, like a, x, b, y in the accent color. The card counts 3 squares and 12 paths of length three, so the coefficient is 4 times 3 over 12, which is 1.0." width="100%"}
+
+        Robins and Alexander (2004) measure clustering in two-mode networks (people and events,
+        directors and boards) by counting squares: the fraction of paths of length three that
+        close into a 4-cycle, $4 C_4 / L_3$. A square means two people who share two events, the
+        bipartite counterpart of a triangle, so a high value indicates that co-memberships tend
+        to repeat, as in interlocking boards.
+
+        Edge direction and parallel edges are ignored.
+
+        Returns
+        -------
+        float
+            The coefficient, between 0 and 1 (`0` for graphs with fewer than four nodes or three
+            edges, or without paths of length three).
+
+        Technical Notes
+        ---------------
+        $C_4$ is counted from pairs of nodes at distance two and their number of common
+        neighbors, and $L_3$ by extending every edge both ways. Matches NetworkX's
+        `bipartite.robins_alexander_clustering`.
+
+        Examples
+        --------
+        A complete bipartite graph $K_{2,3}$ has every 3-path closed by a square:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
+        g.add_edges([(u, v) for u in "ab" for v in "xyz"])
+        g.robins_alexander_clustering()
+        ```
+        """
+        nbrs = self._neighbor_sets()
+        edges = {frozenset((s, t)) for _, s, t in self.get_edges_as_tuples()}
+        if len(nbrs) < 4 or len(edges) < 3:
+            return 0.0
+        paths = 0
+        for v in nbrs:
+            for u in nbrs[v]:
+                for w in nbrs[u] - {v}:
+                    paths += len(nbrs[w] - {v, u})
+        paths /= 2
+        if paths == 0:
+            return 0.0
+        cycles, seen = 0, set()
+        for v in sorted(nbrs):
+            seen.add(v)
+            if len(nbrs[v]) < 2:
+                continue
+            two_hop = set().union(*(nbrs[u] for u in nbrs[v])) - seen
+            for x in two_hop:
+                p2 = len(nbrs[v] & nbrs[x])
+                cycles += p2 * (p2 - 1)
+        value = 4.0 * (cycles / 4) / paths
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "robins_alexander_clustering",
+                "G.robins_alexander_clustering()",
+                result=value,
+                narration=f"Robins-Alexander clustering: {value:.3g}.",
+            )
+        return value
+
+    def node_redundancy(self, nodes: list[Union[int, str]] | None = None) -> dict[int, float]:
+        """
+        Compute the redundancy coefficient of nodes in a bipartite graph.
+
+        ![Node redundancy](/assets/graphs/node-redundancy.light.svg){.lightbox fig-alt="The same people and events graph. ann attended party and talk, and bob attended both too, so the pair stays linked without ann: ann scores 1.0, and bob, covered by ann, also 1.0. cy is the only one at both talk and game, so the edges joining them, in the accent color, are the pair's sole link and cy scores 0.0." width="100%"}
+
+        The redundancy of a node (Latapy et al., 2008) is the fraction of pairs of its neighbors
+        that are also linked through some other node: if a person attends two events, would the
+        two events still share an attendee without that person? A redundancy of 1 means the
+        node's co-memberships are all duplicated by others, so removing it would not change the
+        projection onto the other side; a redundancy of 0 means the node is the only link
+        between each pair of its groups (a broker).
+
+        Every node reported must have at least two neighbors. Edge direction and parallel edges
+        are ignored.
+
+        Parameters
+        ----------
+        nodes
+            Optional nodes (IDs or labels) to report. If `None` (default), all nodes.
+
+        Returns
+        -------
+        dict[int, float]
+            Node ID to its redundancy, between 0 and 1.
+
+        Raises
+        ------
+        ValueError
+            If a reported node has fewer than two neighbors, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        For a node with $n$ neighbors, every one of the $n(n - 1)/2$ neighbor pairs is checked
+        for a common neighbor other than the node. Matches NetworkX's
+        `bipartite.node_redundancy`.
+
+        Examples
+        --------
+        Ann's two events are also shared by Bob, so Ann is fully redundant; Cy is the only person
+        linking the talk and the game:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "party", "talk", "game"])
+        g.add_edges(
+            [("ann", "party"), ("ann", "talk"), ("bob", "party"), ("bob", "talk"),
+             ("cy", "talk"), ("cy", "game")]
+        )
+
+        red = g.node_redundancy(nodes=["ann", "bob", "cy"])
+        {g.get_label_from_id(n): r for n, r in red.items()}
+        ```
+        """
+        nbrs = self._neighbor_sets()
+        targets = (
+            sorted(nbrs)
+            if nodes is None
+            else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        for v in targets:
+            if len(nbrs[v]) < 2:
+                raise ValueError(
+                    f"node {self._node_label(v)!r} has fewer than two neighbors; its redundancy "
+                    "is undefined"
+                )
+        result = {}
+        for v in targets:
+            ns = sorted(nbrs[v])
+            n = len(ns)
+            overlap = sum(
+                1 for i, u in enumerate(ns) for w in ns[i + 1 :] if (nbrs[u] & nbrs[w]) - {v}
+            )
+            result[v] = 2 * overlap / (n * (n - 1))
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "node_redundancy",
+                "G.node_redundancy()",
+                delta=StepDelta(metric_values={self._node_label(n): r for n, r in result.items()}),
+                narration=f"Redundancy of {len(result)} nodes.",
+            )
+        return result
+
+    def spectral_bipartivity(
+        self, nodes: list[Union[int, str]] | None = None, weighted: bool | None = None
+    ) -> "float | dict[int, float]":
+        r"""
+        Measure how close an undirected graph is to being bipartite (spectral bipartivity).
+
+        ![Spectral bipartivity](/assets/graphs/spectral-bipartivity.light.svg){.lightbox fig-alt="Left: the square 1, 2, 3, 4 has only even cycles, so every closed walk has even length and spectral_bipartivity() returns 1.0. Right: the same square plus the diagonal 1 to 3, in the accent color, which closes the triangles 1, 2, 3 and 1, 3, 4; odd closed walks now count against it and the value drops to 0.795." width="100%"}
+
+        Estrada and Rodríguez-Velázquez (2005) weigh every closed walk by $1 / k!$ for its length
+        $k$: a graph is bipartite exactly when it has no closed walks of odd length, so the share
+        of even closed walks, $\mathrm{tr}\cosh(A) / \mathrm{tr}\, e^{A}$, equals 1 for bipartite
+        graphs and drops toward 1/2 as odd cycles (triangles above all) take over. It grades
+        "almost bipartite" networks, such as protein interaction or food webs with a two-mode
+        backbone. Per-node values show which nodes take part in odd cycles.
+
+        Parameters
+        ----------
+        nodes
+            Optional nodes (IDs or labels): return each node's own bipartivity,
+            $\cosh(A)_{ii} / (e^A)_{ii}$, instead of the graph value.
+        weighted
+            Whether to use edge weights in $A$. If `None` (default), follows the graph's
+            `weighted` flag.
+
+        Returns
+        -------
+        float or dict[int, float]
+            The graph's bipartivity (between 1/2 and 1), or a node-to-value dictionary.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or a node does not exist.
+
+        Technical Notes
+        ---------------
+        The matrix functions are evaluated from one symmetric eigendecomposition
+        $A = V \Lambda V^\top$: $(e^A)_{ii} = \sum_k V_{ik}^2 e^{\lambda_k}$ and likewise with
+        $\cosh$, in $O(n^3)$ time. Matches NetworkX's `bipartite.spectral_bipartivity` (which
+        uses `scipy.linalg.expm`).
+
+        Examples
+        --------
+        A square is perfectly bipartite; adding one diagonal creates triangles:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_cycle_graph(4)
+        before = square.spectral_bipartivity()
+        ids = sorted(square.get_node_ids(limit=None))
+        square.add_edge(ids[0], ids[2])
+
+        before, round(square.spectral_bipartivity(), 3)
+        ```
+        """
+        ids, cosh, exp = rust.exp_cosh_diagonals(self._graph, self._use_weights(weighted))
+        if nodes is None:
+            value = float(sum(cosh) / sum(exp)) if ids else 1.0
+        else:
+            pos = {n: i for i, n in enumerate(ids)}
+            value = {}
+            for n in nodes:
+                nid = self._resolve_node_id(n, auto_create=False)
+                value[nid] = cosh[pos[nid]] / exp[pos[nid]]
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "spectral_bipartivity",
+                "G.spectral_bipartivity()",
+                result=value,
+                narration=(
+                    f"Spectral bipartivity: {value:.4g}."
+                    if isinstance(value, float)
+                    else f"Spectral bipartivity of {len(value)} nodes."
+                ),
+            )
+        return value
+
+    def birank(
+        self,
+        top_nodes: list[Union[int, str]],
+        alpha: float | None = None,
+        beta: float | None = None,
+        top_personalization: dict | None = None,
+        bottom_personalization: dict | None = None,
+        max_iter: int = 100,
+        tol: float = 1.0e-6,
+        weighted: bool | None = None,
+    ) -> dict[int, float]:
+        r"""
+        Rank the nodes of a bipartite graph with BiRank.
+
+        ![BiRank](/assets/graphs/birank.light.svg){.lightbox fig-alt="Customers ann, cy and bob on top and products jam, tea and bread below, every node shaded by its BiRank score; each side sums to 1. tea, bought by all three, is the top product at 0.464, ahead of jam and bread at 0.268, and ann and bob, who bought tea plus one more, lead the customers at 0.369, ahead of cy at 0.261." width="100%"}
+
+        BiRank (He et al., 2017) ranks both sides of a bipartite network at once, in the spirit
+        of PageRank: a node is important when it is connected to important nodes on the other
+        side, with each edge's influence normalized by both endpoints' degrees so that hubs do not
+        dominate. Optional personalization vectors pull the ranking toward a query, which makes
+        it a recommendation method: ranking products for a customer, papers for an author, or
+        drugs for a disease.
+
+        Parameters
+        ----------
+        top_nodes
+            The nodes on one side (IDs or labels); every other node is on the bottom side.
+        alpha, beta
+            How much the top (`alpha`) and bottom (`beta`) scores follow the propagated scores
+            versus the personalization, between 0 and 1. Default 0.8 for a side with
+            personalization, otherwise 1.
+        top_personalization, bottom_personalization
+            Optional dictionaries of non-negative query weights, keyed by node ID or label.
+        max_iter
+            Maximum number of iterations (default 100).
+        tol
+            Convergence tolerance (default `1e-6`).
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag.
+
+        Returns
+        -------
+        dict[int, float]
+            Node ID to score, for both sides. Without personalization, each side's scores sum to 1.
+
+        Raises
+        ------
+        ValueError
+            If a side is empty, `alpha` or `beta` is outside $[0, 1]$, a personalization value
+            is negative, a node does not exist, or the iteration does not converge.
+
+        Technical Notes
+        ---------------
+        With the bottom-by-top weight matrix $W$ and $S = D_u^{-1/2} W D_p^{-1/2}$, the scores
+        alternate $p \leftarrow \alpha S^\top u + (1 - \alpha) p_0$ and $u \leftarrow \beta S p +
+        (1 - \beta) u_0$ from a uniform $p$, until both change by less than the tolerance; without
+        personalization the result is normalized to sum 1 per side. This is NetworkX's
+        `bipartite.birank`, step for step.
+
+        Examples
+        --------
+        Customers and the products they bought: the most popular product, and the customer who
+        bought popular products, rank highest:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "tea", "jam", "bread"])
+        g.add_edges(
+            [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "bread"), ("cy", "tea")]
+        )
+
+        scores = g.birank(top_nodes=["ann", "bob", "cy"])
+        {g.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        ```
+        """
+        top = {self._resolve_node_id(n, auto_create=False) for n in top_nodes}
+        bottom = set(self.get_node_ids(limit=None)) - top
+        if not top or not bottom:
+            raise ValueError("BiRank needs at least one node on each side")
+
+        def clean(d):
+            if d is None:
+                return {}
+            out = {self._resolve_node_id(k, auto_create=False): v for k, v in d.items()}
+            if any(v < 0 for v in out.values()):
+                raise ValueError("personalization values must be non-negative")
+            return {k: v for k, v in out.items() if v != 0}
+
+        p0d, u0d = clean(top_personalization), clean(bottom_personalization)
+        alpha = (0.8 if p0d else 1) if alpha is None else alpha
+        beta = (0.8 if u0d else 1) if beta is None else beta
+        if not (0 <= alpha <= 1 and 0 <= beta <= 1):
+            raise ValueError("alpha and beta must be between 0 and 1")
+        tops, bottoms = sorted(top), sorted(bottom)
+        ti = {n: i for i, n in enumerate(tops)}
+        bi = {n: i for i, n in enumerate(bottoms)}
+        use = self._use_weights(weighted)
+        w: dict[tuple[int, int], float] = {}
+        for eid, s, t in self.get_edges_as_tuples():
+            weight = (self.get_edge(eid).weight or 1.0) if use else 1.0
+            if s in bi and t in ti:
+                w[(bi[s], ti[t])] = w.get((bi[s], ti[t]), 0.0) + weight
+            elif t in bi and s in ti:
+                w[(bi[t], ti[s])] = w.get((bi[t], ti[s]), 0.0) + weight
+        pdeg = [0.0] * len(tops)
+        udeg = [0.0] * len(bottoms)
+        for (b, t), x in w.items():
+            pdeg[t] += x
+            udeg[b] += x
+        pdeg = [d if d != 0 else 1.0 for d in pdeg]
+        udeg = [d if d != 0 else 1.0 for d in udeg]
+        s_entries = [(b, t, x / (udeg[b] ** 0.5 * pdeg[t] ** 0.5)) for (b, t), x in w.items()]
+        p0 = [p0d.get(n, 0.0) for n in tops]
+        u0 = [u0d.get(n, 0.0) for n in bottoms]
+
+        def s_times(p):
+            out = [0.0] * len(bottoms)
+            for b, t, x in s_entries:
+                out[b] += x * p[t]
+            return out
+
+        def st_times(u):
+            out = [0.0] * len(tops)
+            for b, t, x in s_entries:
+                out[t] += x * u[b]
+            return out
+
+        p = [1.0 / len(tops)] * len(tops)
+        u = [beta * x + (1 - beta) * y for x, y in zip(s_times(p), u0)]
+        for _ in range(max_iter):
+            p_last, u_last = p, u
+            p = [alpha * x + (1 - alpha) * y for x, y in zip(st_times(u), p0)]
+            u = [beta * x + (1 - beta) * y for x, y in zip(s_times(p), u0)]
+            err_u = sum(abs((a - b) / max(1.0, a)) for a, b in zip(u_last, u))
+            if err_u >= len(u) * tol:
+                continue
+            err_p = sum(abs((a - b) / max(1.0, a)) for a, b in zip(p_last, p))
+            if err_p >= len(p) * tol:
+                continue
+            if alpha == 1 and beta == 1:
+                sp, su = sum(abs(x) for x in p), sum(abs(x) for x in u)
+                p = [x / sp for x in p] if sp else p
+                u = [x / su for x in u] if su else u
+            result = dict(zip(tops, p)) | dict(zip(bottoms, u))
+            if self._recording_depth == 0:
+                self._record_step(
+                    KIND_METRIC,
+                    "birank",
+                    "G.birank(top_nodes)",
+                    delta=StepDelta(
+                        metric_values={self._node_label(n): s for n, s in result.items()}
+                    ),
+                    narration="BiRank scores for both sides.",
+                )
+            return result
+        raise ValueError(f"BiRank did not converge after {max_iter} iterations")
+
+    def biadjacency_matrix(
+        self,
+        row_nodes: list[Union[int, str]] | None = None,
+        column_nodes: list[Union[int, str]] | None = None,
+        weighted: bool | None = None,
+    ) -> tuple[list[list[float]], list[int], list[int]]:
+        """
+        Build the biadjacency matrix of a bipartite graph.
+
+        ![Biadjacency matrix](/assets/graphs/biadjacency-matrix.light.svg){.lightbox fig-alt="A two-mode graph: ann and bob on top, the events party and talk below. ann attended both events and bob only talk, three edges in the accent color. The 2 by 2 biadjacency matrix has a row per person and a column per event: row ann is 1, 1 and row bob is 0, 1, each 1 (accent) one edge." width="100%"}
+
+        The biadjacency matrix has one row per node on one side and one column per node on the
+        other, with the weight of the edges between them (`0` where there is none). It is the
+        compact matrix form of a two-mode network (a people-by-events attendance table, a
+        document-by-term matrix, a customer-by-product purchase matrix) and the input to
+        correspondence analysis, co-clustering and bipartite spectral methods.
+
+        Parameters
+        ----------
+        row_nodes
+            Nodes for the rows, in order (IDs or labels). If `None` (default), the first set of
+            `bipartite_sets()`.
+        column_nodes
+            Nodes for the columns, in order. If `None` (default), every node not in the rows.
+        weighted
+            Whether entries are edge weights (summed over parallel edges) or edge counts. If
+            `None` (default), follows the graph's `weighted` flag.
+
+        Returns
+        -------
+        tuple[list[list[float]], list[int], list[int]]
+            The matrix as a list of rows, the row node IDs and the column node IDs. Edges within
+            the rows or within the columns are ignored; edge direction is ignored.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or the default split is requested on a graph that is not
+            bipartite.
+
+        Technical Notes
+        ---------------
+        One pass over the edges, $O(E + rc)$ for the dense $r \\times c$ result. Matches
+        NetworkX's `bipartite.biadjacency_matrix` (returned there as a SciPy sparse array).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "party", "talk"])
+        g.add_edges([("ann", "party"), ("ann", "talk"), ("bob", "talk")])
+
+        matrix, rows, cols = g.biadjacency_matrix(row_nodes=["ann", "bob"])
+        matrix, [g.get_label_from_id(n) for n in cols]
+        ```
+        """
+        if row_nodes is None:
+            rows = list(rust.bipartite_sets(self._graph)[0])
+        else:
+            rows = [self._resolve_node_id(n, auto_create=False) for n in row_nodes]
+        if column_nodes is None:
+            taken = set(rows)
+            cols = [n for n in sorted(self.get_node_ids(limit=None)) if n not in taken]
+        else:
+            cols = [self._resolve_node_id(n, auto_create=False) for n in column_nodes]
+        ri = {n: i for i, n in enumerate(rows)}
+        ci = {n: j for j, n in enumerate(cols)}
+        use = self._use_weights(weighted)
+        matrix = [[0.0] * len(cols) for _ in rows]
+        for eid, s, t in self.get_edges_as_tuples():
+            weight = (self.get_edge(eid).weight or 1.0) if use else 1.0
+            if s in ri and t in ci:
+                matrix[ri[s]][ci[t]] += weight
+            elif t in ri and s in ci:
+                matrix[ri[t]][ci[s]] += weight
+        return matrix, rows, cols
+
+    def is_bipartite_node_set(self, nodes: list[Union[int, str]]) -> bool:
+        """
+        Check if a set of nodes is one side of a valid bipartition.
+
+        ![Is bipartite node set](/assets/graphs/is-bipartite-node-set.light.svg){.lightbox fig-alt="The path ann, party, bob, talk drawn in two rows, people on top and events below, with the candidate set outlined. Left: ann and bob form one whole side of the split, so is_bipartite_node_set returns True. Right: ann and talk are three hops apart along the accent path, so they sit on opposite sides; talk (accent) breaks the set and the call returns False." width="100%"}
+
+        A bipartite graph can be 2-colored, and in each connected component the two colors are
+        fixed up to swapping. This method checks that `nodes` takes exactly one color class in
+        every component, so that it (and the remaining nodes) form a valid two-sided split. Use
+        it to validate the "top" side passed to bipartite methods, especially on disconnected
+        graphs where several splits are possible.
+
+        Parameters
+        ----------
+        nodes
+            The candidate side, as IDs or labels.
+
+        Returns
+        -------
+        bool
+            `True` if every component's bipartition puts `nodes` entirely on one side (isolated
+            nodes may go either way).
+
+        Raises
+        ------
+        ValueError
+            If `nodes` repeats a node, a node does not exist, or the graph is not bipartite.
+
+        Technical Notes
+        ---------------
+        Each component is 2-colored by breadth-first search and compared with `nodes`, in
+        $O(V + E)$. Matches NetworkX's `bipartite.is_bipartite_node_set`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "party", "talk"])
+        g.add_edges([("ann", "party"), ("bob", "party"), ("bob", "talk")])
+
+        g.is_bipartite_node_set(["ann", "bob"]), g.is_bipartite_node_set(["ann", "talk"])
+        ```
+        """
+        ids = [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        chosen = set(ids)
+        if len(chosen) < len(ids):
+            raise ValueError("the node set contains duplicates")
+        nbrs = self._neighbor_sets()
+        color: dict[int, int] = {}
+        for start in sorted(nbrs):
+            if start in color:
+                continue
+            color[start] = 0
+            comp = [start]
+            queue = [start]
+            while queue:
+                u = queue.pop()
+                for w in nbrs[u]:
+                    if w not in color:
+                        color[w] = 1 - color[u]
+                        comp.append(w)
+                        queue.append(w)
+                    elif color[w] == color[u]:
+                        raise ValueError("the graph is not bipartite")
+            sides = [{n for n in comp if color[n] == c} for c in (0, 1)]
+            if not any(sides[a] <= chosen and not (sides[1 - a] & chosen) for a in (0, 1)):
+                return False
+        return True
 
     def bipartite_degree_centrality(
         self,
@@ -38765,6 +39436,507 @@ class Graph:
                 narration=f"{len(groups)} nodes in {len(layers)} BFS layers.",
             )
         return layers
+
+    def bfs_predecessors(
+        self, source: Union[int, str], depth_limit: int | None = None, mode: str = "out"
+    ) -> dict[int, int]:
+        """
+        Map every node reached by a breadth-first search to its parent.
+
+        ![BFS predecessors](/assets/graphs/bfs-predecessors.light.svg){.lightbox fig-alt="A four-node tree searched breadth-first from A (outlined): A joins B and C, and C joins D. Each accent arrow points from a node back to the parent it was discovered from, and numbered badges give the discovery order. The card maps B to A, C to A, and D to C." width="100%"}
+
+        The breadth-first search tree from `source` gives each reached node a parent: the node
+        it was discovered from, one hop closer to the source. This dictionary is that tree,
+        child to parent, from which any shortest (fewest-hops) path back to the source can be
+        read. It is the compact form of `bfs_tree()` and `bfs_edges()`.
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        depth_limit
+            Optional maximum depth.
+        mode
+            Edge direction to follow on directed graphs: `"out"` (default), `"in"` or `"all"`.
+
+        Returns
+        -------
+        dict[int, int]
+            Child node ID to parent node ID, in discovery order (the source is not a key).
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or `mode` is invalid.
+
+        Technical Notes
+        ---------------
+        Read off the tree edges of `bfs_edges()`, $O(V + E)$. Matches NetworkX's
+        `bfs_predecessors`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("C", "D")])
+
+        {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.bfs_predecessors("A").items()}
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
+        finally:
+            self._recording_depth -= 1
+        return {c: p for p, c in edges}
+
+    def bfs_successors(
+        self, source: Union[int, str], depth_limit: int | None = None, mode: str = "out"
+    ) -> dict[int, list[int]]:
+        """
+        Map every node of a breadth-first search tree to its children.
+
+        ![BFS successors](/assets/graphs/bfs-successors.light.svg){.lightbox fig-alt="The same four-node tree searched breadth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the discovery order. The card maps A to its children B and C, and C to D; the leaves B and D are not keys." width="100%"}
+
+        The reverse view of `bfs_predecessors()`: for each node of the breadth-first search tree
+        from `source` that has children, the list of nodes discovered from it. It shows how the
+        search fans out, level by level, such as who first heard a rumor from whom.
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        depth_limit
+            Optional maximum depth.
+        mode
+            Edge direction to follow on directed graphs: `"out"` (default), `"in"` or `"all"`.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Parent node ID to the list of its children, in discovery order (leaves are not keys,
+            except the source, which maps to an empty list when it has no children).
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or `mode` is invalid.
+
+        Technical Notes
+        ---------------
+        Grouped from the tree edges of `bfs_edges()`. Matches NetworkX's `bfs_successors`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("C", "D")])
+
+        {g.get_label_from_id(p): [g.get_label_from_id(c) for c in cs]
+         for p, cs in g.bfs_successors("A").items()}
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
+        finally:
+            self._recording_depth -= 1
+        out: dict[int, list[int]] = {}
+        for p, c in edges:
+            out.setdefault(p, []).append(c)
+        # as in NetworkX, a source without children still appears, with an empty list
+        return out or {self._resolve_node_id(source, auto_create=False): []}
+
+    def dfs_predecessors(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> dict[int, int]:
+        """
+        Map every node reached by a depth-first search to its parent.
+
+        ![DFS predecessors](/assets/graphs/dfs-predecessors.light.svg){.lightbox fig-alt="A four-node tree searched depth-first from A (outlined): A joins B and D, and B joins C. The search runs A, B, C before backing up to D, as the numbered badges show, and each accent arrow points from a node back to its parent. The card maps B to A, C to B, and D to A." width="100%"}
+
+        The depth-first search tree (or forest, when no source is given) assigns each reached
+        node the node it was discovered from. Depth-first trees are the basis of many structural
+        algorithms (bridges, articulation points, strongly connected components), and this
+        dictionary is their parent array.
+
+        Parameters
+        ----------
+        source
+            Optional start node (ID or label). If `None` (default), every component is searched,
+            starting from the lowest node ID.
+        depth_limit
+            Optional maximum depth.
+        mode
+            Edge direction to follow on directed graphs: `"out"` (default), `"in"` or `"all"`.
+
+        Returns
+        -------
+        dict[int, int]
+            Child node ID to parent node ID (roots are not keys).
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or `mode` is invalid.
+
+        Technical Notes
+        ---------------
+        Read off the tree edges of `dfs_edges()`. Matches NetworkX's `dfs_predecessors`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "D")])
+
+        {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.dfs_predecessors("A").items()}
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            edges = self.dfs_edges(source, depth_limit=depth_limit, mode=mode)
+        finally:
+            self._recording_depth -= 1
+        return {c: p for p, c in edges}
+
+    def dfs_successors(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> dict[int, list[int]]:
+        """
+        Map every node of a depth-first search tree to its children.
+
+        ![DFS successors](/assets/graphs/dfs-successors.light.svg){.lightbox fig-alt="The same four-node tree searched depth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the visit order A, B, C, D. The card maps A to its children B and D, and B to C." width="100%"}
+
+        The reverse view of `dfs_predecessors()`: for each node of the depth-first search tree
+        (or forest) that has children, the nodes discovered from it, in discovery order.
+
+        Parameters
+        ----------
+        source
+            Optional start node (ID or label). If `None` (default), every component is searched.
+        depth_limit
+            Optional maximum depth.
+        mode
+            Edge direction to follow on directed graphs: `"out"` (default), `"in"` or `"all"`.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            Parent node ID to its children.
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or `mode` is invalid.
+
+        Technical Notes
+        ---------------
+        Grouped from the tree edges of `dfs_edges()`. Matches NetworkX's `dfs_successors`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "D")])
+
+        {g.get_label_from_id(p): [g.get_label_from_id(c) for c in cs]
+         for p, cs in g.dfs_successors("A").items()}
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            edges = self.dfs_edges(source, depth_limit=depth_limit, mode=mode)
+        finally:
+            self._recording_depth -= 1
+        out: dict[int, list[int]] = {}
+        for p, c in edges:
+            out.setdefault(p, []).append(c)
+        return out
+
+    def descendants_at_distance(
+        self, source: Union[int, str], distance: int, mode: str = "out"
+    ) -> set[int]:
+        """
+        Find the nodes exactly a given number of hops from a source.
+
+        ![Descendants at distance](/assets/graphs/descendants-at-distance.light.svg){.lightbox fig-alt="A five-node tree laid out in columns by hop distance from A (outlined), from d=0 to d=3: A joins B, B joins C and D, and D joins E. C and D, exactly two hops away, are shaded in the accent color with the edges that reach them; E, three hops away, is faded. The card lists C, D." width="100%"}
+
+        Returns the nodes whose shortest-path distance (in hops) from `source` is exactly
+        `distance`: the "friends of friends" at distance 2, the nodes three stops away, and so
+        on. It is one layer of `bfs_layers()`.
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        distance
+            The number of hops (`0` gives the source itself).
+        mode
+            Edge direction to follow on directed graphs: `"out"` (default), `"in"` or `"all"`.
+
+        Returns
+        -------
+        set[int]
+            The node IDs at that distance (empty if there are none).
+
+        Raises
+        ------
+        ValueError
+            If the source does not exist or `mode` is invalid.
+
+        Technical Notes
+        ---------------
+        A breadth-first search stopped at the requested layer, $O(V + E)$ at most. Matches
+        NetworkX's `descendants_at_distance`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        g.add_edges([("A", "B"), ("B", "C"), ("B", "D"), ("D", "E")])
+
+        sorted(g.get_label_from_id(n) for n in g.descendants_at_distance("A", 2))
+        ```
+        """
+        self._recording_depth += 1
+        try:
+            layers = self.bfs_layers(source, mode=mode)
+        finally:
+            self._recording_depth -= 1
+        result = set(layers[distance]) if 0 <= distance < len(layers) else set()
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "descendants_at_distance",
+                f"G.descendants_at_distance({source!r}, {distance})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in sorted(result)]),
+                result=result,
+                narration=f"{len(result)} nodes at distance {distance}.",
+            )
+        return result
+
+    def _edge_traversal(self, source, orientation, depth_first: bool):
+        if orientation not in (None, "original", "reverse", "ignore"):
+            raise ValueError("orientation= must be None, 'original', 'reverse' or 'ignore'")
+        directed = self.is_directed()
+        out: dict[int, list] = {n: [] for n in sorted(self.get_node_ids(limit=None))}
+        inn: dict[int, list] = {n: [] for n in out}
+        for eid, s, t in sorted(self.get_edges_as_tuples()):
+            out[s].append((s, t, eid))
+            inn[t].append((s, t, eid))
+            if not directed and s != t:
+                out[t].append((t, s, eid))
+        # NetworkX lists a node's edges grouped by neighbor, in order of first appearance
+        for table in (out, inn):
+            for n, lst in table.items():
+                order: dict[int, int] = {}
+                key = (lambda e: e[0]) if table is inn else (lambda e: e[1])
+                for e in lst:
+                    order.setdefault(key(e), len(order))
+                lst.sort(key=lambda e: order[key(e)])
+        if source is None:
+            starts = list(out)
+        elif isinstance(source, (int, str)):
+            starts = [self._resolve_node_id(source, auto_create=False)]
+        else:
+            starts = [self._resolve_node_id(n, auto_create=False) for n in source]
+        tag = orientation is not None
+
+        def gen(node):
+            if directed and orientation == "reverse":
+                for e in inn[node]:
+                    yield e + ("reverse",)
+                return
+            for e in out[node]:
+                yield e + (("forward",) if tag else ())
+            if directed and orientation == "ignore":
+                for e in inn[node]:
+                    yield e + ("reverse",)
+
+        def child_of(edge):
+            return edge[0] if directed and edge[-1] == "reverse" and tag else edge[1]
+
+        result = []
+        visited_edges = set()
+        if not depth_first:
+            from collections import deque
+
+            visited = set(starts)
+            queue = deque((n, gen(n)) for n in starts)
+            while queue:
+                _, children = queue.popleft()
+                for edge in children:
+                    child = child_of(edge)
+                    if child not in visited:
+                        visited.add(child)
+                        queue.append((child, gen(child)))
+                    if edge[2] not in visited_edges:
+                        visited_edges.add(edge[2])
+                        result.append(edge)
+        else:
+            visited = set()
+            iters: dict = {}
+            for start in starts:
+                stack = [start]
+                while stack:
+                    node = stack[-1]
+                    if node not in visited:
+                        iters[node] = gen(node)
+                        visited.add(node)
+                    edge = next(iters[node], None)
+                    if edge is None:
+                        stack.pop()
+                    elif edge[2] not in visited_edges:
+                        visited_edges.add(edge[2])
+                        stack.append(child_of(edge))
+                        result.append(edge)
+        return result
+
+    def edge_bfs(
+        self,
+        source: Union[int, str, list, None] = None,
+        orientation: str | None = None,
+    ) -> list[tuple]:
+        """
+        Traverse every edge reachable from a source in breadth-first order.
+
+        ![Edge BFS](/assets/graphs/edge-bfs.light.svg){.lightbox fig-alt="A directed triangle A to B to C and back to A, searched from A (outlined). Every edge is visited once, numbered in visit order on the accent arrows: 1 A to B, 2 B to C, and 3 C to A, which closes the cycle. The card lists the three edges beside bfs_edges, which keeps only the two tree edges (A, B) and (B, C)." width="100%"}
+
+        Unlike `bfs_edges()`, which lists only the edges of the search tree, this visits *every*
+        edge reachable from the source exactly once, including the ones that close cycles and
+        each parallel edge. That makes it the right traversal for tasks about edges themselves:
+        checking every link in reach, building an edge-indexed visit order, or finding cycles in
+        directed graphs while respecting edge direction.
+
+        Parameters
+        ----------
+        source
+            A start node, a list of start nodes, or `None` (default) for all nodes, in ID order.
+        orientation
+            How to treat direction on directed graphs: `None` (default) follows edges forward;
+            `"original"` does the same but tags each edge `"forward"`; `"reverse"` follows edges
+            backward (tagged `"reverse"`); `"ignore"` follows both ways and tags each edge with
+            the direction it was traversed. Undirected graphs always traverse both ways.
+
+        Returns
+        -------
+        list[tuple]
+            The edges in visit order as `(u, v, edge_id)` triples (`u` being the node it was
+            reached from on undirected graphs), with a fourth `"forward"`/`"reverse"` element
+            when `orientation` is given.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist or `orientation` is invalid.
+
+        Technical Notes
+        ---------------
+        A breadth-first search over nodes that emits each node's edges in turn, skipping edges
+        already emitted (each edge ID once). $O(V + E)$. Matches NetworkX's `edge_bfs` on the
+        corresponding (multi)graph, with edge IDs in place of keys.
+
+        Examples
+        --------
+        A triangle's three edges are all visited, while `bfs_edges()` only gives the two tree
+        edges:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+
+        [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v, _ in g.edge_bfs("A")]
+        ```
+        """
+        result = self._edge_traversal(source, orientation, depth_first=False)
+        self._record_edge_traversal("edge_bfs", result)
+        return result
+
+    def edge_dfs(
+        self,
+        source: Union[int, str, list, None] = None,
+        orientation: str | None = None,
+    ) -> list[tuple]:
+        """
+        Traverse every edge reachable from a source in depth-first order.
+
+        ![Edge DFS](/assets/graphs/edge-dfs.light.svg){.lightbox fig-alt="The directed triangle A to B to C to A plus a fourth edge A to C, searched depth-first from A (outlined). The numbered accent arrows give the visit order: the search dives A to B, B to C and C back to A, then takes the remaining edge A to C fourth. The card lists the four edges beside dfs_edges, which keeps only (A, B) and (B, C)." width="100%"}
+
+        The depth-first counterpart of `edge_bfs()`: every edge reachable from the source is
+        visited exactly once, following each new edge as deep as possible before backtracking.
+        This is the traversal NetworkX's `find_cycle` builds on, and it suits Euler-style walks
+        and edge-by-edge exploration of directed graphs.
+
+        Parameters
+        ----------
+        source
+            A start node, a list of start nodes, or `None` (default) for all nodes, in ID order.
+        orientation
+            `None` (default), `"original"`, `"reverse"` or `"ignore"`, as in `edge_bfs()`.
+
+        Returns
+        -------
+        list[tuple]
+            The edges in visit order as `(u, v, edge_id)` triples, with a fourth
+            `"forward"`/`"reverse"` element when `orientation` is given.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist or `orientation` is invalid.
+
+        Technical Notes
+        ---------------
+        Iterative depth-first search over edges with a per-node edge iterator. $O(V + E)$.
+        Matches NetworkX's `edge_dfs`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
+
+        [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v, _ in g.edge_dfs("A")]
+        ```
+        """
+        result = self._edge_traversal(source, orientation, depth_first=True)
+        self._record_edge_traversal("edge_dfs", result)
+        return result
+
+    def _record_edge_traversal(self, method, result) -> None:
+        if self._recording_depth != 0:
+            return
+        self._record_step(
+            KIND_QUERY,
+            method,
+            f"G.{method}()",
+            delta=StepDelta(
+                edges_selected=[(self._node_label(e[0]), self._node_label(e[1])) for e in result]
+            ),
+            result=result,
+            narration=f"{method}(): {len(result)} edges visited.",
+        )
 
     def dfs_edges(
         self,
