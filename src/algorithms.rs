@@ -6,6 +6,7 @@ pub mod branchings;
 pub mod bridges;
 pub mod centrality;
 pub mod centrality_extra;
+pub mod chordal;
 pub mod coloring;
 pub mod communicability;
 pub mod community;
