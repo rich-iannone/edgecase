@@ -96,6 +96,9 @@ def plot_graph(
     plot_graph(G, layout="force", static=True)  # Static view
     ```
     """
+    if layout not in ("force", "circular", "random"):
+        raise ValueError(f"Unknown layout {layout!r}; use 'force', 'circular' or 'random'")
+
     # Extract graph data (fast - direct from Rust)
     nodes = graph.get_node_ids(limit=None)
     # One entry per edge, so parallel edges (and A->B plus B->A) are all drawn
