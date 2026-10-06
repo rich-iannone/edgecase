@@ -6,6 +6,7 @@ import re
 import pytest
 
 import edgecase as ec
+from edgecase.viz import plot_graph as _REAL_PLOT_GRAPH  # captured before any test patches it
 
 
 def _abc_path():
@@ -125,6 +126,8 @@ class TestPlotVis:
         from edgecase import viz
 
         displayed, opened = [], []
+        # test_docstring_examples replaces viz.plot_graph for the rest of the session
+        monkeypatch.setattr(viz, "plot_graph", _REAL_PLOT_GRAPH)
         monkeypatch.setattr(ipython, "get_ipython", lambda: object())
         monkeypatch.setattr(IPython.display, "display", lambda obj: displayed.append(obj))
         monkeypatch.setattr(viz.webbrowser, "open", lambda url: opened.append(url))
