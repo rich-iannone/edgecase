@@ -48,6 +48,19 @@ DARK = Theme(
 )
 
 THEMES = {"light": LIGHT, "dark": DARK}
+LAYOUTS = ("force", "circular", "random")
+LAYOUT_MODES = ("progressive", "stable")
+
+
+def _check_style(layout: str, theme: str, layout_mode: Optional[str] = None) -> None:
+    """Raise `ValueError` for an unknown `layout=`, `theme=` or `layout_mode=` (they used to
+    fall back silently to "force", "light" and "progressive"-like behavior)."""
+    if layout not in LAYOUTS:
+        raise ValueError(f"Unknown layout {layout!r}; use one of {', '.join(map(repr, LAYOUTS))}")
+    if theme not in THEMES:
+        raise ValueError(f"Unknown theme {theme!r}; use 'light' or 'dark'")
+    if layout_mode is not None and layout_mode not in LAYOUT_MODES:
+        raise ValueError(f"Unknown layout_mode {layout_mode!r}; use 'progressive' or 'stable'")
 
 # Default node color when no color_by mapping
 DEFAULT_NODE_COLOR = "#4e79a7"
@@ -1105,6 +1118,7 @@ def render_plot(
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer."""
 
+    _check_style(layout, theme)
     th = THEMES.get(theme, LIGHT)
     if color_by or edge_color_by:
         from edgecase.colors import get_palette
@@ -1148,6 +1162,9 @@ def render_plot(
     label_values = _plot_node_values(graph, node_ids, node_data, label_by, "label_by")
     size_by_values = _plot_node_values(graph, node_ids, node_data, size_by, "size_by")
     color_by_values = _plot_node_values(graph, node_ids, node_data, color_by, "color_by")
+    edge_color_values = _plot_node_values(
+        graph, node_ids, node_data, edge_color_by, "edge_color_by"
+    )
 
     # Edge data (supports multi-edges between same pair)
     is_directed = graph.is_directed()
@@ -1225,12 +1242,8 @@ def render_plot(
     # Edge color mapping (community-aware)
     edge_community = {}
     if edge_color_by:
-        ecb_attr = edge_color_by
         for nid in str_ids:
-            val = node_data.get(int(nid) if nid.isdigit() else nid, {}).get(ecb_attr)
-            edge_community[nid] = val
-        if not any(v is not None for v in edge_community.values()):
-            edge_community = {}
+            edge_community[nid] = edge_color_values[nid]
         ecb_vals = [v for v in edge_community.values() if v is not None]
         ecb_palette = _build_color_map(ecb_vals, palette) if ecb_vals else {}
         ecb_node_colors = {
@@ -1742,6 +1755,7 @@ def render_traversal(
     _traversal_counter += 1
     uid = f"tv{_traversal_counter}"
 
+    _check_style(layout, theme)
     th = THEMES.get(theme, LIGHT)
 
     # --- Theme-dependent traversal colors ---
@@ -2620,6 +2634,7 @@ def render_traversal_chain(
     _chain_counter += 1
     uid = f"tc{_chain_counter}"
 
+    _check_style(layout, theme)
     th = THEMES.get(theme, LIGHT)
     is_dark = theme == "dark"
 
@@ -3685,6 +3700,7 @@ def render_steps(
     _step_counter += 1
     uid = f"stv{_step_counter}"
 
+    _check_style(layout, theme, layout_mode)
     th = THEMES.get(theme, LIGHT)
     is_dark = th.name == "dark"
     sel_color = "#a78bfa" if is_dark else "#7c3aed"
