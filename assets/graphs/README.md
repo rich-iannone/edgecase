@@ -762,6 +762,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Adjacency matrix](/assets/graphs/adjacency-matrix.light.svg){.lightbox fig-alt="The shared four-node graph A, B, C, D with node ids 1 to 4, and its 4 by 4 adjacency matrix with rows and columns in id order. Each of the five edges puts a 1 in two cells (accent), so the matrix is symmetric; A and D, which are not adjacent, get 0, as does the diagonal." width="100%"}
 ```
 
+### `biadjacency_matrix()` — Biadjacency matrix
+
+<img src="biadjacency-matrix.light.svg" alt="A two-mode graph: ann and bob on top, the events party and talk below. ann attended both events and bob only talk, three edges in the accent color. The 2 by 2 biadjacency matrix has a row per person and a column per event: row ann is 1, 1 and row bob is 0, 1, each 1 (accent) one edge." width="570">
+
+```markdown
+![Biadjacency matrix](/assets/graphs/biadjacency-matrix.light.svg){.lightbox fig-alt="A two-mode graph: ann and bob on top, the events party and talk below. ann attended both events and bob only talk, three edges in the accent color. The 2 by 2 biadjacency matrix has a row per person and a column per event: row ann is 1, 1 and row bob is 0, 1, each 1 (accent) one edge." width="100%"}
+```
+
 ### `count_all_loops()` — Count all loops
 
 <img src="count-all-loops.light.svg" alt="Four nodes in a row, A to D, with two self-loops on A and one on C, all in the accent color. The card counts every self-loop edge in the graph: 2 + 1 = 3." width="570">
@@ -1076,6 +1084,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![BFS layers](/assets/graphs/bfs-layers.light.svg){.lightbox fig-alt="An eight-node graph searched from two sources at opposite ends, A and H. Each node is colored by its hop distance to the nearer source: A and H form layer 0 (accent), B, C, F, G layer 1 (teal), and D, E, where the two searches meet, layer 2 (violet). The card lists the three layers." width="100%"}
 ```
 
+### `bfs_predecessors()` — BFS predecessors
+
+<img src="bfs-predecessors.light.svg" alt="A four-node tree searched breadth-first from A (outlined): A joins B and C, and C joins D. Each accent arrow points from a node back to the parent it was discovered from, and numbered badges give the discovery order. The card maps B to A, C to A, and D to C." width="570">
+
+```markdown
+![BFS predecessors](/assets/graphs/bfs-predecessors.light.svg){.lightbox fig-alt="A four-node tree searched breadth-first from A (outlined): A joins B and C, and C joins D. Each accent arrow points from a node back to the parent it was discovered from, and numbered badges give the discovery order. The card maps B to A, C to A, and D to C." width="100%"}
+```
+
+### `bfs_successors()` — BFS successors
+
+<img src="bfs-successors.light.svg" alt="The same four-node tree searched breadth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the discovery order. The card maps A to its children B and C, and C to D; the leaves B and D are not keys." width="570">
+
+```markdown
+![BFS successors](/assets/graphs/bfs-successors.light.svg){.lightbox fig-alt="The same four-node tree searched breadth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the discovery order. The card maps A to its children B and C, and C to D; the leaves B and D are not keys." width="100%"}
+```
+
 ### `bfs_tree()` — BFS tree
 
 <img src="bfs-tree.light.svg" alt="Left: a six-node graph with the root A outlined. Right: bfs_tree() returns a new directed graph keeping only the edges the breadth-first search discovered, A to B, A to C, B to D, B to E, and D to F, as accent arrows; the unused edges C-E and E-F are dashed. Every root path is a fewest-hops path, so the tree has depth 3." width="570">
@@ -1090,6 +1114,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Descendants](/assets/graphs/descendants.light.svg){.lightbox fig-alt="A seven-node DAG flowing left to right, with the query node C outlined. Following arrows forward from C reaches E and then G, shown in the accent color with the edges used; D and F lie on another branch and are not reached. The card lists E, G." width="100%"}
+```
+
+### `descendants_at_distance()` — Descendants at distance
+
+<img src="descendants-at-distance.light.svg" alt="A five-node tree laid out in columns by hop distance from A (outlined), from d=0 to d=3: A joins B, B joins C and D, and D joins E. C and D, exactly two hops away, are shaded in the accent color with the edges that reach them; E, three hops away, is faded. The card lists C, D." width="570">
+
+```markdown
+![Descendants at distance](/assets/graphs/descendants-at-distance.light.svg){.lightbox fig-alt="A five-node tree laid out in columns by hop distance from A (outlined), from d=0 to d=3: A joins B, B joins C and D, and D joins E. C and D, exactly two hops away, are shaded in the accent color with the edges that reach them; E, three hops away, is faded. The card lists C, D." width="100%"}
 ```
 
 ### `dfs()` — Depth-first search
@@ -1116,6 +1148,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![DFS postorder](/assets/graphs/dfs-postorder-nodes.light.svg){.lightbox fig-alt="A seven-node tree searched depth-first from the root A (outlined). Numbered badges give the order nodes finish: D and E finish before their parent B, F and G before C, and the root A finishes last. The card lists D, E, B, F, G, C, A, beside the preorder A, B, D, E, C, F, G that dfs() returns." width="100%"}
 ```
 
+### `dfs_predecessors()` — DFS predecessors
+
+<img src="dfs-predecessors.light.svg" alt="A four-node tree searched depth-first from A (outlined): A joins B and D, and B joins C. The search runs A, B, C before backing up to D, as the numbered badges show, and each accent arrow points from a node back to its parent. The card maps B to A, C to B, and D to A." width="570">
+
+```markdown
+![DFS predecessors](/assets/graphs/dfs-predecessors.light.svg){.lightbox fig-alt="A four-node tree searched depth-first from A (outlined): A joins B and D, and B joins C. The search runs A, B, C before backing up to D, as the numbered badges show, and each accent arrow points from a node back to its parent. The card maps B to A, C to B, and D to A." width="100%"}
+```
+
+### `dfs_successors()` — DFS successors
+
+<img src="dfs-successors.light.svg" alt="The same four-node tree searched depth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the visit order A, B, C, D. The card maps A to its children B and D, and B to C." width="570">
+
+```markdown
+![DFS successors](/assets/graphs/dfs-successors.light.svg){.lightbox fig-alt="The same four-node tree searched depth-first from A (outlined). Each accent arrow points from a parent to a child it discovered, and numbered badges give the visit order A, B, C, D. The card maps A to its children B and D, and B to C." width="100%"}
+```
+
 ### `dfs_tree()` — DFS tree
 
 <img src="dfs-tree.light.svg" alt="Left: the same six-node graph with the root A outlined. Right: dfs_tree() keeps the edges the depth-first search discovered, which snake through the graph as one long path, A to B, D, F, E, and finally C (accent arrows); A-C and B-E are dashed. The tree has depth 5, against 3 for the BFS tree." width="570">
@@ -1130,6 +1178,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Dominance frontiers](/assets/graphs/dominance-frontiers.light.svg){.lightbox fig-alt="The same if/else control-flow graph from entry. The branches then and else are outlined: each dominates only itself, and its edge into merge (accent) leaves its region, so merge, filled in accent, is the dominance frontier of both. The card lists every node's frontier: merge for then and else, and empty for the others." width="100%"}
+```
+
+### `edge_bfs()` — Edge BFS
+
+<img src="edge-bfs.light.svg" alt="A directed triangle A to B to C and back to A, searched from A (outlined). Every edge is visited once, numbered in visit order on the accent arrows: 1 A to B, 2 B to C, and 3 C to A, which closes the cycle. The card lists the three edges beside bfs_edges, which keeps only the two tree edges (A, B) and (B, C)." width="570">
+
+```markdown
+![Edge BFS](/assets/graphs/edge-bfs.light.svg){.lightbox fig-alt="A directed triangle A to B to C and back to A, searched from A (outlined). Every edge is visited once, numbered in visit order on the accent arrows: 1 A to B, 2 B to C, and 3 C to A, which closes the cycle. The card lists the three edges beside bfs_edges, which keeps only the two tree edges (A, B) and (B, C)." width="100%"}
+```
+
+### `edge_dfs()` — Edge DFS
+
+<img src="edge-dfs.light.svg" alt="The directed triangle A to B to C to A plus a fourth edge A to C, searched depth-first from A (outlined). The numbered accent arrows give the visit order: the search dives A to B, B to C and C back to A, then takes the remaining edge A to C fourth. The card lists the four edges beside dfs_edges, which keeps only (A, B) and (B, C)." width="570">
+
+```markdown
+![Edge DFS](/assets/graphs/edge-dfs.light.svg){.lightbox fig-alt="The directed triangle A to B to C to A plus a fourth edge A to C, searched depth-first from A (outlined). The numbered accent arrows give the visit order: the search dives A to B, B to C and C back to A, then takes the remaining edge A to C fourth. The card lists the four edges beside dfs_edges, which keeps only (A, B) and (B, C)." width="100%"}
 ```
 
 ### `find_minimal_d_separator()` — Find minimal d-separator
@@ -1736,6 +1800,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Bipartite degree centrality](/assets/graphs/bipartite-degree-centrality.light.svg){.lightbox fig-alt="A bipartite graph drawn as two rows: side 0, A to D, on top and side 1, E to G, below, which which=1 scores. Each degree is divided by the four nodes on the other side, so F, linked to B, C and D, scores 0.75, E 0.50 and G 0.25." width="100%"}
 ```
 
+### `birank()` — BiRank
+
+<img src="birank.light.svg" alt="Customers ann, cy and bob on top and products jam, tea and bread below, every node shaded by its BiRank score; each side sums to 1. tea, bought by all three, is the top product at 0.464, ahead of jam and bread at 0.268, and ann and bob, who bought tea plus one more, lead the customers at 0.369, ahead of cy at 0.261." width="570">
+
+```markdown
+![BiRank](/assets/graphs/birank.light.svg){.lightbox fig-alt="Customers ann, cy and bob on top and products jam, tea and bread below, every node shaded by its BiRank score; each side sums to 1. tea, bought by all three, is the top product at 0.464, ahead of jam and bread at 0.268, and ann and bob, who bought tea plus one more, lead the customers at 0.369, ahead of cy at 0.261." width="100%"}
+```
+
 ### `bonacich_power_centrality()` — Bonacich power centrality
 
 <img src="bonacich-power-centrality.light.svg" alt="The shared seven-node graph shaded by Bonacich power centrality with the default beta 0.1, where ties to powerful neighbors add power. Hub C scores 1.45, then D 1.14, B 1.11 and E 1.10, down to the pendant node G at 0.32." width="570">
@@ -1976,6 +2048,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03." width="100%"}
 ```
 
+### `latapy_clustering()` — Latapy bipartite clustering
+
+<img src="latapy-clustering.light.svg" alt="People ann, bob and cy on top and the events party, talk and game below, all teal. Each person is shaded by the mean Jaccard overlap of their events with those of the people two steps away. ann and bob attended the same two events (overlap 1) and share one of cy&#x27;s three (1/3), so both score 0.67; cy overlaps each of them by 1/3 and scores 0.33." width="570">
+
+```markdown
+![Latapy bipartite clustering](/assets/graphs/latapy-clustering.light.svg){.lightbox fig-alt="People ann, bob and cy on top and the events party, talk and game below, all teal. Each person is shaded by the mean Jaccard overlap of their events with those of the people two steps away. ann and bob attended the same two events (overlap 1) and share one of cy's three (1/3), so both score 0.67; cy overlaps each of them by 1/3 and scores 0.33." width="100%"}
+```
+
 ### `leverage_centrality()` — Leverage centrality
 
 <img src="leverage-centrality.light.svg" alt="The shared seven-node graph shaded by leverage centrality, which compares each node&#x27;s degree with its neighbors&#x27; degrees. Hub C out-connects its neighbors and tops the table at 0.19, while A and the pendant G have better-connected neighbors and score negative, -0.27 and -0.33." width="570">
@@ -2022,6 +2102,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Local reaching centrality](/assets/graphs/local-reaching-centrality.light.svg){.lightbox fig-alt="A five-node directed out-tree, like an org chart: A heads B and C, and B heads D and E. Each node is shaded by the share of the other four nodes it can reach. A reaches all of them and scores 1.00, B reaches D and E for 0.50, and the leaves C, D and E reach no one and score 0." width="100%"}
+```
+
+### `node_redundancy()` — Node redundancy
+
+<img src="node-redundancy.light.svg" alt="The same people and events graph. ann attended party and talk, and bob attended both too, so the pair stays linked without ann: ann scores 1.0, and bob, covered by ann, also 1.0. cy is the only one at both talk and game, so the edges joining them, in the accent color, are the pair&#x27;s sole link and cy scores 0.0." width="570">
+
+```markdown
+![Node redundancy](/assets/graphs/node-redundancy.light.svg){.lightbox fig-alt="The same people and events graph. ann attended party and talk, and bob attended both too, so the pair stays linked without ann: ann scores 1.0, and bob, covered by ann, also 1.0. cy is the only one at both talk and game, so the edges joining them, in the accent color, are the pair's sole link and cy scores 0.0." width="100%"}
 ```
 
 ### `pagerank()` — PageRank
@@ -2482,6 +2570,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Rich-club coefficient](/assets/graphs/rich-club-coefficient.light.svg){.lightbox fig-alt="A five-node graph whose three degree-3 nodes B, C, D are grouped in the accent color and fully linked to each other. The table gives, for each degree k, the nodes above k, the edges among them, and phi(k): 0.6, 0.833, and 1.0 at k = 2." width="100%"}
 ```
 
+### `robins_alexander_clustering()` — Robins-Alexander clustering
+
+<img src="robins-alexander-clustering.light.svg" alt="The complete bipartite graph K(2,3): a and b on top, each joined to x, y and z below. Every path of length three closes into a square, like a, x, b, y in the accent color. The card counts 3 squares and 12 paths of length three, so the coefficient is 4 times 3 over 12, which is 1.0." width="570">
+
+```markdown
+![Robins-Alexander clustering](/assets/graphs/robins-alexander-clustering.light.svg){.lightbox fig-alt="The complete bipartite graph K(2,3): a and b on top, each joined to x, y and z below. Every path of length three closes into a square, like a, x, b, y in the accent color. The card counts 3 squares and 12 paths of length three, so the coefficient is 4 times 3 over 12, which is 1.0." width="100%"}
+```
+
 ### `small_world_omega()` — Small-world coefficient omega
 
 <img src="small-world-omega.light.svg" alt="An eight-node ring with four chords that close four triangles. The random references average a path length L_r of 1.689 against the graph&#x27;s 1.643, and the best lattice reference clusters no more than the graph itself, C_l = C = 0.667. The card computes 1.689 / 1.643 minus 0.667 / 0.667, omega = 0.028: near 0, the small-world middle between a lattice (-1) and a random graph (1)." width="570">
@@ -2496,6 +2592,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Small-world coefficient sigma](/assets/graphs/small-world-sigma.light.svg){.lightbox fig-alt="An eight-node ring with four chords that close four triangles. Its transitivity C is 0.43, against 0.354 averaged over 10 degree-preserving random references, while its average path length L, 1.643, is close to the references' 1.707. The card divides the two ratios, (0.43 / 0.354) / (1.643 / 1.707), for sigma = 1.260: above 1, so the graph counts as small-world." width="100%"}
+```
+
+### `spectral_bipartivity()` — Spectral bipartivity
+
+<img src="spectral-bipartivity.light.svg" alt="Left: the square 1, 2, 3, 4 has only even cycles, so every closed walk has even length and spectral_bipartivity() returns 1.0. Right: the same square plus the diagonal 1 to 3, in the accent color, which closes the triangles 1, 2, 3 and 1, 3, 4; odd closed walks now count against it and the value drops to 0.795." width="570">
+
+```markdown
+![Spectral bipartivity](/assets/graphs/spectral-bipartivity.light.svg){.lightbox fig-alt="Left: the square 1, 2, 3, 4 has only even cycles, so every closed walk has even length and spectral_bipartivity() returns 1.0. Right: the same square plus the diagonal 1 to 3, in the accent color, which closes the triangles 1, 2, 3 and 1, 3, 4; odd closed walks now count against it and the value drops to 0.795." width="100%"}
 ```
 
 ### `trophic_incoherence_parameter()` — Trophic incoherence parameter
@@ -3894,6 +3998,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is bipartite](/assets/graphs/is-bipartite.light.svg){.lightbox fig-alt="Left: a two-by-three ladder whose nodes split into two colors, A, C, E and B, D, F, with every edge joining different colors, so is_bipartite() returns True. Right: the same ladder plus a diagonal between A and E, which closes the odd triangle A, B, E (shown in the accent color), so is_bipartite() returns False." width="100%"}
+```
+
+### `is_bipartite_node_set()` — Is bipartite node set
+
+<img src="is-bipartite-node-set.light.svg" alt="The path ann, party, bob, talk drawn in two rows, people on top and events below, with the candidate set outlined. Left: ann and bob form one whole side of the split, so is_bipartite_node_set returns True. Right: ann and talk are three hops apart along the accent path, so they sit on opposite sides; talk (accent) breaks the set and the call returns False." width="570">
+
+```markdown
+![Is bipartite node set](/assets/graphs/is-bipartite-node-set.light.svg){.lightbox fig-alt="The path ann, party, bob, talk drawn in two rows, people on top and events below, with the candidate set outlined. Left: ann and bob form one whole side of the split, so is_bipartite_node_set returns True. Right: ann and talk are three hops apart along the accent path, so they sit on opposite sides; talk (accent) breaks the set and the call returns False." width="100%"}
 ```
 
 ### `is_branching()` — Is branching
