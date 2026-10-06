@@ -360,7 +360,8 @@ pub fn node_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
             let node = Node {
                 id: node_id,
                 label,
-                attributes: None,
+                // Node::clone copies the attributes dict
+                attributes: graph.get_nodes()[&node_id].clone().attributes,
             };
             result.add_node_rust(node)?;
         }
@@ -370,11 +371,11 @@ pub fn node_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
     for edge in graph.get_edges_internal() {
         if !removed_set.contains(&edge.source) && !removed_set.contains(&edge.target) {
             let new_edge = Edge {
-                id: 0, // Auto-assign
+                id: edge.id,
                 source: edge.source,
                 target: edge.target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             result.add_edge_rust(new_edge)?;
         }
@@ -423,7 +424,8 @@ pub fn edge_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
         let node = Node {
             id: node_id,
             label,
-            attributes: None,
+            // Node::clone copies the attributes dict
+            attributes: graph.get_nodes()[&node_id].clone().attributes,
         };
         result.add_node_rust(node)?;
     }
@@ -453,11 +455,11 @@ pub fn edge_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
     for (idx, edge) in edges.iter().enumerate() {
         if !remove_set.contains(&idx) {
             let new_edge = Edge {
-                id: 0, // Auto-assign
+                id: edge.id,
                 source: edge.source,
                 target: edge.target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             result.add_edge_rust(new_edge)?;
         }
