@@ -23932,6 +23932,830 @@ class Graph:
         result = Graph._from_rust(graph_disjoint_union(self._graph, other._graph))
         return result
 
+    def _product(self, other: "Graph", kind: str, method: str, root=None) -> "Graph":
+        root_id = None if root is None else other._resolve_node_id(root, auto_create=False)
+        result = Graph._from_rust(rust.graph_product(self._graph, other._graph, kind, root_id))
+        if self._recording_depth == 0:
+            result._record_step(
+                KIND_BUILD_EDGES,
+                method,
+                f"G.{method}(H)",
+                delta=StepDelta(
+                    nodes_added=[
+                        result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                    ],
+                    edges_added=[
+                        (result._node_label(s), result._node_label(t))
+                        for _, s, t in result.get_edges_as_tuples()
+                    ],
+                ),
+            )
+            self._record_step(
+                KIND_TRANSFORM,
+                method,
+                f"G.{method}(H)",
+                narration=f"{method}(): {result.count_nodes()} nodes and "
+                f"{result.count_edges()} edges.",
+            )
+        return result
+
+    def cartesian_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the Cartesian product of this graph with another.
+
+        ![Cartesian product](/assets/graphs/cartesian-product.light.svg){.lightbox fig-alt="G is a path A–B–C (accent edges) and H is a single edge 1–2 (teal). Their Cartesian product has a node for every pair, drawn as a grid with labels A1 to C2 for the pairs (A, 1) to (C, 2): 6 nodes and 7 edges, a 3 by 2 ladder. The four accent rungs along the rows copy G's edges, and the three teal edges down the columns copy H's edge." width="100%"}
+
+        The Cartesian product $G \square H$ has a node for every pair `(g, h)` of a node of this
+        graph and a node of `other`. Two pairs are joined when they agree in one coordinate and
+        are adjacent in the other: `(g, h)` and `(g', h')` are linked if `g = g'` and `h`-`h'` is
+        an edge of `other`, or if `h = h'` and `g`-`g'` is an edge of this graph. Products build
+        familiar structures from simple pieces: a path times a path is a grid, a cycle times a
+        cycle is a torus, and repeated products of an edge give hypercubes. They also model
+        systems with independent components, such as the joint state space of two machines that
+        each change state one at a time.
+
+        Both graphs must be directed or both undirected (edge directions are kept).
+
+        Parameters
+        ----------
+        other
+            The second factor. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with `n * m` nodes. The node for the i-th node of this graph and the j-th
+            node of `other` (both in ID order) gets ID `i * m + j + 1` and the label
+            `"(g, h)"` built from the two labels. Every node attribute becomes a tuple
+            `(value in this graph, value in other)`, with `None` for a missing value. Each
+            product edge comes from one factor edge, whose weight and attributes it keeps.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        The product has $n m$ nodes and $n|E_H| + m|E_G|$ edges, and its adjacency matrix is the
+        Kronecker sum $A_G \otimes I + I \otimes A_H$, so its eigenvalues are all sums of an
+        eigenvalue of each factor. Distances add: $d((g, h), (g', h')) = d_G(g, g') +
+        d_H(h, h')$. Parallel edges in a factor give parallel edges in the product; when both
+        factors are simple, so is the product. The result matches NetworkX's
+        `cartesian_product` (with tuple nodes rendered as labels).
+
+        Examples
+        --------
+        A path of three nodes times a path of two nodes is a 3 x 2 grid (a ladder):
+
+        ```{python}
+        import edgecase as ec
+
+        p3 = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        p2 = ec.Graph().add_nodes(["1", "2"]).add_edge("1", "2")
+
+        grid = p3.cartesian_product(p2)
+        grid.count_nodes(), grid.count_edges(), grid.get_edges_str_repr(use_labels=True)
+        ```
+
+        Squaring a single edge three times gives the 3-dimensional cube:
+
+        ```{python}
+        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+        cube = edge.cartesian_product(edge).cartesian_product(edge)
+        cube.count_nodes(), cube.count_edges(), cube.is_k_regular(3)
+        ```
+        """
+        return self._product(other, "cartesian", "cartesian_product")
+
+    def tensor_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the tensor (categorical, Kronecker) product of this graph with another.
+
+        ![Tensor product](/assets/graphs/tensor-product.light.svg){.lightbox fig-alt="G is a triangle A, B, C (accent edges) and H is a single edge 0–1 (teal). In the tensor product both coordinates must move along an edge at once, so every product edge is ink: (A, 0)–(B, 1), (B, 1)–(C, 0), and so on, labeled A0 to C1. The result has 6 nodes and 6 edges forming a single 6-cycle, the bipartite double cover of the triangle." width="100%"}
+
+        The tensor product $G \times H$ has a node for every pair `(g, h)`, and joins `(g, h)` to
+        `(g', h')` when `g`-`g'` is an edge of this graph *and* `h`-`h'` is an edge of `other`:
+        both coordinates must move at once. Its adjacency matrix is the Kronecker product of the
+        two adjacency matrices, which is why Kronecker graph models of real networks are built
+        from repeated tensor products of a small seed graph. A classic fact: the tensor product
+        of a graph with a single edge is its bipartite double cover.
+
+        Both graphs must be directed or both undirected. If either graph is weighted, each
+        product edge's weight is the product of the two factor weights.
+
+        Parameters
+        ----------
+        other
+            The second factor. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with `n * m` nodes, numbered and labeled as in `cartesian_product()`.
+            Edge attributes become tuples `(value of the edge in this graph, value in other)`.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        For undirected graphs each pair of edges `g-g'` and `h-h'` yields the two product edges
+        `(g, h)-(g', h')` and `(g', h)-(g, h')`, so there are $2|E_G||E_H|$ edges (fewer when
+        self-loops make the two coincide). The eigenvalues of the product are all products of an
+        eigenvalue of each factor. Results match NetworkX's `tensor_product`.
+
+        Examples
+        --------
+        The tensor product of a triangle with a single edge is a 6-cycle, the bipartite double
+        cover of the triangle:
+
+        ```{python}
+        import edgecase as ec
+
+        triangle = ec.Graph().add_nodes(["A", "B", "C"])
+        triangle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+
+        cover = triangle.tensor_product(edge)
+        cover.count_edges(), cover.is_isomorphic(ec.Graph().add_cycle_graph(6))
+        ```
+
+        With weights, every product edge carries the product of its two factor weights:
+
+        ```{python}
+        a = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=2.0)
+        b = ec.Graph(weighted=True).add_nodes(["x", "y"]).add_edge("x", "y", weight=3.0)
+        [a.tensor_product(b).get_edge(e).weight for e in a.tensor_product(b).get_edge_ids()]
+        ```
+        """
+        return self._product(other, "tensor", "tensor_product")
+
+    def strong_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the strong product of this graph with another.
+
+        ![Strong product](/assets/graphs/strong-product.light.svg){.lightbox fig-alt="G is a path a–b–c (accent edges) and H a path 1–2–3 (teal). Their strong product is the 3 by 3 king's graph, labeled a1 to c3: accent edges along the rows copy G, teal edges down the columns copy H, and ink diagonals move both coordinates at once. It has 9 nodes and 20 edges, and the center (b, 2), outlined, reaches all 8 others." width="100%"}
+
+        The strong product $G \boxtimes H$ is the union of the Cartesian and tensor products:
+        `(g, h)` and `(g', h')` are joined when each coordinate either stays put or moves along
+        an edge, and at least one moves. A path times a path is a grid with its diagonals, the
+        "king's graph" of chess, so the strong product models moves that may change several
+        coordinates at once, and its graph distance is the maximum (Chebyshev) of the factor
+        distances. It appears in information theory: the Shannon capacity of a channel is
+        defined through strong powers of its confusability graph.
+
+        Both graphs must be directed or both undirected. Edges from the Cartesian part keep the
+        weight and attributes of their factor edge; edges from the tensor part get the product
+        of the two weights.
+
+        Parameters
+        ----------
+        other
+            The second factor. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with `n * m` nodes, numbered and labeled as in `cartesian_product()`.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        The product has $n|E_H| + m|E_G| + 2|E_G||E_H|$ edges when undirected and simple, and
+        $d((g, h), (g', h')) = \max(d_G(g, g'), d_H(h, h'))$. When both factors are simple the
+        product is simple, matching NetworkX's `strong_product`.
+
+        Examples
+        --------
+        A 3 x 3 king's graph: the center square reaches all 8 others in one move:
+
+        ```{python}
+        import edgecase as ec
+
+        p3 = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
+        p3_ranks = ec.Graph().add_nodes(["1", "2", "3"]).add_edges([("1", "2"), ("2", "3")])
+
+        kings = p3.strong_product(p3_ranks)
+        kings.count_edges(), kings.get_degree("(b, 2)")
+        ```
+        """
+        return self._product(other, "strong", "strong_product")
+
+    def lexicographic_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the lexicographic product (composition) of this graph with another.
+
+        ![Lexicographic product](/assets/graphs/lexicographic-product.light.svg){.lightbox fig-alt="G is a single edge between departments sales (S) and ops (O), accent; H is a team, an edge between lead (L) and rep (R), teal. The lexicographic product puts a copy of the team in each department (the shaded groups, L and R in each): the teal edges copy H inside each copy, and because sales and ops are linked, four accent edges join every member of one team to every member of the other. The result is a complete graph on 4 nodes with 6 edges." width="100%"}
+
+        The lexicographic product $G[H]$ replaces every node of this graph by a copy of `other`,
+        and joins *every* node of one copy to every node of another copy whenever the two
+        original nodes are adjacent. Formally, `(g, h)` and `(g', h')` are joined if `g`-`g'` is
+        an edge, or if `g = g'` and `h`-`h'` is an edge of `other`. It is the natural model of
+        a network of modules: departments (this graph) staffed by teams (`other`), where linked
+        departments have all-to-all contact between their members. Unlike the other products,
+        it is not commutative.
+
+        Both graphs must be directed or both undirected. Every product edge comes from one
+        factor edge, whose weight and attributes it keeps.
+
+        Parameters
+        ----------
+        other
+            The graph substituted for each node. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with `n * m` nodes, numbered and labeled as in `cartesian_product()`.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        An undirected simple product has $|E_G| m^2 + n |E_H|$ edges. Results match NetworkX's
+        `lexicographic_product`.
+
+        Examples
+        --------
+        Two linked departments, each a team of two colleagues: everyone across the link is
+        connected, giving a complete graph on four nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        departments = ec.Graph().add_nodes(["sales", "ops"]).add_edge("sales", "ops")
+        team = ec.Graph().add_nodes(["lead", "rep"]).add_edge("lead", "rep")
+
+        org = departments.lexicographic_product(team)
+        org.count_edges(), org.is_isomorphic(ec.Graph().add_full_graph(4))
+        ```
+
+        The order matters: with no edge inside each team, only the cross-team links remain:
+
+        ```{python}
+        solo = ec.Graph().add_nodes(["lead", "rep"])
+        departments.lexicographic_product(solo).count_edges()
+        ```
+        """
+        return self._product(other, "lexicographic", "lexicographic_product")
+
+    def rooted_product(self, other: "Graph", root: Union[int, str]) -> "Graph":
+        r"""
+        Compute the rooted product of this graph with a rooted graph.
+
+        ![Rooted product](/assets/graphs/rooted-product.light.svg){.lightbox fig-alt="G is a path 1–2–3–4 (accent edges) and H a tooth, an edge from top to tip (teal), rooted at top (outlined). The rooted product hangs a copy of the tooth from every node of G: the top row holds the roots (1, top) to (4, top), wired like G by accent edges, and each teal edge drops to that column's tip. The result is a comb with 8 nodes and 7 edges, a tree." width="100%"}
+
+        The rooted product hangs a copy of `other` from every node of this graph: copy `g`
+        consists of the nodes `(g, h)`, wired like `other`, and the copies are linked to each
+        other only through their roots, `(g, root)`, which are wired like this graph. It builds
+        structures such as combs (a path with a pendant path at every node), dendrimer-like
+        molecules, and hierarchical networks where each site has the same local layout.
+
+        Both graphs must be directed or both undirected.
+
+        Parameters
+        ----------
+        other
+            The rooted graph attached at every node. Neither graph is modified.
+        root
+            The root node of `other` (ID or label).
+
+        Returns
+        -------
+        Graph
+            A new graph with `n * m` nodes, numbered and labeled as in `cartesian_product()`;
+            edges keep the weight and attributes of their factor edge.
+
+        Raises
+        ------
+        ValueError
+            If the graphs differ in directedness or `root` is not a node of `other`.
+
+        Technical Notes
+        ---------------
+        The product has $|E_G| + n|E_H|$ edges, the subgraph induced by the roots is a copy of
+        this graph, and every copy of `other` is attached at a single node, which is a cut
+        node unless `other` is a single node. Matches NetworkX's `rooted_product`.
+
+        Examples
+        --------
+        A comb: a path of four teeth, each hanging a path of two nodes from its root:
+
+        ```{python}
+        import edgecase as ec
+
+        spine = ec.Graph().add_path_graph(4)
+        tooth = ec.Graph().add_nodes(["top", "tip"]).add_edge("top", "tip")
+
+        comb = spine.rooted_product(tooth, root="top")
+        comb.count_nodes(), comb.count_edges(), comb.is_tree()
+        ```
+        """
+        return self._product(other, "rooted", "rooted_product", root=root)
+
+    def corona_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the corona product of this graph with another.
+
+        ![Corona product](/assets/graphs/corona-product.light.svg){.lightbox fig-alt="G is a triangle A, B, C and H a single node x (teal). The corona product keeps the triangle and gives each corner its own copy of H, the teal leaves Ax, Bx, and Cx for (A, x), (B, x), and (C, x), each joined to its corner by an accent edge. The result is the sunlet graph with 6 nodes and 6 edges." width="100%"}
+
+        The corona product $G \circ H$ (Frucht and Harary, 1970) keeps this graph and attaches,
+        to each of its nodes, a private copy of `other` whose nodes are all joined to that node.
+        With a single-node `other` it adds a pendant leaf to every node; with a larger `other`
+        every node gets its own little "crown". Coronas are used to build graphs with prescribed
+        properties (domination, spectra, distance indices) and as models of networks where every
+        hub serves its own local cluster.
+
+        Both graphs must be undirected.
+
+        Parameters
+        ----------
+        other
+            The graph copied around each node. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with `n + n * m` nodes. This graph's nodes keep their labels and
+            attributes and get IDs `1` to `n` (in ID order); the copy of `other`'s j-th node at
+            this graph's i-th node gets ID `n + i * m + j + 1`, label `"(g, h)"`, and `other`'s
+            node attributes. Edges inside this graph and inside the copies keep their weight and
+            attributes.
+
+        Raises
+        ------
+        ValueError
+            If either graph is directed.
+
+        Technical Notes
+        ---------------
+        The product has $|E_G| + n(|E_H| + m)$ edges. Every node of this graph dominates its
+        crown, so this graph's nodes form a dominating set of the corona. Matches NetworkX's
+        `corona_product` (which, unlike EdgeCase, does not copy node attributes).
+
+        Examples
+        --------
+        The corona of a triangle with a single node adds a pendant leaf at each corner (the
+        "sunlet" graph):
+
+        ```{python}
+        import edgecase as ec
+
+        triangle = ec.Graph().add_nodes(["A", "B", "C"])
+        triangle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        leaf = ec.Graph().add_nodes(["x"])
+
+        sunlet = triangle.corona_product(leaf)
+        sunlet.count_nodes(), sunlet.count_edges(), sunlet.get_edges_str_repr(use_labels=True)
+        ```
+        """
+        return self._product(other, "corona", "corona_product")
+
+    def modular_product(self, other: "Graph") -> "Graph":
+        r"""
+        Compute the modular product of this graph with another.
+
+        ![Modular product](/assets/graphs/modular-product.light.svg){.lightbox fig-alt="G is a paw: a triangle A, B, C with a tail C–D. H is a 4-cycle 1, 2, 3, 4. The path D–C–B in G and the path 1–2–3 in H (accent; the rest muted) are the same induced subgraph. Their modular product has 16 nodes and 40 edges, and its largest clique, drawn on the right as D1, C2, B3 for the pairs (D, 1), (C, 2), (B, 3), has 3 nodes: the largest induced subgraph common to both graphs." width="100%"}
+
+        The modular product has a node for every pair `(g, h)` and joins `(g, h)` to
+        `(g', h')` (with `g != g'` and `h != h'`) when the two pairs "agree": `g`-`g'` and
+        `h`-`h'` are both edges, or both non-edges. Its cliques correspond exactly to induced
+        subgraphs common to both graphs, so finding a maximum clique in the modular product
+        solves the maximum common induced subgraph problem, a staple of comparing molecules
+        and other structures (see `max_clique()`).
+
+        Both graphs must be undirected. The result is simple and unweighted (parallel edges in
+        the factors are collapsed), with the same node numbering and labels as
+        `cartesian_product()`.
+
+        Parameters
+        ----------
+        other
+            The second factor. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new undirected graph with `n * m` nodes.
+
+        Raises
+        ------
+        ValueError
+            If either graph is directed.
+
+        Technical Notes
+        ---------------
+        Every pair of pairs is checked, $O(n^2 m^2)$ time, so the method suits small graphs, as
+        the maximum common subgraph problem itself is NP-hard. A clique $\{(g_1, h_1), \ldots,
+        (g_k, h_k)\}$ maps $g_i \mapsto h_i$ isomorphically between the induced subgraphs
+        (Barrow and Burstall, 1976). Matches NetworkX's `modular_product`.
+
+        Examples
+        --------
+        The largest common induced subgraph of a triangle-with-tail and a 4-cycle has 3 nodes
+        (a path), the size of the modular product's largest clique:
+
+        ```{python}
+        import edgecase as ec
+
+        paw = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        paw.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        square = ec.Graph().add_cycle_graph(4)
+
+        product = paw.modular_product(square)
+        len(product.max_clique())
+        ```
+        """
+        return self._product(other, "modular", "modular_product")
+
+    def power(self, k: int) -> "Graph":
+        r"""
+        Compute the k-th power of an undirected graph.
+
+        ![Graph power](/assets/graphs/power.light.svg){.lightbox fig-alt="Left: a path A, B, C, D, E with four edges. Right: its square, power(2), joins every pair at distance at most 2. It keeps the four path edges and adds three accent skip-one edges, A–C, B–D, and C–E, for 7 edges in all." width="100%"}
+
+        The k-th power joins every pair of nodes whose distance is at most `k`. The square
+        ($k = 2$) links friends of friends, which is how "two hops away" reach, interference
+        between radio transmitters that share a neighbor, or distance-2 colorings are modeled;
+        higher powers smooth a network into its k-step neighborhoods.
+
+        The graph must be undirected. The result keeps every node (IDs, labels and attributes)
+        and is simple and unweighted.
+
+        Parameters
+        ----------
+        k
+            The maximum distance (a positive integer).
+
+        Returns
+        -------
+        Graph
+            A new undirected graph with an edge for every pair at distance 1 to `k`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or `k` is not positive.
+
+        Technical Notes
+        ---------------
+        A breadth-first search from every node, truncated at depth `k`, so $O(V(V + E))$ time in
+        the worst case. Powers have striking structural guarantees: the square of every
+        2-connected graph is Hamiltonian (Fleischner, 1974), and the cube of every connected
+        graph is (Karaganis, 1968; Sekanina, 1960). Matches NetworkX's `power`.
+
+        Examples
+        --------
+        The square of a path of five nodes adds the "skip one" links:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        path.power(2).get_edges_str_repr(use_labels=True)
+        ```
+
+        Raising to the diameter gives a complete graph:
+
+        ```{python}
+        path.power(4).count_edges()
+        ```
+        """
+        result = Graph._from_rust(rust.graph_power(self._graph, k))
+        if self._recording_depth == 0:
+            original = {tuple(sorted((s, t))) for _, s, t in self.get_edges_as_tuples() if s != t}
+            added = [
+                (result._node_label(s), result._node_label(t))
+                for _, s, t in result.get_edges_as_tuples()
+                if tuple(sorted((s, t))) not in original
+            ]
+            result._record_step(
+                KIND_BUILD_EDGES,
+                "power",
+                f"G.power({k})",
+                delta=StepDelta(
+                    nodes_added=[
+                        result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                    ],
+                    edges_added=[
+                        (result._node_label(s), result._node_label(t))
+                        for _, s, t in result.get_edges_as_tuples()
+                    ],
+                ),
+            )
+            self._record_step(
+                KIND_TRANSFORM,
+                "power",
+                f"G.power({k})",
+                narration=f"power({k}): {len(added)} edges added for pairs within distance {k}.",
+            )
+        return result
+
+    def full_join(self, other: "Graph") -> "Graph":
+        """
+        Join this graph with another, linking every node of one to every node of the other.
+
+        ![Full join](/assets/graphs/full-join.light.svg){.lightbox fig-alt="G is a 5-cycle on nodes 1 to 5 and H is a single node, hub (teal). The full join keeps both graphs and adds an accent edge from every node of G to every node of H: five spokes from the hub to the rim. The result is a wheel with 6 nodes and 10 edges, and hub has degree 5." width="100%"}
+
+        The full join (graph join) $G + H$ is the disjoint union of the two graphs plus an edge
+        between every node of this graph and every node of `other` (in both directions for
+        directed graphs). Joins build classic families from small pieces: a wheel is a cycle
+        joined with a single hub, a complete bipartite graph is the join of two edgeless graphs,
+        and a cone over any graph is its join with one node. They also model two groups with
+        all-to-all contact between them, such as two departments in a fully connected meeting.
+
+        The two graphs must have the same directedness. Node IDs and labels follow
+        `disjoint_union()`: this graph's nodes keep their IDs, `other`'s are shifted above them,
+        and clashing labels get a numeric suffix.
+
+        Parameters
+        ----------
+        other
+            The graph to join. Neither graph is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph with all nodes and edges of both graphs plus the `n * m` joining edges
+            (`2 * n * m` if directed). Joining edges carry no weight or attributes.
+
+        Raises
+        ------
+        ValueError
+            If the graphs have different directedness.
+
+        Technical Notes
+        ---------------
+        Built as `disjoint_union()` followed by the cross edges, in $O(V + E + nm)$ time.
+        NetworkX's `full_join` requires disjoint node names (or a `rename=` prefix); EdgeCase
+        renumbers automatically.
+
+        Examples
+        --------
+        A wheel with five spokes is a 5-cycle joined with a single hub:
+
+        ```{python}
+        import edgecase as ec
+
+        rim = ec.Graph().add_cycle_graph(5)
+        hub = ec.Graph().add_nodes(["hub"])
+
+        wheel = rim.full_join(hub)
+        wheel.count_edges(), wheel.get_degree("hub")
+        ```
+
+        Joining two edgeless graphs gives a complete bipartite graph:
+
+        ```{python}
+        left = ec.Graph().add_nodes(["a", "b"])
+        right = ec.Graph().add_nodes(["x", "y", "z"])
+        left.full_join(right).count_edges(), left.full_join(right).is_bipartite()
+        ```
+        """
+        if self.is_directed() != other.is_directed():
+            raise ValueError("full_join() requires graphs with the same directedness")
+        self._recording_depth += 1
+        try:
+            result = self.disjoint_union(other)
+        finally:
+            self._recording_depth -= 1
+        mine = self.get_node_ids(limit=None)
+        offset = max(mine, default=0)
+        theirs = [n + offset for n in other.get_node_ids(limit=None)]
+        pairs = [(a, b) for a in mine for b in theirs]
+        if self.is_directed():
+            pairs += [(b, a) for a, b in pairs]
+        if pairs:
+            result.add_edges_by_id(pairs)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "full_join",
+                "G.full_join(H)",
+                narration=f"full_join(): {len(pairs)} joining edges added.",
+            )
+        return result
+
+    @staticmethod
+    def _fold(graphs, op: str) -> "Graph":
+        graphs = list(graphs)
+        if not graphs:
+            raise ValueError("at least one graph is required")
+        if not all(isinstance(g, Graph) for g in graphs):
+            raise TypeError("every item must be a Graph")
+        first = graphs[0]
+        if len(graphs) == 1:
+            empty = Graph(directed=first.is_directed(), weighted=first.is_weighted())
+            return first.union(empty)
+        result = first
+        for g in graphs[1:]:
+            result = getattr(result, op)(g)
+        return result
+
+    @staticmethod
+    def union_all(graphs: list["Graph"]) -> "Graph":
+        """
+        Combine any number of graphs with `union()`.
+
+        ![Union of many graphs](/assets/graphs/union-all.light.svg){.lightbox fig-alt="Three snapshots of contacts among the same four people, nodes 1 to 4: the first has edge 1–2, the second 2–3 (teal), the third 3–4 (violet) and 1–2 again. Edge 1–2 is in two snapshots, so it is ink. union_all merges nodes by id and keeps every edge: the path 1–2–3–4 with 3 edges, each in the color of the snapshot it came from." width="100%"}
+
+        Applies `union()` from left to right: nodes with the same ID are merged, and every edge
+        of every graph is kept (edges joining the same pair of IDs are merged). Use it to combine
+        several snapshots or layers that share a node numbering into one graph.
+
+        Parameters
+        ----------
+        graphs
+            A non-empty list of graphs with the same directedness. None is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph (a copy, if only one graph is given).
+
+        Raises
+        ------
+        ValueError
+            If the list is empty or the graphs differ in directedness.
+
+        Technical Notes
+        ---------------
+        Equivalent to `graphs[0].union(graphs[1]).union(graphs[2])...`, so where graphs disagree
+        on a label or attribute, the earlier graph wins as described in `union()`. Mirrors
+        NetworkX's `union_all`, except that NetworkX requires disjoint node sets while EdgeCase
+        merges by ID (use `disjoint_union_all()` to keep graphs apart).
+
+        Examples
+        --------
+        Three snapshots of contacts among the same people, combined:
+
+        ```{python}
+        import edgecase as ec
+
+        def snapshot(pairs):
+            g = ec.Graph()
+            for _ in range(4):
+                g.add_node()
+            return g.add_edges(pairs)
+
+        days = [snapshot([(1, 2)]), snapshot([(2, 3)]), snapshot([(3, 4), (1, 2)])]
+        ec.Graph.union_all(days).count_edges()
+        ```
+        """
+        return Graph._fold(graphs, "union")
+
+    @staticmethod
+    def compose_all(graphs: list["Graph"]) -> "Graph":
+        """
+        Combine any number of graphs with `compose()`.
+
+        ![Compose many graphs](/assets/graphs/compose-all.light.svg){.lightbox fig-alt="Three graphs on the same nodes A, B, C: base has edge A–B (accent), update1 adds B–C (teal), and update2 adds C–A (violet). compose_all merges nodes and edges by id from left to right, later graphs winning any attribute clash, so the result is the triangle A, B, C with 3 edges, each in the color of the graph that supplied it." width="100%"}
+
+        Applies `compose()` from left to right, so nodes and edges are merged by ID and, where
+        graphs disagree on attributes, later graphs win. Use it to overlay a series of updates
+        on a base graph.
+
+        Parameters
+        ----------
+        graphs
+            A non-empty list of graphs with the same directedness. None is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph (a copy, if only one graph is given).
+
+        Raises
+        ------
+        ValueError
+            If the list is empty or the graphs differ in directedness.
+
+        Technical Notes
+        ---------------
+        Equivalent to `graphs[0].compose(graphs[1]).compose(graphs[2])...`. Mirrors NetworkX's
+        `compose_all`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        base = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        update1 = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("B", "C")
+        update2 = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("C", "A")
+
+        ec.Graph.compose_all([base, update1, update2]).count_edges()
+        ```
+        """
+        return Graph._fold(graphs, "compose")
+
+    @staticmethod
+    def disjoint_union_all(graphs: list["Graph"]) -> "Graph":
+        """
+        Place any number of graphs side by side with `disjoint_union()`.
+
+        ![Disjoint union of many graphs](/assets/graphs/disjoint-union-all.light.svg){.lightbox fig-alt="Three separate pieces, each numbered from 1: a triangle (accent), a path of 4 nodes (teal), and a star of 5 nodes (violet). disjoint_union_all never merges ids: the triangle keeps ids 1 to 3, the path is renumbered 4 to 7 and the star 8 to 12, giving 12 nodes, 10 edges, and 3 connected components." width="100%"}
+
+        Applies `disjoint_union()` from left to right: each graph's nodes are renumbered above
+        the previous ones, so nothing is merged and the result has one copy of every graph.
+        Clashing labels get numeric suffixes. Use it to run one analysis over many separate
+        networks at once, or to build test graphs with several components.
+
+        Parameters
+        ----------
+        graphs
+            A non-empty list of graphs with the same directedness. None is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph whose node and edge counts are the sums over all graphs.
+
+        Raises
+        ------
+        ValueError
+            If the list is empty or the graphs differ in directedness.
+
+        Technical Notes
+        ---------------
+        Equivalent to chaining `disjoint_union()`. Mirrors NetworkX's `disjoint_union_all`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        pieces = [ec.Graph().add_cycle_graph(3), ec.Graph().add_path_graph(4), ec.Graph().add_star_graph(5)]
+        combined = ec.Graph.disjoint_union_all(pieces)
+        combined.count_nodes(), combined.count_weakly_connected_components()
+        ```
+        """
+        return Graph._fold(graphs, "disjoint_union")
+
+    @staticmethod
+    def intersection_all(graphs: list["Graph"]) -> "Graph":
+        """
+        Keep only the edges that every graph has, with `intersection()`.
+
+        ![Intersection of many graphs](/assets/graphs/intersection-all.light.svg){.lightbox fig-alt="Three snapshots of contacts among nodes 1 to 4: the first has edges 1–2 and 2–3, the second 1–2 and 3–4 (3–4 in teal, the only edge in just one snapshot), the third 1–2 and 2–3 again. intersection_all keeps only edges present in every snapshot: just 1–2, so the result has 1 edge and 2 nodes; 2–3 and 3–4 are dashed, and nodes 3 and 4, left with no edges, are dropped." width="100%"}
+
+        Applies `intersection()` from left to right: an edge survives when every graph joins the
+        same pair of node IDs, and only the endpoints of surviving edges remain. Use it to find
+        the stable core of a network across snapshots, replicates or conditions.
+
+        Parameters
+        ----------
+        graphs
+            A non-empty list of graphs with the same directedness. None is modified.
+
+        Returns
+        -------
+        Graph
+            A new graph (a copy, if only one graph is given).
+
+        Raises
+        ------
+        ValueError
+            If the list is empty or the graphs differ in directedness.
+
+        Technical Notes
+        ---------------
+        Equivalent to chaining `intersection()`. NetworkX's `intersection_all` keeps every node
+        present in all graphs, even without surviving edges; EdgeCase follows `intersection()`,
+        which keeps only endpoints of shared edges.
+
+        Examples
+        --------
+        Contacts seen on all three days:
+
+        ```{python}
+        import edgecase as ec
+
+        def snapshot(pairs):
+            g = ec.Graph()
+            for _ in range(4):
+                g.add_node()
+            return g.add_edges(pairs)
+
+        days = [snapshot([(1, 2), (2, 3)]), snapshot([(1, 2), (3, 4)]), snapshot([(1, 2), (2, 3)])]
+        core = ec.Graph.intersection_all(days)
+        core.count_edges(), core.count_nodes()
+        ```
+        """
+        return Graph._fold(graphs, "intersection")
+
     def edge_overlap(self, other: "Graph") -> dict:
         """
         Compute edge overlap (Jaccard similarity) between this graph and another.
