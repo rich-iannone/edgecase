@@ -44,6 +44,7 @@ pub mod node_vitality;
 pub mod robustness;
 pub mod influence_maximization;
 pub mod isomorphism;
+pub mod path_extras;
 pub mod path_queries;
 pub mod paths;
 pub mod percolation;
