@@ -245,6 +245,9 @@ struct EdgeIndex {
     positions_by_pair: FxHashMap<(u64, u64), Vec<usize>>,
     /// node -> distinct nodes with an edge into it (both endpoints for undirected edges)
     predecessors: FxHashMap<u64, Vec<u64>>,
+    /// node -> number of edges stored with it as target (parallel edges and self-loops each
+    /// count once), so a directed in-degree is O(1) instead of a scan of every edge
+    in_degree: FxHashMap<u64, usize>,
 }
 
 impl EdgeIndex {
@@ -261,6 +264,7 @@ impl EdgeIndex {
                 Default::default(),
             ),
             predecessors: FxHashMap::default(),
+            in_degree: FxHashMap::default(),
         };
         for (position, edge) in edges.iter().enumerate() {
             index.add(edge, position, directed);
@@ -287,6 +291,7 @@ impl EdgeIndex {
             .entry((edge.source, edge.target))
             .or_default()
             .push(position);
+        *self.in_degree.entry(edge.target).or_insert(0) += 1;
         Self::add_predecessor(&mut self.predecessors, edge.target, edge.source);
         if !directed {
             Self::add_predecessor(&mut self.predecessors, edge.source, edge.target);
@@ -961,8 +966,8 @@ impl Graph {
             degrees.insert(node_id, if count_out { self.degree(node_id) } else { 0 });
         }
         if count_in {
-            for edge in &self.edges {
-                *degrees.entry(edge.target).or_insert(0) += 1;
+            for (&node_id, &d) in &self.edge_index().in_degree {
+                *degrees.entry(node_id).or_insert(0) += d;
             }
         }
         degrees
@@ -980,27 +985,13 @@ impl Graph {
     /// Get in-degree of a node (for directed graphs)
     #[inline]
     fn in_degree(&self, node_id: u64) -> usize {
-        if !self.directed {
-            return self.degree(node_id);
-        }
-
-        self.edges
-            .iter()
-            .filter(|e| e.target == node_id)
-            .count()
+        self.get_in_degree(node_id)
     }
 
     /// Get out-degree of a node (for directed graphs)
     #[inline]
     fn out_degree(&self, node_id: u64) -> usize {
-        if !self.directed {
-            return self.degree(node_id);
-        }
-
-        self.edges
-            .iter()
-            .filter(|e| e.source == node_id)
-            .count()
+        self.get_out_degree(node_id)
     }
 
     /// Deselect specific nodes
@@ -8454,23 +8445,15 @@ impl Graph {
         if !self.directed {
             return self.degree_rust(node_id);
         }
-
-        self.edges
-            .iter()
-            .filter(|e| e.target == node_id)
-            .count()
+        // Counted once in the edge index rather than scanning every edge
+        self.edge_index().in_degree.get(&node_id).copied().unwrap_or(0)
     }
 
     /// Get out-degree of a node (public method for Rust code)
     pub fn get_out_degree(&self, node_id: u64) -> usize {
-        if !self.directed {
-            return self.degree_rust(node_id);
-        }
-
-        self.edges
-            .iter()
-            .filter(|e| e.source == node_id)
-            .count()
+        // A directed adjacency list has one entry per outgoing edge (parallel edges and
+        // self-loops included), so its length is the out-degree
+        self.degree_rust(node_id)
     }
 
     /// Get nodes hashmap (public method for Rust code)
