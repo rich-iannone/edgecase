@@ -54,6 +54,7 @@ from edgecase.io import (
     to_sif,
     to_tsv_edge_list,
 )
+from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.multiplex import MultiplexGraph
 from edgecase.svg_renderer import StepPlayer
 
@@ -93,6 +94,9 @@ __all__ = [
     # Core classes
     "Graph",
     "MultiplexGraph",
+    # Exceptions
+    "NodeNotFoundError",
+    "EdgeNotFoundError",
     "Node",
     "Edge",
     # I/O
