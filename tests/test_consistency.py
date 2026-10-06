@@ -294,3 +294,79 @@ class TestSmallerOddities:
         assert len(walk) == 1 and g.get_id_from_label("10") in walk[0][1:]
         with pytest.raises(ValueError):
             g.random_edge_walk(10, steps=1)
+
+
+class TestRemainingDerivedGraphsKeepIds:
+    """Regression: subgraph/ego_graph/graph algebra/transforms renumbered node or edge IDs."""
+
+    def _assert_kept(self, g, h):
+        for nid in h.get_node_ids():
+            assert h.get_label_from_id(nid) == g.get_label_from_id(nid)
+            assert h.get_node(nid).attributes == g.get_node(nid).attributes
+        for eid, s, t in h.get_edges_as_tuples():
+            original = g.get_edge(eid)
+            assert original is not None and {s, t} == {original.source, original.target}
+            assert h.get_edge(eid).attributes == original.attributes
+
+    @pytest.mark.parametrize(
+        "derive",
+        [
+            lambda g: g.subgraph([g.get_id_from_label(x) for x in "ACD"]),
+            lambda g: g.edge_subgraph(g.get_edge_ids()[2:5]),
+            lambda g: g.ego_graph("C"),
+            lambda g: g.to_undirected(),
+            lambda g: g.reverse(),
+            lambda g: g.select_nodes_by_id([g.get_id_from_label(x) for x in "ACD"])
+            .transform_to_subgraph_ws(),
+            lambda g: g.select_edges_by_id(g.get_edge_ids()[:3]).transform_to_subgraph_ws(),
+        ],
+    )
+    def test_nodes_and_edges_keep_ids(self, derive):
+        g = _shifted_graph()
+        self._assert_kept(g, derive(g))
+
+    def test_to_directed_keeps_ids_for_stored_direction(self):
+        g = _shifted_graph()
+        d = g.to_directed()
+        assert d.count_edges() == 2 * g.count_edges()
+        top = max(g.get_edge_ids())
+        for eid, s, t in d.get_edges_as_tuples():
+            if eid <= top:
+                assert (s, t) == (g.get_edge(eid).source, g.get_edge(eid).target)
+        assert sorted(e for e in d.get_edge_ids() if e > top) == list(
+            range(top + 1, top + 1 + g.count_edges())
+        )
+
+    def test_graph_algebra_keeps_this_graphs_edge_ids(self):
+        g = _shifted_graph()
+        other = g.subgraph(g.get_node_ids())  # same IDs
+        a, f = g.get_id_from_label("A"), g.get_id_from_label("F")
+        other.add_edge(a, f, rel="new")
+        for op in ("union", "compose", "intersection", "difference", "symmetric_difference"):
+            h = getattr(g, op)(other)
+            for eid, s, t in h.get_edges_as_tuples():
+                if {s, t} == {a, f}:
+                    assert eid > max(g.get_edge_ids()), op
+                else:
+                    assert g.get_edge(eid) is not None, op
+                    assert {g.get_edge(eid).source, g.get_edge(eid).target} == {s, t}, op
+
+    def test_bipartite_projection_keeps_node_ids_and_attributes(self):
+        g = ec.Graph().add_node(label="tmp")
+        for x in ["a1", "a2", "b1", "b2"]:
+            g.add_node(label=x, side=x[0])
+        g.delete_node("tmp")
+        g.add_edges([("a1", "b1"), ("a2", "b1"), ("a2", "b2")])
+        ids = {x: g.get_id_from_label(x) for x in ["a1", "a2", "b1", "b2"]}
+        which = 0 if ids["a1"] in g.bipartite_sets()[0] else 1
+        proj = g.bipartite_projection(which=which)
+        assert sorted(proj.get_node_ids()) == [ids["a1"], ids["a2"]]
+        assert proj.get_node_attrs("side") == {ids["a1"]: "a", ids["a2"]: "a"}
+        assert [(s, t) for _, s, t in proj.get_edges_as_tuples()] == [(ids["a1"], ids["a2"])]
+
+    def test_transform_to_subgraph_ws_unlabelled_and_weighted(self):
+        g = ec.Graph(weighted=True).add_path_graph(4, label=False)
+        g.select_nodes_by_id(sorted(g.get_node_ids())[:3])
+        h = g.transform_to_subgraph_ws()
+        assert h.is_weighted() and h.count_edges() == 2
+        assert ec.Graph().transform_to_subgraph_ws().count_nodes() == 0
