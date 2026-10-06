@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Shortest-path predecessors</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="548.6" y="38.0" width="150.8" height="120.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 181.20 37.20 L 190.01 37.20 L 198.82 37.20 L 207.63 37.20 L 216.44 37.20 L 225.25 37.20 L 234.06 37.20 L 242.87 37.20 L 251.68 37.20 L 260.49 37.20 L 262.12 37.20" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="269.30,37.20 259.05,41.08 259.05,33.33" fill="#c2410c" fill-opacity="1"/>
+<path d="M 286.80 53.20 L 286.80 62.01 L 286.80 70.82 L 286.80 79.63 L 286.80 88.44 L 286.80 97.25 L 286.80 106.06 L 286.80 114.87 L 286.80 123.68 L 286.80 132.49 L 286.80 134.12" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="286.80,141.30 282.93,131.05 290.68,131.05" fill="#c2410c" fill-opacity="1"/>
+<path d="M 181.20 158.80 L 190.01 158.80 L 198.82 158.80 L 207.63 158.80 L 216.44 158.80 L 225.25 158.80 L 234.06 158.80 L 242.87 158.80 L 251.68 158.80 L 260.49 158.80 L 262.12 158.80" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="269.30,158.80 259.05,162.68 259.05,154.93" fill="#c2410c" fill-opacity="1"/>
+<path d="M 165.20 53.20 L 165.20 62.01 L 165.20 70.82 L 165.20 79.63 L 165.20 88.44 L 165.20 97.25 L 165.20 106.06 L 165.20 114.87 L 165.20 123.68 L 165.20 132.49 L 165.20 134.12" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="165.20,141.30 161.32,131.05 169.07,131.05" fill="#c2410c" fill-opacity="1"/>
+<circle cx="165.2" cy="37.2" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="165.2" y="37.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="286.8" cy="37.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="286.8" y="37.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="286.8" cy="158.8" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="286.8" y="158.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="165.2" cy="158.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="165.2" y="158.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">square</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">square.predecessor(&quot;A&quot;)</text>
+<text x="562.6" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">node  predecessors</text>
+<text x="562.6" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">A  []</text>
+<text x="562.6" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">B  [A]</text>
+<text x="562.6" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">C  [B, D]</text>
+<text x="562.6" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">D  [A]</text>
+</svg>
