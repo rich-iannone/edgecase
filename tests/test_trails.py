@@ -134,7 +134,7 @@ class TestCountTrails:
         G.add_node(label="A")
         a_id = G.get_id_from_label("A")
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="does not exist"):
             G.count_trails(a_id, 99999)
 
 
@@ -293,7 +293,7 @@ class TestEnumerateTrails:
         G.add_node(label="A")
         a_id = G.get_id_from_label("A")
 
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="does not exist"):
             G.enumerate_trails(a_id, 99999)
 
 
