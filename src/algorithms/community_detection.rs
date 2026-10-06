@@ -494,6 +494,65 @@ pub(crate) fn louvain_partition(graph: &Graph, resolution: f64, seed: u64) -> (V
     (ids, out)
 }
 
+/// The partition of the base nodes after each aggregation level of a Louvain run (`leiden=false`)
+/// or a single Leiden run from singletons (`leiden=true`), coarsest last. Each level is returned
+/// as labels in node ID order, numbered in order of the lowest node ID in each community.
+#[pyfunction]
+#[pyo3(signature = (graph, leiden=false, resolution=1.0, seed=None))]
+pub fn community_levels(
+    graph: &Graph,
+    leiden: bool,
+    resolution: f64,
+    seed: Option<u64>,
+) -> PyResult<(Vec<u64>, Vec<Vec<usize>>)> {
+    if leiden && graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "Leiden algorithm requires an undirected graph",
+        ));
+    }
+    let (base, ids) = WGraph::from_graph(graph);
+    let n = base.n();
+    let mut rng = rng_from(seed);
+    let mut g = base;
+    let mut part: Vec<usize> = (0..n).collect();
+    let mut node_of: Vec<usize> = (0..n).collect();
+    let mut levels: Vec<Vec<usize>> = Vec::new();
+    if n == 0 {
+        return Ok((ids, levels));
+    }
+    loop {
+        let moved = move_nodes_fast(&g, &mut part, resolution, &mut rng);
+        let mut flat = part.clone();
+        let k = renumber(&mut flat);
+        let mut level: Vec<usize> = node_of.iter().map(|&a| flat[a]).collect();
+        renumber(&mut level);
+        if levels.last() != Some(&level) && (k < g.n() || levels.is_empty()) {
+            levels.push(level);
+        }
+        if k == g.n() || (!leiden && !moved) {
+            break;
+        }
+        let (aggregate_by, kr) = if leiden {
+            let mut refined = refine(&g, &part, resolution, &mut rng);
+            let kr = renumber(&mut refined);
+            if kr == g.n() { (flat.clone(), k) } else { (refined, kr) }
+        } else {
+            (flat.clone(), k)
+        };
+        let agg = g.aggregate(&aggregate_by, kr);
+        let mut next = vec![0usize; kr];
+        for v in 0..g.n() {
+            next[aggregate_by[v]] = flat[v];
+        }
+        for b in node_of.iter_mut() {
+            *b = aggregate_by[*b];
+        }
+        g = agg;
+        part = if leiden { next } else { (0..kr).collect() };
+    }
+    Ok((ids, levels))
+}
+
 // ---------------------------------------------------------------------------------------------
 // Asynchronous label propagation
 // ---------------------------------------------------------------------------------------------
