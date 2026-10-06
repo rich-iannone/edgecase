@@ -871,6 +871,12 @@ reference:
         - name: MultiplexGraph
           members: true
 
+    - title: Exceptions
+      desc: Errors raised for nodes and edges that don't exist
+      contents:
+        - NodeNotFoundError
+        - EdgeNotFoundError
+
     - title: Utilities
       desc: Utility functions for visualization and palettes
       contents:
