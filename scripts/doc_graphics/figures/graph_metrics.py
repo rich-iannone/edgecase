@@ -55,7 +55,7 @@ Every number on a card is what edgecase returns for the depicted graph.
 
 from core import R_SMALL, SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
 
-from figures.node_metrics_local import TREE, TREE_ARCS, food_web
+from figures.node_metrics_local import TREE, TREE_ARCS, food_web, two_rows
 
 UNIT = 84  # one grid step for every graph in the family
 
@@ -973,3 +973,71 @@ def small_world_omega(s: Scene) -> None:
     s.card_centered(right, [f"L_r / L  {lr:.3f} / {length:.3f}", f"C / C_l  {c:.3f} / {cl:.3f}",
                             (f"omega    {value:.3f}", "accent")],
                     title="L_r / L − C / C_l")
+
+
+# --- bipartite clustering and bipartivity ---------------------------------------
+#
+# Two-mode graphs have no triangles, so their clustering counts squares instead.
+# robins_alexander_clustering draws the docstring's K(2,3) in two rows (shared
+# helper from node_metrics_local), one of its three squares in accent;
+# spectral_bipartivity puts the square beside the square plus a diagonal in the
+# `contrast` layout, its two values in the captions.
+
+
+def _paths_and_squares(nbrs: dict) -> tuple[int, int]:
+    """Brute-force counts of 3-edge paths and 4-cycles (checks the card's arithmetic)."""
+    walks = [(a, b, c, d) for a in nbrs for b in nbrs[a] for c in nbrs[b] for d in nbrs[c]
+             if len({a, b, c, d}) == 4]
+    return len(walks) // 2, sum(a in nbrs[d] for a, _, _, d in walks) // 8
+
+
+@figure("robins_alexander_clustering", "graph-metrics", "Robins-Alexander clustering",
+        "The complete bipartite graph K(2,3): a and b on top, each joined to x, y and z "
+        "below. Every path of length three closes into a square, like a, x, b, y in the "
+        "accent color. The card counts 3 squares and 12 paths of length three, so the "
+        "coefficient is 4 times 3 over 12, which is 1.0.")
+def robins_alexander_clustering(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
+    edges = [(u, v) for u in "ab" for v in "xyz"]
+    g.add_edges(edges)
+    value = g.robins_alexander_clustering()
+    nbrs = {k: {v for e in edges for v in e if k in e and v != k} for k in "abxyz"}
+    l3, c4 = _paths_and_squares(nbrs)
+    assert (l3, c4, value) == (12, 3, 1.0)
+    left, right = compute(s, "g", "g.robins_alexander_clustering()")
+    square = {("a", "x"), ("a", "y"), ("b", "x"), ("b", "y")}
+    two_rows(s, left, ["a", "b"], ["x", "y", "z"],
+             [(a, b, {"style": "accent"}) if (a, b) in square else (a, b) for a, b in edges],
+             styles=dict.fromkeys("abxy", "accent"), labels=True)
+    s.card_centered(right, [f"C4  {c4} squares", f"L3  {l3} paths of length 3",
+                            (f"4 · {c4} / {l3} = {value:.1f}", "accent")], title="4 · C4 / L3")
+
+
+@figure("spectral_bipartivity", "graph-metrics", "Spectral bipartivity",
+        "Left: the square 1, 2, 3, 4 has only even cycles, so every closed walk has even "
+        "length and spectral_bipartivity() returns 1.0. Right: the same square plus the "
+        "diagonal 1 to 3, in the accent color, which closes the triangles 1, 2, 3 and 1, 3, "
+        "4; odd closed walks now count against it and the value drops to 0.795.")
+def spectral_bipartivity(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(4)
+    before = g.spectral_bipartivity()
+    ids = sorted(g.get_node_ids(limit=None))
+    g.add_edge(ids[0], ids[2])
+    after = round(g.spectral_bipartivity(), 3)
+    assert (before, after) == (1.0, 0.795)
+    left, right = contrast(s, "g.spectral_bipartivity()", "g.spectral_bipartivity()",
+                           f"{before:.1f}", f"{after:.3f}")
+    # both values are results, so the right one is accent too
+    next(t for t in s.texts if t.role == "caption" and t.text == f"{after:.3f}").color = "accent"
+    sq = {"1": (0, 0), "2": (1.4, 0), "3": (1.4, 1.4), "4": (0, 1.4)}
+    cycle = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
+    s.text(left.cx, left.y0 + 8, "even cycles only", size=SIZE_NOTE, opacity=0.6)
+    s.graph(place(sq, Box(left.x0, left.y0 + 22, left.x1, left.y1), unit=UNIT), cycle,
+            prefix="l.")
+    s.text(right.cx, right.y0 + 8, "two triangles", size=SIZE_NOTE, opacity=0.6)
+    s.graph(place(sq, Box(right.x0, right.y0 + 22, right.x1, right.y1), unit=UNIT),
+            cycle + [("1", "3", {"style": "accent"})], prefix="r.")
