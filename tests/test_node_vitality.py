@@ -122,7 +122,7 @@ class TestNodeVitality:
         graph = Graph()
         graph.add_path_graph(3)
 
-        with pytest.raises(ValueError, match="does not exist"):
+        with pytest.raises(ValueError, match="not found"):
             graph.get_node_vitality("nonexistent")
 
     def test_directed_graph_hub_vitality(self):
