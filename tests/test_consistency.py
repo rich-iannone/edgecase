@@ -540,3 +540,71 @@ class TestUniqueLabelsAndIds:
     def test_unlabelled_nodes_are_unaffected(self):
         g = ec.Graph().add_node().add_node().add_path_graph(3, label=False)
         assert g.count_nodes() == 5
+
+
+class TestNotFoundErrors:
+    """Missing nodes and edges raised a mix of ValueError and KeyError (and get_edge /
+    get_label_from_id returned None); they now raise NodeNotFoundError / EdgeNotFoundError,
+    which are both ValueError and KeyError."""
+
+    def _graph(self):
+        return ec.Graph().add_nodes(["A", "B"]).add_edge("A", "B")
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda g: g.get_node(99),
+            lambda g: g.get_node("Z"),
+            lambda g: g.get_label_from_id(99),
+            lambda g: g.delete_node(99),
+            lambda g: g.delete_node("Z"),
+            lambda g: g.select_nodes_by_id([1, 99]),
+            lambda g: g.neighbors("Z"),
+            lambda g: g.add_node(label="C", from_node="Z"),
+        ],
+    )
+    def test_nodes(self, call):
+        g = self._graph()
+        for expected in (ec.NodeNotFoundError, ValueError, KeyError):
+            with pytest.raises(expected):
+                call(g)
+        assert g.count_nodes() == 2 and g.get_selected_node_ids() == []
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda g: g.get_edge(99),
+            lambda g: g.delete_edge(id=99),
+            lambda g: g.select_edges_by_id([99]),
+        ],
+    )
+    def test_edges(self, call):
+        g = self._graph()
+        for expected in (ec.EdgeNotFoundError, ValueError, KeyError):
+            with pytest.raises(expected):
+                call(g)
+        assert g.count_edges() == 1
+
+    def test_message_has_no_keyerror_quotes(self):
+        with pytest.raises(ec.NodeNotFoundError) as info:
+            self._graph().delete_node(99)
+        assert str(info.value) == "Node 99 does not exist in the graph"
+
+    def test_get_label_from_id_unlabelled_is_none(self):
+        g = ec.Graph().add_node()
+        assert g.get_label_from_id(1) is None
+
+    def test_add_node_connects_existing_nodes(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B"])
+        g.add_node(label="C", from_node="A", to_node=2)
+        assert sorted(
+            (g.get_label_from_id(s), g.get_label_from_id(t)) for _, s, t in g.get_edges_as_tuples()
+        ) == [("B", "C"), ("C", "A")]
+
+
+def test_delete_edge_with_no_edge_between_nodes():
+    g = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+    with pytest.raises(ec.EdgeNotFoundError, match="No edge found from 'B' to 'A'"):
+        g.delete_edge("B", "A")
+    with pytest.raises(KeyError):
+        g.delete_edge("B", "A")
