@@ -25,12 +25,20 @@ pub struct Node {
     pub attributes: Option<Py<PyDict>>,
 }
 
+/// Shallow copy of an attributes dict, so a cloned node or edge (a derived graph, or the object
+/// `get_node()`/`get_edge()` returns) never shares its dict with the original
+pub(crate) fn copy_attrs(py: Python, attrs: &Option<Py<PyDict>>) -> Option<Py<PyDict>> {
+    attrs.as_ref().map(|d| {
+        d.bind(py).copy().map(|c| c.unbind()).unwrap_or_else(|_| d.clone_ref(py))
+    })
+}
+
 impl Clone for Node {
     fn clone(&self) -> Self {
         Python::with_gil(|py| Node {
             id: self.id,
             label: self.label.clone(),
-            attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
+            attributes: copy_attrs(py, &self.attributes),
         })
     }
 }
@@ -79,7 +87,7 @@ impl Clone for Edge {
             source: self.source,
             target: self.target,
             weight: self.weight,
-            attributes: self.attributes.as_ref().map(|d| d.clone_ref(py)),
+            attributes: copy_attrs(py, &self.attributes),
         })
     }
 }
@@ -468,6 +476,12 @@ impl Graph {
         Ok(self.nodes.get(&node_id).and_then(|n| n.label.clone()))
     }
 
+    /// The ID the next auto-assigned node will get (IDs of deleted nodes are never reused)
+    #[getter]
+    pub fn next_node_id(&self) -> u64 {
+        self.next_node_id
+    }
+
     /// Rename nodes atomically.
     ///
     /// `mapping` pairs node IDs with their new labels. Every ID must exist, and after renaming
@@ -753,8 +767,15 @@ impl Graph {
             neighbors.retain(|&n| n != node_id);
         }
 
-        // Remove all incident edges
-        self.edges.retain(|e| e.source != node_id && e.target != node_id);
+        // Remove all incident edges, dropping them from the edge selection too
+        let selected_edges = &mut self.selected_edges;
+        self.edges.retain(|e| {
+            let incident = e.source == node_id || e.target == node_id;
+            if incident {
+                selected_edges.remove(&e.id);
+            }
+            !incident
+        });
         self.invalidate_edge_index();
 
         // Clean up selection state
@@ -855,30 +876,29 @@ impl Graph {
     /// Select nodes by their IDs
     #[inline]
     pub fn select_nodes_by_id(&mut self, node_ids: Vec<u64>) -> PyResult<()> {
-        for node_id in node_ids {
-            if !self.nodes.contains_key(&node_id) {
-                return Err(pyo3::exceptions::PyKeyError::new_err(format!(
-                    "Node {} does not exist",
-                    node_id
-                )));
-            }
-            self.selected_nodes.insert(node_id);
+        // Check every ID before selecting any, so a bad ID leaves the selection unchanged
+        if let Some(missing) = node_ids.iter().find(|id| !self.nodes.contains_key(id)) {
+            return Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                "Node {} does not exist",
+                missing
+            )));
         }
+        self.selected_nodes.extend(node_ids);
         Ok(())
     }
 
     /// Select edges by their IDs
     #[inline]
     pub fn select_edges_by_id(&mut self, edge_ids: Vec<u64>) -> PyResult<()> {
-        for edge_id in edge_ids {
-            if !self.has_edge_id(edge_id) {
-                return Err(pyo3::exceptions::PyKeyError::new_err(format!(
-                    "Edge with ID {} does not exist",
-                    edge_id
-                )));
-            }
-            self.selected_edges.insert(edge_id);
+        // Check every ID before selecting any, so a bad ID leaves the selection unchanged
+        let existing: FxHashSet<u64> = self.edges.iter().map(|e| e.id).collect();
+        if let Some(missing) = edge_ids.iter().find(|id| !existing.contains(id)) {
+            return Err(pyo3::exceptions::PyKeyError::new_err(format!(
+                "Edge with ID {} does not exist",
+                missing
+            )));
         }
+        self.selected_edges.extend(edge_ids);
         Ok(())
     }
 
@@ -2271,9 +2291,21 @@ impl Graph {
     /// # Arguments
     /// * `unconnected` - If true (default), compute max diameter across all components.
     ///                   If false, return None for disconnected graphs.
+    /// True when every node can reach every other: strongly connected if directed, connected
+    /// otherwise. False for an empty graph.
+    fn all_pairs_reachable(&self) -> bool {
+        if self.directed {
+            crate::algorithms::connectivity::count_strongly_connected_components(self)
+                .map_or(false, |c| c == 1)
+        } else {
+            self.count_weakly_connected_components() == 1
+        }
+    }
+
     fn get_diameter_with_unconnected(&self, unconnected: bool) -> Option<usize> {
-        // Check if graph is connected
-        let is_connected = self.count_weakly_connected_components() == 1;
+        // unconnected=false needs every node to reach every other: strong connectivity on
+        // directed graphs (as get_mean_distance requires), plain connectivity otherwise
+        let is_connected = self.all_pairs_reachable();
 
         // If unconnected=false and graph is disconnected, return None
         if !unconnected && !is_connected {
@@ -2301,8 +2333,9 @@ impl Graph {
     /// * `unconnected` - If true (default), compute min radius across all components.
     ///                   If false, return None for disconnected graphs.
     fn get_radius_with_unconnected(&self, unconnected: bool) -> Option<usize> {
-        // Check if graph is connected
-        let is_connected = self.count_weakly_connected_components() == 1;
+        // unconnected=false needs every node to reach every other: strong connectivity on
+        // directed graphs (as get_mean_distance requires), plain connectivity otherwise
+        let is_connected = self.all_pairs_reachable();
 
         // If unconnected=false and graph is disconnected, return None
         if !unconnected && !is_connected {
@@ -2526,14 +2559,14 @@ impl Graph {
     fn is_tree(&self) -> bool {
         let n = self.num_nodes();
 
-        // Empty graph or single node is considered a tree
-        if n == 0 || n == 1 {
-            return true;
-        }
-
-        // Directed graphs should use is_arborescence()
+        // Directed graphs should use is_arborescence(), whatever their size
         if self.directed {
             return false;
+        }
+
+        // Empty graph or single node is considered a tree, unless the node has a self-loop
+        if n == 0 || n == 1 {
+            return self.num_edges() == 0;
         }
 
         // A tree with n nodes has exactly n-1 edges
@@ -3923,7 +3956,7 @@ impl Graph {
     /// of vertices visited.
     ///
     /// # Arguments
-    /// * `start` - Label of the starting vertex
+    /// * `start` - ID of the starting vertex
     /// * `steps` - Number of steps to take
     /// * `mode` - Direction to follow: "out" (default), "in", "all"
     /// * `stuck` - What to do if stuck: "return" (default) or "error"
@@ -3934,28 +3967,21 @@ impl Graph {
     #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None))]
     pub fn random_edge_walk(
         &self,
-        start: &str,
+        start: u64,
         steps: usize,
         mode: &str,
         stuck: &str,
         seed: Option<u64>,
     ) -> PyResult<Vec<(u64, u64, u64)>> {
-        // Try to parse as node ID first, then as label
-        let start_id = if let Ok(id) = start.parse::<u64>() {
-            if self.nodes.contains_key(&id) {
-                id
-            } else {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Start node with ID {} not found", id)
-                ));
-            }
-        } else {
-            self.id_from_label(start).map_err(|_| {
-                PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("Start node '{}' not found", start)
-                )
-            })?
-        };
+        // The start is a node ID (Python resolves labels), so digit-only labels aren't mistaken
+        // for IDs
+        if !self.nodes.contains_key(&start) {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Start node {} does not exist",
+                start
+            )));
+        }
+        let start_id = start;
 
         let mut rng: ChaCha8Rng = if let Some(s) = seed {
             ChaCha8Rng::seed_from_u64(s)
@@ -4326,7 +4352,7 @@ impl Graph {
         // Copy all nodes
         for (node_id, node) in &self.nodes {
             let label = node.label.clone();
-            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &node.attributes);
             let node_obj = Node::new(*node_id, label, attrs);
             result.add_node(node_obj)?;
         }
@@ -4350,7 +4376,7 @@ impl Graph {
             seen_pairs.insert(pair);
 
             let weight = edge.weight;
-            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &edge.attributes);
             let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs);
             result.add_edge(edge_obj)?;
         }
@@ -4372,7 +4398,7 @@ impl Graph {
         // Copy all nodes
         for (node_id, node) in &self.nodes {
             let label = node.label.clone();
-            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &node.attributes);
             let node_obj = Node::new(*node_id, label, attrs);
             result.add_node(node_obj)?;
         }
@@ -4380,10 +4406,10 @@ impl Graph {
         // Copy all edges
         for edge in &self.edges {
             let weight = edge.weight;
-            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &edge.attributes);
 
             // Add edge in original direction
-            let attrs_clone = attrs.as_ref().map(|a| a.clone_ref(py));
+            let attrs_clone = copy_attrs(py, &attrs);
             let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs_clone);
             result.add_edge(edge_obj)?;
 
@@ -4410,7 +4436,7 @@ impl Graph {
         // Copy all nodes
         for (node_id, node) in &self.nodes {
             let label = node.label.clone();
-            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &node.attributes);
             let node_obj = Node::new(*node_id, label, attrs);
             result.add_node(node_obj)?;
         }
@@ -4418,7 +4444,7 @@ impl Graph {
         // Copy edges with reversed direction (if directed)
         for edge in &self.edges {
             let weight = edge.weight;
-            let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &edge.attributes);
 
             if self.directed {
                 // Swap source and target
@@ -4452,7 +4478,7 @@ impl Graph {
         // Copy all nodes (with attributes)
         for (node_id, node) in &self.nodes {
             let label = node.label.clone();
-            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &node.attributes);
             let node_obj = Node::new(*node_id, label, attrs);
             result.add_node(node_obj)?;
         }
@@ -4552,7 +4578,7 @@ impl Graph {
         // Copy all nodes
         for (node_id, node) in &self.nodes {
             let label = node.label.clone();
-            let attrs = node.attributes.as_ref().map(|a| a.clone_ref(py));
+            let attrs = copy_attrs(py, &node.attributes);
             let node_obj = Node::new(*node_id, label, attrs);
             spanner.add_node(node_obj)?;
         }
@@ -4614,7 +4640,7 @@ impl Graph {
             let current_dist = spanner_distances[&(u, v)];
             if current_dist > stretch * edge_weight {
                 // Add edge to spanner
-                let attrs = edge.attributes.as_ref().map(|a| a.clone_ref(py));
+                let attrs = copy_attrs(py, &edge.attributes);
                 let edge_obj = Edge::new(0, u, v, Some(edge_weight), attrs);
                 spanner.add_edge(edge_obj)?;
 
@@ -6142,6 +6168,9 @@ impl Graph {
 
         let mut trails: Vec<Vec<u64>> = Vec::new();
         let limit = max_trails.unwrap_or(usize::MAX);
+        if limit == 0 {
+            return Ok(trails);
+        }
 
         // If source == target, return single empty trail
         if source == target {
