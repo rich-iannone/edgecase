@@ -1,10 +1,14 @@
 import ast
+import contextlib
 import importlib.util
 import re
 import sys
 import traceback
+import webbrowser
 from pathlib import Path
 from typing import List, Tuple
+
+import edgecase.viz
 
 
 def extract_code_blocks_from_docstring(docstring: str) -> List[str]:
@@ -90,8 +94,30 @@ def extract_docstrings_from_file(filepath: Path) -> List[Tuple[str, str, str]]:
     return results
 
 
+@contextlib.contextmanager
+def _no_browser():
+    """Stop examples from opening browser tabs, restoring both functions afterwards.
+
+    (These patches used to be applied inside every namespace and never undone, so each docstring
+    group wrapped `plot_graph` once more and later tests in the same process saw the mocks.)
+    """
+    real_plot_graph = edgecase.viz.plot_graph
+    real_open = webbrowser.open
+
+    def _plot_graph_no_browser(*args, open_browser=True, **kwargs):
+        return real_plot_graph(*args, open_browser=False, **kwargs)
+
+    edgecase.viz.plot_graph = _plot_graph_no_browser
+    webbrowser.open = lambda url, new=0, autoraise=True: None
+    try:
+        yield
+    finally:
+        edgecase.viz.plot_graph = real_plot_graph
+        webbrowser.open = real_open
+
+
 def _make_namespace() -> dict:
-    """Create a fresh execution namespace with edgecase pre-imported and browser mocked."""
+    """Create a fresh execution namespace with edgecase pre-imported."""
     namespace = {
         "__name__": "__main__",
         "__builtins__": __builtins__,
@@ -100,25 +126,6 @@ def _make_namespace() -> dict:
         exec("from edgecase import Graph", namespace)
         exec("import edgecase", namespace)
         exec("import edgecase as ec", namespace)
-        exec(
-            """
-import edgecase.viz
-_original_plot_graph = edgecase.viz.plot_graph
-
-def _mock_plot_graph(*args, open_browser=True, **kwargs):
-    return _original_plot_graph(*args, open_browser=False, **kwargs)
-
-edgecase.viz.plot_graph = _mock_plot_graph
-
-import webbrowser
-
-def _mock_webbrowser_open(url, new=0, autoraise=True):
-    pass
-
-webbrowser.open = _mock_webbrowser_open
-""",
-            namespace,
-        )
     except ImportError as e:
         raise RuntimeError(f"Failed to import edgecase: {e}") from e
     return namespace
@@ -182,24 +189,25 @@ def test_all_docstring_examples():
     shared_ns: dict = {}  # namespace shared within a (filepath, context) group
     current_group: tuple = ()
 
-    for i, (filepath, context, code) in enumerate(all_examples, 1):
-        location = f"{filepath.relative_to(project_root)}: {context}"
-        print(f"\n[{i}/{len(all_examples)}] Testing: {location}")
-        print(f"Code preview: {code[:100]}...")
+    with _no_browser():
+        for i, (filepath, context, code) in enumerate(all_examples, 1):
+            location = f"{filepath.relative_to(project_root)}: {context}"
+            print(f"\n[{i}/{len(all_examples)}] Testing: {location}")
+            print(f"Code preview: {code[:100]}...")
 
-        group_key = (filepath, context)
-        if group_key != current_group:
-            shared_ns = _make_namespace()
-            current_group = group_key
+            group_key = (filepath, context)
+            if group_key != current_group:
+                shared_ns = _make_namespace()
+                current_group = group_key
 
-        success, error = execute_code_example(code, context, namespace=shared_ns)
+            success, error = execute_code_example(code, context, namespace=shared_ns)
 
-        if success:
-            print("✓ PASSED")
-            successes += 1
-        else:
-            print("✗ FAILED")
-            failures.append((location, code, error))
+            if success:
+                print("✓ PASSED")
+                successes += 1
+            else:
+                print("✗ FAILED")
+                failures.append((location, code, error))
 
     # Print summary
     print("\n" + "=" * 80)
@@ -220,6 +228,15 @@ def test_all_docstring_examples():
         assert False, f"{len(failures)}/{len(all_examples)} docstring examples failed"
     else:
         print("\n✓ All docstring examples passed!")
+
+
+def test_docstring_harness_restores_patches():
+    """test_docstring_examples used to replace viz.plot_graph and webbrowser.open for the rest of
+    the session (wrapping plot_graph once more per docstring group)."""
+    before = (edgecase.viz.plot_graph, webbrowser.open)
+    with _no_browser():
+        assert edgecase.viz.plot_graph is not before[0]
+    assert (edgecase.viz.plot_graph, webbrowser.open) == before
 
 
 if __name__ == "__main__":
