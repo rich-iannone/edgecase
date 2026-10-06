@@ -3136,18 +3136,17 @@ impl Graph {
     ///   - blocks: Vec of node sets (each block as list of labels)
     ///   - cohesion: Vec of k-values (cohesion of each block)
     ///   - parent: Vec of parent block indices (None for root blocks)
-    #[allow(deprecated)] // Allow into_py during PyO3 migration
     pub fn cohesive_blocks(&self, py: Python) -> PyResult<PyObject> {
         let n = self.num_nodes();
 
         // Handle empty or trivial graphs
         if n == 0 {
-            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).into_py(py));
+            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).into_pyobject(py)?.into_any().unbind());
         }
 
         if n == 1 {
             let node_id = *self.nodes.keys().next().unwrap();
-            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).into_py(py));
+            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).into_pyobject(py)?.into_any().unbind());
         }
 
         // If graph is disconnected, process each component separately
@@ -3184,7 +3183,7 @@ impl Graph {
             }
 
             // Return node IDs directly (no label conversion)
-            return Ok((all_blocks, all_cohesions, all_parents).into_py(py));
+            return Ok((all_blocks, all_cohesions, all_parents).into_pyobject(py)?.into_any().unbind());
         }
 
         // Process connected graph
@@ -3194,7 +3193,7 @@ impl Graph {
             self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
 
         // Return node IDs directly (no label conversion)
-        Ok((blocks, cohesions, parents).into_py(py))
+        Ok((blocks, cohesions, parents).into_pyobject(py)?.into_any().unbind())
     }
 
     /// Get eccentricity for each node
