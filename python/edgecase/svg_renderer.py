@@ -1624,12 +1624,15 @@ _traversal_counter = 0
 def _infer_tree_edges(
     visit_order: List[str],
     adjacency: Dict[str, List[str]],
+    earliest: bool = False,
 ) -> List[Tuple[str, str]]:
     """Infer tree edges from a visit order.
 
-    For each node after the first, the tree edge connects it to its already-visited neighbor that
-    appears latest in visit_order. `adjacency` maps each node to its possible parents (its
-    neighbors, or its predecessors on a directed graph).
+    For each node after the first, the tree edge connects it to an already-visited neighbor:
+    the one that appears latest in visit_order (the DFS parent), or with `earliest=True` the one
+    that appears first (the BFS parent, since BFS discovers a node from the earliest-visited
+    neighbor it has). `adjacency` maps each node to its possible parents (its neighbors, or its
+    predecessors on a directed graph).
     """
     order_idx = {nid: i for i, nid in enumerate(visit_order)}
     tree_edges: List[Tuple[str, str]] = []
@@ -1643,7 +1646,7 @@ def _infer_tree_edges(
         for nb in adjacency.get(nid, []):
             if nb in visited_set:
                 pos = order_idx.get(nb, -1)
-                if pos > best_pos:
+                if best_parent is None or (pos < best_pos if earliest else pos > best_pos):
                     best_pos = pos
                     best_parent = nb
         if best_parent is not None:
@@ -1804,7 +1807,8 @@ def render_traversal(
             for src, targets in adjacency.items():
                 for tgt in targets:
                     parent_candidates.setdefault(tgt, []).append(src)
-        tree_edges_str = _infer_tree_edges(visit_order_str, parent_candidates)
+        is_bfs = algorithm.strip().upper().startswith("BFS")
+        tree_edges_str = _infer_tree_edges(visit_order_str, parent_candidates, earliest=is_bfs)
     else:
         tree_edges_str = [(str(s), str(t)) for s, t in tree_edges]
 
