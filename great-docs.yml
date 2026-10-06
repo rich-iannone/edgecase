@@ -679,6 +679,19 @@ reference:
         - Graph.symmetric_difference
         - Graph.compose
         - Graph.disjoint_union
+        - Graph.full_join
+        - Graph.union_all
+        - Graph.compose_all
+        - Graph.disjoint_union_all
+        - Graph.intersection_all
+        - Graph.cartesian_product
+        - Graph.tensor_product
+        - Graph.strong_product
+        - Graph.lexicographic_product
+        - Graph.rooted_product
+        - Graph.corona_product
+        - Graph.modular_product
+        - Graph.power
         - Graph.transform_with_spanner
         - Graph.transform_to_subgraph_ws
         - Graph.subgraph
