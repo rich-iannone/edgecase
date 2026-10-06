@@ -1294,6 +1294,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![ADA* search](/assets/graphs/ada-star-search.light.svg){.lightbox fig-alt="A directed weighted graph with three routes from A to F, costing 4, 6, and 5. With epsilon 1.0 ADA* behaves like A* and returns the optimal path A, B, C, F, drawn in the accent color. The card gives its cost, 1 + 2 + 1 = 4." width="100%"}
 ```
 
+### `all_pairs_all_shortest_paths()` — All-pairs all shortest paths
+
+<img src="all-pairs-all-shortest-paths.light.svg" alt="A four-node cycle 1, 2, 3, 4. Between opposite corners there are two equally short routes, such as 1, 2, 3 (accent color) and 1, 4, 3 (teal). The matrix counts the shortest paths for every source and target: 2 for the four opposite pairs (highlighted) and 1 otherwise, 20 paths in total." width="570">
+
+```markdown
+![All-pairs all shortest paths](/assets/graphs/all-pairs-all-shortest-paths.light.svg){.lightbox fig-alt="A four-node cycle 1, 2, 3, 4. Between opposite corners there are two equally short routes, such as 1, 2, 3 (accent color) and 1, 4, 3 (teal). The matrix counts the shortest paths for every source and target: 2 for the four opposite pairs (highlighted) and 1 otherwise, 20 paths in total." width="100%"}
+```
+
 ### `all_pairs_shortest_path()` — All-pairs shortest paths
 
 <img src="all-pairs-shortest-path.light.svg" alt="A four-node directed weighted cycle A, B, C, D with a direct shortcut A to C of weight 4. The matrix gives the shortest path for every source-target pair, written as node letters; the highlighted cell A to C is A, B, C, the route drawn in the accent color." width="570">
@@ -1316,6 +1324,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![All shortest paths](/assets/graphs/all-shortest-paths.light.svg){.lightbox fig-alt="The directed graph with three routes from A to F, unweighted. Two routes tie at two hops and both are returned: A, D, F in the accent color and A, E, F in teal. The three-hop route through B and C stays faint." width="100%"}
+```
+
+### `all_simple_edge_paths()` — All simple edge paths
+
+<img src="all-simple-edge-paths.light.svg" alt="Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one edge between B and C (id 3). Both routes visit the same nodes but use different edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in teal; both share edge 3." width="570">
+
+```markdown
+![All simple edge paths](/assets/graphs/all-simple-edge-paths.light.svg){.lightbox fig-alt="Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one edge between B and C (id 3). Both routes visit the same nodes but use different edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in teal; both share edge 3." width="100%"}
+```
+
+### `astar_path()` — A* path
+
+<img src="astar-path.light.svg" alt="A six-by-six grid searched from its top-left corner (0,0) to the bottom-right corner (5,5), outlined. Each node is labeled with the Manhattan-distance heuristic h, its estimated remaining distance to the target, from 10 down to 0. The returned shortest path, 10 hops along the top row and down the right column, is in the accent color; along it the steps taken plus h always sum to 10." width="570">
+
+```markdown
+![A* path](/assets/graphs/astar-path.light.svg){.lightbox fig-alt="A six-by-six grid searched from its top-left corner (0,0) to the bottom-right corner (5,5), outlined. Each node is labeled with the Manhattan-distance heuristic h, its estimated remaining distance to the target, from 10 down to 0. The returned shortest path, 10 hops along the top row and down the right column, is in the accent color; along it the steps taken plus h always sum to 10." width="100%"}
+```
+
+### `astar_path_length()` — A* path length
+
+<img src="astar-path-length.light.svg" alt="Four towns A, B, C, D joined by roads: A–B 4, B–D 4, A–C 2 and C–D 7. From A (outlined) to D (outlined) the route through C starts cheaper but totals 9, so A* returns the route through B, drawn in the accent color, with length 4 + 4 = 8.0." width="570">
+
+```markdown
+![A* path length](/assets/graphs/astar-path-length.light.svg){.lightbox fig-alt="Four towns A, B, C, D joined by roads: A–B 4, B–D 4, A–C 2 and C–D 7. From A (outlined) to D (outlined) the route through C starts cheaper but totals 9, so A* returns the route through B, drawn in the accent color, with length 4 + 4 = 8.0." width="100%"}
 ```
 
 ### `bellman_ford_shortest_path()` — Bellman-Ford shortest path
@@ -1438,6 +1470,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Find negative cycle](/assets/graphs/find-negative-cycle.light.svg){.lightbox fig-alt="Three currencies linked by exchange edges weighted with negative log-rates, searched from USD (outlined). Going around USD to EUR to GBP and back to USD (accent arrows) costs −0.10 − 0.15 + 0.20 = −0.05, a negative cycle: an arbitrage loop. The card returns the cycle with its first node repeated at the end, USD, EUR, GBP, USD." width="100%"}
 ```
 
+### `floyd_warshall()` — Floyd-Warshall distances
+
+<img src="floyd-warshall.light.svg" alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. The negative shortcut makes the long way round, A, C, B (accent color), cheaper than the direct edge: 2 + (−1) = 1. The distance matrix highlights dist A to B = 1.0; pairs with no path, such as B to A, are left out (shown as a dot)." width="570">
+
+```markdown
+![Floyd-Warshall distances](/assets/graphs/floyd-warshall.light.svg){.lightbox fig-alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. The negative shortcut makes the long way round, A, C, B (accent color), cheaper than the direct edge: 2 + (−1) = 1. The distance matrix highlights dist A to B = 1.0; pairs with no path, such as B to A, are left out (shown as a dot)." width="100%"}
+```
+
 ### `get_all_simple_paths()` — All simple paths
 
 <img src="get-all-simple-paths.light.svg" alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="570">
@@ -1460,6 +1500,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Girth](/assets/graphs/get-girth.light.svg){.lightbox fig-alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="100%"}
+```
+
+### `johnson()` — Johnson all-pairs shortest paths
+
+<img src="johnson.light.svg" alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. Johnson&#x27;s algorithm reweights the edges to remove the negative one without changing which paths are shortest, then runs Dijkstra from every node. The path it returns from A to B is A, C, B (accent color), costing 2 + (−1) = 1, less than the direct edge&#x27;s 4." width="570">
+
+```markdown
+![Johnson all-pairs shortest paths](/assets/graphs/johnson.light.svg){.lightbox fig-alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. Johnson's algorithm reweights the edges to remove the negative one without changing which paths are shortest, then runs Dijkstra from every node. The path it returns from A to B is A, C, B (accent color), costing 2 + (−1) = 1, less than the direct edge's 4." width="100%"}
 ```
 
 ### `k_shortest_paths()` — k shortest paths
@@ -1510,6 +1558,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Node-disjoint paths](/assets/graphs/node-disjoint-paths.light.svg){.lightbox fig-alt="The same graph: two triangles sharing node C, plus a detour from A to E through F. Only two paths from A to E avoid each other's inner nodes, A, C, E in the accent color and A, F, E in teal; the third edge-disjoint route, A, B, C, D, E, would reuse C, so B and D stay faint." width="100%"}
 ```
 
+### `predecessor()` — Shortest-path predecessors
+
+<img src="predecessor.light.svg" alt="A square of four nodes A, B, C, D searched from A (outlined). The arrows form the shortest-path DAG: A precedes B and D, one hop away, and C, two hops away, is reached equally fast through B or D, so C (accent color) has two predecessors. The card lists A: none, B: A, C: B and D, D: A." width="570">
+
+```markdown
+![Shortest-path predecessors](/assets/graphs/predecessor.light.svg){.lightbox fig-alt="A square of four nodes A, B, C, D searched from A (outlined). The arrows form the shortest-path DAG: A precedes B and D, one hop away, and C, two hops away, is reached equally fast through B or D, so C (accent color) has two predecessors. The card lists A: none, B: A, C: B and D, D: A." width="100%"}
+```
+
 ### `random_edge_walk()` — Random edge walk
 
 <img src="random-edge-walk.light.svg" alt="The same directed house walked from A for 6 steps with the same seed, recording edges. Each traversed edge, in the accent color, is labeled with its step numbers from 0; A to B is taken twice, at steps 0 and 3. The card lists the 6 edges in order." width="570">
@@ -1542,12 +1598,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Shortest path length](/assets/graphs/shortest-path-length.light.svg){.lightbox fig-alt="The directed weighted graph with three routes from A to F, costing 4, 6, and 5. On a weighted graph the distance is the cheapest total weight, so the route A, B, C, F is drawn in the accent color and the card reads 1 + 2 + 1 = 4.0; on the unweighted graph the same call counts hops and returns 2." width="100%"}
 ```
 
+### `shortest_simple_paths()` — Shortest simple paths
+
+<img src="shortest-simple-paths.light.svg" alt="A weighted diamond A, B, C, D with a rung B to C. The iterator yields simple paths from A (outlined) to D (outlined) cheapest first; the first three are A, B, D with length 2 (accent color), A, C, D with length 3 (teal) and A, C, B, D with length 3 (violet). The card ranks them 1, 2, 3." width="570">
+
+```markdown
+![Shortest simple paths](/assets/graphs/shortest-simple-paths.light.svg){.lightbox fig-alt="A weighted diamond A, B, C, D with a rung B to C. The iterator yields simple paths from A (outlined) to D (outlined) cheapest first; the first three are A, B, D with length 2 (accent color), A, C, D with length 3 (teal) and A, C, B, D with length 3 (violet). The card ranks them 1, 2, 3." width="100%"}
+```
+
 ### `simple_cycles()` — Simple cycles
 
 <img src="simple-cycles.light.svg" alt="An undirected house-shaped graph: a triangle on top of a square. It has three simple cycles, each drawn in its own color: the triangle C, A, B (accent color), the outer loop C, A, B, D, E (teal), and the square C, B, D, E (violet)." width="570">
 
 ```markdown
 ![Simple cycles](/assets/graphs/simple-cycles.light.svg){.lightbox fig-alt="An undirected house-shaped graph: a triangle on top of a square. It has three simple cycles, each drawn in its own color: the triangle C, A, B (accent color), the outer loop C, A, B, D, E (teal), and the square C, B, D, E (violet)." width="100%"}
+```
+
+### `single_source_all_shortest_paths()` — Single-source all shortest paths
+
+<img src="single-source-all-shortest-paths.light.svg" alt="A three-by-three grid A to I searched from the corner A (outlined). Badges count the shortest paths from A to each node; they add up like Pascal&#x27;s triangle, so the far corner I has 6. The six 4-hop paths from A to I are drawn on the right as small copies of the grid, each path in the accent color." width="570">
+
+```markdown
+![Single-source all shortest paths](/assets/graphs/single-source-all-shortest-paths.light.svg){.lightbox fig-alt="A three-by-three grid A to I searched from the corner A (outlined). Badges count the shortest paths from A to each node; they add up like Pascal's triangle, so the far corner I has 6. The six 4-hop paths from A to I are drawn on the right as small copies of the grid, each path in the accent color." width="100%"}
 ```
 
 ### `single_source_shortest_path()` — Single-source shortest paths
@@ -1564,6 +1636,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Single-source shortest path lengths](/assets/graphs/single-source-shortest-path-length.light.svg){.lightbox fig-alt="The directed weighted graph with the source A outlined and each node's distance from A in a badge: A 0.0, B 1.0, E 2.0, C and D 3.0, and F 4.0, reached along the accent edges. The table lists the same distances from nearest to farthest." width="100%"}
+```
+
+### `single_target_shortest_path()` — Single-target shortest paths
+
+<img src="single-target-shortest-path.light.svg" alt="A one-way street network: shop to home, home to park, park to station. With the target station (outlined), every node that can reach it gets the shortest path from itself to the station, following the arrows (accent color): shop goes through home and park, home through park, park directly, and station maps to itself." width="570">
+
+```markdown
+![Single-target shortest paths](/assets/graphs/single-target-shortest-path.light.svg){.lightbox fig-alt="A one-way street network: shop to home, home to park, park to station. With the target station (outlined), every node that can reach it gets the shortest path from itself to the station, following the arrows (accent color): shop goes through home and park, home through park, park directly, and station maps to itself." width="100%"}
+```
+
+### `single_target_shortest_path_length()` — Single-target shortest path lengths
+
+<img src="single-target-shortest-path-length.light.svg" alt="The one-way street network shop to home to park to station. Each node shows its distance to the target station (outlined) in hops, shaded darker the closer it is: station 0, park 1, home 2, shop 3. The table lists the same distances." width="570">
+
+```markdown
+![Single-target shortest path lengths](/assets/graphs/single-target-shortest-path-length.light.svg){.lightbox fig-alt="The one-way street network shop to home to park to station. Each node shows its distance to the target station (outlined) in hops, shaded darker the closer it is: station 0, park 1, home 2, shop 3. The table lists the same distances." width="100%"}
 ```
 
 ### `traveling_salesman()` — Traveling salesman
