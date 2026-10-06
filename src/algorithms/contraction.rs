@@ -60,7 +60,8 @@ pub fn contract_nodes(
             let node = Node {
                 id: node_id,
                 label,
-                attributes: None, // Could copy attributes if needed
+                // u keeps its own attributes; v's are dropped along with v
+                attributes: crate::graph::copy_attrs(py, &graph.get_nodes()[&node_id].attributes),
             };
             new_graph.add_node_rust(node)?;
         }
@@ -100,13 +101,13 @@ pub fn contract_nodes(
         }
         added_edges.insert(edge_key);
 
-        // Create new edge
+        // Create new edge, keeping the ID of the edge it came from
         let new_edge = Edge {
-            id: 0, // Auto-assigned
+            id: edge.id,
             source,
             target,
             weight: edge.weight,
-            attributes: edge.attributes.as_ref().map(|a| a.clone_ref(py)),
+            attributes: crate::graph::copy_attrs(py, &edge.attributes),
         };
 
         new_graph.add_edge_rust(new_edge)?;
@@ -266,12 +267,17 @@ pub fn quotient_graph(
     // Create quotient graph
     let mut quotient = Graph::new_rust(graph.is_directed(), graph.is_weighted());
 
-    // Add one node per block (using block index + 1 as node ID for 1-indexing)
-    for (block_idx, _block) in partition.iter().enumerate() {
+    // Add one node per block (using block index + 1 as node ID for 1-indexing). Blocks are new
+    // nodes, so instead of inheriting attributes each records the original node IDs it contains
+    for (block_idx, block) in partition.iter().enumerate() {
+        let attrs = pyo3::types::PyDict::new(py);
+        let mut members = block.clone();
+        members.sort_unstable();
+        attrs.set_item("members", members)?;
         let node = Node {
             id: block_idx as u64 + 1,
             label: Some(format!("block_{}", block_idx)),
-            attributes: None,
+            attributes: Some(attrs.unbind()),
         };
         quotient.add_node_rust(node)?;
     }
@@ -311,7 +317,7 @@ pub fn quotient_graph(
             source: source_node,
             target: target_node,
             weight: edge.weight,
-            attributes: edge.attributes.as_ref().map(|a| a.clone_ref(py)),
+            attributes: crate::graph::copy_attrs(py, &edge.attributes),
         };
 
         quotient.add_edge_rust(new_edge)?;
@@ -330,19 +336,19 @@ fn copy_graph(py: Python<'_>, graph: &Graph) -> PyResult<Graph> {
         let node = Node {
             id: node_id,
             label,
-            attributes: None,
+            attributes: crate::graph::copy_attrs(py, &graph.get_nodes()[&node_id].attributes),
         };
         new_graph.add_node_rust(node)?;
     }
 
-    // Copy edges
+    // Copy edges, keeping their IDs
     for edge in graph.get_edges_internal() {
         let new_edge = Edge {
-            id: 0, // Auto-assigned
+            id: edge.id,
             source: edge.source,
             target: edge.target,
             weight: edge.weight,
-            attributes: edge.attributes.as_ref().map(|a| a.clone_ref(py)),
+            attributes: crate::graph::copy_attrs(py, &edge.attributes),
         };
         new_graph.add_edge_rust(new_edge)?;
     }
