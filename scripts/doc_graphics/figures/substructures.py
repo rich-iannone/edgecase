@@ -27,6 +27,15 @@ edgeless nodes are `accent`.
 `triadic_census` uses the five-node directed network from its docstring with a
 type / count / triads table; two triads are highlighted in the graph and their
 rows: the cycle 030C in accent, the 120U triad in g2.
+The later clique variants rebuild their docstring examples in edgecase and
+assert the results: enumerate_all_cliques stacks mini triangles in rows by
+clique size; max_weight_clique shows node weights as ink badges;
+node_clique_number / number_of_cliques draw the paw's two maximal cliques as
+hulls with node-metrics heat and a sorted table; make_max_clique_graph is a
+`transform` whose clique nodes keep their hull colors. The chordal methods
+(chordal_graph_cliques, chordal_graph_treewidth, find_induced_nodes) share the
+diamond-plus-pendant graph or the path A–D of their docstrings;
+find_induced_nodes draws the hypothetical edge s–t as a `ghost` arc.
 """
 
 from core import (
@@ -330,6 +339,260 @@ def list_triangles(s: Scene) -> None:
              (a, b, {"style": "g2"}) if (a, b) in t2 else (a, b) for a, b in edges],
             styles={"3": "accent", "6": "accent", "2": "g2", "4": "g2"})
     s.card_centered(right, [("(3, 5, 6)", "accent"), ("(2, 4, 5)", "g2")], title="triangles")
+
+
+# --- later additions: clique variants ------------------------------------------
+#
+# Each builder rebuilds its docstring example in edgecase and asserts the result,
+# so a library change breaks the build instead of leaving a stale picture.
+
+
+def _ec_graph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(nodes)
+    g.add_edges(edges)
+    return g
+
+
+def _lab(g, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+def _per_node(g, scores: dict) -> dict[str, int]:
+    return {g.get_label_from_id(n): v for n, v in scores.items()}
+
+
+# The triangle of enumerate_all_cliques (add_cycle_graph(3): ids and labels 1..3).
+TRI3 = {"1": (0.5, 0), "2": (0, 0.62), "3": (1, 0.62)}
+TRI3_EDGES = [("1", "2"), ("2", "3"), ("1", "3")]
+TRI3_UNIT = 40  # three rows of mini triangles fill the result panel
+
+
+@figure("enumerate_all_cliques", "substructures", "Enumerate all cliques",
+        "Left: a triangle of nodes 1, 2, 3. Right: its seven cliques as miniature "
+        "triangles in rows by size, each clique in the accent color: the three single "
+        "nodes [1], [2], [3], the three edges [1, 2], [1, 3], [2, 3], and the whole "
+        "triangle [1, 2, 3].")
+def enumerate_all_cliques(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(3)
+    cliques = [_lab(g, c) for c in g.enumerate_all_cliques()]
+    assert cliques == [["1"], ["2"], ["3"], ["1", "2"], ["1", "3"], ["2", "3"],
+                       ["1", "2", "3"]]
+    left, right = compute(s, "g", "g.enumerate_all_cliques()")
+    s.graph(place({"1": (0.5, 0), "2": (0, 0.87), "3": (1, 0.87)}, left, unit=1.4 * UNIT),
+            TRI3_EDGES)
+    rows = [[c for c in cliques if len(c) == k] for k in (1, 2, 3)]
+    gw = TRI3_UNIT + 2 * R_SMALL  # one mini triangle
+    gap = 12
+    lw = text_width("k=3", SIZE_NOTE) + gap
+    x0 = right.cx - (lw + 3 * gw + 2 * gap) / 2
+    row_h = right.h / 3
+    i = 0
+    for k, row in enumerate(rows):
+        y0 = right.y0 + k * row_h
+        s.text(x0, y0 + row_h / 2, f"k={k + 1}", size=SIZE_NOTE, anchor="start",
+               opacity=0.6)
+        for j, c in enumerate(row):
+            cx0 = x0 + lw + j * (gw + gap)
+            pos = place(TRI3, Box(cx0, y0, cx0 + gw, y0 + row_h), unit=TRI3_UNIT, r=R_SMALL,
+                        pad=0)
+            on = {_key(a, b) for a in c for b in c if a < b}
+            s.graph(pos, _edges(TRI3_EDGES, on), r=R_SMALL, prefix=f"m{i}.",
+                    styles={n: "accent" if n in c else "muted" for n in TRI3})
+            i += 1
+
+
+# max_weight_clique docstring: triangle A, B, C plus B–D, node weights in "w".
+MWC = {"A": (0, 1.2), "B": (0.7, 0), "C": (1.4, 1.2), "D": (2.1, 0)}
+MWC_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("B", "D")]
+MWC_W = {"A": 1, "B": 2, "C": 1, "D": 5}
+
+
+@figure("max_weight_clique", "substructures", "Maximum weight clique",
+        "Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C "
+        "has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent "
+        "color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7.")
+def max_weight_clique(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes([(k, {"w": w}) for k, w in MWC_W.items()])
+    g.add_edges(MWC_EDGES)
+    nodes, weight = g.max_weight_clique(weight_attr="w")
+    assert _lab(g, nodes) == ["B", "D"] and weight == 7
+    left, right = compute(s, "g", 'g.max_weight_clique(weight_attr="w")')
+    s.graph(place(MWC, left, unit=UNIT), _edges(MWC_EDGES, {("B", "D")}, off="default"),
+            styles={"B": "accent", "D": "accent"})
+    where = {"A": "s", "B": "n", "C": "s", "D": "n"}
+    for k, w in MWC_W.items():
+        s.badge(k, f"w={w}", where=where[k], color="ink")
+    s.card_centered(right, [("[B, D]   2 + 5 = 7", "accent"), "A, B, C  1 + 2 + 1 = 4"],
+                    title="heaviest clique")
+
+
+# node_clique_number / number_of_cliques docstrings: the paw, triangle A, B, C
+# plus the edge C–D. Its two maximal cliques are drawn as hulls (accent, teal).
+PAW_CLQ = {"A": (0, 0), "B": (0, 1.2), "C": (1, 0.6), "D": (2.2, 0.6)}
+
+
+def _clique_metric(s: Scene, call: str, header: str, scores: dict[str, int]) -> None:
+    """Paw with its maximal cliques as hulls, nodes heat-shaded by score → table."""
+    from figures.node_metrics import _rows
+
+    left, right = compute(s, "g", call)
+    top = max(scores.values())
+    s.graph(place(PAW_CLQ, left, unit=UNIT),
+            [("A", "B", {"style": "accent"}), ("B", "C", {"style": "accent"}),
+             ("A", "C", {"style": "accent"}), ("C", "D", {"style": "g2"})],
+            heat={k: v / top for k, v in scores.items()},
+            styles={k: "accent" for k, v in scores.items() if v == top})
+    s.hull(["A", "B", "C"], "accent")
+    s.hull(["C", "D"], "g2")
+    rows = [["node", header]] + _rows(scores)
+    s.table_centered(right, rows, [72, 72], highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+@figure("node_clique_number", "substructures", "Node clique number",
+        "A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted "
+        "regions, the triangle in the accent color and the edge C, D in teal. Each node is "
+        "shaded by the size of the largest clique containing it: A, B and C are in the "
+        "triangle, size 3, and D only in the edge, size 2, as the table lists.")
+def node_clique_number(s: Scene) -> None:
+    g = _ec_graph(list(PAW_CLQ), [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+    scores = _per_node(g, g.node_clique_number())
+    assert scores == {"A": 3, "B": 3, "C": 3, "D": 2}
+    _clique_metric(s, "g.node_clique_number()", "largest", scores)
+
+
+@figure("number_of_cliques", "substructures", "Number of cliques per node",
+        "A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted "
+        "regions, the triangle in the accent color and the edge C, D in teal. Each node is "
+        "shaded by how many maximal cliques contain it: C sits in both, so it has 2 and the "
+        "darkest shading, while A, B and D have 1 each, as the table lists.")
+def number_of_cliques(s: Scene) -> None:
+    g = _ec_graph(list(PAW_CLQ), [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+    scores = _per_node(g, g.number_of_cliques())
+    assert scores == {"A": 1, "B": 1, "C": 2, "D": 1}
+    _clique_metric(s, "g.number_of_cliques()", "cliques", scores)
+
+
+# make_max_clique_graph docstring: triangles A, B, C and C, E, F sharing C,
+# plus the tail C–D. Each maximal clique gets a group color in both panels.
+BOWTIE = {"A": (0, 0), "B": (0, 1.2), "C": (1, 0.6), "E": (2, 0), "F": (2, 1.2),
+          "D": (1, 1.75)}
+BOWTIE_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "E"), ("E", "F"), ("C", "F"),
+                ("C", "D")]
+BOWTIE_CLIQUES = [("ABC", "accent"), ("CD", "g2"), ("CEF", "g3")]
+
+
+@figure("make_max_clique_graph", "substructures", "Maximal clique graph",
+        "Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the "
+        "three maximal cliques are tinted regions in the accent color, teal and violet, "
+        "all overlapping at C. Right: the clique graph has one node per clique, labeled "
+        "{A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that "
+        "shares a node: all three pairs share C, named on each edge, so 3 edges.")
+def make_max_clique_graph(s: Scene) -> None:
+    g = _ec_graph(list("ABCDEF"), BOWTIE_EDGES)
+    cg = g.make_max_clique_graph()
+    labels = sorted(cg.get_label_from_id(n) for n in cg.get_node_ids(limit=None))
+    assert labels == ["{A,B,C}", "{C,D}", "{C,E,F}"] and cg.count_edges() == 3
+    left, right = transform(s, "g", "g.make_max_clique_graph()")
+    color = {k: c for members, c in BOWTIE_CLIQUES for k in members}
+    # C is in all three cliques, so it stays ink inside the overlap
+    s.graph(place(BOWTIE, left, unit=UNIT),
+            [(a, b, {"style": color[b] if a == "C" else color[a]}) for a, b in BOWTIE_EDGES],
+            styles={k: c for k, c in color.items() if k != "C"}, prefix="l.")
+    for members, c in BOWTIE_CLIQUES:
+        s.hull(["l." + k for k in members], c)
+    rp = place({"ABC": (0, 0), "CEF": (2, 0), "CD": (1, 1.1)}, right, unit=UNIT * 1.1)
+    # every pair of cliques overlaps in C, named on the edge
+    s.graph(rp, [(a, b, {"weight": "C"}) for a, b in (("ABC", "CEF"), ("ABC", "CD"),
+                                                       ("CD", "CEF"))],
+            styles={m: c for m, c in BOWTIE_CLIQUES}, prefix="r.")
+    for k, (x, y) in rp.items():
+        lab = "{" + ",".join(k) + "}"
+        s.text(x, y + (32 if k == "CD" else -30), lab, size=SIZE_NOTE, opacity=0.7)
+
+
+# --- later additions: chordal graphs -------------------------------------------
+#
+# chordal_graph_cliques / chordal_graph_treewidth / find_induced_nodes use their
+# docstring graphs: a diamond A, B, C, D with a pendant E, and the path A–D.
+
+DIAMOND = {"A": (0, 0.6), "B": (1, 0), "C": (1, 1.2), "D": (2, 0.6), "E": (3.1, 0.6)}
+DIAMOND_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+
+
+def _diamond():
+    g = _ec_graph(list(DIAMOND), DIAMOND_EDGES)
+    cliques = [_lab(g, c) for c in g.chordal_graph_cliques()]
+    assert cliques == [["A", "B", "C"], ["B", "C", "D"], ["D", "E"]]
+    return g, cliques
+
+
+@figure("chordal_graph_cliques", "substructures", "Chordal graph cliques",
+        "A chordal graph: two triangles A, B, C and B, C, D sharing the edge B to C, plus a "
+        "pendant E on D. Its maximal cliques are tinted regions, A, B, C in the accent "
+        "color, B, C, D in teal and D, E in violet, overlapping where they share nodes. "
+        "The card lists them in the same colors: [A, B, C], [B, C, D], [D, E].")
+def chordal_graph_cliques(s: Scene) -> None:
+    _, cliques = _diamond()
+    left, right = compute(s, "g", "g.chordal_graph_cliques()")
+    colors = ("accent", "g2", "g3")
+
+    def style(a, b):
+        hits = [c for clq, c in zip(cliques, colors) if a in clq and b in clq]
+        return {"style": hits[0]} if len(hits) == 1 else {}
+
+    # nodes in one clique take its color; B, C and D sit in two and stay ink
+    s.graph(place(DIAMOND, left, unit=UNIT), [(a, b, style(a, b)) for a, b in DIAMOND_EDGES],
+            styles={"A": "accent", "E": "g3"})
+    for clq, c in zip(cliques, colors):
+        s.hull(clq, c)
+    s.card_centered(right, [("[" + ", ".join(c) + "]", col) for c, col in zip(cliques, colors)],
+                    title="maximal cliques")
+
+
+@figure("chordal_graph_treewidth", "substructures", "Chordal graph treewidth",
+        "The same chordal graph: triangles A, B, C and B, C, D sharing an edge, plus a "
+        "pendant E. Its largest cliques have three nodes; A, B, C is drawn in the accent "
+        "color and B, C, D ties it. The card gives the treewidth as the largest clique "
+        "size minus one, 3 − 1 = 2.")
+def chordal_graph_treewidth(s: Scene) -> None:
+    g, _ = _diamond()
+    assert g.chordal_graph_treewidth() == 2
+    left, right = compute(s, "g", "g.chordal_graph_treewidth()")
+    s.graph(place(DIAMOND, left, unit=UNIT),
+            _edges(DIAMOND_EDGES, {("A", "B"), ("B", "C"), ("A", "C")}, off="default"),
+            styles={"A": "accent", "B": "accent", "C": "accent"})
+    s.hull(["A", "B", "C"], "accent")
+    s.card_centered(right, ["largest  A, B, C", "tie      B, C, D",
+                            ("width    3 − 1 = 2", "accent")])
+
+
+INDUCED = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+INDUCED_EDGES = [("A", "B"), ("B", "C"), ("C", "D")]
+
+
+@figure("find_induced_nodes", "substructures", "Find induced nodes",
+        "A path A, B, C, D, a tree and so chordal, queried from A to D (both outlined). The "
+        "dashed accent arc is the hypothetical edge A to D: it would close the cycle A, B, "
+        "C, D, so every node on the induced path between them is returned. B and C are in "
+        "the accent color and the card lists [A, B, C, D].")
+def find_induced_nodes(s: Scene) -> None:
+    g = _ec_graph(list(INDUCED), INDUCED_EDGES)
+    assert _lab(g, g.find_induced_nodes("A", "D")) == ["A", "B", "C", "D"]
+    left, right = compute(s, "g", 'g.find_induced_nodes("A", "D")')
+    pos = place(INDUCED, left, unit=UNIT)
+    pos = {k: (x, y + 22) for k, (x, y) in pos.items()}  # room above for the arc
+    s.graph(pos, [(a, b, {"style": "accent"}) for a, b in INDUCED_EDGES]
+            + [("A", "D", {"style": "ghost", "bend": -46})],
+            styles={"A": "soft", "B": "accent", "C": "accent", "D": "soft"})
+    s.card_centered(right, [("[A, B, C, D]", "accent"), "A–D would close", "a 4-cycle"],
+                    title="induced nodes")
+
 
 
 # --- later additions: Steiner variants -------------------------------------
