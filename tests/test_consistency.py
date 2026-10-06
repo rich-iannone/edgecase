@@ -461,3 +461,37 @@ class TestResolverChecksIntegerIds:
         with pytest.raises(ValueError):
             g.get_degree(-1)
         assert g.has_node(True) is False and g.has_edge(True, 2) is False
+
+
+class TestDegreesFromIndex:
+    """get_degree / get_in_degree / degrees() used to scan every edge per node on directed
+    graphs (O(V·E) for degrees()); they now read counts kept in the edge index, which must stay
+    right as edges are added and deleted."""
+
+    def _check(self, g):
+        G = nx.MultiDiGraph()
+        G.add_nodes_from(g.get_node_ids())
+        G.add_edges_from((s, t) for _, s, t in g.get_edges_as_tuples())
+        for nid in g.get_node_ids():
+            assert g.get_in_degree(nid) == G.in_degree(nid)
+            assert g.get_out_degree(nid) == G.out_degree(nid)
+            assert g.get_degree(nid) == G.degree(nid)
+        assert g.degrees(return_dict=True) == dict(G.degree())
+        assert list(g.degrees(return_dict=True)) == g.get_node_ids(limit=None)
+
+    def test_directed_with_parallel_edges_and_self_loops(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B"), ("A", "B"), ("B", "C"), ("C", "C"), ("C", "A")])
+        self._check(g)
+        g.add_edge("B", "A")  # index updated in place
+        self._check(g)
+        g.delete_edge("A", "B")  # index rebuilt
+        self._check(g)
+        g.delete_node("C")
+        self._check(g)
+
+    def test_undirected_unchanged(self):
+        g = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("A", "B"), ("B", "B")])
+        assert g.get_degree("A") == 2 and g.get_degree("B") == 4
+        assert g.degrees(return_dict=True) == {1: 2, 2: 4}
+
