@@ -126,6 +126,13 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::path_extras::simple_edge_paths, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_simple_paths, m)?)?;
     m.add_class::<algorithms::path_extras::ShortestSimplePaths>()?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::is_chordal, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::chordal_graph_cliques, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::complete_to_chordal, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::find_induced_nodes, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::enumerate_all_cliques, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::max_weight_clique, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::with_extra_edges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
