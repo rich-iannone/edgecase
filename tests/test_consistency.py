@@ -370,3 +370,94 @@ class TestRemainingDerivedGraphsKeepIds:
         h = g.transform_to_subgraph_ws()
         assert h.is_weighted() and h.count_edges() == 2
         assert ec.Graph().transform_to_subgraph_ws().count_nodes() == 0
+
+
+class TestPlotTraversalBfsTree:
+    """Regression: tree edges attached each node to its most recently visited neighbor (the DFS
+    rule), which is wrong for BFS, including the default BFS run from start=."""
+
+    @staticmethod
+    def _tree(player):
+        import json
+        import re
+
+        html = player._repr_html_()
+        steps = json.loads(re.search(r"var STEPS=(\[.*?\]);", html, re.S).group(1))
+        return sorted(tuple(e) for e in steps[-1]["tree_edges"])
+
+    def _graph(self):
+        # Triangle 1-2-3 plus 3-4: BFS from 1 reaches 2 and 3 directly
+        return ec.Graph().add_cycle_graph(3).add_node(label="4").add_edge("3", "4")
+
+    def test_start_uses_real_bfs_tree(self):
+        g = self._graph()
+        assert self._tree(g.plot_traversal(start=1)) == [("1", "2"), ("1", "3"), ("3", "4")]
+
+    def test_inference_follows_algorithm(self):
+        g = self._graph()
+        order = [1, 2, 3, 4]
+        bfs = self._tree(g.plot_traversal(visit_order=order, algorithm="BFS"))
+        dfs = self._tree(g.plot_traversal(visit_order=order, algorithm="DFS"))
+        assert bfs == [("1", "2"), ("1", "3"), ("3", "4")]
+        assert dfs == [("1", "2"), ("2", "3"), ("3", "4")]
+
+
+class TestLabelOnlyRustEntryPoints:
+    """Regression: expand_seed_set and is_simple_path worked on labels in Rust, so unlabelled
+    nodes failed and digit-only labels were confused with IDs."""
+
+    def test_expand_seed_set_accepts_ids_and_unlabelled_nodes(self):
+        g = ec.Graph().add_full_graph(4, label=False)
+        assert g.expand_seed_set([1, 2]) == [1, 2, 3, 4]
+        labelled = ec.Graph().add_full_graph(4)
+        assert labelled.expand_seed_set(["1", 2]) == [1, 2, 3, 4]
+        with pytest.raises(ValueError, match="does not exist"):
+            g.expand_seed_set([99])
+
+    def test_is_simple_path_ids_vs_digit_labels(self):
+        # Node 1 is unlabelled; node 2 is labelled "1"; only 1 -- 3 is an edge
+        g = ec.Graph().add_node().add_node(label="1").add_node(label="C").add_edge(1, 3)
+        assert g.is_simple_path([1, "C"]) is True
+        assert g.is_simple_path(["1", "C"]) is False  # the node labelled "1" isn't adjacent
+        assert g.is_simple_path([1, 99]) is False
+        assert g.is_simple_path([1, "C", 1]) is False
+
+
+class TestResolverChecksIntegerIds:
+    """Regression: _resolve_node_id passed any integer through, so ~90 methods returned quiet
+    defaults for a missing ID while raising for a missing label."""
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda g: g.get_node(99),
+            lambda g: g.get_degree(99),
+            lambda g: g.neighbors(99, mode="in"),
+            lambda g: g.has_path(1, 99),
+            lambda g: g.shortest_path(1, 99),
+            lambda g: g.shortest_path_length(1, 99),
+            lambda g: g.bfs(99),
+            lambda g: g.dfs(99),
+            lambda g: g.descendants(99),
+            lambda g: g.common_neighbors([(1, 99)]),
+            lambda g: g.get_non_neighbors(99),
+            lambda g: g.single_source_shortest_path_length(99),
+            lambda g: g.select_nodes_in_neighborhood([99]),
+            lambda g: g.set_node_attrs("x", {99: 1}),
+            lambda g: g.max_flow_value(1, 99),
+            lambda g: g.contract_nodes(1, 99),
+            lambda g: g.ego_graph(99),
+        ],
+    )
+    def test_unknown_id_raises(self, call):
+        g = ec.Graph(directed=True).add_path_graph(3)
+        with pytest.raises(ValueError, match="Node 99 does not exist"):
+            call(g)
+
+    def test_bools_and_negative_ids(self):
+        g = ec.Graph().add_path_graph(2)
+        with pytest.raises(TypeError):
+            g.get_degree(True)
+        with pytest.raises(ValueError):
+            g.get_degree(-1)
+        assert g.has_node(True) is False and g.has_edge(True, 2) is False
