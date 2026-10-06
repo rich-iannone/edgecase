@@ -1,0 +1,83 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Enumerate all cliques</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 218.03 60.68 L 175.17 135.32" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 183.20 149.20 L 268.80 149.20" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 233.97 60.68 L 276.83 135.32" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 559.19 36.86 L 553.01 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 557.10 53.10 L 575.10 53.10" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 573.01 36.86 L 579.19 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 633.19 36.86 L 627.01 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 631.10 53.10 L 649.10 53.10" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 647.01 36.86 L 653.19 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 707.19 36.86 L 701.01 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 705.10 53.10 L 723.10 53.10" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 721.01 36.86 L 727.19 44.54" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 559.19 94.16 L 553.01 101.84" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 557.10 110.40 L 575.10 110.40" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 573.01 94.16 L 579.19 101.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 633.19 94.16 L 627.01 101.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 631.10 110.40 L 649.10 110.40" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 647.01 94.16 L 653.19 101.84" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 707.19 94.16 L 701.01 101.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 705.10 110.40 L 723.10 110.40" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 721.01 94.16 L 727.19 101.84" fill="none" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 559.19 151.46 L 553.01 159.14" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 557.10 167.70 L 575.10 167.70" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 573.01 151.46 L 579.19 159.14" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="226.0" cy="46.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">1</text>
+<circle cx="167.2" cy="149.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="167.2" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">2</text>
+<circle cx="284.8" cy="149.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="284.8" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">3</text>
+<circle cx="566.1" cy="28.3" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="566.1" y="28.3" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<circle cx="546.1" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="546.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">2</text>
+<circle cx="586.1" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="586.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">3</text>
+<circle cx="640.1" cy="28.3" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="640.1" y="28.3" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">1</text>
+<circle cx="620.1" cy="53.1" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="620.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">2</text>
+<circle cx="660.1" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="660.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">3</text>
+<circle cx="714.1" cy="28.3" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="714.1" y="28.3" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">1</text>
+<circle cx="694.1" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="694.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">2</text>
+<circle cx="734.1" cy="53.1" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="734.1" y="53.1" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">3</text>
+<circle cx="566.1" cy="85.6" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="566.1" y="85.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<circle cx="546.1" cy="110.4" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="546.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">2</text>
+<circle cx="586.1" cy="110.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="586.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">3</text>
+<circle cx="640.1" cy="85.6" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="640.1" y="85.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<circle cx="620.1" cy="110.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="620.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">2</text>
+<circle cx="660.1" cy="110.4" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="660.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">3</text>
+<circle cx="714.1" cy="85.6" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1.5"/>
+<text x="714.1" y="85.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#1f2328" fill-opacity="0.5">1</text>
+<circle cx="694.1" cy="110.4" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="694.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">2</text>
+<circle cx="734.1" cy="110.4" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="734.1" y="110.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">3</text>
+<circle cx="566.1" cy="142.9" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="566.1" y="142.9" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<circle cx="546.1" cy="167.7" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="546.1" y="167.7" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">2</text>
+<circle cx="586.1" cy="167.7" r="11" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="586.1" y="167.7" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="10" font-weight="600" fill="#c2410c" fill-opacity="1">3</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.enumerate_all_cliques()</text>
+<text x="502.9" y="40.7" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">k=1</text>
+<text x="502.9" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">k=2</text>
+<text x="502.9" y="155.3" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">k=3</text>
+</svg>

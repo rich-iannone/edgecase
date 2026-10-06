@@ -1,0 +1,25 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Find induced nodes</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="549.5" y="48.0" width="148.9" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 116.00 120.00 L 168.00 120.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 200.00 120.00 L 252.00 120.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 284.00 120.00 L 336.00 120.00" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 113.86 110.44 L 118.90 107.24 L 123.94 104.18 L 128.98 101.27 L 134.02 98.51 L 139.06 95.90 L 144.10 93.43 L 149.14 91.12 L 154.18 88.95 L 159.22 86.92 L 164.26 85.04 L 169.30 83.32 L 174.34 81.73 L 179.38 80.30 L 184.42 79.01 L 189.46 77.87 L 194.50 76.88 L 199.54 76.03 L 204.58 75.33 L 209.62 74.78 L 214.66 74.37 L 219.70 74.12 L 224.74 74.00 L 229.78 74.04 L 234.82 74.23 L 239.86 74.56 L 244.90 75.03 L 249.94 75.66 L 254.98 76.43 L 260.02 77.35 L 265.06 78.42 L 270.10 79.64 L 275.14 81.00 L 280.18 82.51 L 285.22 84.16 L 290.26 85.96 L 295.30 87.91 L 300.34 90.01 L 305.38 92.26 L 310.42 94.65 L 315.46 97.19 L 320.50 99.88 L 325.54 102.71 L 330.58 105.69 L 335.62 108.82 L 338.14 110.44" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3"/>
+<circle cx="100.0" cy="120.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="100.0" y="120.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="184.0" cy="120.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="184.0" y="120.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="268.0" cy="120.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="268.0" y="120.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="352.0" cy="120.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="352.0" y="120.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.find_induced_nodes(&quot;A&quot;, &quot;D&quot;)</text>
+<text x="563.5" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">induced nodes</text>
+<text x="563.5" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">[A, B, C, D]</text>
+<text x="563.5" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">A–D would close</text>
+<text x="563.5" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">a 4-cycle</text>
+</svg>

@@ -1,0 +1,29 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Is semiconnected</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<line x1="380.0" y1="18.0" x2="380.0" y2="210.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round" stroke-dasharray="3 4"/>
+<path d="M 155.11 90.84 L 162.35 87.22 L 169.60 83.60 L 176.84 79.98 L 184.09 76.36 L 191.33 72.74 L 198.57 69.11 L 205.82 65.49 L 213.06 61.87 L 220.30 58.25 L 221.60 57.60" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="227.55,54.63 220.62,62.01 217.49,55.74" fill="#1f2328" fill-opacity="1"/>
+<path d="M 243.20 62.80 L 243.20 69.69 L 243.20 76.58 L 243.20 83.47 L 243.20 90.36 L 243.20 97.25 L 243.20 104.14 L 243.20 111.03 L 243.20 117.92 L 243.20 124.81 L 243.20 125.05" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="243.20,131.70 239.70,122.20 246.70,122.20" fill="#1f2328" fill-opacity="1"/>
+<path d="M 531.11 90.84 L 538.35 87.22 L 545.60 83.60 L 552.84 79.98 L 560.09 76.36 L 567.33 72.74 L 574.57 69.11 L 581.82 65.49 L 589.06 61.87 L 596.30 58.25 L 597.60 57.60" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="603.55,54.63 596.62,62.01 593.49,55.74" fill="#1f2328" fill-opacity="1"/>
+<path d="M 531.11 105.16 L 538.35 108.78 L 545.60 112.40 L 552.84 116.02 L 560.09 119.64 L 567.33 123.26 L 574.57 126.89 L 581.82 130.51 L 589.06 134.13 L 596.30 137.75 L 597.60 138.40" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="603.55,141.37 593.49,140.26 596.62,133.99" fill="#1f2328" fill-opacity="1"/>
+<circle cx="140.8" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="140.8" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="243.2" cy="46.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="243.2" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="243.2" cy="149.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="243.2" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="516.8" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="516.8" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="619.2" cy="46.8" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="619.2" y="46.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="619.2" cy="149.2" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="619.2" y="149.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<text x="93.2" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.is_semiconnected() → </text>
+<text x="261.5" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#c2410c" fill-opacity="1.0">True</text>
+<text x="465.5" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.is_semiconnected() → </text>
+<text x="633.9" y="206.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="600" fill="#1f2328" fill-opacity="1.0">False</text>
+</svg>
