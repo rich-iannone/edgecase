@@ -20,8 +20,10 @@ query endpoints `soft` on both sides: the path is `accent` on the left, the
 reversed edge that cuts it off is `accent` on the right. The isomorphism
 predicates split each panel into two small graphs (g and h, or pattern p and
 host g), named in notes above them; could_be_isomorphic shows the compared
-per-node property as badges. Graph scale is the
-default `UNIT` throughout.
+per-node property as badges. is_chordal, is_semiconnected and
+is_attracting_component rebuild their docstring examples (square vs. square
+with a diagonal, chain vs. fork, cycle vs. cycle with one edge reversed) and
+assert the answers. Graph scale is the default `UNIT` throughout.
 """
 
 
@@ -205,6 +207,57 @@ def is_weakly_connected(s: Scene) -> None:
     s.graph(place(TWIN, left), TWIN_ARCS + [("C", "D")], directed=True, prefix="l.")
     s.graph(place(TWIN, right), TWIN_ARCS + [("C", "D", {"style": "ghost"})],
             directed=True, prefix="r.")
+
+
+# Later additions on the directed connectivity theme; each rebuilds its
+# docstring example in edgecase and asserts the answer.
+
+
+def _ec_digraph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(nodes)
+    g.add_edges(edges)
+    return g
+
+
+SEMI = {"A": (0, 0.8), "B": (1.6, 0), "C": (1.6, 1.6)}
+
+
+@figure("is_semiconnected", "predicates", "Is semiconnected",
+        "Left: a chain A to B to C; for every pair one node reaches the other, so "
+        "is_semiconnected() returns True. Right: a fork, A to B and A to C; B and C (shown "
+        "in the accent color) cannot reach each other in either direction, so "
+        "is_semiconnected() returns False.")
+def is_semiconnected(s: Scene) -> None:
+    chain, fork = [("A", "B"), ("B", "C")], [("A", "B"), ("A", "C")]
+    assert _ec_digraph(list(SEMI), chain).is_semiconnected() is True
+    assert _ec_digraph(list(SEMI), fork).is_semiconnected() is False
+    left, right = contrast(s, "g.is_semiconnected()", "g.is_semiconnected()")
+    s.graph(place(SEMI, left), chain, directed=True, prefix="l.")
+    s.graph(place(SEMI, right), fork, directed=True,
+            styles={"B": "accent", "C": "accent"}, prefix="r.")
+
+
+ATTR = {"A": (0.8, 0), "B": (0, 1.4), "C": (1.6, 1.4)}
+
+
+@figure("is_attracting_component", "predicates", "Is attracting component",
+        "Left: a directed cycle A to B to C to A; a walk can go anywhere and never leave, so "
+        "the whole graph is one attracting component and is_attracting_component() returns "
+        "True. Right: the same triangle with the edge between C and A reversed to point from "
+        "A to C (shown in the accent color); walks now end at C, the only attracting "
+        "component, which leaves out A and B, so is_attracting_component() returns False.")
+def is_attracting_component(s: Scene) -> None:
+    cycle, dag = [("A", "B"), ("B", "C"), ("C", "A")], [("A", "B"), ("B", "C"), ("A", "C")]
+    assert _ec_digraph(list(ATTR), cycle).is_attracting_component() is True
+    g = _ec_digraph(list(ATTR), dag)
+    assert g.is_attracting_component() is False
+    assert [[g.get_label_from_id(n) for n in c] for c in g.attracting_components()] == [["C"]]
+    left, right = contrast(s, "g.is_attracting_component()", "g.is_attracting_component()")
+    s.graph(place(ATTR, left), cycle, directed=True, prefix="l.")
+    s.graph(place(ATTR, right), _hi(dag, {("A", "C")}), directed=True, prefix="r.")
+
 
 
 @figure("has_bridges", "predicates", "Has bridges",
@@ -626,6 +679,31 @@ def is_planar(s: Scene) -> None:
         for x, y in _crossings(s, p, edges):
             s.path(f"M {x - 4:.1f} {y:.1f} a 4 4 0 1 0 8 0 a 4 4 0 1 0 -8 0", color="accent",
                    fill="color", width=1)
+
+
+# is_chordal docstring: the square A, B, C, D, then with the diagonal A–C.
+CHORD_SQ = {"A": (0, 0), "B": (1.5, 0), "C": (1.5, 1.5), "D": (0, 1.5)}
+CHORD_SQ_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")]
+
+
+@figure("is_chordal", "predicates", "Is chordal",
+        "Left: a square A, B, C, D with the diagonal A to C, which splits it into two "
+        "triangles, so every cycle of four or more nodes has a chord and is_chordal() "
+        "returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown "
+        "in the accent color) has no chord, so is_chordal() returns False.")
+def is_chordal(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(CHORD_SQ))
+    g.add_edges(CHORD_SQ_EDGES)
+    assert g.is_chordal() is False
+    g.add_edge("A", "C")
+    assert g.is_chordal() is True
+    left, right = contrast(s, "g.is_chordal()", "g.is_chordal()")
+    s.graph(place(CHORD_SQ, left), CHORD_SQ_EDGES + [("A", "C")], prefix="l.")
+    s.graph(place(CHORD_SQ, right), _hi(CHORD_SQ_EDGES, set(CHORD_SQ_EDGES)),
+            styles=dict.fromkeys(CHORD_SQ, "accent"), prefix="r.")
+
 
 
 @figure("is_isomorphic", "predicates", "Is isomorphic",
