@@ -6,7 +6,6 @@ import re
 import pytest
 
 import edgecase as ec
-from edgecase.viz import plot_graph as _REAL_PLOT_GRAPH  # captured before any test patches it
 
 
 def _abc_path():
@@ -126,8 +125,6 @@ class TestPlotVis:
         from edgecase import viz
 
         displayed, opened = [], []
-        # test_docstring_examples replaces viz.plot_graph for the rest of the session
-        monkeypatch.setattr(viz, "plot_graph", _REAL_PLOT_GRAPH)
         monkeypatch.setattr(ipython, "get_ipython", lambda: object())
         monkeypatch.setattr(IPython.display, "display", lambda obj: displayed.append(obj))
         monkeypatch.setattr(viz.webbrowser, "open", lambda url: opened.append(url))
@@ -146,3 +143,27 @@ class TestPlotTraversal:
         steps = json.loads(re.search(r"var STEPS=(\[.*?\]);", html, re.S).group(1))
         a, b, c, d = (str(g.get_id_from_label(x)) for x in "ABCD")
         assert sorted(map(tuple, steps[-1]["tree_edges"])) == sorted([(a, b), (a, d), (b, c)])
+
+
+class TestUnknownStyleOptionsRaise:
+    """Regression: unknown layout=/theme=/layout_mode= fell back silently, and edge_color_by=
+    was ignored when no node had the attribute."""
+
+    @pytest.mark.parametrize(
+        "call, match",
+        [
+            (lambda g: g.plot(layout="spring"), "Unknown layout 'spring'"),
+            (lambda g: g.plot(theme="blue"), "Unknown theme 'blue'"),
+            (lambda g: g.plot(edge_color_by="nope"), "edge_color_by='nope'"),
+            (lambda g: g.play(layout="spring"), "Unknown layout"),
+            (lambda g: g.play(layout_mode="smooth"), "Unknown layout_mode 'smooth'"),
+            (lambda g: g.plot_traversal(start="A", theme="blue"), "Unknown theme"),
+            (lambda g: g.plot_vis(layout="spring"), "Unknown layout"),
+        ],
+    )
+    def test_raises(self, call, match):
+        with pytest.raises(ValueError, match=match):
+            call(_abc_path())
+
+    def test_edge_color_by_accepts_builtins(self):
+        assert "<svg" in _abc_path().plot(edge_color_by="degree", seed=1).svg
