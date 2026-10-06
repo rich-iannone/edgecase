@@ -241,11 +241,11 @@ fn get_label_or_id(graph: &Graph, node_id: u64) -> String {
 ///
 /// # Arguments
 /// * `graph` - The input graph
-/// * `terminal_nodes` - Labels of nodes that must be connected
+/// * `terminal_nodes` - IDs of nodes that must be connected
 /// * `weight_attr` - Optional name of edge attribute to use for weights
 ///
 /// # Returns
-/// List of (source_label, target_label, weight) tuples forming the Steiner tree
+/// List of (edge_id, source_id, target_id, weight) tuples forming the Steiner tree
 ///
 /// # Raises
 /// * `PyValueError` if fewer than 2 terminal nodes provided
@@ -255,9 +255,9 @@ fn get_label_or_id(graph: &Graph, node_id: u64) -> String {
 #[pyo3(signature = (graph, terminal_nodes, weight_attr=None))]
 pub fn steiner_tree(
     graph: &Graph,
-    terminal_nodes: Vec<String>,
+    terminal_nodes: Vec<u64>,
     weight_attr: Option<String>,
-) -> PyResult<Vec<(String, String, f64)>> {
+) -> PyResult<Vec<(u64, u64, u64, f64)>> {
     // Validate inputs
     if terminal_nodes.len() < 2 {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -265,18 +265,12 @@ pub fn steiner_tree(
         ));
     }
 
-    // Convert labels to node IDs
-    let mut terminal_ids: Vec<u64> = Vec::new();
-    for label in &terminal_nodes {
-        match graph.id_from_label(label) {
-            Ok(node_id) => terminal_ids.push(node_id),
-            Err(_) => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Terminal node '{}' does not exist in the graph",
-                    label
-                )));
-            }
-        }
+    let terminal_ids = terminal_nodes;
+    if let Some(missing) = terminal_ids.iter().find(|&&id| !graph.has_node_id(id)) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Terminal node {} does not exist in the graph",
+            missing
+        )));
     }
 
     let weight_attr_ref = weight_attr.as_deref();
@@ -374,14 +368,12 @@ pub fn steiner_tree(
     final_edges.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
 
     let mut final_uf = UnionFind::new();
-    let mut result_edges: Vec<(String, String, f64)> = Vec::new();
+    let mut result_edges: Vec<(u64, u64, u64, f64)> = Vec::new();
     let final_edges_needed = steiner_nodes.len().saturating_sub(1);
 
-    for (weight, _edge_id, source, target) in final_edges {
+    for (weight, edge_id, source, target) in final_edges {
         if final_uf.union(source, target) {
-            let source_label = get_label_or_id(graph, source);
-            let target_label = get_label_or_id(graph, target);
-            result_edges.push((source_label, target_label, weight));
+            result_edges.push((edge_id, source, target, weight));
             if result_edges.len() == final_edges_needed {
                 break;
             }
@@ -391,24 +383,23 @@ pub fn steiner_tree(
     Ok(result_edges)
 }
 
-/// Convert a path (sequence of node IDs) to edge tuples with labels
+/// Convert a path (sequence of node IDs) to (edge_id, source, target, weight) tuples, using the
+/// cheapest edge between each pair of consecutive nodes
 fn path_to_edge_tuples(
     graph: &Graph,
     path: &[u64],
     weight_attr: Option<&str>,
-) -> PyResult<Vec<(String, String, f64)>> {
+) -> PyResult<Vec<(u64, u64, u64, f64)>> {
     let mut edges = Vec::new();
 
     for window in path.windows(2) {
         let (a, b) = (window[0], window[1]);
-        let source_label = get_label_or_id(graph, a);
-        let target_label = get_label_or_id(graph, b);
-
-        // Cheapest edge's weight
-        let weight = cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr))
-            .map_or(1.0, |(_, w)| w);
-
-        edges.push((source_label, target_label, weight));
+        if let Some((edge_id, weight)) =
+            cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr))
+        {
+            let edge = graph.get_edge(edge_id).expect("edge from find_edge_ids exists");
+            edges.push((edge_id, edge.source, edge.target, weight));
+        }
     }
 
     Ok(edges)
@@ -435,7 +426,7 @@ pub fn all_spanning_trees(
     graph: &Graph,
     max_trees: usize,
     weight_attr: Option<String>,
-) -> PyResult<Vec<Vec<(String, String, f64)>>> {
+) -> PyResult<Vec<Vec<(u64, u64, u64, f64)>>> {
     let num_nodes = graph.num_nodes();
 
     // Handle edge cases
@@ -503,7 +494,7 @@ pub fn all_spanning_trees(
     }
 
     // Use iterative approach to enumerate spanning trees
-    let mut results: Vec<Vec<(String, String, f64)>> = Vec::new();
+    let mut results: Vec<Vec<(u64, u64, u64, f64)>> = Vec::new();
 
     // State: (current tree edge indices, index to start from)
     let mut stack_states: Vec<(Vec<usize>, usize)> = vec![(Vec::new(), 0)];
@@ -514,14 +505,13 @@ pub fn all_spanning_trees(
         }
 
         if current_tree.len() == edges_needed {
-            // Found a spanning tree - convert to output format
-            let mut tree_edges: Vec<(String, String, f64)> = Vec::new();
+            // Found a spanning tree: (edge_id, source, target, weight), with undirected
+            // endpoints in ascending ID order
+            let mut tree_edges: Vec<(u64, u64, u64, f64)> = Vec::new();
             for &idx in &current_tree {
                 let (edge_id, source, target) = unique_edges[idx];
-                let source_label = get_label_or_id(graph, source);
-                let target_label = get_label_or_id(graph, target);
                 let weight = get_edge_weight(graph, edge_id, weight_attr_ref);
-                tree_edges.push((source_label, target_label, weight));
+                tree_edges.push((edge_id, source, target, weight));
             }
             results.push(tree_edges);
             continue;
@@ -569,36 +559,29 @@ fn would_create_cycle(edge_indices: &[usize], edges: &[(u64, u64, u64)]) -> bool
 ///    shortest path to the current tree.
 /// 3. Stop when no remaining node has a positive net benefit.
 ///
-/// Returns edge tuples (source_label, target_label, weight) of the result tree.
+/// Returns (edge_id, source_id, target_id, weight) tuples of the result tree.
 #[pyfunction]
 #[pyo3(signature = (graph, prizes, edge_penalty=1.0, weight_attr=None))]
 pub fn prize_collecting_steiner_tree(
     graph: &Graph,
-    prizes: FxHashMap<String, f64>,
+    prizes: FxHashMap<u64, f64>,
     edge_penalty: f64,
     weight_attr: Option<String>,
-) -> PyResult<Vec<(String, String, f64)>> {
+) -> PyResult<Vec<(u64, u64, u64, f64)>> {
     if prizes.is_empty() {
         return Ok(Vec::new());
     }
 
     let weight_attr_ref = weight_attr.as_deref();
 
-    // Convert label-keyed prizes to id-keyed
-    let mut prize_by_id: FxHashMap<u64, f64> = FxHashMap::default();
-    for (label, &prize) in &prizes {
-        match graph.id_from_label(label) {
-            Ok(node_id) => {
-                prize_by_id.insert(node_id, prize);
-            }
-            Err(_) => {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Node '{}' does not exist in the graph",
-                    label
-                )));
-            }
-        }
+    // Prizes are keyed by node ID
+    if let Some(missing) = prizes.keys().find(|&&id| !graph.has_node_id(id)) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Node {} does not exist in the graph",
+            missing
+        )));
     }
+    let prize_by_id = prizes;
 
     // Start from the highest-prize node
     let &start_node = prize_by_id
@@ -610,7 +593,7 @@ pub fn prize_collecting_steiner_tree(
     let mut tree_nodes: FxHashSet<u64> = FxHashSet::default();
     tree_nodes.insert(start_node);
 
-    let mut tree_edges: Vec<(u64, u64, f64)> = Vec::new();
+    let mut tree_edges: Vec<(u64, u64, u64, f64)> = Vec::new();
     let mut remaining: FxHashSet<u64> = prize_by_id
         .keys()
         .filter(|&&id| id != start_node)
@@ -666,25 +649,24 @@ pub fn prize_collecting_steiner_tree(
             tree_nodes.insert(a);
             tree_nodes.insert(b);
 
-            let weight =
+            if let Some((eid, weight)) =
                 cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr_ref))
-                    .map_or(1.0, |(_, w)| w);
-            tree_edges.push((a, b, weight));
+            {
+                tree_edges.push((eid, a, b, weight));
+            }
         }
 
         remaining.remove(&target);
     }
 
-    // Deduplicate edges and convert to labels
+    // Deduplicate edges
     let mut seen: FxHashSet<(u64, u64)> = FxHashSet::default();
-    let mut result: Vec<(String, String, f64)> = Vec::new();
+    let mut result: Vec<(u64, u64, u64, f64)> = Vec::new();
 
-    for (a, b, w) in tree_edges {
+    for (eid, a, b, w) in tree_edges {
         let edge = if a < b { (a, b) } else { (b, a) };
         if seen.insert(edge) {
-            let source_label = get_label_or_id(graph, a);
-            let target_label = get_label_or_id(graph, b);
-            result.push((source_label, target_label, w));
+            result.push((eid, a, b, w));
         }
     }
 
@@ -799,20 +781,21 @@ pub fn expand_seed_set(
 ///
 /// # Arguments
 /// * `graph` - A directed graph
-/// * `root` - Label of the root node
-/// * `terminal_nodes` - Labels of target nodes to reach from root
+/// * `root` - ID of the root node
+/// * `terminal_nodes` - IDs of target nodes to reach from root
 /// * `weight_attr` - Optional edge attribute for weights (default: edge.weight or 1.0)
 ///
 /// # Returns
-/// List of (source_label, target_label, weight) tuples forming the arborescence
+/// List of (edge_id, source_id, target_id, weight) tuples forming the arborescence, sorted by
+/// edge ID
 #[pyfunction]
 #[pyo3(signature = (graph, root, terminal_nodes, weight_attr=None))]
 pub fn directed_steiner_tree(
     graph: &Graph,
-    root: String,
-    terminal_nodes: Vec<String>,
+    root: u64,
+    terminal_nodes: Vec<u64>,
     weight_attr: Option<String>,
-) -> PyResult<Vec<(String, String, f64)>> {
+) -> PyResult<Vec<(u64, u64, u64, f64)>> {
     if !graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "directed_steiner_tree requires a directed graph; use steiner_tree for undirected",
@@ -825,15 +808,22 @@ pub fn directed_steiner_tree(
         ));
     }
 
-    let root_id = graph.id_from_label(&root).map_err(|_| {
-        pyo3::exceptions::PyValueError::new_err(format!("Root node '{}' not found", root))
-    })?;
+    if !graph.has_node_id(root) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Root node {} not found",
+            root
+        )));
+    }
+    let root_id = root;
 
     let mut terminal_ids: Vec<u64> = Vec::with_capacity(terminal_nodes.len());
-    for label in &terminal_nodes {
-        let nid = graph.id_from_label(label).map_err(|_| {
-            pyo3::exceptions::PyValueError::new_err(format!("Terminal node '{}' not found", label))
-        })?;
+    for nid in terminal_nodes {
+        if !graph.has_node_id(nid) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Terminal node {} not found",
+                nid
+            )));
+        }
         if nid == root_id {
             continue; // root reaching itself is trivial
         }
@@ -915,17 +905,15 @@ pub fn directed_steiner_tree(
     }
 
     // Build result edge list
-    let mut result: Vec<(String, String, f64)> = Vec::with_capacity(tree_edges.len());
+    let mut result: Vec<(u64, u64, u64, f64)> = Vec::with_capacity(tree_edges.len());
     for &eid in &tree_edges {
         if let Some(edge) = graph.get_edge(eid) {
-            let src_label = get_label_or_id(graph, edge.source);
-            let tgt_label = get_label_or_id(graph, edge.target);
             let weight = get_edge_weight(graph, eid, weight_attr_ref);
-            result.push((src_label, tgt_label, weight));
+            result.push((eid, edge.source, edge.target, weight));
         }
     }
 
-    result.sort_by(|a, b| a.0.cmp(&b.0).then_with(|| a.1.cmp(&b.1)));
+    result.sort_by_key(|e| e.0);
     Ok(result)
 }
 
