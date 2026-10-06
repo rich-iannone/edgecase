@@ -44,11 +44,21 @@ Shared layouts keep siblings comparable:
   and sums it on the card; negative_edge_cycle is a predicate, so it uses
   `contrast`: the arbitrage loop (accent) beside the same loop with GBP -> USD
   at 0.30 (total +0.05). Both assert their results with edgecase.
+- Later additions rebuild their docstring examples and assert the results:
+  astar_path (6 x 6 grid, nodes labeled with the Manhattan heuristic h),
+  astar_path_length (ROADS diamond), predecessor (SQUARE, the shortest-path
+  DAG as accent arrows), the single_target pair (one-way STREETS toward the
+  `soft` station; distances as heat + node labels), single_source_all_shortest_paths
+  (3 x 3 grid with Pascal path-count badges and six miniature paths),
+  all_pairs_all_shortest_paths (4-cycle + path-count matrix), floyd_warshall and
+  johnson (NEG triangle, negative shortcut A -> C -> B), shortest_simple_paths
+  (KITE, ranked routes in accent / g2 / g3) and all_simple_edge_paths (parallel
+  A-B edges as bent arcs labeled with edge ids).
 """
 
 import math
 
-from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
+from core import R_SMALL, SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
 
 from figures.similarity import _name
 
@@ -834,3 +844,364 @@ def find_negative_cycle(s: Scene) -> None:
     s.card_centered(right, [(bracket(cycle), "accent"),
                             "total  −0.10 − 0.15 + 0.20", "     = −0.05"],
                     title="negative cycle from USD")
+
+
+# --- later additions: A*, predecessors, single-target, all-paths, all-pairs ----
+#
+# Each builder rebuilds its docstring example in edgecase and asserts the
+# result, so a library change breaks the build instead of the picture.
+
+
+def _labels(g, ids) -> list[str]:
+    return [g.get_label_from_id(n) for n in ids]
+
+
+def _grid(rows: int, cols: int):
+    """add_grid_2d(rows, cols) with node ids in row-major order and their (r, c)."""
+    import edgecase as ec
+
+    g = ec.Graph().add_grid_2d(rows, cols)
+    ids = sorted(g.get_node_ids(limit=None))
+    return g, ids, {n: divmod(i, cols) for i, n in enumerate(ids)}
+
+
+def _rc(r: int, c: int) -> str:
+    return f"{r}{c}"
+
+
+def _grid_edges(rows: int, cols: int) -> list[tuple[str, str]]:
+    return ([(_rc(r, c), _rc(r, c + 1)) for r in range(rows) for c in range(cols - 1)]
+            + [(_rc(r, c), _rc(r + 1, c)) for r in range(rows - 1) for c in range(cols)])
+
+
+def _one_weight(s: Scene) -> None:
+    """Keep one weight label per node pair when routes() split a shared edge in two."""
+    seen = set()
+    for e in s.edges:
+        if frozenset((e.a, e.b)) in seen:
+            e.weight = None
+        seen.add(frozenset((e.a, e.b)))
+
+
+def _on(route: list[str], a: str, b: str) -> bool:
+    st = set(zip(route, route[1:]))
+    return (a, b) in st or (b, a) in st
+
+
+@figure("astar_path", "paths", "A* path",
+        "A six-by-six grid searched from its top-left corner (0,0) to the bottom-right corner "
+        "(5,5), outlined. Each node is labeled with the Manhattan-distance heuristic h, its "
+        "estimated remaining distance to the target, from 10 down to 0. The returned shortest "
+        "path, 10 hops along the top row and down the right column, is in the accent color; "
+        "along it the steps taken plus h always sum to 10.")
+def astar_path(s: Scene) -> None:
+    g, ids, rc = _grid(6, 6)
+    t = rc[ids[-1]]
+
+    def manhattan(node, target):
+        (r1, c1), (r2, c2) = rc[node], rc[target]
+        return abs(r1 - r2) + abs(c1 - c2)
+
+    path = [_rc(*rc[n]) for n in g.astar_path(ids[0], ids[-1], heuristic=manhattan)]
+    assert path == [_rc(0, c) for c in range(6)] + [_rc(r, 5) for r in range(1, 6)]
+    left, right = compute(s, "grid", "grid.astar_path(s, t, heuristic=h)")
+    # grid steps: 30 px rows (six R_SMALL rows fill the content height), 40 px columns
+    x0 = left.cx - 2.5 * 40
+    for r in range(6):
+        for c in range(6):
+            k = _rc(r, c)
+            h = abs(r - t[0]) + abs(c - t[1])
+            style = "soft" if k in (path[0], path[-1]) else "accent" if k in path else "default"
+            s.node(k, x0 + 40 * c, 23 + 30 * r, str(h), style, r=R_SMALL)
+    for a, b in _grid_edges(6, 6):
+        s.edge(a, b, style="accent" if _on(path, a, b) else "muted")
+    s.card_centered(right, [("(0,0) → (0,5) → (5,5)", "accent"), "labels: h = Manhattan",
+                            "steps + h = 10 on path"], title="shortest path, 10 hops")
+
+
+ROADS = {"A": (0, 0.7), "B": (1.4, 0), "C": (1.4, 1.4), "D": (2.8, 0.7)}
+ROADS_EDGES = [("A", "B", 4), ("B", "D", 4), ("A", "C", 2), ("C", "D", 7)]
+
+
+@figure("astar_path_length", "paths", "A* path length",
+        "Four towns A, B, C, D joined by roads: A–B 4, B–D 4, A–C 2 and C–D 7. From A "
+        "(outlined) to D (outlined) the route through C starts cheaper but totals 9, so A* "
+        "returns the route through B, drawn in the accent color, with length 4 + 4 = 8.0.")
+def astar_path_length(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(weighted=True).add_nodes(list(ROADS))
+    g.add_edges([(a, b, float(w)) for a, b, w in ROADS_EDGES])
+    assert g.astar_path_length("A", "D") == 8.0
+    assert _labels(g, g.astar_path("A", "D")) == ["A", "B", "D"]
+    left, right = compute(s, "roads", 'roads.astar_path_length("A", "D")')
+    routes(s, place(ROADS, left, unit=UNIT), ROADS_EDGES, [list("ABD")], directed=False,
+           ends=("A", "D"), weights=True)
+    s.card_centered(right, [("A → B → D", "accent"), ("4 + 4 = 8.0", "accent"),
+                            "via C:  2 + 7 = 9"], title="shortest length, A to D")
+
+
+@figure("predecessor", "paths", "Shortest-path predecessors",
+        "A square of four nodes A, B, C, D searched from A (outlined). The arrows form the "
+        "shortest-path DAG: A precedes B and D, one hop away, and C, two hops away, is reached "
+        "equally fast through B or D, so C (accent color) has two predecessors. The card lists "
+        "A: none, B: A, C: B and D, D: A.")
+def predecessor(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(SQUARE))
+    g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+    preds = {g.get_label_from_id(n): _labels(g, ps) for n, ps in g.predecessor("A").items()}
+    assert preds == {"A": [], "B": ["A"], "C": ["B", "D"], "D": ["A"]}
+    left, right = compute(s, "square", 'square.predecessor("A")')
+    s.graph(place(SQUARE, left, unit=UNIT * 1.3),
+            [(p, n, {"style": "accent", "directed": True}) for n, ps in preds.items() for p in ps],
+            styles={"A": "soft", "C": "accent"})
+    s.card_centered(right, ["A  []", "B  [A]", ("C  [B, D]", "accent"), "D  [A]"],
+                    title="node  predecessors")
+
+
+# One-way streets from the single_target_* docstrings: shop -> home -> park -> station.
+STREETS = {"shop": (0, 0.9), "home": (1.1, 0), "park": (2.2, 0.9), "station": (3.3, 0)}
+STREETS_EDGES = [("home", "park"), ("park", "station"), ("shop", "home")]
+STREET_NAMES = {"shop": "s", "home": "n", "park": "s", "station": "n"}
+STATION = 'g,  t = "station"'
+
+
+def _streets():
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(STREETS))
+    g.add_edges(STREETS_EDGES)
+    return g
+
+
+def _streets_panel(s: Scene, box: Box, labels: dict[str, str] | None = None,
+                   heat: dict[str, float] | None = None) -> None:
+    gbox = Box(box.x0, box.y0 + 16, box.x1, box.y1 - 16)  # rows for the names
+    s.graph(place(STREETS, gbox, unit=UNIT * 1.4),
+            [(a, b, {"style": "accent"}) for a, b in STREETS_EDGES], directed=True,
+            styles={"station": "soft"}, labels=labels or False, heat=heat)
+    for k, where in STREET_NAMES.items():
+        _name(s, k, k, where, "accent" if k == "station" else "ink")
+
+
+@figure("single_target_shortest_path", "paths", "Single-target shortest paths",
+        "A one-way street network: shop to home, home to park, park to station. With the "
+        "target station (outlined), every node that can reach it gets the shortest path from "
+        "itself to the station, following the arrows (accent color): shop goes through home "
+        "and park, home through park, park directly, and station maps to itself.")
+def single_target_shortest_path(s: Scene) -> None:
+    g = _streets()
+    paths = {g.get_label_from_id(n): _labels(g, p)
+             for n, p in g.single_target_shortest_path("station").items()}
+    assert paths == {"home": ["home", "park", "station"], "park": ["park", "station"],
+                     "shop": ["shop", "home", "park", "station"], "station": ["station"]}
+    left, right = compute(s, STATION, "g.single_target_shortest_path(t)")
+    _streets_panel(s, left)
+    order = sorted(paths, key=lambda k: -len(paths[k]))
+    s.card_centered(right, [("→".join(paths[k]), "accent") for k in order],
+                    title="each node's path to station")
+
+
+@figure("single_target_shortest_path_length", "paths", "Single-target shortest path lengths",
+        "The one-way street network shop to home to park to station. Each node shows its "
+        "distance to the target station (outlined) in hops, shaded darker the closer it is: "
+        "station 0, park 1, home 2, shop 3. The table lists the same distances.")
+def single_target_shortest_path_length(s: Scene) -> None:
+    g = _streets()
+    dist = {g.get_label_from_id(n): d
+            for n, d in g.single_target_shortest_path_length("station").items()}
+    assert dist == {"home": 2, "park": 1, "shop": 3, "station": 0}
+    left, right = compute(s, STATION, "g.single_target_shortest_path_length(t)")
+    far = max(dist.values())
+    _streets_panel(s, left, labels={k: str(d) for k, d in dist.items()},
+                   heat={k: 1 - d / far for k, d in dist.items() if k != "station"})
+    rows = [["node", "hops"]] + [[k, str(d)] for k, d in sorted(dist.items(), key=lambda kv: kv[1])]
+    s.table_centered(right, rows, [80, 56], highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+# 3 x 3 grid for single_source_all_shortest_paths, labeled A..I row by row.
+GRID3 = {chr(65 + 3 * r + c): (c, r) for r in range(3) for c in range(3)}
+
+
+def _grid3_paths():
+    g, ids, rc = _grid(3, 3)
+    lab = {n: chr(65 + 3 * r + c) for n, (r, c) in rc.items()}
+    found = g.single_source_all_shortest_paths(ids[0])
+    return {lab[t]: ["".join(lab[n] for n in p) for p in ps] for t, ps in found.items()}
+
+
+@figure("single_source_all_shortest_paths", "paths", "Single-source all shortest paths",
+        "A three-by-three grid A to I searched from the corner A (outlined). Badges count the "
+        "shortest paths from A to each node; they add up like Pascal's triangle, so the far "
+        "corner I has 6. The six 4-hop paths from A to I are drawn on the right as small "
+        "copies of the grid, each path in the accent color.")
+def single_source_all_shortest_paths(s: Scene) -> None:
+    paths = _grid3_paths()
+    counts = {k: len(v) for k, v in paths.items()}
+    assert counts == {"A": 1, "B": 1, "C": 1, "D": 1, "E": 2, "F": 3, "G": 1, "H": 3, "I": 6}
+    to_i = paths["I"]
+    assert to_i == ["ABCFI", "ABEFI", "ABEHI", "ADEFI", "ADEHI", "ADGHI"]
+    left, right = compute(s, "g", 'g.single_source_all_shortest_paths("A")')
+    edges = [(a, b) for a in GRID3 for b in GRID3 if a < b and
+             abs(GRID3[a][0] - GRID3[b][0]) + abs(GRID3[a][1] - GRID3[b][1]) == 1]
+    s.graph(place(GRID3, left, unit=UNIT), edges, styles={"A": "soft"})
+    for k, n in counts.items():
+        if k != "A":
+            s.badge(k, str(n), color="accent")
+    # six miniatures, three per row, under a note line
+    s.text(right.cx, right.y0 + 8, "6 paths, A to I", size=SIZE_NOTE, opacity=0.6)
+    r, step = 5, 19
+    for i, p in enumerate(to_i):
+        cx = right.x0 + 42 + (i % 3) * 82
+        cy = right.y0 + 60 + (i // 3) * 78
+        pre = f"m{i}."
+        pos = {k: (cx + (x - 1) * step, cy + (y - 1) * step) for k, (x, y) in GRID3.items()}
+        s.graph(pos, [(a, b, {"style": "accent" if _on(list(p), a, b) else "muted"})
+                      for a, b in edges],
+                styles={k: "accent" if k in p else "muted" for k in GRID3}, labels=False,
+                r=r, prefix=pre)
+
+
+@figure("all_pairs_all_shortest_paths", "paths", "All-pairs all shortest paths",
+        "A four-node cycle 1, 2, 3, 4. Between opposite corners there are two equally short "
+        "routes, such as 1, 2, 3 (accent color) and 1, 4, 3 (teal). The matrix counts the "
+        "shortest paths for every source and target: 2 for the four opposite pairs "
+        "(highlighted) and 1 otherwise, 20 paths in total.")
+def all_pairs_all_shortest_paths(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(4)
+    allp = g.all_pairs_all_shortest_paths()
+    L = g.get_label_from_id
+    counts = {(L(a), L(b)): len(ps) for a, row in allp.items() for b, ps in row.items()}
+    assert sum(counts.values()) == 20
+    one3 = sorted(["".join(_labels(g, p)) for p in allp[g.get_id_from_label("1")][
+        g.get_id_from_label("3")]])
+    assert one3 == ["123", "143"]
+    left, right = compute(s, "g", "g.all_pairs_all_shortest_paths()")
+    square = {"1": (0, 0), "2": (1.3, 0), "3": (1.3, 1.3), "4": (0, 1.3)}
+    routes(s, place(square, left, unit=UNIT * 1.3), [("1", "2"), ("2", "3"), ("3", "4"),
+                                                     ("4", "1")],
+           [list("123"), list("143")], directed=False, ends=("1", "3"))
+    lab = list(square)
+    rows = [[""] + lab] + [[a] + [str(counts[(a, b)]) for b in lab] for a in lab]
+    hi = {(i + 1, j + 1): "accent" for i, a in enumerate(lab) for j, b in enumerate(lab)
+          if counts[(a, b)] == 2}
+    _, y0, _, y1 = s.table_centered(Box(right.x0, right.y0, right.x1, right.y1 - 18), rows,
+                                    [28, 38, 38, 38, 38], highlight=hi)
+    matrix_note(s, right, y0, "len(result[s][t])")
+    s.text(right.cx, y1 + 14, "total  20 paths", size=SIZE_NOTE)
+
+
+# floyd_warshall / johnson docstrings: a negative shortcut makes A -> C -> B cheapest.
+NEG = {"A": (0, 0), "B": (2.2, 0), "C": (1.1, 1.3)}
+NEG_EDGES = [("A", "B", 4), ("A", "C", 2), ("C", "B", -1)]
+
+
+def _neg_graph():
+    import edgecase as ec
+
+    g = ec.Graph(directed=True, weighted=True).add_nodes(list(NEG))
+    g.add_edges([(a, b, float(w)) for a, b, w in NEG_EDGES])
+    return g
+
+
+def _neg_panel(s: Scene, box: Box) -> None:
+    routes(s, place(NEG, box, unit=UNIT * 1.3), NEG_EDGES, [list("ACB")], directed=True,
+           ends=("A", "B"), weights=True)
+
+
+@figure("floyd_warshall", "paths", "Floyd-Warshall distances",
+        "Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. The "
+        "negative shortcut makes the long way round, A, C, B (accent color), cheaper than the "
+        "direct edge: 2 + (−1) = 1. The distance matrix highlights dist A to B = 1.0; pairs "
+        "with no path, such as B to A, are left out (shown as a dot).")
+def floyd_warshall(s: Scene) -> None:
+    g = _neg_graph()
+    L = g.get_label_from_id
+    dist = {L(a): {L(b): d for b, d in row.items()} for a, row in g.floyd_warshall().items()}
+    assert dist == {"A": {"A": 0.0, "B": 1.0, "C": 2.0}, "B": {"B": 0.0},
+                    "C": {"B": -1.0, "C": 0.0}}
+    left, right = compute(s, "g", "g.floyd_warshall()")
+    _neg_panel(s, left)
+    lab = list(NEG)
+
+    def cell(v):
+        return "·" if v is None else f"{v:.1f}".replace("-", "−")
+
+    rows = [[""] + lab] + [[a] + [cell(dist[a].get(b)) for b in lab] for a in lab]
+    _, y0, _, _ = s.table_centered(right, rows, [28, 48, 48, 48], highlight={(1, 2): "accent"})
+    matrix_note(s, right, y0, "dist[source][target]")
+
+
+@figure("johnson", "paths", "Johnson all-pairs shortest paths",
+        "Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. Johnson's "
+        "algorithm reweights the edges to remove the negative one without changing which "
+        "paths are shortest, then runs Dijkstra from every node. The path it returns from A "
+        "to B is A, C, B (accent color), costing 2 + (−1) = 1, less than the direct edge's 4.")
+def johnson(s: Scene) -> None:
+    g = _neg_graph()
+    L = g.get_label_from_id
+    paths = {L(a): {L(b): _labels(g, p) for b, p in row.items()} for a, row in g.johnson().items()}
+    assert paths["A"] == {"A": ["A"], "B": ["A", "C", "B"], "C": ["A", "C"]}
+    assert paths["C"]["B"] == ["C", "B"]
+    left, right = compute(s, "g", "g.johnson()")
+    _neg_panel(s, left)
+    s.card_centered(right, [("A → C → B", "accent"), "cost  2 + (−1) = 1",
+                            "direct A → B  4"], title="result[A][B]")
+
+
+# shortest_simple_paths docstring: a diamond A-B-D / A-C-D with a rung B-C.
+KITE = {"A": (0, 0.75), "B": (1.4, 0), "C": (1.4, 1.5), "D": (2.8, 0.75)}
+KITE_EDGES = [("A", "B", 1), ("B", "D", 1), ("A", "C", 1), ("C", "D", 2), ("B", "C", 1)]
+
+
+@figure("shortest_simple_paths", "paths", "Shortest simple paths",
+        "A weighted diamond A, B, C, D with a rung B to C. The iterator yields simple paths "
+        "from A (outlined) to D (outlined) cheapest first; the first three are A, B, D with "
+        "length 2 (accent color), A, C, D with length 3 (teal) and A, C, B, D with length 3 "
+        "(violet). The card ranks them 1, 2, 3.")
+def shortest_simple_paths(s: Scene) -> None:
+    import itertools
+
+    import edgecase as ec
+
+    g = ec.Graph(weighted=True).add_nodes(list(KITE))
+    g.add_edges([(a, b, float(w)) for a, b, w in KITE_EDGES])
+    first = [_labels(g, p) for p in itertools.islice(g.shortest_simple_paths("A", "D"), 3)]
+    assert first == [list("ABD"), list("ACD"), list("ACBD")]
+    w = {frozenset((a, b)): c for a, b, c in KITE_EDGES}
+    cost = [sum(w[frozenset(st)] for st in zip(p, p[1:])) for p in first]
+    assert cost == [2, 3, 3]
+    left, right = compute(s, "g", 'g.shortest_simple_paths("A", "D")')
+    routes(s, place(KITE, left, unit=UNIT * 1.2), KITE_EDGES, first, directed=False,
+           ends=("A", "D"), weights=True)
+    _one_weight(s)
+    s.card_centered(right, [(f"{i}  {arrows(p):<13}  {c}", col)
+                            for i, (p, c, col) in enumerate(zip(first, cost, COLORS), 1)],
+                    title="rank  path        length")
+
+
+@figure("all_simple_edge_paths", "paths", "All simple edge paths",
+        "Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one "
+        "edge between B and C (id 3). Both routes visit the same nodes but use different "
+        "edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in "
+        "teal; both share edge 3.")
+def all_simple_edge_paths(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(["A", "B", "C"])
+    g.add_edges([("A", "B"), ("A", "B"), ("B", "C")])
+    found = g.all_simple_edge_paths("A", "C")
+    assert found == [[1, 3], [2, 3]]
+    left, right = compute(s, "g", 'g.all_simple_edge_paths("A", "C")')
+    line = {"A": (0, 0), "B": (1.8, 0), "C": (3.6, 0)}
+    s.graph(place(line, left, unit=UNIT), [], styles={"A": "soft", "C": "soft"})
+    s.edge("A", "B", style="accent", bend=-22, weight="1")
+    s.edge("A", "B", style="g2", bend=22, weight="2")
+    s.edge("B", "C", style="accent", bend=-GAP)
+    s.edge("B", "C", style="g2", bend=GAP, weight="3")
+    s.card_centered(right, [("[1, 3]", "accent"), ("[2, 3]", "g2")],
+                    title="edge ids per path")
