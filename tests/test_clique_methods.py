@@ -1,3 +1,8 @@
+import itertools
+import random
+
+import edgecase as ec
+import networkx as nx
 import pytest
 from edgecase import Graph
 
@@ -392,3 +397,55 @@ class TestCliqueIntegration:
         max_sizes = [len(c) for c in all_cliques]
 
         assert max(max_sizes) == clique_number
+
+
+class TestCliqueExtras:
+    """enumerate_all_cliques, max_weight_clique, node_clique_number, number_of_cliques and
+    make_max_clique_graph, validated against NetworkX."""
+
+    def test_against_networkx(self):
+        for seed in range(150):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(1, 11), rnd.choice([0.2, 0.4, 0.6]), seed=seed)
+            for n in G:
+                G.nodes[n]["w"] = rnd.randint(1, 9)
+            g = ec.Graph().add_nodes([(str(n), {"w": G.nodes[n]["w"]}) for n in G])
+            for u, v in sorted(G.edges()):
+                g.add_edge(str(u), str(v))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            assert [[lab(x) for x in c] for c in g.enumerate_all_cliques()] == [
+                list(c) for c in nx.enumerate_all_cliques(G)
+            ]
+            if len(G):
+                nodes, weight = g.max_weight_clique(weight_attr="w")
+                assert weight == nx.max_weight_clique(G, weight="w")[1]
+                members = [lab(x) for x in nodes]
+                assert all(G.has_edge(a, b) for a, b in itertools.combinations(members, 2))
+                assert (
+                    g.max_weight_clique()[1] == nx.graph_clique_number(G)
+                    if hasattr(nx, "graph_clique_number")
+                    else max(len(c) for c in nx.find_cliques(G))
+                )
+            assert {lab(k): v for k, v in g.node_clique_number().items()} == dict(
+                nx.node_clique_number(G)
+            )
+            assert {lab(k): v for k, v in g.number_of_cliques().items()} == nx.number_of_cliques(G)
+            cg = g.make_max_clique_graph()
+            ref = nx.make_max_clique_graph(G)
+            assert cg.count_nodes() == ref.number_of_nodes()
+            assert cg.count_edges() == ref.number_of_edges()
+
+    def test_examples_and_errors(self):
+        g = ec.Graph().add_nodes(
+            [("A", {"w": 1}), ("B", {"w": 2}), ("C", {"w": 1}), ("D", {"w": 5})]
+        )
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D")])
+        nodes, weight = g.max_weight_clique(weight_attr="w")
+        assert [g.get_label_from_id(n) for n in nodes] == ["B", "D"] and weight == 7
+        assert len(g.max_weight_clique()[0]) == 3
+        assert len(ec.Graph().add_cycle_graph(3).enumerate_all_cliques()) == 7
+        with pytest.raises(ValueError, match="attribute"):
+            g.max_weight_clique(weight_attr="missing")
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).enumerate_all_cliques()
+        assert g.steps[-1].narration.startswith("Maximum-weight clique")
