@@ -119,6 +119,13 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::link_scores, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_product, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_power, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_path_predecessors, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::floyd_warshall, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::johnson, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::astar, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::simple_edge_paths, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_simple_paths, m)?)?;
+    m.add_class::<algorithms::path_extras::ShortestSimplePaths>()?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::adjacency_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::incidence_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
