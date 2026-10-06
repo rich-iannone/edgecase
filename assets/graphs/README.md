@@ -260,6 +260,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Metric closure](/assets/graphs/metric-closure.light.svg){.lightbox fig-alt="Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric closure joins every pair of nodes, weighted by the shortest-path distance between them. It keeps the three unit edges and adds the accent shortcuts A–C with weight 2, B–D with weight 2, and A–D with weight 3." width="100%"}
 ```
 
+### `power()` — Graph power
+
+<img src="power.light.svg" alt="Left: a path A, B, C, D, E with four edges. Right: its square, power(2), joins every pair at distance at most 2. It keeps the four path edges and adds three accent skip-one edges, A–C, B–D, and C–E, for 7 edges in all." width="570">
+
+```markdown
+![Graph power](/assets/graphs/power.light.svg){.lightbox fig-alt="Left: a path A, B, C, D, E with four edges. Right: its square, power(2), joins every pair at distance at most 2. It keeps the four path edges and adds three accent skip-one edges, A–C, B–D, and C–E, for 7 edges in all." width="100%"}
+```
+
 ### `quotient_graph()` — Quotient graph
 
 <img src="quotient-graph.light.svg" alt="A six-node graph partitioned into three blocks, shown as tinted regions: A, B, C in the accent color, D, E in teal, and F in violet. The quotient has one node per block, labeled block_0, block_1 and block_2; edges inside a block vanish and the several edges between two blocks merge into one." width="570">
@@ -342,12 +350,36 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## set-ops
 
+### `cartesian_product()` — Cartesian product
+
+<img src="cartesian-product.light.svg" alt="G is a path A–B–C (accent edges) and H is a single edge 1–2 (teal). Their Cartesian product has a node for every pair, drawn as a grid with labels A1 to C2 for the pairs (A, 1) to (C, 2): 6 nodes and 7 edges, a 3 by 2 ladder. The four accent rungs along the rows copy G&#x27;s edges, and the three teal edges down the columns copy H&#x27;s edge." width="570">
+
+```markdown
+![Cartesian product](/assets/graphs/cartesian-product.light.svg){.lightbox fig-alt="G is a path A–B–C (accent edges) and H is a single edge 1–2 (teal). Their Cartesian product has a node for every pair, drawn as a grid with labels A1 to C2 for the pairs (A, 1) to (C, 2): 6 nodes and 7 edges, a 3 by 2 ladder. The four accent rungs along the rows copy G's edges, and the three teal edges down the columns copy H's edge." width="100%"}
+```
+
 ### `compose()` — Compose
 
 <img src="compose.light.svg" alt="The same G and H as for union, except that the shared fourth node is labeled D in G (accent) and D′ in H (teal). Compose merges nodes by id and keeps all four edges like union, but H wins the clash, so the result shows D′." width="570">
 
 ```markdown
 ![Compose](/assets/graphs/compose.light.svg){.lightbox fig-alt="The same G and H as for union, except that the shared fourth node is labeled D in G (accent) and D′ in H (teal). Compose merges nodes by id and keeps all four edges like union, but H wins the clash, so the result shows D′." width="100%"}
+```
+
+### `compose_all()` — Compose many graphs
+
+<img src="compose-all.light.svg" alt="Three graphs on the same nodes A, B, C: base has edge A–B (accent), update1 adds B–C (teal), and update2 adds C–A (violet). compose_all merges nodes and edges by id from left to right, later graphs winning any attribute clash, so the result is the triangle A, B, C with 3 edges, each in the color of the graph that supplied it." width="570">
+
+```markdown
+![Compose many graphs](/assets/graphs/compose-all.light.svg){.lightbox fig-alt="Three graphs on the same nodes A, B, C: base has edge A–B (accent), update1 adds B–C (teal), and update2 adds C–A (violet). compose_all merges nodes and edges by id from left to right, later graphs winning any attribute clash, so the result is the triangle A, B, C with 3 edges, each in the color of the graph that supplied it." width="100%"}
+```
+
+### `corona_product()` — Corona product
+
+<img src="corona-product.light.svg" alt="G is a triangle A, B, C and H a single node x (teal). The corona product keeps the triangle and gives each corner its own copy of H, the teal leaves Ax, Bx, and Cx for (A, x), (B, x), and (C, x), each joined to its corner by an accent edge. The result is the sunlet graph with 6 nodes and 6 edges." width="570">
+
+```markdown
+![Corona product](/assets/graphs/corona-product.light.svg){.lightbox fig-alt="G is a triangle A, B, C and H a single node x (teal). The corona product keeps the triangle and gives each corner its own copy of H, the teal leaves Ax, Bx, and Cx for (A, x), (B, x), and (C, x), each joined to its corner by an accent edge. The result is the sunlet graph with 6 nodes and 6 edges." width="100%"}
 ```
 
 ### `difference()` — Difference
@@ -366,12 +398,68 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Disjoint union](/assets/graphs/disjoint-union.light.svg){.lightbox fig-alt="G is a triangle on nodes 1, 2, 3 (accent); H is a single edge between its own nodes 1 and 2 (teal). The disjoint union never merges ids: H's nodes are renumbered 4 and 5, giving five nodes in two separate components." width="100%"}
 ```
 
+### `disjoint_union_all()` — Disjoint union of many graphs
+
+<img src="disjoint-union-all.light.svg" alt="Three separate pieces, each numbered from 1: a triangle (accent), a path of 4 nodes (teal), and a star of 5 nodes (violet). disjoint_union_all never merges ids: the triangle keeps ids 1 to 3, the path is renumbered 4 to 7 and the star 8 to 12, giving 12 nodes, 10 edges, and 3 connected components." width="570">
+
+```markdown
+![Disjoint union of many graphs](/assets/graphs/disjoint-union-all.light.svg){.lightbox fig-alt="Three separate pieces, each numbered from 1: a triangle (accent), a path of 4 nodes (teal), and a star of 5 nodes (violet). disjoint_union_all never merges ids: the triangle keeps ids 1 to 3, the path is renumbered 4 to 7 and the star 8 to 12, giving 12 nodes, 10 edges, and 3 connected components." width="100%"}
+```
+
+### `full_join()` — Full join
+
+<img src="full-join.light.svg" alt="G is a 5-cycle on nodes 1 to 5 and H is a single node, hub (teal). The full join keeps both graphs and adds an accent edge from every node of G to every node of H: five spokes from the hub to the rim. The result is a wheel with 6 nodes and 10 edges, and hub has degree 5." width="570">
+
+```markdown
+![Full join](/assets/graphs/full-join.light.svg){.lightbox fig-alt="G is a 5-cycle on nodes 1 to 5 and H is a single node, hub (teal). The full join keeps both graphs and adds an accent edge from every node of G to every node of H: five spokes from the hub to the rim. The result is a wheel with 6 nodes and 10 edges, and hub has degree 5." width="100%"}
+```
+
 ### `intersection()` — Intersection
 
 <img src="intersection.light.svg" alt="G and H share edges A–B and B–D; A–C is only in G (accent) and C–D only in H (teal). The intersection keeps just the shared edges A–B and B–D; A–C and C–D are dashed, and node C, left with no edges, is dropped too." width="570">
 
 ```markdown
 ![Intersection](/assets/graphs/intersection.light.svg){.lightbox fig-alt="G and H share edges A–B and B–D; A–C is only in G (accent) and C–D only in H (teal). The intersection keeps just the shared edges A–B and B–D; A–C and C–D are dashed, and node C, left with no edges, is dropped too." width="100%"}
+```
+
+### `intersection_all()` — Intersection of many graphs
+
+<img src="intersection-all.light.svg" alt="Three snapshots of contacts among nodes 1 to 4: the first has edges 1–2 and 2–3, the second 1–2 and 3–4 (3–4 in teal, the only edge in just one snapshot), the third 1–2 and 2–3 again. intersection_all keeps only edges present in every snapshot: just 1–2, so the result has 1 edge and 2 nodes; 2–3 and 3–4 are dashed, and nodes 3 and 4, left with no edges, are dropped." width="570">
+
+```markdown
+![Intersection of many graphs](/assets/graphs/intersection-all.light.svg){.lightbox fig-alt="Three snapshots of contacts among nodes 1 to 4: the first has edges 1–2 and 2–3, the second 1–2 and 3–4 (3–4 in teal, the only edge in just one snapshot), the third 1–2 and 2–3 again. intersection_all keeps only edges present in every snapshot: just 1–2, so the result has 1 edge and 2 nodes; 2–3 and 3–4 are dashed, and nodes 3 and 4, left with no edges, are dropped." width="100%"}
+```
+
+### `lexicographic_product()` — Lexicographic product
+
+<img src="lexicographic-product.light.svg" alt="G is a single edge between departments sales (S) and ops (O), accent; H is a team, an edge between lead (L) and rep (R), teal. The lexicographic product puts a copy of the team in each department (the shaded groups, L and R in each): the teal edges copy H inside each copy, and because sales and ops are linked, four accent edges join every member of one team to every member of the other. The result is a complete graph on 4 nodes with 6 edges." width="570">
+
+```markdown
+![Lexicographic product](/assets/graphs/lexicographic-product.light.svg){.lightbox fig-alt="G is a single edge between departments sales (S) and ops (O), accent; H is a team, an edge between lead (L) and rep (R), teal. The lexicographic product puts a copy of the team in each department (the shaded groups, L and R in each): the teal edges copy H inside each copy, and because sales and ops are linked, four accent edges join every member of one team to every member of the other. The result is a complete graph on 4 nodes with 6 edges." width="100%"}
+```
+
+### `modular_product()` — Modular product
+
+<img src="modular-product.light.svg" alt="G is a paw: a triangle A, B, C with a tail C–D. H is a 4-cycle 1, 2, 3, 4. The path D–C–B in G and the path 1–2–3 in H (accent; the rest muted) are the same induced subgraph. Their modular product has 16 nodes and 40 edges, and its largest clique, drawn on the right as D1, C2, B3 for the pairs (D, 1), (C, 2), (B, 3), has 3 nodes: the largest induced subgraph common to both graphs." width="570">
+
+```markdown
+![Modular product](/assets/graphs/modular-product.light.svg){.lightbox fig-alt="G is a paw: a triangle A, B, C with a tail C–D. H is a 4-cycle 1, 2, 3, 4. The path D–C–B in G and the path 1–2–3 in H (accent; the rest muted) are the same induced subgraph. Their modular product has 16 nodes and 40 edges, and its largest clique, drawn on the right as D1, C2, B3 for the pairs (D, 1), (C, 2), (B, 3), has 3 nodes: the largest induced subgraph common to both graphs." width="100%"}
+```
+
+### `rooted_product()` — Rooted product
+
+<img src="rooted-product.light.svg" alt="G is a path 1–2–3–4 (accent edges) and H a tooth, an edge from top to tip (teal), rooted at top (outlined). The rooted product hangs a copy of the tooth from every node of G: the top row holds the roots (1, top) to (4, top), wired like G by accent edges, and each teal edge drops to that column&#x27;s tip. The result is a comb with 8 nodes and 7 edges, a tree." width="570">
+
+```markdown
+![Rooted product](/assets/graphs/rooted-product.light.svg){.lightbox fig-alt="G is a path 1–2–3–4 (accent edges) and H a tooth, an edge from top to tip (teal), rooted at top (outlined). The rooted product hangs a copy of the tooth from every node of G: the top row holds the roots (1, top) to (4, top), wired like G by accent edges, and each teal edge drops to that column's tip. The result is a comb with 8 nodes and 7 edges, a tree." width="100%"}
+```
+
+### `strong_product()` — Strong product
+
+<img src="strong-product.light.svg" alt="G is a path a–b–c (accent edges) and H a path 1–2–3 (teal). Their strong product is the 3 by 3 king&#x27;s graph, labeled a1 to c3: accent edges along the rows copy G, teal edges down the columns copy H, and ink diagonals move both coordinates at once. It has 9 nodes and 20 edges, and the center (b, 2), outlined, reaches all 8 others." width="570">
+
+```markdown
+![Strong product](/assets/graphs/strong-product.light.svg){.lightbox fig-alt="G is a path a–b–c (accent edges) and H a path 1–2–3 (teal). Their strong product is the 3 by 3 king's graph, labeled a1 to c3: accent edges along the rows copy G, teal edges down the columns copy H, and ink diagonals move both coordinates at once. It has 9 nodes and 20 edges, and the center (b, 2), outlined, reaches all 8 others." width="100%"}
 ```
 
 ### `symmetric_difference()` — Symmetric difference
@@ -382,12 +470,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Symmetric difference](/assets/graphs/symmetric-difference.light.svg){.lightbox fig-alt="G and H share edges A–B and B–D; A–C is only in G (accent) and C–D only in H (teal). The symmetric difference keeps the edges in exactly one graph, A–C and C–D; the shared edges are dashed and node B, left with no edges, is dropped." width="100%"}
 ```
 
+### `tensor_product()` — Tensor product
+
+<img src="tensor-product.light.svg" alt="G is a triangle A, B, C (accent edges) and H is a single edge 0–1 (teal). In the tensor product both coordinates must move along an edge at once, so every product edge is ink: (A, 0)–(B, 1), (B, 1)–(C, 0), and so on, labeled A0 to C1. The result has 6 nodes and 6 edges forming a single 6-cycle, the bipartite double cover of the triangle." width="570">
+
+```markdown
+![Tensor product](/assets/graphs/tensor-product.light.svg){.lightbox fig-alt="G is a triangle A, B, C (accent edges) and H is a single edge 0–1 (teal). In the tensor product both coordinates must move along an edge at once, so every product edge is ink: (A, 0)–(B, 1), (B, 1)–(C, 0), and so on, labeled A0 to C1. The result has 6 nodes and 6 edges forming a single 6-cycle, the bipartite double cover of the triangle." width="100%"}
+```
+
 ### `union()` — Union
 
 <img src="union.light.svg" alt="G has edges A–B and B–D, which H shares, plus A–C (only in G, accent). H adds C–D (only in H, teal). The union keeps all four nodes and all four edges, each in the color of the graph it came from." width="570">
 
 ```markdown
 ![Union](/assets/graphs/union.light.svg){.lightbox fig-alt="G has edges A–B and B–D, which H shares, plus A–C (only in G, accent). H adds C–D (only in H, teal). The union keeps all four nodes and all four edges, each in the color of the graph it came from." width="100%"}
+```
+
+### `union_all()` — Union of many graphs
+
+<img src="union-all.light.svg" alt="Three snapshots of contacts among the same four people, nodes 1 to 4: the first has edge 1–2, the second 2–3 (teal), the third 3–4 (violet) and 1–2 again. Edge 1–2 is in two snapshots, so it is ink. union_all merges nodes by id and keeps every edge: the path 1–2–3–4 with 3 edges, each in the color of the snapshot it came from." width="570">
+
+```markdown
+![Union of many graphs](/assets/graphs/union-all.light.svg){.lightbox fig-alt="Three snapshots of contacts among the same four people, nodes 1 to 4: the first has edge 1–2, the second 2–3 (teal), the third 3–4 (violet) and 1–2 again. Edge 1–2 is in two snapshots, so it is ink. union_all merges nodes by id and keeps every edge: the path 1–2–3–4 with 3 edges, each in the color of the snapshot it came from." width="100%"}
 ```
 
 ## selection
