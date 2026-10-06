@@ -22036,6 +22036,764 @@ class Graph:
         )
         return self
 
+    def _community_result(self, method, membership, attr_name, params, return_dict):
+        if return_dict:
+            return membership
+        attr_name = attr_name or method
+        args = ", ".join([f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"])
+        self._store_communities(method, membership, attr_name, params, f"G.{method}({args})")
+        return self
+
+    def cmty_fluid(
+        self,
+        k: int,
+        max_iter: int = 100,
+        seed: int | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        r"""
+        Find `k` communities with the asynchronous fluid communities algorithm.
+
+        ![Fluid communities](/assets/graphs/cmty-fluid.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Asked for k = 2 communities with seed 3, two fluids start at random nodes and spread until each fills one group, drawn as tinted regions in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+
+        Fluid communities (Parés et al., 2017) treat each community as a fluid that starts at a
+        random node with total density 1 and spreads over the graph: nodes repeatedly join the
+        community with the largest total density among themselves and their neighbors, while
+        each community's density is spread thinner as it grows. Communities expand and compete
+        until nothing changes. It is one of the few fast methods that lets you choose the number
+        of communities directly, useful when the number of groups is known in advance (teams,
+        districts, servers to balance across).
+
+        The graph must be undirected and connected. Results depend on the random start; use
+        `seed=` for reproducibility. Edge weights are not used.
+
+        Parameters
+        ----------
+        k
+            The number of communities (between 1 and the number of nodes).
+        max_iter
+            Maximum number of passes over the nodes (default 100).
+        seed
+            Random seed.
+        attr_name
+            Node attribute to store the communities in (default `"cmty_fluid"`).
+        return_dict
+            If `True`, return the node-to-community dictionary instead of storing it.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            With `return_dict=True`, a dictionary mapping node IDs to community labels `0` to
+            `k - 1` (numbered in order of the lowest node ID in each); otherwise `self`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or `k` is out of range.
+
+        Technical Notes
+        ---------------
+        Each pass visits the nodes in random order; a node's score for community `c` is the sum
+        of `c`'s density $1 / |c|$ over the node and its neighbors in `c`, and the node switches
+        only if its current community is not among the (near-)best. Each pass costs $O(E)$.
+        Follows NetworkX's `asyn_fluidc`; with a different random generator, the communities
+        found for a given seed differ from NetworkX's.
+
+        Examples
+        --------
+        Two dense groups joined by a single edge split cleanly into two fluids:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+        )
+
+        groups = g.cmty_fluid(2, seed=3, return_dict=True)
+        {g.get_label_from_id(n): c for n, c in sorted(groups.items())}
+        ```
+        """
+        ids, labels = rust.fluid_communities(self._graph, k, max_iter, seed)
+        params = {"k": k}
+        if seed is not None:
+            params["seed"] = seed
+        return self._community_result(
+            "cmty_fluid", dict(zip(ids, labels)), attr_name, params, return_dict
+        )
+
+    def cmty_fast_label_propagation(
+        self,
+        weighted: bool | None = None,
+        seed: int | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        r"""
+        Find communities with fast label propagation.
+
+        ![Fast label propagation communities](/assets/graphs/cmty-fast-label-propagation.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. Every node starts with its own label and adopts its neighbors' most common label, revisiting only nodes whose neighborhood changed; with seed 1 the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+
+        Label propagation lets every node adopt the label most common among its neighbors until
+        labels stabilize into communities. The fast variant (Traag and Šubelj, 2023) keeps a
+        queue of nodes whose neighborhood just changed and only revisits those, which makes it
+        several times faster than sweeping over all nodes while finding communities of similar
+        quality. It suits very large graphs where a quick, parameter-free partition is wanted.
+
+        Edge direction is ignored. Ties between labels are broken at random; use `seed=` for
+        reproducible results.
+
+        Parameters
+        ----------
+        weighted
+            Whether neighbors vote with their edge weights. If `None` (default), follows the
+            graph's `weighted` flag.
+        seed
+            Random seed.
+        attr_name
+            Node attribute to store the communities in (default
+            `"cmty_fast_label_propagation"`).
+        return_dict
+            If `True`, return the node-to-community dictionary instead of storing it.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            With `return_dict=True`, a dictionary mapping node IDs to community labels (numbered
+            in order of the lowest node ID in each); otherwise `self`.
+
+        Technical Notes
+        ---------------
+        Nodes start with distinct labels and are queued in random order; a dequeued node takes
+        a label of maximal (weighted) frequency among its neighbors, and if its label changed,
+        its neighbors with other labels are queued again. The process ends when the queue
+        empties. Follows NetworkX's `fast_label_propagation_communities`; with a different
+        random generator, the result for a given seed differs.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+        )
+
+        len(set(g.cmty_fast_label_propagation(seed=1, return_dict=True).values()))
+        ```
+        """
+        ids, labels = rust.fast_label_propagation(self._graph, self._use_weights(weighted), seed)
+        params = {} if seed is None else {"seed": seed}
+        return self._community_result(
+            "cmty_fast_label_propagation", dict(zip(ids, labels)), attr_name, params, return_dict
+        )
+
+    def _levels(self, leiden: bool, resolution: float, seed):
+        if self.is_directed():
+            raise ValueError("this method requires an undirected graph")
+        ids, levels = rust.community_levels(self._graph, leiden, resolution, seed)
+        result = [dict(zip(ids, level)) for level in levels]
+        if self._recording_depth == 0 and result:
+            method = "cmty_leiden_levels" if leiden else "cmty_louvain_levels"
+            self._record_step(
+                KIND_QUERY,
+                method,
+                f"G.{method}()",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): c for n, c in sorted(result[-1].items())}
+                ),
+                result=result,
+                narration=f"{len(result)} levels; the last has "
+                f"{len(set(result[-1].values()))} communities.",
+            )
+        return result
+
+    def cmty_louvain_levels(
+        self, resolution: float = 1.0, seed: int | None = None
+    ) -> list[dict[int, int]]:
+        """
+        Return the community partition at each level of the Louvain algorithm.
+
+        ![Louvain community levels](/assets/graphs/cmty-louvain-levels.light.svg){.lightbox fig-alt="A two-by-four ladder, A to D on top and E to H below. Left, Louvain's first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, the next level merges those pairs into two communities, the left half A, B, E, F (accent) and the right half C, D, G, H (teal)." width="100%"}
+
+        Louvain builds communities bottom-up: it first groups nodes into small communities, then
+        collapses each community into a single node and repeats on the smaller graph. Each
+        round gives a coarser partition, so the levels form a hierarchy, from many small groups
+        to a few large ones. `cmty_louvain()` keeps only the last level; this method returns all
+        of them, to explore communities at several scales (neighborhoods within districts, teams
+        within departments).
+
+        The graph must be undirected.
+
+        Parameters
+        ----------
+        resolution
+            Resolution parameter (default 1); larger values favor smaller communities.
+        seed
+            Random seed for the node visiting order.
+
+        Returns
+        -------
+        list[dict[int, int]]
+            One node-to-community dictionary per level, finest first. Labels are numbered in
+            order of the lowest node ID in each community.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        Each level is one round of local moving (the fast queue-based variant) followed by
+        aggregation; a level is recorded whenever the partition is coarser than the previous
+        one, and the run stops when no node moves. The last level, with the same seed, is the
+        partition `cmty_louvain()` would find. Mirrors NetworkX's `louvain_partitions` (which
+        yields lists of node sets).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_smallworld_graph(n=60, k=4, p=0.05, seed=1)
+        levels = g.cmty_louvain_levels(seed=2)
+        [len(set(level.values())) for level in levels]
+        ```
+        """
+        return self._levels(False, resolution, seed)
+
+    def cmty_leiden_levels(
+        self, resolution: float = 1.0, seed: int | None = None
+    ) -> list[dict[int, int]]:
+        """
+        Return the community partition at each level of the Leiden algorithm.
+
+        ![Leiden community levels](/assets/graphs/cmty-leiden-levels.light.svg){.lightbox fig-alt="A two-by-four ladder, A to D on top and E to H below. Left, Leiden's first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, after refinement and aggregation the next level merges them into two communities, A, B, E, F (accent) and C, D, G, H (teal)." width="100%"}
+
+        Like `cmty_louvain_levels()`, but for one Leiden run: after each round of local moving
+        the communities are refined (so that every community stays well connected) and
+        aggregated, giving a hierarchy of increasingly coarse partitions. `cmty_leiden()` keeps
+        only the final partition (and repeats runs until modularity stops improving).
+
+        The graph must be undirected.
+
+        Parameters
+        ----------
+        resolution
+            Resolution parameter (default 1); larger values favor smaller communities.
+        seed
+            Random seed.
+
+        Returns
+        -------
+        list[dict[int, int]]
+            One node-to-community dictionary per level, finest first.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        Each level is local moving, refinement and aggregation of the refined partition
+        (Traag, Waltman and van Eck, 2019); the recorded partition is the moved (unrefined)
+        one, mapped back to the original nodes. Mirrors NetworkX's `leiden_partitions`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_smallworld_graph(n=60, k=4, p=0.05, seed=1)
+        levels = g.cmty_leiden_levels(seed=2)
+        [len(set(level.values())) for level in levels]
+        ```
+        """
+        return self._levels(True, resolution, seed)
+
+    def kernighan_lin_bisection(
+        self,
+        partition: tuple[list, list] | None = None,
+        max_iter: int = 10,
+        weighted: bool | None = None,
+        seed: int | None = None,
+    ) -> tuple[set[int], set[int]]:
+        r"""
+        Split the nodes into two halves with few edges between them (Kernighan-Lin).
+
+        ![Kernighan-Lin bisection](/assets/graphs/kernighan-lin-bisection.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color. Right, after swapping pairs of nodes the halves are A, B, C, D and E, F, G, H, and only the two accent edges D to E and C to F are cut, a cut size of 2.0." width="100%"}
+
+        The Kernighan-Lin heuristic (1970) improves a two-way split by swapping pairs of nodes
+        between the halves whenever that reduces the number (or weight) of edges cut, keeping the
+        halves the same size. It is the classic method for balanced graph bisection: dividing a
+        circuit between two chips, a computation between two processors, or a network into two
+        communities of equal size. Applied recursively, it partitions into more parts.
+
+        Edge direction is ignored. Without `partition=`, the start is a random half; use `seed=`
+        for reproducible results.
+
+        Parameters
+        ----------
+        partition
+            Optional starting split as two lists of nodes (IDs or labels) covering every node.
+        max_iter
+            Maximum number of improvement passes (default 10).
+        weighted
+            Whether to minimize cut weight. If `None` (default), follows the graph's `weighted`
+            flag.
+        seed
+            Random seed for the starting half.
+
+        Returns
+        -------
+        tuple[set[int], set[int]]
+            The two halves as sets of node IDs (the first evolves from `partition[0]` when a
+            partition is given). Their sizes differ by at most one, or keep the sizes of
+            `partition`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or `partition` is not a split of all nodes.
+
+        Technical Notes
+        ---------------
+        Each pass tentatively moves, alternately from each side, the unlocked node with the
+        largest gain (external minus internal weight), locks it and updates its neighbors'
+        gains, then keeps the prefix of swaps with the largest total gain; passes repeat while
+        they improve the cut. A pass costs $O(V^2)$ here. Follows NetworkX's
+        `kernighan_lin_bisection`. NetworkX occasionally accepts a pass whose gain is zero up to
+        rounding (which only exchanges the two sides) and then continues, so on some graphs the
+        two end in different local optima.
+
+        Examples
+        --------
+        Two squares joined by two edges: the bisection cuts just those two edges:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C"),
+             ("E", "F"), ("F", "G"), ("G", "H"), ("H", "E"), ("E", "G"),
+             ("D", "E"), ("C", "F")]
+        )
+
+        left, right = g.kernighan_lin_bisection(partition=(["A", "B", "E", "F"], ["C", "D", "G", "H"]))
+        sorted(g.get_label_from_id(n) for n in left), g.cut_size(list(left))
+        ```
+        """
+        initial = None
+        if partition is not None:
+            first, second = partition
+            a = {self._resolve_node_id(n, auto_create=False) for n in first}
+            b = {self._resolve_node_id(n, auto_create=False) for n in second}
+            if a & b or (a | b) != set(self.get_node_ids(limit=None)):
+                raise ValueError("partition must split every node into two disjoint sets")
+            initial = sorted(a)
+        a, b = rust.kernighan_lin(self._graph, initial, max_iter, self._use_weights(weighted), seed)
+        result = (set(a), set(b))
+        if self._recording_depth == 0:
+            side = dict.fromkeys(a, 0) | dict.fromkeys(b, 1)
+            self._record_step(
+                KIND_QUERY,
+                "kernighan_lin_bisection",
+                "G.kernighan_lin_bisection()",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): s for n, s in side.items()},
+                    edges_selected=[
+                        (self._node_label(s), self._node_label(t))
+                        for _, s, t in self.get_edges_as_tuples()
+                        if side[s] != side[t]
+                    ],
+                ),
+                result=result,
+                narration=f"Bisection into {len(a)} and {len(b)} nodes.",
+            )
+        return result
+
+    def lukes_partitioning(
+        self,
+        max_size: int,
+        node_weight: str | None = None,
+        edge_weight: str | None = None,
+    ) -> list[set[int]]:
+        r"""
+        Optimally partition a tree into clusters of bounded size (Lukes' algorithm).
+
+        ![Lukes partitioning](/assets/graphs/lukes-partitioning.light.svg){.lightbox fig-alt="A path of six nodes, A to F, cut into connected clusters of at most three nodes. The best split cuts only the middle edge C to D (dashed), keeping 4 of the 5 edges inside clusters: A, B, C in the accent color and D, E, F in teal, as the card lists." width="100%"}
+
+        Cuts a tree into connected clusters whose total node weight is at most `max_size`,
+        keeping as much edge weight inside clusters as possible (equivalently, cutting the
+        lightest possible set of edges). It solves bounded-size clustering exactly on trees, as
+        when grouping the branches of a distribution network into service areas, packing a
+        hierarchy into pages or memory blocks, or splitting a phylogeny into balanced clades.
+
+        Parameters
+        ----------
+        max_size
+            The maximum total node weight of a cluster.
+        node_weight
+            Optional node attribute with non-negative integer weights (default: every node
+            weighs 1).
+        edge_weight
+            Optional edge attribute with the value of keeping an edge inside a cluster
+            (default: every edge is worth 1).
+
+        Returns
+        -------
+        list[set[int]]
+            The clusters as sets of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a tree, a node weight is not a non-negative integer, or a single
+            node weighs more than `max_size`.
+
+        Technical Notes
+        ---------------
+        Lukes (1974) is a dynamic program over the tree: for each subtree and each possible
+        weight of the cluster containing its root, the best kept edge weight, combined child by
+        child either by cutting the edge to the child or by merging the child's root cluster.
+        It runs in $O(n K^2)$ time for `max_size` $K$ and finds an optimum; the kept weight
+        matches NetworkX's `lukes_partitioning` (which may return a different optimal partition).
+        Edge direction is ignored.
+
+        Examples
+        --------
+        A path of six nodes cut into pieces of at most three nodes keeps four of its five edges
+        when cut in the middle:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(list("ABCDEF"))
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")])
+
+        [sorted(path.get_label_from_id(n) for n in c) for c in path.lukes_partitioning(3)]
+        ```
+        """
+        clusters, value = rust.lukes_partitioning(self._graph, max_size, node_weight, edge_weight)
+        result = [set(c) for c in clusters]
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "lukes_partitioning",
+                f"G.lukes_partitioning({max_size})",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): i for i, c in enumerate(result) for n in c}
+                ),
+                result=result,
+                narration=f"{len(result)} clusters keeping edge weight {value:g}.",
+            )
+        return result
+
+    def greedy_source_expansion(
+        self, source: Union[int, str], cutoff: int | None = None
+    ) -> set[int]:
+        r"""
+        Find the local community of a node by greedy expansion.
+
+        ![Greedy source expansion](/assets/graphs/greedy-source-expansion.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Growing a local community from the source A (outlined), the expansion takes A's whole group and then the bridge node E, and stops: the community A, B, C, D, E is the tinted region in the accent color. E, drawn in teal, is its boundary, the one member with neighbors outside (F, G, H, faded)." width="100%"}
+
+        Instead of partitioning the whole network, local community detection grows a community
+        around one node of interest: starting from `source`, it repeatedly adds the neighboring
+        node that most improves the community's *local modularity* $R$ (the share of the
+        community boundary's edges that stay inside the community), and stops when no addition
+        helps or `cutoff` nodes are reached. It is useful on huge or partially known networks
+        (crawled web graphs, social networks queried node by node) where only one node's group
+        matters.
+
+        Edge direction, edge weights and parallel edges are ignored.
+
+        Parameters
+        ----------
+        source
+            The seed node, as an ID or label.
+        cutoff
+            Optional maximum community size.
+
+        Returns
+        -------
+        set[int]
+            The node IDs of the local community, including `source`.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist.
+
+        Technical Notes
+        ---------------
+        Clauset's (2005) local modularity $R = |I| / |T|$, where $T$ are the edges with an
+        endpoint in the community's boundary (members with neighbors outside) and $I$ those of
+        them with both endpoints inside. Each step evaluates every neighbor of the community.
+        Follows NetworkX's `greedy_source_expansion`; candidates are compared in node ID order
+        (NetworkX uses set order), so ties can be resolved differently.
+
+        Examples
+        --------
+        Starting from A, the expansion collects A's group and the bridge node E (which only
+        has one edge back into the group), then stops, because adding any node of E's group
+        would lower the local modularity. NetworkX finds the same community:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+        )
+
+        sorted(g.get_label_from_id(n) for n in g.greedy_source_expansion("A"))
+        ```
+        """
+        start = self._resolve_node_id(source, auto_create=False)
+        nbrs: dict[int, set[int]] = {n: set() for n in self.get_node_ids(limit=None)}
+        for _, s, t in self.get_edges_as_tuples():
+            if s != t:
+                nbrs[s].add(t)
+                nbrs[t].add(s)
+        limit = float("inf") if cutoff is None else cutoff
+        C, B = {start}, {start}
+        U = nbrs[start] - C
+        T = {frozenset((start, x)) for x in nbrs[start]}
+        I_: set = set()
+        r_value = 0.0
+
+        def candidate(v):
+            c_tmp = C | {v}
+            b_tmp, t_tmp, i_tmp = set(B), set(T), set(I_)
+            removed = set()
+            for nbr in sorted(nbrs[v]):
+                if nbr not in c_tmp:
+                    b_tmp.add(v)
+                    t_tmp.add(frozenset((v, nbr)))
+                if nbr in B and not any(x not in c_tmp for x in nbrs[nbr]):
+                    b_tmp.discard(nbr)
+                    removed.add(nbr)
+                if nbr in c_tmp:
+                    i_tmp.add(frozenset((v, nbr)))
+            for r in removed:
+                for x in nbrs[r]:
+                    if x not in b_tmp:
+                        t_tmp.discard(frozenset((x, r)))
+                        i_tmp.discard(frozenset((x, r)))
+            return (len(i_tmp) / len(t_tmp) if t_tmp else 1.0), b_tmp, t_tmp, i_tmp
+
+        while len(C) < limit and U:
+            best = (0.0, None, set(), set(), set())
+            for v in sorted(U):
+                r, b_tmp, t_tmp, i_tmp = candidate(v)
+                if r > best[0]:
+                    best = (r, v, b_tmp, t_tmp, i_tmp)
+            r, v, B, T, I_ = best
+            if v is None:
+                break
+            C = C | {v}
+            U = (U | nbrs[v]) - C
+            if r < r_value:
+                break
+            r_value = r
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "greedy_source_expansion",
+                f"G.greedy_source_expansion({self._node_label(start)!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in sorted(C)]),
+                result=C,
+                narration=f"Local community of {self._node_label(start)}: {len(C)} nodes.",
+            )
+        return C
+
+    def _classify(self, kind, label_name, alpha, max_iter, weighted):
+        values = self.get_node_attrs(label_name)
+        ids = sorted(self.get_node_ids(limit=None))
+        classes: list = []
+        labels = []
+        for n in ids:
+            if n in values and values[n] is not None:
+                if values[n] not in classes:
+                    classes.append(values[n])
+                labels.append(classes.index(values[n]))
+            else:
+                labels.append(-1)
+        if not classes:
+            raise ValueError(f"No node is labeled by {label_name!r}")
+        pred = rust.spread_labels(
+            self._graph, labels, len(classes), kind, alpha, max_iter, self._use_weights(weighted)
+        )
+        result = {n: classes[c] for n, c in zip(ids, pred)}
+        if self._recording_depth == 0:
+            method = "harmonic_function" if kind == "harmonic" else "local_and_global_consistency"
+            self._record_step(
+                KIND_QUERY,
+                method,
+                f"G.{method}({label_name!r})",
+                delta=StepDelta(
+                    node_groups={self._node_label(n): classes.index(v) for n, v in result.items()},
+                    nodes_selected=[self._node_label(n) for n in ids if n in values],
+                ),
+                result=result,
+                narration=f"{len(ids) - len(values)} unlabeled nodes classified into "
+                f"{len(classes)} classes.",
+            )
+        return result
+
+    def harmonic_function(
+        self, label_name: str = "label", max_iter: int = 30, weighted: bool | None = None
+    ) -> dict:
+        r"""
+        Predict missing node labels with the harmonic function (label propagation).
+
+        ![Harmonic function](/assets/graphs/harmonic-function.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Each unlabeled node takes the average of its neighbors' class scores, so A's group is predicted red (accent color) and H's group blue (teal), as the card lists." width="100%"}
+
+        Given a few labeled nodes (stored in the node attribute `label_name`), semi-supervised
+        node classification guesses the labels of all the others from the network: nodes that
+        are well connected to nodes of one class probably belong to it too. The harmonic
+        function method (Zhu, Ghahramani and Lafferty, 2003) makes each unlabeled node's class
+        scores the average of its neighbors' scores, with the labeled nodes held fixed, which is
+        the same as asking where a random walk from the node is most likely to first hit a
+        labeled node. Uses include inferring the function of unannotated genes, the topic of
+        uncited papers, or the political leaning of accounts from a small labeled sample.
+
+        The graph must be undirected.
+
+        Parameters
+        ----------
+        label_name
+            Node attribute holding the known labels (default `"label"`); nodes without it (or
+            with `None`) are unlabeled. Any hashable values can be labels.
+        max_iter
+            Number of propagation steps (default 30).
+        weighted
+            Whether to propagate along edge weights. If `None` (default), follows the graph's
+            `weighted` flag.
+
+        Returns
+        -------
+        dict
+            The predicted label of every node (labeled nodes keep theirs), keyed by node ID.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or no node is labeled.
+
+        Technical Notes
+        ---------------
+        With the row-normalized adjacency $P = D^{-1} A$ (labeled rows set to zero) and $B$ the
+        one-hot matrix of known labels, $F \leftarrow P F + B$ is iterated `max_iter` times from
+        $F = 0$, and each node takes the class with the largest score. This is NetworkX's
+        `harmonic_function` exactly; nodes whose top scores tie exactly (for example, nodes
+        equally far from two labels) go to the class seen first in node ID order, where
+        NetworkX's choice depends on rounding.
+
+        Examples
+        --------
+        In two groups joined by one edge, one labeled node per group labels its whole group:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+        )
+        g.set_node_attrs("label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"})
+
+        predicted = g.harmonic_function()
+        {g.get_label_from_id(n): label for n, label in predicted.items()}
+        ```
+        """
+        return self._classify("harmonic", label_name, 0.99, max_iter, weighted)
+
+    def local_and_global_consistency(
+        self,
+        label_name: str = "label",
+        alpha: float = 0.99,
+        max_iter: int = 30,
+        weighted: bool | None = None,
+    ) -> dict:
+        r"""
+        Predict missing node labels with the local and global consistency method.
+
+        ![Local and global consistency](/assets/graphs/local-and-global-consistency.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the edge D to E. Only A is labeled red and H blue, shown as badges. Spreading the labels with the normalized adjacency, each node mixing its neighbors' scores with its own start, predicts red (accent color) for A, B, C, D and blue (teal) for E, F, G, H, as the card lists; both seeds keep their labels." width="100%"}
+
+        Like `harmonic_function()`, this spreads a few known labels (in the node attribute
+        `label_name`) over the network to classify the remaining nodes, but it lets the known
+        labels themselves be smoothed too. Each node's scores mix what its neighbors say
+        (weight `alpha`) with its own initial label (weight `1 - alpha`), using a symmetrically
+        normalized adjacency, so noisy labels can be overruled by a strongly connected
+        neighborhood (Zhou et al., 2004).
+
+        The graph must be undirected.
+
+        Parameters
+        ----------
+        label_name
+            Node attribute holding the known labels (default `"label"`).
+        alpha
+            How much each node listens to its neighbors versus its own initial label, between 0
+            and 1 (default 0.99).
+        max_iter
+            Number of propagation steps (default 30).
+        weighted
+            Whether to propagate along edge weights. If `None` (default), follows the graph's
+            `weighted` flag.
+
+        Returns
+        -------
+        dict
+            The predicted label of every node, keyed by node ID. Unlike `harmonic_function()`, a
+            labeled node can receive a different label.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or no node is labeled.
+
+        Technical Notes
+        ---------------
+        With $S = D^{-1/2} A D^{-1/2}$ and one-hot labels $Y$, $F \leftarrow \alpha S F + (1 -
+        \alpha) Y$ is iterated `max_iter` times from $F = 0$; it converges to
+        $(1 - \alpha)(I - \alpha S)^{-1} Y$. This is NetworkX's `local_and_global_consistency`
+        exactly (exact ties go to the class seen first).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGH"))
+        g.add_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
+             ("D", "E")]
+        )
+        g.set_node_attrs("label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"})
+
+        predicted = g.local_and_global_consistency()
+        {g.get_label_from_id(n): label for n, label in predicted.items()}
+        ```
+        """
+        return self._classify("consistency", label_name, alpha, max_iter, weighted)
+
     def cmty_k_clique(self, k: int = 3) -> list[list[int]]:
         """
         Find overlapping communities by k-clique percolation.
