@@ -1186,7 +1186,8 @@ class TestRadiusIgnoresNodesThatReachNothing:
         # Only A reaches the whole component; C (a sink) no longer gives 0
         assert g.get_radius() == 2
         assert _labels(g, g.get_center()) == ["A"]
-        assert g.get_radius(unconnected=False) == 2
+        # Only weakly connected, so unconnected=False gives None (strong connectivity needed)
+        assert g.get_radius(unconnected=False) is None
 
     def test_directed_out_star_and_in_star(self):
         out_star = ec.Graph(directed=True).add_star_graph(4)
