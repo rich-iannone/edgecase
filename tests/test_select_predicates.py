@@ -280,14 +280,16 @@ class TestGetNodeAndEdge:
         assert edge.attributes.get("rel") == "friend"
 
     def test_get_edge_not_exists(self):
-        """Get a non-existent edge returns None."""
+        """A non-existent edge ID raises (it used to return None)."""
+        from edgecase import EdgeNotFoundError
+
         G = Graph()
         for label in ["A", "B"]:
             G.add_node(label)
         G.add_edge("A", "B")
 
-        edge = G.get_edge(999)
-        assert edge is None
+        with pytest.raises(EdgeNotFoundError, match="Edge with ID 999 does not exist"):
+            G.get_edge(999)
 
 
 class TestCombinedPredicateSelection:
