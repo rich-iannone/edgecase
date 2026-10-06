@@ -196,6 +196,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Complement](/assets/graphs/complement.light.svg){.lightbox fig-alt="A four-node path A, B, C, D. In the complement every pair that was not connected becomes an accent edge (A to C, A to D, B to D), while the three original edges are dropped and shown dashed." width="100%"}
 ```
 
+### `complete_to_chordal_graph()` — Complete to chordal graph
+
+<img src="complete-to-chordal-graph.light.svg" alt="Left: a five-node cycle 1 to 5, which has no chords and so is not chordal. Right: the returned graph keeps every cycle edge and adds two fill edges in the accent color, 2 to 5 and 3 to 5, cutting the cycle into three triangles. Filled badges give the elimination numbering alpha: node 1 is 5, node 2 is 4, node 5 is 3, node 3 is 2, and node 4 is 1." width="570">
+
+```markdown
+![Complete to chordal graph](/assets/graphs/complete-to-chordal-graph.light.svg){.lightbox fig-alt="Left: a five-node cycle 1 to 5, which has no chords and so is not chordal. Right: the returned graph keeps every cycle edge and adds two fill edges in the accent color, 2 to 5 and 3 to 5, cutting the cycle into three triangles. Filled badges give the elimination numbering alpha: node 1 is 5, node 2 is 4, node 5 is 3, node 3 is 2, and node 4 is 1." width="100%"}
+```
+
 ### `condensation()` — Condensation
 
 <img src="condensation.light.svg" alt="Left: a directed graph whose strongly connected components are shaded: the cycle A, B, C (accent color), the two-way pair D, E (teal), and the single nodes F (violet) and G (gold). Right: the condensation has one node per component, labeled {A,B,C}, {D,E}, F and G, joined by the edges that ran between components, {A,B,C} to {D,E} and F to G; the result is acyclic." width="570">
@@ -3090,6 +3098,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## communities
 
+### `attracting_components()` — Attracting components
+
+<img src="attracting-components.light.svg" alt="A directed graph: A points to B and to D, and B and C point to each other. A random walk that leaves A never comes back: it ends up circling B and C or stuck at D. Those are the attracting components, D in the accent color and B, C in teal, listed on the card as {D} and {B, C}; A, in neither, is faded." width="570">
+
+```markdown
+![Attracting components](/assets/graphs/attracting-components.light.svg){.lightbox fig-alt="A directed graph: A points to B and to D, and B and C point to each other. A random walk that leaves A never comes back: it ends up circling B and C or stuck at D. Those are the attracting components, D in the accent color and B, C in teal, listed on the card as {D} and {B, C}; A, in neither, is faded." width="100%"}
+```
+
 ### `bipartite_sets()` — Bipartite sets
 
 <img src="bipartite-sets.light.svg" alt="A two-by-three ladder whose nodes alternate between two sides, A, C, E in the accent color and B, D, F in teal, with every edge joining the two sides. The card lists the two returned sets, 0 as A, C, E and 1 as B, D, F." width="570">
@@ -3290,6 +3306,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Modularity](/assets/graphs/modularity.light.svg){.lightbox fig-alt="The two-cluster graph with 9 edges, split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). The card scores each community as its share of edges inside minus the share expected by chance, 3/9 − (7/18)² and 5/9 − (11/18)², each 0.18, for a modularity Q of 0.36." width="100%"}
 ```
 
+### `node_connected_component()` — Connected component of a node
+
+<img src="node-connected-component.light.svg" alt="Two separate pieces, the path A, B, C and the edge D to E. Starting from A (outlined), everything reachable lies in its component, the tinted region in the accent color holding A, B and C; D and E are faded. The card shows {A, B, C}." width="570">
+
+```markdown
+![Connected component of a node](/assets/graphs/node-connected-component.light.svg){.lightbox fig-alt="Two separate pieces, the path A, B, C and the edge D to E. Starting from A (outlined), everything reachable lies in its component, the tinted region in the accent color holding A, B and C; D and E are faded. The card shows {A, B, C}." width="100%"}
+```
+
 ### `partition_quality()` — Partition quality
 
 <img src="partition-quality.light.svg" alt="The two-cluster graph split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). 8 of the 9 edges lie inside a community, all but the bridge C to D, so coverage is 8/9 = 0.889. Of the 21 node pairs, 19 are classified correctly (8 joined pairs inside a community and 11 unjoined pairs across), so performance is 19/21 = 0.905." width="570">
@@ -3348,6 +3372,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Bipartite vertex cover](/assets/graphs/bipartite-vertex-cover.light.svg){.lightbox fig-alt="A bipartite graph with A, B, C on the top row and D, E on the bottom row, and edges A–D, A–E, B–E, and C–E. The minimum vertex cover is A and E, in the accent color: every edge touches one of them. A maximum matching, A–D and B–E in a second color, has the same size, as König's theorem says. The card shows the cover [A, E] and the matching, both of size 2." width="100%"}
 ```
 
+### `chordal_graph_cliques()` — Chordal graph cliques
+
+<img src="chordal-graph-cliques.light.svg" alt="A chordal graph: two triangles A, B, C and B, C, D sharing the edge B to C, plus a pendant E on D. Its maximal cliques are tinted regions, A, B, C in the accent color, B, C, D in teal and D, E in violet, overlapping where they share nodes. The card lists them in the same colors: [A, B, C], [B, C, D], [D, E]." width="570">
+
+```markdown
+![Chordal graph cliques](/assets/graphs/chordal-graph-cliques.light.svg){.lightbox fig-alt="A chordal graph: two triangles A, B, C and B, C, D sharing the edge B to C, plus a pendant E on D. Its maximal cliques are tinted regions, A, B, C in the accent color, B, C, D in teal and D, E in violet, overlapping where they share nodes. The card lists them in the same colors: [A, B, C], [B, C, D], [D, E]." width="100%"}
+```
+
+### `chordal_graph_treewidth()` — Chordal graph treewidth
+
+<img src="chordal-graph-treewidth.light.svg" alt="The same chordal graph: triangles A, B, C and B, C, D sharing an edge, plus a pendant E. Its largest cliques have three nodes; A, B, C is drawn in the accent color and B, C, D ties it. The card gives the treewidth as the largest clique size minus one, 3 − 1 = 2." width="570">
+
+```markdown
+![Chordal graph treewidth](/assets/graphs/chordal-graph-treewidth.light.svg){.lightbox fig-alt="The same chordal graph: triangles A, B, C and B, C, D sharing an edge, plus a pendant E. Its largest cliques have three nodes; A, B, C is drawn in the accent color and B, C, D ties it. The card gives the treewidth as the largest clique size minus one, 3 − 1 = 2." width="100%"}
+```
+
 ### `densest_subgraph()` — Densest subgraph
 
 <img src="densest-subgraph.light.svg" alt="A clique of four nodes A, B, C, D, every pair joined, with a chain D–E–F hanging off D. The densest subgraph is the clique, in the accent color: 6 edges on 4 nodes, density 6 / 4 = 1.5. The chain dilutes it, since the whole graph has 8 edges on 6 nodes, density 8 / 6 = 1.33. The card shows the nodes [A, B, C, D] and both densities." width="570">
@@ -3372,12 +3412,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Dominating set](/assets/graphs/dominating-set.light.svg){.lightbox fig-alt="A seven-node graph: pendant 1, triangle 2, 3, 4, a bridge to triangle 5, 6, 7. Nodes 1, 3, and 5 form the dominating set (accent); an accent edge links each other node to a set member that dominates it. The card shows the result [1, 3, 5], size 3." width="100%"}
 ```
 
+### `enumerate_all_cliques()` — Enumerate all cliques
+
+<img src="enumerate-all-cliques.light.svg" alt="Left: a triangle of nodes 1, 2, 3. Right: its seven cliques as miniature triangles in rows by size, each clique in the accent color: the three single nodes [1], [2], [3], the three edges [1, 2], [1, 3], [2, 3], and the whole triangle [1, 2, 3]." width="570">
+
+```markdown
+![Enumerate all cliques](/assets/graphs/enumerate-all-cliques.light.svg){.lightbox fig-alt="Left: a triangle of nodes 1, 2, 3. Right: its seven cliques as miniature triangles in rows by size, each clique in the accent color: the three single nodes [1], [2], [3], the three edges [1, 2], [1, 3], [2, 3], and the whole triangle [1, 2, 3]." width="100%"}
+```
+
 ### `find_cliques()` — Find maximal cliques
 
 <img src="find-cliques.light.svg" alt="Left: a five-node graph, a triangle 2, 3, 5 with pendant nodes 1 and 4. Right: three miniature copies, each highlighting one maximal clique in the accent color, listed beside it: [2, 3, 5], [3, 4], and [1, 2]." width="570">
 
 ```markdown
 ![Find maximal cliques](/assets/graphs/find-cliques.light.svg){.lightbox fig-alt="Left: a five-node graph, a triangle 2, 3, 5 with pendant nodes 1 and 4. Right: three miniature copies, each highlighting one maximal clique in the accent color, listed beside it: [2, 3, 5], [3, 4], and [1, 2]." width="100%"}
+```
+
+### `find_induced_nodes()` — Find induced nodes
+
+<img src="find-induced-nodes.light.svg" alt="A path A, B, C, D, a tree and so chordal, queried from A to D (both outlined). The dashed accent arc is the hypothetical edge A to D: it would close the cycle A, B, C, D, so every node on the induced path between them is returned. B and C are in the accent color and the card lists [A, B, C, D]." width="570">
+
+```markdown
+![Find induced nodes](/assets/graphs/find-induced-nodes.light.svg){.lightbox fig-alt="A path A, B, C, D, a tree and so chordal, queried from A to D (both outlined). The dashed accent arc is the hypothetical edge A to D: it would close the cycle A, B, C, D, so every node on the induced path between them is returned. B and C are in the accent color and the card lists [A, B, C, D]." width="100%"}
 ```
 
 ### `find_maximal_independent_sets()` — Find maximal independent sets
@@ -3412,12 +3468,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![List triangles](/assets/graphs/list-triangles.light.svg){.lightbox fig-alt="A six-node graph with two triangles, 3, 5, 6 in the accent color and 2, 4, 5 in teal, sharing node 5, plus a four-node cycle 1, 2, 5, 3 that is not a triangle. The card lists the two triangles in matching colors, (3, 5, 6) and (2, 4, 5)." width="100%"}
 ```
 
+### `make_max_clique_graph()` — Maximal clique graph
+
+<img src="make-max-clique-graph.light.svg" alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="570">
+
+```markdown
+![Maximal clique graph](/assets/graphs/make-max-clique-graph.light.svg){.lightbox fig-alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="100%"}
+```
+
 ### `max_clique()` — Maximum clique
 
 <img src="max-clique.light.svg" alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="570">
 
 ```markdown
 ![Maximum clique](/assets/graphs/max-clique.light.svg){.lightbox fig-alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="100%"}
+```
+
+### `max_weight_clique()` — Maximum weight clique
+
+<img src="max-weight-clique.light.svg" alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="570">
+
+```markdown
+![Maximum weight clique](/assets/graphs/max-weight-clique.light.svg){.lightbox fig-alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="100%"}
 ```
 
 ### `max_weight_matching()` — Maximum weight matching
@@ -3546,6 +3618,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Motif significance](/assets/graphs/motif-significance.light.svg){.lightbox fig-alt="The same seven-node graph. Against 100 degree-preserving rewirings (seed 1), its 2 triangles are more than expected, z = +1.77 with p = 0.15, shown in the accent color; its 6 induced paths are fewer than expected, z = -1.77 with p = 1.00, shown in plain ink." width="100%"}
+```
+
+### `node_clique_number()` — Node clique number
+
+<img src="node-clique-number.light.svg" alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by the size of the largest clique containing it: A, B and C are in the triangle, size 3, and D only in the edge, size 2, as the table lists." width="570">
+
+```markdown
+![Node clique number](/assets/graphs/node-clique-number.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by the size of the largest clique containing it: A, B and C are in the triangle, size 3, and D only in the edge, size 2, as the table lists." width="100%"}
+```
+
+### `number_of_cliques()` — Number of cliques per node
+
+<img src="number-of-cliques.light.svg" alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by how many maximal cliques contain it: C sits in both, so it has 2 and the darkest shading, while A, B and D have 1 each, as the table lists." width="570">
+
+```markdown
+![Number of cliques per node](/assets/graphs/number-of-cliques.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail edge C to D; its two maximal cliques are tinted regions, the triangle in the accent color and the edge C, D in teal. Each node is shaded by how many maximal cliques contain it: C sits in both, so it has 2 and the darkest shading, while A, B and D have 1 each, as the table lists." width="100%"}
 ```
 
 ### `number_of_spanning_trees()` — Number of spanning trees
@@ -3712,6 +3800,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is arborescence](/assets/graphs/is-arborescence.light.svg){.lightbox fig-alt="Left: the six-node tree with every edge pointing away from the root A, so each other node has exactly one incoming edge and is_arborescence() returns True. Right: the same tree with the edge between C and F reversed (shown in the accent color); F now has no incoming edge, giving two roots, so is_arborescence() returns False." width="100%"}
 ```
 
+### `is_attracting_component()` — Is attracting component
+
+<img src="is-attracting-component.light.svg" alt="Left: a directed cycle A to B to C to A; a walk can go anywhere and never leave, so the whole graph is one attracting component and is_attracting_component() returns True. Right: the same triangle with the edge between C and A reversed to point from A to C (shown in the accent color); walks now end at C, the only attracting component, which leaves out A and B, so is_attracting_component() returns False." width="570">
+
+```markdown
+![Is attracting component](/assets/graphs/is-attracting-component.light.svg){.lightbox fig-alt="Left: a directed cycle A to B to C to A; a walk can go anywhere and never leave, so the whole graph is one attracting component and is_attracting_component() returns True. Right: the same triangle with the edge between C and A reversed to point from A to C (shown in the accent color); walks now end at C, the only attracting component, which leaves out A and B, so is_attracting_component() returns False." width="100%"}
+```
+
 ### `is_biconnected()` — Is biconnected
 
 <img src="is-biconnected.light.svg" alt="Left: two triangles joined by the edges C-D and B-F, so every pair of nodes has two routes with no other node in common, and is_biconnected() returns True. Right: the same triangles joined by C-D and B-D instead; every route between the two sides now passes through D (shown in the accent color), so is_biconnected() returns False." width="570">
@@ -3734,6 +3830,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is branching](/assets/graphs/is-branching.light.svg){.lightbox fig-alt="Left: a directed forest of two trees, A pointing to B and C, and D pointing to E; every node has at most one incoming edge, so is_branching() returns True. Right: the same graph plus an edge from D to C (shown in the accent color); C now has two parents, A and D, so is_branching() returns False." width="100%"}
+```
+
+### `is_chordal()` — Is chordal
+
+<img src="is-chordal.light.svg" alt="Left: a square A, B, C, D with the diagonal A to C, which splits it into two triangles, so every cycle of four or more nodes has a chord and is_chordal() returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown in the accent color) has no chord, so is_chordal() returns False." width="570">
+
+```markdown
+![Is chordal](/assets/graphs/is-chordal.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A to C, which splits it into two triangles, so every cycle of four or more nodes has a chord and is_chordal() returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown in the accent color) has no chord, so is_chordal() returns False." width="100%"}
 ```
 
 ### `is_connected()` — Is connected
@@ -3854,6 +3958,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is regular](/assets/graphs/is-regular.light.svg){.lightbox fig-alt="Left: a six-node cycle; the badges show every node has degree 2, so is_regular() returns True. Right: the same cycle plus a chord between C and F (shown in the accent color), which raises C and F to degree 3 while the rest stay at 2, so is_regular() returns False." width="100%"}
+```
+
+### `is_semiconnected()` — Is semiconnected
+
+<img src="is-semiconnected.light.svg" alt="Left: a chain A to B to C; for every pair one node reaches the other, so is_semiconnected() returns True. Right: a fork, A to B and A to C; B and C (shown in the accent color) cannot reach each other in either direction, so is_semiconnected() returns False." width="570">
+
+```markdown
+![Is semiconnected](/assets/graphs/is-semiconnected.light.svg){.lightbox fig-alt="Left: a chain A to B to C; for every pair one node reaches the other, so is_semiconnected() returns True. Right: a fork, A to B and A to C; B and C (shown in the accent color) cannot reach each other in either direction, so is_semiconnected() returns False." width="100%"}
 ```
 
 ### `is_semieulerian()` — Is semi-Eulerian
