@@ -551,3 +551,28 @@ pub fn kemeny_constant(graph: &Graph, weighted: bool) -> PyResult<f64> {
     vals.pop();
     Ok(vals.iter().map(|l| 1.0 / (1.0 - l)).sum())
 }
+
+/// Diagonals of `cosh(A)` and `exp(A)` for the (symmetric) adjacency matrix, from its
+/// eigendecomposition: `(node IDs, cosh diagonal, exp diagonal)`. Used for spectral
+/// bipartivity (Estrada and Rodríguez-Velázquez, 2005).
+#[pyfunction]
+#[pyo3(signature = (graph, weighted=false))]
+pub fn exp_cosh_diagonals(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, Vec<f64>, Vec<f64>)> {
+    require_undirected(graph, "spectral_bipartivity()")?;
+    let (ids, idx) = sorted_ids(graph);
+    let a = dense_adjacency(graph, &idx, weighted);
+    let n = ids.len();
+    let eig = na::SymmetricEigen::new(a);
+    let mut cosh = vec![0.0; n];
+    let mut exp = vec![0.0; n];
+    for k in 0..n {
+        let lam = eig.eigenvalues[k];
+        let (e, c) = (lam.exp(), lam.cosh());
+        for i in 0..n {
+            let v = eig.eigenvectors[(i, k)];
+            exp[i] += v * v * e;
+            cosh[i] += v * v * c;
+        }
+    }
+    Ok((ids, cosh, exp))
+}
