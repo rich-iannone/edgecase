@@ -2078,6 +2078,21 @@ class Graph:
 
         return self
 
+    def _node_id_or_raise(self, node: Union[int, str]) -> int:
+        """Resolve a node ID or label, raising `ValueError` if it isn't in the graph.
+
+        `_resolve_node_id()` raises for an unknown label but passes any integer through, so
+        methods use this when an unknown integer ID should fail the same way.
+        """
+        node_id = self._resolve_node_id(node, auto_create=False)
+        try:
+            exists = not isinstance(node, bool) and self._graph.has_node_id(node_id)
+        except OverflowError:  # negative or beyond u64: can't be a node ID
+            exists = False
+        if not exists:
+            raise ValueError(f"Node {node!r} does not exist in the graph")
+        return node_id
+
     def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
         """
         Resolve a node identifier (int or str) to a u64 ID.
@@ -2174,7 +2189,8 @@ class Graph:
         parallel edges), since an edge can't exist without both endpoints. The remaining nodes keep
         their IDs, and the deleted ID is not reused for nodes added later. The graph is modified in
         place, and the deletion is recorded in the step log (see `steps`). If the node was
-        selected, it is also dropped from the node selection.
+        selected, it is also dropped from the node selection, and its removed edges are dropped
+        from the edge selection.
 
         Use it to prune individual nodes, e.g., removing an outlier, an isolated node or a known
         hub before re-running an analysis. To delete many nodes at once based on a condition,
@@ -2535,7 +2551,7 @@ class Graph:
         - cutting away a neighborhood reached by a traversal
 
         After deletion the removed nodes are no longer part of the node selection (it ends up
-        empty). If no nodes are selected, the call does nothing. The graph is modified in place
+        empty), and their removed edges are no longer part of the edge selection. If no nodes are selected, the call does nothing. The graph is modified in place
         and, when at least one node is removed, the deletion is recorded as a single step in the
         step log (see `steps`). To delete just the selected edges while keeping all nodes, use
         `delete_edges_ws()`.
@@ -4252,20 +4268,36 @@ class Graph:
     # Graph Generators
     # ====================================================================
 
-    def _add_generated_nodes(self, n: int, label: bool, type: str | None) -> list[int]:
+    def _add_generated_nodes(
+        self,
+        n: int,
+        label: bool,
+        type: str | None,
+        label_fn: Callable[[int, int], str] | None = None,
+    ) -> list[int]:
         """Add `n` nodes for a structural generator and return their IDs in order.
 
-        Labels (when `label=True`) are numbered from `count_nodes() + 1` as before. Edges must be
+        With `label=True` each node is labelled `label_fn(node_id, index)`, by default its own
+        ID as a string, so labels match IDs even after deletions. Every label is checked against
+        the graph first, so a clash raises `ValueError` before any node is added. Edges must be
         wired by the returned IDs, not by label, so that `label=False` works.
         """
-        start = self.count_nodes() + 1
+        start = self._graph.next_node_id
+        ids = list(range(start, start + n))
+        labels: list[str | None] = [None] * n
+        if label:
+            labels = [label_fn(nid, i) if label_fn else str(nid) for i, nid in enumerate(ids)]
+            taken = [lbl for lbl in labels if self._graph.has_node_label(lbl)]
+            if taken or len(set(labels)) < n:
+                raise ValueError(
+                    f"Generated label(s) {taken or labels} already exist in the graph; "
+                    f"pass label=False or relabel the existing nodes"
+                )
         attributes = {"type": type} if type else None
-        return [
-            self._graph.add_node(
-                rust.Node(id=0, label=str(start + i) if label else None, attributes=attributes)
-            )
-            for i in range(n)
-        ]
+        for nid, lbl in zip(ids, labels):
+            new_id = self._graph.add_node(rust.Node(id=0, label=lbl, attributes=attributes))
+            assert new_id == nid, (new_id, nid)
+        return ids
 
     def _add_path_edges(self, node_ids: list[int], rel: str | None) -> None:
         edge_attrs = {"rel": rel} if rel else {}
@@ -4296,9 +4328,8 @@ class Graph:
         - modelling linear structures like pipelines, supply chains, or sequences of events
         - adding a "tail" or chain onto another structure
 
-        The nodes are labelled with consecutive numbers as strings, continuing from the current
-        node count: in an empty graph they are `"1"` to `"n"`, and if the graph already has 3
-        nodes they are `"4"` to `"n + 3"`. In a directed graph the edges point from each node to
+        Each node is labelled with its own node ID as a string: in an empty graph they are `"1"`
+        to `"n"`, and if the graph already has 3 nodes they are `"4"` to `"n + 3"`. In a directed graph the edges point from each node to
         the next. The path is added as a new, separate component; it isn't connected to any
         existing nodes. The graph is modified in place, and the whole construction is recorded as
         a single step in the step log (see `steps`).
@@ -4312,10 +4343,9 @@ class Graph:
             Optional node type/category assigned to all new nodes (stored in the `type` column of
             the node DataFrame). Default is `None`, which leaves the type unset.
         label
-            If `True` (default), label nodes with consecutive numbers as described above. These
-            labels match the node IDs when the path is added to a fresh graph, but not necessarily
-            otherwise (e.g., after nodes have been deleted). Avoid adding a path to a graph that
-            already uses numeric labels, as duplicated labels make label lookups ambiguous. If
+            If `True` (default), label each node with its ID as described above, so labels match
+            IDs even after nodes have been deleted. If one of those labels is already used in the
+            graph, a `ValueError` is raised before anything is added. If
             `False`, the nodes are left unlabelled.
         rel
             Optional relationship label assigned to all edges of the path (stored in the `rel`
@@ -4407,8 +4437,8 @@ class Graph:
           schedules
         - serving as a symmetric baseline when comparing centrality or clustering results
 
-        Nodes are labelled exactly as in `add_path_graph()`: consecutive numbers as strings,
-        continuing from the current node count (`"1"` to `"n"` in an empty graph). In a directed
+        Nodes are labelled exactly as in `add_path_graph()`: each with its node ID as a string
+        (`"1"` to `"n"` in an empty graph). In a directed
         graph the edges run `1 -> 2 -> ... -> n -> 1`, forming a directed cycle. The cycle is added
         as a new, separate component, the graph is modified in place, and the construction is
         recorded as a single step in the step log (see `steps`).
@@ -4422,9 +4452,9 @@ class Graph:
             Optional node type/category assigned to all new nodes (stored in the `type` column of
             the node DataFrame). Default is `None`, which leaves the type unset.
         label
-            If `True` (default), label nodes with consecutive numbers as described above. These
-            labels match the node IDs when the cycle is added to a fresh graph, but not
-            necessarily otherwise. If `False`, the nodes are left unlabelled.
+            If `True` (default), label each node with its ID as described above (a label that is
+            already used raises `ValueError` before anything is added). If `False`, the nodes are
+            left unlabelled.
         rel
             Optional relationship label assigned to all edges of the cycle, including the closing
             edge (stored in the `rel` column of the edge DataFrame). Default is `None`.
@@ -4521,9 +4551,9 @@ class Graph:
             Optional value stored in the `type` attribute of every new node, e.g. `"server"`. If
             `None` (default), no `type` attribute is set.
         label
-            If `True` (default), each new node is labelled with a number given as a string,
-            counting up from `count_nodes() + 1` at the time of the call (so `"1"`, `"2"`, ... in
-            an empty graph, where the labels match the node IDs). The hub gets the first number.
+            If `True` (default), each new node is labelled with its node ID as a string (so `"1"`,
+            `"2"`, ... in an empty graph). The hub gets the first number. A label that is already
+            used raises `ValueError` before anything is added.
             If `False`, the nodes are left unlabelled.
         rel
             Optional value stored in the `rel` attribute of every new edge, e.g. `"connects"`. If
@@ -4638,10 +4668,9 @@ class Graph:
             Optional value stored in the `type` attribute of every new node. If `None` (default),
             no `type` attribute is set.
         label
-            If `True` (default), each new node is labelled with a number given as a string,
-            counting up from `count_nodes() + 1` at the time of the call (so `"1"`, `"2"`, ... in
-            an empty graph, where the labels match the node IDs). If `False`, the nodes are left
-            unlabelled.
+            If `True` (default), each new node is labelled with its node ID as a string (so `"1"`,
+            `"2"`, ... in an empty graph); a label that is already used raises `ValueError` before
+            anything is added. If `False`, the nodes are left unlabelled.
         rel
             Optional value stored in the `rel` attribute of every new edge, including any
             self-loops. If `None` (default), no `rel` attribute is set.
@@ -4760,10 +4789,10 @@ class Graph:
             Optional value stored in the `type` attribute of every new node. If `None` (default),
             no `type` attribute is set.
         label
-            If `True` (default), each new node is labelled with a number given as a string, in
-            breadth-first order and counting up from `count_nodes() + 1` at the time of the call
-            (so the root is `"1"` in an empty graph, where the labels match the node IDs). If
-            `False`, nodes are created without labels.
+            If `True` (default), each new node is labelled with its node ID as a string; IDs run
+            in breadth-first order, so the root is `"1"` in an empty graph. A label that is
+            already used raises `ValueError` before anything is added. If `False`, nodes are
+            created without labels.
         rel
             Optional value stored in the `rel` attribute of every new edge, e.g. `"reports_to"`.
             If `None` (default), no `rel` attribute is set.
@@ -4822,57 +4851,12 @@ class Graph:
 
         before = self._begin_compound()
 
-        start_id = self.count_nodes() + 1
-        node_count = 0
-
-        # Calculate total nodes: sum of k^i for i from 0 to h
-        # For k=1: total = h+1 (linear chain)
-        # For k>1: total = (k^(h+1) - 1) / (k - 1)
-
-        # Add nodes level by level
-        edge_attrs = {}
-        if rel:
-            edge_attrs["rel"] = rel
-
-        # Use a queue to track parent nodes and their children
-        from collections import deque
-
-        queue = deque()
-
-        # Add root
-        root_label = str(start_id + node_count) if label else None
-        attrs = {}
-        if type:
-            attrs["type"] = type
-        self.add_node(label=root_label, **attrs)
-        # Get the ID of the newly added node
-        if root_label:
-            root_id = self.get_id_from_label(root_label)
-        else:
-            root_id = self.count_nodes()  # Last added node ID
-        queue.append((root_id, 0))  # (node_id, level)
-        node_count += 1
-
-        # Build tree level by level
-        while queue:
-            parent_id, level = queue.popleft()
-
-            if level < h:
-                # Add k children for this parent
-                for _ in range(k):
-                    child_label = str(start_id + node_count) if label else None
-                    attrs = {}
-                    if type:
-                        attrs["type"] = type
-                    self.add_node(label=child_label, **attrs)
-                    # Get the ID of newly added node
-                    if child_label:
-                        child_id = self.get_id_from_label(child_label)
-                    else:
-                        child_id = self.count_nodes()  # Last added node
-                    self.add_edge(parent_id, child_id, **edge_attrs)
-                    queue.append((child_id, level + 1))
-                    node_count += 1
+        # Nodes in breadth-first order: node i's parent is node (i - 1) // k
+        total = h + 1 if k == 1 else (k ** (h + 1) - 1) // (k - 1)
+        node_ids = self._add_generated_nodes(total, label, type)
+        edge_attrs = {"rel": rel} if rel else {}
+        for i in range(1, total):
+            self.add_edge(node_ids[(i - 1) // k], node_ids[i], **edge_attrs)
 
         self._end_compound("add_balanced_tree", f"G.add_balanced_tree(k={k}, h={h})", before)
         return self
@@ -4974,52 +4958,20 @@ class Graph:
 
         before = self._begin_compound()
 
-        start_id = self.count_nodes() + 1
-
-        # Add nodes in grid layout
+        # Nodes row by row, labelled "(row,col)"
+        ids = self._add_generated_nodes(
+            rows * cols, label, type, label_fn=lambda _, idx: f"({idx // cols},{idx % cols})"
+        )
+        edge_attrs = {"rel": rel} if rel else {}
         for i in range(rows):
             for j in range(cols):
-                if label:
-                    node_label = f"({i},{j})"
-                else:
-                    node_label = None
-                attrs = {}
-                if type:
-                    attrs["type"] = type
-                self.add_node(label=node_label, **attrs)
-
-        # Add edges
-        edge_attrs = {}
-        if rel:
-            edge_attrs["rel"] = rel
-
-        for i in range(rows):
-            for j in range(cols):
-                if label:
-                    current = f"({i},{j})"
-                else:
-                    # Need to use node IDs so get from position in creation order
-                    current_idx = start_id + i * cols + j
-
-                    # Since we can't reliably get IDs without labels, we need to track them
-                    # For now, use position-based ID lookup
-                    current = start_id + i * cols + j
-
+                current = ids[i * cols + j]
                 # Connect to right neighbor (if exists)
                 if j < cols - 1:
-                    if label:
-                        right = f"({i},{j + 1})"
-                    else:
-                        right = start_id + i * cols + (j + 1)
-                    self.add_edge(current, right, **edge_attrs)
-
+                    self.add_edge(current, ids[i * cols + j + 1], **edge_attrs)
                 # Connect to bottom neighbor (if exists)
                 if i < rows - 1:
-                    if label:
-                        bottom = f"({i + 1},{j})"
-                    else:
-                        bottom = start_id + (i + 1) * cols + j
-                    self.add_edge(current, bottom, **edge_attrs)
+                    self.add_edge(current, ids[(i + 1) * cols + j], **edge_attrs)
 
         self._end_compound("add_grid_2d", f"G.add_grid_2d(rows={rows}, cols={cols})", before)
         return self
@@ -5064,9 +5016,9 @@ class Graph:
         label
             If `True` (default), nodes are labelled with a number plus a suffix marking their
             cycle: `"1_top"` to `"n_top"`, then `"(n+1)_bottom"` to `"(2n)_bottom"` (e.g.
-            `"5_bottom"` for `n=4`). Numbering counts up from `count_nodes() + 1` at the time of
-            the call, so in an empty graph the numbers match the node IDs. If `False`, nodes are
-            created without labels.
+            `"5_bottom"` for `n=4`). The number is the node's ID, and a label that is already used
+            raises `ValueError` before anything is added. If `False`, nodes are created without
+            labels.
         rel
             Optional value stored in the `rel` attribute of every new edge (cycle edges and rungs
             alike). If `None` (default), no `rel` attribute is set.
@@ -5118,63 +5070,17 @@ class Graph:
 
         before = self._begin_compound()
 
-        start_id = self.count_nodes() + 1
-
-        # Add first cycle
-        cycle1_start = start_id
-        for i in range(n):
-            if label:
-                node_label = f"{cycle1_start + i}_top"
-            else:
-                node_label = None
-            attrs = {}
-            if type:
-                attrs["type"] = type
-            self.add_node(label=node_label, **attrs)
-
-        # Connect first cycle
-        edge_attrs = {}
-        if rel:
-            edge_attrs["rel"] = rel
-        for i in range(n):
-            if label:
-                current = f"{cycle1_start + i}_top"
-                next_node = f"{cycle1_start + ((i + 1) % n)}_top"
-            else:
-                current = cycle1_start + i
-                next_node = cycle1_start + ((i + 1) % n)
-            self.add_edge(current, next_node, **edge_attrs)
-
-        # Add second cycle
-        cycle2_start = cycle1_start + n
-        for i in range(n):
-            if label:
-                node_label = f"{cycle2_start + i}_bottom"
-            else:
-                node_label = None
-            attrs = {}
-            if type:
-                attrs["type"] = type
-            self.add_node(label=node_label, **attrs)
-
-        # Connect second cycle
-        for i in range(n):
-            if label:
-                current = f"{cycle2_start + i}_bottom"
-                next_node = f"{cycle2_start + ((i + 1) % n)}_bottom"
-            else:
-                current = cycle2_start + i
-                next_node = cycle2_start + ((i + 1) % n)
-            self.add_edge(current, next_node, **edge_attrs)
-
+        # Top cycle then bottom cycle, labelled "<id>_top" / "<id>_bottom"
+        ids = self._add_generated_nodes(
+            2 * n, label, type, label_fn=lambda nid, idx: f"{nid}_{'top' if idx < n else 'bottom'}"
+        )
+        top, bottom = ids[:n], ids[n:]
+        edge_attrs = {"rel": rel} if rel else {}
+        for cycle in (top, bottom):
+            for i in range(n):
+                self.add_edge(cycle[i], cycle[(i + 1) % n], **edge_attrs)
         # Connect corresponding nodes between cycles
-        for i in range(n):
-            if label:
-                top_node = f"{cycle1_start + i}_top"
-                bottom_node = f"{cycle2_start + i}_bottom"
-            else:
-                top_node = cycle1_start + i
-                bottom_node = cycle2_start + i
+        for top_node, bottom_node in zip(top, bottom):
             self.add_edge(top_node, bottom_node, **edge_attrs)
 
         self._end_compound("add_prism_graph", f"G.add_prism_graph(n={n})", before)
@@ -7624,14 +7530,8 @@ class Graph:
         -------
         bool
             `True` if at least one matching edge exists between the nodes, `False` otherwise.
-
-        Raises
-        ------
-        ValueError
-            If `source=` or `target=` is a label that doesn't belong to any node. (An integer ID
-            that doesn't exist does not raise; it simply has no edges, so the result is `False`.)
-        TypeError
-            If `source=` or `target=` is neither an `int` nor a `str`.
+            Like `has_node()`, this never raises for an unknown node: an ID or label that isn't
+            in the graph (or a value that isn't an `int` or `str`) gives `False`.
 
         Examples
         --------
@@ -7678,8 +7578,12 @@ class Graph:
         graph.count_edges()
         ```
         """
-        source_id = self._resolve_node_id(source)
-        target_id = self._resolve_node_id(target)
+        # Like has_node(), an unknown ID or label is simply not connected
+        try:
+            source_id = self._node_id_or_raise(source)
+            target_id = self._node_id_or_raise(target)
+        except (ValueError, TypeError):
+            return False
         edge_ids = self._graph.find_edge_ids(source_id, target_id)
         return len(edge_ids) > 0
 
@@ -7784,8 +7688,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `source=` or `target=` is a label that doesn't belong to any node. (An integer ID
-            that doesn't exist does not raise; the result is simply an empty list.)
+            If `source=` or `target=` is an ID or label that doesn't belong to any node.
         TypeError
             If `source=` or `target=` is neither an `int` nor a `str`.
 
@@ -7836,8 +7739,8 @@ class Graph:
         graph.find_edge_ids(source="A", target="B")
         ```
         """
-        source_id = self._resolve_node_id(source)
-        target_id = self._resolve_node_id(target)
+        source_id = self._node_id_or_raise(source)
+        target_id = self._node_id_or_raise(target)
         return self._graph.find_edge_ids(source_id, target_id)
 
     def count_nodes(self) -> int:
@@ -9065,8 +8968,9 @@ class Graph:
         - checking a precondition for algorithms that only work on trees
 
         Any self-loop or parallel edge creates a cycle, so a tree is always a simple graph.
-        Directed graphs with two or more nodes always return `False`; use `is_arborescence()`
-        to test for a directed (rooted) tree. Graphs with zero or one node are treated as trees.
+        Directed graphs always return `False`, whatever their size; use `is_arborescence()`
+        to test for a directed (rooted) tree. Undirected graphs with zero nodes, or one node
+        and no self-loop, are treated as trees.
         The whole graph is checked and the current selection is ignored.
 
         Returns
@@ -10972,8 +10876,8 @@ class Graph:
         -------
         list[int]
             Node IDs of all targets of edges leaving `node=`. Empty if the node has no outgoing
-            edges. If there are parallel edges to the same target, that target appears once per
-            edge.
+            edges. Each successor appears once even if there are parallel edges to it (as in
+            `get_predecessors()`), in the order of its first edge.
 
         Raises
         ------
@@ -11009,7 +10913,8 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
-        return self.neighbors(node, mode="out")
+        # Parallel edges list a target more than once; keep each once, in first-edge order
+        return list(dict.fromkeys(self.neighbors(node, mode="out")))
 
     def get_non_neighbors(self, node: Union[int, str]) -> list[int]:
         """
@@ -11221,8 +11126,8 @@ class Graph:
         ----------
         node
             The starting node, given as an integer node ID or a string label. Its value of
-            `node_attr=` sets the center of the similarity window. An unknown label raises
-            `ValueError`; an unknown integer ID simply yields an empty list.
+            `node_attr=` sets the center of the similarity window. An unknown ID or label raises
+            `ValueError`.
         node_attr
             Name of the node attribute to compare. The starting node's value must be numeric (an
             `int` or `float`), otherwise `ValueError` is raised. If the starting node does not
@@ -11327,7 +11232,7 @@ class Graph:
                 raise ValueError(f"{name}= offsets must be non-negative, got {tuple(tol)}")
 
         # Get starting node's attribute value
-        start_node = self.get_node(node)
+        start_node = self.get_node(self._node_id_or_raise(node))
         if not start_node or not start_node.attributes:
             return []
 
@@ -11610,9 +11515,7 @@ class Graph:
         ----------
         node_ids
             A list of integer node IDs to add to the selection. Every ID must belong to an
-            existing node; a missing ID raises `KeyError`. IDs are processed in order, so any
-            valid IDs that come before the missing one are still selected when the error is
-            raised. Strings (labels) are rejected with a `TypeError`. An empty list is allowed
+            existing node; a missing ID raises `KeyError` and nothing is selected. Strings (labels) are rejected with a `TypeError`. An empty list is allowed
             and leaves the selection unchanged.
 
         Returns
@@ -11711,9 +11614,7 @@ class Graph:
         ----------
         edge_ids
             A list of integer edge IDs to add to the selection. Every ID must belong to an
-            existing edge; a missing ID raises `KeyError`. IDs are processed in order, so valid
-            IDs that come before the missing one are still selected when the error is raised. An
-            empty list is allowed and leaves the selection unchanged.
+            existing edge; a missing ID raises `KeyError` and nothing is selected. An empty list is allowed and leaves the selection unchanged.
 
         Returns
         -------
@@ -11801,9 +11702,9 @@ class Graph:
         ----------
         nodes
             A list of nodes whose incident edges should be selected. Each item can be an integer
-            node ID or a string label, and the two forms can be mixed. Labels are resolved first,
-            so an unknown label raises `ValueError`; an integer ID that matches no node is
-            silently ignored (it has no incident edges). An empty list selects nothing.
+            node ID or a string label, and the two forms can be mixed. All of them are resolved
+            first, so an unknown ID or label raises `ValueError` without changing the selection.
+            An empty list selects nothing.
 
         Returns
         -------
@@ -11813,7 +11714,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If a label in `nodes=` is not found in the graph.
+            If an ID or label in `nodes=` is not found in the graph.
 
         Examples
         --------
@@ -11861,8 +11762,8 @@ class Graph:
         ```
 
         """
-        # Resolve labels to IDs
-        resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
+        # Resolve labels to IDs; unknown IDs or labels raise before anything changes
+        resolved_ids = [self._node_id_or_raise(nid) for nid in nodes]
         self._graph.select_edges_by_node_id(resolved_ids)
 
         if self._recording_depth == 0:
@@ -12458,10 +12359,9 @@ class Graph:
         ----------
         node_ids
             A list of nodes to remove from the selection. Each item can be an integer node ID or
-            a string label, and the two forms can be mixed. Labels are resolved first, so an
-            unknown label raises `ValueError`; an integer ID that matches no node, like a node
-            that is not selected, is silently ignored. An empty list leaves the selection
-            unchanged.
+            a string label, and the two forms can be mixed. All of them are resolved first, so an
+            unknown ID or label raises `ValueError` without changing the selection; a node that
+            exists but is not selected is ignored. An empty list leaves the selection unchanged.
 
         Returns
         -------
@@ -12471,7 +12371,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If a label in `node_ids=` is not found in the graph.
+            If an ID or label in `node_ids=` is not found in the graph.
 
         Examples
         --------
@@ -12511,8 +12411,8 @@ class Graph:
         ```
 
         """
-        # Resolve labels to IDs
-        resolved_ids = [self._resolve_node_id(nid) for nid in node_ids]
+        # Resolve labels to IDs; unknown IDs or labels raise before anything changes
+        resolved_ids = [self._node_id_or_raise(nid) for nid in node_ids]
         self._graph.deselect_nodes(resolved_ids)
 
         if self._recording_depth == 0:
@@ -22915,9 +22815,8 @@ class Graph:
 
         After the merge, edges that would now connect the same pair of nodes are collapsed into
         one (the first one found keeps its weight and attributes), so the result is a simple
-        graph apart from the optional self-loop. Node IDs and labels of the remaining nodes are
-        kept, but node attributes are not copied to the new graph. The original graph is not
-        modified.
+        graph apart from the optional self-loop. The remaining nodes keep their IDs, labels and
+        attributes, and surviving edges keep their IDs. The original graph is not modified.
 
         Parameters
         ----------
@@ -23043,9 +22942,8 @@ class Graph:
 
         Edges that end up connecting the same pair of nodes after merging are collapsed into
         one (the first one found keeps its weight and attributes), and all edges inside the group
-        collapse into at most one self-loop. Node IDs and labels of the remaining nodes are
-        kept, but node attributes are not copied to the new graph. The original graph is not
-        modified. To collapse *every* group of a partition in one step, use `quotient_graph()`.
+        collapse into at most one self-loop. The remaining nodes keep their IDs, labels and
+        attributes, and surviving edges keep their IDs. The original graph is not modified. To collapse *every* group of a partition in one step, use `quotient_graph()`.
 
         Parameters
         ----------
@@ -23078,8 +22976,8 @@ class Graph:
         Repeated contraction costs $O(k \cdot E)$ for $k$ nodes: each merge scans the
         current edge list, and after each merge the graph is one node smaller. The head of
         the list is the surviving node, inheriting every edge that touched any member of
-        the batch; the remaining nodes disappear along with their labels. Node attributes
-        are not carried over for any node, including the survivor. This is the natural
+        the batch; the remaining nodes disappear along with their labels and attributes, while
+        the survivor keeps its own. This is the natural
         building block for community-quotienting workflows where an entire cluster collapses
         to a single representative before further analysis.
 
@@ -23189,7 +23087,9 @@ class Graph:
         -------
         Graph
             A new quotient graph where each partition block is a node. Nodes are labeled
-            `"block_0"`, `"block_1"`, etc., in partition order, and carry no attributes.
+            `"block_0"`, `"block_1"`, etc., in partition order. Since a block replaces several
+            original nodes, it doesn't inherit their attributes; instead its `members` attribute
+            lists the original node IDs it contains, in ascending order.
 
         Raises
         ------
@@ -26276,8 +26176,7 @@ class Graph:
         ----------
         node
             The node to query, given either as its integer node ID or as its string label (e.g.,
-            `3` or `"A"`). A string is always treated as a label. An integer ID is not checked
-            against the graph, so an ID that does not exist gives `0` rather than an error.
+            `3` or `"A"`). A string is always treated as a label.
 
         Returns
         -------
@@ -26287,8 +26186,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, or if `node=` is a label that does not exist in the
-            graph.
+            If the graph is undirected, or if `node=` is an ID or label that does not exist in
+            the graph.
 
         See Also
         --------
@@ -26329,7 +26228,7 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
-        node_id = self._resolve_node_id(node)
+        node_id = self._node_id_or_raise(node)
         # edges() returns (edge_id, source, target) tuples
         return sum(1 for edge in self._graph.edges() if edge[2] == node_id)
 
@@ -26363,10 +26262,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, or if `node=` is a label that does not exist in the
-            graph.
-        KeyError
-            If `node=` is an integer ID that does not exist in the graph.
+            If the graph is undirected, or if `node=` is an ID or label that does not exist in
+            the graph.
 
         See Also
         --------
@@ -26407,7 +26304,7 @@ class Graph:
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
-        node_id = self._resolve_node_id(node)
+        node_id = self._node_id_or_raise(node)
         return len(self._graph.neighbors(node_id))
 
     def get_degree_distribution(self) -> dict[int, int]:
@@ -28669,8 +28566,7 @@ class Graph:
         `percolation_threshold_analysis()`.
 
         The original graph is not modified. The returned graph keeps the directedness of the
-        original, and surviving nodes keep their IDs and labels and edges keep their weights, but
-        other node and edge attributes are not copied and edge IDs are renumbered.
+        original, and surviving nodes and edges keep their IDs, labels, weights and attributes.
 
         Parameters
         ----------
@@ -28769,8 +28665,7 @@ class Graph:
         use `node_percolation()`.
 
         The original graph is not modified. The returned graph keeps the directedness of the
-        original, nodes keep their IDs and labels, and surviving edges keep their weights, but
-        other node and edge attributes are not copied and edge IDs are renumbered.
+        original, and nodes and surviving edges keep their IDs, labels, weights and attributes.
 
         Parameters
         ----------
@@ -32240,7 +32135,7 @@ class Graph:
     # ==============================================================================
 
     def closeness_vitality(
-        self, attr_name: str | None = None, return_dict: bool = False
+        self, attr_name: str | None = None, return_dict: bool = False, weighted: bool = False
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Get closeness vitality centrality for each node.
@@ -32263,6 +32158,9 @@ class Graph:
         return_dict
             If `True`, returns dictionary of results. If `False`, stores results as node attributes
             and returns self for method chaining.
+        weighted
+            If `True`, measure distances by edge weight (each edge's weight, `1.0` when unset),
+            as in `get_node_vitality(weighted=True)`. Default `False` counts hops.
 
         Returns
         -------
@@ -32301,7 +32199,10 @@ class Graph:
         {graph.get_label_from_id(nid): score for nid, score in vitality.items()}
         ```
         """
-        vitality = self._graph.get_closeness_vitality()
+        if weighted:
+            vitality = rust.closeness_vitality_weighted(self._graph)
+        else:
+            vitality = self._graph.get_closeness_vitality()
 
         if return_dict:
             return vitality
@@ -32312,8 +32213,10 @@ class Graph:
 
         self.set_node_attrs(attr_name, vitality)
 
-        # Track computation (no non-default params)
-        self._computations.append(("closeness_vitality", {}, attr_name))
+        # Track computation
+        self._computations.append(
+            ("closeness_vitality", {"weighted": True} if weighted else {}, attr_name)
+        )
 
         return self
 
@@ -32422,9 +32325,8 @@ class Graph:
         `k_crust()` (coreness at most `k`), and `k_truss()` (an edge-based analogue).
 
         Degrees count edges without weights. For directed graphs, degree means out-degree. The
-        original graph is not modified. The returned graph keeps node labels and edge weights,
-        but node IDs are reassigned (use labels to match nodes back to the original) and other
-        node and edge attributes are not copied.
+        original graph is not modified. The returned graph keeps the node and edge IDs, labels,
+        weights and attributes of the original.
 
         Parameters
         ----------
@@ -32509,9 +32411,8 @@ class Graph:
         and `k_crust()`.
 
         Degrees count edges without weights. For directed graphs, degree means out-degree. The
-        original graph is not modified. The returned graph keeps node labels and edge weights,
-        but node IDs are reassigned (use labels to match nodes back to the original) and other
-        node and edge attributes are not copied.
+        original graph is not modified. The returned graph keeps the node and edge IDs, labels,
+        weights and attributes of the original.
 
         Parameters
         ----------
@@ -32582,9 +32483,8 @@ class Graph:
         see also `k_shell()` for a single layer.
 
         Degrees count edges without weights. For directed graphs, degree means out-degree. The
-        original graph is not modified. The returned graph keeps node labels and edge weights,
-        but node IDs are reassigned (use labels to match nodes back to the original) and other
-        node and edge attributes are not copied.
+        original graph is not modified. The returned graph keeps the node and edge IDs, labels,
+        weights and attributes of the original.
 
         Parameters
         ----------
@@ -32663,9 +32563,8 @@ class Graph:
         Each round recounts the triangles on every remaining edge, so the method can be slow on
         large, dense graphs. Edge weights are ignored. The method is intended for undirected
         graphs; on a directed graph, triangles are counted from the out-neighbors of each edge's
-        endpoints. The original graph is not modified. The returned graph keeps node labels and
-        edge weights, but node IDs are reassigned (use labels to match nodes back to the
-        original) and other node and edge attributes are not copied.
+        endpoints. The original graph is not modified. The returned graph keeps the node and
+        edge IDs, labels, weights and attributes of the original.
 
         Parameters
         ----------
@@ -33008,8 +32907,8 @@ class Graph:
         unconnected
             Controls what happens when some nodes cannot reach each other. If `True` (default),
             the smallest eccentricity is taken across all components, skipping single-node
-            components. If `False`, returns `None` for a graph that is not connected (weak
-            connectivity for directed graphs).
+            components. If `False`, returns `None` unless every node can reach every other
+            (strong connectivity for directed graphs).
 
         Returns
         -------
@@ -33061,8 +32960,8 @@ class Graph:
         unconnected
             Controls what happens when some nodes cannot reach each other. If `True` (default),
             each node's eccentricity only considers the nodes it can reach, so the result is the
-            largest diameter among the connected components. If `False`, returns `None` for a
-            graph that is not connected (weak connectivity for directed graphs).
+            largest diameter among the connected components. If `False`, returns `None` unless
+            every node can reach every other (strong connectivity for directed graphs).
 
         Returns
         -------
@@ -33124,9 +33023,9 @@ class Graph:
             Controls what happens when some nodes cannot reach each other. If `True` (default),
             each node's eccentricity only considers the nodes it can reach, so the result is the
             largest diameter among the connected components. If `False`, the method returns
-            `None` for a graph that is not connected. For directed graphs this check uses weak
-            connectivity (edge directions ignored), so a weakly connected directed graph still
-            returns a value computed over the reachable pairs only.
+            `None` unless every node can reach every other. For directed graphs this means strong
+            connectivity, as in `get_mean_distance()`: a directed graph that is only weakly
+            connected has unreachable pairs, so it returns `None`.
 
         Returns
         -------
@@ -33214,8 +33113,8 @@ class Graph:
             Controls what happens when some nodes cannot reach each other. If `True` (default),
             the smallest eccentricity is taken across all components, skipping single-node
             components (so an isolated node doesn't make the radius `0`). If `False`, the method
-            returns `None` for a graph that is not connected. For directed graphs this check uses
-            weak connectivity (edge directions ignored).
+            returns `None` unless every node can reach every other (strong connectivity for
+            directed graphs, as in `get_diameter()` and `get_mean_distance()`).
 
         Returns
         -------
@@ -35197,9 +35096,8 @@ class Graph:
         Parameters
         ----------
         source
-            The node the paths start from, given as an integer node ID or a string label. A
-            label that does not exist raises a `ValueError`; an integer ID that does not exist
-            yields an empty list.
+            The node the paths start from, given as an integer node ID or a string label. An ID or
+            label that does not exist raises a `ValueError`.
         target
             The node the paths end at, given as an integer node ID or a string label (same rules
             as `source=`). If `target=` is the same node as `source=`, the single zero-length
@@ -35219,7 +35117,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `source=` or `target=` is a string label that does not exist in the graph.
+            If `source=` or `target=` is an ID or label that does not exist in the graph.
 
         Technical Notes
         ---------------
@@ -35303,8 +35201,8 @@ class Graph:
         """
         from edgecase._core import k_shortest_paths
 
-        source_id = self._resolve_node_id(source, auto_create=False)
-        target_id = self._resolve_node_id(target, auto_create=False)
+        source_id = self._node_id_or_raise(source)
+        target_id = self._node_id_or_raise(target)
 
         return k_shortest_paths(self._graph, source_id, target_id, k)
 
@@ -36625,7 +36523,7 @@ class Graph:
         ----------
         start
             The node where the walk begins, given as an integer node ID or a string label. A
-            string made only of digits (such as `"3"`) is interpreted as a node ID, not a label.
+            string is always a label, even one made only of digits (such as `"3"`).
         steps
             Number of edges to traverse. A complete walk returns exactly `steps` edges; with
             `steps=0` the result is empty.
@@ -36744,9 +36642,9 @@ class Graph:
         Counter(edge_id for edge_id, _, _ in edges)
         ```
         """
-        # Convert start to string for Rust (handles both int and str)
-        start_str = str(start)
-        edge_tuples = self._graph.random_edge_walk(start_str, steps, mode, stuck, seed)
+        # An int is an ID and a str a label, as everywhere else (so label "10" isn't node 10)
+        start_id = self._node_id_or_raise(start)
+        edge_tuples = self._graph.random_edge_walk(start_id, steps, mode, stuck, seed)
 
         # Return list if requested
         if return_list:
@@ -38499,7 +38397,8 @@ class Graph:
             Maximum number of trails to return. Default is `1000`. Once this many trails have been
             found the search stops and the partial list is returned, so a result of exactly
             `max_trails=` trails may mean more exist. If `None`, every trail is returned, which can
-            take a very long time and a lot of memory on all but small graphs.
+            take a very long time and a lot of memory on all but small graphs. `0` returns an
+            empty list.
 
         Returns
         -------
@@ -39285,7 +39184,7 @@ class Graph:
 
         return has_bridges(self._graph)
 
-    def get_node_vitality(self, node: Union[int, str]) -> float:
+    def get_node_vitality(self, node: Union[int, str], weighted: bool = False) -> float:
         r"""
         Compute the vitality of a single node.
 
@@ -39296,8 +39195,9 @@ class Graph:
 
         vitality(v) = sum_distances(G) - sum_distances(G - v)
 
-        Distances are hop counts found by breadth-first search, so edge weights are ignored. The
-        sum runs over ordered pairs of nodes, so on an undirected graph each pair contributes its
+        By default distances are hop counts found by breadth-first search, so edge weights are
+        ignored; with `weighted=True` they are path costs summed over edge weights. The sum runs
+        over ordered pairs of nodes, so on an undirected graph each pair contributes its
         distance twice; on a directed graph only pairs connected in the direction of the edges
         contribute. Only finite distances are summed: if removing the node leaves some pairs
         unable to reach each other, those pairs simply drop out of `sum_distances(G - v)`, so the
@@ -39316,6 +39216,9 @@ class Graph:
         ----------
         node
             The node to score, given as an integer node ID or a string label.
+        weighted
+            If `True`, measure distances by edge weight (each edge's weight, `1.0` when unset;
+            the cheapest of parallel edges is used). Default `False` counts hops.
 
         Returns
         -------
@@ -39327,7 +39230,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the node does not exist in the graph.
+            If the node does not exist in the graph, or if `weighted=True` and an edge weight is
+            negative.
 
         Technical Notes
         ---------------
@@ -39403,15 +39307,7 @@ class Graph:
         """
         from edgecase._core import node_vitality
 
-        # Convert label to node ID if necessary
-        if isinstance(node, str):
-            node_id = self.get_id_from_label(node)
-            if node_id is None:
-                raise ValueError(f"Node with label '{node}' does not exist")
-        else:
-            node_id = node
-
-        return node_vitality(self._graph, node_id)
+        return node_vitality(self._graph, self._node_id_or_raise(node), weighted)
 
     # ==============================================================================
     # Connectivity and Flow
@@ -41190,7 +41086,9 @@ class Graph:
 
         return rust_k_components(self._graph)
 
-    def get_min_cut_between(self, source: Union[int, str], sink: Union[int, str]) -> int:
+    def get_min_cut_between(
+        self, source: Union[int, str], sink: Union[int, str], capacity: str | None = None
+    ) -> int | float:
         """
         Get minimum cut between source and sink nodes.
 
@@ -41201,16 +41099,16 @@ class Graph:
         equals the minimum cut by the max-flow min-cut theorem. Equivalently, the result is the
         maximum number of edge-disjoint paths from source to sink.
 
-        Every edge has capacity `1`, even on weighted graphs, so the answer is always a count of
-        edges; parallel edges count separately. For undirected graphs, edges are treated as
+        By default every edge has capacity `1`, even on weighted graphs, so the answer is a count
+        of edges; parallel edges count separately. With `capacity=` the answer is instead the
+        total capacity of the cheapest cut, as in `minimum_cut()`. For undirected graphs, edges are treated as
         bidirectional. For directed graphs, only paths that follow edge direction from `source=`
         to `sink=` count, so swapping the two can change the answer.
 
         Use this to measure how many independent links connect two specific nodes, for example
         how many cable failures two data centers can tolerate before losing contact. If the
         nodes are already disconnected the result is `0`. To get the edges themselves, use
-        `minimum_edge_cut()`; to use edge weights or another attribute as capacities, use
-        `max_flow_value()`; for the minimum over all pairs, use `get_edge_connectivity()`. The
+        `minimum_edge_cut()`; for the minimum over all pairs, use `get_edge_connectivity()`. The
         method does not modify the graph.
 
         Parameters
@@ -41221,16 +41119,22 @@ class Graph:
         sink
             The node on the sink side of the cut, given as an integer node ID or a string label.
             Must be a different node than `source=`.
+        capacity
+            Name of an edge attribute to use as capacity (`"weight"` also accepts the edge weight
+            of a weighted graph); every edge must hold a numeric value for it. If `None`
+            (default), every edge has capacity `1`.
 
         Returns
         -------
-        int
-            Size of minimum cut (number of edges to remove).
+        int | float
+            Size of the minimum cut: the number of edges to remove (`int`), or with `capacity=`
+            their total capacity (`float`).
 
         Raises
         ------
         ValueError
-            If source or sink node doesn't exist, or if they're the same.
+            If source or sink node doesn't exist, if they're the same, or if an edge lacks the
+            attribute named by `capacity=`.
 
         Examples
         --------
@@ -41271,6 +41175,8 @@ class Graph:
         graph.get_min_cut_between("A", "C"), graph.get_min_cut_between("C", "A")
         ```
         """
+        if capacity is not None:
+            return self.minimum_cut(source, sink, capacity=capacity)[0]
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return self._graph.get_min_cut_between(source_id, sink_id)
@@ -42276,7 +42182,7 @@ class Graph:
         return result
 
     def minimum_edge_cut(
-        self, source: Union[int, str], sink: Union[int, str]
+        self, source: Union[int, str], sink: Union[int, str], capacity: str | None = None
     ) -> set[tuple[int, int]]:
         """
         Find minimum edge cut between source and sink nodes.
@@ -42284,9 +42190,11 @@ class Graph:
         ![Minimum edge cut](/assets/graphs/minimum-edge-cut.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, with B and E outlined as source and sink. The two accent edges B–D and C–D are the minimum edge cut separating B from E, and the card returns them as the set of pairs (B, D) and (C, D)." width="100%"}
 
         Returns the set of edges whose removal disconnects the source from the sink. Uses the
-        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut. Every
-        edge has capacity `1` (edge weights are ignored), so the result is a smallest set of
-        edges by count, and its size equals `get_min_cut_between()`.
+        max-flow min-cut theorem via Ford-Fulkerson algorithm to identify the minimum cut. By
+        default every edge has capacity `1` (edge weights are ignored), so the result is a
+        smallest set of edges by count, and its size equals `get_min_cut_between()`. With
+        `capacity=` it is a set of edges of least total capacity instead: the edges running from
+        the source side to the sink side of `minimum_cut()`'s partition.
 
         For undirected graphs, edges are treated as bidirectional. For directed graphs, only forward
         edges are considered: the cut consists of edges pointing from the source side to the sink
@@ -42311,6 +42219,9 @@ class Graph:
         sink
             The node on the sink side of the cut, given as an integer node ID or a string label.
             Must be a different node than `source=`.
+        capacity
+            Name of an edge attribute to use as capacity, as in `get_min_cut_between()`. If
+            `None` (default), every edge has capacity `1`.
 
         Returns
         -------
@@ -42323,7 +42234,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If source or sink node doesn't exist, or if they're the same.
+            If source or sink node doesn't exist, if they're the same, or if an edge lacks the
+            attribute named by `capacity=`.
 
         Examples
         --------
@@ -42370,6 +42282,16 @@ class Graph:
         ]
         ```
         """
+        if capacity is not None:
+            # Edges leaving the source side of the minimum (capacity) cut
+            _, (source_side, _) = self.minimum_cut(source, sink, capacity=capacity)
+            side = set(source_side)
+            directed = self.is_directed()
+            return {
+                (s, t)
+                for _, s, t in self.get_edges_as_tuples()
+                if (s in side and t not in side) or (not directed and t in side and s not in side)
+            }
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(sink, auto_create=False)
         return self._graph.minimum_edge_cut(source_id, sink_id)
@@ -45907,11 +45829,10 @@ class Graph:
         Returns
         -------
         Graph or list[str]
-            If `return_subgraph=` is `True`: a new weighted `Graph` with the same directedness,
-            the same node labels, and the tree edges with their original `weight` values. Node
-            IDs in the new graph are assigned afresh, so match nodes by label rather than ID;
-            node attributes and custom edge attributes are not copied. If `return_subgraph=` is
-            `False`: a list of edge ID strings referring to edges of the original graph.
+            If `return_subgraph=` is `True`: a new `Graph` with the same directedness and
+            weighting, every node of the original (same IDs, labels and attributes) and the tree
+            edges (same IDs, weights and attributes). If `return_subgraph=` is `False`: a list of
+            edge ID strings referring to edges of the original graph.
 
         Technical Notes
         ---------------
@@ -45992,34 +45913,8 @@ class Graph:
         edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
 
         if return_subgraph:
-            # Create a new graph with the MST edges
-            mst = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    mst.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    mst.add_node(label)
-
-            # Add MST edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    mst.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return mst
+            # Every node and the tree edges, keeping IDs, labels, weights and attributes
+            return Graph._from_rust(rust.spanning_subgraph(self._graph, edge_ids))
         else:
             return [str(eid) for eid in edge_ids]
 
@@ -46068,11 +45963,10 @@ class Graph:
         Returns
         -------
         Graph or list[str]
-            If `return_subgraph=` is `True`: a new weighted `Graph` with the same directedness,
-            the same node labels, and the tree edges with their original `weight` values. Node
-            IDs in the new graph are assigned afresh, so match nodes by label rather than ID;
-            node attributes and custom edge attributes are not copied. If `return_subgraph=` is
-            `False`: a list of edge ID strings referring to edges of the original graph.
+            If `return_subgraph=` is `True`: a new `Graph` with the same directedness and
+            weighting, every node of the original (same IDs, labels and attributes) and the tree
+            edges (same IDs, weights and attributes). If `return_subgraph=` is `False`: a list of
+            edge ID strings referring to edges of the original graph.
 
         Technical Notes
         ---------------
@@ -46133,36 +46027,30 @@ class Graph:
         edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
 
         if return_subgraph:
-            # Create a new graph with the spanning tree edges
-            st = Graph(directed=self.is_directed(), weighted=True)
-
-            # Add all nodes; nodes() returns node IDs, use label_from_id() to get labels
-            for node_id in self.get_node_ids(limit=None):
-                label = self.get_label_from_id(node_id)
-                # Try to get node attributes if they exist
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            # Add spanning tree edges
-            for edge_id in edge_ids:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    st.add_edge(
-                        self.get_label_from_id(edge.source),
-                        self.get_label_from_id(edge.target),
-                        weight=edge.weight,
-                        attributes=edge.attributes,
-                    )
-
-            return st
+            # Every node and the tree edges, keeping IDs, labels, weights and attributes
+            return Graph._from_rust(rust.spanning_subgraph(self._graph, edge_ids))
         else:
             return [str(eid) for eid in edge_ids]
+
+    def _steiner_result(
+        self,
+        edges: list[tuple[int, int, int, float]],
+        return_subgraph: bool,
+        extra_nodes: list[int] = (),
+    ) -> "Graph | list[tuple[str, str, float]]":
+        """Turn Steiner `(edge_id, source, target, weight)` tuples into the public result.
+
+        As a graph: the tree's nodes (plus `extra_nodes=`) and edges, keeping IDs, labels,
+        weights and attributes. As a list: `(source_label, target_label, weight)` tuples.
+        """
+        if return_subgraph:
+            tree_nodes = set(extra_nodes) | {n for _, s, t, _ in edges for n in (s, t)}
+            return Graph._from_rust(
+                rust.spanning_subgraph(
+                    self._graph, [eid for eid, *_ in edges], node_ids=list(tree_nodes)
+                )
+            )
+        return [(self._node_label(s), self._node_label(t), w) for _, s, t, w in edges]
 
     def steiner_tree(
         self,
@@ -46183,13 +46071,16 @@ class Graph:
         Parameters
         ----------
         terminal_nodes
-            List of node labels that must be connected by the tree. Must contain at least 2 nodes.
+            List of nodes (integer IDs or string labels) that must be connected by the tree.
+            Must contain at least 2 nodes.
         weight_attr
             Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
             field. If the attribute doesn't exist on an edge, defaults to `1.0`.
         return_subgraph
-            If `True`, returns a new Graph containing only the Steiner tree edges. If `False`,
-            returns a list of (source_label, target_label, weight) tuples.
+            If `True`, returns a new Graph containing only the nodes and edges of the Steiner
+            tree, with the same directedness and weighting and with their original IDs, labels,
+            weights and attributes. If `False`, returns a list of (source_label, target_label,
+            weight) tuples, where unlabelled nodes appear as their ID string.
 
         Returns
         -------
@@ -46277,41 +46168,15 @@ class Graph:
         """
         from edgecase._core import steiner_tree as _steiner_tree
 
-        edges = _steiner_tree(self._graph, terminal_nodes, weight_attr)
+        terminal_ids = [self._node_id_or_raise(node) for node in terminal_nodes]
+        edges = _steiner_tree(self._graph, terminal_ids, weight_attr)
 
-        if return_subgraph:
-            # Create a new graph with the Steiner tree edges
-            st = Graph(directed=self.is_directed(), weighted=True)
-
-            # Collect all nodes that appear in the tree
-            tree_nodes = set()
-            for source, target, _ in edges:
-                tree_nodes.add(source)
-                tree_nodes.add(target)
-
-            # Add the tree nodes
-            for label in tree_nodes:
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            # Add the Steiner tree edges
-            for source, target, weight in edges:
-                st.add_edge(source, target, weight=weight)
-
-            return st
-        else:
-            return edges
+        return self._steiner_result(edges, return_subgraph, extra_nodes=terminal_ids[:1])
 
     def directed_steiner_tree(
         self,
-        root: str,
-        terminal_nodes: list[str],
+        root: int | str,
+        terminal_nodes: list[int | str],
         weight_attr: str | None = None,
         return_subgraph: bool = True,
     ) -> "Graph | list[tuple[str, str, float]]":
@@ -46345,11 +46210,11 @@ class Graph:
         Parameters
         ----------
         root
-            Label of the root (source) node, as a string. Every path in the arborescence starts
-            here.
+            The root (source) node, as an integer ID or a string label. Every path in the
+            arborescence starts here.
         terminal_nodes
-            List of labels of the nodes that must be reachable from `root=`. At least one label is
-            required. Duplicates are ignored, and the root itself is skipped if it is listed.
+            List of the nodes (IDs or labels) that must be reachable from `root=`. At least one
+            is required. Duplicates are ignored, and the root itself is skipped if it is listed.
         weight_attr
             Name of the edge attribute to use as edge cost. If `None` (the default), each edge's
             weight field is used (or `1.0` on an unweighted graph, so the tree minimizes the
@@ -46361,10 +46226,11 @@ class Graph:
         Returns
         -------
         Graph | list[tuple[str, str, float]]
-            If `return_subgraph=` is `True`: a new directed, weighted `Graph` holding the
-            arborescence, with node labels matching the original graph and each edge's weight set
-            to its cost (node IDs are assigned afresh). Otherwise a list of
-            `(source_label, target_label, weight)` tuples sorted by source and then target label.
+            If `return_subgraph=` is `True`: a new directed `Graph` holding the arborescence's
+            nodes and edges, with the original weighting and their original IDs, labels, weights
+            and attributes. Otherwise a list of `(source_label, target_label, weight)` tuples
+            (weight being the edge's cost) sorted by source and then target label, with
+            unlabelled nodes as their ID string.
             If the only terminal is the root, the result is empty.
 
         Raises
@@ -46415,36 +46281,15 @@ class Graph:
         """
         from edgecase._core import directed_steiner_tree as _directed_steiner_tree
 
-        edges = _directed_steiner_tree(self._graph, root, terminal_nodes, weight_attr)
-
-        if return_subgraph:
-            st = Graph(directed=True, weighted=True)
-
-            tree_nodes = set()
-            for source, target, _ in edges:
-                tree_nodes.add(source)
-                tree_nodes.add(target)
-
-            for label in tree_nodes:
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            for source, target, weight in edges:
-                st.add_edge(source, target, weight=weight)
-
-            return st
-        else:
-            return edges
+        root_id = self._node_id_or_raise(root)
+        terminal_ids = [self._node_id_or_raise(node) for node in terminal_nodes]
+        edges = _directed_steiner_tree(self._graph, root_id, terminal_ids, weight_attr)
+        result = self._steiner_result(edges, return_subgraph)
+        return result if return_subgraph else sorted(result, key=lambda e: (e[0], e[1]))
 
     def prize_collecting_steiner_tree(
         self,
-        prizes: dict[str, float],
+        prizes: dict[int | str, float],
         edge_penalty: float = 1.0,
         weight_attr: str | None = None,
         return_subgraph: bool = True,
@@ -46462,15 +46307,18 @@ class Graph:
         Parameters
         ----------
         prizes
-            Dictionary mapping node labels to prize values (e.g., `-log10(p_value)` from GWAS hits).
-            Only nodes with prizes are candidates for inclusion.
+            Dictionary mapping nodes (integer IDs or string labels) to prize values (e.g.,
+            `-log10(p_value)` from GWAS hits). Only nodes with prizes are candidates for inclusion.
         edge_penalty
             Multiplier applied to edge weights as costs. Higher values penalize longer paths more
             aggressively, producing smaller trees. Default `1.0`.
         weight_attr
             Edge attribute to use for weights. If `None`, uses the edge's weight field.
         return_subgraph
-            If `True` (default), returns a new Graph. If `False`, returns edge tuples.
+            If `True` (default), returns a new Graph with the tree's nodes and edges, keeping
+            their IDs, labels, weights and attributes. If `False`, returns
+            `(source_label, target_label, weight)` edge tuples (unlabelled nodes appear as their
+            ID string).
 
         Returns
         -------
@@ -46508,32 +46356,9 @@ class Graph:
         """
         from edgecase._core import prize_collecting_steiner_tree as _pcst
 
-        edges = _pcst(self._graph, prizes, edge_penalty, weight_attr)
-
-        if return_subgraph:
-            st = Graph(directed=self.is_directed(), weighted=True)
-
-            tree_nodes = set()
-            for source, target, _ in edges:
-                tree_nodes.add(source)
-                tree_nodes.add(target)
-
-            for label in tree_nodes:
-                try:
-                    node_obj = self._graph.get_node(label)
-                    st.add_node(
-                        label,
-                        attributes=node_obj.attributes if hasattr(node_obj, "attributes") else None,
-                    )
-                except Exception:
-                    st.add_node(label)
-
-            for source, target, weight in edges:
-                st.add_edge(source, target, weight=weight)
-
-            return st
-        else:
-            return edges
+        prizes_by_id = {self._node_id_or_raise(node): prize for node, prize in prizes.items()}
+        edges = _pcst(self._graph, prizes_by_id, edge_penalty, weight_attr)
+        return self._steiner_result(edges, return_subgraph)
 
     def expand_seed_set(
         self,
@@ -46694,9 +46519,9 @@ class Graph:
         -------
         list[Graph] or list[list[tuple[str, str, float]]]
             Either a list of Graph objects or a list of edge lists, depending on the
-            `return_subgraphs=` parameter. Each returned `Graph` is weighted, has the same
-            directedness as the original, and uses the original node labels (node IDs are
-            assigned afresh and attributes are not copied). An empty or single-node graph yields
+            `return_subgraphs=` parameter. Each returned `Graph` has the same directedness and
+            weighting as the original and keeps every node and the tree's edges with their
+            original IDs, labels, weights and attributes. An empty or single-node graph yields
             a single tree with no edges.
 
         Raises
@@ -46802,34 +46627,17 @@ class Graph:
         tree_edge_lists = _all_spanning_trees(self._graph, effective_max, weight_attr)
 
         if return_subgraphs:
-            result = []
-            for edges in tree_edge_lists:
-                # Create a new graph for this spanning tree
-                st = Graph(directed=self.is_directed(), weighted=True)
-
-                # Add all nodes from the original graph
-                for node_id in self.get_node_ids(limit=None):
-                    label = self.get_label_from_id(node_id)
-                    try:
-                        node_obj = self._graph.get_node(label)
-                        st.add_node(
-                            label,
-                            attributes=node_obj.attributes
-                            if hasattr(node_obj, "attributes")
-                            else None,
-                        )
-                    except Exception:
-                        st.add_node(label)
-
-                # Add the spanning tree edges
-                for source, target, weight in edges:
-                    st.add_edge(source, target, weight=weight)
-
-                result.append(st)
-
-            return result
-        else:
-            return tree_edge_lists
+            # Every node and the tree's edges, keeping IDs, labels, weights and attributes
+            return [
+                Graph._from_rust(
+                    rust.spanning_subgraph(self._graph, [eid for eid, *_ in edges])
+                )
+                for edges in tree_edge_lists
+            ]
+        return [
+            [(self._node_label(s), self._node_label(t), w) for _, s, t, w in edges]
+            for edges in tree_edge_lists
+        ]
 
     # ==============================================================================
     # ------------------------------------------------------------------------------
