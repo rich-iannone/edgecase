@@ -4377,7 +4377,8 @@ impl Graph {
 
             let weight = edge.weight;
             let attrs = copy_attrs(py, &edge.attributes);
-            let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs);
+            // The kept edge keeps its ID
+            let edge_obj = Edge::new(edge.id, edge.source, edge.target, weight, attrs);
             result.add_edge(edge_obj)?;
         }
 
@@ -4403,20 +4404,18 @@ impl Graph {
             result.add_node(node_obj)?;
         }
 
-        // Copy all edges
+        // Copy all edges in their stored direction, keeping their IDs
         for edge in &self.edges {
-            let weight = edge.weight;
             let attrs = copy_attrs(py, &edge.attributes);
+            result.add_edge(Edge::new(edge.id, edge.source, edge.target, edge.weight, attrs))?;
+        }
 
-            // Add edge in original direction
-            let attrs_clone = copy_attrs(py, &attrs);
-            let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs_clone);
-            result.add_edge(edge_obj)?;
-
-            // If originally undirected, add reverse direction too
-            if !self.directed {
-                let edge_obj_rev = Edge::new(0, edge.target, edge.source, weight, attrs);
-                result.add_edge(edge_obj_rev)?;
+        // If originally undirected, add the reverse direction too. These are new edges, added
+        // after all the originals so their fresh IDs can't collide with a kept one
+        if !self.directed {
+            for edge in &self.edges {
+                let attrs = copy_attrs(py, &edge.attributes);
+                result.add_edge(Edge::new(0, edge.target, edge.source, edge.weight, attrs))?;
             }
         }
 
@@ -4447,12 +4446,12 @@ impl Graph {
             let attrs = copy_attrs(py, &edge.attributes);
 
             if self.directed {
-                // Swap source and target
-                let edge_obj = Edge::new(0, edge.target, edge.source, weight, attrs);
+                // Swap source and target, keeping the edge's ID
+                let edge_obj = Edge::new(edge.id, edge.target, edge.source, weight, attrs);
                 result.add_edge(edge_obj)?;
             } else {
                 // For undirected, keep as is
-                let edge_obj = Edge::new(0, edge.source, edge.target, weight, attrs);
+                let edge_obj = Edge::new(edge.id, edge.source, edge.target, weight, attrs);
                 result.add_edge(edge_obj)?;
             }
         }
@@ -8295,6 +8294,12 @@ impl Graph {
     /// Get edges vector (internal method for algorithms)
     pub fn get_edges_internal(&self) -> &Vec<Edge> {
         &self.edges
+    }
+
+    /// The ID the next auto-assigned edge will get (above every edge ID ever used, including
+    /// deleted ones)
+    pub fn next_edge_id_internal(&self) -> u64 {
+        self.next_edge_id
     }
 
     /// Create a new graph (public constructor for Rust code)
