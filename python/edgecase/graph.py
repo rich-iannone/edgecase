@@ -3443,7 +3443,8 @@ class Graph:
             Layout algorithm. `"force"` (default) lets vis-network's physics simulation position
             the nodes. `"circular"` places nodes evenly on a circle and `"random"` places them at
             random (unseeded) starting positions; with `static=False`, the physics simulation can
-            still move nodes away from these starting positions.
+            still move nodes away from these starting positions. Any other value raises
+            `ValueError`.
         static
             If `True`, disables physics simulation and interactivity (no node dragging, no
             animation). The graph will be rendered in a fixed position after initial layout. Useful
@@ -3678,8 +3679,8 @@ class Graph:
         layout
             Layout algorithm. `"force"` (default) uses a Fruchterman-Reingold force-directed
             layout, which places connected nodes near each other. `"circular"` places nodes evenly
-            on a circle, and `"random"` scatters them uniformly over the canvas. Unrecognized values
-            fall back to `"force"`.
+            on a circle, and `"random"` scatters them uniformly over the canvas. Any other value
+            raises `ValueError`.
         color_by
             Node attribute to map to categorical colors (e.g., `"community"` or `"type"`). Each
             distinct value gets the next color of `palette=` in order of first appearance (nodes
@@ -3691,7 +3692,8 @@ class Graph:
             whose endpoints share a value gets that group's palette color, and an edge connecting
             two different groups (or a node with the attribute to one without it) gets
             `cross_community_color=`. When set, this takes precedence over the edge coloring done
-            by `color_by=`. It is ignored if no node has the attribute. Default is `None`.
+            by `color_by=`. Like `color_by=`, it also accepts `"label"`, `"degree"` and `"id"`,
+            and a name that no node has raises `ValueError`. Default is `None`.
         size_by
             Numeric node attribute to map to node radius, or `"degree"`. Values are min-max
             scaled so that radii range from half to twice the base `node_size=`. Nodes with a
@@ -3710,7 +3712,7 @@ class Graph:
             routing is then skipped). Default is `False`.
         theme
             Color theme: `"light"` (default) or `"dark"`, controlling the background, default edge
-            color, label color, and tooltip styling. Unrecognized values use the light theme.
+            color, label color, and tooltip styling. Any other value raises `ValueError`.
         palette
             Name of a color palette from `edgecase.colors` used for `color_by=` and
             `edge_color_by=` (see `edgecase.colors.list_palettes()` for the options, e.g., `"Set2"`
@@ -3766,9 +3768,10 @@ class Graph:
         Raises
         ------
         ValueError
-            If `color_by=`, `size_by=` or `label_by=` names an attribute that no node has (other
-            than the built-in `"id"`, `"label"` and `"degree"`), or `palette=` is unknown while
-            `color_by=` or `edge_color_by=` is set.
+            If `color_by=`, `edge_color_by=`, `size_by=` or `label_by=` names an attribute that no
+            node has (other than the built-in `"id"`, `"label"` and `"degree"`), `layout=` or
+            `theme=` is unknown, or `palette=` is unknown while `color_by=` or `edge_color_by=` is
+            set.
 
         Examples
         --------
@@ -3912,10 +3915,10 @@ class Graph:
             `graph.steps.filter(kind="select").play()`.
         layout
             Layout algorithm: `"force"` (default, a force-directed layout), `"circular"`, or
-            `"random"` (unseeded). Unrecognized values fall back to `"force"`. See `layout_mode=`
-            for how positions evolve across steps.
+            `"random"` (unseeded). Any other value raises `ValueError`. See `layout_mode=` for how
+            positions evolve across steps.
         theme
-            Color theme: `"light"` (default) or `"dark"`. Unrecognized values use the light theme.
+            Color theme: `"light"` (default) or `"dark"`. Any other value raises `ValueError`.
         width
             SVG canvas width in pixels. Default is `700`.
         height
@@ -3942,7 +3945,8 @@ class Graph:
             from the previous step's positions, and animates nodes between steps so the graph
             visibly grows and reshapes. `"stable"` computes one layout over every node that ever
             appears, so positions never change. Progressive applies to the `"force"` and
-            `"circular"` layouts; graphs with more than 300 nodes fall back to `"stable"`.
+            `"circular"` layouts; graphs with more than 300 nodes fall back to `"stable"`. Any
+            other value raises `ValueError`.
         output
             File path to save. A path ending in `.html` saves the full interactive player; any
             other extension saves only the static SVG. The `StepPlayer` is returned either way. If
@@ -4072,7 +4076,7 @@ class Graph:
             BFS is run from this node. Default is `None`.
         layout
             Layout algorithm: `"force"` (default, force-directed), `"circular"`, or `"random"`
-            (unseeded). Unrecognized values fall back to `"force"`.
+            (unseeded). Any other value raises `ValueError`.
         theme
             Color theme: `"light"` (default) or `"dark"`, which also selects the colors used for
             the unvisited, frontier, current and visited states.
@@ -14113,7 +14117,8 @@ class Graph:
             # List of values (must match length of target edges)
             if len(values) != len(target_edge_ids):
                 raise ValueError(
-                    f"Length of values ({len(values)}) must match length of target edges ({len(target_edge_ids)})"
+                    f"Length of values ({len(values)}) must match length of target edges "
+                    f"({len(target_edge_ids)})"
                 )
             for edge_id, value in zip(target_edge_ids, values):
                 self._graph.set_edge_attr(edge_id, edge_attr, value)
@@ -18991,7 +18996,9 @@ class Graph:
 
         ```{python}
         # Convert to labels if needed
-        clustering_by_label = {graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()}
+        clustering_by_label = {
+            graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()
+        }
 
         # Returns clustering coefficient for node A
         clustering_by_label['A']
@@ -19185,7 +19192,10 @@ class Graph:
 
         g = ec.Graph().add_gnp_graph(n=40, p=0.15, seed=3)
         lattice = g.lattice_reference(niter=10, seed=4)
-        round(g.get_avg_clustering_coefficient(), 3), round(lattice.get_avg_clustering_coefficient(), 3)
+        (
+            round(g.get_avg_clustering_coefficient(), 3),
+            round(lattice.get_avg_clustering_coefficient(), 3),
+        )
         ```
         """
         result = Graph._from_rust(
@@ -19286,7 +19296,9 @@ class Graph:
                 "small_world_sigma",
                 "G.small_world_sigma()",
                 result=value,
-                narration=f"sigma = ({c:.3f} / {cr:.3f}) / ({length:.3f} / {lr:.3f}) = {value:.3f}.",
+                narration=(
+                    f"sigma = ({c:.3f} / {cr:.3f}) / ({length:.3f} / {lr:.3f}) = {value:.3f}."
+                ),
             )
         return value
 
@@ -26001,9 +26013,10 @@ class Graph:
         graph.describe()
         ```
         """
-        # Compute degrees for all nodes
-        node_ids = self.get_node_ids(limit=None)
-        degrees = {node_id: self.get_degree(node_id) for node_id in node_ids}
+        # Total degree of every node in one pass (in + out on directed graphs), keyed in
+        # get_node_ids() order as before
+        totals = self._graph.degrees_by_type("total")
+        degrees = {node_id: totals[node_id] for node_id in self.get_node_ids(limit=None)}
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -26098,15 +26111,10 @@ class Graph:
         ```
         """
         node_id = self._resolve_node_id(node)
-        neighbors = self._graph.neighbors(node_id)
         if self._graph.is_directed:
-            # For directed, count both in and out
-            # edges() returns (edge_id, source, target) tuples
-            in_count = sum(1 for edge in self._graph.edges() if edge[2] == node_id)
-            out_count = len(neighbors)
-            return in_count + out_count
-        else:
-            return len(neighbors)
+            # In + out, both O(1) in Rust (the in-degree is counted in the edge index)
+            return self._graph.in_degree(node_id) + self._graph.out_degree(node_id)
+        return self._graph.degree(node_id)
 
     def get_in_degree(self, node: Union[int, str]) -> int:
         """
@@ -26182,8 +26190,7 @@ class Graph:
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
         node_id = self._node_id_or_raise(node)
-        # edges() returns (edge_id, source, target) tuples
-        return sum(1 for edge in self._graph.edges() if edge[2] == node_id)
+        return self._graph.in_degree(node_id)
 
     def get_out_degree(self, node: Union[int, str]) -> int:
         """
@@ -26258,7 +26265,7 @@ class Graph:
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
         node_id = self._node_id_or_raise(node)
-        return len(self._graph.neighbors(node_id))
+        return self._graph.out_degree(node_id)
 
     def get_degree_distribution(self) -> dict[int, int]:
         """
@@ -42573,17 +42580,15 @@ class Graph:
             sum to a negative number is reachable from `source=` (the cheapest flow is then
             undefined), or an edge lacks the attribute named by `capacity=` or `cost=`.
 
-        Technical Notes
-        ---------------
-        Uses the Successive Shortest Path algorithm with Bellman-Ford relaxation, so
-        negative per-unit costs are permitted alongside the usual non-negative case (a reachable
-        negative-cost cycle raises `ValueError`, since a cheapest path is then undefined). The algorithm runs in
-        $O(V \cdot E \cdot F)$ time in the worst case, where $F$ is the number of augmenting
-        steps. Because it always routes along the *cheapest* residual path from source to
-        sink, the final flow is optimal in total cost for the amount sent. The graph must be
-        directed (call `.to_directed()` first for undirected inputs), and self-loops
-        contribute nothing. Leaving `demand=` at `None` sends the maximum possible flow at
-        minimum cost; setting it to a specific value clamps the total and raises
+        Technical Notes --------------- Uses the Successive Shortest Path algorithm with
+        Bellman-Ford relaxation, so negative per-unit costs are permitted alongside the usual
+        non-negative case (a reachable negative-cost cycle raises `ValueError`, since a cheapest
+        path is then undefined). The algorithm runs in $O(V \cdot E \cdot F)$ time in the worst
+        case, where $F$ is the number of augmenting steps. Because it always routes along the
+        *cheapest* residual path from source to sink, the final flow is optimal in total cost for
+        the amount sent. The graph must be directed (call `.to_directed()` first for undirected
+        inputs), and self-loops contribute nothing. Leaving `demand=` at `None` sends the maximum
+        possible flow at minimum cost; setting it to a specific value clamps the total and raises
         `ValueError` if that demand cannot be met by any admissible flow.
 
         Examples
@@ -46722,7 +46727,10 @@ class Graph:
         D -> B (6) instead of B's other in-edge would have stranded the whole cycle:
 
         ```{python}
-        sum(branching.get_edge(e).weight for e in branching.get_edge_ids(limit=None)), branching.is_arborescence()
+        (
+            sum(branching.get_edge(e).weight for e in branching.get_edge_ids(limit=None)),
+            branching.is_arborescence(),
+        )
         ```
 
         Edges with non-positive weights never pay off, so they are left out even when that
@@ -48987,11 +48995,12 @@ class Graph:
 
         ![Modularity spectrum](/assets/graphs/modularity-spectrum.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, and a bar chart of the six eigenvalues of its modularity matrix in increasing order: -1.73, -1.00, -1.00, -0.43, 0.00 and 1.73. The single large positive eigenvalue, in the accent color, signals a two-way community split." width="100%"}
 
-        The eigenvalues of `modularity_matrix()`, in increasing order. Large positive
-        eigenvalues signal community structure: `k` clearly positive eigenvalues suggest about
-        `k + 1` communities (one positive eigenvalue already means a good two-way split), and
-        the leading eigenvector gives the best two-way split by modularity. On a directed graph the modularity matrix is not symmetric
-        and its eigenvalues can be complex. Matches NetworkX's `modularity_spectrum()`.
+        The eigenvalues of `modularity_matrix()`, in increasing order. Large positive eigenvalues
+        signal community structure: `k` clearly positive eigenvalues suggest about `k + 1`
+        communities (one positive eigenvalue already means a good two-way split), and the leading
+        eigenvector gives the best two-way split by modularity. On a directed graph the modularity
+        matrix is not symmetric and its eigenvalues can be complex. Matches NetworkX's
+        `modularity_spectrum()`.
 
         Parameters
         ----------
