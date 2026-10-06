@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Edge BFS</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="505.9" y="38.0" width="236.2" height="120.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 179.26 91.58 L 188.47 87.54 L 197.68 83.51 L 206.89 79.47 L 216.10 75.44 L 225.31 71.40 L 234.52 67.37 L 243.74 63.33 L 252.95 59.29 L 262.16 55.26 L 264.80 54.10" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="271.37,51.22 263.54,58.89 260.43,51.79" fill="#c2410c" fill-opacity="1"/>
+<rect x="218.96" y="63.40" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="225.31" y="71.40" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">1</text>
+<path d="M 287.40 60.20 L 287.40 67.61 L 287.40 75.02 L 287.40 82.43 L 287.40 89.84 L 287.40 97.25 L 287.40 104.66 L 287.40 112.07 L 287.40 119.48 L 287.40 126.89 L 287.40 127.13" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="287.40,134.30 283.52,124.05 291.27,124.05" fill="#c2410c" fill-opacity="1"/>
+<rect x="281.04" y="89.25" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="287.40" y="97.25" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">2</text>
+<path d="M 272.74 145.38 L 263.53 141.34 L 254.32 137.31 L 245.11 133.27 L 235.90 129.24 L 226.69 125.20 L 217.48 121.17 L 208.26 117.13 L 199.05 113.09 L 189.84 109.06 L 187.20 107.90" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="180.63,105.02 191.57,105.59 188.46,112.69" fill="#c2410c" fill-opacity="1"/>
+<rect x="220.33" y="117.20" width="12.71" height="16" rx="3" fill="#ffffff"/>
+<text x="226.69" y="125.20" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#c2410c" fill-opacity="1">3</text>
+<circle cx="164.6" cy="98.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="164.6" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="287.4" cy="44.2" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="287.4" y="44.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="287.4" cy="151.8" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="287.4" y="151.8" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.edge_bfs(&quot;A&quot;)</text>
+<text x="519.9" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">edges in visit order</text>
+<text x="519.9" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">1  (A, B)</text>
+<text x="519.9" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">2  (B, C)</text>
+<text x="519.9" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">3  (C, A)</text>
+<text x="519.9" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">bfs_edges()  (A, B) (B, C)</text>
+</svg>

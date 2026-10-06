@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>BFS successors</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="552.0" y="58.0" width="144.1" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 151.11 91.70 L 156.99 89.18 L 162.87 86.66 L 168.75 84.14 L 174.63 81.62 L 180.51 79.10 L 186.39 76.58 L 192.27 74.05 L 198.15 71.53 L 203.32 69.32" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="209.91,66.49 202.02,74.09 198.97,66.97" fill="#c2410c" fill-opacity="1"/>
+<path d="M 151.11 104.30 L 156.99 106.82 L 162.87 109.34 L 168.75 111.86 L 174.63 114.38 L 180.51 116.90 L 186.39 119.42 L 192.27 121.95 L 198.15 124.47 L 203.32 126.68" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="209.91,129.51 198.97,129.03 202.02,121.91" fill="#c2410c" fill-opacity="1"/>
+<path d="M 242.00 136.40 L 247.61 136.40 L 253.22 136.40 L 258.83 136.40 L 264.44 136.40 L 270.05 136.40 L 275.66 136.40 L 281.27 136.40 L 286.88 136.40 L 290.93 136.40" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="298.10,136.40 287.85,140.28 287.85,132.53" fill="#c2410c" fill-opacity="1"/>
+<circle cx="136.4" cy="98.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="136.4" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">A</text>
+<circle cx="226.0" cy="59.6" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="59.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="226.0" cy="136.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<circle cx="315.6" cy="136.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="315.6" y="136.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">D</text>
+<rect x="110.4" y="72.0" width="17.0" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="235.0" y="33.6" width="17.0" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="235.0" y="110.4" width="17.0" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="324.6" y="110.4" width="17.0" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.bfs_successors(&quot;A&quot;)</text>
+<text x="118.9" y="80.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">1</text>
+<text x="243.5" y="41.6" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">2</text>
+<text x="243.5" y="118.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">3</text>
+<text x="333.1" y="118.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">4</text>
+<text x="566.0" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">parent → children</text>
+<text x="566.0" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">A → [B, C]</text>
+<text x="566.0" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">C → [D]</text>
+</svg>
