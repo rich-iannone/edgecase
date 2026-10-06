@@ -47,6 +47,7 @@ pub mod isomorphism;
 pub mod path_queries;
 pub mod paths;
 pub mod percolation;
+pub mod products;
 pub mod propagation;
 pub mod regularity;
 pub mod rich_club;
