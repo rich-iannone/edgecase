@@ -7,6 +7,7 @@ import edgecase as ec
 import networkx as nx
 import pytest
 from edgecase.steps import KIND_METRIC
+from networkx.algorithms import community as nx_comm
 
 # =============================================================================
 # Fixtures
@@ -352,3 +353,129 @@ class TestPartitionQuality:
         step = g.steps[-1]
         assert step.delta.node_groups == {"A": 0, "B": 0, "C": 1, "D": 1}
         assert step.narration == "2 communities: coverage 1.000, performance 1.000."
+
+
+def _two_groups():
+    g = ec.Graph().add_nodes(list("ABCDEFGH"))
+    return g.add_edges(
+        [
+            ("A", "B"),
+            ("A", "C"),
+            ("A", "D"),
+            ("B", "C"),
+            ("B", "D"),
+            ("C", "D"),
+            ("E", "F"),
+            ("E", "G"),
+            ("E", "H"),
+            ("F", "G"),
+            ("F", "H"),
+            ("G", "H"),
+            ("D", "E"),
+        ]
+    )
+
+
+def _from_nx(G, weighted=False):
+    g = ec.Graph(weighted=weighted).add_nodes([str(n) for n in G])
+    for u, v, d in G.edges(data=True):
+        g.add_edge(str(u), str(v), weight=d.get("weight", 1.0))
+    return g
+
+
+class TestMoreCommunityMethods:
+    """Fluid communities, fast label propagation, Louvain/Leiden levels, Kernighan-Lin, Lukes and
+    greedy source expansion (exact NetworkX parity where the algorithm is deterministic)."""
+
+    def test_fluid_and_fast_label_propagation(self):
+        G = nx.planted_partition_graph(4, 20, 0.6, 0.02, seed=3)
+        g = _from_nx(G)
+        fluid = g.cmty_fluid(4, seed=1, return_dict=True)
+        assert set(fluid.values()) == {0, 1, 2, 3}
+        fast = g.cmty_fast_label_propagation(seed=1, return_dict=True)
+        groups = {}
+        for n, c in fast.items():
+            groups.setdefault(c, set()).add(int(g.get_label_from_id(n)))
+        assert nx_comm.modularity(G, groups.values()) > 0.6
+        assert g.cmty_fluid(4, seed=5, return_dict=True) == g.cmty_fluid(
+            4, seed=5, return_dict=True
+        )
+        g.cmty_fluid(4, seed=1)
+        assert set(g.get_node_attrs("cmty_fluid").values()) == {0, 1, 2, 3}
+        with pytest.raises(ValueError, match="connected"):
+            ec.Graph().add_nodes(["A", "B"]).cmty_fluid(1)
+        with pytest.raises(ValueError, match="exceed"):
+            _two_groups().cmty_fluid(9)
+
+    def test_levels(self):
+        G = nx.connected_watts_strogatz_graph(300, 6, 0.05, seed=2)
+        g = _from_nx(G)
+        for levels in (g.cmty_louvain_levels(seed=42), g.cmty_leiden_levels(seed=42)):
+            counts = [len(set(level.values())) for level in levels]
+            assert counts == sorted(counts, reverse=True) and len(levels) >= 2
+        assert g.cmty_louvain_levels(seed=42)[-1] == g.cmty_louvain(return_dict=True)
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).cmty_louvain_levels()
+
+    def test_kernighan_lin(self):
+        matches = 0
+        for seed in range(40):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(12, 0.35, seed=seed)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.random()
+            g = _from_nx(G, True)
+            start = set(rnd.sample(list(G), 6))
+            a, b = g.kernighan_lin_bisection(
+                partition=([str(x) for x in start], [str(x) for x in set(G) - start])
+            )
+            side = {int(g.get_label_from_id(x)) for x in a}
+            assert len(a) == len(b) == 6
+            assert (
+                nx.cut_size(G, side, weight="weight")
+                <= nx.cut_size(G, start, weight="weight") + 1e-12
+            )
+            ra, _ = nx_comm.kernighan_lin_bisection(G, partition=(start, set(G) - start), seed=1)
+            ours_cut = nx.cut_size(G, side, weight="weight")
+            matches += abs(ours_cut - nx.cut_size(G, ra, weight="weight")) < 1e-9
+        assert matches >= 35  # NetworkX sometimes continues after a rounding-zero pass
+        left, right = _two_groups().kernighan_lin_bisection(seed=3)
+        assert len(left) == len(right) == 4
+        with pytest.raises(ValueError, match="split every node"):
+            _two_groups().kernighan_lin_bisection(partition=(["A"], ["B"]))
+
+    def test_lukes(self):
+        for seed in range(60):
+            rnd = random.Random(seed)
+            T = nx.random_labeled_tree(rnd.randint(2, 12), seed=seed)
+            for n in T:
+                T.nodes[n]["w"] = rnd.randint(1, 3)
+            for u, v in T.edges:
+                T[u][v]["e"] = rnd.randint(1, 5)
+            g = ec.Graph().add_nodes([(str(n), {"w": T.nodes[n]["w"]}) for n in T])
+            g.add_edges([(str(u), str(v), {"e": T[u][v]["e"]}) for u, v in T.edges])
+            k = max(T.nodes[n]["w"] for n in T) + rnd.randint(0, 4)
+            ours = [
+                {int(g.get_label_from_id(x)) for x in c} for c in g.lukes_partitioning(k, "w", "e")
+            ]
+            ref = nx_comm.lukes_partitioning(T, k, node_weight="w", edge_weight="e")
+
+            def kept(parts):
+                return sum(
+                    T[u][v]["e"] for c in parts for u in c for v in c if u < v and T.has_edge(u, v)
+                )
+
+            assert kept(ours) == kept(ref)
+            assert all(sum(T.nodes[x]["w"] for x in c) <= k for c in ours)
+            assert sorted(x for c in ours for x in c) == sorted(T)
+        with pytest.raises(ValueError, match="tree"):
+            ec.Graph().add_cycle_graph(4).lukes_partitioning(2)
+
+    def test_greedy_source_expansion(self):
+        G = nx.karate_club_graph()
+        g = _from_nx(G)
+        found = {int(g.get_label_from_id(x)) for x in g.greedy_source_expansion("0")}
+        assert found == nx_comm.greedy_source_expansion(G, source=0)
+        assert len(g.greedy_source_expansion("0", cutoff=3)) == 3
+        two = _two_groups()
+        assert {two.get_label_from_id(x) for x in two.greedy_source_expansion("A")} == set("ABCDE")
