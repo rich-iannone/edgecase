@@ -22,6 +22,9 @@ community's L_c/m − (D_c/2m)² term. `partition_quality` follows the same
 input convention and its card shows the coverage and performance fractions. `cmty_k_clique` returns overlapping
 communities: their hulls overlap, a node in several communities stays ink
 inside the overlap, and nodes in no community are `muted`.
+`attracting_components` follows the same rule (A, in no attracting component,
+is `muted`); `node_connected_component` shows one component: the query node
+`soft`, the rest of its component `accent` inside a hull, other nodes `muted`.
 """
 
 from core import Box, Scene, compute, figure, place, transform
@@ -160,6 +163,56 @@ def count_strongly_connected_components(s: Scene) -> None:
 def count_weakly_connected_components(s: Scene) -> None:
     right = _comp(s, "g.count_weakly_connected_components()", WCC)
     s.card_centered(right, ["sizes  5, 2", ("count  2", "accent")])
+
+
+# Later additions; each rebuilds its docstring example in edgecase and asserts
+# the result. attracting_components draws the returned groups as hulls (in the
+# order edgecase returns them); A, in no group, is `muted`.
+ATTRACT = {"A": (0, 0.6), "B": (1.2, 0), "C": (2.4, 0), "D": (1.2, 1.2)}
+ATTRACT_EDGES = [("A", "B"), ("B", "C"), ("C", "B"), ("A", "D")]
+
+
+@figure("attracting_components", "communities", "Attracting components",
+        "A directed graph: A points to B and to D, and B and C point to each other. A "
+        "random walk that leaves A never comes back: it ends up circling B and C or stuck at "
+        "D. Those are the attracting components, D in the accent color and B, C in teal, "
+        "listed on the card as {D} and {B, C}; A, in neither, is faded.")
+def attracting_components(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(ATTRACT))
+    g.add_edges(ATTRACT_EDGES)
+    comps = [sorted(g.get_label_from_id(n) for n in c) for c in g.attracting_components()]
+    assert comps == [["D"], ["B", "C"]]
+    left, right = compute(s, "g", "g.attracting_components()")
+    _partition(s, place(ATTRACT, left, unit=UNIT), ATTRACT_EDGES, comps, directed=True,
+               edge_kw={("B", "C"): {"bend": 7}, ("C", "B"): {"bend": 7}})
+    s.nodes["A"].style = "muted"
+    s.card_centered(right, [("{D}", "accent"), ("{B, C}", "g2")], title="attracting")
+
+
+NCC = {"A": (0, 0), "B": (1, 0.6), "C": (2, 0), "D": (3.2, 0.2), "E": (3.2, 1.4)}
+NCC_EDGES = [("A", "B"), ("B", "C"), ("D", "E")]
+
+
+@figure("node_connected_component", "communities", "Connected component of a node",
+        "Two separate pieces, the path A, B, C and the edge D to E. Starting from A "
+        "(outlined), everything reachable lies in its component, the tinted region in the "
+        "accent color holding A, B and C; D and E are faded. The card shows {A, B, C}.")
+def node_connected_component(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(NCC))
+    g.add_edges(NCC_EDGES)
+    comp = sorted(g.get_label_from_id(n) for n in g.node_connected_component("A"))
+    assert comp == ["A", "B", "C"]
+    left, right = compute(s, "g", 'g.node_connected_component("A")')
+    s.graph(place(NCC, left, unit=UNIT),
+            [("A", "B", {"style": "accent"}), ("B", "C", {"style": "accent"}),
+             ("D", "E", {"style": "muted"})],
+            styles={"A": "soft", "B": "accent", "C": "accent", "D": "muted", "E": "muted"})
+    s.hull(comp, "accent")
+    s.card_centered(right, [("{A, B, C}", "accent")], title="component of A")
 
 
 @figure("largest_component_size", "communities", "Largest component size",
