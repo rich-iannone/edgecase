@@ -363,7 +363,7 @@ pub fn number_of_spanning_trees(
         .map(|e| (idx[&e.source], idx[&e.target], if weighted { e.weight.unwrap_or(1.0) } else { 1.0 }))
         .collect();
     if !spans(n, edges.iter().map(|&(a, b, _)| (a, b))) {
-        return Ok(if weighted { 0.0f64.into_py(py) } else { 0i64.into_py(py) });
+        return Ok(if weighted { 0.0f64.into_pyobject(py)?.into_any().unbind() } else { 0i64.into_pyobject(py)?.into_any().unbind() });
     }
     // Laplacian (out-degree convention for undirected, in-degree for arborescences)
     let mut lap = vec![vec![0.0f64; n]; n];
@@ -381,7 +381,7 @@ pub fn number_of_spanning_trees(
         let minor: Vec<Vec<i128>> =
             keep.iter().map(|&i| keep.iter().map(|&j| lap[i][j] as i128).collect()).collect();
         if let Some(det) = bareiss(minor.clone()) {
-            return Ok(det.into_py(py));
+            return Ok(det.into_pyobject(py)?.into_any().unbind());
         }
         // Too large for 128 bits: residues modulo enough 61-bit primes to pin the value down
         // (Hadamard's bound), combined into an exact integer by the Python wrapper (CRT)
@@ -398,10 +398,10 @@ pub fn number_of_spanning_trees(
             }
             p -= 2;
         }
-        return Ok(residues.into_py(py));
+        return Ok(residues.into_pyobject(py)?.into_any().unbind());
     }
     let det = na::DMatrix::from_fn(m, m, |i, j| lap[keep[i]][keep[j]]).determinant();
-    Ok(det.into_py(py))
+    Ok(det.into_pyobject(py)?.into_any().unbind())
 }
 
 fn mul_mod(a: u64, b: u64, p: u64) -> u64 {
