@@ -11,6 +11,7 @@ pub mod coloring;
 pub mod communicability;
 pub mod community;
 pub mod community_detection;
+pub mod community_extra;
 pub mod connectivity;
 pub mod connectivity_extras;
 pub mod contraction;
