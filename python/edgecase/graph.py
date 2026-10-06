@@ -1072,9 +1072,8 @@ class Graph:
         label
             Optional string label for human-readable node access. Non-string values are converted
             with `str()`, so `add_node(5)` stores the label `"5"`. If `None` (default), the node
-            is unlabelled and can only be referenced by its ID. Labels should be unique if you
-            plan to use them for node lookup in operations like `add_edge()`: duplicates are
-            allowed, but label lookups then become ambiguous. Keep in mind that methods resolving
+            is unlabelled and can only be referenced by its ID. Labels are unique: a label that
+            another node already has raises a `ValueError`. Keep in mind that methods resolving
             nodes treat an integer as an ID and a string as a label, so a node labelled `"5"` must
             be referenced as `"5"`, not `5`.
         type
@@ -1103,8 +1102,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If `from_node=` or `to_node=` refers to a node that doesn't exist. The new node has
-            already been added at that point, so it remains in the graph without the edge.
+            If another node already has this label (nothing is added). If `from_node=` or
+            `to_node=` refers to a node that doesn't exist; the new node has already been added at
+            that point, so it remains in the graph without the edge.
 
         Examples
         --------
@@ -1236,8 +1236,8 @@ class Graph:
         - tag a batch of nodes with a common `type=` or shared attributes
         - create numbered nodes quickly from a `range`
 
-        Labels are not checked for uniqueness. Adding a label that already exists creates a second
-        node with the same label, which makes label-based lookups ambiguous.
+        Labels are unique: if any label is already in the graph, or appears twice in `nodes=`, a
+        `ValueError` is raised before any node is added.
 
         Parameters
         ----------
@@ -1269,6 +1269,8 @@ class Graph:
 
         Raises
         ------
+        ValueError
+            If a label already exists in the graph or repeats within `nodes=`.
         TypeError
             If an element is a tuple other than `(label, attrs_dict)`, is itself a dict, or (with
             the dict form) a node's attributes aren't a dict or `None`.
@@ -1347,6 +1349,13 @@ class Graph:
             items = [(label, _node_attrs(label, attrs)) for label, attrs in nodes.items()]
         else:
             items = [_parse_node_item(item) for item in nodes]
+        # Labels are unique: reject clashes with the graph or within the batch up front
+        seen: set[str] = set()
+        for label, _ in items:
+            label = str(label)
+            if label in seen or self._graph.has_node_label(label):
+                raise ValueError(f"Node with label '{label}' already exists")
+            seen.add(label)
 
         labels_added = []
         self._recording_depth += 1
@@ -4919,8 +4928,9 @@ class Graph:
             If `True` (default), each node is labelled with its zero-based grid position as
             `"(row,col)"`, e.g. `"(0,0)"` for the top-left corner, which makes it easy to address
             specific cells with `add_edge()` or other methods. Because these labels don't depend
-            on the existing nodes, adding a second grid reuses the same labels, and label lookups
-            then find the most recently added node. If `False`, nodes are created without labels.
+            on the existing nodes, adding a second labelled grid raises `ValueError` (labels are
+            unique); pass `label=False` for the second one. If `False`, nodes are created without
+            labels.
         rel
             Optional value stored in the `rel` attribute of every new edge, e.g. `"street"`. If
             `None` (default), no `rel` attribute is set.
@@ -5620,7 +5630,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `k=` > `n=`.
+            If `k=` > `n=`, or if one of the subset labels is already used in the graph (e.g. by
+            an earlier Johnson graph); nothing is added in that case.
         OverflowError
             If `n=` or `k=` is negative.
 
@@ -5782,7 +5793,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If `radius=` is negative, `dim=` < `1`, or `p_norm=` <= `0`.
+            If `radius=` is negative, `dim=` < `1`, or `p_norm=` <= `0`, or if a position label
+            is already used in the graph (e.g. adding the same seeded graph twice); nothing is
+            added in that case.
 
         Properties
         ----------
