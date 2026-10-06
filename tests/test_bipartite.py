@@ -1,8 +1,11 @@
 """Tests for bipartite graph algorithms: sets, projection, centrality measures."""
 
-import pytest
-import edgecase as ec
+import random
 
+import edgecase as ec
+import networkx as nx
+import pytest
+from networkx.algorithms import bipartite as nx_bp
 
 # =============================================================================
 # Fixtures
@@ -111,10 +114,9 @@ class TestBipartiteSets:
         sizes = sorted([len(s0), len(s1)])
         assert sizes == [2, 3]
 
-
-# =============================================================================
-# Bipartite Projection
-# =============================================================================
+    # =============================================================================
+    # Bipartite Projection
+    # =============================================================================
 
     def test_partition_zero_holds_lowest_id(self):
         """Partition 0 is the side containing the lowest node ID, on every call."""
@@ -283,7 +285,6 @@ class TestBipartiteClosenessCentrality:
 
     def test_matches_networkx_shortest_paths(self):
         """Scores match the documented formula computed from NetworkX BFS distances."""
-        nx = pytest.importorskip("networkx")
         import random
 
         rng = random.Random(7)
@@ -305,9 +306,7 @@ class TestBipartiteClosenessCentrality:
             for which, (targets, others) in enumerate([(s0, s1), (s1, s0)]):
                 cc = g.bipartite_closeness_centrality(which=which, return_dict=True)
                 for node_id in targets:
-                    dist = nx.single_source_shortest_path_length(
-                        reference, label_of[node_id]
-                    )
+                    dist = nx.single_source_shortest_path_length(reference, label_of[node_id])
                     reached = [dist[label_of[o]] for o in others if label_of[o] in dist]
                     expected = len(reached) / sum(reached) if reached else 0.0
                     assert cc[node_id] == pytest.approx(expected)
@@ -373,3 +372,122 @@ class TestBipartiteDirected:
             tri.bipartite_sets()
         loop = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "B")])
         assert not loop.is_bipartite()
+
+
+def _random_bipartite(count=80):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        a, b = rnd.randint(1, 7), rnd.randint(1, 7)
+        B = nx_bp.random_graph(a, b, rnd.choice([0.3, 0.5, 0.8]), seed=seed)
+        for u, v in B.edges:
+            B[u][v]["weight"] = rnd.uniform(0.5, 2)
+        g = ec.Graph(weighted=True).add_nodes([str(n) for n in B])
+        for u, v, d in B.edges(data=True):
+            g.add_edge(str(u), str(v), weight=d["weight"])
+        yield B, g, a, rnd
+
+
+def _relabel(g, d):
+    return {int(g.get_label_from_id(k)): v for k, v in d.items()}
+
+
+class TestBipartiteExtras:
+    """Latapy and Robins-Alexander clustering, redundancy, spectral bipartivity, BiRank,
+    weighted projections, biadjacency matrices and node-set checks, against NetworkX."""
+
+    def test_clustering_and_redundancy(self):
+        for B, g, _, _ in _random_bipartite():
+            for mode in ("dot", "min", "max"):
+                assert _relabel(g, g.latapy_clustering(mode=mode)) == pytest.approx(
+                    nx_bp.latapy_clustering(B, mode=mode)
+                )
+            assert g.robins_alexander_clustering() == pytest.approx(
+                nx_bp.robins_alexander_clustering(B)
+            )
+            busy = [n for n in B if B.degree(n) >= 2]
+            if busy:
+                assert _relabel(g, g.node_redundancy([str(n) for n in busy])) == pytest.approx(
+                    nx_bp.node_redundancy(B, busy)
+                )
+
+    def test_spectral_bipartivity_and_birank(self):
+        for B, g, a, _ in _random_bipartite(50):
+            for weighted in (False, True):
+                assert g.spectral_bipartivity(weighted=weighted) == pytest.approx(
+                    nx_bp.spectral_bipartivity(B, weight="weight" if weighted else None)
+                )
+            top = list(range(a))
+            if len(top) < len(B):
+                ref = nx_bp.birank(B, top, top_personalization={0: 1.0}, weight="weight")
+                ours = g.birank(
+                    [str(x) for x in top], top_personalization={"0": 1.0}, weighted=True
+                )
+                assert _relabel(g, ours) == pytest.approx(ref)
+        square = ec.Graph().add_cycle_graph(4)
+        assert square.spectral_bipartivity() == pytest.approx(1.0)
+        assert ec.Graph().add_cycle_graph(3).spectral_bipartivity() < 1
+
+    def test_projections_matrix_and_node_sets(self):
+        for B, g, a, rnd in _random_bipartite():
+            side = {int(g.get_label_from_id(x)) for x in g.bipartite_sets()[0]}
+            if len(side) < len(B):
+                for weighting, ref_fn in [
+                    ("count", nx_bp.weighted_projected_graph),
+                    ("collaboration", nx_bp.collaboration_weighted_projected_graph),
+                    ("jaccard", nx_bp.overlap_weighted_projected_graph),
+                    (
+                        "overlap",
+                        lambda G, n: nx_bp.overlap_weighted_projected_graph(G, n, jaccard=False),
+                    ),
+                ]:
+                    proj = g.bipartite_projection(which=0, weighting=weighting)
+                    ours = {
+                        frozenset(
+                            (int(proj.get_label_from_id(s)), int(proj.get_label_from_id(t)))
+                        ): proj.get_edge(e).weight
+                        for e, s, t in proj.get_edges_as_tuples()
+                    }
+                    ref = {
+                        frozenset((u, v)): d["weight"]
+                        for u, v, d in ref_fn(B, side).edges(data=True)
+                    }
+                    assert ours.keys() == ref.keys()
+                    assert all(ours[k] == pytest.approx(ref[k]) for k in ref)
+            matrix, rows, cols = g.biadjacency_matrix(
+                row_nodes=[str(x) for x in range(a)], weighted=True
+            )
+            ref = nx_bp.biadjacency_matrix(
+                B, list(range(a)), [int(g.get_label_from_id(c)) for c in cols], weight="weight"
+            ).toarray()
+            assert sum(matrix, []) == pytest.approx(ref.flatten().tolist())
+            for nodes in (list(range(a)), rnd.sample(list(B), max(1, len(B) // 2))):
+                assert g.is_bipartite_node_set(
+                    [str(x) for x in nodes]
+                ) == nx_bp.is_bipartite_node_set(B, nodes)
+
+    def test_examples_and_errors(self):
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "party", "talk", "game"])
+        g.add_edges(
+            [
+                ("ann", "party"),
+                ("ann", "talk"),
+                ("bob", "party"),
+                ("bob", "talk"),
+                ("cy", "talk"),
+                ("cy", "game"),
+            ]
+        )
+        red = g.node_redundancy(nodes=["ann", "cy"])
+        assert list(red.values()) == [1.0, 0.0]
+        with pytest.raises(ValueError, match="fewer than two"):
+            g.node_redundancy(nodes=["game"])
+        with pytest.raises(ValueError, match="mode"):
+            g.latapy_clustering(mode="median")
+        with pytest.raises(ValueError, match="not bipartite"):
+            ec.Graph().add_cycle_graph(3).latapy_clustering()
+        with pytest.raises(ValueError, match="duplicates"):
+            g.is_bipartite_node_set(["ann", "ann"])
+        with pytest.raises(ValueError, match="weighting"):
+            g.bipartite_projection(weighting="cosine")
+        with pytest.raises(ValueError, match="each side"):
+            g.birank(top_nodes=list(g.get_node_ids(limit=None)))
