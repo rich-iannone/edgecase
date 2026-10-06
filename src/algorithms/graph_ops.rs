@@ -59,7 +59,9 @@ fn merge_attrs(
 }
 
 /// (source, target, weight, attributes) of an edge being merged by `merge_graphs`.
-type MergedEdge = (u64, u64, Option<f64>, Option<Py<PyDict>>);
+/// (id, source, target, weight, attributes); id is the first g1 edge's ID, or 0 for a pair only
+/// g2 has (numbered from g1's next edge ID when added)
+type MergedEdge = (u64, u64, u64, Option<f64>, Option<Py<PyDict>>);
 
 fn node_attrs(g: &Graph, id: u64) -> Option<Py<PyDict>> {
     g.get_node(id).and_then(|n| n.attributes)
@@ -130,7 +132,7 @@ fn merge_graphs(
     let mut order: Vec<(u64, u64)> = Vec::new();
     let mut merged: FxHashMap<(u64, u64), MergedEdge> =
         FxHashMap::default();
-    for (g, is_hi) in [(g1, !prefer_g2), (g2, prefer_g2)] {
+    for (from_g1, g, is_hi) in [(true, g1, !prefer_g2), (false, g2, prefer_g2)] {
         for edge in g.get_edges_internal() {
             if !result.has_node_id(edge.source) || !result.has_node_id(edge.target) {
                 continue;
@@ -139,26 +141,34 @@ fn merge_graphs(
             match merged.get_mut(&key) {
                 None => {
                     order.push(key);
+                    // g1 is scanned first, so its edges keep their IDs and g2-only pairs get
+                    // fresh IDs above every g1 ID
+                    let id = if from_g1 { edge.id } else { 0 };
                     merged.insert(
                         key,
-                        (edge.source, edge.target, edge.weight, copy_attrs(py, &edge.attributes)?),
+                        (id, edge.source, edge.target, edge.weight, copy_attrs(py, &edge.attributes)?),
                     );
                 }
                 Some(entry) => {
                     if is_hi {
-                        entry.2 = edge.weight.or(entry.2);
-                        entry.3 = merge_attrs(py, &entry.3, &edge.attributes)?;
+                        entry.3 = edge.weight.or(entry.3);
+                        entry.4 = merge_attrs(py, &entry.4, &edge.attributes)?;
                     } else {
-                        entry.2 = entry.2.or(edge.weight);
-                        entry.3 = merge_attrs(py, &edge.attributes, &entry.3)?;
+                        entry.3 = entry.3.or(edge.weight);
+                        entry.4 = merge_attrs(py, &edge.attributes, &entry.4)?;
                     }
                 }
             }
         }
     }
+    let mut fresh_id = g1.next_edge_id_internal();
     for key in order {
-        let (source, target, weight, attributes) = merged.remove(&key).unwrap();
-        result.add_edge_rust(Edge { id: 0, source, target, weight, attributes })?;
+        let (mut id, source, target, weight, attributes) = merged.remove(&key).unwrap();
+        if id == 0 {
+            id = fresh_id;
+            fresh_id += 1;
+        }
+        result.add_edge_rust(Edge { id, source, target, weight, attributes })?;
     }
 
     Ok(result)
@@ -234,7 +244,7 @@ pub fn graph_intersection(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Gr
             nodes_to_add.insert(edge.source);
             nodes_to_add.insert(edge.target);
             edges_to_add.push(Edge {
-                id: 0,
+                id: edge.id,
                 source: edge.source,
                 target: edge.target,
                 weight: edge.weight.or(other.weight),
@@ -297,7 +307,7 @@ pub fn graph_difference(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Grap
             nodes_to_add.insert(edge.source);
             nodes_to_add.insert(edge.target);
             edges_to_add.push(Edge {
-                id: 0,
+                id: edge.id,
                 source: edge.source,
                 target: edge.target,
                 weight: edge.weight,
@@ -362,13 +372,22 @@ pub fn graph_symmetric_difference(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyR
     // Edges in exactly one graph keep that graph's values
     let mut nodes_to_add: FxHashSet<u64> = FxHashSet::default();
     let mut edges_to_add: Vec<Edge> = Vec::new();
-    for (g, other) in [(g1, &g2_edges), (g2, &g1_edges)] {
+    // G1's edges keep their IDs; G2's get fresh IDs above every G1 ID (so an ID never names
+    // a different edge than it does in G1)
+    let mut fresh_id = g1.next_edge_id_internal();
+    for (from_g1, g, other) in [(true, g1, &g2_edges), (false, g2, &g1_edges)] {
         for edge in g.get_edges_internal() {
             if !other.contains(&edge_key(edge.source, edge.target, directed)) {
                 nodes_to_add.insert(edge.source);
                 nodes_to_add.insert(edge.target);
+                let id = if from_g1 {
+                    edge.id
+                } else {
+                    fresh_id += 1;
+                    fresh_id - 1
+                };
                 edges_to_add.push(Edge {
-                    id: 0,
+                    id,
                     source: edge.source,
                     target: edge.target,
                     weight: edge.weight,
@@ -793,15 +812,15 @@ pub fn subgraph(graph: &Graph, nodes: Vec<u64>) -> PyResult<Graph> {
     // Map old node IDs to new node IDs
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
-    // Add nodes to the new graph, renumbered in ascending original-ID order (so
-    // the result doesn't depend on the order the IDs were passed in)
+    // Add nodes to the new graph in ascending ID order (so the result doesn't depend on
+    // the order the IDs were passed in), keeping their IDs
     let mut ordered: Vec<u64> = nodes.clone();
     ordered.sort_unstable();
     ordered.dedup();
     for &node_id in &ordered {
         if let Some(node) = graph.get_nodes().get(&node_id) {
             let new_node = Node {
-                id: 0, // Will be auto-assigned
+                id: node_id, // original ID kept
                 label: node.label.clone(),
                 attributes: copy_attrs_gil(&node.attributes)?,
             };
@@ -817,7 +836,7 @@ pub fn subgraph(graph: &Graph, nodes: Vec<u64>) -> PyResult<Graph> {
                 (node_map.get(&edge.source), node_map.get(&edge.target))
             {
                 let new_edge = Edge {
-                    id: 0,
+                    id: edge.id, // original ID kept
                     source: new_source,
                     target: new_target,
                     weight: edge.weight,
@@ -879,14 +898,13 @@ pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
     // Map old node IDs to new node IDs
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
-    // Add nodes to the new graph
-    // Renumber in ascending original-ID order (not hash order)
+    // Add nodes to the new graph in ascending ID order (not hash order), keeping their IDs
     let mut node_ids: Vec<u64> = node_ids.into_iter().collect();
     node_ids.sort_unstable();
     for &node_id in &node_ids {
         if let Some(node) = graph.get_nodes().get(&node_id) {
             let new_node = Node {
-                id: 0,
+                id: node_id, // original ID kept
                 label: node.label.clone(),
                 attributes: copy_attrs_gil(&node.attributes)?,
             };
@@ -902,7 +920,7 @@ pub fn edge_subgraph(graph: &Graph, edges: Vec<u64>) -> PyResult<Graph> {
                 (node_map.get(&edge.source), node_map.get(&edge.target))
             {
                 let new_edge = Edge {
-                    id: 0,
+                    id: edge.id, // original ID kept
                     source: new_source,
                     target: new_target,
                     weight: edge.weight,
