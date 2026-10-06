@@ -1,6 +1,6 @@
 //! Graph structure and decomposition algorithms
 
-use crate::graph::{Edge, Graph, Node};
+use crate::graph::{Edge, Graph};
 use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 
@@ -24,11 +24,7 @@ pub fn k_core(graph: &Graph, k: usize) -> PyResult<Graph> {
 
     // Add all nodes first
     for node in graph.get_nodes().values() {
-        let new_node = Node {
-            id: 0, // Will be auto-assigned
-            label: node.label.clone(),
-            attributes: None, // Simplified - no attribute cloning
-        };
+        let new_node = node.clone(); // same ID, label and (copied) attributes
         let new_id = core_graph.add_node_rust(new_node)?;
         node_map.insert(node.id, new_id);
     }
@@ -38,11 +34,11 @@ pub fn k_core(graph: &Graph, k: usize) -> PyResult<Graph> {
         if let (Some(&new_source), Some(&new_target)) =
             (node_map.get(&edge.source), node_map.get(&edge.target)) {
             let new_edge = Edge {
-                id: 0, // Will be auto-assigned
+                id: edge.id,
                 source: new_source,
                 target: new_target,
                 weight: edge.weight,
-                attributes: None, // Simplified - no attribute cloning
+                attributes: edge.clone().attributes,
             };
             core_graph.add_edge_rust(new_edge)?;
         }
@@ -90,11 +86,7 @@ pub fn k_shell(graph: &Graph, k: usize) -> PyResult<Graph> {
     for (node_id, &core_value) in coreness.iter() {
         if core_value == k {
             if let Some(node) = graph.get_node(*node_id) {
-                let new_node = Node {
-                    id: 0,
-                    label: node.label.clone(),
-                    attributes: None,
-                };
+                let new_node = node.clone(); // same ID, label and (copied) attributes
                 let new_id = shell_graph.add_node_rust(new_node)?;
                 node_map.insert(*node_id, new_id);
             }
@@ -106,11 +98,11 @@ pub fn k_shell(graph: &Graph, k: usize) -> PyResult<Graph> {
         if let (Some(&new_source), Some(&new_target)) =
             (node_map.get(&edge.source), node_map.get(&edge.target)) {
             let new_edge = Edge {
-                id: 0,
+                id: edge.id,
                 source: new_source,
                 target: new_target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             shell_graph.add_edge_rust(new_edge)?;
         }
@@ -140,11 +132,7 @@ pub fn k_crust(graph: &Graph, k: usize) -> PyResult<Graph> {
     for (node_id, &core_value) in coreness.iter() {
         if core_value <= k {
             if let Some(node) = graph.get_node(*node_id) {
-                let new_node = Node {
-                    id: 0,
-                    label: node.label.clone(),
-                    attributes: None,
-                };
+                let new_node = node.clone(); // same ID, label and (copied) attributes
                 let new_id = crust_graph.add_node_rust(new_node)?;
                 node_map.insert(*node_id, new_id);
             }
@@ -156,11 +144,11 @@ pub fn k_crust(graph: &Graph, k: usize) -> PyResult<Graph> {
         if let (Some(&new_source), Some(&new_target)) =
             (node_map.get(&edge.source), node_map.get(&edge.target)) {
             let new_edge = Edge {
-                id: 0,
+                id: edge.id,
                 source: new_source,
                 target: new_target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             crust_graph.add_edge_rust(new_edge)?;
         }
@@ -220,11 +208,7 @@ pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
 
     // Add all nodes
     for node in graph.get_nodes().values() {
-        let new_node = Node {
-            id: 0,
-            label: node.label.clone(),
-            attributes: None,
-        };
+        let new_node = node.clone(); // same ID, label and (copied) attributes
         let new_id = truss_graph.add_node_rust(new_node)?;
         node_map.insert(node.id, new_id);
     }
@@ -234,11 +218,11 @@ pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
         if let (Some(&new_source), Some(&new_target)) =
             (node_map.get(&edge.source), node_map.get(&edge.target)) {
             let new_edge = Edge {
-                id: 0,
+                id: edge.id,
                 source: new_source,
                 target: new_target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             truss_graph.add_edge_rust(new_edge)?;
         }
@@ -332,11 +316,7 @@ pub fn k_corona(graph: &Graph, k: usize) -> PyResult<Graph> {
     // Add corona nodes
     for &node_id in &corona_nodes {
         if let Some(node) = graph.get_node(node_id) {
-            let new_node = Node {
-                id: 0,
-                label: node.label.clone(),
-                attributes: None,
-            };
+            let new_node = node.clone(); // same ID, label and (copied) attributes
             let new_id = corona_graph.add_node_rust(new_node)?;
             node_map.insert(node_id, new_id);
         }
@@ -348,11 +328,11 @@ pub fn k_corona(graph: &Graph, k: usize) -> PyResult<Graph> {
             (node_map.get(&edge.source), node_map.get(&edge.target))
         {
             let new_edge = Edge {
-                id: 0,
+                id: edge.id,
                 source: new_source,
                 target: new_target,
                 weight: edge.weight,
-                attributes: None,
+                attributes: edge.clone().attributes,
             };
             corona_graph.add_edge_rust(new_edge)?;
         }
