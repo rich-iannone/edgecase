@@ -504,6 +504,164 @@ def dfs_postorder_nodes(s: Scene) -> None:
                     title="finish order")
 
 
+
+# --- search trees as dictionaries ------------------------------------------------
+#
+# The predecessor / successor maps follow their docstrings' four-node trees, laid out
+# left to right by depth from A (`soft`). Every edge is a tree edge, drawn as an
+# accent arrow in the direction of the returned mapping: child to parent for the
+# *_predecessors maps, parent to child for the *_successors maps. Filled badges
+# give the discovery order; the card is the returned dict. Results are asserted.
+
+BFS4 = {"A": (0, 0.6), "B": (1.4, 0), "C": (1.4, 1.2), "D": (2.8, 1.2)}
+BFS4_EDGES = [("A", "B"), ("A", "C"), ("C", "D")]
+DFS4 = {"A": (0, 0.6), "B": (1.4, 0), "C": (2.8, 0), "D": (1.4, 1.2)}
+DFS4_EDGES = [("A", "B"), ("B", "C"), ("A", "D")]
+
+
+def _labelled(nodes, edges, directed: bool = False):
+    import edgecase as ec
+
+    g = ec.Graph(directed=directed).add_nodes(list(nodes))
+    g.add_edges(edges)
+    return g, g.get_label_from_id
+
+
+def _tree_map(s: Scene, call: str, coords: dict, edges: list, mapping: dict, *,
+              to_parent: bool) -> None:
+    left, right = compute(s, "g", call)
+    pos = place(coords, left, unit=UNIT)
+    arcs = [(b, a) if to_parent else (a, b) for a, b in edges]
+    s.graph(pos, [(a, b, {"style": "accent", "directed": True}) for a, b in arcs],
+            styles={"A": "soft"})
+    for i, k in enumerate(coords, 1):
+        s.badge(k, str(i), filled=True)
+    if to_parent:
+        lines = [(f"{c} → {p}", "accent") for c, p in mapping.items()]
+        title = "child → parent"
+    else:
+        lines = [(f"{p} → [{', '.join(cs)}]", "accent") for p, cs in mapping.items()]
+        title = "parent → children"
+    s.card_centered(right, lines, title=title)
+
+
+@figure("bfs_predecessors", "traversal", "BFS predecessors",
+        "A four-node tree searched breadth-first from A (outlined): A joins B and C, and C "
+        "joins D. Each accent arrow points from a node back to the parent it was discovered "
+        "from, and numbered badges give the discovery order. The card maps B to A, C to A, "
+        "and D to C.")
+def bfs_predecessors(s: Scene) -> None:
+    g, lab = _labelled(BFS4, BFS4_EDGES)
+    pred = {lab(c): lab(p) for c, p in g.bfs_predecessors("A").items()}
+    assert pred == {"B": "A", "C": "A", "D": "C"}
+    _tree_map(s, 'g.bfs_predecessors("A")', BFS4, BFS4_EDGES, pred, to_parent=True)
+
+
+@figure("bfs_successors", "traversal", "BFS successors",
+        "The same four-node tree searched breadth-first from A (outlined). Each accent arrow "
+        "points from a parent to a child it discovered, and numbered badges give the "
+        "discovery order. The card maps A to its children B and C, and C to D; the leaves B "
+        "and D are not keys.")
+def bfs_successors(s: Scene) -> None:
+    g, lab = _labelled(BFS4, BFS4_EDGES)
+    succ = {lab(p): [lab(c) for c in cs] for p, cs in g.bfs_successors("A").items()}
+    assert succ == {"A": ["B", "C"], "C": ["D"]}
+    _tree_map(s, 'g.bfs_successors("A")', BFS4, BFS4_EDGES, succ, to_parent=False)
+
+
+@figure("dfs_predecessors", "traversal", "DFS predecessors",
+        "A four-node tree searched depth-first from A (outlined): A joins B and D, and B "
+        "joins C. The search runs A, B, C before backing up to D, as the numbered badges "
+        "show, and each accent arrow points from a node back to its parent. The card maps B "
+        "to A, C to B, and D to A.")
+def dfs_predecessors(s: Scene) -> None:
+    g, lab = _labelled(DFS4, DFS4_EDGES)
+    pred = {lab(c): lab(p) for c, p in g.dfs_predecessors("A").items()}
+    assert pred == {"B": "A", "C": "B", "D": "A"}
+    _tree_map(s, 'g.dfs_predecessors("A")', DFS4, DFS4_EDGES, pred, to_parent=True)
+
+
+@figure("dfs_successors", "traversal", "DFS successors",
+        "The same four-node tree searched depth-first from A (outlined). Each accent arrow "
+        "points from a parent to a child it discovered, and numbered badges give the visit "
+        "order A, B, C, D. The card maps A to its children B and D, and B to C.")
+def dfs_successors(s: Scene) -> None:
+    g, lab = _labelled(DFS4, DFS4_EDGES)
+    succ = {lab(p): [lab(c) for c in cs] for p, cs in g.dfs_successors("A").items()}
+    assert succ == {"A": ["B", "D"], "B": ["C"]}
+    _tree_map(s, 'g.dfs_successors("A")', DFS4, DFS4_EDGES, succ, to_parent=False)
+
+
+# descendants_at_distance docstring tree, in columns by hop distance from A.
+HOPS = {"A": (0, 0.8), "B": (1.4, 0.8), "C": (2.8, 0), "D": (2.8, 1.6), "E": (4.2, 1.6)}
+HOPS_EDGES = [("A", "B"), ("B", "C"), ("B", "D"), ("D", "E")]
+
+
+@figure("descendants_at_distance", "traversal", "Descendants at distance",
+        "A five-node tree laid out in columns by hop distance from A (outlined), from d=0 to "
+        "d=3: A joins B, B joins C and D, and D joins E. C and D, exactly two hops away, are "
+        "shaded in the accent color with the edges that reach them; E, three hops away, is "
+        "faded. The card lists C, D.")
+def descendants_at_distance(s: Scene) -> None:
+    g, lab = _labelled(HOPS, HOPS_EDGES)
+    found = sorted(lab(n) for n in g.descendants_at_distance("A", 2))
+    assert found == ["C", "D"]
+    left, right = compute(s, "g", 'g.descendants_at_distance("A", 2)')
+    pos = place(HOPS, Box(left.x0, left.y0 + 22, left.x1, left.y1), unit=UNIT)
+    s.graph(pos, [(a, b, {"style": "muted" if b == "E" else "accent"}) for a, b in HOPS_EDGES],
+            styles={"A": "soft", "C": "accent", "D": "accent", "E": "muted"})
+    s.hull(found)
+    for depth, k in enumerate("ABCE"):
+        s.text(pos[k][0], 20, f"d={depth}", size=SIZE_NOTE, opacity=0.55)
+    s.card_centered(right, [("  ".join(found), "accent")], title="exactly 2 hops from A")
+
+
+# edge_bfs / edge_dfs docstrings: a directed triangle (edge_dfs adds A -> C, the
+# reverse of C -> A, so that pair is bowed apart). Every edge is visited, so all are
+# accent, numbered in visit order; the card sets the tree-only bfs_edges / dfs_edges
+# beside the list.
+TRI3 = {"A": (0, 0.7), "B": (1.6, 0), "C": (1.6, 1.4)}
+
+
+def _edge_order(s: Scene, call: str, edges: list, tree_call: str) -> list:
+    g, lab = _labelled(TRI3, edges, directed=True)
+    method = call.split("(")[0].removeprefix("g.")
+    order = [(lab(u), lab(v)) for u, v, _ in getattr(g, method)("A")]
+    tree = [(lab(u), lab(v)) for u, v in getattr(g, tree_call)("A")]
+    left, right = compute(s, "g", call)
+    rank = {e: i for i, e in enumerate(order, 1)}
+    pair = {frozenset(e) for e in edges if (e[1], e[0]) in edges}
+    s.graph(place(TRI3, left, unit=UNIT * 1.2),
+            [(a, b, {"style": "accent", "weight": str(rank[(a, b)]),
+                     **({"bend": 10} if frozenset((a, b)) in pair else {})}) for a, b in edges],
+            directed=True, styles={"A": "soft"})
+    tree_s = " ".join(f"({a}, {b})" for a, b in tree)
+    s.card_centered(right, [(f"{i}  ({a}, {b})", "accent") for (a, b), i in rank.items()]
+                    + [f"{tree_call}()  {tree_s}"], title="edges in visit order")
+    return order
+
+
+@figure("edge_bfs", "traversal", "Edge BFS",
+        "A directed triangle A to B to C and back to A, searched from A (outlined). Every "
+        "edge is visited once, numbered in visit order on the accent arrows: 1 A to B, 2 B "
+        "to C, and 3 C to A, which closes the cycle. The card lists the three edges beside "
+        "bfs_edges, which keeps only the two tree edges (A, B) and (B, C).")
+def edge_bfs(s: Scene) -> None:
+    order = _edge_order(s, 'g.edge_bfs("A")', [("A", "B"), ("B", "C"), ("C", "A")], "bfs_edges")
+    assert order == [("A", "B"), ("B", "C"), ("C", "A")]
+
+
+@figure("edge_dfs", "traversal", "Edge DFS",
+        "The directed triangle A to B to C to A plus a fourth edge A to C, searched "
+        "depth-first from A (outlined). The numbered accent arrows give the visit order: the "
+        "search dives A to B, B to C and C back to A, then takes the remaining edge A to C "
+        "fourth. The card lists the four edges beside dfs_edges, which keeps only (A, B) "
+        "and (B, C).")
+def edge_dfs(s: Scene) -> None:
+    order = _edge_order(s, 'g.edge_dfs("A")',
+                        [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")], "dfs_edges")
+    assert order == [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")]
+
 # --- later additions: dominators -------------------------------------------
 #
 # The dominator docstrings' if/else control-flow graph, left to right.
