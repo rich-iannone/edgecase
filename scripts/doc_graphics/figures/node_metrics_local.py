@@ -16,6 +16,10 @@ The three `bipartite_*` centralities share ONE small bipartite graph
 (`BIP`) drawn as two rows: the opposite side `g2` (as in `is_bipartite`),
 the scored side (`which=1`, the bottom row, since partition 0 holds A, the lowest id) heat-shaded. Every
 number is what edgecase returns for the depicted graph (rounded to 2 decimals).
+The two-mode measures from the docstrings (latapy_clustering, node_redundancy,
+birank) draw people / events or customers / products with `two_rows`: empty
+circles named outside their row, events `g2`, scored nodes heat-shaded, each
+figure asserting its values with edgecase.
 
 `effective_size` (the flip side of `constraint`) and `local_constraint` (one
 term of it, the queried pair `soft`, the mutual contact and the paths through
@@ -207,6 +211,128 @@ def bipartite_closeness_centrality(s: Scene) -> None:
 def bipartite_betweenness_centrality(s: Scene) -> None:
     _bipartite(s, "g.bipartite_betweenness_centrality(1)", "score",
                {"E": 1.33, "F": 2.5, "G": 0.0})
+
+
+# --- two-mode metrics on the docstrings' people / events graphs ----------------------
+#
+# Long names do not fit in a circle, so these graphs draw empty circles in two rows
+# with each name set outside its row (above the top row, below the bottom row) and
+# the row's side named at its left end. `two_rows` is shared with the other
+# bipartite figures (robins_alexander_clustering, biadjacency_matrix,
+# is_bipartite_node_set).
+
+PEOPLE = ["ann", "bob", "cy"]
+EVENTS = ["party", "talk", "game"]
+ATTENDS = [("ann", "party"), ("ann", "talk"), ("bob", "party"), ("bob", "talk"), ("cy", "talk"),
+           ("cy", "game")]
+
+
+def two_rows(s: Scene, box: Box, top: list[str], bottom: list[str], edges: list, *,
+             styles: dict | None = None, heat: dict | None = None, prefix: str = "",
+             sides: tuple[str, str] | None = None, labels: bool = False,
+             unit: float = UNIT) -> dict:
+    """A bipartite graph as two rows, `top` above `bottom`, names outside the rows."""
+    from figures.similarity import _name
+
+    styles = styles or {}
+    coords = {k: (i * 1.4 - (len(top) - 1) * 0.7, 0) for i, k in enumerate(top)}
+    coords.update({k: (i * 1.4 - (len(bottom) - 1) * 0.7, 1.25) for i, k in enumerate(bottom)})
+    gb = box if labels else Box(box.x0, box.y0 + 16, box.x1, box.y1 - 16)
+    pos = place(coords, gb, unit=unit)
+    s.graph(pos, edges, styles=styles, heat=heat, labels=labels, prefix=prefix)
+    if not labels:
+        for k in coords:
+            st = styles.get(k, "default")
+            color = {"g2": "g2", "default": "ink", "muted": "ink"}.get(st, "accent")
+            _name(s, prefix + k, k, "n" if k in top else "s", color)
+    if sides:
+        x = min(p[0] for p in pos.values()) - 34
+        for name, k in zip(sides, (top[0], bottom[0])):
+            s.text(x, pos[k][1], name, size=SIZE_NOTE, anchor="end", opacity=0.6)
+    return pos
+
+
+def _attendance():
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(PEOPLE + EVENTS)
+    g.add_edges(ATTENDS)
+    return g
+
+
+@figure("latapy_clustering", "node-metrics", "Latapy bipartite clustering",
+        "People ann, bob and cy on top and the events party, talk and game below, all "
+        "teal. Each person is shaded by the mean Jaccard overlap of their events with "
+        "those of the people two steps away. ann and bob attended the same two events "
+        "(overlap 1) and share one of cy's three (1/3), so both score 0.67; cy overlaps each "
+        "of them by 1/3 and scores 0.33.")
+def latapy_clustering(s: Scene) -> None:
+    g = _attendance()
+    cc = {g.get_label_from_id(n): round(c, 3)
+          for n, c in g.latapy_clustering(nodes=PEOPLE).items()}
+    assert cc == {"ann": 0.667, "bob": 0.667, "cy": 0.333}
+    left, right = compute(s, "g", "g.latapy_clustering(nodes=people)")
+    two_rows(s, left, PEOPLE, EVENTS, ATTENDS,
+             styles={**dict.fromkeys(EVENTS, "g2"), "ann": "accent", "bob": "accent"},
+             heat={k: v / 0.667 for k, v in cc.items()}, sides=("people", "events"))
+    rows = [["node", "overlaps", "score"], ["ann, bob", "1, 1/3", "0.67"],
+            ["cy", "1/3, 1/3", "0.33"]]
+    _, y0, _, _ = s.table_centered(Box(right.x0, right.y0 + 12, right.x1, right.y1), rows,
+                                   [72, 72, 56], highlight={(1, j): "accent" for j in range(3)})
+    s.text(right.cx, y0 - 12, "mean Jaccard at distance 2", size=SIZE_NOTE, opacity=0.6)
+
+
+@figure("node_redundancy", "node-metrics", "Node redundancy",
+        "The same people and events graph. ann attended party and talk, and bob attended "
+        "both too, so the pair stays linked without ann: ann scores 1.0, and bob, covered "
+        "by ann, also 1.0. cy is the only one at both talk and game, so the edges joining "
+        "them, in the accent color, are the pair's sole link and cy scores 0.0.")
+def node_redundancy(s: Scene) -> None:
+    g = _attendance()
+    red = {g.get_label_from_id(n): r for n, r in g.node_redundancy(nodes=PEOPLE).items()}
+    assert red == {"ann": 1.0, "bob": 1.0, "cy": 0.0}
+    left, right = compute(s, "g", "g.node_redundancy(nodes=people)")
+    broker = {("cy", "talk"), ("cy", "game")}
+    two_rows(s, left, PEOPLE, EVENTS,
+             [(a, b, {"style": "accent"}) if (a, b) in broker else (a, b) for a, b in ATTENDS],
+             styles={**dict.fromkeys(EVENTS, "g2"), "ann": "accent", "bob": "accent"},
+             heat=red, sides=("people", "events"))
+    rows = [["node", "event pair", "via", "score"], ["ann", "party, talk", "bob", "1.0"],
+            ["bob", "party, talk", "ann", "1.0"], ["cy", "talk, game", "none", "0.0"]]
+    hl = {(i, j): "accent" for i in (1, 2) for j in (0, 3)}
+    _, y0, _, _ = s.table_centered(Box(right.x0, right.y0 + 12, right.x1, right.y1), rows,
+                                   [44, 88, 44, 44], highlight=hl)
+    s.text(right.cx, y0 - 12, "pairs also linked by another", size=SIZE_NOTE, opacity=0.6)
+
+
+# birank docstring: ann and bob each bought tea plus one other product, cy only tea.
+# Customers run ann, cy, bob so that no two edges cross.
+CUSTOMERS = ["ann", "cy", "bob"]
+PRODUCTS = ["jam", "tea", "bread"]
+BOUGHT = [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "bread"), ("cy", "tea")]
+
+
+@figure("birank", "node-metrics", "BiRank",
+        "Customers ann, cy and bob on top and products jam, tea and bread below, every "
+        "node shaded by its BiRank score; each side sums to 1. tea, bought by all three, "
+        "is the top product at 0.464, ahead of jam and bread at 0.268, and ann and bob, who "
+        "bought tea plus one more, lead the customers at 0.369, ahead of cy at 0.261.")
+def birank(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(["ann", "bob", "cy", "tea", "jam", "bread"])
+    g.add_edges(BOUGHT)
+    sc = {g.get_label_from_id(n): round(v, 3)
+          for n, v in g.birank(top_nodes=["ann", "bob", "cy"]).items()}
+    assert sc == {"ann": 0.369, "bob": 0.369, "cy": 0.261, "tea": 0.464, "jam": 0.268,
+                  "bread": 0.268}
+    left, right = compute(s, "g", "g.birank(top_nodes=customers)")
+    two_rows(s, left, CUSTOMERS, PRODUCTS, BOUGHT,
+             styles={"ann": "accent", "bob": "accent", "tea": "accent"},
+             heat={k: v / 0.464 for k, v in sc.items()}, sides=("customers", "products"))
+    rows = [["customer", "score", "product", "score"], ["ann, bob", "0.369", "tea", "0.464"],
+            ["cy", "0.261", "jam, bread", "0.268"]]
+    s.table_centered(right, rows, [64, 48, 76, 48], highlight={(1, j): "accent" for j in range(4)})
 
 
 # --- structural holes on the shared strip graph --------------------------------------
