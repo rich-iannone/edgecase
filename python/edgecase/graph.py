@@ -978,7 +978,10 @@ class Graph:
         self._steps.baseline = (
             sorted(self._node_label(n) for n in self.get_node_ids(limit=None)),
             sorted(
-                {(self._node_label(s), self._node_label(t)) for _, s, t in self.get_edges_as_tuples()}
+                {
+                    (self._node_label(s), self._node_label(t))
+                    for _, s, t in self.get_edges_as_tuples()
+                }
             ),
         )
         self._pending_note = None
@@ -2551,10 +2554,10 @@ class Graph:
         - cutting away a neighborhood reached by a traversal
 
         After deletion the removed nodes are no longer part of the node selection (it ends up
-        empty), and their removed edges are no longer part of the edge selection. If no nodes are selected, the call does nothing. The graph is modified in place
-        and, when at least one node is removed, the deletion is recorded as a single step in the
-        step log (see `steps`). To delete just the selected edges while keeping all nodes, use
-        `delete_edges_ws()`.
+        empty), and their removed edges are no longer part of the edge selection. If no nodes are
+        selected, the call does nothing. The graph is modified in place and, when at least one node
+        is removed, the deletion is recorded as a single step in the step log (see `steps`). To
+        delete just the selected edges while keeping all nodes, use `delete_edges_ws()`.
 
         Returns
         -------
@@ -4328,11 +4331,11 @@ class Graph:
         - modelling linear structures like pipelines, supply chains, or sequences of events
         - adding a "tail" or chain onto another structure
 
-        Each node is labelled with its own node ID as a string: in an empty graph they are `"1"`
-        to `"n"`, and if the graph already has 3 nodes they are `"4"` to `"n + 3"`. In a directed graph the edges point from each node to
-        the next. The path is added as a new, separate component; it isn't connected to any
-        existing nodes. The graph is modified in place, and the whole construction is recorded as
-        a single step in the step log (see `steps`).
+        Each node is labelled with its own node ID as a string: in an empty graph they are `"1"` to
+        `"n"`, and if the graph already has 3 nodes they are `"4"` to `"n + 3"`. In a directed graph
+        the edges point from each node to the next. The path is added as a new, separate component;
+        it isn't connected to any existing nodes. The graph is modified in place, and the whole
+        construction is recorded as a single step in the step log (see `steps`).
 
         Parameters
         ----------
@@ -8464,14 +8467,13 @@ class Graph:
         - gene-gene networks from gene-disease associations (genes linked by shared diseases)
         - product similarity from customer purchase data
 
-        The result is a *new* graph; the original graph is left unchanged. The projection is
-        always undirected and weighted. Each node keeps its label (nodes without a label are
-        labelled with their original node ID as a string), but node IDs are reassigned and other
-        node attributes are not carried over. Nodes of the chosen partition that share no neighbor
-        with any other node still appear, as isolated nodes. Note that projections can be much
-        denser than the original graph: a node in the other partition with *d* neighbors creates
-        up to *d(d - 1)/2* projected edges. On directed graphs edge direction is ignored, both for
-        the partitioning and for which nodes count as shared neighbors.
+        The result is a *new* graph; the original graph is left unchanged. The projection is always
+        undirected and weighted. Each node keeps its ID, label and attributes from the original
+        graph; the edges are new, so they get fresh IDs. Nodes of the chosen partition that share no
+        neighbor with any other node still appear, as isolated nodes. Note that projections can be
+        much denser than the original graph: a node in the other partition with *d* neighbors
+        creates up to *d(d - 1)/2* projected edges. On directed graphs edge direction is ignored,
+        both for the partitioning and for which nodes count as shared neighbors.
 
         Parameters
         ----------
@@ -8567,17 +8569,15 @@ class Graph:
 
         proj = Graph(directed=False, weighted=True)
 
-        for node_id in project_nodes:
-            label = self.get_label_from_id(node_id)
-            if label is not None:
-                proj.add_node(label)
-            else:
-                proj.add_node(str(node_id))
+        # Nodes keep their IDs, labels and attributes (get_node() returns a copy)
+        for node_id in sorted(project_nodes):
+            node = self.get_node(node_id)
+            proj._graph.add_node(
+                rust.Node(id=node_id, label=node.label, attributes=node.attributes)
+            )
 
         for source_id, target_id, weight in edges:
-            source_label = self.get_label_from_id(source_id) or str(source_id)
-            target_label = self.get_label_from_id(target_id) or str(target_id)
-            proj.add_edge(source_label, target_label, weight=weight)
+            proj.add_edge(source_id, target_id, weight=weight)
 
         return proj
 
@@ -10654,8 +10654,8 @@ class Graph:
         The `"out"` list has one entry per edge, so a node joined by parallel edges appears more
         than once, and a self-loop lists the node itself (twice in an undirected graph). Wrap the
         result in `set()` if you need distinct neighbors. In undirected graphs all three modes
-        return the same `"out"` list. On directed graphs `"in"` and `"all"` scan every edge, so
-        they are slower than `"out"` on large graphs; `get_predecessors()` and `get_successors()` are
+        return the same `"out"` list. On directed graphs `"in"` and `"all"` scan every edge, so they
+        are slower than `"out"` on large graphs; `get_predecessors()` and `get_successors()` are
         dedicated alternatives for directed graphs. The current selection is ignored.
 
         Parameters
@@ -11514,9 +11514,10 @@ class Graph:
         Parameters
         ----------
         node_ids
-            A list of integer node IDs to add to the selection. Every ID must belong to an
-            existing node; a missing ID raises `KeyError` and nothing is selected. Strings (labels) are rejected with a `TypeError`. An empty list is allowed
-            and leaves the selection unchanged.
+            A list of integer node IDs to add to the selection. Every ID must belong to an existing
+            node; a missing ID raises `KeyError` and nothing is selected. Strings (labels) are
+            rejected with a `TypeError`. An empty list is allowed and leaves the selection
+            unchanged.
 
         Returns
         -------
@@ -11613,8 +11614,9 @@ class Graph:
         Parameters
         ----------
         edge_ids
-            A list of integer edge IDs to add to the selection. Every ID must belong to an
-            existing edge; a missing ID raises `KeyError` and nothing is selected. An empty list is allowed and leaves the selection unchanged.
+            A list of integer edge IDs to add to the selection. Every ID must belong to an existing
+            edge; a missing ID raises `KeyError` and nothing is selected. An empty list is allowed
+            and leaves the selection unchanged.
 
         Returns
         -------
@@ -12194,12 +12196,12 @@ class Graph:
         - targeted-attack robustness experiments, deleting the top hubs with
           `delete_nodes_ws()` and measuring how the graph falls apart
 
-        The measures differ in what "important" means: degree counts direct connections,
-        PageRank rewards links from other important nodes, and betweenness rewards nodes that
-        sit on many shortest paths. Degree-based measures are cheap; betweenness computes
-        all-pairs shortest paths and can be slow on large graphs. The scores are only used for
-        ranking; no node attribute is written. Selection is cumulative, so call
-        `clear_selection()` first to start fresh. The graph is modified in place and returned for chaining.
+        The measures differ in what "important" means: degree counts direct connections, PageRank
+        rewards links from other important nodes, and betweenness rewards nodes that sit on many
+        shortest paths. Degree-based measures are cheap; betweenness computes all-pairs shortest
+        paths and can be slow on large graphs. The scores are only used for ranking; no node
+        attribute is written. Selection is cumulative, so call `clear_selection()` first to start
+        fresh. The graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -22189,8 +22191,8 @@ class Graph:
         Node IDs, labels, and node attributes are carried over unchanged. Every directed edge
         becomes an undirected edge with its weight and attributes. When both `A -> B` and
         `B -> A` exist, only the first one added is kept, so the weight and attributes of the
-        reverse edge are discarded rather than combined. Edge IDs in the new graph are reassigned
-        sequentially. The original graph is not modified.
+        reverse edge are discarded rather than combined. Node and kept edge IDs are the same as
+        in the original. The original graph is not modified.
 
         Returns
         -------
@@ -22280,9 +22282,10 @@ class Graph:
           `compose()`, which require matching directedness
 
         Node IDs, labels, and node attributes are carried over unchanged. Both arcs created from
-        an undirected edge get that edge's weight and attributes. Edge IDs in the new graph are
-        reassigned sequentially, so an undirected graph with `m` edges becomes a directed graph
-        with `2m` edges. The original graph is not modified.
+        an undirected edge get that edge's weight and attributes, so an undirected graph with
+        `m` edges becomes a directed graph with `2m` edges. The arc in each edge's stored
+        direction keeps the edge's ID; the reverse arcs are new edges with fresh IDs, listed after
+        all the originals. The original graph is not modified.
 
         Returns
         -------
@@ -22365,9 +22368,8 @@ class Graph:
           into "is cited by")
         - algorithms that need the transpose, such as Kosaraju's strongly connected components
 
-        Node IDs, labels, node attributes, edge weights, and edge attributes are carried over
-        unchanged. Edge IDs in the new graph are reassigned sequentially. The original graph is
-        not modified.
+        Node and edge IDs, labels, weights, and attributes are carried over unchanged (each edge
+        keeps its ID, just pointing the other way). The original graph is not modified.
 
         Returns
         -------
@@ -22940,10 +22942,11 @@ class Graph:
         - merging duplicate records of the same entity (entity resolution)
         - simplifying a dense cluster before layout or further analysis
 
-        Edges that end up connecting the same pair of nodes after merging are collapsed into
-        one (the first one found keeps its weight and attributes), and all edges inside the group
+        Edges that end up connecting the same pair of nodes after merging are collapsed into one
+        (the first one found keeps its weight and attributes), and all edges inside the group
         collapse into at most one self-loop. The remaining nodes keep their IDs, labels and
-        attributes, and surviving edges keep their IDs. The original graph is not modified. To collapse *every* group of a partition in one step, use `quotient_graph()`.
+        attributes, and surviving edges keep their IDs. The original graph is not modified. To
+        collapse *every* group of a partition in one step, use `quotient_graph()`.
 
         Parameters
         ----------
@@ -23209,8 +23212,9 @@ class Graph:
         Because nodes are matched by ID, the two graphs must use a shared numbering for the same
         entities. If the numbering differs, use `disjoint_union()` (to keep everything separate)
         or rebuild one graph with matching IDs first. Isolated nodes from both graphs are kept.
-        Edge IDs in the result are reassigned. Neither input graph is modified. To let the other
-        graph's values win instead, use `compose()`.
+        Edges from this graph keep their IDs; edges only `other` has get fresh IDs above every
+        ID this graph has used. Neither input graph is modified. To let the other graph's
+        values win instead, use `compose()`.
 
         Parameters
         ----------
@@ -23332,7 +23336,7 @@ class Graph:
 
         Because nodes are matched by ID, both graphs must use the same numbering for the same
         entities. Nodes that are not part of any shared edge are dropped, even if both graphs
-        contain them. Edge IDs in the result are reassigned. Neither input graph is modified.
+        contain them. Edges keep this graph's IDs. Neither input graph is modified.
 
         Parameters
         ----------
@@ -23454,8 +23458,8 @@ class Graph:
         Nodes are matched by ID, so both graphs must use the same numbering for the same
         entities. Nodes that are not endpoints of a remaining edge are dropped, including nodes
         that were isolated in this graph. All remaining nodes and edges keep this graph's labels,
-        attributes, and weights; `other` contributes nothing but its edge set. Edge IDs in the
-        result are reassigned. Neither input graph is modified.
+        attributes, weights and edge IDs; `other` contributes nothing but its edge set. Neither
+        input graph is modified.
 
         Parameters
         ----------
@@ -23563,8 +23567,9 @@ class Graph:
         entities. Only endpoints of the remaining edges are kept. Each remaining edge keeps the
         weight and attributes from the graph it came from. The result does not record which
         graph an edge came from; call `difference()` in each direction when you need to
-        distinguish additions from removals. Edge IDs in the result are reassigned. Neither input
-        graph is modified.
+        distinguish additions from removals. Edges from this graph keep their IDs; edges from
+        `other` get fresh IDs above every ID this graph has used. Neither input graph is
+        modified.
 
         Parameters
         ----------
@@ -23670,8 +23675,9 @@ class Graph:
         - layering a more recent or more trusted data source over an older one
         - adding edges and refreshing attributes in a single step
 
-        Isolated nodes from both graphs are kept, and edge IDs in the result are reassigned.
-        Neither input graph is modified.
+        Isolated nodes from both graphs are kept. Edges from this graph keep their IDs; edges
+        only `other` has get fresh IDs above every ID this graph has used. Neither input graph
+        is modified.
 
         Parameters
         ----------
@@ -25056,12 +25062,14 @@ class Graph:
         - edges selected: include those edges plus their endpoint nodes
         - both selected: uses node selection (ignores edge selection)
 
-        All node and edge attributes are preserved in the subgraph.
+        Nodes and edges keep their IDs, labels, weights and attributes, so results can be
+        matched back to the original graph by ID.
 
         Returns
         -------
         Graph
-            New Graph object containing the subgraph. Has same directedness as original graph.
+            New Graph object containing the subgraph, with the same directedness and weighting as
+            the original graph. Empty if nothing is selected.
 
         Examples
         --------
@@ -25100,82 +25108,27 @@ class Graph:
         subgraph.count_nodes(), subgraph.count_edges()
         ```
         """
+        from edgecase._core import edge_subgraph, subgraph
+
         selected_nodes = self.get_selected_node_ids()
         selected_edges = self.get_selected_edge_ids()
 
-        # Create new graph with same directedness
-        subgraph = Graph(directed=self.is_directed())
-
-        if len(selected_nodes) > 0:
-            # Node-based subgraph: include selected nodes and edges between them
-            node_set = set(selected_nodes)
-
-            # Add nodes with their attributes
-            for node_id in selected_nodes:
-                node = self.get_node(node_id)
-                node_label = self.get_label_from_id(node_id)
-                if node and node.attributes:
-                    subgraph.add_node(label=node_label, **node.attributes)
-                else:
-                    subgraph.add_node(label=node_label)
-
-            # Add edges that connect selected nodes
-            for edge_id in self.get_edge_ids():
-                edge = self.get_edge(edge_id)
-                if edge and edge.source in node_set and edge.target in node_set:
-                    # Get labels for source and target (use labels, not original IDs)
-                    source_label = self.get_label_from_id(edge.source)
-                    target_label = self.get_label_from_id(edge.target)
-
-                    # Prepare edge attributes
-                    attrs = {}
-                    if edge.weight is not None:
-                        attrs["weight"] = edge.weight
-                    if edge.attributes:
-                        attrs.update(edge.attributes)
-                    subgraph.add_edge(source_label, target_label, **attrs)
-
-        elif len(selected_edges) > 0:
-            # Edge-based subgraph: include selected edges and their endpoints
-            nodes_to_add = set()
-            edges_to_add = []
-
-            # Collect nodes and edges
-            for edge_id in selected_edges:
-                edge = self.get_edge(edge_id)
-                if edge:
-                    nodes_to_add.add(edge.source)
-                    nodes_to_add.add(edge.target)
-                    edges_to_add.append(edge)
-
-            # Add nodes
-            for node_id in nodes_to_add:
-                node = self.get_node(node_id)
-                node_label = self.get_label_from_id(node_id)
-                if node and node.attributes:
-                    subgraph.add_node(label=node_label, **node.attributes)
-                else:
-                    subgraph.add_node(label=node_label)
-
-            # Add edges
-            for edge in edges_to_add:
-                # Get labels for source and target (use labels, not original IDs)
-                source_label = self.get_label_from_id(edge.source)
-                target_label = self.get_label_from_id(edge.target)
-
-                attrs = {}
-                if edge.weight is not None:
-                    attrs["weight"] = edge.weight
-                if edge.attributes:
-                    attrs.update(edge.attributes)
-                subgraph.add_edge(source_label, target_label, **attrs)
+        # Node and edge IDs, labels, weights and attributes are all kept
+        if selected_nodes:
+            # Node-based subgraph: selected nodes and the edges between them
+            result = Graph._from_rust(subgraph(self._graph, selected_nodes))
+        elif selected_edges:
+            # Edge-based subgraph: selected edges and their endpoints
+            result = Graph._from_rust(edge_subgraph(self._graph, selected_edges))
+        else:
+            result = Graph(directed=self.is_directed(), weighted=self.is_weighted())
 
         if self._recording_depth == 0:
             self._record_step(
                 KIND_TRANSFORM, "transform_to_subgraph_ws", "G.transform_to_subgraph_ws()"
             )
 
-        return subgraph
+        return result
 
     def subgraph(self, nodes: list[int]) -> "Graph":
         """
@@ -25195,9 +25148,9 @@ class Graph:
         - extracting the neighborhood of a node of interest for closer inspection or plotting
         - running an expensive algorithm on a manageable piece of a large graph
 
-        The original graph is not modified. Node IDs in the new graph are renumbered, so look
-        nodes up by label (or keep a mapping) rather than reusing the original IDs. The
-        selection state is not carried over.
+        The original graph is not modified. Nodes and edges keep their IDs, so results computed
+        on the subgraph can be matched back to the original by ID. The selection state is not
+        carried over.
 
         Parameters
         ----------
@@ -25210,8 +25163,7 @@ class Graph:
         -------
         Graph
             New graph containing only the specified nodes and edges between them. Preserves
-            directedness, weightedness, node labels and attributes, and edge weights and
-            attributes. Node IDs are renumbered from 1 in ascending order of the original IDs.
+            directedness, weightedness, and node and edge IDs, labels, weights and attributes.
 
         Raises
         ------
@@ -25264,9 +25216,8 @@ class Graph:
         k3.count_edges()
         ```
 
-        Labels, attributes, and weights travel with the nodes and edges, while IDs are
-        renumbered. Here `C` had ID `3` in the original graph and has ID `2` in the subgraph; the
-        `A--B` and `B--C` edges are gone because `B` was left out:
+        IDs, labels, attributes, and weights travel with the nodes and edges: `C` has ID `3` in
+        both graphs. The `A--B` and `B--C` edges are gone because `B` was left out:
 
         ```{python}
         g = ec.Graph(weighted=True)
@@ -25313,8 +25264,8 @@ class Graph:
         Distance follows the same rule as `shortest_path()`: hops on an unweighted graph, total
         edge weight on a weighted graph (`Graph(weighted=True)`), unless `weighted=` says
         otherwise. Note that with weights, `radius=` is a weight budget, not a hop count. Labels,
-        node attributes and edge attributes are kept in the new graph; as with `subgraph()`,
-        node IDs are renumbered from 1, so look nodes up by label.
+        node attributes and edge attributes are kept in the new graph and, as with
+        `subgraph()`, nodes and edges keep their IDs.
 
         This is a one-call version of `select_nodes_in_neighborhood()` followed by
         `transform_to_subgraph_ws()`, and leaves the current selection alone.
@@ -25461,8 +25412,8 @@ class Graph:
           they connect
         - extracting a path, tree, or matching found by another algorithm as its own graph
 
-        The original graph is not modified. Node IDs in the new graph are renumbered, and the
-        selection state is not carried over.
+        The original graph is not modified. Nodes and edges keep their IDs, and the selection
+        state is not carried over.
 
         Parameters
         ----------
@@ -25475,8 +25426,7 @@ class Graph:
         -------
         Graph
             New graph containing only the specified edges and their endpoint nodes. Preserves
-            directedness, weightedness, node labels and attributes, and edge weights and
-            attributes. Node IDs are renumbered from 1 in ascending order of the original IDs.
+            directedness, weightedness, and node and edge IDs, labels, weights and attributes.
 
         Raises
         ------
@@ -36005,9 +35955,10 @@ class Graph:
         which is what you want when the full set of alternatives matters (for example, to count
         redundant routes or to check whether every route passes through some node).
 
-        Paths are returned as lists of node *labels*, not node IDs. Nodes without a label
-        (including `source=` and `target=`) appear as their ID converted to a string. The number of simple paths can grow exponentially with graph size, so set
-        `cutoff=` on anything beyond small graphs. The method does not modify the graph.
+        Paths are returned as lists of node *labels*, not node IDs. Nodes without a label (including
+        `source=` and `target=`) appear as their ID converted to a string. The number of simple
+        paths can grow exponentially with graph size, so set `cutoff=` on anything beyond small
+        graphs. The method does not modify the graph.
 
         Parameters
         ----------
@@ -41099,11 +41050,11 @@ class Graph:
         equals the minimum cut by the max-flow min-cut theorem. Equivalently, the result is the
         maximum number of edge-disjoint paths from source to sink.
 
-        By default every edge has capacity `1`, even on weighted graphs, so the answer is a count
-        of edges; parallel edges count separately. With `capacity=` the answer is instead the
-        total capacity of the cheapest cut, as in `minimum_cut()`. For undirected graphs, edges are treated as
-        bidirectional. For directed graphs, only paths that follow edge direction from `source=`
-        to `sink=` count, so swapping the two can change the answer.
+        By default every edge has capacity `1`, even on weighted graphs, so the answer is a count of
+        edges; parallel edges count separately. With `capacity=` the answer is instead the total
+        capacity of the cheapest cut, as in `minimum_cut()`. For undirected graphs, edges are
+        treated as bidirectional. For directed graphs, only paths that follow edge direction from
+        `source=` to `sink=` count, so swapping the two can change the answer.
 
         Use this to measure how many independent links connect two specific nodes, for example
         how many cable failures two data centers can tolerate before losing contact. If the
