@@ -26,6 +26,11 @@ with a diagonal, chain vs. fork, cycle vs. cycle with one edge reversed) and
 assert the answers. is_bipartite_node_set draws its docstring path ann, party,
 bob, talk with node_metrics_local.two_rows; on the False side the odd-length path
 separating the candidates is `accent`. Graph scale is the default `UNIT` throughout.
+is_aperiodic draws its docstring 4-cycle on a square: the chord C -> A and the
+3-cycle it closes are accent on the True side and the chord is `ghost` on the
+False side, with the cycle lengths in a note. is_triad compares a directed and
+an undirected graph on three nodes; the culprit, the undirected constructor,
+is named in an accent note.
 """
 
 
@@ -860,3 +865,54 @@ def is_bipartite_node_set(s: Scene) -> None:
         two_rows(s, gb, ["ann", "bob"], ["party", "talk"],
                  [(a, b, {"style": "accent"}) for a, b in edges] if bad else edges,
                  styles=styles, prefix=p)
+
+
+# --- later additions: aperiodicity and triads ----------------------------------
+#
+# Docstring examples rebuilt with edgecase; both figures assert their answers.
+
+# is_aperiodic docstring: a directed 4-cycle, then the chord C -> A closing a 3-cycle.
+RING4 = {"A": (0, 0), "B": (1.4, 0), "C": (1.4, 1.2), "D": (0, 1.2)}
+RING4_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+
+
+@figure("is_aperiodic", "predicates", "Is aperiodic",
+        "Left: the directed cycle A, B, C, D plus the chord C to A, which closes the 3-cycle A, "
+        "B, C (accent color) beside the 4-cycle; the cycle lengths 3 and 4 have greatest "
+        "common divisor 1, so is_aperiodic() returns True. Right: the 4-cycle alone has only "
+        "cycles of length 4, so its period is 4 and is_aperiodic() returns False; the dashed "
+        "chord marks the missing edge.")
+def is_aperiodic(s: Scene) -> None:
+    g = _ec_digraph(list(RING4), RING4_EDGES)
+    assert g.is_aperiodic() is False
+    g.add_edge("C", "A")
+    assert g.is_aperiodic() is True
+    left, right = contrast(s, "g.is_aperiodic()", "g.is_aperiodic()")
+    lb = _note(s, left, "cycle lengths 3, 4 → gcd 1")
+    s.graph(place(RING4, lb), _hi(RING4_EDGES, {("A", "B"), ("B", "C")})
+            + [("C", "A", {"style": "accent"})], directed=True, prefix="l.")
+    rb = _note(s, right, "cycle length 4 → period 4")
+    s.graph(place(RING4, rb), RING4_EDGES + [("C", "A", {"style": "ghost"})], directed=True,
+            prefix="r.")
+
+
+# is_triad docstring: three nodes with one arc, directed vs. undirected.
+TRIO = {"A": (0, 1.1), "B": (1.6, 1.1), "C": (0.8, 0)}
+
+
+@figure("is_triad", "predicates", "Is triad",
+        "Left: a directed graph on three nodes A, B, C with the single arc A to B and no "
+        "self-loops, so is_triad() returns True. Right: three nodes in an undirected graph "
+        "(named in the accent note above it); a triad must be directed, so is_triad() returns "
+        "False.")
+def is_triad(s: Scene) -> None:
+    import edgecase as ec
+
+    assert ec.Graph(directed=True).add_nodes(list(TRIO)).add_edge("A", "B").is_triad() is True
+    assert ec.Graph().add_nodes(list(TRIO)).is_triad() is False
+    left, right = contrast(s, "g.is_triad()", "g.is_triad()")
+    lb = _note(s, left, "Graph(directed=True)")
+    s.graph(place(TRIO, lb), [("A", "B")], directed=True, prefix="l.")
+    rb = _note(s, right, "Graph(directed=False)")
+    s.texts[-1].color, s.texts[-1].opacity = "accent", 1.0  # the culprit: no directions
+    s.graph(place(TRIO, rb), [], prefix="r.")
