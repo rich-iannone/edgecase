@@ -846,3 +846,127 @@ def average_node_connectivity(s: Scene) -> None:
             edges.append((a, b, {"style": st}))
         s.graph(place(HEX, gbox, unit=UNIT), edges,
                 styles={"A": "soft", "D": "soft"}, prefix=p)
+
+
+# --- later additions: pairwise tables, every minimum cut, and augmentation ------------
+#
+# `all_pairs_node_connectivity` draws its docstring's square with one diagonal beside the
+# table it returns (the diagonal's ends, the only pair with three disjoint routes, in
+# accent). `all_node_cuts` uses a strip of four triangles, whose three minimum cuts slide
+# along it: one miniature per cut, its nodes `accent`, the edges they would take with them
+# `removed`, and a card listing the cuts. `is_locally_k_edge_connected` is a `contrast` on
+# PAIR like `is_k_edge_connected`: two edge-disjoint routes inside a triangle (accent / g2)
+# against the bridge every route across must use. `k_edge_augmentation` is a `transform` on
+# a binary tree: the edges it adds are `ghost` (dashed accent) and the leaves they pair up,
+# which are the bridge tree's leaves here, are `soft`. Each figure asserts its result.
+
+SQUARE = {"A": (0, 0), "B": (1.2, 0), "C": (1.2, 1.2), "D": (0, 1.2)}
+SQUARE_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
+
+
+@figure("all_pairs_node_connectivity", "connectivity", "All-pairs node connectivity",
+        "A square A, B, C, D with the diagonal A–C (accent). The table gives the local node "
+        "connectivity of every pair: A and C are joined directly and through B and through "
+        "D, three routes that share no other node (accent cells), while every other pair has "
+        "two.")
+def all_pairs_node_connectivity(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(SQUARE)).add_edges(SQUARE_EDGES)
+    lab = g.get_label_from_id
+    table = {lab(u): {lab(v): k for v, k in row.items()} for u, row in
+             g.all_pairs_node_connectivity().items()}
+    assert table["A"]["C"] == 3 and all(
+        k == 2 for u, row in table.items() for v, k in row.items() if {u, v} != {"A", "C"})
+    left, right = compute(s, "g", "g.all_pairs_node_connectivity()")
+    s.graph(place(SQUARE, left, unit=UNIT),
+            [(a, b, {"style": "accent"}) if (a, b) == ("A", "C") else (a, b)
+             for a, b in SQUARE_EDGES], styles={"A": "soft", "C": "soft"})
+    names = list(SQUARE)
+    rows = [[""] + names] + [[u] + ["–" if u == v else str(table[u][v]) for v in names]
+                             for u in names]
+    hl = {(1, 3): "accent", (3, 1): "accent"}
+    s.table_centered(right, rows, [36] * 5, highlight=hl)
+
+
+TRI = {"A": (0, 1), "B": (0.5, 0), "C": (1, 1), "D": (1.5, 0), "E": (2, 1), "F": (2.5, 0)}
+TRI_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("C", "E"),
+             ("D", "E"), ("D", "F"), ("E", "F")]
+
+
+@figure("all_node_cuts", "connectivity", "All minimum node cuts",
+        "Three copies of a strip of four triangles on A to F, whose node connectivity is 2. "
+        "Each copy shows one minimum node cut in the accent color, with the edges it removes "
+        "dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The "
+        "card lists the three cuts.")
+def all_node_cuts(s: Scene) -> None:
+    from core import R_SMALL, SIZE_CARD
+
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(TRI)).add_edges(TRI_EDGES)
+    cuts = [[g.get_label_from_id(n) for n in c] for c in g.all_node_cuts()]
+    assert cuts == [["B", "C"], ["C", "D"], ["D", "E"]]
+    left, right = compute(s, "g", "g.all_node_cuts()")
+    pitch = left.w / 3
+    for i, cut in enumerate(cuts):
+        cx = left.x0 + pitch * (i + 0.5)
+        cell = Box(cx - pitch / 2 + 4, left.y0 + 24, cx + pitch / 2 - 4, left.y1 - 30)
+        edges = [(a, b, {"style": "removed"}) if {a, b} & set(cut) else (a, b)
+                 for a, b in TRI_EDGES]
+        s.graph(place(TRI, cell, unit=44, r=R_SMALL, pad=2), edges,
+                styles={k: "accent" for k in cut}, r=R_SMALL, prefix=f"m{i}.")
+        s.text(cx, left.y1 - 14, f"[{', '.join(cut)}]", size=SIZE_CARD, color="accent",
+               weight=600, role="card")
+    s.card_centered(right, [(f"[{', '.join(c)}]", "accent") for c in cuts],
+                    title="3 cuts of size 2")
+
+
+@figure("is_locally_k_edge_connected", "connectivity", "Is locally k-edge-connected",
+        "Two triangles joined by the bridge C–D, twice. Left: A and C (outlined) are joined "
+        "by the edge A–C (accent) and by the route A, B, C (teal), two paths with no edge in "
+        "common, so is_locally_k_edge_connected(A, C, 2) returns True. Right: every route "
+        "from A to E crosses the bridge C–D (accent), so a single edge separates them and the "
+        "call returns False.")
+def is_locally_k_edge_connected(s: Scene) -> None:
+    g = _pair_graph()
+    assert g.is_locally_k_edge_connected("A", "C", 2) is True
+    assert g.is_locally_k_edge_connected("A", "E", 2) is False
+    left, right = contrast(s, "g.is_locally_k_edge_connected(A, C, 2)",
+                           "g.is_locally_k_edge_connected(A, E, 2)")
+    route = {("A", "C"): "accent", ("A", "B"): "g2", ("B", "C"): "g2"}
+    for box, p, note, ends, styles in (
+            (left, "l.", "2 edge-disjoint A–C paths", ("A", "C"), route),
+            (right, "r.", "every A–E path uses C–D", ("A", "E"), {("C", "D"): "accent"})):
+        s.text(box.cx, box.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        s.graph(place(PAIR, gbox, unit=UNIT),
+                [(a, b, {"style": styles[(a, b)]}) if (a, b) in styles else (a, b)
+                 for a, b in PAIR_EDGES],
+                styles={k: "soft" for k in ends}, prefix=p)
+
+
+BTREE = {"A": (1.5, 0), "B": (0.5, 1), "C": (2.5, 1), "D": (0, 2), "E": (1, 2), "F": (2, 2),
+         "G": (3, 2)}
+BTREE_EDGES = [("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"), ("C", "F"), ("C", "G")]
+
+
+@figure("k_edge_augmentation", "connectivity", "k-edge augmentation",
+        "Left: a binary tree on seven nodes, in which every edge is a bridge. Right: "
+        "k_edge_augmentation(2) adds the two dashed accent edges D–F and E–G, pairing up the "
+        "four leaves (outlined), after which every edge lies on a cycle and no single edge "
+        "removal disconnects the tree; with four leaves, two new edges is the fewest "
+        "possible.")
+def k_edge_augmentation(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(BTREE)).add_edges(BTREE_EDGES)
+    added = [tuple(g.get_label_from_id(n) for n in e) for e in g.k_edge_augmentation(2)]
+    assert added == [("D", "F"), ("E", "G")]
+    left, right = transform(s, "g", "g.k_edge_augmentation(2)")
+    s.graph(place(BTREE, Box(left.x0, left.y0, left.x1, left.y1 - 24), unit=UNIT),
+            BTREE_EDGES, prefix="l.")
+    s.graph(place(BTREE, Box(right.x0, right.y0, right.x1, right.y1 - 24), unit=UNIT),
+            BTREE_EDGES, styles={k: "soft" for k in "DEFG"}, prefix="r.")
+    s.edge("r.D", "r.F", style="ghost", bend=26)
+    s.edge("r.E", "r.G", style="ghost", bend=26)
