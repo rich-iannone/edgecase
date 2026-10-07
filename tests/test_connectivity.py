@@ -451,8 +451,8 @@ class TestChainsAndKEdge:
         assert ours == brute and len(g.k_edge_subgraphs(3)) == 5
         with pytest.raises(ValueError, match="at least 1"):
             g.k_edge_components(0)
-        with pytest.raises(ValueError, match="undirected"):
-            ec.Graph(directed=True).add_path_graph(3).k_edge_components(2)
+        # directed graphs are supported: a one-way path has no 2-edge-connected pairs
+        assert len(ec.Graph(directed=True).add_path_graph(3).k_edge_components(2)) == 3
 
     def test_average_node_connectivity(self):
         for G, g in _simple_cases(30):
@@ -477,3 +477,183 @@ class TestChainsAndKEdge:
         assert ("C", "D") not in step.delta.edges_selected
         g.k_edge_components(2)
         assert set(g.steps[-1].delta.node_groups.values()) == {0, 1}
+
+
+# Directed k-edge components, all-pairs node connectivity, all minimum node cuts, local edge
+# connectivity and k-edge augmentation, validated against NetworkX and brute force.
+
+
+def _directed_cases(count=60):
+    for seed in range(count):
+        rnd = random.Random(seed)
+        G = nx.gnp_random_graph(
+            rnd.randint(2, 10), rnd.choice([0.2, 0.35, 0.5]), seed=seed, directed=True
+        )
+        g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
+        for u, v in G.edges:
+            g.add_edge(str(u), str(v))
+        yield G, g
+
+
+def _brute_node_cuts(G):
+    k = nx.node_connectivity(G)
+    cuts = []
+    for c in itertools.combinations(G, k):
+        rest = G.subgraph(set(G) - set(c))
+        if len(rest) and not nx.is_connected(rest):
+            cuts.append(sorted(c))
+    return sorted(cuts)
+
+
+class TestDirectedKEdge:
+    def test_matches_networkx(self):
+        for G, g in _directed_cases():
+            for k in (1, 2, 3):
+                comps = sorted(sorted(_lab(g, x) for x in c) for c in g.k_edge_components(k))
+                assert comps == sorted(sorted(c) for c in nx.k_edge_components(G, k))
+                subs = sorted(sorted(_lab(g, x) for x in c) for c in g.k_edge_subgraphs(k))
+                assert subs == sorted(sorted(c) for c in nx.k_edge_subgraphs(G, k))
+
+    def test_two_way_ring(self):
+        ring = ec.Graph(directed=True).add_nodes(list("ABCD"))
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        assert len(ring.k_edge_components(1)) == 1 and len(ring.k_edge_components(2)) == 4
+        ring.add_edges([("B", "A"), ("C", "B"), ("D", "C"), ("A", "D")])
+        assert ring.k_edge_components(2) == [sorted(ring.get_node_ids(limit=None))]
+
+
+class TestNodeConnectivityTables:
+    def test_all_pairs_matches_networkx(self):
+        cases = [(G, g) for G, g in _simple_cases(40) if len(G) <= 9]
+        cases += list(_directed_cases(20))
+        for G, g in cases:
+            ours = g.all_pairs_node_connectivity()
+            ref = nx.all_pairs_node_connectivity(G)
+            assert {
+                _lab(g, u): {_lab(g, v): k for v, k in row.items()} for u, row in ours.items()
+            } == ref
+            some = [str(n) for n in list(G)[:3]]
+            sub = g.all_pairs_node_connectivity(some)
+            assert {_lab(g, u) for u in sub} == {int(n) for n in some}
+            assert sub == {u: {v: ours[u][v] for v in row} for u, row in sub.items()}
+
+    def test_all_node_cuts_brute_force_and_networkx(self):
+        checked = 0
+        for seed in range(250):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(3, 10), rnd.choice([0.3, 0.5, 0.7]), seed=seed)
+            if not nx.is_connected(G):
+                continue
+            g = ec.Graph().add_nodes([str(n) for n in G])
+            g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            ours = sorted(sorted(_lab(g, x) for x in c) for c in g.all_node_cuts())
+            if nx.density(G) == 1:
+                assert ours == []
+                continue
+            assert ours == _brute_node_cuts(G)
+            assert ours == sorted(sorted(c) for c in nx.all_node_cuts(G))
+            checked += 1
+        assert checked > 100
+
+    def test_all_node_cuts_examples_and_errors(self):
+        ring = ec.Graph().add_cycle_graph(6)
+        assert len(ring.all_node_cuts()) == 9
+        assert ring.steps[-1].narration == "9 minimum node cuts of size 2."
+        grid = ec.Graph().add_grid_2d(8, 8)
+        assert len(grid.all_node_cuts()) == 4  # the neighbors of each corner
+        assert ec.Graph().add_full_graph(4).all_node_cuts() == []
+        split = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        with pytest.raises(ValueError, match="connected"):
+            split.all_node_cuts()
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).all_node_cuts()
+
+
+class TestEdgeAugmentation:
+    def test_is_locally_k_edge_connected(self):
+        for G, g in list(_simple_cases(40)) + list(_directed_cases(20)):
+            ids = g.get_node_ids(limit=None)
+            for u, v in itertools.combinations(ids, 2):
+                for k in (1, 2, 3):
+                    ours = g.is_locally_k_edge_connected(u, v, k)
+                    a, b = _lab(g, u), _lab(g, v)
+                    assert ours == (local_edge_connectivity(G, a, b) >= k)
+        g = ec.Graph().add_path_graph(3)
+        with pytest.raises(ValueError, match="at least 1"):
+            g.is_locally_k_edge_connected(1, 2, 0)
+        with pytest.raises(ValueError, match="different"):
+            g.is_locally_k_edge_connected(1, 1, 1)
+
+    def test_against_networkx(self):
+        for seed in range(150):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(2, 9), rnd.choice([0.1, 0.25, 0.45]), seed=seed)
+            g = ec.Graph().add_nodes([str(n) for n in G])
+            g.add_edges([(str(u), str(v)) for u, v in G.edges])
+            non_edges = [e for e in itertools.combinations(G, 2) if not G.has_edge(*e)]
+            for k in (1, 2, 3):
+                avail = None
+                if rnd.random() < 0.5:
+                    picked = rnd.sample(non_edges, min(len(non_edges), rnd.randint(0, 8)))
+                    avail = {(u, v): rnd.choice([1, 2, 5]) for u, v in picked}
+                for partial in (False, True):
+                    try:
+                        ref = list(nx.k_edge_augmentation(G, k, avail=avail, partial=partial))
+                    except nx.NetworkXUnfeasible:
+                        ref = None
+                    ours_avail = (
+                        None
+                        if avail is None
+                        else {(str(u), str(v)): w for (u, v), w in avail.items()}
+                    )
+                    try:
+                        ours = [
+                            (_lab(g, u), _lab(g, v))
+                            for u, v in g.k_edge_augmentation(k, ours_avail, partial)
+                        ]
+                    except ValueError:
+                        ours = None
+                    assert (ours is None) == (ref is None)
+                    if ours is None:
+                        continue
+                    if avail is not None:
+                        assert all((u, v) in avail or (v, u) in avail for u, v in ours)
+                    H, R = G.copy(), G.copy()
+                    H.add_edges_from(ours)
+                    R.add_edges_from(ref)
+                    done = len(H) > k and nx.is_k_edge_connected(H, k)
+                    assert done == (len(R) > k and nx.is_k_edge_connected(R, k))
+                    if done:
+
+                        def cost(edges):
+                            return sum(
+                                avail.get((u, v), avail.get((v, u))) if avail else 1
+                                for u, v in edges
+                            )
+
+                        assert cost(ours) <= cost(ref)
+                        if k <= 2 and avail is None:
+                            assert len(ours) == len(ref)  # both optimal
+
+    def test_examples_and_errors(self):
+        path = ec.Graph().add_nodes(list("ABCDE"))
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        added = path.k_edge_augmentation(2)
+        assert [tuple(path.get_label_from_id(n) for n in e) for e in added] == [("A", "E")]
+        assert path.steps[-1].narration == "1 edges to add for 2-edge-connectivity."
+        star = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
+        star.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+        options = [("a", "b", 1), ("c", "d", 1), ("a", "c", 5), ("b", "d", 5)]
+        chosen = {
+            frozenset(star.get_label_from_id(n) for n in e)
+            for e in star.k_edge_augmentation(2, avail=options)
+        }
+        assert chosen == {frozenset("ab"), frozenset("cd")}
+        assert ec.Graph().add_cycle_graph(5).k_edge_augmentation(2) == []
+        with pytest.raises(ValueError, match="at least 3 nodes"):
+            ec.Graph().add_path_graph(2).k_edge_augmentation(2)
+        assert len(ec.Graph().add_path_graph(2).k_edge_augmentation(2, partial=True)) == 0
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).k_edge_augmentation(1)
+        with pytest.raises(ValueError, match="cannot"):
+            star.k_edge_augmentation(2, avail=[("a", "b")])
