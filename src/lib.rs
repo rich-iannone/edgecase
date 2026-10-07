@@ -82,6 +82,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::centrality_extra::betweenness_centrality_subset, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality_extra::effective_size, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality_extra::local_constraint, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::current_flow_betweenness_centrality_subset, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::edge_current_flow_betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::approximate_current_flow_betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::edge_betweenness_centrality_subset, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::edge_load_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality_extra::prominent_group, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::square_clustering, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::generalized_degree, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::average_degree_connectivity, m)?)?;
@@ -112,6 +118,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::dominators, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::k_edge_components, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::average_node_connectivity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::all_pairs_node_connectivity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::all_node_cuts, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::reference_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::small_world, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::negative_edge_cycle, m)?)?;
