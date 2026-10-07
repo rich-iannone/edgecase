@@ -784,3 +784,650 @@ pub fn local_constraint(graph: &Graph, u: u64, v: u64, weighted: bool) -> PyResu
     let indirect: f64 = mw[a].keys().map(|&w| p(a, w) * p(w, b)).sum();
     Ok((direct + indirect).powi(2))
 }
+
+// ---------------------------------------------------------------------------------------------
+// Current-flow variants: subsets, edges, and the sampling approximation
+// ---------------------------------------------------------------------------------------------
+
+/// Index lookup for a list of node IDs, failing on unknown nodes.
+fn lookup_all(ids: &[u64], idx: &FxHashMap<u64, usize>) -> PyResult<Vec<usize>> {
+    ids.iter()
+        .map(|v| idx.get(v).copied().ok_or_else(|| err(format!("Node {} does not exist", v))))
+        .collect()
+}
+
+/// Current-flow betweenness counting only source-target pairs from `sources` x `targets`
+/// (pairs with s == t skipped). A node's throughput for a pair is half the absolute current on
+/// its edges; the pair's own endpoints get nothing. Raw values halve the sum over ordered pairs
+/// (as betweenness_centrality_subset does); `normalized` divides by (n-1)(n-2)/2, so all
+/// nodes as sources and targets give current_flow_betweenness_centrality.
+#[pyfunction]
+#[pyo3(signature = (graph, sources, targets, normalized=true, weighted=false))]
+pub fn current_flow_betweenness_centrality_subset(
+    graph: &Graph,
+    sources: Vec<u64>,
+    targets: Vec<u64>,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    let what = "current_flow_betweenness_centrality_subset()";
+    let (ids, edges) = electrical_network(graph, weighted, what)?;
+    let (_, idx) = sorted_ids(graph);
+    let srcs = lookup_all(&sources, &idx)?;
+    let tgts = lookup_all(&targets, &idx)?;
+    let n = ids.len();
+    let c = grounded_laplacian_inverse(n, &edges)?;
+    let mut total = vec![0.0f64; n];
+    for &s in &srcs {
+        for &t in &tgts {
+            if s == t {
+                continue;
+            }
+            let mut through = vec![0.0f64; n];
+            for &(u, v, w) in &edges {
+                // potential difference across the edge for a unit current from s to t
+                let i = (w * (c[(u, s)] - c[(u, t)] - c[(v, s)] + c[(v, t)])).abs();
+                through[u] += 0.5 * i;
+                through[v] += 0.5 * i;
+            }
+            for v in 0..n {
+                if v != s && v != t {
+                    total[v] += through[v];
+                }
+            }
+        }
+    }
+    let scale = if normalized {
+        if n > 2 { 1.0 / ((n - 1) as f64 * (n - 2) as f64) } else { 0.0 }
+    } else {
+        0.5
+    };
+    Ok(ids.iter().enumerate().map(|(i, &id)| (id, total[i] * scale)).collect())
+}
+
+/// Edge current-flow betweenness (Brandes & Fleischer 2005), keyed by edge ID: the total
+/// current an edge carries over source-target pairs. With `sources`/`targets` only those pairs
+/// count. Scaling matches NetworkX: over all unordered pairs, `normalized` divides the total by
+/// (n-1)(n-2) and raw values are half of it; for subsets the sum runs over ordered pairs and
+/// is halved again, so all nodes as sources and targets reproduce the full version.
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true, weighted=false, sources=None, targets=None))]
+pub fn edge_current_flow_betweenness_centrality(
+    graph: &Graph,
+    normalized: bool,
+    weighted: bool,
+    sources: Option<Vec<u64>>,
+    targets: Option<Vec<u64>>,
+) -> PyResult<FxHashMap<u64, f64>> {
+    let what = if sources.is_some() {
+        "edge_current_flow_betweenness_centrality_subset()"
+    } else {
+        "edge_current_flow_betweenness_centrality()"
+    };
+    let (ids, _) = electrical_network(graph, weighted, what)?;
+    let (_, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let mut net: Vec<(u64, usize, usize, f64)> = Vec::new();
+    let mut out: FxHashMap<u64, f64> = FxHashMap::default();
+    for e in graph.get_edges_internal() {
+        out.insert(e.id, 0.0);
+        if e.source != e.target {
+            net.push((e.id, idx[&e.source], idx[&e.target], weight_of(e, weighted)));
+        }
+    }
+    if n < 2 {
+        return Ok(out);
+    }
+    let triples: Vec<(usize, usize, f64)> = net.iter().map(|&(_, u, v, w)| (u, v, w)).collect();
+    let c = grounded_laplacian_inverse(n, &triples)?;
+    let nb = if normalized { (n - 1) as f64 * (n - 2) as f64 } else { 2.0 };
+    let subset = match (sources, targets) {
+        (Some(s), Some(t)) => Some((lookup_all(&s, &idx)?, lookup_all(&t, &idx)?)),
+        _ => None,
+    };
+    let mut row = vec![0.0f64; n];
+    for &(eid, u, v, w) in &net {
+        for k in 0..n {
+            row[k] = w * (c[(u, k)] - c[(v, k)]);
+        }
+        let value = match &subset {
+            None => {
+                let mut sorted = row.clone();
+                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                // Σ_{s<t} |row_s - row_t| from sorted values
+                sorted
+                    .iter()
+                    .enumerate()
+                    .map(|(i, &x)| (2.0 * i as f64 - (n as f64 - 1.0)) * x)
+                    .sum::<f64>()
+            }
+            Some((srcs, tgts)) => {
+                let mut s_e = 0.0;
+                for &s in srcs {
+                    for &t in tgts {
+                        s_e += 0.5 * (row[s] - row[t]).abs();
+                    }
+                }
+                s_e
+            }
+        };
+        out.insert(eid, if nb > 0.0 { value / nb } else { 0.0 });
+    }
+    Ok(out)
+}
+
+/// Approximate current-flow betweenness (Brandes & Fleischer 2005): the throughput of `k`
+/// random source-target pairs, with k = ceil((c/ε)² ln n) and c = n / (n - 2), scaled to
+/// estimate the normalized score (raw scores multiply by (n-1)(n-2)/2). Matches NetworkX's
+/// estimator; the pairs come from a seeded ChaCha8 generator.
+#[pyfunction]
+#[pyo3(signature = (graph, normalized=true, weighted=false, epsilon=0.5, kmax=10000, seed=None))]
+pub fn approximate_current_flow_betweenness_centrality(
+    graph: &Graph,
+    normalized: bool,
+    weighted: bool,
+    epsilon: f64,
+    kmax: usize,
+    seed: Option<u64>,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rand::{Rng, SeedableRng};
+    let (ids, edges) =
+        electrical_network(graph, weighted, "approximate_current_flow_betweenness_centrality()")?;
+    let n = ids.len();
+    if epsilon.is_nan() || epsilon <= 0.0 {
+        return Err(err("epsilon must be positive"));
+    }
+    if n < 3 {
+        return Ok(ids.iter().map(|&id| (id, 0.0)).collect());
+    }
+    let nb = (n - 1) as f64 * (n - 2) as f64;
+    let cstar = (n * (n - 1)) as f64 / nb;
+    let k = ((cstar / epsilon).powi(2) * (n as f64).ln()).ceil() as usize;
+    if k > kmax {
+        return Err(err(format!(
+            "The approximation needs {} random pairs, more than kmax={}; increase kmax or epsilon",
+            k, kmax
+        )));
+    }
+    let c = grounded_laplacian_inverse(n, &edges)?;
+    let mut rng = match seed {
+        Some(s) => rand_chacha::ChaCha8Rng::seed_from_u64(s),
+        None => rand_chacha::ChaCha8Rng::from_entropy(),
+    };
+    let mut total = vec![0.0f64; n];
+    let mut through = vec![0.0f64; n];
+    for _ in 0..k {
+        let s = rng.gen_range(0..n);
+        let mut t = rng.gen_range(0..n - 1);
+        if t >= s {
+            t += 1;
+        }
+        through.iter_mut().for_each(|x| *x = 0.0);
+        for &(u, v, w) in &edges {
+            let i = (w * (c[(u, s)] - c[(u, t)] - c[(v, s)] + c[(v, t)])).abs();
+            through[u] += i;
+            through[v] += i;
+        }
+        for v in 0..n {
+            if v != s && v != t {
+                total[v] += through[v];
+            }
+        }
+    }
+    let scale = cstar / (2.0 * k as f64) * if normalized { 1.0 } else { nb / 2.0 };
+    Ok(ids.iter().enumerate().map(|(i, &id)| (id, total[i] * scale)).collect())
+}
+
+// ---------------------------------------------------------------------------------------------
+// Edge betweenness on subsets, and edge load
+// ---------------------------------------------------------------------------------------------
+
+/// Shortest-path DAG that remembers the edge used to reach each node from each predecessor
+/// (parallel edges are separate routes).
+struct EdgeSpDag {
+    order: Vec<usize>,
+    preds: Vec<Vec<(usize, usize)>>,
+    sigma: Vec<f64>,
+}
+
+/// adj[i] = [(j, w, edge slot)].
+type EdgeAdjacency = Vec<Vec<(usize, f64, usize)>>;
+
+/// Edge IDs by slot, and adjacency following edge direction (both ways if undirected).
+fn edge_adjacency(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> (Vec<u64>, EdgeAdjacency) {
+    let mut adj: EdgeAdjacency = vec![Vec::new(); idx.len()];
+    let mut slots = Vec::new();
+    let undirected = !graph.is_directed();
+    for e in graph.get_edges_internal() {
+        let slot = slots.len();
+        slots.push(e.id);
+        if e.source == e.target {
+            continue;
+        }
+        let (s, t) = (idx[&e.source], idx[&e.target]);
+        let w = weight_of(e, weighted);
+        adj[s].push((t, w, slot));
+        if undirected {
+            adj[t].push((s, w, slot));
+        }
+    }
+    (slots, adj)
+}
+
+fn edge_sp_dag(adj: &[Vec<(usize, f64, usize)>], s: usize) -> EdgeSpDag {
+    let n = adj.len();
+    let mut dist = vec![f64::INFINITY; n];
+    let mut sigma = vec![0.0; n];
+    let mut preds: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n];
+    let mut done = vec![false; n];
+    let mut order = Vec::new();
+    let mut heap = BinaryHeap::new();
+    dist[s] = 0.0;
+    sigma[s] = 1.0;
+    heap.push((std::cmp::Reverse(OrdF(0.0)), s));
+    while let Some((std::cmp::Reverse(OrdF(d)), v)) = heap.pop() {
+        if done[v] || d > dist[v] {
+            continue;
+        }
+        done[v] = true;
+        order.push(v);
+        for &(w, c, slot) in &adj[v] {
+            if done[w] {
+                continue;
+            }
+            let nd = d + c;
+            if nd < dist[w] && !same(nd, dist[w]) {
+                dist[w] = nd;
+                sigma[w] = sigma[v];
+                preds[w] = vec![(v, slot)];
+                heap.push((std::cmp::Reverse(OrdF(nd)), w));
+            } else if same(nd, dist[w]) {
+                sigma[w] += sigma[v];
+                preds[w].push((v, slot));
+            }
+        }
+    }
+    EdgeSpDag { order, preds, sigma }
+}
+
+/// Edge betweenness counting only shortest paths from `sources` to `targets` (Brandes 2008),
+/// keyed by edge ID. Scaling as NetworkX: normalized divides by n(n-1); otherwise undirected
+/// values are halved.
+#[pyfunction]
+#[pyo3(signature = (graph, sources, targets, normalized=false, weighted=false))]
+pub fn edge_betweenness_centrality_subset(
+    graph: &Graph,
+    sources: Vec<u64>,
+    targets: Vec<u64>,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
+    check_nonnegative(graph, weighted)?;
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let srcs = lookup_all(&sources, &idx)?;
+    let mut is_target = vec![false; n];
+    for t in lookup_all(&targets, &idx)? {
+        is_target[t] = true;
+    }
+    let (slots, adj) = edge_adjacency(graph, &idx, weighted);
+    let mut eb = vec![0.0f64; slots.len()];
+    for &s in &srcs {
+        let dag = edge_sp_dag(&adj, s);
+        let mut delta = vec![0.0f64; n];
+        for &w in dag.order.iter().rev() {
+            let own = if is_target[w] && w != s { 1.0 } else { 0.0 };
+            let coeff = (delta[w] + own) / dag.sigma[w];
+            for &(v, slot) in &dag.preds[w] {
+                let c = dag.sigma[v] * coeff;
+                eb[slot] += c;
+                delta[v] += c;
+            }
+        }
+    }
+    let scale = if normalized {
+        if n > 1 { 1.0 / (n * (n - 1)) as f64 } else { 1.0 }
+    } else if graph.is_directed() {
+        1.0
+    } else {
+        0.5
+    };
+    Ok(slots.iter().zip(eb).map(|(&id, b)| (id, b * scale)).collect())
+}
+
+/// Edge load (Goh et al. 2001), as NetworkX's `edge_load_centrality`: every node sends one
+/// unit to each node it reaches, split equally among the shortest-path predecessors at every
+/// step. Keyed by ordered node pairs `(u, v)`, both orientations of every edge (they always
+/// carry the same value). Unweighted; parallel edges count once.
+#[pyfunction]
+#[pyo3(signature = (graph, cutoff=None))]
+pub fn edge_load_centrality(graph: &Graph, cutoff: Option<usize>) -> PyResult<FxHashMap<(u64, u64), f64>> {
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let directed = graph.is_directed();
+    // distinct neighbors (successors if directed), and every edge in both orientations
+    let mut nbr_sets: Vec<FxHashSet<usize>> = vec![FxHashSet::default(); n];
+    let mut keys: FxHashSet<(usize, usize)> = FxHashSet::default();
+    for e in graph.get_edges_internal() {
+        let (s, t) = (idx[&e.source], idx[&e.target]);
+        keys.insert((s, t));
+        keys.insert((t, s));
+        if s != t {
+            nbr_sets[s].insert(t);
+            if !directed {
+                nbr_sets[t].insert(s);
+            }
+        }
+    }
+    let nbrs: Vec<Vec<usize>> = nbr_sets
+        .into_iter()
+        .map(|set| {
+            let mut v: Vec<usize> = set.into_iter().collect();
+            v.sort_unstable();
+            v
+        })
+        .collect();
+    let mut load: FxHashMap<(usize, usize), f64> = keys.iter().map(|&k| (k, 0.0)).collect();
+    for src in 0..n {
+        // BFS predecessors, as nx.predecessor
+        let mut level = vec![usize::MAX; n];
+        let mut pred: Vec<Vec<usize>> = vec![Vec::new(); n];
+        let mut order = vec![src];
+        level[src] = 0;
+        let mut frontier = vec![src];
+        let mut depth = 0;
+        while !frontier.is_empty() && cutoff.map_or(true, |c| depth < c) {
+            depth += 1;
+            let mut next = Vec::new();
+            for &v in &frontier {
+                for &w in &nbrs[v] {
+                    if level[w] == usize::MAX {
+                        level[w] = depth;
+                        pred[w].push(v);
+                        next.push(w);
+                    } else if level[w] == depth {
+                        pred[w].push(v);
+                    }
+                }
+            }
+            order.extend(&next);
+            frontier = next;
+        }
+        let mut between: FxHashMap<(usize, usize), f64> = keys.iter().map(|&k| (k, 1.0)).collect();
+        // farthest nodes first (stable in discovery order, as NetworkX's sort by distance)
+        for &v in order.iter().rev() {
+            for &w in &pred[v] {
+                if w == src {
+                    continue;
+                }
+                let num = pred[w].len() as f64;
+                let fwd = between[&(v, w)];
+                let back = between[&(w, v)];
+                for &x in &pred[w] {
+                    *between.get_mut(&(w, x)).unwrap() += fwd / num;
+                    *between.get_mut(&(x, w)).unwrap() += back / num;
+                }
+            }
+        }
+        for (key, b) in between {
+            *load.get_mut(&key).unwrap() += b;
+        }
+    }
+    Ok(load.into_iter().map(|((u, v), b)| ((ids[u], ids[v]), b)).collect())
+}
+
+// ---------------------------------------------------------------------------------------------
+// Most prominent group (Puzis et al. 2007)
+// ---------------------------------------------------------------------------------------------
+
+struct GroupState {
+    /// (sigma, path betweenness), both m x m over the candidates; shared by "minus" children
+    mats: std::rc::Rc<(Vec<f64>, Vec<f64>)>,
+    members: Vec<usize>,
+    candidates: Vec<usize>,
+    /// share of all ordered pairs' shortest paths that touch the group, endpoints included
+    gbc: f64,
+    /// ordered reachable pairs with an endpoint in the group
+    end_pairs: f64,
+}
+
+struct GroupSearch {
+    m: usize,
+    k: usize,
+    dist: Vec<f64>,
+    /// reachability between all nodes (n x n) and each candidate's node index
+    reach: Vec<bool>,
+    n: usize,
+    cand: Vec<usize>,
+    endpoints: bool,
+    greedy: bool,
+    best: f64,
+    best_group: Vec<usize>,
+    found: bool,
+}
+
+impl GroupSearch {
+    /// The objective: group betweenness before scaling.
+    fn value(&self, st: &GroupState) -> f64 {
+        if self.endpoints { st.gbc } else { st.gbc - st.end_pairs }
+    }
+
+    /// Upper bound on what the missing members can still add: the best single contributions.
+    fn heuristic(&self, st: &GroupState) -> f64 {
+        let need = self.k - st.members.len();
+        let pb = &st.mats.1;
+        st.candidates.iter().take(need).map(|&c| pb[c * self.m + c]).sum()
+    }
+
+    fn sort_candidates(&self, pb: &[f64], cands: &mut [usize]) {
+        // by contribution, descending; ties to the later node, as NetworkX
+        cands.sort_by(|&a, &b| {
+            pb[b * self.m + b].partial_cmp(&pb[a * self.m + a]).unwrap().then(b.cmp(&a))
+        });
+    }
+
+    /// Child state with the first candidate added to the group: path counts and path
+    /// betweenness are updated to count only paths avoiding the new member.
+    fn add_member(&self, st: &GroupState) -> GroupState {
+        let m = self.m;
+        let v = st.candidates[0];
+        let (sg, pb) = (&st.mats.0, &st.mats.1);
+        let d = &self.dist;
+        let mut sigma2 = sg.clone();
+        let mut pb2 = pb.clone();
+        for x in 0..m {
+            for y in 0..m {
+                let (xy, xv, vy) = (x * m + y, x * m + v, v * m + y);
+                // shares of x-y, x-v and v-y paths (avoiding the group) through v, y and x
+                let (mut dxvy, mut dxyv, mut dvxy) = (0.0, 0.0, 0.0);
+                if sg[xy] != 0.0 && same(d[xy], d[xv] + d[vy]) {
+                    dxvy = sg[xv] * sg[vy] / sg[xy];
+                }
+                if sg[xv] != 0.0 && same(d[xv], d[xy] + d[y * m + v]) {
+                    dxyv = sg[xy] * sg[y * m + v] / sg[xv];
+                }
+                if sg[vy] != 0.0 && same(d[vy], d[v * m + x] + d[xy]) {
+                    dvxy = sg[v * m + x] * sg[xy] / sg[vy];
+                }
+                sigma2[xy] = sg[xy] * (1.0 - dxvy);
+                let mut val = pb[xy] - pb[xy] * dxvy;
+                if y != v {
+                    val -= pb[xv] * dxyv;
+                }
+                if x != v {
+                    val -= pb[vy] * dvxy;
+                }
+                pb2[xy] = val;
+            }
+        }
+        // new pairs with an endpoint in the group: v and nodes outside the group
+        let n = self.n;
+        let vn = self.cand[v];
+        let mut inside = vec![false; n];
+        for &u in &st.members {
+            inside[self.cand[u]] = true;
+        }
+        inside[vn] = true;
+        let added = (0..n)
+            .filter(|&u| !inside[u])
+            .map(|u| self.reach[vn * n + u] as u32 + self.reach[u * n + vn] as u32)
+            .sum::<u32>();
+        let mut members = st.members.clone();
+        members.push(v);
+        let mut candidates: Vec<usize> = st.candidates[1..].to_vec();
+        self.sort_candidates(&pb2, &mut candidates);
+        GroupState {
+            mats: std::rc::Rc::new((sigma2, pb2)),
+            members,
+            candidates,
+            gbc: st.gbc + pb[v * m + v],
+            end_pairs: st.end_pairs + added as f64,
+        }
+    }
+
+    fn search(&mut self, st: &GroupState) {
+        if st.members.len() == self.k {
+            if !self.found || self.value(st) > self.best {
+                self.best = self.value(st);
+                self.best_group = st.members.clone();
+                self.found = true;
+            }
+            return;
+        }
+        let need = self.k - st.members.len();
+        // gains in coverage bound gains in the objective (pairs with endpoints only add up)
+        if st.candidates.len() < need
+            || (self.found && self.value(st) + self.heuristic(st) <= self.best)
+        {
+            return;
+        }
+        let plus = self.add_member(st);
+        if self.greedy {
+            self.search(&plus);
+            return;
+        }
+        // the minus child skips the first candidate and keeps the matrices
+        let minus = GroupState {
+            mats: st.mats.clone(),
+            members: st.members.clone(),
+            candidates: st.candidates[1..].to_vec(),
+            gbc: st.gbc,
+            end_pairs: st.end_pairs,
+        };
+        if self.value(&plus) + self.heuristic(&plus) > self.value(&minus) + self.heuristic(&minus) {
+            self.search(&plus);
+            self.search(&minus);
+        } else {
+            self.search(&minus);
+            self.search(&plus);
+        }
+    }
+}
+
+/// The group of `k` nodes with the highest group betweenness, found by Puzis et al.'s (2007)
+/// branch and bound over path-betweenness matrices (or greedily). Nodes in `exclude` are never
+/// chosen. Returns (group betweenness, members in the order chosen); scaling as
+/// group_betweenness_centrality.
+#[pyfunction]
+#[pyo3(signature = (graph, k, weighted=false, exclude=Vec::new(), endpoints=false, normalized=true, greedy=false))]
+pub fn prominent_group(
+    graph: &Graph,
+    k: usize,
+    weighted: bool,
+    exclude: Vec<u64>,
+    endpoints: bool,
+    normalized: bool,
+    greedy: bool,
+) -> PyResult<(f64, Vec<u64>)> {
+    check_nonnegative(graph, weighted)?;
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let mut excluded = vec![false; n];
+    for i in lookup_all(&exclude, &idx)? {
+        excluded[i] = true;
+    }
+    let cand: Vec<usize> = (0..n).filter(|&i| !excluded[i]).collect();
+    if k < 1 {
+        return Err(err("k must be at least 1"));
+    }
+    if k > cand.len() {
+        return Err(err(format!("k={} is larger than the {} nodes available", k, cand.len())));
+    }
+    let adj = adjacency(graph, &idx, weighted, false);
+    let mut dist = vec![f64::INFINITY; n * n];
+    let mut sigma = vec![0.0f64; n * n];
+    let mut dep = vec![0.0f64; n * n]; // endpoint-inclusive dependency of s on v
+    for s in 0..n {
+        let dag = sp_dag(&adj, s);
+        for v in 0..n {
+            dist[s * n + v] = dag.dist[v];
+            sigma[s * n + v] = dag.sigma[v];
+        }
+        let mut delta = vec![0.0f64; n];
+        for &w in dag.order.iter().rev() {
+            let coeff = (1.0 + delta[w]) / dag.sigma[w];
+            for &v in &dag.preds[w] {
+                delta[v] += dag.sigma[v] * coeff;
+            }
+        }
+        for &v in &dag.order {
+            dep[s * n + v] = if v == s { delta[v] } else { delta[v] + 1.0 };
+        }
+    }
+    // Path betweenness among candidates: PB[a][b] = Σ_s Σ_t share of s-t paths via a then b
+    let m = cand.len();
+    let mut pb = vec![0.0f64; m * m];
+    let mut cd = vec![0.0f64; m * m];
+    let mut cs = vec![0.0f64; m * m];
+    for (i, &a) in cand.iter().enumerate() {
+        for (j, &b) in cand.iter().enumerate() {
+            cd[i * m + j] = dist[a * n + b];
+            cs[i * m + j] = sigma[a * n + b];
+            if !dist[a * n + b].is_finite() {
+                continue;
+            }
+            let mut total = 0.0;
+            for s in 0..n {
+                let (sa, sb) = (dist[s * n + a], dist[s * n + b]);
+                if sa.is_finite() && sb.is_finite() && same(sb, sa + dist[a * n + b]) {
+                    total += dep[s * n + b] * sigma[s * n + a] * sigma[a * n + b] / sigma[s * n + b];
+                }
+            }
+            pb[i * m + j] = total;
+        }
+    }
+    let mut search = GroupSearch {
+        m,
+        k,
+        dist: cd,
+        reach: dist.iter().enumerate().map(|(i, d)| d.is_finite() && i / n != i % n).collect(),
+        n,
+        cand: cand.clone(),
+        endpoints,
+        greedy,
+        best: 0.0,
+        best_group: Vec::new(),
+        found: false,
+    };
+    let mut candidates: Vec<usize> = (0..m).collect();
+    search.sort_candidates(&pb, &mut candidates);
+    let root = GroupState {
+        mats: std::rc::Rc::new((cs, pb)),
+        members: Vec::new(),
+        candidates,
+        gbc: 0.0,
+        end_pairs: 0.0,
+    };
+    search.search(&root);
+    let group: Vec<usize> = search.best_group.iter().map(|&i| cand[i]).collect();
+    let mut value = search.best;
+    if normalized {
+        let denom = ((n - k) * (n - k).saturating_sub(1)) as f64;
+        if denom > 0.0 {
+            value /= denom;
+        }
+    } else if !graph.is_directed() {
+        value /= 2.0;
+    }
+    Ok((value.max(0.0), group.into_iter().map(|i| ids[i]).collect()))
+}
