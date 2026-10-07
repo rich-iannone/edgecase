@@ -329,27 +329,80 @@ fn components_at(nodes: &[usize], adj: &[Vec<usize>], k: i64) -> Vec<Vec<usize>>
     out
 }
 
+/// Directed arcs with multiplicity (parallel arcs repeat), self-loops dropped.
+fn arc_list(graph: &Graph, idx: &FxHashMap<u64, usize>) -> Vec<(usize, usize)> {
+    graph
+        .get_edges_internal()
+        .iter()
+        .map(|e| (idx[&e.source], idx[&e.target]))
+        .filter(|(a, b)| a != b)
+        .collect()
+}
+
+/// Groups of `nodes` with pairwise local edge connectivity at least `k` in both directions,
+/// counting only arcs inside `nodes`. The relation is transitive, so each class is the set of
+/// nodes mutually k-edge-connected to its first member.
+fn directed_components_at(nodes: &[usize], arcs: &[(usize, usize)], k: i64) -> Vec<Vec<usize>> {
+    let pos: FxHashMap<usize, usize> = nodes.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+    let local: Vec<(usize, usize)> = arcs
+        .iter()
+        .filter_map(|(a, b)| Some((*pos.get(a)?, *pos.get(b)?)))
+        .collect();
+    let lambda = |s: usize, t: usize| -> i64 {
+        let mut net = Dinic::new(nodes.len());
+        for &(a, b) in &local {
+            net.add(a, b, 1, 0);
+        }
+        net.max_flow(s, t)
+    };
+    let mut remaining: Vec<usize> = (0..nodes.len()).collect();
+    let mut out = Vec::new();
+    while let Some(&r) = remaining.first() {
+        let mut class = vec![r];
+        let mut rest = Vec::new();
+        for &v in &remaining[1..] {
+            if lambda(r, v) >= k && lambda(v, r) >= k {
+                class.push(v);
+            } else {
+                rest.push(v);
+            }
+        }
+        let mut group: Vec<usize> = class.into_iter().map(|i| nodes[i]).collect();
+        group.sort_unstable();
+        out.push(group);
+        remaining = rest;
+    }
+    out.sort();
+    out
+}
+
+/// Splits a node set into its k-edge-connected classes.
+type Splitter = Box<dyn Fn(&[usize]) -> Vec<Vec<usize>>>;
+
 /// k-edge-connected components (`subgraphs=false`: pairwise local edge connectivity in the
-/// whole graph at least `k`) or k-edge-connected subgraphs (`subgraphs=true`: maximal induced
-/// subgraphs whose own edge connectivity is at least `k`). Undirected graphs only.
+/// whole graph at least `k`, both ways on directed graphs) or k-edge-connected subgraphs
+/// (`subgraphs=true`: maximal induced subgraphs whose own edge connectivity is at least `k`).
 #[pyfunction]
 pub fn k_edge_components(graph: &Graph, k: i64, subgraphs: bool) -> PyResult<Vec<Vec<u64>>> {
     if k < 1 {
         return value_err("k must be at least 1");
     }
-    if graph.is_directed() {
-        return value_err("k-edge-connectivity is only supported for undirected graphs here");
-    }
     let (ids, idx) = sorted_ids(graph);
-    let adj = multi_adjacency(graph, &idx);
     let all: Vec<usize> = (0..ids.len()).collect();
+    let split: Splitter = if graph.is_directed() {
+        let arcs = arc_list(graph, &idx);
+        Box::new(move |nodes: &[usize]| directed_components_at(nodes, &arcs, k))
+    } else {
+        let adj = multi_adjacency(graph, &idx);
+        Box::new(move |nodes: &[usize]| components_at(nodes, &adj, k))
+    };
     let mut result = Vec::new();
     if !subgraphs {
-        result = components_at(&all, &adj, k);
+        result = split(&all);
     } else {
         let mut todo = vec![all];
         while let Some(group) = todo.pop() {
-            let parts = components_at(&group, &adj, k);
+            let parts = split(&group);
             if parts.len() == 1 {
                 result.push(parts.into_iter().next().unwrap());
             } else {
@@ -361,12 +414,8 @@ pub fn k_edge_components(graph: &Graph, k: i64, subgraphs: bool) -> PyResult<Vec
     Ok(result.into_iter().map(|g| g.into_iter().map(|v| ids[v]).collect()).collect())
 }
 
-/// Average local node connectivity over all pairs (ordered pairs if directed), with the same
-/// unit-capacity auxiliary network as NetworkX (adjacent pairs count their direct edge).
-#[pyfunction]
-pub fn average_node_connectivity(graph: &Graph) -> PyResult<f64> {
-    let (ids, idx) = sorted_ids(graph);
-    let n = ids.len();
+/// Distinct arcs between different nodes (both orientations if undirected).
+fn node_flow_arcs(graph: &Graph, idx: &FxHashMap<u64, usize>) -> Vec<(usize, usize)> {
     let directed = graph.is_directed();
     let mut arcs: FxHashSet<(usize, usize)> = FxHashSet::default();
     for e in graph.get_edges_internal() {
@@ -378,26 +427,226 @@ pub fn average_node_connectivity(graph: &Graph) -> PyResult<f64> {
             }
         }
     }
-    let arcs: Vec<(usize, usize)> = arcs.into_iter().collect();
+    let mut arcs: Vec<(usize, usize)> = arcs.into_iter().collect();
+    arcs.sort_unstable();
+    arcs
+}
+
+/// Local node connectivity of `s` and `t` in the usual auxiliary network (node v split into
+/// 2v in and 2v + 1 out with a unit arc; flow from s_out to t_in), as NetworkX: an arc between
+/// them counts as one path.
+fn local_node_connectivity(n: usize, arcs: &[(usize, usize)], s: usize, t: usize) -> i64 {
+    let mut net = Dinic::new(2 * n);
+    for v in 0..n {
+        net.add(2 * v, 2 * v + 1, 1, 0);
+    }
+    for &(a, b) in arcs {
+        net.add(2 * a + 1, 2 * b, 1, 0);
+    }
+    net.max_flow(2 * s + 1, 2 * t)
+}
+
+/// Average local node connectivity over all pairs (ordered pairs if directed), with the same
+/// unit-capacity auxiliary network as NetworkX (adjacent pairs count their direct edge).
+#[pyfunction]
+pub fn average_node_connectivity(graph: &Graph) -> PyResult<f64> {
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let directed = graph.is_directed();
+    let arcs = node_flow_arcs(graph, &idx);
     let (mut num, mut den) = (0i64, 0i64);
     for s in 0..n {
         for t in 0..n {
             if s == t || (!directed && t < s) {
                 continue;
             }
-            // node v -> (2v in, 2v + 1 out); flow from s_out to t_in
-            let mut net = Dinic::new(2 * n);
-            for v in 0..n {
-                net.add(2 * v, 2 * v + 1, 1, 0);
-            }
-            for &(a, b) in &arcs {
-                net.add(2 * a + 1, 2 * b, 1, 0);
-            }
-            num += net.max_flow(2 * s + 1, 2 * t);
+            num += local_node_connectivity(n, &arcs, s, t);
             den += 1;
         }
     }
     Ok(if den == 0 { 0.0 } else { num as f64 / den as f64 })
+}
+
+/// Local node connectivity of every pair of `nodes` (all nodes if None): `(u, v, value)` for
+/// unordered pairs if undirected, ordered pairs if directed.
+#[pyfunction]
+#[pyo3(signature = (graph, nodes=None))]
+pub fn all_pairs_node_connectivity(graph: &Graph, nodes: Option<Vec<u64>>) -> PyResult<Vec<(u64, u64, i64)>> {
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let chosen: Vec<usize> = match nodes {
+        None => (0..n).collect(),
+        Some(list) => {
+            let mut seen = FxHashSet::default();
+            let mut out = Vec::new();
+            for v in list {
+                let i = *idx
+                    .get(&v)
+                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("Node {} does not exist", v)))?;
+                if seen.insert(i) {
+                    out.push(i);
+                }
+            }
+            out
+        }
+    };
+    let directed = graph.is_directed();
+    let arcs = node_flow_arcs(graph, &idx);
+    let mut out = Vec::new();
+    for (i, &s) in chosen.iter().enumerate() {
+        for (j, &t) in chosen.iter().enumerate() {
+            if i == j || (!directed && j < i) {
+                continue;
+            }
+            out.push((ids[s], ids[t], local_node_connectivity(n, &arcs, s, t)));
+        }
+    }
+    Ok(out)
+}
+
+// ---------------------------------------------------------------------------------------------
+// All minimum node cuts
+// ---------------------------------------------------------------------------------------------
+
+/// The minimum x-v node separator closest to x with every node in `forced` on x's side, if its
+/// size is `k`: `(separator, x's side)` as node indices.
+fn closest_separator(
+    adj: &[Vec<usize>],
+    x: usize,
+    v: usize,
+    forced: &[bool],
+    k: i64,
+) -> Option<(Vec<usize>, Vec<bool>)> {
+    let n = adj.len();
+    let inf = n as i64 + 1;
+    let mut net = Dinic::new(2 * n);
+    for u in 0..n {
+        let cap = if u == x || u == v || forced[u] { inf } else { 1 };
+        net.add(2 * u, 2 * u + 1, cap, 0);
+        if forced[u] {
+            net.add(2 * x + 1, 2 * u, inf, 0);
+        }
+        for &w in &adj[u] {
+            net.add(2 * u + 1, 2 * w, inf, 0);
+        }
+    }
+    if net.max_flow(2 * x + 1, 2 * v) != k {
+        return None;
+    }
+    let side = net.source_side(2 * x + 1);
+    let sep: Vec<usize> = (0..n).filter(|&u| side[2 * u] && !side[2 * u + 1]).collect();
+    let inside: Vec<bool> = (0..n).map(|u| side[2 * u + 1]).collect();
+    Some((sep, inside))
+}
+
+/// Every minimum node cut (separator of size equal to the node connectivity) of a connected
+/// undirected graph, as sorted lists of node IDs. Complete graphs have none.
+///
+/// With X the k highest-degree nodes (Kanevsky 1993), every minimum cut is X itself or separates
+/// some x in X from a node v not adjacent to x. The minimum x-v separators form a lattice: from
+/// the one closest to x, forcing any of its nodes onto x's side and taking the closest
+/// separator again reaches every other one, each found once per pair.
+#[pyfunction]
+pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
+    if graph.is_directed() {
+        return value_err("all_node_cuts() requires an undirected graph");
+    }
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let adj = simple_adjacency(graph, &idx, false);
+    let adj: Vec<Vec<usize>> = adj
+        .into_iter()
+        .map(|mut a| {
+            a.sort_unstable();
+            a.dedup();
+            a
+        })
+        .collect();
+    if n <= 1 {
+        return Ok(Vec::new());
+    }
+    if !connected_without(&adj, &vec![false; n]) {
+        return value_err("all_node_cuts() requires a connected graph");
+    }
+    let adjacent = |a: usize, b: usize| adj[a].binary_search(&b).is_ok();
+    if (0..n).all(|u| adj[u].len() == n - 1) {
+        return Ok(Vec::new());
+    }
+    // node connectivity (Even 1975): min over non-adjacent pairs (v_i, v_j), i <= k
+    let arcs: Vec<(usize, usize)> = (0..n).flat_map(|u| adj[u].iter().map(move |&w| (u, w))).collect();
+    let mut k = adj.iter().map(|a| a.len()).min().unwrap() as i64;
+    let mut i = 0;
+    while (i as i64) <= k && i < n {
+        for j in i + 1..n {
+            if !adjacent(i, j) {
+                k = k.min(local_node_connectivity(n, &arcs, i, j));
+            }
+        }
+        i += 1;
+    }
+    let mut by_degree: Vec<usize> = (0..n).collect();
+    by_degree.sort_by(|&a, &b| adj[b].len().cmp(&adj[a].len()).then(a.cmp(&b)));
+    let x_set: Vec<usize> = by_degree[..k as usize].to_vec();
+    let mut found: FxHashSet<Vec<usize>> = FxHashSet::default();
+    let mut removed = vec![false; n];
+    for &u in &x_set {
+        removed[u] = true;
+    }
+    if !connected_without(&adj, &removed) {
+        let mut sep = x_set.clone();
+        sep.sort_unstable();
+        found.insert(sep);
+    }
+    for &x in &x_set {
+        for v in 0..n {
+            if v == x || adjacent(x, v) {
+                continue;
+            }
+            let mut visited: FxHashSet<Vec<usize>> = FxHashSet::default();
+            let mut stack = Vec::new();
+            if let Some(first) = closest_separator(&adj, x, v, &vec![false; n], k) {
+                stack.push(first);
+            }
+            while let Some((sep, inside)) = stack.pop() {
+                if !visited.insert(sep.clone()) {
+                    continue;
+                }
+                for &z in &sep {
+                    let mut forced = inside.clone();
+                    forced[z] = true;
+                    if let Some(next) = closest_separator(&adj, x, v, &forced, k) {
+                        if !visited.contains(&next.0) {
+                            stack.push(next);
+                        }
+                    }
+                }
+                found.insert(sep);
+            }
+        }
+    }
+    let mut cuts: Vec<Vec<usize>> = found.into_iter().collect();
+    cuts.sort();
+    Ok(cuts.into_iter().map(|c| c.into_iter().map(|u| ids[u]).collect()).collect())
+}
+
+/// Whether the nodes not in `removed` induce a connected graph (true when at most one is left).
+fn connected_without(adj: &[Vec<usize>], removed: &[bool]) -> bool {
+    let n = adj.len();
+    let Some(start) = (0..n).find(|&u| !removed[u]) else {
+        return true;
+    };
+    let mut seen = removed.to_vec();
+    seen[start] = true;
+    let mut queue = VecDeque::from([start]);
+    while let Some(u) = queue.pop_front() {
+        for &w in &adj[u] {
+            if !seen[w] {
+                seen[w] = true;
+                queue.push_back(w);
+            }
+        }
+    }
+    seen.iter().all(|&s| s)
 }
 
 // ---------------------------------------------------------------------------------------------
