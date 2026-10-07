@@ -212,6 +212,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Condensation](/assets/graphs/condensation.light.svg){.lightbox fig-alt="Left: a directed graph whose strongly connected components are shaded: the cycle A, B, C (accent color), the two-way pair D, E (teal), and the single nodes F (violet) and G (gold). Right: the condensation has one node per component, labeled {A,B,C}, {D,E}, F and G, joined by the edges that ran between components, {A,B,C} to {D,E} and F to G; the result is acyclic." width="100%"}
 ```
 
+### `dag_to_branching()` — DAG to branching
+
+<img src="dag-to-branching.light.svg" alt="Left: a diamond DAG in which A points to B and C, and both point to D (accent color). Right: dag_to_branching() unrolls every root-to-leaf path into a tree: A leads to A/B and A/C, and D, reached along both paths, appears twice, as A/B/D and A/C/D in the accent color. Each new node is labeled with its path, and the result is a branching." width="570">
+
+```markdown
+![DAG to branching](/assets/graphs/dag-to-branching.light.svg){.lightbox fig-alt="Left: a diamond DAG in which A points to B and C, and both point to D (accent color). Right: dag_to_branching() unrolls every root-to-leaf path into a tree: A leads to A/B and A/C, and D, reached along both paths, appears twice, as A/B/D and A/C/D in the accent color. Each new node is labeled with its path, and the result is a branching." width="100%"}
+```
+
 ### `degree_preserving_rewire()` — Degree-preserving rewire
 
 <img src="degree-preserving-rewire.light.svg" alt="A six-node ladder with each node&#x27;s degree in a pill: 2 for A, C, D, F and 3 for B and E. One swap takes the accent edges A-B and D-E and rewires them as the accent diagonals A-E and B-D, with the old edges shown dashed; every degree pill on the right matches the left." width="570">
@@ -266,6 +274,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Metric closure](/assets/graphs/metric-closure.light.svg){.lightbox fig-alt="Left: a path A, B, C, D whose three edges each have weight 1. Right: the metric closure joins every pair of nodes, weighted by the shortest-path distance between them. It keeps the three unit edges and adds the accent shortcuts A–C with weight 2, B–D with weight 2, and A–D with weight 3." width="100%"}
+```
+
+### `moral_graph()` — Moral graph
+
+<img src="moral-graph.light.svg" alt="Left: the sprinkler network, a directed graph in which cloudy points to rain and sprinkler, and both rain and sprinkler point to wet grass. Right: moral_graph() marries the two parents of wet by joining rain and sprinkler with a new edge (accent color) and drops every direction, giving an undirected graph with five edges." width="570">
+
+```markdown
+![Moral graph](/assets/graphs/moral-graph.light.svg){.lightbox fig-alt="Left: the sprinkler network, a directed graph in which cloudy points to rain and sprinkler, and both rain and sprinkler point to wet grass. Right: moral_graph() marries the two parents of wet by joining rain and sprinkler with a new edge (accent color) and drops every direction, giving an undirected graph with five edges." width="100%"}
 ```
 
 ### `power()` — Graph power
@@ -1044,6 +1060,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## traversal
 
+### `all_pairs_lowest_common_ancestor()` — All-pairs lowest common ancestor
+
+<img src="all-pairs-lowest-common-ancestor.light.svg" alt="A taxonomy drawn top down: Mammalia has the orders Carnivora and Rodentia; cat and dog are carnivores and mouse is a rodent. The queried species are outlined. For the pair cat, dog the lowest common ancestor is Carnivora (accent color, with its two edges); for cat, mouse it is Mammalia (teal, with the edges down to both). The card maps (cat, dog) to Carnivora and (cat, mouse) to Mammalia." width="570">
+
+```markdown
+![All-pairs lowest common ancestor](/assets/graphs/all-pairs-lowest-common-ancestor.light.svg){.lightbox fig-alt="A taxonomy drawn top down: Mammalia has the orders Carnivora and Rodentia; cat and dog are carnivores and mouse is a rodent. The queried species are outlined. For the pair cat, dog the lowest common ancestor is Carnivora (accent color, with its two edges); for cat, mouse it is Mammalia (teal, with the edges down to both). The card maps (cat, dog) to Carnivora and (cat, mouse) to Mammalia." width="100%"}
+```
+
 ### `all_topological_sorts()` — All topological sorts
 
 <img src="all-topological-sorts.light.svg" alt="A five-node DAG flowing left to right: A and B both point to C, which points to D and E. A and B can come in either order, and so can D and E, while C is always third. The card lists all four orderings in lexicographic order, from A, B, C, D, E to B, A, C, E, D." width="570">
@@ -1058,6 +1082,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Ancestors](/assets/graphs/ancestors.light.svg){.lightbox fig-alt="A seven-node DAG flowing left to right, with the query node F outlined. Following arrows backward from F reaches its parent D and, through D, both A and B, shown in the accent color with the edges used. C and E cannot reach F. The card lists A, B, D." width="100%"}
+```
+
+### `antichains()` — Antichains
+
+<img src="antichains.light.svg" alt="A diamond DAG: A points to B and C, which both point to D. B and C, in the accent color, cannot reach each other, so together they form the largest antichain; every other pair lies on a common path. The card lists all six antichains in the order returned: the empty set, D, C, B, then B and C (accent), then A." width="570">
+
+```markdown
+![Antichains](/assets/graphs/antichains.light.svg){.lightbox fig-alt="A diamond DAG: A points to B and C, which both point to D. B and C, in the accent color, cannot reach each other, so together they form the largest antichain; every other pair lies on a common path. The card lists all six antichains in the order returned: the empty set, D, C, B, then B and C (accent), then A." width="100%"}
 ```
 
 ### `bfs()` — Breadth-first search
@@ -1106,6 +1138,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![BFS tree](/assets/graphs/bfs-tree.light.svg){.lightbox fig-alt="Left: a six-node graph with the root A outlined. Right: bfs_tree() returns a new directed graph keeping only the edges the breadth-first search discovered, A to B, A to C, B to D, B to E, and D to F, as accent arrows; the unused edges C-E and E-F are dashed. Every root path is a fewest-hops path, so the tree has depth 3." width="100%"}
+```
+
+### `colliders()` — Colliders
+
+<img src="colliders.light.svg" alt="A causal graph in which talent and luck both point to success. The two arrows meeting head to head at success, all in the accent color, form a collider: two causes with a common effect. The card returns the one collider as the triple (talent, success, luck), effect in the middle." width="570">
+
+```markdown
+![Colliders](/assets/graphs/colliders.light.svg){.lightbox fig-alt="A causal graph in which talent and luck both point to success. The two arrows meeting head to head at success, all in the accent color, form a collider: two causes with a common effect. The card returns the one collider as the triple (talent, success, luck), effect in the middle." width="100%"}
 ```
 
 ### `descendants()` — Descendants
@@ -1268,6 +1308,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is minimal d-separator](/assets/graphs/is-minimal-d-separator.light.svg){.lightbox fig-alt="The chain A to B to C to D, with A in teal and D in violet. Left: z = [B] (outlined) blocks the chain, and dropping B would open it, so is_minimal_d_separator returns True. Right: z = [B, C] also separates A from D, but C (accent) is not needed, since B alone already blocks the chain, so the set is not minimal and the call returns False." width="100%"}
 ```
 
+### `lexicographical_topological_sort()` — Lexicographical topological sort
+
+<img src="lexicographical-topological-sort.light.svg" alt="Getting dressed as a DAG: shirt before tie, trousers before belt and shoes, socks before shoes. Numbered badges give the order returned, which always takes the alphabetically first item whose prerequisites are done: 1 shirt, 2 socks, 3 tie, 4 trousers, 5 belt, 6 shoes. The card lists the same order." width="570">
+
+```markdown
+![Lexicographical topological sort](/assets/graphs/lexicographical-topological-sort.light.svg){.lightbox fig-alt="Getting dressed as a DAG: shirt before tie, trousers before belt and shoes, socks before shoes. Numbered badges give the order returned, which always takes the alphabetically first item whose prerequisites are done: 1 shirt, 2 socks, 3 tie, 4 trousers, 5 belt, 6 shoes. The card lists the same order." width="100%"}
+```
+
 ### `lowest_common_ancestor()` — Lowest common ancestor
 
 <img src="lowest-common-ancestor.light.svg" alt="A seven-node DAG with the query nodes E and F outlined. A, B, and D all have paths to both, but D is the closest, so it is the lowest common ancestor, shown in the accent color with its edges to E and F. The card lists the common ancestors A, B, D and the answer D." width="570">
@@ -1354,6 +1402,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Traverse to reverse edges](/assets/graphs/trav-reverse-edge.light.svg){.lightbox fig-alt="Left: two edges are selected in the accent color, C to D and A to C; C and D are also joined by a second edge from D back to C. Right: after trav_reverse_edge() only D to C is selected, the reverse of C to D; A to C has no reverse edge, so it contributes nothing." width="100%"}
+```
+
+### `v_structures()` — V-structures
+
+<img src="v-structures.light.svg" alt="Two colliders side by side. Left: talent and luck both point to success and are not joined to each other, an unshielded collider, drawn in the accent color. Right: x and y both point to z, but the edge x to y, left in full ink, links the two causes, so this collider is shielded and faded. The card returns the only v-structure, (talent, success, luck), and notes that (x, z, y) is shielded by x to y." width="570">
+
+```markdown
+![V-structures](/assets/graphs/v-structures.light.svg){.lightbox fig-alt="Two colliders side by side. Left: talent and luck both point to success and are not joined to each other, an unshielded collider, drawn in the accent color. Right: x and y both point to z, but the edge x to y, left in full ink, links the two causes, so this collider is shielded and faded. The card returns the only v-structure, (talent, success, luck), and notes that (x, z, y) is shielded by x to y." width="100%"}
 ```
 
 ## paths
@@ -3524,6 +3580,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![All spanning trees](/assets/graphs/all-spanning-trees.light.svg){.lightbox fig-alt="Left: a triangle A, B, C with a pendant node D attached to C. Right: its three spanning trees, one per row; each keeps edge C–D and drops one triangle edge (drawn dashed), with the tree edges A–C B–C C–D, A–B B–C C–D, and A–B A–C C–D listed beside them." width="100%"}
 ```
 
+### `all_triads()` — All triads
+
+<img src="all-triads.light.svg" alt="Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one miniature per triad, its three nodes in the accent color and the fourth faded, labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and (2, 3, 4), the 4 ways to choose 3 of 4 nodes." width="570">
+
+```markdown
+![All triads](/assets/graphs/all-triads.light.svg){.lightbox fig-alt="Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one miniature per triad, its three nodes in the accent color and the fourth faded, labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and (2, 3, 4), the 4 ways to choose 3 of 4 nodes." width="100%"}
+```
+
 ### `bipartite_maximum_matching()` — Bipartite maximum matching
 
 <img src="bipartite-maximum-matching.light.svg" alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="570">
@@ -3860,12 +3924,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![To Prüfer sequence](/assets/graphs/to-prufer-sequence.light.svg){.lightbox fig-alt="A tree on node ids 1 to 6: 3–1, 1–5, 5–2, 5–6, and 6–4. Repeatedly removing the smallest leaf and writing down its neighbor removes 2, 3, 1, and 4 in that order (filled order badges), along the four edges in the accent color; removing 3 turns 1 into a leaf, so it goes next. The card shows the removed leaves and the returned sequence [5, 1, 5, 6]." width="100%"}
 ```
 
+### `triad_type()` — Triad type
+
+<img src="triad-type.light.svg" alt="Two copies of a directed graph on A, B, C, D: A points to B and C, B points to C, and C and D point at each other. Left copy: the triple A, B, C in the accent color is a transitive triad of three one-way arcs, type 030T. Right copy: B, C, D in teal has one mutual pair, one one-way pair and one empty pair, type 111D. The card gives both MAN codes." width="570">
+
+```markdown
+![Triad type](/assets/graphs/triad-type.light.svg){.lightbox fig-alt="Two copies of a directed graph on A, B, C, D: A points to B and C, B points to C, and C and D point at each other. Left copy: the triple A, B, C in the accent color is a transitive triad of three one-way arcs, type 030T. Right copy: B, C, D in teal has one mutual pair, one one-way pair and one empty pair, type 111D. The card gives both MAN codes." width="100%"}
+```
+
 ### `triadic_census()` — Triadic census
 
 <img src="triadic-census.light.svg" alt="A directed graph on five nodes: A and B point at each other and both at C, and C, D, E form a directed cycle. Each of its 10 triads gets one of 16 types; the table lists the non-zero counts with the triads behind them: 2 each of 012, 102, 021U, and 021C, 1 cyclic triad 030C (C, D, E, accent color), and 1 120U (A, B, C, teal). Every other type is 0." width="570">
 
 ```markdown
 ![Triadic census](/assets/graphs/triadic-census.light.svg){.lightbox fig-alt="A directed graph on five nodes: A and B point at each other and both at C, and C, D, E form a directed cycle. Each of its 10 triads gets one of 16 types; the table lists the non-zero counts with the triads behind them: 2 each of 012, 102, 021U, and 021C, 1 cyclic triad 030C (C, D, E, accent color), and 1 120U (A, B, C, teal). Every other type is 0." width="100%"}
+```
+
+### `triads_by_type()` — Triads by type
+
+<img src="triads-by-type.light.svg" alt="Left: a directed graph with the cycle A to B to C to A and the extra arc C to D. Right: one miniature per triad, its three nodes and arcs in the accent color, labeled with the type it is grouped under: A, B, C is the cycle 030C; A, B, D is 012; A, C, D is 021D (C points at both others); B, C, D is 021C, a two-step chain." width="570">
+
+```markdown
+![Triads by type](/assets/graphs/triads-by-type.light.svg){.lightbox fig-alt="Left: a directed graph with the cycle A to B to C to A and the extra arc C to D. Right: one miniature per triad, its three nodes and arcs in the accent color, labeled with the type it is grouped under: A, B, C is the cycle 030C; A, B, D is 012; A, C, D is 021D (C points at both others); B, C, D is 021C, a two-step chain." width="100%"}
 ```
 
 ## enrichment
@@ -3966,6 +4046,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Has path](/assets/graphs/has-path.light.svg){.lightbox fig-alt="Left: a five-node directed graph in which the arrows lead from A through B and C to D (the path in the accent color), so a path from A to D exists and has_path() returns True. Right: the same graph with the edge between C and D reversed (in the accent color); no arrow enters D any more, so has_path() returns False." width="100%"}
+```
+
+### `is_aperiodic()` — Is aperiodic
+
+<img src="is-aperiodic.light.svg" alt="Left: the directed cycle A, B, C, D plus the chord C to A, which closes the 3-cycle A, B, C (accent color) beside the 4-cycle; the cycle lengths 3 and 4 have greatest common divisor 1, so is_aperiodic() returns True. Right: the 4-cycle alone has only cycles of length 4, so its period is 4 and is_aperiodic() returns False; the dashed chord marks the missing edge." width="570">
+
+```markdown
+![Is aperiodic](/assets/graphs/is-aperiodic.light.svg){.lightbox fig-alt="Left: the directed cycle A, B, C, D plus the chord C to A, which closes the 3-cycle A, B, C (accent color) beside the 4-cycle; the cycle lengths 3 and 4 have greatest common divisor 1, so is_aperiodic() returns True. Right: the 4-cycle alone has only cycles of length 4, so its period is 4 and is_aperiodic() returns False; the dashed chord marks the missing edge." width="100%"}
 ```
 
 ### `is_arborescence()` — Is arborescence
@@ -4198,6 +4286,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is tree](/assets/graphs/is-tree.light.svg){.lightbox fig-alt="Left: six nodes connected with five edges and no cycle, so is_tree() returns True. Right: the same graph plus one extra edge between E and F, which closes the cycle A, B, E, F, C (shown in the accent color), so is_tree() returns False." width="100%"}
+```
+
+### `is_triad()` — Is triad
+
+<img src="is-triad.light.svg" alt="Left: a directed graph on three nodes A, B, C with the single arc A to B and no self-loops, so is_triad() returns True. Right: three nodes in an undirected graph (named in the accent note above it); a triad must be directed, so is_triad() returns False." width="570">
+
+```markdown
+![Is triad](/assets/graphs/is-triad.light.svg){.lightbox fig-alt="Left: a directed graph on three nodes A, B, C with the single arc A to B and no self-loops, so is_triad() returns True. Right: three nodes in an undirected graph (named in the accent note above it); a triad must be directed, so is_triad() returns False." width="100%"}
 ```
 
 ### `is_valid_coloring()` — Is valid coloring
