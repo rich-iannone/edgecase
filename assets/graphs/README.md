@@ -1800,6 +1800,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Alpha centrality](/assets/graphs/alpha-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by alpha centrality with alpha 0.8, which follows outgoing edges. The source A, whose arcs reach every other node, scores 0.45, then B and C 0.17, D 0.13, and the sink E, which reaches nothing, only its exogenous share, 0.07." width="100%"}
 ```
 
+### `approximate_current_flow_betweenness_centrality()` — Approximate current-flow betweenness centrality
+
+<img src="approximate-current-flow-betweenness-centrality.light.svg" alt="The shared seven-node graph shaded by an estimate of current-flow betweenness from 96 random source-target pairs (epsilon=0.2, seed=1). The table sets each estimate beside the exact value: the bridge E comes out at 0.49 against 0.58 and the hub C at 0.46 against 0.43, close enough to rank the nodes, and the pendant G is exactly 0." width="570">
+
+```markdown
+![Approximate current-flow betweenness centrality](/assets/graphs/approximate-current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by an estimate of current-flow betweenness from 96 random source-target pairs (epsilon=0.2, seed=1). The table sets each estimate beside the exact value: the bridge E comes out at 0.49 against 0.58 and the hub C at 0.46 against 0.43, close enough to rank the nodes, and the pendant G is exactly 0." width="100%"}
+```
+
 ### `authority_centrality()` — HITS authority scores
 
 <img src="authority-centrality.light.svg" alt="A five-node directed graph: A points to B, C and D, B and C point to D, and D points to E. Each node is shaded by its authority score. D is pointed to by all three hubs and scores 0.82, B and C 0.41, while the source A and E, fed only by D, score 0." width="570">
@@ -1928,6 +1936,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Current-flow betweenness centrality](/assets/graphs/current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by current-flow betweenness, the share of electrical current through each node when every pair in turn injects and draws a unit of current. The bridge E carries the most at 0.58, then the hub C 0.43 and the tail node F 0.33; the pendant G carries none." width="100%"}
 ```
 
+### `current_flow_betweenness_centrality_subset()` — Current-flow betweenness on a subset
+
+<img src="current-flow-betweenness-centrality-subset.light.svg" alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. All of it passes E and F, which share the top at 0.067, while inside the triangles it spreads over every route: C 0.043, D 0.030, and even the sources pass some of each other&#x27;s current, B 0.014 and A 0.006." width="570">
+
+```markdown
+![Current-flow betweenness on a subset](/assets/graphs/current-flow-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. All of it passes E and F, which share the top at 0.067, while inside the triangles it spreads over every route: C 0.043, D 0.030, and even the sources pass some of each other's current, B 0.014 and A 0.006." width="100%"}
+```
+
 ### `current_flow_closeness_centrality()` — Current-flow closeness centrality
 
 <img src="current-flow-closeness-centrality.light.svg" alt="The shared seven-node graph shaded by current-flow closeness, based on the effective resistance from each node to all others. The bridge E edges out the hub C, 0.159 to 0.156, ahead of D 0.147, while the pendant G, behind a single edge, scores 0.070." width="570">
@@ -1974,6 +1990,38 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Edge betweenness centrality](/assets/graphs/edge-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more shortest paths run through it. The bridge E-F, which every path from the triangles to the tail must cross, is thickest and in accent at 0.48, ahead of C-E at 0.36 and F-G at 0.29; the triangle edges A-B and C-D carry the least, 0.07." width="100%"}
+```
+
+### `edge_betweenness_centrality_subset()` — Edge betweenness on a subset
+
+<img src="edge-betweenness-centrality-subset.light.svg" alt="The shared seven-node graph with the sources A and B and the target G outlined; only shortest paths from A or B to G count. Every one ends along E-F and F-G (accent, 1.00). A&#x27;s single path and one of B&#x27;s two run through C-E, 0.75, B&#x27;s other path takes B-D-E, and A-B and C-D carry none." width="570">
+
+```markdown
+![Edge betweenness on a subset](/assets/graphs/edge-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only shortest paths from A or B to G count. Every one ends along E-F and F-G (accent, 1.00). A's single path and one of B's two run through C-E, 0.75, B's other path takes B-D-E, and A-B and C-D carry none." width="100%"}
+```
+
+### `edge_current_flow_betweenness_centrality()` — Edge current-flow betweenness centrality
+
+<img src="edge-current-flow-betweenness-centrality.light.svg" alt="The shared seven-node graph with each edge drawn thicker the more electrical current it carries when every pair of nodes in turn sends a unit of current. The bridge E-F carries the most, 0.33 in accent, then C-E 0.23, D-E 0.22 and F-G 0.20; the triangle edges B-C and C-D, with parallel routes beside them, carry the least, 0.12." width="570">
+
+```markdown
+![Edge current-flow betweenness centrality](/assets/graphs/edge-current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more electrical current it carries when every pair of nodes in turn sends a unit of current. The bridge E-F carries the most, 0.33 in accent, then C-E 0.23, D-E 0.22 and F-G 0.20; the triangle edges B-C and C-D, with parallel routes beside them, carry the least, 0.12." width="100%"}
+```
+
+### `edge_current_flow_betweenness_centrality_subset()` — Edge current-flow betweenness on a subset
+
+<img src="edge-current-flow-betweenness-centrality-subset.light.svg" alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. Edges are drawn thicker the more of it they carry: all of it crosses E-F and F-G, which share the top at 0.033, while inside the triangles the current spreads out, C-E 0.018 down to C-D 0.003." width="570">
+
+```markdown
+![Edge current-flow betweenness on a subset](/assets/graphs/edge-current-flow-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. Edges are drawn thicker the more of it they carry: all of it crosses E-F and F-G, which share the top at 0.033, while inside the triangles the current spreads out, C-E 0.018 down to C-D 0.003." width="100%"}
+```
+
+### `edge_load_centrality()` — Edge load centrality
+
+<img src="edge-load-centrality.light.svg" alt="The shared seven-node graph with each edge drawn thicker the more load it carries when every node sends one unit to every other node, split equally at each hop. The bridge E-F carries the most, 22 in accent, then C-E 18, and D-E and F-G 13; the triangle edges A-B and C-D carry the least, 8." width="570">
+
+```markdown
+![Edge load centrality](/assets/graphs/edge-load-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more load it carries when every node sends one unit to every other node, split equally at each hop. The bridge E-F carries the most, 22 in accent, then C-E 18, and D-E and F-G 13; the triangle edges A-B and C-D carry the least, 8." width="100%"}
 ```
 
 ### `effective_size()` — Effective size
@@ -2190,6 +2238,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Personalized PageRank](/assets/graphs/personalized-pagerank.light.svg){.lightbox fig-alt="The shared seven-node graph with the seed A (node id 1) outlined, every node shaded by PageRank whose random surfer always restarts at A. Rank stays near the seed, A 0.26, C 0.23 and B 0.20, and fades along the strip to F 0.05 and G 0.02." width="100%"}
+```
+
+### `prominent_group()` — Most prominent group
+
+<img src="prominent-group.light.svg" alt="The shared seven-node graph twice. Left, prominent_group(2) finds the pair E, B (accent), which together lie on 0.65 of the shortest paths between the other five nodes. Right, E and F, two of the three nodes with the highest individual betweenness, cover much of the same traffic, so as a group they score only 0.40." width="570">
+
+```markdown
+![Most prominent group](/assets/graphs/prominent-group.light.svg){.lightbox fig-alt="The shared seven-node graph twice. Left, prominent_group(2) finds the pair E, B (accent), which together lie on 0.65 of the shortest paths between the other five nodes. Right, E and F, two of the three nodes with the highest individual betweenness, cover much of the same traffic, so as a group they score only 0.40." width="100%"}
 ```
 
 ### `radiality()` — Radiality
@@ -2944,6 +3000,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## connectivity
 
+### `all_node_cuts()` — All minimum node cuts
+
+<img src="all-node-cuts.light.svg" alt="Three copies of a strip of four triangles on A to F, whose node connectivity is 2. Each copy shows one minimum node cut in the accent color, with the edges it removes dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The card lists the three cuts." width="570">
+
+```markdown
+![All minimum node cuts](/assets/graphs/all-node-cuts.light.svg){.lightbox fig-alt="Three copies of a strip of four triangles on A to F, whose node connectivity is 2. Each copy shows one minimum node cut in the accent color, with the edges it removes dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The card lists the three cuts." width="100%"}
+```
+
+### `all_pairs_node_connectivity()` — All-pairs node connectivity
+
+<img src="all-pairs-node-connectivity.light.svg" alt="A square A, B, C, D with the diagonal A–C (accent). The table gives the local node connectivity of every pair: A and C are joined directly and through B and through D, three routes that share no other node (accent cells), while every other pair has two." width="570">
+
+```markdown
+![All-pairs node connectivity](/assets/graphs/all-pairs-node-connectivity.light.svg){.lightbox fig-alt="A square A, B, C, D with the diagonal A–C (accent). The table gives the local node connectivity of every pair: A and C are joined directly and through B and through D, three routes that share no other node (accent cells), while every other pair has two." width="100%"}
+```
+
 ### `average_node_connectivity()` — Average node connectivity
 
 <img src="average-node-connectivity.light.svg" alt="Left: a six-node cycle, where every pair of nodes, such as A and D (outlined), is joined by two routes that share no other node (accent and teal), so the average node connectivity is 2.0. Right: the same nodes without the closing edge F–A (dashed), a path, where every pair has only one route and the average is 1.0." width="570">
@@ -3094,6 +3166,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is k-edge-connected](/assets/graphs/is-k-edge-connected.light.svg){.lightbox fig-alt="The same six-node cycle on both sides. Left: removing any single edge leaves a path, so the cycle is 2-edge-connected and is_k_edge_connected(2) returns True. Right: removing the two accent edges B–C and E–F splits it in two, so fewer than 3 edge removals disconnect it and is_k_edge_connected(3) returns False." width="100%"}
+```
+
+### `is_locally_k_edge_connected()` — Is locally k-edge-connected
+
+<img src="is-locally-k-edge-connected.light.svg" alt="Two triangles joined by the bridge C–D, twice. Left: A and C (outlined) are joined by the edge A–C (accent) and by the route A, B, C (teal), two paths with no edge in common, so is_locally_k_edge_connected(A, C, 2) returns True. Right: every route from A to E crosses the bridge C–D (accent), so a single edge separates them and the call returns False." width="570">
+
+```markdown
+![Is locally k-edge-connected](/assets/graphs/is-locally-k-edge-connected.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D, twice. Left: A and C (outlined) are joined by the edge A–C (accent) and by the route A, B, C (teal), two paths with no edge in common, so is_locally_k_edge_connected(A, C, 2) returns True. Right: every route from A to E crosses the bridge C–D (accent), so a single edge separates them and the call returns False." width="100%"}
+```
+
+### `k_edge_augmentation()` — k-edge augmentation
+
+<img src="k-edge-augmentation.light.svg" alt="Left: a binary tree on seven nodes, in which every edge is a bridge. Right: k_edge_augmentation(2) adds the two dashed accent edges D–F and E–G, pairing up the four leaves (outlined), after which every edge lies on a cycle and no single edge removal disconnects the tree; with four leaves, two new edges is the fewest possible." width="570">
+
+```markdown
+![k-edge augmentation](/assets/graphs/k-edge-augmentation.light.svg){.lightbox fig-alt="Left: a binary tree on seven nodes, in which every edge is a bridge. Right: k_edge_augmentation(2) adds the two dashed accent edges D–F and E–G, pairing up the four leaves (outlined), after which every edge lies on a cycle and no single edge removal disconnects the tree; with four leaves, two new edges is the fewest possible." width="100%"}
 ```
 
 ### `k_edge_components()` — k-edge-connected components
