@@ -3,6 +3,7 @@ dag_longest_path(_length), condensation and lowest_common_ancestor."""
 
 import itertools
 import random
+import warnings
 
 import edgecase as ec
 import networkx as nx
@@ -286,3 +287,81 @@ class TestDSeparation:
             cyclic.is_d_separator("A", "B", [])
         g.find_minimal_d_separator("talent", "luck")
         assert g.steps[-1].delta.node_groups == {"talent": 0, "luck": 1}
+
+
+def _random_dag(seed, n):
+    rnd = random.Random(seed)
+    D = nx.DiGraph()
+    D.add_nodes_from(range(n))
+    D.add_edges_from((u, v) for u, v in itertools.combinations(range(n), 2) if rnd.random() < 0.3)
+    g = ec.Graph(directed=True).add_nodes([str(x) for x in D])
+    for u, v in D.edges:
+        g.add_edge(str(u), str(v))
+    return D, g
+
+
+class TestDagExtras:
+    """antichains, colliders and v-structures, lexicographic topological order, DAG to
+    branching, all-pairs LCA, moral graph and aperiodicity, validated against NetworkX."""
+
+    def test_against_networkx(self):
+        warnings.simplefilter("ignore", DeprecationWarning)
+        for seed in range(100):
+            D, g = _random_dag(seed, random.Random(seed).randint(1, 8))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            topo = list(nx.topological_sort(D))
+            assert [[lab(x) for x in a] for a in g.antichains([str(x) for x in topo])] == list(
+                nx.antichains(D, topo)
+            )
+            assert sorted(tuple(map(lab, c)) for c in g.colliders()) == sorted(nx.dag.colliders(D))
+            assert sorted(tuple(map(lab, c)) for c in g.v_structures()) == sorted(
+                nx.dag.v_structures(D)
+            )
+            ds = nx.relabel_nodes(D, {n: str(n) for n in D})
+            assert [g.get_label_from_id(x) for x in g.lexicographical_topological_sort()] == list(
+                nx.lexicographical_topological_sort(ds)
+            )
+            branching, ref = g.dag_to_branching(), nx.dag_to_branching(D)
+            assert (branching.count_nodes(), branching.count_edges()) == (
+                ref.number_of_nodes(),
+                ref.number_of_edges(),
+            )
+            moral = g.moral_graph()
+            assert {
+                frozenset(map(int, e.split("--")))
+                for e in moral.get_edges_str_repr(use_labels=True)
+            } == {frozenset(e) for e in nx.moral_graph(D).edges}
+            if len(D):
+                ours = {
+                    (lab(a), lab(b)): lab(c)
+                    for (a, b), c in g.all_pairs_lowest_common_ancestor().items()
+                }
+                assert set(ours) == set(dict(nx.all_pairs_lowest_common_ancestor(D)))
+                anc = {n: nx.ancestors(D, n) | {n} for n in D}
+                for (u, v), c in ours.items():
+                    common = anc[u] & anc[v]
+                    assert c in common and not any(s in common for s in D.successors(c))
+
+    def test_aperiodic_and_errors(self):
+        for seed in range(60):
+            G = nx.gnp_random_graph(
+                random.Random(seed).randint(2, 8), 0.4, seed=seed, directed=True
+            )
+            if not nx.is_strongly_connected(G):
+                continue
+            g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
+            for u, v in G.edges:
+                g.add_edge(str(u), str(v))
+            assert g.is_aperiodic() == nx.is_aperiodic(G)
+        chain = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        with pytest.raises(ValueError, match="strongly connected"):
+            chain.is_aperiodic()
+        cyc = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edges([("A", "B"), ("B", "A")])
+        with pytest.raises(ValueError, match="acyclic"):
+            cyc.antichains()
+        with pytest.raises(ValueError, match="cycle"):
+            cyc.lexicographical_topological_sort()
+        assert ec.Graph(directed=True).add_nodes(["b", "a"]).lexicographical_topological_sort(
+            key=lambda n: -n
+        ) == [2, 1]
+        assert cyc.moral_graph().count_edges() == 1
