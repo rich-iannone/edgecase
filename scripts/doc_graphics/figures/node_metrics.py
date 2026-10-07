@@ -30,7 +30,7 @@ Single-node getters (`get_degree`, `get_in_degree`, `get_out_degree`,
 for the depicted graph (rounded to 2 decimals).
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, text_width
 
 UNIT = 80  # one scale for the whole family
 
@@ -341,3 +341,136 @@ def group_betweenness_centrality(s: Scene) -> None:
                            "g.group_betweenness_centrality(S)", "0.6", "0.0")
     _group_panel(s, left, GROUP_SPREAD, "l.")
     _group_panel(s, right, GROUP_BUNCHED, "r.")
+
+
+# --- later additions: per-edge variants and the best group ----------------------------
+#
+# The per-edge variants (`edge_current_flow_betweenness_centrality`, its `_subset`,
+# `edge_betweenness_centrality_subset`, `edge_load_centrality`) follow
+# `edge_betweenness_centrality`: edge width grows with the score, the top edge is
+# `accent`, and the table lists edge → score. Subset variants outline their sources and
+# targets `soft` with `s` / `t` badges, as `betweenness_centrality_subset` does; calls too
+# long for the result caption sit under the graph instead. `prominent_group` uses
+# `contrast` like the group centralities: the group it finds (left, accent hull) beside the
+# pair a ranking by individual betweenness suggests (right), which covers the same paths
+# twice. Each figure computes its numbers with edgecase and asserts them.
+
+
+def strip_graph():
+    """The shared strip graph as an edgecase Graph (node ids 1-7 are A-G)."""
+    import edgecase as ec
+
+    return ec.Graph().add_nodes(list(STRIP_COORDS)).add_edges(STRIP_EDGES)
+
+
+def edge_scores(g, scores: dict[int, float], digits: int = 2) -> dict[tuple[str, str], float]:
+    """Edge-ID scores keyed by the drawn (label, label) pair, rounded."""
+    out = {}
+    for eid, v in scores.items():
+        a, b = (g.get_label_from_id(n) for n in g.get_node_ids_by_edge_id(eid))
+        out[(a, b)] = round(v, digits)
+    return out
+
+
+def _edge_metric(s: Scene, captions: tuple[str, str], scores: dict[tuple[str, str], float],
+                 *, digits: int = 2, header: str = "score", ends: dict[str, str] | None = None,
+                 box: Box | None = None) -> None:
+    """Edge widths by score on the strip graph → edge table (top edge accent)."""
+    left, right = compute(s, *captions)
+    gbox = left if box is None else box
+    if ends:
+        note = "    ".join(f"{t} = [{', '.join(k for k, v in ends.items() if v == t.lower())}]"
+                           for t in ("S", "T"))
+        s.text(left.cx, left.y0 + 8, note, size=SIZE_NOTE, opacity=0.6)
+        gbox = Box(left.x0, left.y0 + 22, left.x1, left.y1)
+    pos = place(STRIP_COORDS, gbox, unit=UNIT)
+    top = max(scores.values())
+    s.graph(pos, [], styles={k: "soft" for k in (ends or {})})
+    for (a, b), v in scores.items():
+        s.edge(a, b, style="accent" if v == top else "muted" if v == 0 else "default",
+               width=EDGE_W_MIN + (EDGE_W_MAX - EDGE_W_MIN) * v / top)
+    for k, t in (ends or {}).items():
+        s.badge(k, t, where={"A": "sw", "B": "nw", "G": "ne"}.get(k, "auto"))
+    rows = [["edge", header]] + _rows({f"{a}–{b}": v for (a, b), v in scores.items()},
+                                      digits=digits)
+    first = max(84, max(text_width(r[0], SIZE_NOTE) for r in rows) + 16)
+    s.table_centered(right, rows, [first, 64], highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+@figure("edge_current_flow_betweenness_centrality", "node-metrics",
+        "Edge current-flow betweenness centrality",
+        "The shared seven-node graph with each edge drawn thicker the more electrical "
+        "current it carries when every pair of nodes in turn sends a unit of current. The "
+        "bridge E-F carries the most, 0.33 in accent, then C-E 0.23, D-E 0.22 and F-G 0.20; "
+        "the triangle edges B-C and C-D, with parallel routes beside them, carry the least, "
+        "0.12.")
+def edge_current_flow_betweenness_centrality(s: Scene) -> None:
+    g = strip_graph()
+    scores = edge_scores(g, g.edge_current_flow_betweenness_centrality(return_dict=True))
+    assert scores[("E", "F")] == 0.33 and scores[("C", "D")] == 0.12
+    _edge_metric(s, ("g.edge_current_flow_betweenness_centrality()", ""), scores)
+
+
+@figure("edge_current_flow_betweenness_centrality_subset", "node-metrics",
+        "Edge current-flow betweenness on a subset",
+        "The shared seven-node graph with the sources A and B and the target G outlined; "
+        "only current sent from A or B to G counts. Edges are drawn thicker the more of it "
+        "they carry: all of it crosses E-F and F-G, which share the top at 0.033, while "
+        "inside the triangles the current spreads out, C-E 0.018 down to C-D 0.003.")
+def edge_current_flow_betweenness_centrality_subset(s: Scene) -> None:
+    g = strip_graph()
+    raw = g.edge_current_flow_betweenness_centrality_subset(["A", "B"], ["G"], return_dict=True)
+    scores = edge_scores(g, raw, digits=3)
+    assert scores[("E", "F")] == scores[("F", "G")] == 0.033 and scores[("C", "D")] == 0.003
+    _edge_metric(s, ("g.edge_current_flow_betweenness_centrality_subset(S, T)", ""), scores,
+                 digits=3, ends={"A": "s", "B": "s", "G": "t"})
+
+
+@figure("edge_betweenness_centrality_subset", "node-metrics",
+        "Edge betweenness on a subset",
+        "The shared seven-node graph with the sources A and B and the target G outlined; "
+        "only shortest paths from A or B to G count. Every one ends along E-F and F-G "
+        "(accent, 1.00). A's single path and one of B's two run through C-E, 0.75, B's "
+        "other path takes B-D-E, and A-B and C-D carry none.")
+def edge_betweenness_centrality_subset(s: Scene) -> None:
+    g = strip_graph()
+    raw = g.edge_betweenness_centrality_subset(["A", "B"], ["G"], return_dict=True)
+    scores = edge_scores(g, raw)
+    assert scores[("E", "F")] == scores[("F", "G")] == 1.0 and scores[("C", "E")] == 0.75
+    assert scores[("A", "B")] == scores[("C", "D")] == 0.0
+    _edge_metric(s, ("g", "g.edge_betweenness_centrality_subset(S, T)"), scores,
+                 ends={"A": "s", "B": "s", "G": "t"})
+
+
+@figure("edge_load_centrality", "node-metrics", "Edge load centrality",
+        "The shared seven-node graph with each edge drawn thicker the more load it carries "
+        "when every node sends one unit to every other node, split equally at each hop. The "
+        "bridge E-F carries the most, 22 in accent, then C-E 18, and D-E and F-G 13; the "
+        "triangle edges A-B and C-D carry the least, 8.")
+def edge_load_centrality(s: Scene) -> None:
+    g = strip_graph()
+    scores = {k: int(v) for k, v in edge_scores(g, g.edge_load_centrality(return_dict=True)).items()}
+    assert scores[("E", "F")] == 22 and scores[("C", "E")] == 18 and scores[("F", "G")] == 13
+    assert scores[("A", "B")] == scores[("C", "D")] == 8
+    _edge_metric(s, ("g", "g.edge_load_centrality()"), scores, header="load")
+
+
+@figure("prominent_group", "node-metrics", "Most prominent group",
+        "The shared seven-node graph twice. Left, prominent_group(2) finds the pair E, B "
+        "(accent), which together lie on 0.65 of the shortest paths between the other "
+        "five nodes. Right, E and F, two of the three nodes with the highest individual "
+        "betweenness, cover much of the same traffic, so as a group they score only 0.40.")
+def prominent_group(s: Scene) -> None:
+    g = strip_graph()
+    value, group = g.prominent_group(2)
+    best = [g.get_label_from_id(n) for n in group]
+    assert best == ["E", "B"] and round(value, 2) == 0.65
+    rival = round(g.group_betweenness_centrality(["E", "F"]), 2)
+    assert rival == 0.4
+    left, right = contrast(s, "g.prominent_group(2)", "g.group_betweenness_centrality(S)",
+                           "(0.65, [E, B])", "0.4")
+    s.text(left.cx, left.y0 + 8, "k = 2", size=SIZE_NOTE, opacity=0.6)
+    gb = Box(left.x0, left.y0 + 22, left.x1, left.y1)
+    s.graph(place(STRIP_COORDS, gb, unit=UNIT), STRIP_EDGES,
+            styles={"E": "accent", "B": "accent"}, prefix="l.")
+    _group_panel(s, right, ["E", "F"], "r.")
