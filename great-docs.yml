@@ -414,6 +414,14 @@ reference:
         - Graph.dag_longest_path
         - Graph.dag_longest_path_length
         - Graph.lowest_common_ancestor
+        - Graph.all_pairs_lowest_common_ancestor
+        - Graph.antichains
+        - Graph.lexicographical_topological_sort
+        - Graph.dag_to_branching
+        - Graph.colliders
+        - Graph.v_structures
+        - Graph.moral_graph
+        - Graph.is_aperiodic
         - Graph.condensation
         - Graph.immediate_dominators
         - Graph.dominance_frontiers
@@ -467,6 +475,10 @@ reference:
       contents:
         - Graph.motif_census
         - Graph.triadic_census
+        - Graph.triad_type
+        - Graph.triads_by_type
+        - Graph.all_triads
+        - Graph.is_triad
         - Graph.motif_significance
 
     - title: Clique Operations
