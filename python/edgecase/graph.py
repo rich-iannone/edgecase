@@ -20036,6 +20036,240 @@ class Graph:
             return result
         return self
 
+    @staticmethod
+    def _triad_code(arcs: list[tuple[int, int]], nodes: tuple) -> str:
+        """Holland-Leinhardt (MAN) type of the triad with the given arcs, as in NetworkX."""
+        from itertools import permutations
+
+        m = len(arcs)
+        if m == 0:
+            return "003"
+        if m == 1:
+            return "012"
+        if m == 2:
+            e1, e2 = arcs
+            if set(e1) == set(e2):
+                return "102"
+            if e1[0] == e2[0]:
+                return "021D"
+            if e1[1] == e2[1]:
+                return "021U"
+            return "021C"
+        if m == 3:
+            for e1, e2, e3 in permutations(arcs, 3):
+                if set(e1) == set(e2):
+                    return "111U" if e3[0] in e1 else "111D"
+                if set(e1).symmetric_difference(set(e2)) == set(e3):
+                    if {e1[0], e2[0], e3[0]} == set(nodes):
+                        return "030C"
+                    return "030T"
+        if m == 4:
+            for e1, e2, e3, e4 in permutations(arcs, 4):
+                if set(e1) == set(e2):
+                    if set(e3) == set(e4):
+                        return "201"
+                    if {e3[0]} == {e4[0]} == set(e3) & set(e4):
+                        return "120D"
+                    if {e3[1]} == {e4[1]} == set(e3) & set(e4):
+                        return "120U"
+                    if e3[1] == e4[0]:
+                        return "120C"
+        return "210" if m == 5 else "300"
+
+    def _triad_arcs(self):
+        ids = sorted(self.get_node_ids(limit=None))
+        arcs = set()
+        for _, s, t in self.get_edges_as_tuples():
+            if s != t:
+                arcs.add((s, t))
+        return ids, arcs
+
+    def triad_type(self, nodes: list[Union[int, str]]) -> str:
+        """
+        Classify the triad formed by three nodes of a directed graph.
+
+        ![Triad type](/assets/graphs/triad-type.light.svg){.lightbox fig-alt="Two copies of a directed graph on A, B, C, D: A points to B and C, B points to C, and C and D point at each other. Left copy: the triple A, B, C in the accent color is a transitive triad of three one-way arcs, type 030T. Right copy: B, C, D in teal has one mutual pair, one one-way pair and one empty pair, type 111D. The card gives both MAN codes." width="100%"}
+
+        A triad is the subgraph induced by three nodes. Holland and Leinhardt's MAN scheme names
+        each of the 16 possible triads by its number of Mutual, Asymmetric and Null dyads plus a
+        letter for orientation (U up, D down, C cyclic, T transitive): `"003"` is empty, `"030T"`
+        a transitive triple, `"030C"` a 3-cycle, `"300"` fully reciprocated. Triad types are the
+        vocabulary of social network analysis for hierarchy, transitivity and reciprocity, and
+        `triadic_census()` counts them over the whole graph.
+
+        Parallel edges and self-loops are ignored.
+
+        Parameters
+        ----------
+        nodes
+            Three distinct nodes, as IDs or labels.
+
+        Returns
+        -------
+        str
+            The triad's MAN code, one of `003, 012, 102, 021D, 021U, 021C, 111D, 111U, 030T,
+            030C, 201, 120D, 120U, 120C, 210, 300`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, or `nodes` is not three distinct existing nodes.
+
+        Technical Notes
+        ---------------
+        The code follows from the arcs among the three nodes, using NetworkX's `triad_type` rules
+        on the induced subgraph.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "C")])
+
+        g.triad_type(["A", "B", "C"]), g.triad_type(["B", "C", "D"])
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("triad_type() requires a directed graph")
+        trio = tuple(self._resolve_node_id(n, auto_create=False) for n in nodes)
+        if len(set(trio)) != 3 or len(trio) != 3:
+            raise ValueError("a triad needs exactly three distinct nodes")
+        _, arcs = self._triad_arcs()
+        inside = sorted(a for a in arcs if a[0] in trio and a[1] in trio)
+        return self._triad_code(inside, trio)
+
+    def all_triads(self) -> list[tuple[int, int, int]]:
+        """
+        List every triad (set of three nodes) of a directed graph.
+
+        ![All triads](/assets/graphs/all-triads.light.svg){.lightbox fig-alt="Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one miniature per triad, its three nodes in the accent color and the fourth faded, labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and (2, 3, 4), the 4 ways to choose 3 of 4 nodes." width="100%"}
+
+        Returns all $\\binom{n}{3}$ triples of nodes, each standing for the triad it induces.
+        Combine with `triad_type()` to examine individual triads, or use `triads_by_type()` to
+        group them.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            Every triple of node IDs, in ascending order. (NetworkX yields the induced subgraphs
+            instead.)
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Combinations of the node IDs, $O(n^3)$ triples.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        len(g.all_triads())
+        ```
+        """
+        from itertools import combinations
+
+        if not self.is_directed():
+            raise ValueError("all_triads() requires a directed graph")
+        return list(combinations(sorted(self.get_node_ids(limit=None)), 3))
+
+    def triads_by_type(self) -> dict[str, list[tuple[int, int, int]]]:
+        """
+        Group the triads of a directed graph by MAN type.
+
+        ![Triads by type](/assets/graphs/triads-by-type.light.svg){.lightbox fig-alt="Left: a directed graph with the cycle A to B to C to A and the extra arc C to D. Right: one miniature per triad, its three nodes and arcs in the accent color, labeled with the type it is grouped under: A, B, C is the cycle 030C; A, B, D is 012; A, C, D is 021D (C points at both others); B, C, D is 021C, a two-step chain." width="100%"}
+
+        Where `triadic_census()` only counts each of the 16 triad types, this method lists which
+        triples of nodes form each type, so you can inspect, say, every 3-cycle (`"030C"`) or
+        every transitive triple (`"030T"`) in a network of directed ties.
+
+        Returns
+        -------
+        dict[str, list[tuple[int, int, int]]]
+            MAN code to the list of node ID triples of that type (types that do not occur are
+            left out).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Every triple is classified with `triad_type()`, $O(n^3)$; the counts agree with
+        `triadic_census()`. Matches NetworkX's `triads_by_type` (which stores subgraphs).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+
+        {code: [[g.get_label_from_id(n) for n in t] for t in triples]
+         for code, triples in g.triads_by_type().items()}
+        ```
+        """
+        from itertools import combinations
+
+        if not self.is_directed():
+            raise ValueError("triads_by_type() requires a directed graph")
+        ids, arcs = self._triad_arcs()
+        out_arcs: dict[int, set[int]] = {n: set() for n in ids}
+        for s, t in arcs:
+            out_arcs[s].add(t)
+        result: dict[str, list] = {}
+        for trio in combinations(ids, 3):
+            inside = sorted((s, t) for s in trio for t in out_arcs[s] if t in trio)
+            result.setdefault(self._triad_code(inside, trio), []).append(trio)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "triads_by_type",
+                "G.triads_by_type()",
+                result=result,
+                narration=f"{sum(len(v) for v in result.values())} triads of {len(result)} types.",
+            )
+        return result
+
+    def is_triad(self) -> bool:
+        """
+        Check if the graph itself is a triad: a directed graph with three nodes and no self-loops.
+
+        ![Is triad](/assets/graphs/is-triad.light.svg){.lightbox fig-alt="Left: a directed graph on three nodes A, B, C with the single arc A to B and no self-loops, so is_triad() returns True. Right: three nodes in an undirected graph (named in the accent note above it); a triad must be directed, so is_triad() returns False." width="100%"}
+
+        Returns
+        -------
+        bool
+            `True` for a directed graph with exactly three nodes and no self-loops.
+
+        Technical Notes
+        ---------------
+        Matches NetworkX's `is_triad`.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edge("A", "B")
+        g.is_triad(), ec.Graph().add_nodes(["A", "B", "C"]).is_triad()
+        ```
+        """
+        return (
+            self.is_directed()
+            and self.count_nodes() == 3
+            and not any(s == t for _, s, t in self.get_edges_as_tuples())
+        )
+
     def triadic_census(self) -> dict[str, int]:
         """
         Count every triad of a directed graph by its type.
@@ -41988,6 +42222,637 @@ class Graph:
                     f"condensation() folded {len(groups)} nodes into {len(labels)} "
                     f"strongly connected components."
                 ),
+            )
+        return result
+
+    def _require_dag(self, method: str):
+        if not self.is_directed():
+            raise ValueError(f"{method}() requires a directed graph")
+        if not self.is_dag():
+            raise ValueError(f"{method}() requires a directed acyclic graph")
+
+    def _arc_sets(self):
+        ids = sorted(self.get_node_ids(limit=None))
+        succ = {n: [] for n in ids}
+        pred = {n: [] for n in ids}
+        for _, s, t in sorted(self.get_edges_as_tuples()):
+            if t not in succ[s]:
+                succ[s].append(t)
+                pred[t].append(s)
+        return ids, succ, pred
+
+    def antichains(self, topo_order: list[Union[int, str]] | None = None) -> list[list[int]]:
+        """
+        List every antichain of a directed acyclic graph.
+
+        ![Antichains](/assets/graphs/antichains.light.svg){.lightbox fig-alt="A diamond DAG: A points to B and C, which both point to D. B and C, in the accent color, cannot reach each other, so together they form the largest antichain; every other pair lies on a common path. The card lists all six antichains in the order returned: the empty set, D, C, B, then B and C (accent), then A." width="100%"}
+
+        An antichain is a set of nodes no two of which are comparable: neither can reach the
+        other along directed paths. In a task dependency graph, an antichain is a set of tasks
+        that can run in parallel; in a partial order (a version history, a taxonomy), it is a
+        set of mutually unrelated elements. The empty set is an antichain too. By Dilworth's
+        theorem, the size of the largest antichain equals the fewest chains needed to cover the
+        order.
+
+        The number of antichains can be exponential, so use it on small DAGs.
+
+        Parameters
+        ----------
+        topo_order
+            Optional topological order (IDs or labels) to drive the enumeration. If `None`
+            (default), `get_topological_sort_order()` is used.
+
+        Returns
+        -------
+        list[list[int]]
+            Every antichain as a list of node IDs, starting with the empty one.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph.
+
+        Technical Notes
+        ---------------
+        Depth-first extension along the topological order: an antichain is extended by any later
+        node that is incomparable with all of its members, using the transitive closure for the
+        comparability test (Freese, 2004). Matches NetworkX's `antichains` for the same order.
+
+        Examples
+        --------
+        In a diamond A -> B, A -> C, B -> D, C -> D, only B and C are incomparable, so the
+        antichains are the empty set, the four single nodes, and {B, C}:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        [[g.get_label_from_id(n) for n in a] for a in g.antichains()]
+        ```
+        """
+        self._require_dag("antichains")
+        ids, succ, _ = self._arc_sets()
+        if topo_order is None:
+            self._recording_depth += 1
+            try:
+                order = list(self.get_topological_sort_order())
+            finally:
+                self._recording_depth -= 1
+        else:
+            order = [self._resolve_node_id(n, auto_create=False) for n in topo_order]
+        reach: dict[int, set[int]] = {}
+        for n in reversed(order):
+            r = set()
+            for c in succ[n]:
+                r.add(c)
+                r |= reach[c]
+            reach[n] = r
+        result = []
+        stacks = [([], list(reversed(order)))]
+        while stacks:
+            chain, stack = stacks.pop()
+            result.append(chain)
+            while stack:
+                x = stack.pop()
+                new_stack = [t for t in stack if not (t in reach[x] or x in reach[t])]
+                stacks.append((chain + [x], new_stack))
+        if self._recording_depth == 0:
+            widest = max(result, key=len)
+            self._record_step(
+                KIND_QUERY,
+                "antichains",
+                "G.antichains()",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in widest]),
+                result=result,
+                narration=f"{len(result)} antichains; the largest has {len(widest)} nodes.",
+            )
+        return result
+
+    def is_aperiodic(self) -> bool:
+        r"""
+        Check if a strongly connected directed graph is aperiodic.
+
+        ![Is aperiodic](/assets/graphs/is-aperiodic.light.svg){.lightbox fig-alt="Left: the directed cycle A, B, C, D plus the chord C to A, which closes the 3-cycle A, B, C (accent color) beside the 4-cycle; the cycle lengths 3 and 4 have greatest common divisor 1, so is_aperiodic() returns True. Right: the 4-cycle alone has only cycles of length 4, so its period is 4 and is_aperiodic() returns False; the dashed chord marks the missing edge." width="100%"}
+
+        The period of a strongly connected directed graph is the greatest common divisor of the
+        lengths of all its cycles; the graph is aperiodic when that divisor is 1. A random walk
+        (Markov chain) on a strongly connected graph converges to a unique stationary
+        distribution from any start exactly when the graph is aperiodic, which is why PageRank
+        and MCMC samplers care about it: a bipartite-like cycle structure makes the walk
+        oscillate instead of settling.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is aperiodic.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, empty, or not strongly connected.
+
+        Technical Notes
+        ---------------
+        A breadth-first search assigns levels; the period divides `level(u) - level(v) + 1` for
+        every edge `u -> v`, and the greatest common divisor of those values over all non-tree
+        edges is the period (Jarvis and Shier, 1996), $O(V + E)$. Matches NetworkX's
+        `is_aperiodic`.
+
+        Examples
+        --------
+        A directed 4-cycle has period 4; adding a chord that closes a 3-cycle makes the period
+        gcd(3, 4) = 1:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        before = ring.is_aperiodic()
+        ring.add_edge("C", "A")
+
+        before, ring.is_aperiodic()
+        ```
+        """
+        from math import gcd
+
+        if not self.is_directed():
+            raise ValueError("is_aperiodic() requires a directed graph")
+        ids, succ, _ = self._arc_sets()
+        if not ids:
+            raise ValueError("the graph has no nodes")
+        if not self.is_strongly_connected():
+            raise ValueError("the graph is not strongly connected")
+        levels = {ids[0]: 0}
+        layer, g, depth = [ids[0]], 0, 1
+        while layer:
+            nxt = []
+            for u in layer:
+                for v in succ[u]:
+                    if v in levels:
+                        g = gcd(g, levels[u] - levels[v] + 1)
+                    else:
+                        levels[v] = depth
+                        nxt.append(v)
+            layer, depth = nxt, depth + 1
+        value = g == 1
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_aperiodic",
+                "G.is_aperiodic()",
+                result=value,
+                narration=f"is_aperiodic(): {value} (period {g}).",
+            )
+        return value
+
+    def colliders(self) -> list[tuple[int, int, int]]:
+        """
+        List the colliders of a directed graph: pairs of edges pointing into a common node.
+
+        ![Colliders](/assets/graphs/colliders.light.svg){.lightbox fig-alt="A causal graph in which talent and luck both point to success. The two arrows meeting head to head at success, all in the accent color, form a collider: two causes with a common effect. The card returns the one collider as the triple (talent, success, luck), effect in the middle." width="100%"}
+
+        A collider is a triple `(p1, c, p2)` with edges `p1 -> c` and `p2 -> c`: two causes
+        with a common effect. In causal diagrams colliders behave specially, since conditioning
+        on a collider (or one of its descendants) *creates* a dependence between its causes (see
+        `is_d_separator()`), the source of selection bias such as Berkson's paradox.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            Every collider `(p1, c, p2)` as node IDs, one per unordered pair of parents of each
+            node.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Every pair of distinct in-neighbors of every node, $O(\\sum_v \\deg^-(v)^2)$. Matches
+        NetworkX's `dag.colliders` (and the deprecated `compute_v_structures`).
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["talent", "luck", "success"])
+        g.add_edges([("talent", "success"), ("luck", "success")])
+
+        [tuple(g.get_label_from_id(n) for n in triple) for triple in g.colliders()]
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("colliders() requires a directed graph")
+        ids, _, pred = self._arc_sets()
+        result = [
+            (ps[i], c, ps[j])
+            for c in ids
+            for ps in [pred[c]]
+            for i in range(len(ps))
+            for j in range(i + 1, len(ps))
+        ]
+        return result
+
+    def v_structures(self) -> list[tuple[int, int, int]]:
+        """
+        List the v-structures of a directed graph: colliders whose causes are not adjacent.
+
+        ![V-structures](/assets/graphs/v-structures.light.svg){.lightbox fig-alt="Two colliders side by side. Left: talent and luck both point to success and are not joined to each other, an unshielded collider, drawn in the accent color. Right: x and y both point to z, but the edge x to y, left in full ink, links the two causes, so this collider is shielded and faded. The card returns the only v-structure, (talent, success, luck), and notes that (x, z, y) is shielded by x to y." width="100%"}
+
+        A v-structure (an *unshielded* collider) is a triple `p1 -> c <- p2` where `p1` and `p2`
+        are not joined by an edge. V-structures are what distinguishes Markov-equivalent causal
+        DAGs: two DAGs encode the same conditional independences exactly when they share their
+        skeleton and their v-structures (Verma and Pearl, 1990), so causal discovery algorithms
+        such as PC orient edges by finding them.
+
+        Returns
+        -------
+        list[tuple[int, int, int]]
+            Every v-structure `(p1, c, p2)` as node IDs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Filters `colliders()` for parent pairs with no edge in either direction. Matches
+        NetworkX's `dag.v_structures`.
+
+        Examples
+        --------
+        Talent and luck both cause success, but A -> B -> C is a chain, not a v-structure, and
+        a collider whose causes are linked is "shielded":
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["talent", "luck", "success", "x", "y", "z"])
+        g.add_edges([("talent", "success"), ("luck", "success"), ("x", "z"), ("y", "z"), ("x", "y")])
+
+        [tuple(g.get_label_from_id(n) for n in t) for t in g.v_structures()]
+        ```
+        """
+        ids, succ, _ = self._arc_sets()
+        result = [
+            (p1, c, p2)
+            for p1, c, p2 in self.colliders()
+            if p2 not in succ[p1] and p1 not in succ[p2]
+        ]
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "v_structures",
+                "G.v_structures()",
+                delta=StepDelta(
+                    edges_selected=[
+                        (self._node_label(a), self._node_label(c))
+                        for p1, c, p2 in result
+                        for a in (p1, p2)
+                    ]
+                ),
+                result=result,
+                narration=f"{len(result)} v-structures.",
+            )
+        return result
+
+    def lexicographical_topological_sort(self, key=None) -> list[int]:
+        """
+        Find the lexicographically smallest topological order of a directed acyclic graph.
+
+        ![Lexicographical topological sort](/assets/graphs/lexicographical-topological-sort.light.svg){.lightbox fig-alt="Getting dressed as a DAG: shirt before tie, trousers before belt and shoes, socks before shoes. Numbered badges give the order returned, which always takes the alphabetically first item whose prerequisites are done: 1 shirt, 2 socks, 3 tie, 4 trousers, 5 belt, 6 shoes. The card lists the same order." width="100%"}
+
+        Many orders respect the edges of a DAG. This method returns a canonical one: at every
+        step it takes, among the nodes whose predecessors are all placed, the smallest by
+        `key`. The result is deterministic and readable (tasks in alphabetical order whenever
+        the dependencies allow), which is useful for reproducible build orders, stable course
+        schedules, and comparing orders across runs.
+
+        Parameters
+        ----------
+        key
+            Optional function `key(node_id)` giving the sort key. If `None` (default), nodes are
+            ordered by label (as strings; ties by node ID).
+
+        Returns
+        -------
+        list[int]
+            The node IDs in order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or has a cycle.
+
+        Technical Notes
+        ---------------
+        Kahn's algorithm with a priority queue of available nodes, $O((V + E) \\log V)$. Matches
+        NetworkX's `lexicographical_topological_sort` with the same key.
+
+        Examples
+        --------
+        Getting dressed: socks before shoes, trousers before shoes and belt, shirt before tie.
+        Among the items that are free at each step, the alphabetically first goes next:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["shirt", "tie", "trousers", "belt", "socks", "shoes"])
+        g.add_edges(
+            [("socks", "shoes"), ("trousers", "shoes"), ("trousers", "belt"), ("shirt", "tie")]
+        )
+
+        [g.get_label_from_id(n) for n in g.lexicographical_topological_sort()]
+        ```
+        """
+        import heapq
+
+        if not self.is_directed():
+            raise ValueError("lexicographical_topological_sort() requires a directed graph")
+        ids, succ, pred = self._arc_sets()
+        keyf = key if key is not None else (lambda n: self._node_label(n))
+        indeg = {n: len(pred[n]) for n in ids}
+        heap = [(keyf(n), n) for n in ids if indeg[n] == 0]
+        heapq.heapify(heap)
+        order = []
+        while heap:
+            _, n = heapq.heappop(heap)
+            order.append(n)
+            for c in succ[n]:
+                indeg[c] -= 1
+                if indeg[c] == 0:
+                    heapq.heappush(heap, (keyf(c), c))
+        if len(order) != len(ids):
+            raise ValueError("the graph has a cycle")
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "lexicographical_topological_sort",
+                "G.lexicographical_topological_sort()",
+                delta=StepDelta(node_groups={self._node_label(n): i for i, n in enumerate(order)}),
+                result=order,
+                narration="Topological order: "
+                + " → ".join(self._node_label(n) for n in order)
+                + ".",
+            )
+        return order
+
+    def dag_to_branching(self) -> "Graph":
+        """
+        Unfold a directed acyclic graph into a branching (forest) of its root-to-leaf paths.
+
+        ![DAG to branching](/assets/graphs/dag-to-branching.light.svg){.lightbox fig-alt="Left: a diamond DAG in which A points to B and C, and both point to D (accent color). Right: dag_to_branching() unrolls every root-to-leaf path into a tree: A leads to A/B and A/C, and D, reached along both paths, appears twice, as A/B/D and A/C/D in the accent color. Each new node is labeled with its path, and the result is a branching." width="100%"}
+
+        Every path from a root (a node without incoming edges) to a leaf (a node without
+        outgoing edges) becomes a path of the result, and paths that share a prefix share their
+        nodes, so the result is a forest: the DAG "unrolled" so that no node has two parents.
+        Nodes reachable along several paths are duplicated, once per distinct path prefix. This
+        turns a DAG into a tree for algorithms and visualizations that need one (a family tree
+        with shared ancestors drawn as a tree, a decision process, or a call graph expanded into
+        a call tree).
+
+        Returns
+        -------
+        Graph
+            A new directed forest. Each node is labeled with its path from the root, such as
+            `"A/B/D"`, and stores the ID of the original node in the attribute `"source"`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or has a cycle.
+
+        Technical Notes
+        ---------------
+        The root-to-leaf paths are inserted into a prefix tree (trie), as in NetworkX's
+        `dag_to_branching`. The result can be exponentially larger than the DAG, since the
+        number of paths can grow exponentially.
+
+        Examples
+        --------
+        In a diamond, D is reached through B and through C, so it appears twice:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        tree = g.dag_to_branching()
+        sorted(tree.get_label_from_id(n) for n in tree.get_node_ids()), tree.is_branching()
+        ```
+        """
+        self._require_dag("dag_to_branching")
+        ids, succ, pred = self._arc_sets()
+        roots = [n for n in ids if not pred[n]]
+        result = Graph(directed=True)
+        paths: list[list[int]] = []
+        stack = [[r] for r in reversed(roots)]
+        while stack:
+            path = stack.pop()
+            kids = succ[path[-1]]
+            if not kids:
+                paths.append(path)
+            for c in reversed(kids):
+                stack.append(path + [c])
+        labels: dict[tuple, str] = {}
+        nodes, edges = [], []
+        for path in paths:
+            for k in range(1, len(path) + 1):
+                prefix = tuple(path[:k])
+                if prefix not in labels:
+                    labels[prefix] = "/".join(self._node_label(n) for n in prefix)
+                    nodes.append((labels[prefix], {"source": prefix[-1]}))
+                    if k > 1:
+                        edges.append((labels[prefix[:-1]], labels[prefix]))
+        if nodes:
+            result.add_nodes(nodes)
+        if edges:
+            result.add_edges(edges)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "dag_to_branching",
+                "G.dag_to_branching()",
+                narration=f"Branching with {len(nodes)} nodes from {len(paths)} root-to-leaf paths.",
+            )
+        return result
+
+    def all_pairs_lowest_common_ancestor(
+        self, pairs: list[tuple] | None = None
+    ) -> dict[tuple[int, int], int]:
+        """
+        Find a lowest common ancestor for many pairs of nodes in a directed acyclic graph.
+
+        ![All-pairs lowest common ancestor](/assets/graphs/all-pairs-lowest-common-ancestor.light.svg){.lightbox fig-alt="A taxonomy drawn top down: Mammalia has the orders Carnivora and Rodentia; cat and dog are carnivores and mouse is a rodent. The queried species are outlined. For the pair cat, dog the lowest common ancestor is Carnivora (accent color, with its two edges); for cat, mouse it is Mammalia (teal, with the edges down to both). The card maps (cat, dog) to Carnivora and (cat, mouse) to Mammalia." width="100%"}
+
+        Applies `lowest_common_ancestor()` to many pairs at once: for each pair, a common
+        ancestor (each node counts as its own ancestor) with no descendant that is also a common
+        ancestor. Use it to compute the most specific shared category for many pairs of terms in
+        a taxonomy or ontology, or the merge base of many pairs of commits in a version history.
+
+        Parameters
+        ----------
+        pairs
+            Optional list of `(u, v)` pairs (IDs or labels). If `None` (default), every pair of
+            nodes, including each node with itself.
+
+        Returns
+        -------
+        dict[tuple[int, int], int]
+            `(u, v)` to the ID of a lowest common ancestor, for every pair that has a common
+            ancestor (pairs without one are left out).
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph, is empty, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        Ancestor sets are computed once per node and intersected per pair; within the common
+        ancestors a lowest one is found by walking down while a successor stays common, as in
+        NetworkX's `all_pairs_lowest_common_ancestor`. A pair can have several lowest common
+        ancestors; this method returns the one `lowest_common_ancestor()` would, which may
+        differ from NetworkX's choice.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        tree = ec.Graph(directed=True).add_nodes(["Mammalia", "Carnivora", "Rodentia", "cat", "dog", "mouse"])
+        tree.add_edges(
+            [("Mammalia", "Carnivora"), ("Mammalia", "Rodentia"), ("Carnivora", "cat"),
+             ("Carnivora", "dog"), ("Rodentia", "mouse")]
+        )
+
+        found = tree.all_pairs_lowest_common_ancestor([("cat", "dog"), ("cat", "mouse")])
+        {tuple(tree.get_label_from_id(n) for n in pair): tree.get_label_from_id(a)
+         for pair, a in found.items()}
+        ```
+        """
+        self._require_dag("all_pairs_lowest_common_ancestor")
+        ids = sorted(self.get_node_ids(limit=None))
+        if not ids:
+            raise ValueError("the graph has no nodes")
+        if pairs is None:
+            todo = [(u, v) for i, u in enumerate(ids) for v in ids[i:]]
+        else:
+            todo = [
+                (
+                    self._resolve_node_id(u, auto_create=False),
+                    self._resolve_node_id(v, auto_create=False),
+                )
+                for u, v in pairs
+            ]
+        result = {}
+        self._recording_depth += 1
+        try:
+            for u, v in todo:
+                found = self.lowest_common_ancestor(u, v)
+                if found is not None:
+                    result[(u, v)] = found
+        finally:
+            self._recording_depth -= 1
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "all_pairs_lowest_common_ancestor",
+                "G.all_pairs_lowest_common_ancestor()",
+                result=result,
+                narration=f"Lowest common ancestors for {len(result)} of {len(todo)} pairs.",
+            )
+        return result
+
+    def moral_graph(self) -> "Graph":
+        """
+        Build the moral graph of a directed graph: marry the parents, drop the directions.
+
+        ![Moral graph](/assets/graphs/moral-graph.light.svg){.lightbox fig-alt="Left: the sprinkler network, a directed graph in which cloudy points to rain and sprinkler, and both rain and sprinkler point to wet grass. Right: moral_graph() marries the two parents of wet by joining rain and sprinkler with a new edge (accent color) and drops every direction, giving an undirected graph with five edges." width="100%"}
+
+        The moral graph joins every pair of nodes that share a child ("marrying" the parents) and
+        then forgets edge directions. It is the first step of exact inference in Bayesian
+        networks (before triangulation into a junction tree, see `complete_to_chordal_graph()`),
+        because each node and its parents must end up in a common clique, and its separation
+        properties encode the conditional independences of the network.
+
+        Returns
+        -------
+        Graph
+            A new undirected graph with the same nodes (IDs, labels and attributes kept), one edge
+            per adjacent pair of the original (parallel and opposite edges merged, weights kept
+            from the first edge) and one unweighted edge per pair of co-parents that were not
+            already adjacent.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected.
+
+        Technical Notes
+        ---------------
+        Every pair of in-neighbors of every node is joined, $O(\\sum_v \\deg^-(v)^2)$. Matches
+        NetworkX's `moral_graph` (edges compared as unordered pairs).
+
+        Examples
+        --------
+        The classic sprinkler network: rain and sprinkler are married because both wet the grass:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["cloudy", "rain", "sprinkler", "wet"])
+        g.add_edges([("cloudy", "rain"), ("cloudy", "sprinkler"), ("rain", "wet"), ("sprinkler", "wet")])
+
+        moral = g.moral_graph()
+        sorted(moral.get_edges_str_repr(use_labels=True))
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("moral_graph() requires a directed graph")
+        ids, _, pred = self._arc_sets()
+        result = Graph(directed=False, weighted=self.is_weighted())
+        nodes = []
+        for n in ids:
+            node = self.get_node(n)
+            result._graph.add_node(rust.Node(id=n, label=node.label, attributes=node.attributes))
+        seen = set()
+        for eid, s, t in sorted(self.get_edges_as_tuples()):
+            key = frozenset((s, t))
+            if key in seen:
+                continue
+            seen.add(key)
+            weight = self.get_edge(eid).weight if self.is_weighted() else None
+            result.add_edge_by_id(
+                s, t, weight=weight
+            ) if weight is not None else result.add_edge_by_id(s, t)
+        married = []
+        for c in ids:
+            ps = pred[c]
+            for i in range(len(ps)):
+                for j in range(i + 1, len(ps)):
+                    key = frozenset((ps[i], ps[j]))
+                    if key not in seen:
+                        seen.add(key)
+                        married.append((ps[i], ps[j]))
+                        result.add_edge_by_id(ps[i], ps[j])
+        del nodes
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_TRANSFORM,
+                "moral_graph",
+                "G.moral_graph()",
+                delta=StepDelta(
+                    edges_selected=[(self._node_label(a), self._node_label(b)) for a, b in married]
+                ),
+                narration=f"moral_graph(): {len(married)} pairs of parents married.",
             )
         return result
 
