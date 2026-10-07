@@ -295,3 +295,75 @@ def spectral_ordering(s: Scene) -> None:
         s.badge(k, str(i), where="n" if ZIGZAG[k][1] == 0 else "s", filled=True)
     s.card_centered(right, ["added  D, B, E, A, C", "ids    [4, 2, 5, 1, 3]",
                             ("labels A, B, C, D, E", "accent")], title="returns node ids")
+
+
+# --- later additions: current flow between chosen nodes, and its sampled estimate ---
+#
+# `current_flow_betweenness_centrality_subset` outlines its sources and targets (`soft`,
+# `s` / `t` badges) like `betweenness_centrality_subset`; `approximate_...` adds an `exact`
+# column to the table so the estimate can be checked. Their calls are too long for the
+# result caption, so they sit under the graph. Both compute and assert with edgecase.
+
+
+@figure("current_flow_betweenness_centrality_subset", "node-metrics",
+        "Current-flow betweenness on a subset",
+        "The shared seven-node graph with the sources A and B and the target G outlined; "
+        "only current sent from A or B to G counts. All of it passes E and F, which share "
+        "the top at 0.067, while inside the triangles it spreads over every route: C 0.043, "
+        "D 0.030, and even the sources pass some of each other's current, B 0.014 and A "
+        "0.006.")
+def current_flow_betweenness_centrality_subset(s: Scene) -> None:
+    from core import SIZE_NOTE, Box
+
+    from figures.node_metrics import strip_graph
+
+    g = strip_graph()
+    raw = g.current_flow_betweenness_centrality_subset(["A", "B"], ["G"], return_dict=True)
+    scores = {g.get_label_from_id(n): round(v, 3) for n, v in raw.items()}
+    assert scores == {"A": 0.006, "B": 0.014, "C": 0.043, "D": 0.03, "E": 0.067, "F": 0.067,
+                      "G": 0.0}
+    left, right = compute(s, "g.current_flow_betweenness_centrality_subset(S, T)")
+    s.text(left.cx, left.y0 + 8, "S = [A, B]    T = [G]", size=SIZE_NOTE, opacity=0.6)
+    gb = Box(left.x0, left.y0 + 22, left.x1, left.y1)
+    top = max(scores.values())
+    styles = {"A": "soft", "B": "soft", "G": "soft", "E": "accent", "F": "accent"}
+    s.graph(place(STRIP_COORDS, gb, unit=UNIT), STRIP_EDGES,
+            heat={k: v / top for k, v in scores.items()}, styles=styles)
+    s.badge("A", "s", where="sw")
+    s.badge("B", "s", where="nw")
+    s.badge("G", "t", where="ne")
+    rows = [["node", "score"]] + _rows(scores, digits=3)
+    s.table_centered(right, rows, [64, 64], highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+@figure("approximate_current_flow_betweenness_centrality", "node-metrics",
+        "Approximate current-flow betweenness centrality",
+        "The shared seven-node graph shaded by an estimate of current-flow betweenness from "
+        "96 random source-target pairs (epsilon=0.2, seed=1). The table sets each estimate "
+        "beside the exact value: the bridge E comes out at 0.49 against 0.58 and the hub C at "
+        "0.46 against 0.43, close enough to rank the nodes, and the pendant G is exactly 0.")
+def approximate_current_flow_betweenness_centrality(s: Scene) -> None:
+    from core import SIZE_NOTE, Box
+
+    from figures.node_metrics import strip_graph
+
+    g = strip_graph()
+    label = g.get_label_from_id
+    est = g.approximate_current_flow_betweenness_centrality(epsilon=0.2, seed=1,
+                                                             return_dict=True)
+    exact = g.current_flow_betweenness_centrality(return_dict=True)
+    est = {label(n): round(v, 2) for n, v in est.items()}
+    exact = {label(n): round(v, 2) for n, v in exact.items()}
+    assert est["E"] == 0.49 and est["C"] == 0.46 and exact["E"] == 0.58 and est["G"] == 0.0
+    left, right = compute(s, "g.approximate_current_flow_betweenness_centrality(...)")
+    s.text(left.cx, left.y0 + 8, "epsilon=0.2, seed=1: 96 random pairs", size=SIZE_NOTE,
+           opacity=0.6)
+    gb = Box(left.x0, left.y0 + 22, left.x1, left.y1)
+    top = max(est.values())
+    s.graph(place(STRIP_COORDS, gb, unit=UNIT), STRIP_EDGES,
+            heat={k: v / top for k, v in est.items()},
+            styles={k: "accent" for k, v in est.items() if v == top})
+    order = sorted(est, key=lambda k: (-est[k], k))
+    rows = [["node", "est.", "exact"]] + [[k, f"{est[k]:.2f}", f"{exact[k]:.2f}"] for k in order]
+    s.table_centered(right, rows, [48, 56, 56],
+                     highlight={(1, 0): "accent", (1, 1): "accent"})
