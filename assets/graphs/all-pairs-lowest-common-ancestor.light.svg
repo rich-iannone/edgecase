@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>All-pairs lowest common ancestor</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="511.7" y="58.0" width="224.6" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 234.01 45.03 L 230.56 48.32 L 227.11 51.61 L 223.65 54.90 L 220.20 58.19 L 216.74 61.48 L 213.29 64.77 L 209.83 68.06 L 206.38 71.35 L 204.67 72.98" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="199.47,77.93 204.22,68.06 209.57,73.67" fill="#0e7490" fill-opacity="1"/>
+<path d="M 257.19 45.03 L 260.64 48.32 L 264.09 51.61 L 267.55 54.90 L 271.00 58.19 L 274.46 61.48 L 277.91 64.77 L 281.37 68.06 L 284.82 71.35 L 286.53 72.98" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="291.73,77.93 281.63,73.67 286.98,68.06" fill="#0e7490" fill-opacity="1"/>
+<path d="M 177.62 103.11 L 175.63 105.96 L 173.63 108.82 L 171.63 111.67 L 169.63 114.53 L 167.63 117.39 L 165.63 120.24 L 163.63 123.10 L 161.75 125.79" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="157.64,131.66 160.34,121.04 166.69,125.49" fill="#c2410c" fill-opacity="1"/>
+<path d="M 195.98 103.11 L 197.97 105.96 L 199.97 108.82 L 201.97 111.67 L 203.97 114.53 L 205.97 117.39 L 207.97 120.24 L 209.97 123.10 L 211.85 125.79" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="215.96,131.66 206.91,125.49 213.26,121.04" fill="#c2410c" fill-opacity="1"/>
+<path d="M 304.40 106.00 L 304.40 108.25 L 304.40 110.50 L 304.40 112.75 L 304.40 115.00 L 304.40 117.25 L 304.40 119.50 L 304.40 121.33" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="304.40,128.50 300.52,118.25 308.27,118.25" fill="#0e7490" fill-opacity="1"/>
+<circle cx="245.6" cy="34.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="186.8" cy="90.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="304.4" cy="90.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="147.6" cy="146.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="226.0" cy="146.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="304.4" cy="146.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="597.9" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.all_pairs_lowest_common_ancestor(pairs)</text>
+<text x="266.6" y="34.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">Mammalia</text>
+<text x="165.8" y="90.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">Carnivora</text>
+<text x="325.4" y="90.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">Rodentia</text>
+<text x="147.6" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">cat</text>
+<text x="226.0" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">dog</text>
+<text x="304.4" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">mouse</text>
+<text x="525.7" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">pair → lowest common ancestor</text>
+<text x="525.7" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">(cat, dog)   Carnivora</text>
+<text x="525.7" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">(cat, mouse) Mammalia</text>
+</svg>
