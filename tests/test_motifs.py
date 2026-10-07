@@ -641,3 +641,43 @@ class TestTriadicCensus:
         cycle.triadic_census()
         step = cycle.steps[-1]
         assert step.narration == "Triadic census of 1 triads; most common connected types: 030C ×1."
+
+
+class TestTriadClassification:
+    """triad_type, triads_by_type, all_triads and is_triad, against NetworkX and the census."""
+
+    def test_against_networkx(self):
+        for seed in range(100):
+            rnd = random.Random(seed)
+            G = nx.gnp_random_graph(rnd.randint(3, 8), 0.35, seed=seed, directed=True)
+            g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
+            for u, v in G.edges:
+                g.add_edge(str(u), str(v))
+            lab = lambda x: int(g.get_label_from_id(x))  # noqa: E731
+            ours = {
+                k: sorted(tuple(sorted(map(lab, t))) for t in v)
+                for k, v in g.triads_by_type().items()
+            }
+            ref = {
+                k: sorted(tuple(sorted(t.nodes)) for t in v)
+                for k, v in nx.triads_by_type(G).items()
+            }
+            assert ours == ref
+            assert {k: len(v) for k, v in ours.items()} == {
+                k: c for k, c in g.triadic_census().items() if c
+            }
+            assert len(g.all_triads()) == len(list(nx.all_triads(G)))
+            trio = rnd.sample(list(G), 3)
+            assert g.triad_type([str(x) for x in trio]) == nx.triad_type(G.subgraph(trio))
+
+    def test_examples_and_errors(self):
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "C")])
+        assert g.triad_type(["A", "B", "C"]) == "030T"
+        assert g.triad_type(["B", "C", "D"]) == "111D"
+        with pytest.raises(ValueError, match="three distinct"):
+            g.triad_type(["A", "A", "B"])
+        assert ec.Graph(directed=True).add_nodes(["A", "B", "C"]).is_triad()
+        assert not ec.Graph().add_nodes(["A", "B", "C"]).is_triad()
+        with pytest.raises(ValueError, match="directed"):
+            ec.Graph().add_nodes(["A", "B", "C"]).triads_by_type()
