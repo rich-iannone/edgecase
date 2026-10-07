@@ -1293,3 +1293,243 @@ class TestCentralityWeightedFlag:
         assert g.steps[-1].code == (
             "G.closeness_centrality(weighted=False, attr_name='closeness_centrality')"
         )
+
+
+# Current-flow subsets and edge variants, edge betweenness on subsets, edge load and the most
+# prominent group, validated against NetworkX and (where NetworkX deviates) brute force.
+
+
+def _edge_lab(g: ec.Graph, scores: dict) -> dict:
+    out = {}
+    for eid, v in scores.items():
+        u, w = sorted(int(g.get_label_from_id(n)) for n in g.get_node_ids_by_edge_id(eid))
+        out[(u, w)] = v
+    return out
+
+
+def _undirected_ref(ref: dict) -> dict:
+    return {tuple(sorted(e)): v for e, v in ref.items()}
+
+
+class TestCurrentFlowVariants:
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_edge_current_flow_matches_networkx(self, normalized):
+        for U, g, gw in _connected_cases():
+            ours = _edge_lab(
+                g, g.edge_current_flow_betweenness_centrality(normalized, return_dict=True)
+            )
+            ref = nx.edge_current_flow_betweenness_centrality(U, normalized)
+            assert ours == pytest.approx(_undirected_ref(ref))
+            ours = _edge_lab(
+                gw, gw.edge_current_flow_betweenness_centrality(normalized, return_dict=True)
+            )
+            ref = nx.edge_current_flow_betweenness_centrality(U, normalized, weight="weight")
+            assert ours == pytest.approx(_undirected_ref(ref))
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_edge_subset_matches_networkx(self, normalized):
+        for seed, (U, g, gw) in enumerate(_connected_cases()):
+            rnd = random.Random(seed)
+            S, T = rnd.sample(range(14), 3), rnd.sample(range(14), 4)
+            for graph, weight in ((g, None), (gw, "weight")):
+                ours = graph.edge_current_flow_betweenness_centrality_subset(
+                    _ids(graph, S), _ids(graph, T), normalized, return_dict=True
+                )
+                ref = nx.edge_current_flow_betweenness_centrality_subset(
+                    U, S, T, normalized, weight=weight
+                )
+                assert _edge_lab(graph, ours) == pytest.approx(_undirected_ref(ref))
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_node_subset_against_direct_currents(self, normalized):
+        import numpy as np
+
+        for seed, (U, g, _) in enumerate(_connected_cases()):
+            rnd = random.Random(seed)
+            S, T = rnd.sample(range(14), 3), rnd.sample(range(14), 3)
+            n = len(U)
+            pinv = np.linalg.pinv(nx.laplacian_matrix(U, nodelist=range(n), weight=None).toarray())
+            expected = dict.fromkeys(U, 0.0)
+            for s in S:
+                for t in T:
+                    if s == t:
+                        continue
+                    p = pinv[:, s] - pinv[:, t]
+                    for v in U:
+                        if v not in (s, t):
+                            expected[v] += 0.5 * sum(abs(p[v] - p[w]) for w in U[v])
+            scale = 1 / ((n - 1) * (n - 2)) if normalized else 0.5
+            ours = g.current_flow_betweenness_centrality_subset(
+                _ids(g, S), _ids(g, T), normalized, return_dict=True
+            )
+            assert _lab(g, ours) == pytest.approx({v: x * scale for v, x in expected.items()})
+            # every node as a source and a target gives the full measure (NetworkX agrees there)
+            everyone = _ids(g, range(n))
+            full = g.current_flow_betweenness_centrality(normalized, return_dict=True)
+            assert g.current_flow_betweenness_centrality_subset(
+                everyone, everyone, normalized, return_dict=True
+            ) == pytest.approx(full)
+        if normalized:
+            ref = nx.current_flow_betweenness_centrality_subset(U, list(U), list(U), weight=None)
+            assert _lab(g, full) == pytest.approx(ref)
+
+    def test_approximation(self):
+        for U, g, gw in _connected_cases():
+            for graph in (g, gw):
+                exact = graph.current_flow_betweenness_centrality(return_dict=True)
+                approx = graph.approximate_current_flow_betweenness_centrality(
+                    epsilon=0.1, kmax=100_000, seed=7, return_dict=True
+                )
+                assert max(abs(approx[n] - exact[n]) for n in exact) < 0.1
+                again = graph.approximate_current_flow_betweenness_centrality(
+                    epsilon=0.1, kmax=100_000, seed=7, return_dict=True
+                )
+                assert again == approx
+        raw = g.approximate_current_flow_betweenness_centrality(
+            normalized=False, seed=1, return_dict=True
+        )
+        normed = g.approximate_current_flow_betweenness_centrality(seed=1, return_dict=True)
+        assert raw == pytest.approx({k: v * 13 * 12 / 2 for k, v in normed.items()})
+        with pytest.raises(ValueError, match="kmax"):
+            g.approximate_current_flow_betweenness_centrality(epsilon=0.01, kmax=100)
+
+    def test_storage_and_errors(self):
+        g = ec.Graph().add_cycle_graph(5)
+        g.edge_current_flow_betweenness_centrality()
+        stored = g.get_edge_df()["edge_current_flow_betweenness_centrality"].to_list()
+        ring = nx.edge_current_flow_betweenness_centrality(nx.cycle_graph(5))
+        assert stored == pytest.approx([next(iter(ring.values()))] * 5)
+        step = g.steps[-1]
+        assert step.kind == KIND_METRIC and len(step.delta.edge_metric_values) == 5
+        split = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
+        with pytest.raises(ValueError, match="connected"):
+            split.edge_current_flow_betweenness_centrality()
+        with pytest.raises(ValueError, match="undirected"):
+            ec.Graph(directed=True).add_path_graph(3).current_flow_betweenness_centrality_subset(
+                [1], [3]
+            )
+        with pytest.raises(ValueError, match="does not exist"):
+            g.edge_current_flow_betweenness_centrality_subset([1], [99])
+
+
+class TestEdgeSubsetAndLoad:
+    def test_edge_betweenness_subset_brute_force(self):
+        for directed in (False, True):
+            for G, g, gw, rnd in _random_cases(directed):
+                S, T = rnd.sample(range(12), 3), rnd.sample(range(12), 3)
+                for graph, weight in ((g, None), (gw, "weight")):
+                    ours = graph.edge_betweenness_centrality_subset(
+                        _ids(graph, S), _ids(graph, T), return_dict=True
+                    )
+                    brute: dict = {}
+                    for s in S:
+                        for t in T:
+                            if s == t or not nx.has_path(G, s, t):
+                                continue
+                            paths = list(nx.all_shortest_paths(G, s, t, weight=weight))
+                            for p in paths:
+                                for e in zip(p, p[1:]):
+                                    e = e if directed else tuple(sorted(e))
+                                    brute[e] = brute.get(e, 0.0) + 1 / len(paths)
+                    scale = 1.0 if directed else 0.5
+                    for eid, value in ours.items():
+                        u, v = (
+                            int(graph.get_label_from_id(n))
+                            for n in graph.get_node_ids_by_edge_id(eid)
+                        )
+                        key = (u, v) if directed else tuple(sorted((u, v)))
+                        assert value == pytest.approx(brute.get(key, 0.0) * scale)
+
+    def test_edge_betweenness_subset_tree_matches_networkx(self):
+        # on a tree every pair has one shortest path, where NetworkX's split is also right
+        T = (
+            nx.random_labeled_tree(15, seed=3)
+            if hasattr(nx, "random_labeled_tree")
+            else (nx.random_tree(15, seed=3))
+        )
+        g = _build(T)
+        S, D = [0, 4, 9], [2, 7, 11, 14]
+        for normalized in (False, True):
+            ours = g.edge_betweenness_centrality_subset(
+                _ids(g, S), _ids(g, D), normalized, return_dict=True
+            )
+            ref = nx.edge_betweenness_centrality_subset(T, S, D, normalized=normalized)
+            assert _edge_lab(g, ours) == pytest.approx(_undirected_ref(ref))
+
+    def test_edge_load_matches_networkx(self):
+        for directed in (False, True):
+            for G, g, _, _ in _random_cases(directed):
+                for cutoff in (None, 2):
+                    ours = g.edge_load_centrality(cutoff, return_dict=True)
+                    ref = nx.edge_load_centrality(G, cutoff=cutoff or False)
+                    assert len(ours) == G.number_of_edges()
+                    for eid, x in ours.items():
+                        u, v = (int(g.get_label_from_id(n)) for n in g.get_node_ids_by_edge_id(eid))
+                        assert x == pytest.approx(ref[(u, v)]) and x == pytest.approx(ref[(v, u)])
+        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        with pytest.raises(ValueError, match="cutoff"):
+            path.edge_load_centrality(0)
+
+    def test_steps(self):
+        g = ec.Graph().add_path_graph(4)
+        g.edge_betweenness_centrality_subset([1], [4], attr_name="flow")
+        assert set(g.get_edge_df()["flow"]) == {0.5}
+        assert g.steps[-1].kind == KIND_METRIC
+        g.edge_load_centrality()
+        assert set(g.get_edge_df()["edge_load_centrality"]) == {6.0, 8.0}
+        assert g.steps[-1].kind == KIND_METRIC
+
+
+class TestProminentGroup:
+    def test_optimal_against_exhaustive_search(self):
+        for directed in (False, True):
+            for G, g, gw, rnd in _random_cases(directed):
+                for graph, weighted in ((g, False), (gw, True)):
+                    ids = graph.get_node_ids(limit=None)
+                    for k in (1, 2, 3):
+                        for endpoints in (False, True):
+                            value, group = graph.prominent_group(k, endpoints=endpoints)
+                            best = max(
+                                graph.group_betweenness_centrality(list(c), endpoints=endpoints)
+                                for c in itertools.combinations(ids, k)
+                            )
+                            assert value == pytest.approx(best)
+                            assert graph.group_betweenness_centrality(
+                                group, endpoints=endpoints
+                            ) == pytest.approx(best)
+
+    def test_matches_networkx_on_connected_graphs(self):
+        for U, g, _ in list(_connected_cases())[:4]:
+            for k in (2, 3):
+                value, group = g.prominent_group(k)
+                ref_value, ref_group = nx.prominent_group(U, k)
+                assert round(value, 2) == ref_value
+                assert value == pytest.approx(nx.group_betweenness_centrality(U, ref_group))
+
+    def test_options(self):
+        g = ec.Graph().add_nodes(list("ABCDEFG"))
+        g.add_edges(
+            [
+                ("A", "B"),
+                ("B", "C"),
+                ("C", "A"),
+                ("C", "D"),
+                ("D", "E"),
+                ("E", "F"),
+                ("F", "G"),
+                ("G", "E"),
+            ]
+        )
+        value, group = g.prominent_group(2)
+        assert {g.get_label_from_id(n) for n in group} == {"C", "E"}
+        _, without = g.prominent_group(2, exclude=["C"])
+        assert g.get_id_from_label("C") not in without
+        gv, gg = g.prominent_group(2, greedy=True)
+        assert gv == pytest.approx(g.group_betweenness_centrality(gg)) and gv <= value
+        raw, _ = g.prominent_group(2, normalized=False)
+        assert raw == pytest.approx(value * 5 * 4 / 2)
+        assert g.steps[-1].delta.nodes_selected
+        with pytest.raises(ValueError, match="at least 1"):
+            g.prominent_group(0)
+        with pytest.raises(ValueError, match="larger"):
+            g.prominent_group(7, exclude=["A"])
