@@ -31114,6 +31114,85 @@ class Graph:
 
         return self
 
+    def edge_load_centrality(
+        self,
+        cutoff: int | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate the load on every edge.
+
+        ![Edge load centrality](/assets/graphs/edge-load-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more load it carries when every node sends one unit to every other node, split equally at each hop. The bridge E-F carries the most, 22 in accent, then C-E 18, and D-E and F-G 13; the triangle edges A-B and C-D carry the least, 8." width="100%"}
+
+        Load (Goh, Kahng and Kim, 2001) models traffic that is routed hop by hop: every node
+        sends one unit to every node it can reach, and at each step the traffic is split equally
+        among the neighbors that are one hop closer to the destination. An edge's load is the
+        total traffic that crosses it. It is the edge counterpart of `load_centrality()` and,
+        like it, can differ from `edge_betweenness_centrality()`, which splits traffic in
+        proportion to the number of shortest paths instead of equally at each step.
+
+        Edges are unweighted and path lengths count hops. Parallel edges are treated as one
+        link and each carries the full load.
+
+        Parameters
+        ----------
+        cutoff
+            Only follow paths of at most this many hops. If `None` (default), all paths count.
+        attr_name
+            Name of the edge attribute to store loads in. If `None` (default), uses
+            `"edge_load_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            loads as an edge attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping edge IDs to loads. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If `cutoff=` is less than 1.
+
+        Technical Notes
+        ---------------
+        One breadth-first search per node, with the load pushed back from the farthest nodes
+        towards the source, $O(V E)$. As in NetworkX's `edge_load_centrality()`, every edge
+        starts each search with one unit, so values are not normalized. NetworkX keys the
+        result by node pairs in both orientations, which always carry the same value; EdgeCase
+        keys it by edge ID.
+
+        Examples
+        --------
+        In a diamond `A-B-D`, `A-C-D` with a tail `D-E`, the load from the tail splits equally
+        over the two sides of the diamond:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")])
+        )
+
+        loads = graph.edge_load_centrality(return_dict=True)
+        label = graph.get_label_from_id
+        {"-".join(label(n) for n in graph.get_node_ids_by_edge_id(e)): x for e, x in loads.items()}
+        ```
+        """
+        if cutoff is not None and cutoff < 1:
+            raise ValueError("cutoff must be at least 1")
+        pair_loads = rust.edge_load_centrality(self._graph, cutoff)
+        scores = {eid: pair_loads[(s, t)] for eid, s, t in self.get_edges_as_tuples()}
+        params = {} if cutoff is None else {"cutoff": cutoff}
+        return self._edge_metric_result(
+            "edge_load_centrality", scores, attr_name, return_dict, params
+        )
+
     def second_order_centrality(
         self,
         attr_name: str | None = None,
@@ -32866,6 +32945,444 @@ class Graph:
             "current_flow_closeness_centrality", scores, attr_name, return_dict, params
         )
 
+    def _edge_metric_result(
+        self,
+        method: str,
+        scores: dict,
+        attr_name: str | None,
+        return_dict: bool,
+        params: dict,
+    ) -> Union[dict, "Graph"]:
+        """Return an edge -> score dict, or store it as an edge attribute and record a step."""
+        if return_dict:
+            return scores
+        if attr_name is None:
+            attr_name = method
+        for edge_id, value in scores.items():
+            self._graph.set_edge_attr(edge_id, attr_name, value)
+        self._computations.append((method, params, attr_name))
+        if self._recording_depth == 0:
+            emv: dict[tuple[str, str], float] = {}
+            for edge_id, value in scores.items():
+                ends = self.get_node_ids_by_edge_id(edge_id)
+                if ends is None:
+                    continue
+                key = tuple(self._node_label(n) for n in ends)
+                # Parallel edges share one drawn edge in the player, so show their total
+                emv[key] = emv.get(key, 0.0) + float(value)
+            args = ", ".join(
+                [f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_METRIC,
+                method,
+                f"G.{method}({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(scores)}, edge_metric_values=emv),
+            )
+        return self
+
+    def current_flow_betweenness_centrality_subset(
+        self,
+        sources: list[Union[int, str]],
+        targets: list[Union[int, str]],
+        normalized: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate current-flow betweenness counting only flow from given sources to targets.
+
+        ![Current-flow betweenness on a subset](/assets/graphs/current-flow-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. All of it passes E and F, which share the top at 0.067, while inside the triangles it spreads over every route: C 0.043, D 0.030, and even the sources pass some of each other's current, B 0.014 and A 0.006." width="100%"}
+
+        `current_flow_betweenness_centrality()` sends a unit of electrical current between every
+        pair of nodes and credits each node with the current passing through it. This variant
+        only sends current from each node in `sources=` to each node in `targets=`, so it asks
+        which nodes carry the flow between two particular sets: say, the junctions a rumor
+        passes through on its way from one community to another, or the substations between a
+        set of power plants and a set of cities. Like the full measure, it credits every route
+        in proportion to its conductance, not only the shortest ones.
+
+        A node's share of a source-target flow is half the current on its edges; the source and
+        target themselves get nothing for their own pair. Edge weights act as conductances. The
+        graph must be undirected and connected.
+
+        Parameters
+        ----------
+        sources
+            Nodes that inject current, as integer IDs or string labels.
+        targets
+            Nodes that extract current, as integer IDs or string labels.
+        normalized
+            If `True` (default), divide by `(n - 1)(n - 2)`, as for the full measure. If `False`,
+            return half the total over all source-target pairs.
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph.
+            Weights must be positive.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"current_flow_betweenness_centrality_subset"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, a node does not exist, or a weight is not
+            positive.
+
+        Technical Notes
+        ---------------
+        The potentials for a unit current from `s` to `t` come from the pseudo-inverse of the
+        Laplacian (grounded at one node), so each pair costs $O(E)$ after an $O(V^3)$
+        factorization. With every node as both a source and a target the scores equal
+        `current_flow_betweenness_centrality()`, normalized or not.
+
+        Examples
+        --------
+        In a square with one diagonal, current from `A` to `C` mostly takes the diagonal, but
+        some still flows around through `B` and `D`:
+
+        ```{python}
+        import edgecase as ec
+
+        square = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        )
+
+        scores = square.current_flow_betweenness_centrality_subset(["A"], ["C"], return_dict=True)
+        {square.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        ```
+
+        Notes
+        -----
+        NetworkX's `current_flow_betweenness_centrality_subset()` also counts the current at
+        each pair's own source and target and then subtracts the constant `1 / (n - 2)` from
+        every node, which removes the endpoint share only when every node is both a source and
+        a target. Its results agree with EdgeCase's in that case and otherwise do not.
+        """
+        src = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
+        scores = rust.current_flow_betweenness_centrality_subset(
+            self._graph, src, tgt, normalized, self._use_weights(weighted)
+        )
+        params = {"sources": sources, "targets": targets}
+        if not normalized:
+            params["normalized"] = False
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._node_metric_result(
+            "current_flow_betweenness_centrality_subset", scores, attr_name, return_dict, params
+        )
+
+    def edge_current_flow_betweenness_centrality(
+        self,
+        normalized: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate current-flow (random-walk) betweenness for all edges.
+
+        ![Edge current-flow betweenness centrality](/assets/graphs/edge-current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph with each edge drawn thicker the more electrical current it carries when every pair of nodes in turn sends a unit of current. The bridge E-F carries the most, 0.33 in accent, then C-E 0.23, D-E 0.22 and F-G 0.20; the triangle edges B-C and C-D, with parallel routes beside them, carry the least, 0.12." width="100%"}
+
+        This is the edge counterpart of `current_flow_betweenness_centrality()`. The graph is
+        treated as an electrical network: for every pair of nodes, one unit of current enters
+        at one and leaves at the other, spreading over all paths in proportion to their
+        conductance, and an edge scores the total current it carries. Equivalently, it measures
+        how often random walks between pairs cross the edge.
+
+        Where `edge_betweenness_centrality()` only credits edges on shortest paths, this measure
+        also credits edges on detours, so it suits flows that are not optimally routed (power
+        grids, diffusion, gossip). Edge weights act as conductances. Self-loops carry no current
+        and score `0`; parallel edges split the current between them. The graph must be
+        undirected and connected.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), divide the total current by `(n - 1)(n - 2)`. If `False`,
+            return half the total current over all pairs. Both match NetworkX's
+            `edge_current_flow_betweenness_centrality()`.
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph.
+            Weights must be positive.
+        attr_name
+            Name of the edge attribute to store scores in. If `None` (default), uses
+            `"edge_current_flow_betweenness_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as an edge attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping edge IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, or a weight is not positive.
+
+        Technical Notes
+        ---------------
+        After one inversion of the grounded Laplacian ($O(V^3)$), each edge's currents for all
+        pairs follow from one row of potential differences, summed over pairs in $O(V \\log V)$
+        by sorting (Brandes & Fleischer, 2005).
+
+        Examples
+        --------
+        Two triangles joined by a bridge: every unit of current between the triangles must
+        cross the bridge, while inside each triangle current splits over both routes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        scores = graph.edge_current_flow_betweenness_centrality(return_dict=True)
+        label = graph.get_label_from_id
+        {
+            "-".join(label(n) for n in graph.get_node_ids_by_edge_id(eid)): round(s, 3)
+            for eid, s in sorted(scores.items(), key=lambda kv: -kv[1])
+        }
+        ```
+        """
+        scores = rust.edge_current_flow_betweenness_centrality(
+            self._graph, normalized, self._use_weights(weighted)
+        )
+        params = {} if normalized else {"normalized": False}
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._edge_metric_result(
+            "edge_current_flow_betweenness_centrality", scores, attr_name, return_dict, params
+        )
+
+    def edge_current_flow_betweenness_centrality_subset(
+        self,
+        sources: list[Union[int, str]],
+        targets: list[Union[int, str]],
+        normalized: bool = True,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate edge current-flow betweenness counting only flow from sources to targets.
+
+        ![Edge current-flow betweenness on a subset](/assets/graphs/edge-current-flow-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only current sent from A or B to G counts. Edges are drawn thicker the more of it they carry: all of it crosses E-F and F-G, which share the top at 0.033, while inside the triangles the current spreads out, C-E 0.018 down to C-D 0.003." width="100%"}
+
+        Each node in `sources=` sends a unit of current to each node in `targets=`, and an edge
+        scores the total current it carries. Current spreads over all routes in proportion to
+        their conductance, so this shows which links a flow between two sets of nodes actually
+        uses: the lines feeding a set of cities from a set of plants, or the ties a message
+        crosses between two groups. Edge weights act as conductances; self-loops score `0`. The
+        graph must be undirected and connected.
+
+        Parameters
+        ----------
+        sources
+            Nodes that inject current, as integer IDs or string labels.
+        targets
+            Nodes that extract current, as integer IDs or string labels.
+        normalized
+            If `True` (default), divide by `2 (n - 1)(n - 2)`; otherwise by `4`. Both match
+            NetworkX's `edge_current_flow_betweenness_centrality_subset()`, and with every node
+            as a source and a target they reproduce `edge_current_flow_betweenness_centrality()`.
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph.
+            Weights must be positive.
+        attr_name
+            Name of the edge attribute to store scores in. If `None` (default), uses
+            `"edge_current_flow_betweenness_centrality_subset"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as an edge attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping edge IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, a node does not exist, or a weight is not
+            positive.
+
+        Technical Notes
+        ---------------
+        The current on an edge for a unit flow from `s` to `t` is its conductance times the
+        potential difference across it, read from the inverse of the grounded Laplacian. The
+        sum runs over ordered source-target pairs, $O(|S| |T|)$ per edge.
+
+        Examples
+        --------
+        On a ring of six nodes, current from `A` to `D` splits evenly between the two halves, so
+        every edge carries the same share. Sent to the neighbor `B` instead, most of the current
+        takes the direct edge `A-B`:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_nodes(list("ABCDEF"))
+        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+
+        label = ring.get_label_from_id
+
+        def carried(target):
+            scores = ring.edge_current_flow_betweenness_centrality_subset(
+                ["A"], [target], normalized=False, return_dict=True
+            )
+            return {
+                "-".join(label(n) for n in ring.get_node_ids_by_edge_id(e)): round(s, 3)
+                for e, s in scores.items()
+            }
+
+        carried("D"), carried("B")
+        ```
+        """
+        src = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
+        scores = rust.edge_current_flow_betweenness_centrality(
+            self._graph, normalized, self._use_weights(weighted), src, tgt
+        )
+        params = {"sources": sources, "targets": targets}
+        if not normalized:
+            params["normalized"] = False
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._edge_metric_result(
+            "edge_current_flow_betweenness_centrality_subset",
+            scores,
+            attr_name,
+            return_dict,
+            params,
+        )
+
+    def approximate_current_flow_betweenness_centrality(
+        self,
+        normalized: bool = True,
+        weighted: bool | None = None,
+        epsilon: float = 0.5,
+        kmax: int = 10000,
+        seed: int | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Estimate current-flow betweenness from a random sample of node pairs.
+
+        ![Approximate current-flow betweenness centrality](/assets/graphs/approximate-current-flow-betweenness-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by an estimate of current-flow betweenness from 96 random source-target pairs (epsilon=0.2, seed=1). The table sets each estimate beside the exact value: the bridge E comes out at 0.49 against 0.58 and the hub C at 0.46 against 0.43, close enough to rank the nodes, and the pendant G is exactly 0." width="100%"}
+
+        `current_flow_betweenness_centrality()` sends current between every pair of nodes,
+        which costs $O(V^2)$ pairs. This method (Brandes & Fleischer, 2005) sends current
+        between randomly chosen pairs only and scales the result up, trading accuracy for
+        speed: the number of pairs depends on `epsilon=`, not on the number of pairs in the
+        graph. Use it for a quick ranking of a large network, and the exact method when the
+        values themselves matter.
+
+        Edge weights act as conductances. The graph must be undirected and connected.
+
+        Parameters
+        ----------
+        normalized
+            If `True` (default), estimate the normalized score; if `False`, the raw score, as in
+            `current_flow_betweenness_centrality()`.
+        weighted
+            Whether to use edge weights as conductances. If `None` (default), follows the graph.
+            Weights must be positive.
+        epsilon
+            Target absolute error of the normalized estimate (default `0.5`). The method uses
+            `ceil((c / epsilon)^2 ln n)` random pairs, with `c = n / (n - 2)`, so halving
+            `epsilon=` quadruples the work.
+        kmax
+            Maximum number of pairs to sample (default `10000`). If `epsilon=` asks for more, a
+            `ValueError` is raised.
+        seed
+            Seed for the random pairs, for reproducible estimates. If `None` (default), the
+            pairs differ on every call.
+        attr_name
+            Name of the node attribute to store scores in. If `None` (default), uses
+            `"approximate_current_flow_betweenness_centrality"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as a node attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping node IDs to estimated scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected, a weight is not positive, `epsilon=` is
+            not positive, or the required number of pairs exceeds `kmax=`.
+
+        Technical Notes
+        ---------------
+        Each sampled pair costs $O(E)$ after one $O(V^3)$ inversion of the grounded Laplacian.
+        The estimator is NetworkX's `approximate_current_flow_betweenness_centrality()`; the
+        random pairs come from EdgeCase's own generator, so individual estimates differ.
+
+        Examples
+        --------
+        On a 6 x 6 grid, a sampled estimate lands close to the exact values:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(6, 6)
+
+        exact = grid.current_flow_betweenness_centrality(return_dict=True)
+        approx = grid.approximate_current_flow_betweenness_centrality(
+            epsilon=0.2, seed=1, return_dict=True
+        )
+        round(max(abs(approx[n] - exact[n]) for n in exact), 3)
+        ```
+        """
+        scores = rust.approximate_current_flow_betweenness_centrality(
+            self._graph,
+            normalized,
+            self._use_weights(weighted),
+            float(epsilon),
+            int(kmax),
+            seed,
+        )
+        params: dict = {} if normalized else {"normalized": False}
+        if weighted is not None:
+            params["weighted"] = weighted
+        if epsilon != 0.5:
+            params["epsilon"] = epsilon
+        if seed is not None:
+            params["seed"] = seed
+        return self._node_metric_result(
+            "approximate_current_flow_betweenness_centrality",
+            scores,
+            attr_name,
+            return_dict,
+            params,
+        )
+
     def _group_ids(self, group) -> list[int]:
         items = group if isinstance(group, (list, tuple, set)) else [group]
         ids = list(dict.fromkeys(self._resolve_node_id(g, auto_create=False) for g in items))
@@ -33079,6 +33596,113 @@ class Graph:
         value = rust.group_degree_centrality(self._graph, ids, mode)
         self._record_group_step("group_degree_centrality", group, ids, value)
         return value
+
+    def prominent_group(
+        self,
+        k: int,
+        weighted: bool | None = None,
+        exclude: list[Union[int, str]] | None = None,
+        endpoints: bool = False,
+        normalized: bool = True,
+        greedy: bool = False,
+    ) -> tuple[float, list[int]]:
+        """
+        Find the group of `k` nodes with the highest group betweenness.
+
+        ![Most prominent group](/assets/graphs/prominent-group.light.svg){.lightbox fig-alt="The shared seven-node graph twice. Left, prominent_group(2) finds the pair E, B (accent), which together lie on 0.65 of the shortest paths between the other five nodes. Right, E and F, two of the three nodes with the highest individual betweenness, cover much of the same traffic, so as a group they score only 0.40." width="100%"}
+
+        `group_betweenness_centrality()` scores a group you choose; this method finds the best
+        group of a given size: the `k` nodes that, together, lie on the largest share of
+        shortest paths between the other nodes. The best group is usually not the `k`
+        individually most central nodes, because two hubs on the same routes intercept the same
+        traffic. Typical uses are placing `k` monitors, checkpoints or brokers so that between
+        them they see as much of the network's traffic as possible.
+
+        "Shortest" follows `shortest_path()`: hops on an unweighted graph, total weight on a
+        weighted one. Scaling is the same as in `group_betweenness_centrality()`.
+
+        Parameters
+        ----------
+        k
+            The group size (at least 1).
+        weighted
+            Whether to measure path length by edge weight. If `None` (default), follows the
+            graph.
+        exclude
+            Nodes that may not be chosen, as integer IDs or string labels. Paths through them
+            still count. Default is `None` (any node may be chosen).
+        endpoints
+            If `True`, also count pairs with an endpoint in the group. Default is `False`.
+        normalized
+            If `True` (default), divide by `(n - k)(n - k - 1)` so the score lies in `[0, 1]`.
+        greedy
+            If `True`, add the node with the largest gain one at a time instead of searching
+            exhaustively. Much faster on large graphs, but the group may not be the best one.
+            Default is `False`.
+
+        Returns
+        -------
+        tuple[float, list[int]]
+            The group betweenness of the best group and its node IDs, in the order the search
+            chose them.
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1 or more than the number of nodes that may be chosen, a node in
+            `exclude=` does not exist, or weights are used and one is negative.
+
+        Technical Notes
+        ---------------
+        The search is the depth-first branch and bound of Puzis, Elovici and Dolev (2007). It
+        precomputes the path betweenness of every pair of candidates (the share of shortest
+        paths through both) in $O(V^3)$; adding a member updates that matrix in $O(V^2)$ to
+        count only paths avoiding the group, and a branch is pruned when its value plus the
+        `k` best remaining gains cannot beat the best group so far. The search is exact; its
+        result always equals `group_betweenness_centrality()` of the group returned.
+
+        Examples
+        --------
+        In two triangles joined by a path, the best pair is the two ends of the path, which
+        between them sit on every route from one triangle to the other:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+                        ("E", "F"), ("F", "G"), ("G", "E")])
+        )
+
+        score, group = graph.prominent_group(2)
+        round(score, 3), [graph.get_label_from_id(n) for n in group]
+        ```
+
+        Notes
+        -----
+        NetworkX's `prominent_group()` subtracts the paths with an endpoint in the group only
+        after the search, which picks the wrong group on disconnected and directed graphs, where
+        that count depends on the group. It also halves the path counts on weighted graphs and
+        never completes a group from exactly the remaining candidates. EdgeCase's search avoids
+        all three and agrees with an exhaustive search over every group; NetworkX also rounds the
+        score to two decimals.
+        """
+        excl = self._group_ids(exclude) if exclude else []
+        value, group = rust.prominent_group(
+            self._graph, int(k), self._use_weights(weighted), excl, endpoints, normalized, greedy
+        )
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "prominent_group",
+                f"G.prominent_group({k})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in group]),
+                result=(value, group),
+                narration=f"Most prominent group of {k}: group betweenness {value:.3f}.",
+            )
+        return value, group
 
     def voterank(self, count: int | None = None) -> list[int]:
         """
@@ -33572,6 +34196,108 @@ class Graph:
             params["weighted"] = weighted
         return self._node_metric_result(
             "betweenness_centrality_subset", scores, attr_name, return_dict, params
+        )
+
+    def edge_betweenness_centrality_subset(
+        self,
+        sources: list[Union[int, str]],
+        targets: list[Union[int, str]],
+        normalized: bool = False,
+        weighted: bool | None = None,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, float], "Graph"]:
+        """
+        Calculate edge betweenness counting only paths from given sources to given targets.
+
+        ![Edge betweenness on a subset](/assets/graphs/edge-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only shortest paths from A or B to G count. Every one ends along E-F and F-G (accent, 1.00). A's single path and one of B's two run through C-E, 0.75, B's other path takes B-D-E, and A-B and C-D carry none." width="100%"}
+
+        The edge counterpart of `betweenness_centrality_subset()`: each shortest path that
+        starts in `sources=` and ends in `targets=` contributes to the edges it uses, and when a
+        pair has several shortest paths each one counts for an equal share. The result shows
+        which links carry the traffic between two particular sets of nodes, such as the roads
+        between residential areas and business districts, or the interactions linking a set of
+        receptors to a set of transcription factors.
+
+        Parallel edges are separate routes and split their shared paths between them;
+        self-loops score `0`. "Shortest" follows `shortest_path()`: hops, or total weight on a
+        weighted graph.
+
+        Parameters
+        ----------
+        sources
+            Starting nodes, as integer IDs or string labels.
+        targets
+            Destination nodes, as integer IDs or string labels.
+        normalized
+            If `True`, divide by `n (n - 1)`. Default is `False`, as in NetworkX; raw values are
+            halved on undirected graphs, since each path is seen from both ends.
+        weighted
+            Whether to measure path length by edge weight. If `None` (default), follows the
+            graph.
+        attr_name
+            Name of the edge attribute to store scores in. If `None` (default), uses
+            `"edge_betweenness_centrality_subset"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            scores as an edge attribute and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, float], Graph]
+            If `return_dict=` is `True`: a dictionary mapping edge IDs to scores. If
+            `return_dict=` is `False` (default): returns self.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or weights are used and one is negative.
+
+        Technical Notes
+        ---------------
+        One breadth-first search (or Dijkstra search, when weighted) per source, followed by
+        Brandes's dependency accumulation in which only targets start a unit of flow (Brandes,
+        2008): $O(|S| E)$ unweighted, $O(|S| E \\log V)$ weighted.
+
+        Examples
+        --------
+        In a diamond `A-B-D`, `A-C-D` with a tail `D-E`, the two shortest paths from `A` to `E`
+        share the tail edge and split the two sides of the diamond:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")])
+        )
+
+        scores = graph.edge_betweenness_centrality_subset(["A"], ["E"], return_dict=True)
+        label = graph.get_label_from_id
+        {"-".join(label(n) for n in graph.get_node_ids_by_edge_id(e)): s for e, s in scores.items()}
+        ```
+
+        Notes
+        -----
+        NetworkX's `edge_betweenness_centrality_subset()` splits the flow arriving at a
+        non-target node equally among its predecessors instead of in proportion to their
+        numbers of shortest paths, so its values are off wherever predecessors have different
+        path counts. EdgeCase uses Brandes's proportional split, which agrees with counting the
+        shortest paths directly.
+        """
+        src = [self._resolve_node_id(s, auto_create=False) for s in sources]
+        tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
+        scores = rust.edge_betweenness_centrality_subset(
+            self._graph, src, tgt, normalized, self._use_weights(weighted)
+        )
+        params = {"sources": sources, "targets": targets}
+        if normalized:
+            params["normalized"] = True
+        if weighted is not None:
+            params["weighted"] = weighted
+        return self._edge_metric_result(
+            "edge_betweenness_centrality_subset", scores, attr_name, return_dict, params
         )
 
     def effective_size(
@@ -45503,7 +46229,7 @@ class Graph:
 
     def k_edge_components(self, k: int) -> list[list[int]]:
         r"""
-        Find the k-edge-connected components of an undirected graph.
+        Find the k-edge-connected components of a graph.
 
         ![k-edge-connected components](/assets/graphs/k-edge-components.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. With k = 2, nodes belong together when two edge-disjoint paths join them: the triangle A, B, C (accent region) and the triangle D, E, F (teal region) qualify, while the faded bridge offers only one path between them. The card lists the two components; with k = 3 all 6 nodes are separate." width="100%"}
 
@@ -45516,7 +46242,10 @@ class Graph:
 
         The paths may pass through nodes outside the component, so a component need not induce a
         k-edge-connected subgraph by itself; use `k_edge_subgraphs()` for that stricter notion.
-        Parallel edges count separately and self-loops are ignored.
+        On a directed graph, paths follow edge direction and two nodes belong together when `k`
+        edge-disjoint paths run each way between them; with `k=1` the components are the
+        strongly connected components. Parallel edges count separately and self-loops are
+        ignored.
 
         Parameters
         ----------
@@ -45532,15 +46261,19 @@ class Graph:
         Raises
         ------
         ValueError
-            If `k` is less than 1 or the graph is directed.
+            If `k` is less than 1.
 
         Technical Notes
         ---------------
-        The method builds a Gomory-Hu tree with unit edge capacities (Gusfield's algorithm,
-        $V - 1$ maximum flows with Dinic's algorithm). The local edge connectivity of two nodes
-        is the smallest weight on their tree path, so removing the tree edges lighter than `k`
-        leaves exactly the components. NetworkX's `k_edge_components` gives the same partition,
-        except that it returns nothing for a single-node graph when `k` is 3 or more.
+        On undirected graphs, the method builds a Gomory-Hu tree with unit edge capacities
+        (Gusfield's algorithm, $V - 1$ maximum flows with Dinic's algorithm). The local edge
+        connectivity of two nodes is the smallest weight on their tree path, so removing the tree
+        edges lighter than `k` leaves exactly the components. Directed graphs have no Gomory-Hu
+        tree, but the relation "`k` edge-disjoint paths both ways" is still transitive, so each
+        component is found as the nodes mutually k-edge-connected to its first remaining node,
+        two maximum flows per node and component. NetworkX's `k_edge_components` gives the same
+        partition, except that it returns nothing for a single-node undirected graph when `k` is
+        3 or more.
 
         Examples
         --------
@@ -45567,7 +46300,7 @@ class Graph:
 
     def k_edge_subgraphs(self, k: int) -> list[list[int]]:
         r"""
-        Find the maximal k-edge-connected subgraphs of an undirected graph.
+        Find the maximal k-edge-connected subgraphs of a graph.
 
         ![k-edge-connected subgraphs](/assets/graphs/k-edge-subgraphs.light.svg){.lightbox fig-alt="Both sides show hubs u and v joined through a, b and c, with k = 3. Left: k_edge_components(3) counts paths through the whole graph, and the three edge-disjoint u–v paths (accent, teal, violet) put u and v in one component, with a, b and c alone. Right: k_edge_subgraphs(3) counts only edges inside each group, and u and v are not even adjacent, so every subgraph is a single node." width="100%"}
 
@@ -45578,6 +46311,8 @@ class Graph:
         of servers must stay connected using only its internal links. Every node not in a larger
         group forms its own singleton.
 
+        On a directed graph, each group must be strongly k-edge-connected on its own: `k`
+        edge-disjoint paths run each way between any two members using only the group's edges.
         Parallel edges count separately and self-loops are ignored.
 
         Parameters
@@ -45593,7 +46328,7 @@ class Graph:
         Raises
         ------
         ValueError
-            If `k` is less than 1 or the graph is directed.
+            If `k` is less than 1.
 
         Technical Notes
         ---------------
@@ -45701,6 +46436,447 @@ class Graph:
             return False
         return len(rust.k_edge_components(self._graph, k, False)) == 1
 
+    def is_locally_k_edge_connected(
+        self, source: Union[int, str], target: Union[int, str], k: int
+    ) -> bool:
+        """
+        Check if two nodes stay connected after removing any `k - 1` edges.
+
+        ![Is locally k-edge-connected](/assets/graphs/is-locally-k-edge-connected.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D, twice. Left: A and C (outlined) are joined by the edge A–C (accent) and by the route A, B, C (teal), two paths with no edge in common, so is_locally_k_edge_connected(A, C, 2) returns True. Right: every route from A to E crosses the bridge C–D (accent), so a single edge separates them and the call returns False." width="100%"}
+
+        Two nodes are locally k-edge-connected when at least `k` edges must be removed to
+        separate them, that is, when `k` edge-disjoint paths join them. Where
+        `is_k_edge_connected()` asks this of every pair, this method checks a single pair,
+        such as two sites that must keep in touch through any `k - 1` link failures.
+
+        Parallel edges count separately and self-loops are ignored. On directed graphs, paths
+        follow edge direction from `source=` to `target=`.
+
+        Parameters
+        ----------
+        source
+            The first node, as an integer ID or string label.
+        target
+            The second node, as an integer ID or string label.
+        k
+            The required number of edge-disjoint paths (at least 1).
+
+        Returns
+        -------
+        bool
+            `True` if `k` edge-disjoint paths join the two nodes.
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1, or a node does not exist or both are the same node.
+
+        Technical Notes
+        ---------------
+        As in NetworkX, a node with fewer than `k` edges answers `False` immediately and
+        `k = 1` is a reachability test; otherwise the local edge connectivity comes from a
+        maximum flow with unit capacities (see `get_min_cut_between()`).
+
+        Examples
+        --------
+        In two triangles joined by the bridge `C-D`, nodes in the same triangle have two
+        edge-disjoint paths, but the bridge is the only link between the triangles:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        g.add_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        )
+
+        g.is_locally_k_edge_connected("A", "C", 2), g.is_locally_k_edge_connected("A", "E", 2)
+        ```
+        """
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        s = self._resolve_node_id(source, auto_create=False)
+        t = self._resolve_node_id(target, auto_create=False)
+        if s == t:
+            raise ValueError("source and target must be different nodes")
+        out_deg: dict[int, int] = {s: 0, t: 0}
+        in_deg: dict[int, int] = {s: 0, t: 0}
+        for _, a, b in self.get_edges_as_tuples():
+            if a == b:
+                continue
+            for x, y in ((a, b),) if self.is_directed() else ((a, b), (b, a)):
+                if x in out_deg:
+                    out_deg[x] += 1
+                if y in in_deg:
+                    in_deg[y] += 1
+        if out_deg[s] < k or in_deg[t] < k:
+            return False
+        if k == 1:
+            return self.has_path(s, t)
+        return self._graph.get_min_cut_between(s, t) >= k
+
+    @staticmethod
+    def _augmentation_graph(ids: list[int], pairs: list[tuple[int, int]]):
+        """A plain undirected Rust graph on `ids` (same IDs) with one edge per pair."""
+        h = rust.Graph(directed=False, weighted=False)
+        for n in ids:
+            h.add_node(rust.Node(id=n, label=None, attributes=None))
+        edge_ids = [h.add_edge(rust.Edge(id=0, source=u, target=v)) for u, v in pairs]
+        return h, edge_ids
+
+    @staticmethod
+    def _augment(ids, pairs, k, avail, partial):
+        """
+        Edges to add to the undirected multigraph (`ids`, `pairs`) to make it k-edge-connected.
+
+        `avail` is None (any non-edge may be added) or a list of `((u, v), weight)` candidates
+        that are not edges yet. Raises `ValueError` when infeasible and `partial` is False.
+        """
+        import random as _random
+        from itertools import combinations
+
+        adj: dict[int, set[int]] = {n: set() for n in ids}
+        for u, v in pairs:
+            if u != v:
+                adj[u].add(v)
+                adj[v].add(u)
+
+        def degree_of(edge_list):
+            deg = dict.fromkeys(ids, 0)
+            for u, v in edge_list:
+                if u != v:
+                    deg[u] += 1
+                    deg[v] += 1
+            return deg
+
+        def is_k_connected(h, deg):
+            if len(ids) < k + 1 or min(deg.values(), default=0) < k:
+                return False
+            return len(rust.k_edge_components(h, k, False)) == 1
+
+        def components():
+            seen: set[int] = set()
+            comps = []
+            for n in ids:
+                if n in seen:
+                    continue
+                comp, stack = [], [n]
+                seen.add(n)
+                while stack:
+                    x = stack.pop()
+                    comp.append(x)
+                    for y in adj[x]:
+                        if y not in seen:
+                            seen.add(y)
+                            stack.append(y)
+                comps.append(sorted(comp))
+            return comps
+
+        def one_edge():
+            comps = components()
+            if avail is None:
+                return [(a[0], b[0]) for a, b in zip(comps, comps[1:])]
+            meta = {n: i for i, c in enumerate(comps) for n in c}
+            root = list(range(len(comps)))
+
+            def find(x):
+                while root[x] != x:
+                    root[x] = root[root[x]]
+                    x = root[x]
+                return x
+
+            chosen = []
+            for (u, v), _w in sorted(avail, key=lambda item: item[1]):
+                a, b = find(meta[u]), find(meta[v])
+                if a != b:
+                    root[a] = b
+                    chosen.append((u, v))
+            if len(chosen) < len(comps) - 1 and not partial:
+                raise ValueError("The available edges cannot connect the graph")
+            return chosen
+
+        def bridge_augmentation():
+            # Eswaran and Tarjan (1976): pair up the leaves of the bridge tree
+            h, _ = Graph._augmentation_graph(ids, pairs)
+            blocks = rust.k_edge_components(h, 2, False)
+            meta = {n: i for i, b in enumerate(blocks) for n in b}
+            tree: dict[int, set[int]] = {i: set() for i in range(len(blocks))}
+            for u, v in pairs:
+                if meta[u] != meta[v]:
+                    tree[meta[u]].add(meta[v])
+                    tree[meta[v]].add(meta[u])
+            seen: set[int] = set()
+            ends = []
+            for i in tree:
+                if i in seen:
+                    continue
+                comp, stack = [], [i]
+                seen.add(i)
+                while stack:
+                    x = stack.pop()
+                    comp.append(x)
+                    for y in tree[x]:
+                        if y not in seen:
+                            seen.add(y)
+                            stack.append(y)
+                comp.sort()
+                if len(comp) == 1:
+                    ends.append((comp[0], comp[0]))
+                else:
+                    leaves = sorted(comp, key=lambda x: len(tree[x]))[:2]
+                    ends.append((leaves[0], leaves[1]))
+            meta_edges = [(ends[i + 1][0], ends[i][1]) for i in range(len(ends) - 1)]
+            t_adj = {i: list(tree[i]) for i in tree}
+            for a, b in meta_edges:
+                t_adj[a].append(b)
+                t_adj[b].append(a)
+            leaves = [i for i in t_adj if len(t_adj[i]) == 1]
+            if len(leaves) == 2:
+                meta_edges.append((leaves[0], leaves[1]))
+            elif leaves:
+                root_node = next((i for i in t_adj if len(t_adj[i]) > 1), None)
+                if root_node is not None:
+                    order, stack, visited = [], [root_node], set()
+                    while stack:
+                        x = stack.pop()
+                        if x in visited:
+                            continue
+                        visited.add(x)
+                        order.append(x)
+                        stack.extend(reversed(sorted(set(t_adj[x]))))
+                    leaf_order = [i for i in order if len(t_adj[i]) == 1]
+                    half = math.ceil(len(leaf_order) / 2)
+                    meta_edges.extend(zip(leaf_order[:half], leaf_order[-half:]))
+            deg = degree_of(pairs)
+            members = {i: sorted(b, key=lambda n: (deg[n], n)) for i, b in enumerate(blocks)}
+            present = {frozenset(p) for p in pairs}
+            added = []
+            for a, b in meta_edges:
+                for u in members[a]:
+                    pick = next(
+                        (v for v in members[b] if v != u and frozenset((u, v)) not in present),
+                        None,
+                    )
+                    if pick is not None:
+                        present.add(frozenset((u, pick)))
+                        added.append((u, pick))
+                        break
+            return added
+
+        def greedy():
+            h, _ = Graph._augmentation_graph(ids, pairs)
+            deg = degree_of(pairs)
+            if is_k_connected(h, deg):
+                return []
+            if avail is None:
+                cands = [((u, v), 1) for u, v in combinations(ids, 2) if v not in adj[u]]
+            else:
+                cands = list(avail)
+            cands.sort(key=lambda item: (item[1], deg[item[0][0]] + deg[item[0][1]], item[0]))
+            added: list[tuple[int, int]] = []
+            added_ids: dict[tuple[int, int], int] = {}
+            done = False
+            for (u, v), _w in cands:
+                done = False
+                local = deg[u] >= k and deg[v] >= k and h.get_min_cut_between(u, v) >= k
+                if not local:
+                    added.append((u, v))
+                    added_ids[(u, v)] = h.add_edge(rust.Edge(id=0, source=u, target=v))
+                    deg[u] += 1
+                    deg[v] += 1
+                    if deg[u] >= k and deg[v] >= k:
+                        done = is_k_connected(h, deg)
+                if done:
+                    break
+            if not done:
+                raise ValueError("The available edges cannot make the graph k-edge-connected")
+            # try to drop edges again, in a fixed random order (seed 0, as NetworkX)
+            _random.Random(0).shuffle(added)
+            for u, v in list(added):
+                if deg[u] <= k or deg[v] <= k:
+                    continue
+                h.delete_edge_by_id(added_ids[(u, v)])
+                deg[u] -= 1
+                deg[v] -= 1
+                added.remove((u, v))
+                if not is_k_connected(h, deg):
+                    added_ids[(u, v)] = h.add_edge(rust.Edge(id=0, source=u, target=v))
+                    deg[u] += 1
+                    deg[v] += 1
+                    added.append((u, v))
+            return added
+
+        def partial_augmentation():
+            h, _ = Graph._augmentation_graph(ids, pairs + [uv for uv, _ in avail])
+            groups = rust.k_edge_components(h, k, True)
+            where = {n: i for i, g in enumerate(groups) for n in g}
+            result = []
+            for g in groups:
+                if len(g) > 1:
+                    members = set(g)
+                    inner = [(u, v) for u, v in pairs if u in members and v in members]
+                    sub_avail = [
+                        (uv, w) for uv, w in avail if uv[0] in members and uv[1] in members
+                    ]
+                    try:
+                        result.extend(Graph._augment(sorted(g), inner, k, sub_avail, False))
+                    except ValueError:  # too few nodes, held together by parallel edges
+                        pass
+            result.extend(uv for uv, _ in avail if where[uv[0]] != where[uv[1]])
+            return result
+
+        try:
+            if len(ids) < k + 1:
+                raise ValueError(f"A graph needs at least {k + 1} nodes to be {k}-edge-connected")
+            if avail is not None and not avail:
+                h, _ = Graph._augmentation_graph(ids, pairs)
+                if not is_k_connected(h, degree_of(pairs)):
+                    raise ValueError("No edges are available to add")
+                return []
+            if k == 1:
+                return one_edge()
+            if k == 2 and avail is None:
+                return bridge_augmentation()
+            return greedy()
+        except ValueError:
+            if not partial:
+                raise
+            if avail is None:
+                return [(u, v) for u, v in combinations(ids, 2) if v not in adj[u]]
+            return partial_augmentation()
+
+    def k_edge_augmentation(
+        self,
+        k: int,
+        avail: list | dict | None = None,
+        partial: bool = False,
+    ) -> list[tuple[int, int]]:
+        r"""
+        Find edges to add so that an undirected graph becomes k-edge-connected.
+
+        ![k-edge augmentation](/assets/graphs/k-edge-augmentation.light.svg){.lightbox fig-alt="Left: a binary tree on seven nodes, in which every edge is a bridge. Right: k_edge_augmentation(2) adds the two dashed accent edges D–F and E–G, pairing up the four leaves (outlined), after which every edge lies on a cycle and no single edge removal disconnects the tree; with four leaves, two new edges is the fewest possible." width="100%"}
+
+        A graph is k-edge-connected when it stays connected after removing any `k - 1` edges
+        (see `is_k_edge_connected()`). This method answers the design question behind it: which
+        links should be added so that a network survives any `k - 1` link failures? With
+        `avail=` the new edges must come from a list of candidates, optionally with costs,
+        such as the cables that can actually be laid and what each would cost.
+
+        The graph is not modified; add the result with `add_edges()`. Parallel edges count
+        separately and self-loops are ignored.
+
+        Parameters
+        ----------
+        k
+            The edge connectivity to reach (at least 1).
+        avail
+            Candidate edges. If `None` (default), any pair of non-adjacent nodes may be joined.
+            Otherwise a list of `(u, v)` or `(u, v, cost)` tuples, or a dict mapping `(u, v)` to
+            a cost, with nodes as IDs or labels; edges without a cost cost `1`, and candidates
+            that are already edges are ignored. Cheaper candidates are preferred.
+        partial
+            If `True` and the graph cannot be made k-edge-connected, return a best effort
+            instead of raising: every non-edge when `avail=` is `None`, or else the edges that
+            make each part k-edge-connected where possible plus every candidate joining two
+            parts. Default is `False`.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            The edges to add, as `(u, v)` node ID pairs (empty if the graph is already
+            k-edge-connected).
+
+        Raises
+        ------
+        ValueError
+            If `k` is less than 1, the graph is directed, a node does not exist, or (unless
+            `partial=True`) no augmentation exists, for example because the graph has at most
+            `k` nodes.
+
+        Technical Notes
+        ---------------
+        The method follows NetworkX's `k_edge_augmentation()`:
+
+        - `k = 1`: join the connected components. Without `avail=`, one edge links each
+          component to the next; with it, a minimum spanning forest over the components picks
+          the cheapest candidates (Kruskal). Both are optimal.
+        - `k = 2` without `avail=`: Eswaran and Tarjan's (1976) algorithm on the tree of
+          2-edge-connected components links up its leaves, adding the fewest edges possible:
+          $\lceil \ell / 2 \rceil$ for a connected graph whose bridge tree has $\ell$ leaves.
+        - Otherwise (larger `k`, or `k = 2` with `avail=`): candidates are added cheapest first
+          (ties by the endpoints' degrees) wherever their endpoints are not yet locally
+          k-edge-connected, until the graph is k-edge-connected, then each added edge is
+          dropped again, in a random order with a fixed seed, if the graph stays
+          k-edge-connected without it. This is a heuristic and may add more edges than
+          necessary.
+
+        Examples
+        --------
+        A path of five nodes has two leaves in its bridge tree, so one edge joining its ends
+        makes it 2-edge-connected:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(list("ABCDE"))
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+
+        label = path.get_label_from_id
+        [(label(u), label(v)) for u, v in path.k_edge_augmentation(2)]
+        ```
+
+        A star with four leaves has four leaves in its bridge tree and needs two new edges.
+        With costs, the cheap candidates are used when they suffice:
+
+        ```{python}
+        star = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
+        star.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+
+        label = star.get_label_from_id
+        options = [("a", "b", 1), ("c", "d", 1), ("a", "c", 5), ("b", "d", 5)]
+        [(label(u), label(v)) for u, v in star.k_edge_augmentation(2, avail=options)]
+        ```
+
+        Notes
+        -----
+        For `k = 2` with `avail=`, NetworkX uses an approximation based on minimum branchings,
+        while EdgeCase uses the heuristic for larger `k`; both return valid augmentations but
+        they can choose different edges.
+        """
+        if k < 1:
+            raise ValueError("k must be at least 1")
+        if self.is_directed():
+            raise ValueError("k_edge_augmentation() requires an undirected graph")
+        ids = sorted(self.get_node_ids(limit=None))
+        pairs = [(s, t) for _, s, t in sorted(self.get_edges_as_tuples()) if s != t]
+        cands = None
+        if avail is not None:
+            items = list(avail.items()) if isinstance(avail, dict) else avail
+            present = {frozenset(p) for p in pairs}
+            cands, seen = [], set()
+            for item in items:
+                if isinstance(avail, dict):
+                    (u, v), w = item
+                else:
+                    u, v, w = (*item, 1) if len(item) == 2 else item
+                u = self._resolve_node_id(u, auto_create=False)
+                v = self._resolve_node_id(v, auto_create=False)
+                key = frozenset((u, v))
+                if u == v or key in present or key in seen:
+                    continue
+                seen.add(key)
+                cands.append(((u, v), float(w)))
+        added = Graph._augment(ids, pairs, int(k), cands, partial)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "k_edge_augmentation",
+                f"G.k_edge_augmentation({k})",
+                result=added,
+                narration=f"{len(added)} edges to add for {k}-edge-connectivity.",
+            )
+        return added
+
     def average_node_connectivity(self) -> float:
         r"""
         Compute the average local node connectivity over all pairs of nodes.
@@ -45761,6 +46937,166 @@ class Graph:
                 narration=f"Average node connectivity: {value:.3g}.",
             )
         return value
+
+    def all_pairs_node_connectivity(
+        self, nodes: list[Union[int, str]] | None = None
+    ) -> dict[int, dict[int, int]]:
+        """
+        Compute the local node connectivity of every pair of nodes.
+
+        ![All-pairs node connectivity](/assets/graphs/all-pairs-node-connectivity.light.svg){.lightbox fig-alt="A square A, B, C, D with the diagonal A–C (accent). The table gives the local node connectivity of every pair: A and C are joined directly and through B and through D, three routes that share no other node (accent cells), while every other pair has two." width="100%"}
+
+        The local node connectivity of two nodes is the number of paths between them that share
+        no other node: the number of other nodes that must fail to separate them, plus one if
+        they are adjacent. This method returns it for every pair, as a table, which shows where
+        a network is fragile in more detail than the single number of
+        `get_node_connectivity()` or `average_node_connectivity()`: pairs with a value of 1
+        hang on a single intermediary.
+
+        Pairs follow edge direction on directed graphs, so `result[u][v]` and `result[v][u]`
+        may differ. Parallel edges count once and self-loops are ignored.
+
+        Parameters
+        ----------
+        nodes
+            Only compute pairs among these nodes (IDs or labels). Paths may still pass through
+            any node. If `None` (default), all pairs are computed.
+
+        Returns
+        -------
+        dict[int, dict[int, int]]
+            `result[u][v]` is the local node connectivity from `u` to `v`, for every ordered
+            pair of distinct nodes (symmetric on undirected graphs).
+
+        Raises
+        ------
+        ValueError
+            If a node in `nodes=` does not exist.
+
+        Technical Notes
+        ---------------
+        Each pair is one maximum flow in the auxiliary network that splits every node into an
+        in-copy and an out-copy joined by a unit-capacity arc (Dinic's algorithm); undirected
+        graphs solve each unordered pair once. Results match NetworkX's
+        `all_pairs_node_connectivity()`.
+
+        Examples
+        --------
+        In a square `A-B-C-D` with the diagonal `A-C`, opposite corners `B` and `D` are joined
+        through both `A` and `C`, while the diagonal's ends have three disjoint routes:
+
+        ```{python}
+        import edgecase as ec
+
+        square = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        )
+
+        label = square.get_label_from_id
+        table = square.all_pairs_node_connectivity()
+        {label(u): {label(v): k for v, k in row.items()} for u, row in table.items()}
+        ```
+        """
+        ids = (
+            None if nodes is None else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        triples = rust.all_pairs_node_connectivity(self._graph, ids)
+        order = sorted(self.get_node_ids(limit=None)) if ids is None else list(dict.fromkeys(ids))
+        result: dict[int, dict[int, int]] = {u: {} for u in order}
+        directed = self.is_directed()
+        for u, v, k in triples:
+            result[u][v] = k
+            if not directed:
+                result[v][u] = k
+        result = {u: dict(sorted(row.items())) for u, row in result.items()}
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "all_pairs_node_connectivity",
+                "G.all_pairs_node_connectivity()",
+                result=result,
+                narration=f"Local node connectivity of {len(triples)} pairs.",
+            )
+        return result
+
+    def all_node_cuts(self) -> list[list[int]]:
+        r"""
+        Find every minimum node cut of a connected undirected graph.
+
+        ![All minimum node cuts](/assets/graphs/all-node-cuts.light.svg){.lightbox fig-alt="Three copies of a strip of four triangles on A to F, whose node connectivity is 2. Each copy shows one minimum node cut in the accent color, with the edges it removes dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The card lists the three cuts." width="100%"}
+
+        A node cut (or separator) is a set of nodes whose removal disconnects the graph. The
+        smallest ones have as many nodes as the graph's node connectivity
+        (`get_node_connectivity()`), and there can be many of them. `minimum_node_cut()` gives
+        one cut between two chosen nodes; this method lists all minimum cuts of the whole
+        graph, which shows every way the network's weakest point can be hit: the articulation
+        points when the connectivity is 1, the pairs of nodes that split a ring, and so on.
+
+        Parallel edges count once and self-loops are ignored. A complete graph has no node cuts,
+        so the result is empty.
+
+        Returns
+        -------
+        list[list[int]]
+            Every minimum node cut, as a sorted list of node IDs, in sorted order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or disconnected.
+
+        Technical Notes
+        ---------------
+        With $k$ the node connectivity and $X$ the $k$ nodes of highest degree (Kanevsky,
+        1993), every minimum cut is either $X$ itself or separates some $x \in X$ from a node
+        $v$ not adjacent to it. For each such pair, the minimum $x$-$v$ separators form a
+        lattice: starting from the one closest to $x$ (read from the residual network of a
+        maximum flow), moving any separator node to $x$'s side and taking the closest separator
+        again reaches all of them, each found once. The work is a few maximum flows per cut, so
+        the method stays fast even when the number of cuts is large. Results match NetworkX's
+        `all_node_cuts()`.
+
+        Examples
+        --------
+        A ring of six nodes falls apart when any two non-adjacent nodes are removed, so it has
+        nine minimum node cuts of size 2:
+
+        ```{python}
+        import edgecase as ec
+
+        ring = ec.Graph().add_cycle_graph(6)
+
+        cuts = ring.all_node_cuts()
+        len(cuts), cuts[:3]
+        ```
+
+        In two triangles that share node `C`, the shared node is the only cut:
+
+        ```{python}
+        bowtie = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        )
+
+        [[bowtie.get_label_from_id(n) for n in cut] for cut in bowtie.all_node_cuts()]
+        ```
+        """
+        cuts = rust.all_node_cuts(self._graph)
+        if self._recording_depth == 0:
+            in_cuts = sorted({n for cut in cuts for n in cut})
+            size = len(cuts[0]) if cuts else 0
+            self._record_step(
+                KIND_QUERY,
+                "all_node_cuts",
+                "G.all_node_cuts()",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in in_cuts]),
+                result=cuts,
+                narration=f"{len(cuts)} minimum node cuts of size {size}.",
+            )
+        return cuts
 
     def get_edge_connectivity(self) -> int:
         """
