@@ -26,7 +26,10 @@ the host, and stacks one miniature host per occurrence like find_cliques.
 edgeless nodes are `accent`.
 `triadic_census` uses the five-node directed network from its docstring with a
 type / count / triads table; two triads are highlighted in the graph and their
-rows: the cycle 030C in accent, the 120U triad in g2.
+rows: the cycle 030C in accent, the 120U triad in g2. Its per-triad
+companions follow it: triad_type shows two copies of its graph, the two
+queried triples in accent and g2; triads_by_type and all_triads stack one
+miniature per returned triple in a 2 x 2 grid, labeled with the type or ids.
 The later clique variants rebuild their docstring examples in edgecase and
 assert the results: enumerate_all_cliques stacks mini triangles in rows by
 clique size; max_weight_clique shows node weights as ink badges;
@@ -752,6 +755,126 @@ def triadic_census(s: Scene) -> None:
     hl = {(i, j): color[tr] for i, (t, tr) in enumerate(TRIAD_ROWS, 1) if tr in color
           for j in range(3)}
     s.table_centered(right, rows, [50, 50, 76], highlight=hl)
+
+
+# --- later additions: individual triads ----------------------------------------
+#
+# The per-triad companions of triadic_census rebuild their docstring examples
+# in edgecase and assert the results. triad_type splits the input panel into
+# two copies of the graph, one per queried triple (accent and g2, the rest
+# muted), with the MAN codes on the card. triads_by_type and all_triads draw
+# the graph plain and set one miniature per returned triple in a 2 x 2 grid
+# on the right, the triple (and its arcs) in accent, the rest muted, with the
+# type or id triple beneath it. all_triads returns ids, so its nodes carry ids.
+
+
+def _ec_digraph(nodes, edges):
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(nodes))
+    if edges:
+        g.add_edges(edges)
+    return g
+
+
+def _triad_edges(edges, on: set, style: str = "accent", off: str = "muted") -> list:
+    """Directed edge specs: arcs inside the triple `on` in `style`; reciprocal arcs bowed."""
+    out = []
+    for a, b in edges:
+        kw = {"style": style if {a, b} <= on else off}
+        if (b, a) in edges:
+            kw["bend"] = 7
+        out.append((a, b, kw))
+    return out
+
+
+def _grid4(s: Scene, right: Box, coords, edges, results: list[tuple[set, str]]) -> None:
+    """Four miniatures of one graph in a 2 x 2 grid, each highlighting a triple.
+
+    Each grid row holds a miniature with its label just beneath it, the pair
+    centered in the row so a clear gap separates the label from the next row.
+    """
+    unit = 34  # the largest that leaves a clear gap under each label
+    xs, ys = [p[0] for p in coords.values()], [p[1] for p in coords.values()]
+    gw = (max(xs) - min(xs)) * unit + 2 * R_SMALL
+    gh = (max(ys) - min(ys)) * unit + 2 * R_SMALL
+    block = gh + 4 + SIZE_CARD  # miniature, gap, label
+    pitch = right.h / 2
+    for i, (on, label) in enumerate(results):
+        cx = right.x0 + right.w * (0.25 + 0.5 * (i % 2))
+        top = right.y0 + (i // 2) * pitch + (pitch - block) / 2
+        cell = Box(cx - gw / 2, top, cx + gw / 2, top + gh)
+        s.graph(place(coords, cell, unit=unit, r=R_SMALL, pad=0), _triad_edges(edges, on),
+                directed=True, styles={k: "accent" if k in on else "muted" for k in coords},
+                r=R_SMALL, prefix=f"m{i}.")
+        s.text(cx, top + gh + 4 + SIZE_CARD / 2, label, size=SIZE_CARD, color="accent",
+               weight=600, role="card")
+
+
+# triad_type docstring: a transitive triple A, B, C and the pair C <-> D.
+TT = {"A": (0, 1), "B": (0.9, 0), "C": (1.8, 1), "D": (2.9, 1)}
+TT_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "C")]
+
+
+@figure("triad_type", "substructures", "Triad type",
+        "Two copies of a directed graph on A, B, C, D: A points to B and C, B points to C, and "
+        "C and D point at each other. Left copy: the triple A, B, C in the accent color is a "
+        "transitive triad of three one-way arcs, type 030T. Right copy: B, C, D in teal has "
+        "one mutual pair, one one-way pair and one empty pair, type 111D. The card gives both "
+        "MAN codes.")
+def triad_type(s: Scene) -> None:
+    g = _ec_digraph(TT, TT_EDGES)
+    assert g.triad_type(["A", "B", "C"]) == "030T"
+    assert g.triad_type(["B", "C", "D"]) == "111D"
+    left, right = compute(s, "g", "g.triad_type(nodes)")
+    for k, (box, tri, c) in enumerate(((Box(left.x0, left.y0, left.cx, left.y1), "ABC", "accent"),
+                                       (Box(left.cx, left.y0, left.x1, left.y1), "BCD", "g2"))):
+        s.text(box.cx, box.y0 + 8, f"nodes = [{', '.join(tri)}]", size=SIZE_NOTE, opacity=0.6)
+        gb = Box(box.x0, box.y0 + 22, box.x1, box.y1)
+        s.graph(place(TT, gb, unit=UNIT * 0.65), _triad_edges(TT_EDGES, set(tri), c),
+                directed=True, styles={n: c if n in tri else "muted" for n in TT}, prefix=f"t{k}.")
+    s.card_centered(right, [("[A, B, C]  030T", "accent"), "mutual 0, asym 3, null 0",
+                            ("[B, C, D]  111D", "g2"), "mutual 1, asym 1, null 1"],
+                    title="MAN code")
+
+
+# triads_by_type docstring: the cycle A -> B -> C -> A with the tail C -> D.
+TB = {"A": (0, 0), "B": (1.2, 0), "C": (0.6, 1), "D": (1.8, 1)}
+TB_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+
+
+@figure("triads_by_type", "substructures", "Triads by type",
+        "Left: a directed graph with the cycle A to B to C to A and the extra arc C to D. "
+        "Right: one miniature per triad, its three nodes and arcs in the accent color, "
+        "labeled with the type it is grouped under: A, B, C is the cycle 030C; A, B, D is "
+        "012; A, C, D is 021D (C points at both others); B, C, D is 021C, a two-step chain.")
+def triads_by_type(s: Scene) -> None:
+    g = _ec_digraph(TB, TB_EDGES)
+    found = {code: ["".join(g.get_label_from_id(n) for n in t) for t in ts]
+             for code, ts in g.triads_by_type().items()}
+    assert found == {"030C": ["ABC"], "012": ["ABD"], "021D": ["ACD"], "021C": ["BCD"]}
+    left, right = compute(s, "g", "g.triads_by_type()")
+    s.graph(place(TB, left, unit=UNIT), TB_EDGES, directed=True)
+    _grid4(s, right, TB, TB_EDGES, [(set(ts[0]), code) for code, ts in found.items()])
+
+
+# all_triads docstring: four nodes, so C(4, 3) = 4 triples (ids 1..4).
+QUAD = {"1": (0, 0), "2": (1, 0), "3": (0, 1), "4": (1, 1)}
+
+
+@figure("all_triads", "substructures", "All triads",
+        "Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one "
+        "miniature per triad, its three nodes in the accent color and the fourth faded, "
+        "labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and "
+        "(2, 3, 4), the 4 ways to choose 3 of 4 nodes.")
+def all_triads(s: Scene) -> None:
+    g = _ec_digraph(QUAD, [])
+    found = g.all_triads()
+    assert found == [(1, 2, 3), (1, 2, 4), (1, 3, 4), (2, 3, 4)]
+    left, right = compute(s, "g", "g.all_triads()")
+    s.graph(place(QUAD, left, unit=UNIT), [], directed=True)
+    _grid4(s, right, QUAD, [], [({str(n) for n in t}, f"({', '.join(map(str, t))})")
+                                for t in found])
 
 
 # --- later additions: branchings and arborescences -------------------------
