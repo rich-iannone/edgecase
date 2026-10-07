@@ -36,6 +36,17 @@ and name the conditioning set z in a note: the two predicates use
 `contrast`, z `soft`, with the open path (or the redundant member of z) in
 accent on the False side; find_minimal_d_separator returns z, so it is in
 accent. Every figure asserts its result with edgecase.
+
+The later DAG-structure figures also rebuild their docstring examples and
+assert the results. antichains uses a diamond (`DIAMOND`, shared with
+transforms.dag_to_branching) with the largest antichain in accent and every
+antichain on the card. colliders and v_structures draw named causal graphs:
+the collider in accent, and on the v_structures side a shielded collider
+muted with its shielding edge left in ink. lexicographical_topological_sort
+gives the getting-dressed DAG filled order badges, like
+get_topological_sort_order. all_pairs_lowest_common_ancestor draws its
+taxonomy top down, the queried species `soft`, one answer (and the edges
+down to its pair) in accent and the other in g2, matching the card.
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, transform
@@ -830,3 +841,143 @@ def find_minimal_d_separator(s: Scene) -> None:
                below={"age", "exercise", "heart"}, unit=UNIT * 1.4)
     s.card_centered(right, [(f"[{', '.join(z)}]", "accent"), "blocks all age–heart paths"],
                     title="minimal separator z")
+
+
+# --- later additions: DAG structure -------------------------------------------
+#
+# Docstring examples rebuilt with edgecase; every figure asserts its result.
+
+# The antichains / dag_to_branching diamond: A forks to B and C, which rejoin at D.
+DIAMOND = {"A": (0, 0.7), "B": (1.2, 0), "C": (1.2, 1.4), "D": (2.4, 0.7)}
+DIAMOND_EDGES = [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")]
+
+
+@figure("antichains", "traversal", "Antichains",
+        "A diamond DAG: A points to B and C, which both point to D. B and C, in the accent "
+        "color, cannot reach each other, so together they form the largest antichain; every "
+        "other pair lies on a common path. The card lists all six antichains in the order "
+        "returned: the empty set, D, C, B, then B and C (accent), then A.")
+def antichains(s: Scene) -> None:
+    g = _dag_graph(DIAMOND, DIAMOND_EDGES)
+    found = [[g.get_label_from_id(n) for n in a] for a in g.antichains()]
+    assert found == [[], ["D"], ["C"], ["B"], ["B", "C"], ["A"]]
+    left, right = compute(s, "g", "g.antichains()")
+    s.graph(place(DIAMOND, left, unit=UNIT), DIAMOND_EDGES, directed=True,
+            styles={"B": "accent", "C": "accent"})
+    s.card_centered(right, [(f"[{', '.join(a)}]", "accent" if len(a) == 2 else "ink")
+                            for a in found], title="pairwise unreachable sets", w=200)
+
+
+# colliders docstring: two causes with a common effect.
+TALENT = {"talent": (0, 0), "luck": (2, 0), "success": (1, 1)}
+TALENT_EDGES = [("talent", "success"), ("luck", "success")]
+
+
+@figure("colliders", "traversal", "Colliders",
+        "A causal graph in which talent and luck both point to success. The two arrows "
+        "meeting head to head at success, all in the accent color, form a collider: two "
+        "causes with a common effect. The card returns the one collider as the triple "
+        "(talent, success, luck), effect in the middle.")
+def colliders(s: Scene) -> None:
+    g = _dag_graph(TALENT, TALENT_EDGES)
+    found = [tuple(g.get_label_from_id(n) for n in t) for t in g.colliders()]
+    assert found == [("talent", "success", "luck")]
+    left, right = compute(s, "g", "g.colliders()")
+    _named_dag(s, left, TALENT, [(a, b, {"style": "accent"}) for a, b in TALENT_EDGES],
+               dict.fromkeys(TALENT, "accent"), "", below={"success"}, unit=UNIT * 1.3)
+    s.card_centered(right, [(f"({', '.join(t)})", "accent") for t in found],
+                    title="colliders (p1, c, p2)")
+
+
+# v_structures docstring: the talent collider beside x -> z <- y shielded by x -> y.
+VSTRUCT = {**TALENT, "x": (3.2, 0), "y": (5.2, 0), "z": (4.2, 1)}
+VSTRUCT_EDGES = TALENT_EDGES + [("x", "z"), ("y", "z"), ("x", "y")]
+
+
+@figure("v_structures", "traversal", "V-structures",
+        "Two colliders side by side. Left: talent and luck both point to success and are not "
+        "joined to each other, an unshielded collider, drawn in the accent color. Right: x "
+        "and y both point to z, but the edge x to y, left in full ink, links the two causes, "
+        "so this collider is shielded and faded. The card returns the only v-structure, (talent, success, "
+        "luck), and notes that (x, z, y) is shielded by x to y.")
+def v_structures(s: Scene) -> None:
+    g = _dag_graph(VSTRUCT, VSTRUCT_EDGES)
+    lab = g.get_label_from_id
+    assert [tuple(map(lab, t)) for t in g.colliders()] == [("talent", "success", "luck"),
+                                                            ("x", "z", "y")]
+    found = [tuple(map(lab, t)) for t in g.v_structures()]
+    assert found == [("talent", "success", "luck")]
+    left, right = compute(s, "g", "g.v_structures()")
+    edges = [(a, b, {"style": "accent" if a in TALENT else "muted" if b == "z" else "default"})
+             for a, b in VSTRUCT_EDGES]
+    styles = {**dict.fromkeys(TALENT, "accent"), **dict.fromkeys("xyz", "muted")}
+    gbox = Box(left.x0, left.y0 + 16, left.x1, left.y1 - 16)
+    s.graph(place(VSTRUCT, gbox, unit=UNIT), edges, directed=True, styles=styles, labels=False)
+    for k in VSTRUCT:
+        _name(s, k, k, "s" if k in ("success", "z") else "n",
+              "accent" if k in TALENT else "ink")
+        if k not in TALENT:
+            s.texts[-1].opacity = 0.5  # faded like the muted node it names
+    s.card_centered(right, [(f"({', '.join(t)})", "accent") for t in found]
+                    + ["(x, z, y) shielded by x→y"], title="unshielded colliders")
+
+
+# lexicographical_topological_sort docstring: getting dressed.
+DRESS = {"shirt": (0, 0), "trousers": (1.5, 0), "socks": (3, 0), "tie": (0, 1.2),
+         "belt": (1.5, 1.2), "shoes": (3, 1.2)}
+DRESS_EDGES = [("socks", "shoes"), ("trousers", "shoes"), ("trousers", "belt"), ("shirt", "tie")]
+
+
+@figure("lexicographical_topological_sort", "traversal", "Lexicographical topological sort",
+        "Getting dressed as a DAG: shirt before tie, trousers before belt and shoes, socks "
+        "before shoes. Numbered badges give the order returned, which always takes the "
+        "alphabetically first item whose prerequisites are done: 1 shirt, 2 socks, 3 tie, "
+        "4 trousers, 5 belt, 6 shoes. The card lists the same order.")
+def lexicographical_topological_sort(s: Scene) -> None:
+    g = _dag_graph(DRESS, DRESS_EDGES)
+    order = [g.get_label_from_id(n) for n in g.lexicographical_topological_sort()]
+    assert order == ["shirt", "socks", "tie", "trousers", "belt", "shoes"]
+    left, right = compute(s, "g", "g.lexicographical_topological_sort()")
+    _named_dag(s, left, DRESS, DRESS_EDGES, {}, "", below={"tie", "belt", "shoes"},
+               unit=UNIT * 1.3)
+    for i, k in enumerate(order, 1):
+        s.badge(k, str(i), filled=True, where="e" if k in ("shirt", "tie") else "auto")
+    s.card_centered(right, [(" ".join(f"{i} {k}" for i, k in enumerate(order[:3], 1)), "accent"),
+                            (" ".join(f"{i} {k}" for i, k in enumerate(order[3:], 4)), "accent")],
+                    title="alphabetical where free")
+
+
+# all_pairs_lowest_common_ancestor docstring: a small taxonomy, top down.
+TAXON = {"Mammalia": (1.75, 0), "Carnivora": (0.7, 1), "Rodentia": (2.8, 1), "cat": (0, 2),
+         "dog": (1.4, 2), "mouse": (2.8, 2)}
+TAXON_EDGES = [("Mammalia", "Carnivora"), ("Mammalia", "Rodentia"), ("Carnivora", "cat"),
+               ("Carnivora", "dog"), ("Rodentia", "mouse")]
+TAXON_NAME_AT = {"Mammalia": "e", "Carnivora": "w", "Rodentia": "e"}
+
+
+@figure("all_pairs_lowest_common_ancestor", "traversal", "All-pairs lowest common ancestor",
+        "A taxonomy drawn top down: Mammalia has the orders Carnivora and Rodentia; cat and "
+        "dog are carnivores and mouse is a rodent. The queried species are outlined. For the "
+        "pair cat, dog the lowest common ancestor is Carnivora (accent color, with its two "
+        "edges); for cat, mouse it is Mammalia (teal, with the edges down to both). The card "
+        "maps (cat, dog) to Carnivora and (cat, mouse) to Mammalia.")
+def all_pairs_lowest_common_ancestor(s: Scene) -> None:
+    g = _dag_graph(TAXON, TAXON_EDGES)
+    lab = g.get_label_from_id
+    found = {tuple(map(lab, p)): lab(a)
+             for p, a in g.all_pairs_lowest_common_ancestor([("cat", "dog"), ("cat", "mouse")]).items()}
+    assert found == {("cat", "dog"): "Carnivora", ("cat", "mouse"): "Mammalia"}
+    left, right = compute(s, "g", "g.all_pairs_lowest_common_ancestor(pairs)")
+    accent = {("Carnivora", "cat"), ("Carnivora", "dog")}
+    # every other edge lies on Mammalia's paths down to cat and mouse
+    edges = [(a, b, {"style": "accent" if (a, b) in accent else "g2"}) for a, b in TAXON_EDGES]
+    styles = {"cat": "soft", "dog": "soft", "mouse": "soft", "Carnivora": "accent",
+              "Mammalia": "g2"}
+    gbox = Box(left.x0, left.y0, left.x1, left.y1 - 16)  # a row for the species names
+    s.graph(place(TAXON, gbox, unit=UNIT), edges, directed=True, styles=styles, labels=False)
+    for k in TAXON:
+        st = styles.get(k, "default")
+        _name(s, k, k, TAXON_NAME_AT.get(k, "s"),
+              {"g2": "g2", "default": "ink"}.get(st, "accent"))
+    s.card_centered(right, [(f"({u}, {v})".ljust(13) + a, "accent" if a == "Carnivora" else "g2")
+                            for (u, v), a in found.items()], title="pair → lowest common ancestor")
