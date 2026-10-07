@@ -30,6 +30,11 @@ complete_to_chordal_graph uses add_cycle_graph(5) on a ring, the fill edges
 accent on the right and the elimination numbering alpha in filled badges.
 power(2) draws the path A–E in both panels with the skip-one edges it adds as
 accent arcs, like the closures.
+dag_to_branching unrolls traversal's diamond into a tree on the same
+footprint, node letters inside and returned path labels beneath; the
+duplicated D is accent on both sides. moral_graph draws the sprinkler network
+in both panels with names beside the nodes; the married-parents edge
+rain–sprinkler is accent on the right, where every direction is dropped.
 """
 
 from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, shift, transform
@@ -37,6 +42,8 @@ from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, sh
 from figures.graph_metrics import SW, SW_EDGES, sw_graph
 from figures.paths import HOUSE, HOUSE_EDGES
 from figures.predicates import _degrees
+from figures.similarity import _name
+from figures.traversal import DIAMOND, DIAMOND_EDGES
 
 UNIT = 80  # one density for the whole family
 
@@ -572,3 +579,78 @@ def power(s: Scene) -> None:
     s.graph(lp, PATH5_EDGES, prefix="l.")
     s.graph(rp, PATH5_EDGES + [(a, b, {"style": "accent", "bend": k}) for a, b, k in SKIP_ARCS],
             prefix="r.")
+
+
+# --- later additions: DAG unfolding and moralization ----------------------------
+#
+# Docstring examples rebuilt with edgecase and asserted. dag_to_branching keeps
+# the diamond's footprint: each copy of a node sits where the node did, letter
+# inside, its returned path label beneath (D, duplicated, in accent on both
+# sides). moral_graph draws the sprinkler network in both panels; the married
+# parents' new edge is accent and the directions are gone.
+
+
+@figure("dag_to_branching", "transforms", "DAG to branching",
+        "Left: a diamond DAG in which A points to B and C, and both point to D (accent "
+        "color). Right: dag_to_branching() unrolls every root-to-leaf path into a tree: A "
+        "leads to A/B and A/C, and D, reached along both paths, appears twice, as A/B/D and "
+        "A/C/D in the accent color. Each new node is labeled with its path, and the result "
+        "is a branching.")
+def dag_to_branching(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(DIAMOND))
+    g.add_edges(DIAMOND_EDGES)
+    tree = g.dag_to_branching()
+    lab = tree.get_label_from_id
+    assert sorted(lab(n) for n in tree.get_node_ids()) == ["A", "A/B", "A/B/D", "A/C", "A/C/D"]
+    assert sorted((lab(a), lab(b)) for _, a, b in tree.get_edges_as_tuples()) == [
+        ("A", "A/B"), ("A", "A/C"), ("A/B", "A/B/D"), ("A/C", "A/C/D")]
+    assert tree.is_branching() is True
+    left, right = transform(s, "g", "g.dag_to_branching()")
+    unit = UNIT * 0.85
+    s.graph(place(DIAMOND, left, unit=unit), DIAMOND_EDGES, directed=True,
+            styles={"D": "accent"}, prefix="l.")
+    paths = {"A": (0, 0.7), "A/B": (1.2, 0), "A/C": (1.2, 1.4), "A/B/D": (2.4, 0),
+             "A/C/D": (2.4, 1.4)}
+    rp = place(paths, right, unit=unit)
+    s.graph(rp, [("A", "A/B"), ("A", "A/C"), ("A/B", "A/B/D"), ("A/C", "A/C/D")],
+            directed=True, labels={k: k[-1] for k in paths},
+            styles={"A/B/D": "accent", "A/C/D": "accent"}, prefix="r.")
+    for k, (x, y) in rp.items():  # path label above the top row, below the rest
+        s.text(x, y + (-27 if paths[k][1] == 0 else 27), k, size=SIZE_NOTE,
+               color="accent" if k.endswith("D") else "ink",
+               opacity=1 if k.endswith("D") else 0.7)
+
+
+# moral_graph docstring: the sprinkler network.
+SPRINKLER = {"cloudy": (0, 0.6), "rain": (1.2, 0), "sprinkler": (1.2, 1.2), "wet": (2.4, 0.6)}
+SPRINKLER_EDGES = [("cloudy", "rain"), ("cloudy", "sprinkler"), ("rain", "wet"),
+                   ("sprinkler", "wet")]
+SPRINKLER_NAME_AT = {"cloudy": "s", "rain": "n", "sprinkler": "s", "wet": "s"}
+
+
+@figure("moral_graph", "transforms", "Moral graph",
+        "Left: the sprinkler network, a directed graph in which cloudy points to rain and "
+        "sprinkler, and both rain and sprinkler point to wet grass. Right: moral_graph() "
+        "marries the two parents of wet by joining rain and sprinkler with a new edge (accent "
+        "color) and drops every direction, giving an undirected graph with five edges.")
+def moral_graph(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(SPRINKLER))
+    g.add_edges(SPRINKLER_EDGES)
+    moral = g.moral_graph()
+    assert moral.is_directed() is False
+    assert sorted(moral.get_edges_str_repr(use_labels=True)) == [
+        "cloudy--rain", "cloudy--sprinkler", "rain--sprinkler", "rain--wet", "sprinkler--wet"]
+    left, right = transform(s, "g", "g.moral_graph()")
+    lb = Box(left.x0, left.y0 + 16, left.x1, left.y1 - 16)  # rows for the names
+    rb = Box(right.x0, right.y0 + 16, right.x1, right.y1 - 16)
+    lp, rp = _both(SPRINKLER, lb, rb)
+    s.graph(lp, SPRINKLER_EDGES, directed=True, labels=False, prefix="l.")
+    s.graph(rp, SPRINKLER_EDGES + [("rain", "sprinkler", {"style": "accent"})], labels=False,
+            prefix="r.")
+    for p in ("l.", "r."):
+        for k in SPRINKLER:
+            _name(s, p + k, k, SPRINKLER_NAME_AT[k])
