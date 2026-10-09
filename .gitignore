@@ -234,3 +234,6 @@ dist_datasets/
 # Generated documentation reference files
 docs/reference/
 docs/_site/
+
+# Generated SVG gallery (make gallery)
+svg_gallery.html
