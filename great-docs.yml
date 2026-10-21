@@ -125,6 +125,26 @@ reference:
         - Graph.add_balanced_tree
         - Graph.add_grid_2d
         - Graph.add_prism_graph
+        - Graph.add_complete_bipartite_graph
+        - Graph.add_complete_multipartite_graph
+        - Graph.add_turan_graph
+        - Graph.add_wheel_graph
+        - Graph.add_ladder_graph
+        - Graph.add_circulant_graph
+        - Graph.add_barbell_graph
+        - Graph.add_lollipop_graph
+        - Graph.add_tadpole_graph
+        - Graph.add_windmill_graph
+        - Graph.add_hypercube_graph
+        - Graph.add_grid_graph
+        - Graph.add_triangular_lattice_graph
+        - Graph.add_hexagonal_lattice_graph
+        - Graph.add_kneser_graph
+        - Graph.add_mycielski_graph
+        - Graph.add_binomial_tree
+        - Graph.add_full_rary_tree
+        - Graph.add_lcf_graph
+        - Graph.add_named_graph
         - Graph.add_gnp_graph
         - Graph.add_gnm_graph
         - Graph.add_pa_graph
@@ -135,6 +155,18 @@ reference:
         - Graph.degree_preserving_rewire
         - Graph.expected_degree_graph
         - Graph.generate_stochastic_block_model
+
+    - title: Community Benchmarks
+      desc: Generators that plant known communities, stored in a node attribute
+      contents:
+        - Graph.add_caveman_graph
+        - Graph.add_connected_caveman_graph
+        - Graph.add_ring_of_cliques
+        - Graph.add_relaxed_caveman_graph
+        - Graph.add_planted_partition_graph
+        - Graph.add_random_partition_graph
+        - Graph.add_gaussian_random_partition_graph
+        - Graph.add_lfr_graph
 
     - title: Graph Information
       desc: Methods for getting information about the graph
