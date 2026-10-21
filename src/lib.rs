@@ -274,6 +274,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::null_models::expected_degree_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::null_models::generate_stochastic_block_model, m)?)?;
 
+    // Community benchmark generators
+    m.add_function(wrap_pyfunction!(algorithms::generators::random_partition_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::generators::gaussian_random_partition, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::generators::relaxed_caveman_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::generators::lfr_benchmark, m)?)?;
+
     // Network motif census
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_census, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_significance, m)?)?;
