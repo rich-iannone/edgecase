@@ -4307,13 +4307,15 @@ class Graph:
         label: bool,
         type: str | None,
         label_fn: Callable[[int, int], str] | None = None,
+        node_attrs: list[dict] | None = None,
     ) -> list[int]:
         """Add `n` nodes for a structural generator and return their IDs in order.
 
         With `label=True` each node is labelled `label_fn(node_id, index)`, by default its own
         ID as a string, so labels match IDs even after deletions. Every label is checked against
         the graph first, so a clash raises `ValueError` before any node is added. Edges must be
-        wired by the returned IDs, not by label, so that `label=False` works.
+        wired by the returned IDs, not by label, so that `label=False` works. `node_attrs`, if
+        given, holds one dict of extra attributes per node (e.g. a planted community).
         """
         start = self._graph.next_node_id
         ids = list(range(start, start + n))
@@ -4327,8 +4329,11 @@ class Graph:
                     f"pass label=False or relabel the existing nodes"
                 )
         attributes = {"type": type} if type else None
-        for nid, lbl in zip(ids, labels):
-            new_id = self._graph.add_node(rust.Node(id=0, label=lbl, attributes=attributes))
+        for i, (nid, lbl) in enumerate(zip(ids, labels)):
+            attrs = attributes
+            if node_attrs is not None and node_attrs[i]:
+                attrs = {**(attributes or {}), **node_attrs[i]}
+            new_id = self._graph.add_node(rust.Node(id=0, label=lbl, attributes=attrs))
             assert new_id == nid, (new_id, nid)
         return ids
 
@@ -4336,6 +4341,17 @@ class Graph:
         edge_attrs = {"rel": rel} if rel else {}
         for source, target in zip(node_ids, node_ids[1:]):
             self.add_edge(source, target, **edge_attrs)
+
+    def _add_generated_edges(self, node_ids: list[int], pairs, rel: str | None) -> None:
+        """Add an edge for each `(i, j)` index pair, from `node_ids[i]` to `node_ids[j]`."""
+        edge_attrs = {"rel": rel} if rel else {}
+        for i, j in pairs:
+            self.add_edge(node_ids[i], node_ids[j], **edge_attrs)
+
+    @staticmethod
+    def _group_attrs(groups: list[int], attr: str | None) -> list[dict] | None:
+        """Per-node attribute dicts storing each node's group under `attr` (None: store none)."""
+        return None if attr is None else [{attr: g} for g in groups]
 
     def add_path_graph(
         self,
@@ -5120,6 +5136,2127 @@ class Graph:
         self._end_compound("add_prism_graph", f"G.add_prism_graph(n={n})", before)
         return self
 
+    def add_complete_bipartite_graph(
+        self,
+        n1: int,
+        n2: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a complete bipartite graph K(n1, n2) to the current graph.
+
+        ![Complete bipartite graph](/assets/graphs/add-complete-bipartite-graph.light.svg){.lightbox fig-alt="Three complete bipartite graphs side by side for sizes 2 and 2, 2 and 3, and 3 and 4. The first part sits in a top row in the accent color and the second in a teal bottom row; every top node is joined to every bottom node and no two nodes in the same row are joined, giving 4, 6, and 12 edges." width="100%"}
+
+        Creates two groups of nodes, `n1` in the first and `n2` in the second, and joins every
+        node of the first group to every node of the second. No edges run inside a group, so the
+        graph has `n1 + n2` nodes and `n1 * n2` edges and is bipartite by construction. Each
+        node's group is stored in the `part_attr=` node attribute (`0` for the first group, `1`
+        for the second), so the two sides can be recovered later.
+
+        The first group is created first, then the second. In a directed graph every edge points
+        from the first group to the second. The graph is appended without touching or connecting
+        to existing nodes, and the whole construction is recorded as a single step.
+
+        Complete bipartite graphs are useful for:
+
+        - modeling two-sided systems where every member of one side relates to every member of
+          the other (all customers and all products, all workers and all shifts)
+        - test cases for bipartite algorithms such as matching, projection, and bipartite
+          centrality, where the answers are known
+        - building blocks in graph theory: `K(1, n)` is a star and `K(3, 3)` is one of the two
+          minimal non-planar graphs
+
+        Parameters
+        ----------
+        n1
+            Number of nodes in the first group. Must be non-negative.
+        n2
+            Number of nodes in the second group. Must be non-negative. If either group is empty
+            the result is a set of isolated nodes.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string (so `"1"`,
+            `"2"`, ... in an empty graph); a label that is already used raises `ValueError` before
+            anything is added. If `False`, the nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's group (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n1=` or `n2=` is negative.
+
+        Examples
+        --------
+        `K(2, 3)` has `2 + 3 = 5` nodes and `2 * 3 = 6` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_complete_bipartite_graph(n1=2, n2=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The `part` column records which side each node is on. Nodes on the first side have one
+        neighbor for every node of the second side, and vice versa:
+
+        ```{python}
+        graph.get_node_df().select("label", "part", "degree")
+        ```
+
+        `K(3, 3)` is bipartite but not planar:
+
+        ```{python}
+        utility = ec.Graph().add_complete_bipartite_graph(n1=3, n2=3)
+
+        utility.is_bipartite(), utility.is_planar()
+        ```
+        """
+        if n1 < 0 or n2 < 0:
+            raise ValueError("Group sizes n1 and n2 must be non-negative")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(
+            n1 + n2, label, type, node_attrs=self._group_attrs([0] * n1 + [1] * n2, part_attr)
+        )
+        self._add_generated_edges(ids, ((i, n1 + j) for i in range(n1) for j in range(n2)), rel)
+
+        self._end_compound(
+            "add_complete_bipartite_graph", f"G.add_complete_bipartite_graph(n1={n1}, n2={n2})",
+            before,
+        )
+        return self
+
+    def _add_multipartite(self, sizes: list[int], label, type, rel, part_attr) -> None:
+        """Nodes part by part, then an edge between every pair in different parts."""
+        groups = [p for p, size in enumerate(sizes) for _ in range(size)]
+        ids = self._add_generated_nodes(
+            len(groups), label, type, node_attrs=self._group_attrs(groups, part_attr)
+        )
+        pairs = (
+            (i, j)
+            for i in range(len(groups))
+            for j in range(i + 1, len(groups))
+            if groups[i] != groups[j]
+        )
+        self._add_generated_edges(ids, pairs, rel)
+
+    def add_complete_multipartite_graph(
+        self,
+        sizes: list[int],
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a complete multipartite graph to the current graph.
+
+        ![Complete multipartite graph](/assets/graphs/add-complete-multipartite-graph.light.svg){.lightbox fig-alt="Three complete multipartite graphs on a ring of six nodes, each part in its own color: sizes 1, 2, 3; sizes 2, 2, 2 (the octahedron); and sizes 1, 1, 2, 2. Two nodes are joined exactly when they belong to different parts, so the only missing pairs are inside a part." width="100%"}
+
+        Creates one group of nodes per entry of `sizes=` and joins every pair of nodes that lie
+        in different groups. Nodes in the same group are never joined, so each group is an
+        independent set and the graph's chromatic number equals the number of non-empty groups.
+        Each node's group index (`0`, `1`, ...) is stored in the `part_attr=` node attribute.
+
+        The groups are created in order, each as a consecutive run of node IDs. In a directed
+        graph every edge points from the earlier-created node to the later one. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction is
+        recorded as a single step.
+
+        Complete multipartite graphs include several familiar families:
+
+        - two groups give the complete bipartite graph (see `add_complete_bipartite_graph()`)
+        - groups of size `1` give the complete graph, and `n` groups of size `2` give the
+          cocktail-party graph (`[2, 2, 2]` is the octahedron)
+        - as equal as possible group sizes give the Turán graph (see `add_turan_graph()`)
+
+        They are handy for modeling "everyone except your own team" relations (round-robin
+        matches between clubs, cross-department review) and for testing coloring and
+        independent-set algorithms.
+
+        Parameters
+        ----------
+        sizes
+            Number of nodes in each group, e.g. `[2, 3, 4]`. Every size must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's group index. Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If any entry of `sizes=` is negative.
+
+        Examples
+        --------
+        With groups of `1`, `2`, and `3` nodes, each node is joined to every node outside its own
+        group, giving `1*2 + 1*3 + 2*3 = 11` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_complete_multipartite_graph(sizes=[1, 2, 3])
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        A node's degree is the number of nodes outside its group:
+
+        ```{python}
+        graph.get_node_df().select("label", "part", "degree")
+        ```
+
+        Three groups of two nodes form the octahedron, where every node misses only its partner:
+
+        ```{python}
+        octahedron = ec.Graph().add_complete_multipartite_graph(sizes=[2, 2, 2])
+
+        octahedron.count_edges(), octahedron.is_isomorphic(ec.Graph().add_named_graph("octahedral"))
+        ```
+        """
+        sizes = list(sizes)
+        if any(size < 0 for size in sizes):
+            raise ValueError("Group sizes must be non-negative")
+
+        before = self._begin_compound()
+        self._add_multipartite(sizes, label, type, rel, part_attr)
+        self._end_compound(
+            "add_complete_multipartite_graph",
+            f"G.add_complete_multipartite_graph(sizes={sizes})",
+            before,
+        )
+        return self
+
+    def add_turan_graph(
+        self,
+        n: int,
+        r: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a Turán graph T(n, r) to the current graph.
+
+        ![Turán graph](/assets/graphs/add-turan-graph.light.svg){.lightbox fig-alt="Three Turán graphs on a ring of seven nodes for r=2, 3, and 4 parts, each part in its own color. The seven nodes are split into parts as equal as possible (4 and 3; 3, 2, and 2; 2, 2, 2, and 1) and every pair of nodes in different parts is joined, so the graph gains edges as r grows (12, 16, and 18)." width="100%"}
+
+        The Turán graph splits `n` nodes into `r` groups whose sizes differ by at most one and
+        joins every pair of nodes in different groups. It is the complete multipartite graph with
+        the most edges among all graphs on `n` nodes that contain no clique of `r + 1` nodes;
+        Turán's theorem says no `K(r+1)`-free graph on `n` nodes has more edges.
+
+        The smaller groups (`n // r` nodes) come first and the larger ones (`n // r + 1` nodes)
+        last, each as a consecutive run of node IDs, and each node's group index is stored in
+        the `part_attr=` node attribute. In a directed graph every edge points from the
+        earlier-created node to the later one. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Turán graphs are useful for:
+
+        - extremal graph theory: they are the densest graphs without a `K(r+1)` clique
+        - test cases for clique, coloring, and independent-set algorithms (the clique number and
+          chromatic number are both `r` when `n >= r`)
+        - balanced "everyone except your own group" relations, such as matches between equal
+          teams
+
+        Parameters
+        ----------
+        n
+            Total number of nodes. Must be at least `1`.
+        r
+            Number of groups. Must satisfy `1 <= r <= n`. `r=1` gives `n` isolated nodes and
+            `r=n` gives the complete graph.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's group index. Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1`, or `r=` is not between `1` and `n=`.
+
+        Examples
+        --------
+        `T(7, 3)` splits seven nodes into groups of `2`, `2`, and `3`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_turan_graph(n=7, r=3)
+
+        graph.get_node_df()["part"].value_counts().sort("part")
+        ```
+
+        It has the most edges a seven-node graph can have without containing four mutually
+        joined nodes, and its largest clique has exactly `r=3` nodes:
+
+        ```{python}
+        graph.count_edges(), graph.clique_number()
+        ```
+        """
+        if n < 1:
+            raise ValueError("Turán graph must have at least 1 node")
+        if not 1 <= r <= n:
+            raise ValueError("Number of groups r must be between 1 and n")
+
+        before = self._begin_compound()
+        sizes = [n // r] * (r - n % r) + [n // r + 1] * (n % r)
+        self._add_multipartite(sizes, label, type, rel, part_attr)
+        self._end_compound("add_turan_graph", f"G.add_turan_graph(n={n}, r={r})", before)
+        return self
+
+    def add_wheel_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a wheel graph to the current graph.
+
+        ![Wheel graph](/assets/graphs/add-wheel-graph.light.svg){.lightbox fig-alt="Three wheel graphs side by side for n=4, 5, and 7: a hub in the middle joined to every node of a rim cycle of three, four, and six nodes. The hub has n - 1 neighbors and every rim node has three." width="100%"}
+
+        Creates a hub node joined to every node of a cycle of `n - 1` rim nodes. The result has
+        `n` nodes and `2(n - 1)` edges: `n - 1` spokes plus `n - 1` rim edges. The hub has
+        degree `n - 1` and every rim node degree `3`. A wheel is a star whose spokes are joined
+        into a ring, or equivalently a cycle with one extra node connected to everything.
+
+        The hub is created first and the rim nodes follow it in order around the cycle. In a
+        directed graph the spokes point outward from the hub and the rim runs in one direction
+        (each rim node to the next, the last back to the first). The wheel is appended without
+        touching or connecting to existing nodes, and the whole construction is recorded as a
+        single step.
+
+        Wheel graphs are useful for:
+
+        - modeling a central coordinator plus a ring of peers that also talk to their neighbors
+          (a hub-and-ring network)
+        - test cases for centrality, where the hub dominates but rim nodes are not leaves
+        - graph theory examples: wheels are planar, 3-connected, and self-dual, and `n=4` gives
+          the complete graph `K4`
+
+        Parameters
+        ----------
+        n
+            Total number of nodes, counting the hub (so the rim has `n - 1` nodes). Must be at
+            least `4`, so that the rim is at least a triangle.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; the hub
+            gets the first number. A label that is already used raises `ValueError` before
+            anything is added. If `False`, the nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge (spokes and rim
+            alike). If `None` (default), no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `4`.
+
+        Examples
+        --------
+        A wheel with six nodes has a hub and a five-node rim, for `5` spokes plus `5` rim edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_wheel_graph(n=6)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The hub (node `"1"`) touches every rim node, while each rim node has its two rim
+        neighbors plus the hub:
+
+        ```{python}
+        graph.get_node_df()["degree"].to_list()
+        ```
+
+        The smallest wheel, `n=4`, is the complete graph on four nodes:
+
+        ```{python}
+        ec.Graph().add_wheel_graph(n=4).is_isomorphic(ec.Graph().add_full_graph(n=4))
+        ```
+        """
+        if n < 4:
+            raise ValueError("Wheel must have at least 4 nodes")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(n, label, type)
+        rim = n - 1
+        spokes = ((0, i) for i in range(1, n))
+        ring = ((i, i % rim + 1) for i in range(1, n))
+        self._add_generated_edges(ids, [*spokes, *ring], rel)
+
+        self._end_compound("add_wheel_graph", f"G.add_wheel_graph(n={n})", before)
+        return self
+
+    def add_ladder_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a ladder graph to the current graph.
+
+        ![Ladder graph](/assets/graphs/add-ladder-graph.light.svg){.lightbox fig-alt="Three ladder graphs side by side for n=2, 3, and 4: two parallel paths of n nodes, the rails, joined by n rungs between matching nodes. The ends have two neighbors and the inner nodes three, for 3n - 2 edges." width="100%"}
+
+        Creates two parallel paths ("rails") of `n` nodes each and joins their matching nodes
+        with `n` "rungs". The result has `2n` nodes and `3n - 2` edges and looks like a ladder:
+        the four corner nodes have degree `2` and every other node degree `3`. A ladder is the
+        `2 x n` grid, and closing both rails into cycles gives the prism graph (see
+        `add_prism_graph()`).
+
+        The first rail is created first, then the second, and the `i`-th rung joins the `i`-th
+        node of each rail. In a directed graph the rails run from the first node to the last and
+        the rungs point from the first rail to the second. The ladder is appended without
+        touching or connecting to existing nodes, and the whole construction is recorded as a
+        single step.
+
+        Ladder graphs are useful for:
+
+        - modeling two parallel chains with cross-links (double-track rail lines, a pair of
+          redundant pipelines, the two strands of a DNA molecule)
+        - test cases for path counting and shortest paths, since many equal-length routes exist
+        - a simple example of a graph with many spanning trees but a small, fixed width
+
+        Parameters
+        ----------
+        n
+            Number of nodes on each rail (and the number of rungs). Must be at least `1`; `n=1`
+            gives a single edge.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; the
+            first rail gets the first `n` numbers. A label that is already used raises
+            `ValueError` before anything is added. If `False`, the nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge (rails and rungs
+            alike). If `None` (default), no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1`.
+
+        Examples
+        --------
+        A ladder with four rungs has `8` nodes and `4 + 3 + 3 = 10` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_ladder_graph(n=4)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The rails are nodes `"1"` to `"4"` and `"5"` to `"8"`; the last four edges are the
+        rungs:
+
+        ```{python}
+        graph.get_edges_str_repr(use_labels=True)
+        ```
+
+        A ladder is the same graph as a grid with two rows:
+
+        ```{python}
+        graph.is_isomorphic(ec.Graph().add_grid_2d(rows=2, cols=4))
+        ```
+        """
+        if n < 1:
+            raise ValueError("Ladder must have at least 1 rung")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(2 * n, label, type)
+        rails = [(i, i + 1) for i in range(n - 1)] + [(n + i, n + i + 1) for i in range(n - 1)]
+        rungs = [(i, n + i) for i in range(n)]
+        self._add_generated_edges(ids, rails + rungs, rel)
+
+        self._end_compound("add_ladder_graph", f"G.add_ladder_graph(n={n})", before)
+        return self
+
+    def add_circulant_graph(
+        self,
+        n: int,
+        offsets: list[int],
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a circulant graph to the current graph.
+
+        ![Circulant graph](/assets/graphs/add-circulant-graph.light.svg){.lightbox fig-alt="Three circulant graphs on the same ring of eight nodes. With offsets 1 each node joins its two ring neighbors, giving a cycle; offsets 1 and 2 add the chords that skip one node; offsets 1 and 3 instead add chords that skip two. Every node has the same number of neighbors, twice the number of offsets." width="100%"}
+
+        Places `n` nodes on a ring and joins each node `i` to node `(i + o) mod n` for every
+        offset `o` in `offsets=`. Offsets `1` give the cycle, offsets `1` and `2` the ring
+        lattice that small-world models start from, and offsets `1` to `n // 2` the complete
+        graph. Every node looks the same, so circulant graphs are regular and vertex-transitive.
+
+        In an undirected graph the offsets `o` and `n - o` describe the same edges, so each pair
+        is joined only once; with `n` even, the offset `n / 2` joins each node to the one
+        directly opposite. In a directed graph every offset gives its own edge `i -> (i + o) mod
+        n`, so `[1]` is a directed cycle and `[1, n - 1]` adds the reverse cycle as well.
+
+        Nodes are created in ring order. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Circulant graphs are useful for:
+
+        - modeling ring networks with fixed-length shortcuts (chordal rings, interconnection
+          networks for parallel computers)
+        - building regular test graphs of any even degree, or the starting lattice of a
+          Watts-Strogatz model before rewiring
+        - examples in algebraic graph theory, since their spectrum has a closed form
+
+        Parameters
+        ----------
+        n
+            Number of nodes on the ring. Must be at least `2`.
+        offsets
+            Ring distances to join, e.g. `[1, 3]`. Each offset is taken modulo `n=` and must not
+            be a multiple of `n=` (which would give a self-loop). Repeated or equivalent offsets
+            add no extra edges.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `2`, `offsets=` is empty, or an offset is a multiple of `n=`.
+
+        Examples
+        --------
+        With offsets `1` and `3`, each of the eight nodes is joined to the nodes one and three
+        steps away in both directions, so every node has degree `4`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_circulant_graph(n=8, offsets=[1, 3])
+
+        graph.count_edges(), {graph.get_degree(nid) for nid in graph.get_node_ids()}
+        ```
+
+        The offset `4` in an eight-node ring joins opposite nodes, so each pair appears once and
+        adds only one to every degree. Together with offset `1` this gives the Möbius ladder on
+        eight nodes (the Wagner graph):
+
+        ```{python}
+        wagner = ec.Graph().add_circulant_graph(n=8, offsets=[1, 4])
+
+        wagner.count_edges(), {wagner.get_degree(nid) for nid in wagner.get_node_ids()}
+        ```
+
+        In a directed graph each offset gives one edge per node, all pointing the same way
+        around the ring:
+
+        ```{python}
+        ec.Graph(directed=True).add_circulant_graph(n=4, offsets=[1]).get_edges_str_repr(
+            use_labels=True
+        )
+        ```
+        """
+        offsets = list(offsets)
+        if n < 2:
+            raise ValueError("Circulant graph must have at least 2 nodes")
+        if not offsets:
+            raise ValueError("offsets must contain at least one offset")
+        if any(o % n == 0 for o in offsets):
+            raise ValueError("Offsets must not be multiples of n (that would give self-loops)")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(n, label, type)
+        directed = self.is_directed()
+        seen: set[tuple[int, int]] = set()
+        pairs = []
+        for o in offsets:
+            for i in range(n):
+                j = (i + o) % n
+                key = (i, j) if directed else (min(i, j), max(i, j))
+                if key not in seen:
+                    seen.add(key)
+                    pairs.append((i, j))
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound(
+            "add_circulant_graph", f"G.add_circulant_graph(n={n}, offsets={offsets})", before
+        )
+        return self
+
+    def add_barbell_graph(
+        self,
+        m1: int,
+        m2: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a barbell graph to the current graph.
+
+        ![Barbell graph](/assets/graphs/add-barbell-graph.light.svg){.lightbox fig-alt="Three barbell graphs side by side: two triangles joined by one edge for m1=3 and m2=0, two triangles joined through a path of two nodes for m2=2, and two complete graphs on four nodes joined through one path node for m1=4 and m2=1. The cliques are the bells and the path is the bar." width="100%"}
+
+        Creates two complete graphs ("bells") of `m1` nodes each, joined by a path ("bar") of
+        `m2` nodes. The graph has `2 * m1 + m2` nodes, and with `m2=0` the two bells are joined
+        by a single edge. Every node on the bar, and every edge on it, is a cut point: removing
+        it splits the graph in two.
+
+        Nodes are created as the first bell, then the bar, then the second bell. The bar runs
+        from the last node of the first bell to the first node of the second, so the
+        numbering follows the shape from left to right; in a directed graph every edge points
+        from the earlier-created node to the later one. The graph is appended without touching
+        or connecting to existing nodes, and the whole construction is recorded as a single
+        step.
+
+        Barbell graphs are a standard stress test:
+
+        - community detection: two obvious clusters joined by a thin bridge
+        - random walks and diffusion: the bar is a bottleneck, so mixing and cover times are
+          slow
+        - betweenness and bridge detection: all shortest paths between the bells use the bar
+
+        Parameters
+        ----------
+        m1
+            Number of nodes in each bell. Must be at least `2`.
+        m2
+            Number of nodes on the bar between the bells. Must be non-negative; `m2=0` joins the
+            bells with one edge.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m1=` is less than `2` or `m2=` is negative.
+
+        Examples
+        --------
+        Two four-node bells joined by a two-node bar give `10` nodes; each bell has `6` edges
+        and the bar adds `3` more:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_barbell_graph(m1=4, m2=2)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The bar carries every shortest path between the bells, so its two nodes, `"5"` and `"6"`,
+        have the highest betweenness, just ahead of the bell nodes it attaches to:
+
+        ```{python}
+        scores = graph.betweenness_centrality(return_dict=True)
+
+        {graph.get_label_from_id(nid): round(s, 2) for nid, s in scores.items() if s > 0}
+        ```
+
+        With `m2=0` the bells are joined by a single bridge edge, whose two ends are the only
+        nodes whose removal disconnects the graph:
+
+        ```{python}
+        joined = ec.Graph().add_barbell_graph(m1=3, m2=0)
+
+        cut_nodes = [joined.get_label_from_id(nid) for nid in joined.get_articulation_points()]
+
+        len(joined.bridges()), cut_nodes
+        ```
+        """
+        if m1 < 2:
+            raise ValueError("Each bell must have at least 2 nodes")
+        if m2 < 0:
+            raise ValueError("Bar length m2 must be non-negative")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(2 * m1 + m2, label, type)
+        second = m1 + m2
+        bells = [
+            (start + i, start + j)
+            for start in (0, second)
+            for i in range(m1)
+            for j in range(i + 1, m1)
+        ]
+        bar = [(i, i + 1) for i in range(m1 - 1, second)]
+        self._add_generated_edges(ids, bells + bar, rel)
+
+        self._end_compound("add_barbell_graph", f"G.add_barbell_graph(m1={m1}, m2={m2})", before)
+        return self
+
+    def add_lollipop_graph(
+        self,
+        m: int,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a lollipop graph to the current graph.
+
+        ![Lollipop graph](/assets/graphs/add-lollipop-graph.light.svg){.lightbox fig-alt="Three lollipop graphs side by side: a triangle with a one-node tail for m=3 and n=1, a complete graph on four nodes with a two-node tail, and a complete graph on five nodes with a two-node tail. The tail is a path hanging off one node of the clique." width="100%"}
+
+        Creates a complete graph ("candy") of `m` nodes with a path ("stick") of `n` more nodes
+        hanging off one of them. The graph has `m + n` nodes and `m(m - 1)/2 + n` edges. With
+        `n=0` it is just the complete graph.
+
+        The clique is created first and the stick follows, attached to the clique's last node,
+        so the far end of the stick is the last node created. In a directed graph every edge
+        points from the earlier-created node to the later one, so the stick points away from the
+        clique. The graph is appended without touching or connecting to existing nodes, and the
+        whole construction is recorded as a single step.
+
+        Lollipop graphs are classic extreme cases:
+
+        - random walks: with `m` about `2(m + n)/3`, a walk started in the clique takes the
+          longest possible expected time (of order `(m + n)^3`) to reach the end of the stick
+        - mixing a dense core and a long periphery in one test graph, e.g. for centrality,
+          k-core, or eccentricity measures
+        - checking that path-based measures handle a long tail correctly
+
+        Parameters
+        ----------
+        m
+            Number of nodes in the clique. Must be at least `2`.
+        n
+            Number of nodes on the stick. Must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m=` is less than `2` or `n=` is negative.
+
+        Examples
+        --------
+        A four-node clique with a three-node stick has `7` nodes and `6 + 3 = 9` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_lollipop_graph(m=4, n=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The stick hangs from node `"4"`, the clique's last node, so the longest shortest path
+        runs from the clique to the tip `"7"`:
+
+        ```{python}
+        graph.get_diameter(), graph.get_degree("4"), graph.get_degree("7")
+        ```
+        """
+        if m < 2:
+            raise ValueError("Lollipop clique must have at least 2 nodes")
+        if n < 0:
+            raise ValueError("Stick length n must be non-negative")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(m + n, label, type)
+        clique = [(i, j) for i in range(m) for j in range(i + 1, m)]
+        stick = [(i, i + 1) for i in range(m - 1, m + n - 1)]
+        self._add_generated_edges(ids, clique + stick, rel)
+
+        self._end_compound("add_lollipop_graph", f"G.add_lollipop_graph(m={m}, n={n})", before)
+        return self
+
+    def add_tadpole_graph(
+        self,
+        m: int,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a tadpole graph to the current graph.
+
+        ![Tadpole graph](/assets/graphs/add-tadpole-graph.light.svg){.lightbox fig-alt="Three tadpole graphs side by side: a triangle with a one-node tail for m=3 and n=1, a square with a two-node tail, and a hexagon with a two-node tail. Unlike the lollipop, the head is a plain cycle, so every head node but the one holding the tail has two neighbors." width="100%"}
+
+        Creates a cycle ("head") of `m` nodes with a path ("tail") of `n` more nodes hanging off
+        one of them. The graph has `m + n` nodes and `m + n` edges, so it is connected with
+        exactly one cycle (a unicyclic graph). With `n=0` it is just the cycle. Tadpoles are
+        also called dragon or pan graphs (`n=1` gives the pan).
+
+        The cycle is created first and the tail follows, attached to the cycle's last node. In a
+        directed graph the cycle runs in one direction (each node to the next, the last back to
+        the first) and the tail points away from the cycle. The graph is appended without
+        touching or connecting to existing nodes, and the whole construction is recorded as a
+        single step.
+
+        Tadpole graphs are useful for:
+
+        - test cases for cycle detection and girth, where the cycle sits off to one side
+        - the sparse counterpart of the lollipop graph (see `add_lollipop_graph()`), for
+          comparing measures on a ring with a tail
+        - modeling a loop with a single access road (a circular route plus a spur line)
+
+        Parameters
+        ----------
+        m
+            Number of nodes in the cycle. Must be at least `3`.
+        n
+            Number of nodes in the tail. Must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m=` is less than `3` or `n=` is negative.
+
+        Examples
+        --------
+        A five-node cycle with a two-node tail has as many edges as nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_tadpole_graph(m=5, n=2)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The tail hangs from node `"5"`, which therefore has degree `3`, and the graph contains
+        exactly one cycle, of length `m=5`:
+
+        ```{python}
+        graph.get_degree("5"), graph.get_girth()
+        ```
+        """
+        if m < 3:
+            raise ValueError("Tadpole cycle must have at least 3 nodes")
+        if n < 0:
+            raise ValueError("Tail length n must be non-negative")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(m + n, label, type)
+        cycle = [(i, (i + 1) % m) for i in range(m)]
+        tail = [(i, i + 1) for i in range(m - 1, m + n - 1)]
+        self._add_generated_edges(ids, cycle + tail, rel)
+
+        self._end_compound("add_tadpole_graph", f"G.add_tadpole_graph(m={m}, n={n})", before)
+        return self
+
+    def add_windmill_graph(
+        self,
+        n: int,
+        k: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a windmill graph Wd(k, n) to the current graph.
+
+        ![Windmill graph](/assets/graphs/add-windmill-graph.light.svg){.lightbox fig-alt="Three windmill graphs side by side, each a hub shared by several blades: three triangles (the friendship graph) for n=3 and k=3, four triangles for n=4, and three complete graphs on four nodes for k=4. Blades meet only at the hub, so removing it leaves n separate pieces." width="100%"}
+
+        Creates `n` complete graphs ("blades") of `k` nodes each that all share one hub node.
+        The graph has `n(k - 1) + 1` nodes and `n * k(k - 1)/2` edges. The hub is a cut node
+        joined to everything, and removing it leaves `n` separate cliques of `k - 1` nodes. With
+        `k=3` the result is the friendship graph (`n` triangles sharing a node), and with `k=2`
+        it is a star.
+
+        The hub is created first, then the other `k - 1` nodes of each blade in turn. In a
+        directed graph every edge points from the earlier-created node to the later one, so the
+        hub's edges all point outward. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Windmill graphs are useful for:
+
+        - modeling overlapping groups that share one member (a person who belongs to several
+          otherwise separate teams)
+        - test cases for articulation points, biconnected components, and overlapping community
+          detection, where the hub belongs to every group
+        - the friendship theorem: graphs in which every two nodes have exactly one common
+          neighbor are exactly the friendship graphs
+
+        Parameters
+        ----------
+        n
+            Number of blades (cliques). Must be at least `2`.
+        k
+            Number of nodes in each blade, counting the shared hub. Must be at least `2`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; the hub
+            gets the first number. A label that is already used raises `ValueError` before
+            anything is added. If `False`, the nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `k=` is less than `2`.
+
+        Examples
+        --------
+        Three triangles sharing a hub (the friendship graph) have `7` nodes and `9` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_windmill_graph(n=3, k=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The hub, node `"1"`, is the only articulation point; removing it leaves three separate
+        edges:
+
+        ```{python}
+        graph.get_articulation_points(), graph.delete_node("1").count_weakly_connected_components()
+        ```
+        """
+        if n < 2:
+            raise ValueError("Windmill must have at least 2 blades")
+        if k < 2:
+            raise ValueError("Each blade must have at least 2 nodes")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(n * (k - 1) + 1, label, type)
+        pairs = []
+        for blade in range(n):
+            members = [0] + [1 + blade * (k - 1) + i for i in range(k - 1)]
+            pairs += [(a, b) for i, a in enumerate(members) for b in members[i + 1 :]]
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound("add_windmill_graph", f"G.add_windmill_graph(n={n}, k={k})", before)
+        return self
+
+    def add_hypercube_graph(
+        self,
+        d: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a d-dimensional hypercube graph Q(d) to the current graph.
+
+        ![Hypercube graph](/assets/graphs/add-hypercube-graph.light.svg){.lightbox fig-alt="Three hypercube graphs side by side for d=1, 2, and 3: a single edge, a square, and a cube drawn in perspective. Each dimension doubles the graph, joining every node to its copy, so the d-cube has 2^d nodes and every node has d neighbors." width="100%"}
+
+        The hypercube has one node for every string of `d` bits, and two nodes are joined when
+        their strings differ in exactly one bit. It has `2^d` nodes and `d * 2^(d - 1)` edges,
+        every node has degree `d`, and the shortest-path distance between two nodes is the
+        number of bits in which they differ (their Hamming distance), so the diameter is `d`.
+        `Q(1)` is a single edge, `Q(2)` a square, and `Q(3)` the cube.
+
+        Each node is labelled with its bit string (e.g. `"0110"`), and nodes are created in
+        binary counting order, from `"00...0"` to `"11...1"`. In a directed graph every edge
+        points from the string with a `0` to the one with a `1` in the differing bit. The
+        hypercube is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Hypercubes are useful for:
+
+        - modeling interconnection networks for parallel computers and distributed hash tables,
+          where each node links to the nodes one bit-flip away
+        - state spaces of `d` on/off switches, where an edge is a single flip (e.g. Boolean
+          network or genotype spaces)
+        - test cases for highly symmetric, bipartite, regular graphs with known distances
+
+        Parameters
+        ----------
+        d
+            Dimension (number of bits). Must be at least `1`. The node count doubles with each
+            dimension, so `d=20` already gives about a million nodes.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its bit string. Because these labels
+            don't depend on the existing nodes, adding a second labelled hypercube of the same
+            dimension raises `ValueError` (labels are unique); pass `label=False` for the second
+            one. If `False`, nodes are created without labels.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `d=` is less than `1`.
+
+        Examples
+        --------
+        The cube `Q(3)` has `8` nodes, `12` edges, and diameter `3`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_hypercube_graph(d=3)
+
+        graph.count_nodes(), graph.count_edges(), graph.get_diameter()
+        ```
+
+        The labels are bit strings, and each node's neighbors are the strings one bit-flip away:
+
+        ```{python}
+        sorted(graph.get_label_from_id(nid) for nid in graph.neighbors("000"))
+        ```
+
+        The distance between two nodes is the number of bits that differ:
+
+        ```{python}
+        graph.shortest_path_length("001", "110")
+        ```
+        """
+        if d < 1:
+            raise ValueError("Hypercube dimension d must be at least 1")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(
+            2**d, label, type, label_fn=lambda _, idx: format(idx, f"0{d}b")
+        )
+        pairs = ((i, i | 1 << b) for i in range(2**d) for b in range(d) if not i >> b & 1)
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound("add_hypercube_graph", f"G.add_hypercube_graph(d={d})", before)
+        return self
+
+    def add_grid_graph(
+        self,
+        dims: list[int],
+        periodic: Union[bool, list[bool]] = False,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add an n-dimensional grid (lattice) graph to the current graph.
+
+        ![Grid graph](/assets/graphs/add-grid-graph.light.svg){.lightbox fig-alt="Three grid graphs side by side: a 3 by 3 grid; a three-dimensional 3 by 2 by 2 grid drawn in perspective, in which each node also joins its neighbor along the depth axis; and a 6 by 2 grid with periodic=True, drawn as two rings: the axis of length 6 wraps around into a cycle, while the axis of length 2 is too short to wrap, so its two positions are just joined by rungs." width="100%"}
+
+        Creates one node for every integer point of a box with side lengths `dims=` and joins
+        the points that differ by one step along a single axis. `[rows, cols]` is the familiar
+        2D grid (see `add_grid_2d()`), `[a, b, c]` a 3D lattice of `a * b * c` nodes, and a
+        single dimension gives a path. With `periodic=True` the lattice wraps around, so the
+        last point on each axis is also joined to the first: a periodic 1D grid is a cycle and
+        a periodic 2D grid is a torus.
+
+        Each node is labelled with its zero-based coordinates as `"(i,j,k)"`, and nodes are
+        created in row-major order (the last coordinate changes fastest). In a directed graph
+        every edge points one step up its axis, with each wrap-around edge pointing from the
+        last point back to the first. The grid is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Grid graphs are useful for:
+
+        - modeling spatial lattices: pixels and voxels, crystal lattices, cellular automata, and
+          game boards
+        - periodic boundary conditions in simulations, where the torus avoids edge effects
+        - test cases for path-finding and diffusion in higher dimensions
+
+        Parameters
+        ----------
+        dims
+            Size of the grid along each axis, e.g. `[3, 4]` or `[2, 2, 2]`. Must contain at least
+            one dimension, and every size must be at least `1`.
+        periodic
+            Whether each axis wraps around. A single `True` or `False` applies to every axis, or
+            give one value per axis (e.g. `[True, False]` for a cylinder). Default is `False`.
+            Wrapping only adds edges along axes of size `3` or more, since on shorter axes the
+            first and last points are already neighbors (or the same point).
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its coordinates as `"(i,j,k)"`.
+            Because these labels don't depend on the existing nodes, adding a second labelled
+            grid with overlapping coordinates raises `ValueError` (labels are unique); pass
+            `label=False` for the second one. If `False`, nodes are created without labels.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `dims=` is empty or has a size below `1`, or if a list given for `periodic=` does
+            not have one entry per dimension.
+
+        Examples
+        --------
+        A `2 x 3 x 4` lattice has `24` nodes; each axis contributes one edge per step between
+        neighboring points, for `12 + 16 + 18 = 46` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_grid_graph(dims=[2, 3, 4])
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The labels give each node's coordinates, so specific points are easy to find:
+
+        ```{python}
+        sorted(graph.get_label_from_id(nid) for nid in graph.neighbors("(1,1,1)"))
+        ```
+
+        Wrapping a `4 x 4` grid into a torus gives every node exactly four neighbors, with no
+        corners or borders:
+
+        ```{python}
+        torus = ec.Graph().add_grid_graph(dims=[4, 4], periodic=True)
+
+        torus.count_edges(), {torus.get_degree(nid) for nid in torus.get_node_ids()}
+        ```
+        """
+        dims = list(dims)
+        if not dims or any(size < 1 for size in dims):
+            raise ValueError("dims must contain at least one dimension, each of size at least 1")
+        if isinstance(periodic, bool):
+            wrap = [periodic] * len(dims)
+        else:
+            wrap = [bool(p) for p in periodic]
+            if len(wrap) != len(dims):
+                raise ValueError("periodic must be a bool or have one entry per dimension")
+
+        before = self._begin_compound()
+
+        # Row-major strides: the last coordinate changes fastest
+        strides = [math.prod(dims[a + 1 :]) for a in range(len(dims))]
+        total = math.prod(dims)
+
+        def coords(idx: int) -> list[int]:
+            return [idx // stride % size for stride, size in zip(strides, dims)]
+
+        ids = self._add_generated_nodes(
+            total, label, type, label_fn=lambda _, idx: f"({','.join(map(str, coords(idx)))})"
+        )
+        pairs = []
+        for idx in range(total):
+            point = coords(idx)
+            for axis, (size, stride) in enumerate(zip(dims, strides)):
+                if point[axis] + 1 < size:
+                    pairs.append((idx, idx + stride))
+                elif wrap[axis] and size >= 3:
+                    pairs.append((idx, idx - (size - 1) * stride))
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound(
+            "add_grid_graph", f"G.add_grid_graph(dims={dims}, periodic={periodic})", before
+        )
+        return self
+
+    def add_triangular_lattice_graph(
+        self,
+        rows: int,
+        cols: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a triangular lattice graph to the current graph.
+
+        ![Triangular lattice graph](/assets/graphs/add-triangular-lattice-graph.light.svg){.lightbox fig-alt="Three triangular lattices side by side: one row of three triangles, two rows of four, and three rows of five. Every other row of nodes is shifted half a step, each node joins its neighbors in its own row and the two nodes touching it in the next row, and all the faces are triangles." width="100%"}
+
+        Creates a strip of `rows` rows with `cols` triangles in each, the same lattice as
+        NetworkX's `triangular_lattice_graph(rows, cols)`. The nodes sit in `rows + 1` rows of
+        `(cols + 1) // 2 + 1`, with every other row shifted half a step to the right (when `cols`
+        is odd, the shifted rows have one node fewer so that every row of triangles ends
+        cleanly). Each node is joined to the nodes beside it in its row and to the two nodes
+        touching it in each neighboring row. All the bounded faces are triangles, interior nodes
+        have degree `6`, and the lattice has `rows * cols` triangles.
+
+        Each node is labelled with its zero-based position as `"(row,col)"`, and nodes are
+        created row by row; rows `1`, `3`, ... are the shifted ones. In a directed graph every
+        edge points to the right within a row or to the next row. The lattice is appended
+        without touching or connecting to existing nodes, and the whole construction is recorded
+        as a single step.
+
+        Triangular lattices are useful for:
+
+        - modeling close-packed arrangements: atoms in a crystal plane, cells in a tissue, or
+          antenna placements
+        - spatial simulations that need six equally spaced neighbors (percolation, epidemic
+          spread, and Ising-type models)
+        - test cases for planar graph algorithms, with many triangles and a high clustering
+          coefficient
+
+        Parameters
+        ----------
+        rows
+            Number of rows of triangles. Must be at least `1`.
+        cols
+            Number of triangles in each row, counting those pointing up and those pointing down.
+            Must be at least `1`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its position as `"(row,col)"`.
+            Because these labels don't depend on the existing nodes, adding a second labelled
+            lattice raises `ValueError` (labels are unique); pass `label=False` for the second
+            one. If `False`, nodes are created without labels.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `rows=` or `cols=` is less than `1`.
+
+        Examples
+        --------
+        Two rows of four triangles need three rows of three nodes, and the `2 * 4 = 8`
+        triangles share edges, leaving `16` edges in all:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_triangular_lattice_graph(rows=2, cols=4)
+
+        graph.count_nodes(), graph.count_edges(), len(graph.list_triangles())
+        ```
+
+        In a larger lattice, an interior node such as `"(2,2)"` has six neighbors, two in its own
+        row and two in each neighboring row:
+
+        ```{python}
+        lattice = ec.Graph().add_triangular_lattice_graph(rows=4, cols=8)
+
+        sorted(lattice.get_label_from_id(nid) for nid in lattice.neighbors("(2,2)"))
+        ```
+        """
+        if rows < 1 or cols < 1:
+            raise ValueError("Lattice must have at least 1 row and 1 column")
+
+        width = (cols + 1) // 2
+        # with an odd number of triangles per row, the shifted rows lose their last node
+        cells = [
+            (r, c)
+            for r in range(rows + 1)
+            for c in range(width + 1)
+            if not (cols % 2 and r % 2 and c == width)
+        ]
+        index = {cell: idx for idx, cell in enumerate(cells)}
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(
+            len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
+        )
+        pairs = []
+        for r, c in cells:
+            # odd rows sit half a step right: a node touches columns c and c+1 of the next row
+            # from an odd row, and columns c-1 and c from an even one
+            diagonal = (r + 1, c + 1) if r % 2 else (r + 1, c - 1)
+            for other in ((r, c + 1), (r + 1, c), diagonal):
+                if other in index:
+                    pairs.append((index[(r, c)], index[other]))
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound(
+            "add_triangular_lattice_graph",
+            f"G.add_triangular_lattice_graph(rows={rows}, cols={cols})",
+            before,
+        )
+        return self
+
+    def add_hexagonal_lattice_graph(
+        self,
+        rows: int,
+        cols: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a hexagonal (honeycomb) lattice graph to the current graph.
+
+        ![Hexagonal lattice graph](/assets/graphs/add-hexagonal-lattice-graph.light.svg){.lightbox fig-alt="Three honeycomb lattices side by side: a single hexagon, one row of three hexagons, and two rows of two. Neighboring hexagons share an edge, every node has two or three neighbors, and there are no triangles." width="100%"}
+
+        Creates a honeycomb of `rows` rows with `cols` hexagons in each, the same lattice as
+        NetworkX's `hexagonal_lattice_graph(rows, cols)`. It's built as a "brick wall": the
+        nodes sit in `cols + 1` columns of `2 * rows + 2`, each column is a path, and node
+        `(row, col)` is joined to `(row, col + 1)` when `row + col` is even. The two corner nodes
+        that would hang off the wall by a single edge are left out, so the lattice has
+        `2 * (rows * cols + rows + cols)` nodes. Every node has two or three neighbors, and the
+        bounded faces are six-cycles: drawn with each column zigzagging, they are regular
+        hexagons. The graph is bipartite and planar.
+
+        Each node is labelled with its zero-based position as `"(row,col)"`, and nodes are
+        created row by row. In a directed graph every edge points to the right within a row or
+        to the next row. The lattice is appended without touching or connecting to existing
+        nodes, and the whole construction is recorded as a single step.
+
+        Hexagonal lattices are useful for:
+
+        - modeling honeycomb structures: graphene and other two-dimensional materials, and
+          hexagonal cell layouts in wireless networks
+        - spatial simulations on a lattice with three neighbors per site (percolation and
+          spin models)
+        - test cases for bipartite, planar, sparse graphs with long cycles and no triangles
+
+        Parameters
+        ----------
+        rows
+            Number of rows of hexagons. Must be at least `1`.
+        cols
+            Number of hexagons in each row. Must be at least `1`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its position as `"(row,col)"`.
+            Because these labels don't depend on the existing nodes, adding a second labelled
+            lattice raises `ValueError` (labels are unique); pass `label=False` for the second
+            one. If `False`, nodes are created without labels.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `rows=` or `cols=` is less than `1`.
+
+        Examples
+        --------
+        One row of two hexagons has ten nodes and eleven edges, since the hexagons share an
+        edge. The shortest cycle has six edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_hexagonal_lattice_graph(rows=1, cols=2)
+
+        graph.count_nodes(), graph.count_edges(), graph.get_girth()
+        ```
+
+        A larger honeycomb has no triangles at all, and no node has more than three neighbors:
+
+        ```{python}
+        honeycomb = ec.Graph().add_hexagonal_lattice_graph(rows=4, cols=5)
+
+        len(honeycomb.list_triangles()), honeycomb.get_node_df()["degree"].max()
+        ```
+        """
+        if rows < 1 or cols < 1:
+            raise ValueError("Lattice must have at least 1 row and 1 column")
+
+        top = 2 * rows + 1
+        corners = {(top, 0), (top * (cols % 2), cols)}
+        cells = [
+            (r, c) for r in range(top + 1) for c in range(cols + 1) if (r, c) not in corners
+        ]
+        index = {cell: idx for idx, cell in enumerate(cells)}
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(
+            len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
+        )
+        pairs = []
+        for r, c in cells:
+            for other in ((r, c + 1) if (r + c) % 2 == 0 else None, (r + 1, c)):
+                if other in index:
+                    pairs.append((index[(r, c)], index[other]))
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound(
+            "add_hexagonal_lattice_graph",
+            f"G.add_hexagonal_lattice_graph(rows={rows}, cols={cols})",
+            before,
+        )
+        return self
+
+    def add_kneser_graph(
+        self,
+        n: int,
+        k: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Kneser graph K(n, k) to the current graph.
+
+        ![Kneser graph](/assets/graphs/add-kneser-graph.light.svg){.lightbox fig-alt="Three Kneser graphs side by side, each node labeled with its subset, joined when the subsets are disjoint. K(4, 1) is the complete graph on four singletons; K(4, 2) is three separate edges, each pair joined to its complement; K(5, 2) is the Petersen graph on the ten pairs from 0 to 4." width="100%"}
+
+        Creates one node for every `k`-element subset of `{0, 1, ..., n-1}` and joins two nodes
+        when their subsets are disjoint. The graph has `C(n, k)` nodes ("n choose k"), and each
+        node has degree `C(n - k, k)`. `K(n, 1)` is the complete graph on `n` nodes, `K(5, 2)` is
+        the Petersen graph, and when `n < 2k` no two subsets are disjoint, so there are no edges.
+        Lovász proved that the chromatic number of `K(n, k)` is `n - 2k + 2`, a celebrated
+        result of topological combinatorics.
+
+        Each node is labelled with the elements of its subset, comma-separated and in increasing
+        order (e.g. `"0,2"`), and nodes are created in lexicographic order of their subsets. In a
+        directed graph each edge points from the earlier subset to the later one. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction is
+        recorded as a single step. The Johnson graph (see `add_johnson_graph()`) uses the same
+        nodes but joins subsets that overlap in all but one element.
+
+        Kneser graphs are useful for:
+
+        - examples in graph coloring and combinatorics with known chromatic numbers
+        - modeling conflict-free pairings: nodes are fixed-size teams drawn from a pool, and an
+          edge means two teams share no member and can play at the same time
+        - test cases for highly symmetric, regular graphs
+
+        Parameters
+        ----------
+        n
+            Size of the base set `{0, 1, ..., n-1}`. Must be at least `1`.
+        k
+            Size of each subset. Must satisfy `1 <= k <= n`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its subset as described above.
+            Because these labels don't depend on the existing nodes, adding a second labelled
+            Kneser or Johnson graph with overlapping subsets raises `ValueError` (labels are
+            unique); pass `label=False` for the second one. If `False`, nodes are created
+            without labels.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1` or `k=` is not between `1` and `n=`.
+
+        Complexity
+        ----------
+        Every pair of subsets is compared, so the time grows as `C(n, k)^2`. `C(n, k)` grows very
+        quickly (e.g. `C(20, 10)` is 184,756), so keep `n=` modest when `k=` is near `n / 2`.
+
+        Examples
+        --------
+        `K(5, 2)` has `C(5, 2) = 10` nodes, each joined to the `C(3, 2) = 3` pairs disjoint from
+        it, which makes it the Petersen graph:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_kneser_graph(n=5, k=2)
+
+        graph.count_nodes(), graph.count_edges(), graph.is_isomorphic(
+            ec.Graph().add_named_graph("petersen")
+        )
+        ```
+
+        The neighbors of `"0,1"` are exactly the pairs drawn from `{2, 3, 4}`:
+
+        ```{python}
+        sorted(graph.get_label_from_id(nid) for nid in graph.neighbors("0,1"))
+        ```
+        """
+        if n < 1:
+            raise ValueError("Base set size n must be at least 1")
+        if not 1 <= k <= n:
+            raise ValueError("Subset size k must be between 1 and n")
+
+        before = self._begin_compound()
+
+        import itertools
+
+        subsets = list(itertools.combinations(range(n), k))
+        masks = [sum(1 << x for x in s) for s in subsets]
+        ids = self._add_generated_nodes(
+            len(subsets), label, type, label_fn=lambda _, idx: ",".join(map(str, subsets[idx]))
+        )
+        pairs = (
+            (i, j)
+            for i in range(len(masks))
+            for j in range(i + 1, len(masks))
+            if not masks[i] & masks[j]
+        )
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound("add_kneser_graph", f"G.add_kneser_graph(n={n}, k={k})", before)
+        return self
+
+    def add_mycielski_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the Mycielski graph M(n) to the current graph.
+
+        ![Mycielski graph](/assets/graphs/add-mycielski-graph.light.svg){.lightbox fig-alt="Three Mycielski graphs side by side: a single edge for n=2, a five-cycle for n=3, and the 11-node Grötzsch graph for n=4, drawn as the five-cycle on the outside, a shadow copy of each of its nodes inside, and a hub in the middle joined to every shadow. None of them contains a triangle, yet each needs one more color than the last." width="100%"}
+
+        The Mycielski graphs are triangle-free graphs whose chromatic number grows by one at each
+        step: `M(n)` has no three mutually joined nodes yet needs `n` colors. They are built by
+        Mycielski's construction, starting from `M(1)`, a single node, and `M(2)`, a single edge.
+        To go from `M(n-1)` to `M(n)`, add a "shadow" copy of each node joined to that node's
+        neighbors, then one more node joined to every shadow. `M(3)` is the five-cycle and `M(4)`
+        is the Grötzsch graph (11 nodes, 20 edges); the node count follows `3 * 2^(n-2) - 1`.
+
+        Node numbering follows the construction: the nodes of `M(n-1)` first, then their shadows
+        in the same order, then the extra node. In a directed graph every edge points from the
+        earlier-created node to the later one. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Mycielski graphs are useful for:
+
+        - showing that a graph can need many colors without containing a large clique
+        - test cases for coloring heuristics and chromatic number bounds
+        - examples of triangle-free graphs that are still fairly dense
+
+        Parameters
+        ----------
+        n
+            Index of the graph in the sequence, equal to its chromatic number. Must be at least
+            `1`. Sizes roughly double at each step: `M(5)` has 23 nodes and `M(10)` has 767.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1`.
+
+        Examples
+        --------
+        `M(4)`, the Grötzsch graph, has `11` nodes and `20` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_mycielski_graph(n=4)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        It contains no triangles, so its largest clique is a single edge, yet it needs four colors:
+
+        ```{python}
+        len(graph.list_triangles()), graph.clique_number()
+        ```
+        """
+        if n < 1:
+            raise ValueError("Mycielski index n must be at least 1")
+
+        from edgecase.named_graphs import mycielski_edges
+
+        before = self._begin_compound()
+
+        size, edges = mycielski_edges(n)
+        ids = self._add_generated_nodes(size, label, type)
+        self._add_generated_edges(ids, sorted((min(a, b), max(a, b)) for a, b in edges), rel)
+
+        self._end_compound("add_mycielski_graph", f"G.add_mycielski_graph(n={n})", before)
+        return self
+
+    def add_binomial_tree(
+        self,
+        order: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a binomial tree B(order) to the current graph.
+
+        ![Binomial tree](/assets/graphs/add-binomial-tree.light.svg){.lightbox fig-alt="Three binomial trees side by side for orders 1, 2, and 3, roots at the top. Each is two copies of the tree before it with one root hung under the other, so the size doubles from 2 to 4 to 8 nodes and the root gains one child per order." width="100%"}
+
+        The binomial tree of order `0` is a single node, and the tree of order `k` is two copies
+        of the tree of order `k - 1` with the root of one made a child of the root of the other.
+        `B(k)` therefore has `2^k` nodes, its root has `k` children (which are the roots of
+        `B(k-1)`, `B(k-2)`, ..., `B(0)`), and it has `C(k, d)` nodes at depth `d`, which is
+        where the name comes from.
+
+        Node numbering follows the construction: the first copy takes the first half of the
+        numbers and the second copy the second half, so the root is the first node created and
+        a node's parent is found by clearing the lowest set bit of its index (the numbering
+        NetworkX's `binomial_tree()` uses). In a directed graph every edge points from parent to
+        child. The tree is appended without touching or connecting to existing nodes, and the
+        whole construction is recorded as a single step.
+
+        Binomial trees are useful for:
+
+        - illustrating binomial heaps, whose structure is a forest of binomial trees
+        - modeling broadcast and gossip schemes in which every informed node informs one new
+          node per round (the tree after `k` rounds is `B(k)`)
+        - test cases for tree algorithms with an unbalanced but regular shape
+
+        Parameters
+        ----------
+        order
+            Order of the tree. Must be non-negative; `order=0` adds a single node. The tree has
+            `2^order` nodes.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; the root
+            gets the first number. A label that is already used raises `ValueError` before
+            anything is added. If `False`, the nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `order=` is negative.
+
+        Examples
+        --------
+        `B(3)` has `8` nodes, and its root has three children:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_binomial_tree(order=3)
+
+        graph.count_nodes(), graph.get_out_degree("1")
+        ```
+
+        The number of nodes at each depth follows the binomial coefficients `1, 3, 3, 1`:
+
+        ```{python}
+        depths = graph.single_source_shortest_path_length("1", return_dict=True)
+
+        [sum(1 for d in depths.values() if d == level) for level in range(4)]
+        ```
+        """
+        if order < 0:
+            raise ValueError("Binomial tree order must be non-negative")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(2**order, label, type)
+        # parent of node i: i with its lowest set bit cleared
+        pairs = ((i & (i - 1), i) for i in range(1, 2**order))
+        self._add_generated_edges(ids, pairs, rel)
+
+        self._end_compound("add_binomial_tree", f"G.add_binomial_tree(order={order})", before)
+        return self
+
+    def add_full_rary_tree(
+        self,
+        r: int,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a full r-ary tree of n nodes to the current graph.
+
+        ![Full r-ary tree](/assets/graphs/add-full-rary-tree.light.svg){.lightbox fig-alt="Three full r-ary trees side by side, roots at the top: a complete binary tree of seven nodes; a binary tree of ten nodes, whose last level is filled from the left and stops partway; and a ternary tree of eight nodes, where the root's first child takes three children and the second child takes the one node left." width="100%"}
+
+        Creates `n` nodes in breadth-first order and makes node `i` a child of node
+        `(i - 1) // r`, so every level is filled from left to right before the next one starts.
+        Each internal node has `r` children, except possibly the last one, which takes whatever
+        nodes are left. This is the shape of a binary heap (`r=2`), and it differs from the
+        balanced tree (see `add_balanced_tree()`) in that you choose the number of nodes rather
+        than the height, so the last level may be only partly filled.
+
+        The root is the first node created. In a directed graph every edge points from parent to
+        child. The tree is appended without touching or connecting to existing nodes, and the
+        whole construction is recorded as a single step.
+
+        Full r-ary trees are useful for:
+
+        - modeling heaps and other array-backed trees, where a node's children sit at fixed
+          positions
+        - hierarchies with a fixed span of control but any total size (an org chart in which
+          every manager has `r` reports)
+        - test cases for tree algorithms with an exact node count
+
+        Parameters
+        ----------
+        r
+            Branching factor: the number of children of every full internal node. Must be at
+            least `1`; `r=1` produces a path.
+        n
+            Total number of nodes. Must be at least `1`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; IDs run
+            in breadth-first order, so the root is `"1"` in an empty graph. A label that is
+            already used raises `ValueError` before anything is added. If `False`, the nodes are
+            left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `r=` or `n=` is less than `1`.
+
+        Examples
+        --------
+        A binary tree of six nodes fills the first two levels and starts the third:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_full_rary_tree(r=2, n=6)
+
+        graph.get_edges_str_repr(use_labels=True)
+        ```
+
+        As in a heap, node `i`'s children are nodes `2i` and `2i + 1` (counting from `1`):
+
+        ```{python}
+        sorted(graph.get_label_from_id(nid) for nid in graph.get_successors("2"))
+        ```
+        """
+        if r < 1:
+            raise ValueError("Branching factor r must be at least 1")
+        if n < 1:
+            raise ValueError("Tree must have at least 1 node")
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(n, label, type)
+        self._add_generated_edges(ids, (((i - 1) // r, i) for i in range(1, n)), rel)
+
+        self._end_compound("add_full_rary_tree", f"G.add_full_rary_tree(r={r}, n={n})", before)
+        return self
+
+    def add_lcf_graph(
+        self,
+        n: int,
+        shifts: list[int],
+        repeats: int = 1,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a graph from its LCF notation to the current graph.
+
+        ![LCF graph](/assets/graphs/add-lcf-graph.light.svg){.lightbox fig-alt="Three LCF graphs, each a ring of nodes in Hamiltonian-cycle order plus one chord per node set by the shift list: shift 3 on six nodes gives the utility graph K(3,3); shifts 3 and -3 on eight nodes give the cube; shifts 5 and -5 on fourteen nodes give the Heawood graph. Every node has exactly three neighbors." width="100%"}
+
+        LCF notation (after Lederberg, Coxeter, and Frucht) describes a cubic Hamiltonian graph
+        compactly. Place `n` nodes on a cycle `0, 1, ..., n-1`, then walk around it applying the
+        list of `shifts=` over and over, `repeats=` times in all: the `j`-th shift `s` joins
+        node `j mod n` to node `(j + s) mod n`. For example, the Heawood graph is `[5, -5]^7`
+        (14 nodes, `shifts=[5, -5]`, `repeats=7`) and the cube is `[3, -3]^4`.
+
+        A chord that duplicates an existing edge (or joins a node to itself) is skipped, so
+        notation that is not exactly cubic still gives a simple graph. Nodes are created in
+        cycle order, and in a directed graph every edge points from the earlier-created node to
+        the later one. The graph is appended without touching or connecting to existing nodes,
+        and the whole construction is recorded as a single step. Many of the graphs in
+        `add_named_graph()` are built this way.
+
+        LCF notation is useful for:
+
+        - entering cubic graphs from the literature, where they are often given in this form
+        - building families of symmetric cubic graphs by varying the shifts
+        - test cases for Hamiltonicity and cubic-graph algorithms
+
+        Parameters
+        ----------
+        n
+            Number of nodes on the cycle. Must be at least `3`.
+        shifts
+            The chord offsets, applied in order around the cycle, e.g. `[5, -5]`. Each is taken
+            modulo `n=`; negative values count backward. An empty list gives just the cycle.
+        repeats
+            How many times to apply the whole list of shifts. Default is `1`. For a cubic graph,
+            `len(shifts) * repeats` equals `n=`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `3` or `repeats=` is negative.
+
+        Examples
+        --------
+        `[5, -5]^7` is the Heawood graph: 14 nodes, every node of degree `3`, and shortest cycle
+        of length `6`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_lcf_graph(n=14, shifts=[5, -5], repeats=7)
+
+        graph.count_edges(), graph.get_girth(), graph.is_isomorphic(
+            ec.Graph().add_named_graph("heawood")
+        )
+        ```
+
+        `[3, -3]^4` on eight nodes gives the cube:
+
+        ```{python}
+        cube = ec.Graph().add_lcf_graph(n=8, shifts=[3, -3], repeats=4)
+
+        cube.is_isomorphic(ec.Graph().add_hypercube_graph(d=3))
+        ```
+        """
+        shifts = list(shifts)
+        if n < 3:
+            raise ValueError("LCF graph must have at least 3 nodes")
+        if repeats < 0:
+            raise ValueError("repeats must be non-negative")
+
+        from edgecase.named_graphs import lcf_edges
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(n, label, type)
+        self._add_generated_edges(ids, lcf_edges(n, shifts, repeats), rel)
+
+        self._end_compound(
+            "add_lcf_graph", f"G.add_lcf_graph(n={n}, shifts={shifts}, repeats={repeats})", before
+        )
+        return self
+
+    def add_named_graph(
+        self,
+        name: str,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a well-known small graph by name.
+
+        ![Named graph](/assets/graphs/add-named-graph.light.svg){.lightbox fig-alt="Three graphs from the named-graph registry side by side: the house, a square with a triangular roof; the Petersen graph, an outer five-cycle joined by spokes to an inner five-pointed star; and the octahedral graph, a hexagon in which every node is joined to all the others except the one opposite it." width="100%"}
+
+        Adds one of the named graphs that come up again and again in graph theory and network
+        analysis: the Petersen graph, the Platonic solids, the small cages, and other standard
+        examples and counterexamples. Names are case-insensitive, and spaces or hyphens may
+        stand in for underscores (`"Krackhardt kite"` works as well as `"krackhardt_kite"`).
+
+        | Name | Nodes | Edges | Description |
+        |------|------:|------:|-------------|
+        | `bull` | 5 | 5 | A triangle with two pendant horns |
+        | `butterfly` | 5 | 6 | Two triangles sharing one node (the bowtie) |
+        | `chvatal` | 12 | 24 | Smallest triangle-free 4-regular graph needing 4 colors |
+        | `cubical` | 8 | 12 | Skeleton of the cube, the 3-dimensional hypercube |
+        | `desargues` | 20 | 30 | Cubic symmetric; Levi graph of the Desargues configuration |
+        | `diamond` | 4 | 5 | Complete graph K4 with one edge removed |
+        | `dodecahedral` | 20 | 30 | Skeleton of the dodecahedron |
+        | `franklin` | 12 | 18 | Cubic bipartite graph that embeds on the Klein bottle |
+        | `frucht` | 12 | 18 | Smallest cubic graph with no symmetry |
+        | `grotzsch` | 11 | 20 | Smallest triangle-free graph needing 4 colors |
+        | `heawood` | 14 | 21 | The (3,6)-cage, Levi graph of the Fano plane |
+        | `hoffman_singleton` | 50 | 175 | The (7,5)-cage, a 7-regular Moore graph of diameter 2 |
+        | `house` | 5 | 6 | A square with a triangular roof |
+        | `house_x` | 5 | 8 | The house graph with both diagonals of the square |
+        | `icosahedral` | 12 | 30 | Skeleton of the icosahedron |
+        | `krackhardt_kite` | 10 | 18 | Network where degree, betweenness, closeness disagree |
+        | `mcgee` | 24 | 36 | The (3,7)-cage, the smallest cubic graph of girth 7 |
+        | `moebius_kantor` | 16 | 24 | Cubic symmetric; generalized Petersen graph GP(8,3) |
+        | `nauru` | 24 | 36 | Cubic symmetric; generalized Petersen graph GP(12,5) |
+        | `octahedral` | 6 | 12 | Skeleton of the octahedron, K(2,2,2) |
+        | `pappus` | 18 | 27 | Cubic symmetric; Levi graph of the Pappus configuration |
+        | `petersen` | 10 | 15 | The (3,5)-cage, a common counterexample in graph theory |
+        | `sedgewick_maze` | 8 | 10 | Small maze from Sedgewick's Algorithms |
+        | `tetrahedral` | 4 | 6 | Skeleton of the tetrahedron, the complete graph K4 |
+        | `truncated_cube` | 24 | 36 | Skeleton of the truncated cube |
+        | `truncated_tetrahedron` | 12 | 18 | Skeleton of the truncated tetrahedron |
+        | `tutte` | 46 | 69 | Cubic, planar, 3-connected graph with no Hamiltonian cycle |
+        | `tutte_coxeter` | 30 | 45 | The (3,8)-cage, Levi graph of Cremona-Richmond |
+
+        Where NetworkX has the same graph, the node numbering matches its numbering, with node
+        `0` there being the first node created here; the cubic Hamiltonian graphs follow their
+        LCF notation (see `add_lcf_graph()`), so their first `n` edges in order form a
+        Hamiltonian cycle. In a directed graph every edge points from the earlier-created node
+        to the later one. The graph is appended without touching or connecting to existing
+        nodes, and the whole construction is recorded as a single step.
+
+        Named graphs are useful for:
+
+        - checking algorithms against published values (the Petersen graph has chromatic number
+          `3`, girth `5`, and 120 automorphisms)
+        - counterexamples: the Tutte graph refutes Tait's conjecture, and the Frucht graph is
+          cubic with no symmetry at all
+        - small, recognizable examples for teaching and documentation
+
+        Parameters
+        ----------
+        name
+            Name of the graph, from the table above.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `name=` is not one of the names above. The error message lists the valid names.
+
+        Examples
+        --------
+        The Petersen graph has `10` nodes and `15` edges, every node has degree `3`, and its
+        shortest cycle has length `5`:
+
+        ```{python}
+        import edgecase as ec
+
+        petersen = ec.Graph().add_named_graph("petersen")
+
+        petersen.count_nodes(), petersen.count_edges(), petersen.get_girth()
+        ```
+
+        In Krackhardt's kite, the most central node depends on the measure: node `"4"` has the
+        highest degree, while node `"8"` lies on the most shortest paths:
+
+        ```{python}
+        kite = ec.Graph().add_named_graph("Krackhardt kite")
+        degree = kite.degree_centrality(return_dict=True)
+        betweenness = kite.betweenness_centrality(return_dict=True)
+
+        (
+            kite.get_label_from_id(max(degree, key=degree.get)),
+            kite.get_label_from_id(max(betweenness, key=betweenness.get)),
+        )
+        ```
+
+        The Tutte graph is cubic, planar, and 3-connected, yet it has no Hamiltonian cycle,
+        which disproved Tait's 1884 conjecture that every such graph has one:
+
+        ```{python}
+        tutte = ec.Graph().add_named_graph("tutte")
+
+        degrees = tutte.get_node_df()["degree"].unique().to_list()
+
+        degrees, tutte.is_planar(), tutte.get_node_connectivity()
+        ```
+        """
+        from edgecase.named_graphs import NAMED_GRAPHS
+
+        key = name.strip().lower().replace(" ", "_").replace("-", "_")
+        if key not in NAMED_GRAPHS:
+            raise ValueError(
+                f"Unknown named graph {name!r}; choose one of: {', '.join(NAMED_GRAPHS)}"
+            )
+        spec = NAMED_GRAPHS[key]
+
+        before = self._begin_compound()
+
+        ids = self._add_generated_nodes(spec.n, label, type)
+        self._add_generated_edges(ids, spec.edges, rel)
+
+        self._end_compound("add_named_graph", f'G.add_named_graph("{key}")', before)
+        return self
+
     def _copy_generated_graph(self, temp: "Graph") -> None:
         """Add `temp`'s unlabelled nodes as new nodes, then its edges between them by ID."""
         temp_ids = sorted(temp.get_node_ids(limit=None))
@@ -5901,6 +8038,1042 @@ class Graph:
         self._end_compound(
             "add_random_geometric_graph",
             f"G.add_random_geometric_graph(n={n}, radius={radius}, dim={dim}, p_norm={p_norm})",
+            before,
+        )
+        return self
+
+    def _add_community_graph(
+        self, groups: list[int], pairs, label, type, rel, community_attr
+    ) -> None:
+        """Nodes tagged with their group in `community_attr`, then edges by index pair."""
+        ids = self._add_generated_nodes(
+            len(groups), label, type, node_attrs=self._group_attrs(groups, community_attr)
+        )
+        self._add_generated_edges(ids, pairs, rel)
+
+    @staticmethod
+    def _clique_pairs(count: int, size: int) -> list[tuple[int, int]]:
+        """Index pairs of `count` consecutive cliques of `size` nodes, clique by clique."""
+        return [
+            (c * size + i, c * size + j)
+            for c in range(count)
+            for i in range(size)
+            for j in range(i + 1, size)
+        ]
+
+    def add_caveman_graph(
+        self,
+        num_cliques: int,
+        clique_size: int,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a caveman graph: separate cliques of equal size.
+
+        ![Caveman graph](/assets/graphs/add-caveman-graph.light.svg){.lightbox fig-alt="Three caveman graphs side by side, each clique in its own color: two triangles, three triangles, and three complete graphs on four nodes. The cliques are completely separate, with no edges between them, so each one is its own community." width="100%"}
+
+        Creates `num_cliques` complete graphs ("caves") of `clique_size` nodes each and leaves
+        them unconnected. With `L` cliques of `k` nodes, the graph has `L * k` nodes,
+        `L * k(k - 1)/2` edges, and `L` connected components. It is the extreme case of community
+        structure, with every edge inside a community and none between them, and the starting
+        point for the connected and relaxed caveman graphs (see `add_connected_caveman_graph()`
+        and `add_relaxed_caveman_graph()`).
+
+        Each node's cave (`0`, `1`, ...) is stored in the `community_attr=` node attribute, so
+        the planted communities can be compared with what a detection method finds. The caves
+        are created one after another, each as a consecutive run of node IDs; in a directed
+        graph every edge points from the earlier-created node to the later one. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Caveman graphs are useful for:
+
+        - sanity checks for community detection, which should recover the caves exactly
+        - modeling isolated, tightly knit groups (Watts's "caveman world" of small societies)
+        - a baseline against which to compare the relaxed and connected variants
+
+        Parameters
+        ----------
+        num_cliques
+            Number of cliques. Must be at least `1`.
+        clique_size
+            Number of nodes in each clique. Must be at least `1`.
+        community_attr
+            Name of the node attribute that records each node's clique index. Default is
+            `"community"`. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `num_cliques=` or `clique_size=` is less than `1`.
+
+        Examples
+        --------
+        Three caves of four nodes give `12` nodes, `3 * 6 = 18` edges, and three separate
+        components:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_caveman_graph(num_cliques=3, clique_size=4)
+
+        graph.count_nodes(), graph.count_edges(), graph.count_weakly_connected_components()
+        ```
+
+        The `community` attribute holds the cave of each node. Since no edge leaves a cave, this
+        partition reaches `1 - 1/3`, the highest modularity any split into three groups can
+        score:
+
+        ```{python}
+        graph.modularity("community")
+        ```
+        """
+        if num_cliques < 1 or clique_size < 1:
+            raise ValueError("num_cliques and clique_size must both be at least 1")
+
+        before = self._begin_compound()
+
+        groups = [c for c in range(num_cliques) for _ in range(clique_size)]
+        pairs = self._clique_pairs(num_cliques, clique_size)
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_caveman_graph",
+            f"G.add_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size})",
+            before,
+        )
+        return self
+
+    def add_connected_caveman_graph(
+        self,
+        num_cliques: int,
+        clique_size: int,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a connected caveman graph: a ring of near-cliques.
+
+        ![Connected caveman graph](/assets/graphs/add-connected-caveman-graph.light.svg){.lightbox fig-alt="Three connected caveman graphs side by side, each clique in its own color: three triangles, three complete graphs on four nodes, and four of them. In each clique one internal edge is moved to point at the next clique, so the cliques form a ring joined by single plain edges and every node keeps its original degree in total." width="100%"}
+
+        Starts from `num_cliques` separate cliques of `clique_size` nodes (the caveman graph,
+        see `add_caveman_graph()`) and joins them into a ring by rewiring one edge per clique: in
+        each clique, the edge between its first two nodes is removed and the first node is
+        joined to the last node of the previous clique instead. The edge count is unchanged, and
+        each community is now a clique minus one edge, with one edge to each of its two
+        neighbors on the ring. With cliques of `k` nodes, most nodes keep degree `k - 1`; in each
+        clique the second node drops to `k - 2` and the last node rises to `k`. This is Watts's
+        construction, and it matches NetworkX's `connected_caveman_graph()`.
+
+        Each node's clique (`0`, `1`, ...) is stored in the `community_attr=` node attribute. The
+        cliques are created in ring order, each as a consecutive run of node IDs. In a directed
+        graph every edge inside a clique points from the earlier-created node to the later one,
+        and each ring edge points from a clique's first node back to the previous clique (so the
+        first clique's ring edge points to the last clique). The graph is appended without
+        touching or connecting to existing nodes, and the whole construction is recorded as a
+        single step.
+
+        Connected caveman graphs are useful for:
+
+        - test cases for community detection with clear but not perfectly isolated groups
+        - modeling small, tightly knit groups that each have a single tie to the next group
+        - the starting point of Watts's small-world experiments, where random rewiring gradually
+          shortens the paths around the ring
+
+        Parameters
+        ----------
+        num_cliques
+            Number of cliques on the ring. Must be at least `2`.
+        clique_size
+            Number of nodes in each clique. Must be at least `3`, so that each clique still
+            hangs together after losing an edge.
+        community_attr
+            Name of the node attribute that records each node's clique index. Default is
+            `"community"`. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `num_cliques=` is less than `2` or `clique_size=` is less than `3`.
+
+        Examples
+        --------
+        Four caves of five nodes keep all `4 * 10 = 40` edges, but now form a single connected
+        ring:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_connected_caveman_graph(num_cliques=4, clique_size=5)
+
+        graph.count_edges(), graph.is_connected()
+        ```
+
+        The rewiring moves one edge end in each cave, so degrees range from `3` to `5`:
+
+        ```{python}
+        graph.get_node_df()["degree"].value_counts().sort("degree")
+        ```
+
+        Only the four ring edges leave their community, so the caves are still easy to find:
+
+        ```{python}
+        coverage, _ = graph.partition_quality("community")
+
+        coverage, graph.modularity("community")
+        ```
+        """
+        if num_cliques < 2:
+            raise ValueError("Connected caveman graph needs at least 2 cliques")
+        if clique_size < 3:
+            raise ValueError("Each clique of a connected caveman graph needs at least 3 nodes")
+
+        before = self._begin_compound()
+
+        k = clique_size
+        n = num_cliques * k
+        groups = [c for c in range(num_cliques) for _ in range(k)]
+        # each clique's first edge (s, s+1) becomes the ring edge (s, s-1)
+        pairs = [
+            (a, (a - 1) % n) if (a % k, b % k) == (0, 1) else (a, b)
+            for a, b in self._clique_pairs(num_cliques, k)
+        ]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_connected_caveman_graph",
+            f"G.add_connected_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size})",
+            before,
+        )
+        return self
+
+    def add_ring_of_cliques(
+        self,
+        num_cliques: int,
+        clique_size: int,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a ring of cliques: complete graphs joined in a cycle by single edges.
+
+        ![Ring of cliques](/assets/graphs/add-ring-of-cliques.light.svg){.lightbox fig-alt="Three rings of cliques side by side, each clique in its own color: three triangles, four triangles, and four complete graphs on four nodes. Every clique stays complete and is joined to the next one around the ring by a single plain edge." width="100%"}
+
+        Creates `num_cliques` complete graphs of `clique_size` nodes and adds one edge from each
+        clique to the next, closing the ring with an edge from the last clique back to the
+        first. Unlike the connected caveman graph (see `add_connected_caveman_graph()`), the
+        cliques stay complete, so the graph has `num_cliques * clique_size(clique_size - 1)/2 +
+        num_cliques` edges. The construction matches NetworkX's `ring_of_cliques()`: the second
+        node of each clique is joined to the first node of the next.
+
+        Each node's clique (`0`, `1`, ...) is stored in the `community_attr=` node attribute.
+        The cliques are created in ring order, each as a consecutive run of node IDs. In a
+        directed graph every edge inside a clique points from the earlier-created node to the
+        later one, and the ring edges run forward from each clique to the next. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Rings of cliques are useful for:
+
+        - showing the resolution limit of modularity: with many small cliques, merging
+          neighboring cliques scores higher than keeping them apart, although each clique is
+          clearly its own community
+        - test cases for community detection with a known, unambiguous answer
+        - modeling teams that each keep one contact with the next team along a chain of
+          command or supply
+
+        Parameters
+        ----------
+        num_cliques
+            Number of cliques on the ring. Must be at least `2`.
+        clique_size
+            Number of nodes in each clique. Must be at least `2`.
+        community_attr
+            Name of the node attribute that records each node's clique index. Default is
+            `"community"`. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `num_cliques=` or `clique_size=` is less than `2`.
+
+        Examples
+        --------
+        Six triangles in a ring give `18` nodes and `6 * 3 + 6 = 24` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_ring_of_cliques(num_cliques=6, clique_size=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        With 30 triangles, pairing up neighboring triangles gives a higher modularity than the
+        planted partition into single triangles, an example of the resolution limit:
+
+        ```{python}
+        ring = ec.Graph().add_ring_of_cliques(num_cliques=30, clique_size=3)
+        pairs = {nid: c // 2 for nid, c in ring.get_node_attrs("community").items()}
+
+        round(ring.modularity("community"), 3), round(ring.modularity(pairs), 3)
+        ```
+        """
+        if num_cliques < 2:
+            raise ValueError("Ring of cliques needs at least 2 cliques")
+        if clique_size < 2:
+            raise ValueError("Each clique in a ring of cliques needs at least 2 nodes")
+
+        before = self._begin_compound()
+
+        k = clique_size
+        n = num_cliques * k
+        groups = [c for c in range(num_cliques) for _ in range(k)]
+        pairs = self._clique_pairs(num_cliques, k)
+        pairs += [(c * k + 1, ((c + 1) * k) % n) for c in range(num_cliques)]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_ring_of_cliques",
+            f"G.add_ring_of_cliques(num_cliques={num_cliques}, clique_size={clique_size})",
+            before,
+        )
+        return self
+
+    def add_relaxed_caveman_graph(
+        self,
+        num_cliques: int,
+        clique_size: int,
+        p: float,
+        seed: Optional[int] = None,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a relaxed caveman graph: cliques whose edges are randomly rewired.
+
+        ![Relaxed caveman graph](/assets/graphs/add-relaxed-caveman-graph.light.svg){.lightbox fig-alt="Three relaxed caveman graphs built from three complete graphs on four nodes, each in its own color, at rewiring probability p=0, 0.2, and 0.5. At p=0 the cliques are separate; as p grows, more edges are rewired to random nodes and show up as plain edges between the cliques (3 at p=0.2 and 6 at p=0.5), while the total stays 18." width="100%"}
+
+        Starts from `num_cliques` separate cliques of `clique_size` nodes (the caveman graph, see
+        `add_caveman_graph()`) and visits every edge once, cliques in order. With probability
+        `p` the edge `(u, v)` is rewired to `(u, x)`, where `x` is a node chosen uniformly at
+        random from the whole graph; the rewiring is skipped if `x` is `u` itself or already a
+        neighbor of `u`. The edge count never changes, but as `p` grows more edges leave their
+        cave: `p=0` keeps the caveman graph and `p=1` approaches a random graph. The process
+        follows NetworkX's `relaxed_caveman_graph()`.
+
+        Each node's original cave (`0`, `1`, ...) is stored in the `community_attr=` node
+        attribute, so that the planted communities can be compared with what a detection method
+        finds as the rewiring blurs them. The caves are created in order, each as a consecutive
+        run of node IDs. In a directed graph every edge points from the earlier-created node to
+        the later one. The graph is appended without touching or connecting to existing nodes,
+        and the whole construction is recorded as a single step.
+
+        Relaxed caveman graphs are useful for:
+
+        - benchmarking community detection as structure fades, by sweeping `p=` and comparing
+          the result with the planted caves
+        - modeling tightly knit groups with occasional ties to outsiders
+        - small-world experiments in which a few random edges shorten the paths between groups
+
+        Parameters
+        ----------
+        num_cliques
+            Number of cliques. Must be at least `1`.
+        clique_size
+            Number of nodes in each clique. Must be at least `1`.
+        p
+            Probability of rewiring each edge, between `0` and `1`. Roughly a fraction `p` of the
+            edges end up leaving their cave.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        community_attr
+            Name of the node attribute that records each node's cave. Default is `"community"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `num_cliques=` or `clique_size=` is less than `1`, or `p=` is not between `0` and
+            `1`.
+
+        Examples
+        --------
+        Rewiring keeps the edge count of five caves of six nodes at `5 * 15 = 75`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_relaxed_caveman_graph(
+            num_cliques=5, clique_size=6, p=0.2, seed=7
+        )
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The share of edges that stay inside their cave (the coverage of the planted partition)
+        falls as `p=` grows:
+
+        ```{python}
+        [
+            round(
+                ec.Graph()
+                .add_relaxed_caveman_graph(num_cliques=5, clique_size=6, p=p, seed=7)
+                .partition_quality("community")[0],
+                2,
+            )
+            for p in (0.0, 0.1, 0.3, 0.6)
+        ]
+        ```
+        """
+        if num_cliques < 1 or clique_size < 1:
+            raise ValueError("num_cliques and clique_size must both be at least 1")
+
+        from edgecase._core import relaxed_caveman_edges as _relaxed_caveman_edges
+
+        pairs = _relaxed_caveman_edges(num_cliques, clique_size, p, seed)
+
+        before = self._begin_compound()
+
+        groups = [c for c in range(num_cliques) for _ in range(clique_size)]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_relaxed_caveman_graph",
+            f"G.add_relaxed_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size}, "
+            f"p={p})",
+            before,
+        )
+        return self
+
+    def add_planted_partition_graph(
+        self,
+        num_groups: int,
+        group_size: int,
+        p_in: float,
+        p_out: float,
+        seed: Optional[int] = None,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a planted partition graph: equal-sized groups with random edges.
+
+        ![Planted partition graph](/assets/graphs/add-planted-partition-graph.light.svg){.lightbox fig-alt="Three planted partition graphs with three groups of four nodes, each group in its own color, edge probability 0.9 inside a group and 0, 0.1, and 0.2 between groups. The groups stay dense in every panel, while the plain edges between them grow from none to 3 to 9 and blur the split." width="100%"}
+
+        Creates `num_groups` groups of `group_size` nodes and joins each pair of nodes at
+        random: with probability `p_in` if they are in the same group and with probability
+        `p_out` if they are not, every pair independently. When `p_in > p_out` the groups are
+        communities, denser inside than between, and the closer the two probabilities, the
+        harder they are to detect. This is the stochastic block model with equal groups and only
+        two probabilities; for groups of different sizes see `add_random_partition_graph()`.
+
+        Each node's group (`0`, `1`, ...) is stored in the `community_attr=` node attribute, so
+        the planted communities can be compared with what a detection method finds. The groups
+        are created in order, each as a consecutive run of node IDs. In an undirected graph each
+        pair is joined at most once and edges point from the earlier-created node to the later
+        one; in a directed graph each ordered pair is drawn separately, so two nodes may be
+        joined in both directions. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Planted partition graphs are the standard model for:
+
+        - benchmarking community detection, with a known answer and adjustable difficulty
+        - studying detectability: below a sharp threshold in `p_in - p_out`, no method can
+          recover the groups better than chance
+        - generating networks with assortative (`p_in > p_out`) or disassortative
+          (`p_in < p_out`) group structure
+
+        Parameters
+        ----------
+        num_groups
+            Number of groups. Must be at least `1`.
+        group_size
+            Number of nodes in each group. Must be at least `1`.
+        p_in
+            Probability of an edge between two nodes in the same group, between `0` and `1`.
+        p_out
+            Probability of an edge between two nodes in different groups, between `0` and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        community_attr
+            Name of the node attribute that records each node's group. Default is `"community"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `num_groups=` or `group_size=` is less than `1`, or `p_in=` or `p_out=` is not
+            between `0` and `1`.
+
+        Examples
+        --------
+        Four groups of 25 nodes, with edges ten times as likely inside a group as between
+        groups:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_planted_partition_graph(
+            num_groups=4, group_size=25, p_in=0.3, p_out=0.03, seed=1
+        )
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The expected edge count is `4 * C(25, 2) * 0.3 + C(4, 2) * 25^2 * 0.03 = 360 + 112.5`,
+        and about three quarters of the edges fall inside a group:
+
+        ```{python}
+        coverage, _ = graph.partition_quality("community")
+
+        round(coverage, 2), round(graph.modularity("community"), 2)
+        ```
+
+        Louvain, which never sees the planted groups, finds four groups that score as well as
+        they do:
+
+        ```{python}
+        found = graph.cmty_louvain(return_dict=True)
+
+        len(set(found.values())), round(graph.modularity(found), 2)
+        ```
+        """
+        if num_groups < 1 or group_size < 1:
+            raise ValueError("num_groups and group_size must both be at least 1")
+
+        from edgecase._core import random_partition_edges as _random_partition_edges
+
+        sizes = [group_size] * num_groups
+        pairs = _random_partition_edges(sizes, p_in, p_out, self.is_directed(), seed)
+
+        before = self._begin_compound()
+
+        groups = [c for c in range(num_groups) for _ in range(group_size)]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_planted_partition_graph",
+            f"G.add_planted_partition_graph(num_groups={num_groups}, group_size={group_size}, "
+            f"p_in={p_in}, p_out={p_out})",
+            before,
+        )
+        return self
+
+    def add_random_partition_graph(
+        self,
+        sizes: list[int],
+        p_in: float,
+        p_out: float,
+        seed: Optional[int] = None,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random partition graph: groups of given sizes with random edges.
+
+        ![Random partition graph](/assets/graphs/add-random-partition-graph.light.svg){.lightbox fig-alt="Three random partition graphs with groups of the sizes given, each group in its own color: two groups of four, groups of two, three, and four, and groups of two, two, three, and four. Edges appear with probability 0.9 inside a group and 0.1 between groups, so each group is dense and the few plain edges link them." width="100%"}
+
+        Creates one group of nodes per entry of `sizes=` and joins each pair of nodes at random:
+        with probability `p_in` if they are in the same group and with probability `p_out` if
+        they are not, every pair independently. It generalizes the planted partition graph (see
+        `add_planted_partition_graph()`) to groups of different sizes, and is the stochastic
+        block model with only two probabilities; for a full matrix of block probabilities see
+        `generate_stochastic_block_model()`.
+
+        Each node's group (`0`, `1`, ...) is stored in the `community_attr=` node attribute, so
+        the planted communities can be compared with what a detection method finds. The groups
+        are created in order, each as a consecutive run of node IDs. In an undirected graph each
+        pair is joined at most once and edges point from the earlier-created node to the later
+        one; in a directed graph each ordered pair is drawn separately, so two nodes may be
+        joined in both directions. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Random partition graphs are useful for:
+
+        - benchmarking community detection on groups of unequal sizes, which many methods find
+          harder than equal groups
+        - modeling populations with groups of known sizes (departments, classes, regions) and a
+          uniform tendency to connect within them
+        - null models that keep a known group structure but randomize everything else
+
+        Parameters
+        ----------
+        sizes
+            Number of nodes in each group, e.g. `[10, 20, 40]`. Every size must be non-negative.
+        p_in
+            Probability of an edge between two nodes in the same group, between `0` and `1`.
+        p_out
+            Probability of an edge between two nodes in different groups, between `0` and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        community_attr
+            Name of the node attribute that records each node's group. Default is `"community"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If an entry of `sizes=` is negative, or `p_in=` or `p_out=` is not between `0` and
+            `1`.
+
+        Examples
+        --------
+        Three groups of `10`, `20`, and `40` nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_partition_graph(
+            sizes=[10, 20, 40], p_in=0.4, p_out=0.02, seed=3
+        )
+
+        graph.get_node_df()["community"].value_counts().sort("community")
+        ```
+
+        Larger groups have more partners to connect to inside their group, so their nodes have
+        higher degrees on average:
+
+        ```{python}
+        import polars as pl
+
+        (
+            graph.get_node_df()
+            .group_by("community")
+            .agg(pl.col("degree").mean().round(1))
+            .sort("community")
+        )
+        ```
+        """
+        sizes = list(sizes)
+        if any(size < 0 for size in sizes):
+            raise ValueError("Group sizes must be non-negative")
+
+        from edgecase._core import random_partition_edges as _random_partition_edges
+
+        pairs = _random_partition_edges(sizes, p_in, p_out, self.is_directed(), seed)
+
+        before = self._begin_compound()
+
+        groups = [c for c, size in enumerate(sizes) for _ in range(size)]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_random_partition_graph",
+            f"G.add_random_partition_graph(sizes={sizes}, p_in={p_in}, p_out={p_out})",
+            before,
+        )
+        return self
+
+    def add_gaussian_random_partition_graph(
+        self,
+        n: int,
+        mean_size: float,
+        shape: float,
+        p_in: float,
+        p_out: float,
+        seed: Optional[int] = None,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Gaussian random partition graph: random group sizes, random edges.
+
+        ![Gaussian random partition graph](/assets/graphs/add-gaussian-random-partition-graph.light.svg){.lightbox fig-alt="Three Gaussian random partition graphs on twelve nodes with mean group size 3, 4, and 5, each group in its own color. Group sizes are drawn at random around the mean, here 4, 3, 3, and 2, then 5, 4, and 3, then 6, 5, and 1, so a larger mean gives fewer, bigger groups; edges are dense inside a group and sparse between groups." width="100%"}
+
+        Splits `n` nodes into groups whose sizes are drawn from a normal distribution with mean
+        `mean_size` and variance `mean_size / shape`, rounded to whole numbers, and then joins
+        each pair of nodes at random: with probability `p_in` if they are in the same group and
+        with probability `p_out` if they are not. Sizes below `1` are redrawn, and the last
+        group is cut short so that the sizes add up to exactly `n`. This is the benchmark of
+        Brandes, Gaertler, and Wagner (2003); NetworkX has the same model as
+        `gaussian_random_partition_graph()`.
+
+        Each node's group (`0`, `1`, ...) is stored in the `community_attr=` node attribute, so
+        the planted communities can be compared with what a detection method finds. The groups
+        are created in order, each as a consecutive run of node IDs. In an undirected graph each
+        pair is joined at most once and edges point from the earlier-created node to the later
+        one; in a directed graph each ordered pair is drawn separately. The graph is appended
+        without touching or connecting to existing nodes, and the whole construction is
+        recorded as a single step.
+
+        Gaussian random partition graphs are useful for:
+
+        - benchmarking community detection when the number and sizes of the communities are not
+          known in advance
+        - generating many random test graphs with similar but not identical group structure
+        - studying how methods cope with a mix of small and large groups
+
+        Parameters
+        ----------
+        n
+            Total number of nodes. Must be non-negative.
+        mean_size
+            Mean group size. Must be at least `1`.
+        shape
+            Controls how much the group sizes vary: the variance is `mean_size / shape`, so
+            larger values give more equal sizes. Must be positive.
+        p_in
+            Probability of an edge between two nodes in the same group, between `0` and `1`.
+        p_out
+            Probability of an edge between two nodes in different groups, between `0` and `1`.
+        seed
+            Integer seed for the random number generator, used for both the sizes and the
+            edges. The same `seed=` with the same other arguments always gives the same graph.
+            If `None` (default), the graph differs on every call.
+        community_attr
+            Name of the node attribute that records each node's group. Default is `"community"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, `mean_size=` is less than `1`, `shape=` is not positive, or
+            `p_in=` or `p_out=` is not between `0` and `1`.
+
+        Examples
+        --------
+        `200` nodes in groups of about `20`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_gaussian_random_partition_graph(
+            n=200, mean_size=20, shape=2, p_in=0.3, p_out=0.01, seed=5
+        )
+
+        graph.get_node_df()["community"].value_counts().sort("community")["count"].to_list()
+        ```
+
+        A larger `shape=` makes the sizes more uniform:
+
+        ```{python}
+        even = ec.Graph().add_gaussian_random_partition_graph(
+            n=200, mean_size=20, shape=50, p_in=0.3, p_out=0.01, seed=5
+        )
+
+        even.get_node_df()["community"].value_counts().sort("community")["count"].to_list()
+        ```
+        """
+        if n < 0:
+            raise ValueError("Number of nodes n must be non-negative")
+
+        from edgecase._core import gaussian_random_partition as _gaussian_random_partition
+
+        sizes, pairs = _gaussian_random_partition(
+            n, mean_size, shape, p_in, p_out, self.is_directed(), seed
+        )
+
+        before = self._begin_compound()
+
+        groups = [c for c, size in enumerate(sizes) for _ in range(size)]
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_gaussian_random_partition_graph",
+            f"G.add_gaussian_random_partition_graph(n={n}, mean_size={mean_size}, "
+            f"shape={shape}, p_in={p_in}, p_out={p_out})",
+            before,
+        )
+        return self
+
+    def add_lfr_graph(
+        self,
+        n: int,
+        mu: float,
+        average_degree: float,
+        max_degree: Optional[int] = None,
+        tau1: float = 2.0,
+        tau2: float = 1.0,
+        min_community: Optional[int] = None,
+        max_community: Optional[int] = None,
+        seed: Optional[int] = None,
+        community_attr: Optional[str] = "community",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add an LFR benchmark graph with planted communities.
+
+        ![LFR benchmark graph](/assets/graphs/add-lfr-graph.light.svg){.lightbox fig-alt="Three LFR benchmark graphs on fifteen nodes in three communities of five, each community in its own color, at mixing parameter mu=0.1, 0.25, and 0.4. The mixing parameter is the share of each node's edges that leave its community, so the plain edges between communities grow from 2 to 5 to 9 and the communities get harder to tell apart." width="100%"}
+
+        The Lancichinetti-Fortunato-Radicchi (LFR) benchmark is the standard test for community
+        detection. Unlike the planted partition model, it gives the graph the heavy-tailed
+        degrees and community sizes seen in real networks:
+
+        - node degrees follow a power law with exponent `tau1`, with mean `average_degree` and
+          maximum `max_degree`
+        - community sizes follow a power law with exponent `tau2`, between `min_community` and
+          `max_community` nodes
+        - each node has a fraction `mu` of its edges (the mixing parameter) going to other
+          communities and the rest inside its own
+
+        The generator draws the degrees and community sizes, assigns nodes to communities (each
+        community must be larger than the number of internal edges of each of its members),
+        and then wires the internal and the external edges separately with the configuration
+        model, swapping edge ends to remove self-loops, repeated edges, and "external" edges
+        that land inside a community. The few edges that cannot be fixed this way are dropped,
+        so the mean degree and the mixing come out slightly below their targets. The result is
+        always a simple graph.
+
+        Each node's community (`0`, `1`, ...) is stored in the `community_attr=` node attribute,
+        and nodes are created community by community, so each community is a consecutive run of
+        node IDs. In a directed graph every edge points from the earlier-created node to the
+        later one. The graph is appended without touching or connecting to existing nodes, and
+        the whole construction is recorded as a single step.
+
+        LFR graphs are useful for:
+
+        - benchmarking community detection methods, by sweeping `mu=` from clear (`0.1`) to
+          hard (`0.5` and beyond) and comparing the result with the planted communities
+        - generating realistic test networks with hubs and communities of many sizes
+        - testing how measures behave on graphs with both community structure and heavy-tailed
+          degrees
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `2`.
+        mu
+            Mixing parameter: the fraction of each node's edges that go to other communities,
+            between `0` and `1`. Communities are clearly defined while `mu=` is below about `0.5`.
+        average_degree
+            Target mean degree. Must lie between the smallest mean the power law allows (with a
+            minimum degree of `1`) and `max_degree=`.
+        max_degree
+            Largest allowed degree, at most `n - 1`. If `None` (default), it is `2.5` times
+            `average_degree=` (capped at `n - 1`), the ratio used in the original benchmark
+            studies.
+        tau1
+            Exponent of the degree power law. Default is `2.0`; typical values are between `2`
+            and `3`, and larger values give fewer hubs.
+        tau2
+            Exponent of the community size power law. Default is `1.0`; typical values are
+            between `1` and `2`, and larger values give more small communities.
+        min_community
+            Smallest community size. If `None` (default), it is the smallest degree in the
+            power law.
+        max_community
+            Largest community size. If `None` (default), it is `max_degree=` (or one more than
+            the largest internal degree, if that is larger), capped at `n=`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        community_attr
+            Name of the node attribute that records each node's community. Default is
+            `"community"`. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If a parameter is out of range (`mu=` outside `0` to `1`, a negative or non-finite
+            exponent, `n=` below `2`, `max_degree=` above `n - 1`, `average_degree=` out of
+            reach of the degree distribution, or `min_community=` above `max_community=`), or if
+            the communities cannot hold the nodes' internal degrees. In that case raising
+            `max_community=`, lowering `max_degree=`, or raising `mu=` usually helps.
+
+        Examples
+        --------
+        A 500-node benchmark with mean degree `10` and a mixing parameter of `0.2`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_lfr_graph(n=500, mu=0.2, average_degree=10, seed=4)
+
+        graph.count_nodes(), graph.count_edges(), graph.get_node_df()["community"].n_unique()
+        ```
+
+        The degrees are heavy-tailed, from a minimum of a few edges up to `max_degree=` (here
+        the default, `25`):
+
+        ```{python}
+        degrees = graph.get_node_df()["degree"]
+
+        degrees.min(), round(degrees.mean(), 1), degrees.max()
+        ```
+
+        About `1 - mu = 0.8` of the edges fall inside a community, and Louvain finds a partition
+        about as good as the planted one:
+
+        ```{python}
+        coverage, _ = graph.partition_quality("community")
+        found = graph.cmty_louvain(return_dict=True)
+
+        planted, detected = graph.modularity("community"), graph.modularity(found)
+
+        round(coverage, 2), round(planted, 2), round(detected, 2)
+        ```
+
+        Raising `mu=` hides the communities: at `mu=0.6` most edges leave their community and
+        the planted partition's modularity falls sharply:
+
+        ```{python}
+        mixed = ec.Graph().add_lfr_graph(n=500, mu=0.6, average_degree=10, seed=4)
+
+        round(mixed.modularity("community"), 2)
+        ```
+        """
+        from edgecase._core import lfr_benchmark as _lfr_benchmark
+
+        if max_degree is None:
+            max_degree = max(1, min(n - 1, round(2.5 * average_degree)))
+
+        pairs, groups = _lfr_benchmark(
+            n, mu, average_degree, max_degree, tau1, tau2, min_community, max_community, seed
+        )
+
+        before = self._begin_compound()
+
+        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
+
+        self._end_compound(
+            "add_lfr_graph",
+            f"G.add_lfr_graph(n={n}, mu={mu}, average_degree={average_degree}, "
+            f"max_degree={max_degree}, tau1={tau1}, tau2={tau2})",
             before,
         )
         return self
