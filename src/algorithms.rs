@@ -42,6 +42,7 @@ pub mod topological_overlap;
 pub mod traversal;
 pub mod network_smoothing;
 pub mod null_models;
+pub mod generators;
 pub mod node_vitality;
 pub mod robustness;
 pub mod influence_maximization;
