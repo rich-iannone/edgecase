@@ -1,0 +1,12 @@
+{
+  "hash": "5d4e9c3548f48dda03e4b08368e2f40e",
+  "result": {
+    "engine": "jupyter",
+    "markdown": "---\ntitle: \"[Graph.all_triads()]{.doc-object-name .doc-function .doc-label .doc-label-method}\"\nbody-classes: doc-api-page doc-py-api-page\nshift-heading-level-by: 0\ntoc-depth: 3\npage-navigation: false\nhtml-table-processing: none\n---\n\n::: {.doc-subject}\n\nList every triad (set of three nodes) of a directed graph.\n:::\n\n::: {.doc-usage-source}\nUsage\n\n[Source](https://github.com/rich-iannone/edgecase/blob/main/python/edgecase/graph.py#L23316-L23354){target=\"_blank\" rel=\"noopener\"}\n:::\n\n::: {.doc-signature .doc-Kind.FUNCTION}\n```python\nGraph.all_triads()\n```\n:::\n\n::: {.doc-text}\n\n![All triads](/assets/graphs/all-triads.light.svg){.lightbox fig-alt=\"Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one miniature per triad, its three nodes in the accent color and the fourth faded, labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and (2, 3, 4), the 4 ways to choose 3 of 4 nodes.\" width=\"100%\"}\n\nReturns all $\\binom{n}{3}$ triples of nodes, each standing for the triad it induces.\nCombine with `triad_type()` to examine individual triads, or use `triads_by_type()` to\ngroup them.\n:::\n\n## Returns {.doc-returns}\n\n::: {.doc-definition-items}\n<code> [list[tuple[int, int, int]]]{.doc-parameter-annotation}</code>\n\n:   Every triple of node IDs, in ascending order. (NetworkX yields the induced subgraphs\n    instead.)\n:::\n\n## Raises {.doc-raises}\n\n::: {.doc-definition-items}\n<code> [ValueError]{.doc-parameter-annotation}</code>\n\n:   If the graph is undirected.\n:::\n\n## Technical Notes {.doc-technical-notes}\n\nCombinations of the node IDs, $O(n^3)$ triples.\n\n## Examples {.doc-examples}\n\n::: {#12356ec1 .cell execution_count=1}\n``` {.python .cell-code}\nimport edgecase as ec\n\ng = ec.Graph(directed=True).add_nodes([\"A\", \"B\", \"C\", \"D\"])\nlen(g.all_triads())\n```\n\n::: {.cell-output .cell-output-display execution_count=1}\n```\n4\n```\n:::\n:::\n\n\n",
+    "supporting": [
+      "Graph.all_triads_files"
+    ],
+    "filters": [],
+    "includes": {}
+  }
+}
