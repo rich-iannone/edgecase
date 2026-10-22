@@ -4426,6 +4426,70 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Balanced tree](/assets/graphs/add-balanced-tree.light.svg){.lightbox fig-alt="Three binary trees side by side for k=2 and heights h=1, 2, and 3: a root with two children, then two more levels of doubling, ending with eight leaves. Every internal node has exactly two children and all leaves sit at the same depth." width="100%"}
 ```
 
+### `add_barbell_graph()` — Barbell graph
+
+<img src="add-barbell-graph.light.svg" alt="Three barbell graphs side by side: two triangles joined by one edge for m1=3 and m2=0, two triangles joined through a path of two nodes for m2=2, and two complete graphs on four nodes joined through one path node for m1=4 and m2=1. The cliques are the bells and the path is the bar." width="570">
+
+```markdown
+![Barbell graph](/assets/graphs/add-barbell-graph.light.svg){.lightbox fig-alt="Three barbell graphs side by side: two triangles joined by one edge for m1=3 and m2=0, two triangles joined through a path of two nodes for m2=2, and two complete graphs on four nodes joined through one path node for m1=4 and m2=1. The cliques are the bells and the path is the bar." width="100%"}
+```
+
+### `add_binomial_tree()` — Binomial tree
+
+<img src="add-binomial-tree.light.svg" alt="Three binomial trees side by side for orders 1, 2, and 3, roots at the top. Each is two copies of the tree before it with one root hung under the other, so the size doubles from 2 to 4 to 8 nodes and the root gains one child per order." width="570">
+
+```markdown
+![Binomial tree](/assets/graphs/add-binomial-tree.light.svg){.lightbox fig-alt="Three binomial trees side by side for orders 1, 2, and 3, roots at the top. Each is two copies of the tree before it with one root hung under the other, so the size doubles from 2 to 4 to 8 nodes and the root gains one child per order." width="100%"}
+```
+
+### `add_caveman_graph()` — Caveman graph
+
+<img src="add-caveman-graph.light.svg" alt="Three caveman graphs side by side, each clique in its own color: two triangles, three triangles, and three complete graphs on four nodes. The cliques are completely separate, with no edges between them, so each one is its own community." width="570">
+
+```markdown
+![Caveman graph](/assets/graphs/add-caveman-graph.light.svg){.lightbox fig-alt="Three caveman graphs side by side, each clique in its own color: two triangles, three triangles, and three complete graphs on four nodes. The cliques are completely separate, with no edges between them, so each one is its own community." width="100%"}
+```
+
+### `add_circulant_graph()` — Circulant graph
+
+<img src="add-circulant-graph.light.svg" alt="Three circulant graphs on the same ring of eight nodes. With offsets 1 each node joins its two ring neighbors, giving a cycle; offsets 1 and 2 add the chords that skip one node; offsets 1 and 3 instead add chords that skip two. Every node has the same number of neighbors, twice the number of offsets." width="570">
+
+```markdown
+![Circulant graph](/assets/graphs/add-circulant-graph.light.svg){.lightbox fig-alt="Three circulant graphs on the same ring of eight nodes. With offsets 1 each node joins its two ring neighbors, giving a cycle; offsets 1 and 2 add the chords that skip one node; offsets 1 and 3 instead add chords that skip two. Every node has the same number of neighbors, twice the number of offsets." width="100%"}
+```
+
+### `add_complete_bipartite_graph()` — Complete bipartite graph
+
+<img src="add-complete-bipartite-graph.light.svg" alt="Three complete bipartite graphs side by side for sizes 2 and 2, 2 and 3, and 3 and 4. The first part sits in a top row in the accent color and the second in a teal bottom row; every top node is joined to every bottom node and no two nodes in the same row are joined, giving 4, 6, and 12 edges." width="570">
+
+```markdown
+![Complete bipartite graph](/assets/graphs/add-complete-bipartite-graph.light.svg){.lightbox fig-alt="Three complete bipartite graphs side by side for sizes 2 and 2, 2 and 3, and 3 and 4. The first part sits in a top row in the accent color and the second in a teal bottom row; every top node is joined to every bottom node and no two nodes in the same row are joined, giving 4, 6, and 12 edges." width="100%"}
+```
+
+### `add_complete_multipartite_graph()` — Complete multipartite graph
+
+<img src="add-complete-multipartite-graph.light.svg" alt="Three complete multipartite graphs on a ring of six nodes, each part in its own color: sizes 1, 2, 3; sizes 2, 2, 2 (the octahedron); and sizes 1, 1, 2, 2. Two nodes are joined exactly when they belong to different parts, so the only missing pairs are inside a part." width="570">
+
+```markdown
+![Complete multipartite graph](/assets/graphs/add-complete-multipartite-graph.light.svg){.lightbox fig-alt="Three complete multipartite graphs on a ring of six nodes, each part in its own color: sizes 1, 2, 3; sizes 2, 2, 2 (the octahedron); and sizes 1, 1, 2, 2. Two nodes are joined exactly when they belong to different parts, so the only missing pairs are inside a part." width="100%"}
+```
+
+### `add_connected_caveman_graph()` — Connected caveman graph
+
+<img src="add-connected-caveman-graph.light.svg" alt="Three connected caveman graphs side by side, each clique in its own color: three triangles, three complete graphs on four nodes, and four of them. In each clique one internal edge is moved to point at the next clique, so the cliques form a ring joined by single plain edges and every node keeps its original degree in total." width="570">
+
+```markdown
+![Connected caveman graph](/assets/graphs/add-connected-caveman-graph.light.svg){.lightbox fig-alt="Three connected caveman graphs side by side, each clique in its own color: three triangles, three complete graphs on four nodes, and four of them. In each clique one internal edge is moved to point at the next clique, so the cliques form a ring joined by single plain edges and every node keeps its original degree in total." width="100%"}
+```
+
+### `add_connected_watts_strogatz_graph()` — Connected Watts-Strogatz graph
+
+<img src="add-connected-watts-strogatz-graph.light.svg" alt="Three connected Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on each side; rewired edges show as accent-colored shortcuts, 3 at p=0.2 and 9 at p=1. Every panel keeps all 16 edges and is connected, because a disconnected draw is retried." width="570">
+
+```markdown
+![Connected Watts-Strogatz graph](/assets/graphs/add-connected-watts-strogatz-graph.light.svg){.lightbox fig-alt="Three connected Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on each side; rewired edges show as accent-colored shortcuts, 3 at p=0.2 and 9 at p=1. Every panel keeps all 16 edges and is connected, because a disconnected draw is retried." width="100%"}
+```
+
 ### `add_cycle_graph()` — Cycle graph
 
 <img src="add-cycle-graph.light.svg" alt="Three cycle graphs side by side: a triangle for n=3, a square for n=4, and a hexagon for n=6. Each is a single closed loop in which every node has exactly two neighbors." width="570">
@@ -4434,12 +4498,84 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Cycle graph](/assets/graphs/add-cycle-graph.light.svg){.lightbox fig-alt="Three cycle graphs side by side: a triangle for n=3, a square for n=4, and a hexagon for n=6. Each is a single closed loop in which every node has exactly two neighbors." width="100%"}
 ```
 
+### `add_directed_configuration_model()` — Directed configuration model
+
+<img src="add-directed-configuration-model.light.svg" alt="Three directed configuration models, each node&#x27;s in-degree and out-degree in a pill written in/out. Four nodes at 1/1 form a directed four-cycle; 0/2, 1/1, 1/1, and 2/0 send every arc from the source toward the sink; on five nodes two pairs of opposite arcs appear, drawn bowed apart. Out-stubs are paired with in-stubs at random, so every node meets its pill exactly; self-loops and repeated arcs are possible, though this draw has none." width="570">
+
+```markdown
+![Directed configuration model](/assets/graphs/add-directed-configuration-model.light.svg){.lightbox fig-alt="Three directed configuration models, each node's in-degree and out-degree in a pill written in/out. Four nodes at 1/1 form a directed four-cycle; 0/2, 1/1, 1/1, and 2/0 send every arc from the source toward the sink; on five nodes two pairs of opposite arcs appear, drawn bowed apart. Out-stubs are paired with in-stubs at random, so every node meets its pill exactly; self-loops and repeated arcs are possible, though this draw has none." width="100%"}
+```
+
+### `add_directed_havel_hakimi_graph()` — Directed Havel-Hakimi graph
+
+<img src="add-directed-havel-hakimi-graph.light.svg" alt="Three directed Havel-Hakimi graphs for the same degrees as the directed configuration model figure, each node&#x27;s in-degree and out-degree in a pill written in/out. The construction is deterministic and never repeats an arc: four nodes at 1/1 pair up into two 2-cycles, drawn as bowed opposite arcs; 0/2, 1/1, 1/1, and 2/0 give two two-step paths from the source to the sink; and the five-node sequence uses one pair of opposite arcs." width="570">
+
+```markdown
+![Directed Havel-Hakimi graph](/assets/graphs/add-directed-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three directed Havel-Hakimi graphs for the same degrees as the directed configuration model figure, each node's in-degree and out-degree in a pill written in/out. The construction is deterministic and never repeats an arc: four nodes at 1/1 pair up into two 2-cycles, drawn as bowed opposite arcs; 0/2, 1/1, 1/1, and 2/0 give two two-step paths from the source to the sink; and the five-node sequence uses one pair of opposite arcs." width="100%"}
+```
+
+### `add_dual_barabasi_albert_graph()` — Dual Barabási-Albert graph
+
+<img src="add-dual-barabasi-albert-graph.light.svg" alt="Three dual Barabási-Albert graphs on a ring of eight nodes, where each new node attaches to m1=1 existing node with probability p and to m2=3 otherwise, for p=1, 0.5, and 0. At p=1 every new node brings one edge and the graph is a tree of 7 edges; the mixed p=0.5 gives 13 edges; at p=0 every new node brings three, for 15." width="570">
+
+```markdown
+![Dual Barabási-Albert graph](/assets/graphs/add-dual-barabasi-albert-graph.light.svg){.lightbox fig-alt="Three dual Barabási-Albert graphs on a ring of eight nodes, where each new node attaches to m1=1 existing node with probability p and to m2=3 otherwise, for p=1, 0.5, and 0. At p=1 every new node brings one edge and the graph is a tree of 7 edges; the mixed p=0.5 gives 13 edges; at p=0 every new node brings three, for 15." width="100%"}
+```
+
+### `add_extended_barabasi_albert_graph()` — Extended Barabási-Albert graph
+
+<img src="add-extended-barabasi-albert-graph.light.svg" alt="Three extended Barabási-Albert graphs on a ring of eight nodes with m=1. With p=0 and q=0 it is plain preferential attachment, a tree of 7 edges; with p=0.4 some steps add edges between existing nodes instead, giving 12 edges and 7 triangles; with q=0.4 some steps rewire an existing edge instead, so the count stays at 7 and here one node is left with no edges." width="570">
+
+```markdown
+![Extended Barabási-Albert graph](/assets/graphs/add-extended-barabasi-albert-graph.light.svg){.lightbox fig-alt="Three extended Barabási-Albert graphs on a ring of eight nodes with m=1. With p=0 and q=0 it is plain preferential attachment, a tree of 7 edges; with p=0.4 some steps add edges between existing nodes instead, giving 12 edges and 7 triangles; with q=0.4 some steps rewire an existing edge instead, so the count stays at 7 and here one node is left with no edges." width="100%"}
+```
+
 ### `add_full_graph()` — Complete graph
 
 <img src="add-full-graph.light.svg" alt="Three complete graphs side by side: a triangle for n=3, a square with both diagonals for n=4, and a hexagon with every chord for n=6. Every pair of nodes is joined, giving 3, 6, and 15 edges." width="570">
 
 ```markdown
 ![Complete graph](/assets/graphs/add-full-graph.light.svg){.lightbox fig-alt="Three complete graphs side by side: a triangle for n=3, a square with both diagonals for n=4, and a hexagon with every chord for n=6. Every pair of nodes is joined, giving 3, 6, and 15 edges." width="100%"}
+```
+
+### `add_full_rary_tree()` — Full r-ary tree
+
+<img src="add-full-rary-tree.light.svg" alt="Three full r-ary trees side by side, roots at the top: a complete binary tree of seven nodes; a binary tree of ten nodes, whose last level is filled from the left and stops partway; and a ternary tree of eight nodes, where the root&#x27;s first child takes three children and the second child takes the one node left." width="570">
+
+```markdown
+![Full r-ary tree](/assets/graphs/add-full-rary-tree.light.svg){.lightbox fig-alt="Three full r-ary trees side by side, roots at the top: a complete binary tree of seven nodes; a binary tree of ten nodes, whose last level is filled from the left and stops partway; and a ternary tree of eight nodes, where the root's first child takes three children and the second child takes the one node left." width="100%"}
+```
+
+### `add_gaussian_random_partition_graph()` — Gaussian random partition graph
+
+<img src="add-gaussian-random-partition-graph.light.svg" alt="Three Gaussian random partition graphs on twelve nodes with mean group size 3, 4, and 5, each group in its own color. Group sizes are drawn at random around the mean, here 4, 3, 3, and 2, then 5, 4, and 3, then 6, 5, and 1, so a larger mean gives fewer, bigger groups; edges are dense inside a group and sparse between groups." width="570">
+
+```markdown
+![Gaussian random partition graph](/assets/graphs/add-gaussian-random-partition-graph.light.svg){.lightbox fig-alt="Three Gaussian random partition graphs on twelve nodes with mean group size 3, 4, and 5, each group in its own color. Group sizes are drawn at random around the mean, here 4, 3, 3, and 2, then 5, 4, and 3, then 6, 5, and 1, so a larger mean gives fewer, bigger groups; edges are dense inside a group and sparse between groups." width="100%"}
+```
+
+### `add_geographical_threshold_graph()` — Geographical threshold graph
+
+<img src="add-geographical-threshold-graph.light.svg" alt="Three geographical threshold graphs on the same seven random points, each node shaded by its random weight, darker for heavier, at threshold theta=80, 30, and 10. Two nodes are joined when their combined weight divided by their squared distance reaches theta, so heavy nodes reach far: at theta=80 only the heaviest node has edges, 2 of them, and at theta=10 it has 6 of the 13." width="570">
+
+```markdown
+![Geographical threshold graph](/assets/graphs/add-geographical-threshold-graph.light.svg){.lightbox fig-alt="Three geographical threshold graphs on the same seven random points, each node shaded by its random weight, darker for heavier, at threshold theta=80, 30, and 10. Two nodes are joined when their combined weight divided by their squared distance reaches theta, so heavy nodes reach far: at theta=80 only the heaviest node has edges, 2 of them, and at theta=10 it has 6 of the 13." width="100%"}
+```
+
+### `add_gn_graph()` — Growing network
+
+<img src="add-gn-graph.light.svg" alt="Three growing networks on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to the older node it attached to. With a constant kernel the target is uniform and the first node gets 3 arcs; with the default linear kernel it gets 5; with the kernel k**2 the rich get richer so fast that all 7 later nodes point at it." width="570">
+
+```markdown
+![Growing network](/assets/graphs/add-gn-graph.light.svg){.lightbox fig-alt="Three growing networks on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to the older node it attached to. With a constant kernel the target is uniform and the first node gets 3 arcs; with the default linear kernel it gets 5; with the kernel k**2 the rich get richer so fast that all 7 later nodes point at it." width="100%"}
+```
+
+### `add_gnc_graph()` — Growing network with copying
+
+<img src="add-gnc-graph.light.svg" alt="Three growing networks with copying on 4, 5, and 6 nodes, placed on a ring in arrival order. Each new node links to a random existing node and also copies all of that node&#x27;s arcs, so arcs pile onto the earliest nodes: the first node receives 3, 4, and 5 arcs, and the graphs have 4, 7, and 11 arcs in all." width="570">
+
+```markdown
+![Growing network with copying](/assets/graphs/add-gnc-graph.light.svg){.lightbox fig-alt="Three growing networks with copying on 4, 5, and 6 nodes, placed on a ring in arrival order. Each new node links to a random existing node and also copies all of that node's arcs, so arcs pile onto the earliest nodes: the first node receives 3, 4, and 5 arcs, and the graphs have 4, 7, and 11 arcs in all." width="100%"}
 ```
 
 ### `add_gnm_graph()` — G(n, m) random graph
@@ -4458,6 +4594,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![G(n, p) random graph](/assets/graphs/add-gnp-graph.light.svg){.lightbox fig-alt="Three random graphs on the same ring of eight nodes for edge probability p=0.1, 0.3, and 0.5. Each possible edge appears independently, so the drawings gain edges as p grows (3, 8, and 14 here) with no pattern to which pairs are joined." width="100%"}
 ```
 
+### `add_gnr_graph()` — Growing network with redirection
+
+<img src="add-gnr-graph.light.svg" alt="Three growing networks with redirection on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to an older one. Each new node picks a random target and, with probability p, links to the node that target points at instead. At p=0 the tree is deep and stringy, at p=0.5 the first node collects 5 arcs, and at p=1 every arc is redirected to it, giving a star." width="570">
+
+```markdown
+![Growing network with redirection](/assets/graphs/add-gnr-graph.light.svg){.lightbox fig-alt="Three growing networks with redirection on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to an older one. Each new node picks a random target and, with probability p, links to the node that target points at instead. At p=0 the tree is deep and stringy, at p=0.5 the first node collects 5 arcs, and at p=1 every arc is redirected to it, giving a star." width="100%"}
+```
+
 ### `add_grid_2d()` — 2D grid
 
 <img src="add-grid-2d.light.svg" alt="Three lattices side by side: 2 by 3, 3 by 3, and 3 by 4. Each node is joined only to its horizontal and vertical neighbors, so corners have two neighbors, border nodes three, and interior nodes four." width="570">
@@ -4466,12 +4610,124 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![2D grid](/assets/graphs/add-grid-2d.light.svg){.lightbox fig-alt="Three lattices side by side: 2 by 3, 3 by 3, and 3 by 4. Each node is joined only to its horizontal and vertical neighbors, so corners have two neighbors, border nodes three, and interior nodes four." width="100%"}
 ```
 
+### `add_grid_graph()` — Grid graph
+
+<img src="add-grid-graph.light.svg" alt="Three grid graphs side by side: a 3 by 3 grid; a three-dimensional 3 by 2 by 2 grid drawn in perspective, in which each node also joins its neighbor along the depth axis; and a 6 by 2 grid with periodic=True, drawn as two rings: the axis of length 6 wraps around into a cycle, while the axis of length 2 is too short to wrap, so its two positions are just joined by rungs." width="570">
+
+```markdown
+![Grid graph](/assets/graphs/add-grid-graph.light.svg){.lightbox fig-alt="Three grid graphs side by side: a 3 by 3 grid; a three-dimensional 3 by 2 by 2 grid drawn in perspective, in which each node also joins its neighbor along the depth axis; and a 6 by 2 grid with periodic=True, drawn as two rings: the axis of length 6 wraps around into a cycle, while the axis of length 2 is too short to wrap, so its two positions are just joined by rungs." width="100%"}
+```
+
+### `add_havel_hakimi_graph()` — Havel-Hakimi graph
+
+<img src="add-havel-hakimi-graph.light.svg" alt="Three Havel-Hakimi graphs on five nodes, each node&#x27;s requested degree in a pill: 3, 2, 2, 2, 1; 3, 3, 2, 2, 2; and 4, 3, 3, 2, 2. The construction is deterministic, joining the node with the most degree left to the next-highest nodes, and every node ends with exactly the degree in its pill, using 5, 6, and 7 edges." width="570">
+
+```markdown
+![Havel-Hakimi graph](/assets/graphs/add-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three Havel-Hakimi graphs on five nodes, each node's requested degree in a pill: 3, 2, 2, 2, 1; 3, 3, 2, 2, 2; and 4, 3, 3, 2, 2. The construction is deterministic, joining the node with the most degree left to the next-highest nodes, and every node ends with exactly the degree in its pill, using 5, 6, and 7 edges." width="100%"}
+```
+
+### `add_hexagonal_lattice_graph()` — Hexagonal lattice graph
+
+<img src="add-hexagonal-lattice-graph.light.svg" alt="Three honeycomb lattices side by side: a single hexagon, one row of three hexagons, and two rows of two. Neighboring hexagons share an edge, every node has two or three neighbors, and there are no triangles." width="570">
+
+```markdown
+![Hexagonal lattice graph](/assets/graphs/add-hexagonal-lattice-graph.light.svg){.lightbox fig-alt="Three honeycomb lattices side by side: a single hexagon, one row of three hexagons, and two rows of two. Neighboring hexagons share an edge, every node has two or three neighbors, and there are no triangles." width="100%"}
+```
+
+### `add_hypercube_graph()` — Hypercube graph
+
+<img src="add-hypercube-graph.light.svg" alt="Three hypercube graphs side by side for d=1, 2, and 3: a single edge, a square, and a cube drawn in perspective. Each dimension doubles the graph, joining every node to its copy, so the d-cube has 2^d nodes and every node has d neighbors." width="570">
+
+```markdown
+![Hypercube graph](/assets/graphs/add-hypercube-graph.light.svg){.lightbox fig-alt="Three hypercube graphs side by side for d=1, 2, and 3: a single edge, a square, and a cube drawn in perspective. Each dimension doubles the graph, joining every node to its copy, so the d-cube has 2^d nodes and every node has d neighbors." width="100%"}
+```
+
 ### `add_johnson_graph()` — Johnson graph
 
 <img src="add-johnson-graph.light.svg" alt="Three Johnson graphs side by side, each node labeled with its subset. J(3, 1) is a triangle on 0, 1, 2 and J(4, 1) is a complete graph on four singletons; J(4, 2) is a hexagon of the six pairs from 0 to 3, where two pairs are joined when they share one element, so only complementary pairs such as 0,1 and 2,3 stay unjoined." width="570">
 
 ```markdown
 ![Johnson graph](/assets/graphs/add-johnson-graph.light.svg){.lightbox fig-alt="Three Johnson graphs side by side, each node labeled with its subset. J(3, 1) is a triangle on 0, 1, 2 and J(4, 1) is a complete graph on four singletons; J(4, 2) is a hexagon of the six pairs from 0 to 3, where two pairs are joined when they share one element, so only complementary pairs such as 0,1 and 2,3 stay unjoined." width="100%"}
+```
+
+### `add_joint_degree_graph()` — Joint degree graph
+
+<img src="add-joint-degree-graph.light.svg" alt="Three joint degree graphs, each node&#x27;s degree in a pill, with captions giving how many edges join each pair of degrees, where pairs of equal degree count twice. Two edges from degree 1 to degree 2 plus one between the degree-2 nodes give a path of four; four edges from degree 2 to degree 3 plus one between the degree-3 nodes give a diamond; and two joined degree-3 hubs with two leaves each give a double star." width="570">
+
+```markdown
+![Joint degree graph](/assets/graphs/add-joint-degree-graph.light.svg){.lightbox fig-alt="Three joint degree graphs, each node's degree in a pill, with captions giving how many edges join each pair of degrees, where pairs of equal degree count twice. Two edges from degree 1 to degree 2 plus one between the degree-2 nodes give a path of four; four edges from degree 2 to degree 3 plus one between the degree-3 nodes give a diamond; and two joined degree-3 hubs with two leaves each give a double star." width="100%"}
+```
+
+### `add_kneser_graph()` — Kneser graph
+
+<img src="add-kneser-graph.light.svg" alt="Three Kneser graphs side by side, each node labeled with its subset, joined when the subsets are disjoint. K(4, 1) is the complete graph on four singletons; K(4, 2) is three separate edges, each pair joined to its complement; K(5, 2) is the Petersen graph on the ten pairs from 0 to 4." width="570">
+
+```markdown
+![Kneser graph](/assets/graphs/add-kneser-graph.light.svg){.lightbox fig-alt="Three Kneser graphs side by side, each node labeled with its subset, joined when the subsets are disjoint. K(4, 1) is the complete graph on four singletons; K(4, 2) is three separate edges, each pair joined to its complement; K(5, 2) is the Petersen graph on the ten pairs from 0 to 4." width="100%"}
+```
+
+### `add_ladder_graph()` — Ladder graph
+
+<img src="add-ladder-graph.light.svg" alt="Three ladder graphs side by side for n=2, 3, and 4: two parallel paths of n nodes, the rails, joined by n rungs between matching nodes. The ends have two neighbors and the inner nodes three, for 3n - 2 edges." width="570">
+
+```markdown
+![Ladder graph](/assets/graphs/add-ladder-graph.light.svg){.lightbox fig-alt="Three ladder graphs side by side for n=2, 3, and 4: two parallel paths of n nodes, the rails, joined by n rungs between matching nodes. The ends have two neighbors and the inner nodes three, for 3n - 2 edges." width="100%"}
+```
+
+### `add_lcf_graph()` — LCF graph
+
+<img src="add-lcf-graph.light.svg" alt="Three LCF graphs, each a ring of nodes in Hamiltonian-cycle order plus one chord per node set by the shift list: shift 3 on six nodes gives the utility graph K(3,3); shifts 3 and -3 on eight nodes give the cube; shifts 5 and -5 on fourteen nodes give the Heawood graph. Every node has exactly three neighbors." width="570">
+
+```markdown
+![LCF graph](/assets/graphs/add-lcf-graph.light.svg){.lightbox fig-alt="Three LCF graphs, each a ring of nodes in Hamiltonian-cycle order plus one chord per node set by the shift list: shift 3 on six nodes gives the utility graph K(3,3); shifts 3 and -3 on eight nodes give the cube; shifts 5 and -5 on fourteen nodes give the Heawood graph. Every node has exactly three neighbors." width="100%"}
+```
+
+### `add_lfr_graph()` — LFR benchmark graph
+
+<img src="add-lfr-graph.light.svg" alt="Three LFR benchmark graphs on fifteen nodes in three communities of five, each community in its own color, at mixing parameter mu=0.1, 0.25, and 0.4. The mixing parameter is the share of each node&#x27;s edges that leave its community, so the plain edges between communities grow from 2 to 5 to 9 and the communities get harder to tell apart." width="570">
+
+```markdown
+![LFR benchmark graph](/assets/graphs/add-lfr-graph.light.svg){.lightbox fig-alt="Three LFR benchmark graphs on fifteen nodes in three communities of five, each community in its own color, at mixing parameter mu=0.1, 0.25, and 0.4. The mixing parameter is the share of each node's edges that leave its community, so the plain edges between communities grow from 2 to 5 to 9 and the communities get harder to tell apart." width="100%"}
+```
+
+### `add_lollipop_graph()` — Lollipop graph
+
+<img src="add-lollipop-graph.light.svg" alt="Three lollipop graphs side by side: a triangle with a one-node tail for m=3 and n=1, a complete graph on four nodes with a two-node tail, and a complete graph on five nodes with a two-node tail. The tail is a path hanging off one node of the clique." width="570">
+
+```markdown
+![Lollipop graph](/assets/graphs/add-lollipop-graph.light.svg){.lightbox fig-alt="Three lollipop graphs side by side: a triangle with a one-node tail for m=3 and n=1, a complete graph on four nodes with a two-node tail, and a complete graph on five nodes with a two-node tail. The tail is a path hanging off one node of the clique." width="100%"}
+```
+
+### `add_mycielski_graph()` — Mycielski graph
+
+<img src="add-mycielski-graph.light.svg" alt="Three Mycielski graphs side by side: a single edge for n=2, a five-cycle for n=3, and the 11-node Grötzsch graph for n=4, drawn as the five-cycle on the outside, a shadow copy of each of its nodes inside, and a hub in the middle joined to every shadow. None of them contains a triangle, yet each needs one more color than the last." width="570">
+
+```markdown
+![Mycielski graph](/assets/graphs/add-mycielski-graph.light.svg){.lightbox fig-alt="Three Mycielski graphs side by side: a single edge for n=2, a five-cycle for n=3, and the 11-node Grötzsch graph for n=4, drawn as the five-cycle on the outside, a shadow copy of each of its nodes inside, and a hub in the middle joined to every shadow. None of them contains a triangle, yet each needs one more color than the last." width="100%"}
+```
+
+### `add_named_graph()` — Named graph
+
+<img src="add-named-graph.light.svg" alt="Three graphs from the named-graph registry side by side: the house, a square with a triangular roof; the Petersen graph, an outer five-cycle joined by spokes to an inner five-pointed star; and the octahedral graph, a hexagon in which every node is joined to all the others except the one opposite it." width="570">
+
+```markdown
+![Named graph](/assets/graphs/add-named-graph.light.svg){.lightbox fig-alt="Three graphs from the named-graph registry side by side: the house, a square with a triangular roof; the Petersen graph, an outer five-cycle joined by spokes to an inner five-pointed star; and the octahedral graph, a hexagon in which every node is joined to all the others except the one opposite it." width="100%"}
+```
+
+### `add_navigable_small_world_graph()` — Navigable small-world graph
+
+<img src="add-navigable-small-world-graph.light.svg" alt="Three navigable small-world graphs on a 3 by 3 grid with p=1 and r=2, for q=0, 1, and 2 long-range contacts per node. At q=0 it is just the grid; each node then adds q contacts chosen with probability falling off as the squared grid distance, so most land on neighbors already joined, and the accent edges are the ones that reach farther: 1 at q=1 and 5 at q=2. Some bow to clear the nodes they would pass through." width="570">
+
+```markdown
+![Navigable small-world graph](/assets/graphs/add-navigable-small-world-graph.light.svg){.lightbox fig-alt="Three navigable small-world graphs on a 3 by 3 grid with p=1 and r=2, for q=0, 1, and 2 long-range contacts per node. At q=0 it is just the grid; each node then adds q contacts chosen with probability falling off as the squared grid distance, so most land on neighbors already joined, and the accent edges are the ones that reach farther: 1 at q=1 and 5 at q=2. Some bow to clear the nodes they would pass through." width="100%"}
+```
+
+### `add_newman_watts_strogatz_graph()` — Newman-Watts-Strogatz graph
+
+<img src="add-newman-watts-strogatz-graph.light.svg" alt="Three Newman-Watts-Strogatz graphs on a ring of eight nodes with k=2 and shortcut probability p=0, 0.3, and 0.6. The ring is never broken: accent-colored shortcuts are added on top of it, 1 at p=0.3 and 4 at p=0.6, instead of replacing ring edges as in the Watts-Strogatz model." width="570">
+
+```markdown
+![Newman-Watts-Strogatz graph](/assets/graphs/add-newman-watts-strogatz-graph.light.svg){.lightbox fig-alt="Three Newman-Watts-Strogatz graphs on a ring of eight nodes with k=2 and shortcut probability p=0, 0.3, and 0.6. The ring is never broken: accent-colored shortcuts are added on top of it, 1 at p=0.3 and 4 at p=0.6, instead of replacing ring edges as in the Watts-Strogatz model." width="100%"}
 ```
 
 ### `add_pa_graph()` — Preferential attachment graph
@@ -4490,12 +4746,36 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Path graph](/assets/graphs/add-path-graph.light.svg){.lightbox fig-alt="Three path graphs side by side: two nodes joined by one edge for n=2, a chain of three nodes for n=3, and a chain of four nodes for n=4. Each is a single line in which the two end nodes have one neighbor and every inner node has two." width="100%"}
 ```
 
+### `add_planted_partition_graph()` — Planted partition graph
+
+<img src="add-planted-partition-graph.light.svg" alt="Three planted partition graphs with three groups of four nodes, each group in its own color, edge probability 0.9 inside a group and 0, 0.1, and 0.2 between groups. The groups stay dense in every panel, while the plain edges between them grow from none to 3 to 9 and blur the split." width="570">
+
+```markdown
+![Planted partition graph](/assets/graphs/add-planted-partition-graph.light.svg){.lightbox fig-alt="Three planted partition graphs with three groups of four nodes, each group in its own color, edge probability 0.9 inside a group and 0, 0.1, and 0.2 between groups. The groups stay dense in every panel, while the plain edges between them grow from none to 3 to 9 and blur the split." width="100%"}
+```
+
+### `add_powerlaw_cluster_graph()` — Powerlaw cluster graph
+
+<img src="add-powerlaw-cluster-graph.light.svg" alt="Three Holme-Kim graphs on a ring of eight nodes, each new node attaching to m=2 others by preferential attachment, with triad-formation probability p=0, 0.5, and 1. Every panel has 12 edges, but a higher p closes more of them into triangles: 1, 4, and 5 triangles." width="570">
+
+```markdown
+![Powerlaw cluster graph](/assets/graphs/add-powerlaw-cluster-graph.light.svg){.lightbox fig-alt="Three Holme-Kim graphs on a ring of eight nodes, each new node attaching to m=2 others by preferential attachment, with triad-formation probability p=0, 0.5, and 1. Every panel has 12 edges, but a higher p closes more of them into triangles: 1, 4, and 5 triangles." width="100%"}
+```
+
 ### `add_prism_graph()` — Prism graph
 
 <img src="add-prism-graph.light.svg" alt="Three prism graphs side by side for n=3, 4, and 5, each drawn as an outer n-cycle around an inner n-cycle with n rungs joining matching nodes. That gives 2n nodes and 3n edges: 6 and 9, 8 and 12, 10 and 15." width="570">
 
 ```markdown
 ![Prism graph](/assets/graphs/add-prism-graph.light.svg){.lightbox fig-alt="Three prism graphs side by side for n=3, 4, and 5, each drawn as an outer n-cycle around an inner n-cycle with n rungs joining matching nodes. That gives 2n nodes and 3n edges: 6 and 9, 8 and 12, 10 and 15." width="100%"}
+```
+
+### `add_random_degree_sequence_graph()` — Random degree sequence graph
+
+<img src="add-random-degree-sequence-graph.light.svg" alt="Three random graphs on a ring of six nodes built to match a degree sequence, each node&#x27;s degree in a pill: all ones gives three separate edges, all twos gives a six-cycle, and 3, 3, 2, 2, 1, 1 gives six edges with one triangle. Unlike the configuration model, the result is always simple, with no doubled edges or self-loops." width="570">
+
+```markdown
+![Random degree sequence graph](/assets/graphs/add-random-degree-sequence-graph.light.svg){.lightbox fig-alt="Three random graphs on a ring of six nodes built to match a degree sequence, each node's degree in a pill: all ones gives three separate edges, all twos gives a six-cycle, and 3, 3, 2, 2, 1, 1 gives six edges with one triangle. Unlike the configuration model, the result is always simple, with no doubled edges or self-loops." width="100%"}
 ```
 
 ### `add_random_geometric_graph()` — Random geometric graph
@@ -4506,6 +4786,78 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Random geometric graph](/assets/graphs/add-random-geometric-graph.light.svg){.lightbox fig-alt="The same seven random points in the unit square joined at radius=0.25, 0.4, and 0.55. A faint dashed circle of that radius surrounds the central node, and two points are joined exactly when they lie within the radius of each other, so edges fill in as the radius grows (1, 6, and 10 edges)." width="100%"}
 ```
 
+### `add_random_k_out_graph()` — Random k-out graph
+
+<img src="add-random-k-out-graph.light.svg" alt="Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target&#x27;s current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed apart; self-loops are turned off." width="570">
+
+```markdown
+![Random k-out graph](/assets/graphs/add-random-k-out-graph.light.svg){.lightbox fig-alt="Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target's current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed apart; self-loops are turned off." width="100%"}
+```
+
+### `add_random_labeled_tree()` — Random labeled tree
+
+<img src="add-random-labeled-tree.light.svg" alt="Three random labeled trees on 5, 7, and 9 nodes, each hung from its most central node. Every tree on n labeled nodes is equally likely, so the shapes vary freely, but each one has n - 1 edges and no cycles." width="570">
+
+```markdown
+![Random labeled tree](/assets/graphs/add-random-labeled-tree.light.svg){.lightbox fig-alt="Three random labeled trees on 5, 7, and 9 nodes, each hung from its most central node. Every tree on n labeled nodes is equally likely, so the shapes vary freely, but each one has n - 1 edges and no cycles." width="100%"}
+```
+
+### `add_random_lobster()` — Random lobster
+
+<img src="add-random-lobster.light.svg" alt="Three random lobsters grown from the same backbone, a path of four nodes drawn as the top row. With p1=0 and p2=0 nothing grows and the lobster is just the path; with p1=0.6 five legs hang below the backbone, making a caterpillar; with p2=0.6 as well, two of the legs grow three leaves between them, so every node stays within two steps of the backbone." width="570">
+
+```markdown
+![Random lobster](/assets/graphs/add-random-lobster.light.svg){.lightbox fig-alt="Three random lobsters grown from the same backbone, a path of four nodes drawn as the top row. With p1=0 and p2=0 nothing grows and the lobster is just the path; with p1=0.6 five legs hang below the backbone, making a caterpillar; with p2=0.6 as well, two of the legs grow three leaves between them, so every node stays within two steps of the backbone." width="100%"}
+```
+
+### `add_random_partition_graph()` — Random partition graph
+
+<img src="add-random-partition-graph.light.svg" alt="Three random partition graphs with groups of the sizes given, each group in its own color: two groups of four, groups of two, three, and four, and groups of two, two, three, and four. Edges appear with probability 0.9 inside a group and 0.1 between groups, so each group is dense and the few plain edges link them." width="570">
+
+```markdown
+![Random partition graph](/assets/graphs/add-random-partition-graph.light.svg){.lightbox fig-alt="Three random partition graphs with groups of the sizes given, each group in its own color: two groups of four, groups of two, three, and four, and groups of two, two, three, and four. Edges appear with probability 0.9 inside a group and 0.1 between groups, so each group is dense and the few plain edges link them." width="100%"}
+```
+
+### `add_random_powerlaw_tree()` — Random power-law tree
+
+<img src="add-random-powerlaw-tree.light.svg" alt="Three random power-law trees on eight nodes for exponent gamma=2, 3, and 5, each hung from its most central node. The degrees are drawn from a power law, so a small gamma gives a heavy tail: the biggest hub has 6 neighbors at gamma=2, 5 at gamma=3, and 3 at gamma=5." width="570">
+
+```markdown
+![Random power-law tree](/assets/graphs/add-random-powerlaw-tree.light.svg){.lightbox fig-alt="Three random power-law trees on eight nodes for exponent gamma=2, 3, and 5, each hung from its most central node. The degrees are drawn from a power law, so a small gamma gives a heavy tail: the biggest hub has 6 neighbors at gamma=2, 5 at gamma=3, and 3 at gamma=5." width="100%"}
+```
+
+### `add_random_regular_graph()` — Random regular graph
+
+<img src="add-random-regular-graph.light.svg" alt="Three random regular graphs on the same ring of eight nodes for degree d=2, 3, and 4. Every node has exactly d neighbors, so the graphs have 8, 12, and 16 edges; which pairs get joined is random, and the d=2 graph here splits into a triangle and a five-cycle rather than one long cycle." width="570">
+
+```markdown
+![Random regular graph](/assets/graphs/add-random-regular-graph.light.svg){.lightbox fig-alt="Three random regular graphs on the same ring of eight nodes for degree d=2, 3, and 4. Every node has exactly d neighbors, so the graphs have 8, 12, and 16 edges; which pairs get joined is random, and the d=2 graph here splits into a triangle and a five-cycle rather than one long cycle." width="100%"}
+```
+
+### `add_relaxed_caveman_graph()` — Relaxed caveman graph
+
+<img src="add-relaxed-caveman-graph.light.svg" alt="Three relaxed caveman graphs built from three complete graphs on four nodes, each in its own color, at rewiring probability p=0, 0.2, and 0.5. At p=0 the cliques are separate; as p grows, more edges are rewired to random nodes and show up as plain edges between the cliques (3 at p=0.2 and 6 at p=0.5), while the total stays 18." width="570">
+
+```markdown
+![Relaxed caveman graph](/assets/graphs/add-relaxed-caveman-graph.light.svg){.lightbox fig-alt="Three relaxed caveman graphs built from three complete graphs on four nodes, each in its own color, at rewiring probability p=0, 0.2, and 0.5. At p=0 the cliques are separate; as p grows, more edges are rewired to random nodes and show up as plain edges between the cliques (3 at p=0.2 and 6 at p=0.5), while the total stays 18." width="100%"}
+```
+
+### `add_ring_of_cliques()` — Ring of cliques
+
+<img src="add-ring-of-cliques.light.svg" alt="Three rings of cliques side by side, each clique in its own color: three triangles, four triangles, and four complete graphs on four nodes. Every clique stays complete and is joined to the next one around the ring by a single plain edge." width="570">
+
+```markdown
+![Ring of cliques](/assets/graphs/add-ring-of-cliques.light.svg){.lightbox fig-alt="Three rings of cliques side by side, each clique in its own color: three triangles, four triangles, and four complete graphs on four nodes. Every clique stays complete and is joined to the next one around the ring by a single plain edge." width="100%"}
+```
+
+### `add_scale_free_graph()` — Scale-free directed graph
+
+<img src="add-scale-free-graph.light.svg" alt="Three scale-free directed graphs on 4, 6, and 8 nodes on a ring, grown from a three- cycle by the default mix of steps that add a node with an arc out, add an arc between existing nodes, or add a node with an arc in. One node quickly becomes the hub, touching 7 of the 10 arcs at n=8; it and one neighbor have arcs both ways, plus a repeated arc at n=8, drawn bowed apart, because the model keeps parallel arcs." width="570">
+
+```markdown
+![Scale-free directed graph](/assets/graphs/add-scale-free-graph.light.svg){.lightbox fig-alt="Three scale-free directed graphs on 4, 6, and 8 nodes on a ring, grown from a three- cycle by the default mix of steps that add a node with an arc out, add an arc between existing nodes, or add a node with an arc in. One node quickly becomes the hub, touching 7 of the 10 arcs at n=8; it and one neighbor have arcs both ways, plus a repeated arc at n=8, drawn bowed apart, because the model keeps parallel arcs." width="100%"}
+```
+
 ### `add_smallworld_graph()` — Small-world graph
 
 <img src="add-smallworld-graph.light.svg" alt="Three Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on each side; at p=0.2 three edges are rewired into accent-colored shortcuts across the ring; at p=1 most edges are rewired and the lattice is gone." width="570">
@@ -4514,12 +4866,68 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Small-world graph](/assets/graphs/add-smallworld-graph.light.svg){.lightbox fig-alt="Three Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on each side; at p=0.2 three edges are rewired into accent-colored shortcuts across the ring; at p=1 most edges are rewired and the lattice is gone." width="100%"}
 ```
 
+### `add_soft_random_geometric_graph()` — Soft random geometric graph
+
+<img src="add-soft-random-geometric-graph.light.svg" alt="The same seven random points in the unit square at radius=0.25, 0.35, and 0.45, with a faint dashed circle of that radius around the central node, drawn in the accent outline. Unlike the random geometric graph, a pair within the radius is only joined with a probability that falls with distance, so some nodes inside the circle stay unjoined to the central one; the graphs have 2, 7, and 8 edges." width="570">
+
+```markdown
+![Soft random geometric graph](/assets/graphs/add-soft-random-geometric-graph.light.svg){.lightbox fig-alt="The same seven random points in the unit square at radius=0.25, 0.35, and 0.45, with a faint dashed circle of that radius around the central node, drawn in the accent outline. Unlike the random geometric graph, a pair within the radius is only joined with a probability that falls with distance, so some nodes inside the circle stay unjoined to the central one; the graphs have 2, 7, and 8 edges." width="100%"}
+```
+
 ### `add_star_graph()` — Star graph
 
 <img src="add-star-graph.light.svg" alt="Three star graphs side by side: a hub with three spokes for n=4, four spokes for n=5, and six spokes for n=7. The hub is joined to every other node and the spokes are not joined to each other, so n nodes give n - 1 edges." width="570">
 
 ```markdown
 ![Star graph](/assets/graphs/add-star-graph.light.svg){.lightbox fig-alt="Three star graphs side by side: a hub with three spokes for n=4, four spokes for n=5, and six spokes for n=7. The hub is joined to every other node and the spokes are not joined to each other, so n nodes give n - 1 edges." width="100%"}
+```
+
+### `add_tadpole_graph()` — Tadpole graph
+
+<img src="add-tadpole-graph.light.svg" alt="Three tadpole graphs side by side: a triangle with a one-node tail for m=3 and n=1, a square with a two-node tail, and a hexagon with a two-node tail. Unlike the lollipop, the head is a plain cycle, so every head node but the one holding the tail has two neighbors." width="570">
+
+```markdown
+![Tadpole graph](/assets/graphs/add-tadpole-graph.light.svg){.lightbox fig-alt="Three tadpole graphs side by side: a triangle with a one-node tail for m=3 and n=1, a square with a two-node tail, and a hexagon with a two-node tail. Unlike the lollipop, the head is a plain cycle, so every head node but the one holding the tail has two neighbors." width="100%"}
+```
+
+### `add_triangular_lattice_graph()` — Triangular lattice graph
+
+<img src="add-triangular-lattice-graph.light.svg" alt="Three triangular lattices side by side: one row of three triangles, two rows of four, and three rows of five. Every other row of nodes is shifted half a step, each node joins its neighbors in its own row and the two nodes touching it in the next row, and all the faces are triangles." width="570">
+
+```markdown
+![Triangular lattice graph](/assets/graphs/add-triangular-lattice-graph.light.svg){.lightbox fig-alt="Three triangular lattices side by side: one row of three triangles, two rows of four, and three rows of five. Every other row of nodes is shifted half a step, each node joins its neighbors in its own row and the two nodes touching it in the next row, and all the faces are triangles." width="100%"}
+```
+
+### `add_turan_graph()` — Turán graph
+
+<img src="add-turan-graph.light.svg" alt="Three Turán graphs on a ring of seven nodes for r=2, 3, and 4 parts, each part in its own color. The seven nodes are split into parts as equal as possible (4 and 3; 3, 2, and 2; 2, 2, 2, and 1) and every pair of nodes in different parts is joined, so the graph gains edges as r grows (12, 16, and 18)." width="570">
+
+```markdown
+![Turán graph](/assets/graphs/add-turan-graph.light.svg){.lightbox fig-alt="Three Turán graphs on a ring of seven nodes for r=2, 3, and 4 parts, each part in its own color. The seven nodes are split into parts as equal as possible (4 and 3; 3, 2, and 2; 2, 2, 2, and 1) and every pair of nodes in different parts is joined, so the graph gains edges as r grows (12, 16, and 18)." width="100%"}
+```
+
+### `add_waxman_graph()` — Waxman graph
+
+<img src="add-waxman-graph.light.svg" alt="Three Waxman graphs on the same seven random points in the unit square, with beta=1 and alpha=0.1, 0.25, and 1. Two points are joined with a probability that decays with their distance, and alpha sets how slowly: at 0.1 only the closest pair is joined, at 0.25 there are 3 edges, and at 1 longer links appear for 8 edges in all. A few edges bow slightly to clear other nodes." width="570">
+
+```markdown
+![Waxman graph](/assets/graphs/add-waxman-graph.light.svg){.lightbox fig-alt="Three Waxman graphs on the same seven random points in the unit square, with beta=1 and alpha=0.1, 0.25, and 1. Two points are joined with a probability that decays with their distance, and alpha sets how slowly: at 0.1 only the closest pair is joined, at 0.25 there are 3 edges, and at 1 longer links appear for 8 edges in all. A few edges bow slightly to clear other nodes." width="100%"}
+```
+
+### `add_wheel_graph()` — Wheel graph
+
+<img src="add-wheel-graph.light.svg" alt="Three wheel graphs side by side for n=4, 5, and 7: a hub in the middle joined to every node of a rim cycle of three, four, and six nodes. The hub has n - 1 neighbors and every rim node has three." width="570">
+
+```markdown
+![Wheel graph](/assets/graphs/add-wheel-graph.light.svg){.lightbox fig-alt="Three wheel graphs side by side for n=4, 5, and 7: a hub in the middle joined to every node of a rim cycle of three, four, and six nodes. The hub has n - 1 neighbors and every rim node has three." width="100%"}
+```
+
+### `add_windmill_graph()` — Windmill graph
+
+<img src="add-windmill-graph.light.svg" alt="Three windmill graphs side by side, each a hub shared by several blades: three triangles (the friendship graph) for n=3 and k=3, four triangles for n=4, and three complete graphs on four nodes for k=4. Blades meet only at the hub, so removing it leaves n separate pieces." width="570">
+
+```markdown
+![Windmill graph](/assets/graphs/add-windmill-graph.light.svg){.lightbox fig-alt="Three windmill graphs side by side, each a hub shared by several blades: three triangles (the friendship graph) for n=3 and k=3, four triangles for n=4, and three complete graphs on four nodes for k=4. Blades meet only at the hub, so removing it leaves n separate pieces." width="100%"}
 ```
 
 ### `configuration_model()` — Configuration model
@@ -4544,4 +4952,102 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Stochastic block model](/assets/graphs/generate-stochastic-block-model.light.svg){.lightbox fig-alt="Three stochastic block models with two blocks of four nodes, block one in the accent color on the left and block two in teal on the right, with edge probability 0.9 inside a block and 0, 0.1, and 0.5 between blocks. Both blocks come out fully connected in every panel while the plain cross-block edges grow from none to 2 to 7, blurring the split." width="100%"}
+```
+
+## layout
+
+### `layout_arf()` — ARF layout
+
+<img src="layout-arf.light.svg" alt="On the left, a barbell graph scattered at random: two triangles, nodes 1 to 3 and 5 to 7, joined through node 4. On the right, layout_arf(seed=19) pulls joined nodes together and pushes every pair apart, so the two triangles sit apart with node 4 bridging them." width="570">
+
+```markdown
+![ARF layout](/assets/graphs/layout-arf.light.svg){.lightbox fig-alt="On the left, a barbell graph scattered at random: two triangles, nodes 1 to 3 and 5 to 7, joined through node 4. On the right, layout_arf(seed=19) pulls joined nodes together and pushes every pair apart, so the two triangles sit apart with node 4 bridging them." width="100%"}
+```
+
+### `layout_bfs()` — BFS layout
+
+<img src="layout-bfs.light.svg" alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="570">
+
+```markdown
+![BFS layout](/assets/graphs/layout-bfs.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="100%"}
+```
+
+### `layout_bipartite()` — Bipartite layout
+
+<img src="layout-bipartite.light.svg" alt="On the left, a bipartite graph of seven nodes scattered at random, nodes 1 to 3 in the accent color and nodes 4 to 7 in teal. On the right, layout_bipartite(nodes=[1, 2, 3]) puts nodes 1 to 3 in a left column and the other four in a right column, so every edge runs across between the columns." width="570">
+
+```markdown
+![Bipartite layout](/assets/graphs/layout-bipartite.light.svg){.lightbox fig-alt="On the left, a bipartite graph of seven nodes scattered at random, nodes 1 to 3 in the accent color and nodes 4 to 7 in teal. On the right, layout_bipartite(nodes=[1, 2, 3]) puts nodes 1 to 3 in a left column and the other four in a right column, so every edge runs across between the columns." width="100%"}
+```
+
+### `layout_circular()` — Circular layout
+
+<img src="layout-circular.light.svg" alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="570">
+
+```markdown
+![Circular layout](/assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
+```
+
+### `layout_forceatlas2()` — ForceAtlas2 layout
+
+<img src="layout-forceatlas2.light.svg" alt="On the left, a ring of three triangles, each joined to the next by one edge, scattered at random. On the right, layout_forceatlas2(seed=1) pulls each triangle together and pushes the triangles apart, so they sit as three separate clusters linked in a ring." width="570">
+
+```markdown
+![ForceAtlas2 layout](/assets/graphs/layout-forceatlas2.light.svg){.lightbox fig-alt="On the left, a ring of three triangles, each joined to the next by one edge, scattered at random. On the right, layout_forceatlas2(seed=1) pulls each triangle together and pushes the triangles apart, so they sit as three separate clusters linked in a ring." width="100%"}
+```
+
+### `layout_kamada_kawai()` — Kamada-Kawai layout
+
+<img src="layout-kamada-kawai.light.svg" alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_kamada_kawai() sets the distance between every two nodes to match their number of hops, which straightens the grid into three rows of three." width="570">
+
+```markdown
+![Kamada-Kawai layout](/assets/graphs/layout-kamada-kawai.light.svg){.lightbox fig-alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_kamada_kawai() sets the distance between every two nodes to match their number of hops, which straightens the grid into three rows of three." width="100%"}
+```
+
+### `layout_multipartite()` — Multipartite layout
+
+<img src="layout-multipartite.light.svg" alt="On the left, a seven-node graph in three layers scattered at random, the layers colored accent, teal and violet. On the right, layout_multipartite(&#x27;layer&#x27;) puts each layer in its own column, left to right, so the edges step from one column to the next." width="570">
+
+```markdown
+![Multipartite layout](/assets/graphs/layout-multipartite.light.svg){.lightbox fig-alt="On the left, a seven-node graph in three layers scattered at random, the layers colored accent, teal and violet. On the right, layout_multipartite('layer') puts each layer in its own column, left to right, so the edges step from one column to the next." width="100%"}
+```
+
+### `layout_random()` — Random layout
+
+<img src="layout-random.light.svg" alt="On the left, a ring of eight nodes with two chords, drawn on a circle. On the right, layout_random(seed=71) drops each node at a uniformly random point in a square, ignoring the edges, so the ring is scrambled." width="570">
+
+```markdown
+![Random layout](/assets/graphs/layout-random.light.svg){.lightbox fig-alt="On the left, a ring of eight nodes with two chords, drawn on a circle. On the right, layout_random(seed=71) drops each node at a uniformly random point in a square, ignoring the edges, so the ring is scrambled." width="100%"}
+```
+
+### `layout_shell()` — Shell layout
+
+<img src="layout-shell.light.svg" alt="On the left, a ten-node graph scattered at random, its nodes colored by their shell attribute: a hub in the accent color, its three neighbors in teal and six outer nodes in violet, two on each neighbor. On the right, layout_shell(nlist=&#x27;shell&#x27;) puts the hub at the center, its neighbors on a small circle around it and the outer nodes on a larger circle outside." width="570">
+
+```markdown
+![Shell layout](/assets/graphs/layout-shell.light.svg){.lightbox fig-alt="On the left, a ten-node graph scattered at random, its nodes colored by their shell attribute: a hub in the accent color, its three neighbors in teal and six outer nodes in violet, two on each neighbor. On the right, layout_shell(nlist='shell') puts the hub at the center, its neighbors on a small circle around it and the outer nodes on a larger circle outside." width="100%"}
+```
+
+### `layout_spectral()` — Spectral layout
+
+<img src="layout-spectral.light.svg" alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_spectral() places the nodes by two eigenvectors of the graph&#x27;s Laplacian, which recovers the grid: nine nodes in three rows of three, joined to their neighbors." width="570">
+
+```markdown
+![Spectral layout](/assets/graphs/layout-spectral.light.svg){.lightbox fig-alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_spectral() places the nodes by two eigenvectors of the graph's Laplacian, which recovers the grid: nine nodes in three rows of three, joined to their neighbors." width="100%"}
+```
+
+### `layout_spiral()` — Spiral layout
+
+<img src="layout-spiral.light.svg" alt="On the left, a path of nine nodes scattered at random. On the right, layout_spiral(1.4, equidistant=True) sets the nodes evenly spaced along a spiral in id order, so the path curls around half a turn; a faint line traces the spiral on in to its center." width="570">
+
+```markdown
+![Spiral layout](/assets/graphs/layout-spiral.light.svg){.lightbox fig-alt="On the left, a path of nine nodes scattered at random. On the right, layout_spiral(1.4, equidistant=True) sets the nodes evenly spaced along a spiral in id order, so the path curls around half a turn; a faint line traces the spiral on in to its center." width="100%"}
+```
+
+### `layout_spring()` — Spring layout
+
+<img src="layout-spring.light.svg" alt="On the left, the cube graph (eight nodes, each joined to three others) scattered at random. On the right, layout_spring(seed=1) treats edges as springs and nodes as repelling charges, and the cube settles into one square inside another." width="570">
+
+```markdown
+![Spring layout](/assets/graphs/layout-spring.light.svg){.lightbox fig-alt="On the left, the cube graph (eight nodes, each joined to three others) scattered at random. On the right, layout_spring(seed=1) treats edges as springs and nodes as repelling charges, and the cube settles into one square inside another." width="100%"}
 ```
