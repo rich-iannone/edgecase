@@ -52,10 +52,15 @@ LAYOUTS = ("force", "circular", "random")
 LAYOUT_MODES = ("progressive", "stable")
 
 
-def _check_style(layout: str, theme: str, layout_mode: Optional[str] = None) -> None:
+def _check_style(
+    layout: str, theme: str, layout_mode: Optional[str] = None, stored_ok: bool = False
+) -> None:
     """Raise `ValueError` for an unknown `layout=`, `theme=` or `layout_mode=` (they used to
-    fall back silently to "force", "light" and "progressive"-like behavior)."""
-    if layout not in LAYOUTS:
+    fall back silently to "force", "light" and "progressive"-like behavior).
+
+    With `stored_ok=True`, any other non-empty string is taken as the name of a node attribute
+    holding positions; `_stored_layout()` checks it against the graph."""
+    if layout not in LAYOUTS and not (stored_ok and isinstance(layout, str) and layout):
         raise ValueError(f"Unknown layout {layout!r}; use one of {', '.join(map(repr, LAYOUTS))}")
     if theme not in THEMES:
         raise ValueError(f"Unknown theme {theme!r}; use 'light' or 'dark'")
@@ -146,6 +151,57 @@ def _random_layout(
         y = rng.uniform(padding, height - padding)
         positions[nid] = (x, y)
     return positions
+
+
+def _stored_layout(
+    graph,
+    node_ids: list,
+    attr: str,
+    width: float,
+    height: float,
+    padding: float = 60,
+) -> Dict[str, Tuple[float, float]]:
+    """Canvas positions from a node attribute holding `(x, y)` coordinates.
+
+    The coordinates are fitted to the canvas with their aspect ratio kept, and `y` points up
+    (as in the `layout_*()` methods and NetworkX drawings). Raises `ValueError` if no node has
+    the attribute, or if some node lacks it or holds something other than two finite numbers.
+    """
+    raw: Dict[str, Tuple[float, float]] = {}
+    bad = []
+    for nid in node_ids:
+        obj = graph.get_node(nid)
+        value = obj.attributes.get(attr) if obj is not None and obj.attributes else None
+        try:
+            x, y = (float(v) for v in value)
+            if isinstance(value, (str, bytes)) or not (math.isfinite(x) and math.isfinite(y)):
+                raise ValueError
+        except (TypeError, ValueError):
+            bad.append((nid, value))
+            continue
+        raw[str(nid)] = (x, y)
+    if not raw:
+        raise ValueError(
+            f"Unknown layout {attr!r}; use one of {', '.join(map(repr, LAYOUTS))}, or the name "
+            "of a node attribute holding (x, y) positions (set by the layout_*() methods)"
+        )
+    if bad:
+        nid, value = bad[0]
+        raise ValueError(
+            f"Layout attribute {attr!r} must hold an (x, y) pair of finite numbers on every "
+            f"node; {len(bad)} of {len(node_ids)} nodes don't (node {nid!r} has {value!r})"
+        )
+
+    xs = [p[0] for p in raw.values()]
+    ys = [p[1] for p in raw.values()]
+    range_x = (max(xs) - min(xs)) or 1.0
+    range_y = (max(ys) - min(ys)) or 1.0
+    scale = min((width - 2 * padding) / range_x, (height - 2 * padding) / range_y)
+    mid_x, mid_y = (min(xs) + max(xs)) / 2, (min(ys) + max(ys)) / 2
+    return {
+        nid: (width / 2 + (x - mid_x) * scale, height / 2 - (y - mid_y) * scale)
+        for nid, (x, y) in raw.items()
+    }
 
 
 def _fruchterman_reingold_python(
@@ -1118,7 +1174,7 @@ def render_plot(
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer."""
 
-    _check_style(layout, theme)
+    _check_style(layout, theme, stored_ok=True)
     th = THEMES.get(theme, LIGHT)
     if color_by or edge_color_by:
         from edgecase.colors import get_palette
@@ -1209,6 +1265,8 @@ def render_plot(
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height), seed=seed)
+    elif layout not in LAYOUTS:
+        positions = _stored_layout(graph, node_ids, layout, float(width), float(height))
     else:
         n = len(str_ids)
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
@@ -1755,7 +1813,7 @@ def render_traversal(
     _traversal_counter += 1
     uid = f"tv{_traversal_counter}"
 
-    _check_style(layout, theme)
+    _check_style(layout, theme, stored_ok=True)
     th = THEMES.get(theme, LIGHT)
 
     # --- Theme-dependent traversal colors ---
@@ -1834,6 +1892,8 @@ def render_traversal(
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height))
+    elif layout not in LAYOUTS:
+        positions = _stored_layout(graph, node_ids, layout, float(width), float(height))
     else:
         n = len(str_ids)
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
@@ -2634,7 +2694,7 @@ def render_traversal_chain(
     _chain_counter += 1
     uid = f"tc{_chain_counter}"
 
-    _check_style(layout, theme)
+    _check_style(layout, theme, stored_ok=True)
     th = THEMES.get(theme, LIGHT)
     is_dark = theme == "dark"
 
@@ -2782,6 +2842,8 @@ def render_traversal_chain(
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height))
+    elif layout not in LAYOUTS:
+        positions = _stored_layout(graph, node_ids, layout, float(width), float(height))
     else:
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
         positions = _force_directed_layout(
