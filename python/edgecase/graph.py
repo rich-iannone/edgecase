@@ -1,4 +1,5 @@
 import math
+from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, Optional, Union
 
 import polars as pl
@@ -339,18 +340,16 @@ class Graph:
 
         # Initialize from DataFrames if provided
         has_df = nodes_df is not None or edges_df is not None
-        if has_df:
-            self._recording_depth += 1
 
         id_to_label_map = {}
-        if nodes_df is not None:
-            id_to_label_map = self._init_from_nodes_df(nodes_df)
+        with self._no_recording():
+            if nodes_df is not None:
+                id_to_label_map = self._init_from_nodes_df(nodes_df)
 
-        if edges_df is not None:
-            self._init_from_edges_df(edges_df, id_to_label_map)
+            if edges_df is not None:
+                self._init_from_edges_df(edges_df, id_to_label_map)
 
         if has_df:
-            self._recording_depth -= 1
             node_labels = []
             if nodes_df is not None:
                 node_labels = [
@@ -578,31 +577,64 @@ class Graph:
                 edges.add((min(src, tgt), max(src, tgt)))
         return (node_ids, edges)
 
-    def _begin_compound(self) -> tuple:
-        """Start a compound operation (suppresses child recordings). Returns snapshot."""
+    @contextmanager
+    def _no_recording(self):
+        """Suppress the steps of the calls made inside the block (exception-safe)."""
         self._recording_depth += 1
-        return self._snapshot_state()
+        try:
+            yield
+        finally:
+            self._recording_depth -= 1
 
-    def _end_compound(self, method: str, code: str, before: tuple, kind: str = KIND_GENERATE):
-        """End a compound operation and record one summary step."""
-        self._recording_depth -= 1
-        if self._recording_depth == 0:
-            old_nodes, old_edges = before
-            new_nodes, new_edges = self._snapshot_state()
-            added_nids = new_nodes - old_nodes
-            added_edges = new_edges - old_edges
-            delta = StepDelta()
-            for nid in sorted(added_nids):
-                obj = self.get_node(nid)
-                label = str(obj.label) if obj and obj.label else str(nid)
-                delta.nodes_added.append(label)
-            for src, tgt in sorted(added_edges):
-                src_obj = self.get_node(src)
-                tgt_obj = self.get_node(tgt)
-                s_label = str(src_obj.label) if src_obj and src_obj.label else str(src)
-                t_label = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt)
-                delta.edges_added.append((s_label, t_label))
-            self._record_step(kind, method, code, delta=delta)
+    @contextmanager
+    def _atomic(self):
+        """
+        Undo the block's additions if it raises.
+
+        Every node and edge added inside the block (and every edge touching those nodes) is
+        removed again, the ID counters rewind and any steps the block recorded are dropped, so
+        a builder that fails partway leaves the graph and its step log as they were. Deletions
+        and attribute changes made inside the block are not undone.
+        """
+        mark = self._graph._addition_mark()
+        steps, n_steps = self._steps, len(self._steps)
+        try:
+            yield
+        except BaseException:
+            self._graph._discard_additions(mark)
+            if self._steps is steps:
+                del steps[n_steps:]
+            raise
+
+    @contextmanager
+    def _compound(self, method: str, code: str, kind: str = KIND_GENERATE):
+        """
+        Run a compound operation: the calls inside the block record no steps of their own, the
+        block's additions are rolled back if it raises, and on success one summary step records
+        everything it added (when it isn't itself nested in another compound operation).
+        """
+        before = self._snapshot_state() if self._recording_depth == 0 else None
+        with self._atomic(), self._no_recording():
+            yield
+        if before is not None:
+            self._record_additions(method, code, before, kind)
+
+    def _record_additions(self, method: str, code: str, before: tuple, kind: str):
+        """Record one step listing the nodes and edges added since the `before` snapshot."""
+        old_nodes, old_edges = before
+        new_nodes, new_edges = self._snapshot_state()
+        delta = StepDelta()
+        for nid in sorted(new_nodes - old_nodes):
+            obj = self.get_node(nid)
+            label = str(obj.label) if obj and obj.label else str(nid)
+            delta.nodes_added.append(label)
+        for src, tgt in sorted(new_edges - old_edges):
+            src_obj = self.get_node(src)
+            tgt_obj = self.get_node(tgt)
+            s_label = str(src_obj.label) if src_obj and src_obj.label else str(src)
+            t_label = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(tgt)
+            delta.edges_added.append((s_label, t_label))
+        self._record_step(kind, method, code, delta=delta)
 
     def _snapshot_selection(self, delta: StepDelta) -> None:
         """Capture the current node/edge selection into a StepDelta."""
@@ -1171,32 +1203,32 @@ class Graph:
         from_id = self._resolve_node_id(from_node) if from_node is not None else None
         to_id = self._resolve_node_id(to_node) if to_node is not None else None
 
-        # Handle direct Rust Node object (for backward compatibility)
-        if isinstance(label, rust.Node):
-            new_id = self._graph.add_node(label)
-        else:
-            # Convert label to string if it's not None
-            str_label = str(label) if label is not None else None
+        # The node and its edges go in together or not at all
+        with self._atomic():
+            # Handle direct Rust Node object (for backward compatibility)
+            if isinstance(label, rust.Node):
+                new_id = self._graph.add_node(label)
+            else:
+                # Convert label to string if it's not None
+                str_label = str(label) if label is not None else None
 
-            # Handle type as a first-class attribute
-            if type is not None:
-                attributes = attributes.copy() if attributes else {}
-                attributes["type"] = type
+                # Handle type as a first-class attribute
+                if type is not None:
+                    attributes = attributes.copy() if attributes else {}
+                    attributes["type"] = type
 
-            # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
-            node = rust.Node(id=0, label=str_label, attributes=attributes if attributes else None)
-            new_id = self._graph.add_node(node)
+                # Let Rust auto-assign the ID (pass 0 to trigger auto-assignment)
+                node = rust.Node(
+                    id=0, label=str_label, attributes=attributes if attributes else None
+                )
+                new_id = self._graph.add_node(node)
 
-        # Add edges if from_node or to_node specified
-        if from_id is not None:
-            self._recording_depth += 1
-            self.add_edge(new_id, from_id)
-            self._recording_depth -= 1
-
-        if to_id is not None:
-            self._recording_depth += 1
-            self.add_edge(to_id, new_id)
-            self._recording_depth -= 1
+            # Add edges if from_node or to_node specified
+            with self._no_recording():
+                if from_id is not None:
+                    self.add_edge(new_id, from_id)
+                if to_id is not None:
+                    self.add_edge(to_id, new_id)
 
         # Record step (only at top-level)
         if self._recording_depth == 0:
@@ -1363,26 +1395,24 @@ class Graph:
             seen.add(label)
 
         labels_added = []
-        self._recording_depth += 1
-        try:
+        with self._atomic(), self._no_recording():
             for label, overrides in items:
                 merged = {**shared_attrs, **overrides}
                 node_type = merged.pop("type", type)
                 self.add_node(label=str(label), type=node_type, **merged)
                 labels_added.append(str(label))
-        finally:
-            self._recording_depth -= 1
 
-        node_list = repr(nodes if isinstance(nodes, range) else labels_added)
-        attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
-        type_str = f", type={type!r}" if type is not None else ""
-        code = f"G.add_nodes({node_list}{type_str}{attrs_str})"
-        self._record_step(
-            KIND_BUILD_NODES,
-            "add_nodes",
-            code,
-            delta=StepDelta(nodes_added=labels_added),
-        )
+        if self._recording_depth == 0:
+            node_list = repr(nodes if isinstance(nodes, range) else labels_added)
+            attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
+            type_str = f", type={type!r}" if type is not None else ""
+            code = f"G.add_nodes({node_list}{type_str}{attrs_str})"
+            self._record_step(
+                KIND_BUILD_NODES,
+                "add_nodes",
+                code,
+                delta=StepDelta(nodes_added=labels_added),
+            )
 
         return self
 
@@ -1535,37 +1565,39 @@ class Graph:
             self._graph.add_edge(source)
             return self
 
-        # Resolve source and target to u64 IDs
-        source_id = self._resolve_node_id(source, auto_create=auto_create_nodes)
-        target_id = self._resolve_node_id(target, auto_create=auto_create_nodes)
+        # Nodes auto-created for an edge that then fails are taken out again
+        with self._atomic() if auto_create_nodes else nullcontext():
+            # Resolve source and target to u64 IDs
+            source_id = self._resolve_node_id(source, auto_create=auto_create_nodes)
+            target_id = self._resolve_node_id(target, auto_create=auto_create_nodes)
 
-        # Verify nodes exist if not auto-creating
-        if not auto_create_nodes:
-            if not self._graph.has_node_id(source_id):
-                raise ValueError(
-                    f"Source node {source} (ID {source_id}) does not exist. "
-                    f"Add it with add_node() first or use auto_create_nodes=True."
-                )
-            if not self._graph.has_node_id(target_id):
-                raise ValueError(
-                    f"Target node {target} (ID {target_id}) does not exist. "
-                    f"Add it with add_node() first or use auto_create_nodes=True."
-                )
+            # Verify nodes exist if not auto-creating
+            if not auto_create_nodes:
+                if not self._graph.has_node_id(source_id):
+                    raise ValueError(
+                        f"Source node {source} (ID {source_id}) does not exist. "
+                        f"Add it with add_node() first or use auto_create_nodes=True."
+                    )
+                if not self._graph.has_node_id(target_id):
+                    raise ValueError(
+                        f"Target node {target} (ID {target_id}) does not exist. "
+                        f"Add it with add_node() first or use auto_create_nodes=True."
+                    )
 
-        # Handle rel as a first-class attribute
-        if rel is not None:
-            attributes = attributes.copy() if attributes else {}
-            attributes["rel"] = rel
+            # Handle rel as a first-class attribute
+            if rel is not None:
+                attributes = attributes.copy() if attributes else {}
+                attributes["rel"] = rel
 
-        # Create edge with auto-assigned ID (0 triggers auto-assignment)
-        edge = rust.Edge(
-            id=0,
-            source=source_id,
-            target=target_id,
-            weight=weight,
-            attributes=attributes if attributes else None,
-        )
-        self._graph.add_edge(edge)
+            # Create edge with auto-assigned ID (0 triggers auto-assignment)
+            edge = rust.Edge(
+                id=0,
+                source=source_id,
+                target=target_id,
+                weight=weight,
+                attributes=attributes if attributes else None,
+            )
+            self._graph.add_edge(edge)
 
         if self._recording_depth == 0:
             s, t = str(source), str(target)
@@ -1751,8 +1783,9 @@ class Graph:
         parsed = [_parse_edge_item(item) for item in edges]
 
         edges_added = []
-        self._recording_depth += 1
-        try:
+        # All the edges go in or none do (a missing endpoint partway used to keep the edges
+        # before it, unrecorded)
+        with self._atomic(), self._no_recording():
             for source, target, edge_weight, overrides in parsed:
                 merged = {**shared_attrs, **overrides}
                 edge_rel = merged.pop("rel", rel)
@@ -1768,20 +1801,19 @@ class Graph:
                     **merged,
                 )
                 edges_added.append((str(source), str(target)))
-        finally:
-            self._recording_depth -= 1
 
-        pairs = repr([(s, t) for s, t in edges_added])
-        attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
-        rel_str = f", rel={rel!r}" if rel is not None else ""
-        weight_str = f", weight={weight!r}" if weight is not None else ""
-        code = f"G.add_edges({pairs}{rel_str}{weight_str}{attrs_str})"
-        self._record_step(
-            KIND_BUILD_EDGES,
-            "add_edges",
-            code,
-            delta=StepDelta(edges_added=edges_added),
-        )
+        if self._recording_depth == 0:
+            pairs = repr([(s, t) for s, t in edges_added])
+            attrs_str = "".join(f", {k}={v!r}" for k, v in shared_attrs.items())
+            rel_str = f", rel={rel!r}" if rel is not None else ""
+            weight_str = f", weight={weight!r}" if weight is not None else ""
+            code = f"G.add_edges({pairs}{rel_str}{weight_str}{attrs_str})"
+            self._record_step(
+                KIND_BUILD_EDGES,
+                "add_edges",
+                code,
+                delta=StepDelta(edges_added=edges_added),
+            )
 
         return self
 
@@ -2052,34 +2084,34 @@ class Graph:
 
         """
         edges_added = []
-        self._recording_depth += 1
-        for item in edges:
-            if len(item) == 3 and isinstance(item[2], dict):
-                source, target, overrides = item
-                merged = {**shared_attrs, **overrides}
-                edge_rel = overrides.get("rel", rel)
-                edge_weight = overrides.get("weight", weight)
-                merged.pop("rel", None)
-                merged.pop("weight", None)
-                self.add_edge_by_id(
-                    source=source,
-                    target=target,
-                    rel=edge_rel,
-                    weight=edge_weight,
-                    **merged,
-                )
-                edges_added.append((str(source), str(target)))
-            else:
-                source, target = item[0], item[1]
-                self.add_edge_by_id(
-                    source=source,
-                    target=target,
-                    rel=rel,
-                    weight=weight,
-                    **shared_attrs,
-                )
-                edges_added.append((str(source), str(target)))
-        self._recording_depth -= 1
+        # All the edges go in or none do
+        with self._atomic(), self._no_recording():
+            for item in edges:
+                if len(item) == 3 and isinstance(item[2], dict):
+                    source, target, overrides = item
+                    merged = {**shared_attrs, **overrides}
+                    edge_rel = overrides.get("rel", rel)
+                    edge_weight = overrides.get("weight", weight)
+                    merged.pop("rel", None)
+                    merged.pop("weight", None)
+                    self.add_edge_by_id(
+                        source=source,
+                        target=target,
+                        rel=edge_rel,
+                        weight=edge_weight,
+                        **merged,
+                    )
+                    edges_added.append((str(source), str(target)))
+                else:
+                    source, target = item[0], item[1]
+                    self.add_edge_by_id(
+                        source=source,
+                        target=target,
+                        rel=rel,
+                        weight=weight,
+                        **shared_attrs,
+                    )
+                    edges_added.append((str(source), str(target)))
 
         if self._recording_depth == 0:
             pairs = repr([(int(s), int(t)) for s, t in edges_added])
@@ -2742,10 +2774,9 @@ class Graph:
                 except Exception:
                     pass
 
-        self._recording_depth += 1
-        for edge_id in selected:
-            self.delete_edge_by_id(edge_id)
-        self._recording_depth -= 1
+        with self._no_recording():
+            for edge_id in selected:
+                self.delete_edge_by_id(edge_id)
 
         if self._recording_depth == 0 and removed_edges:
             n = len(removed_edges)
@@ -6043,13 +6074,10 @@ class Graph:
         if n < 1:
             raise ValueError("Path must have at least 1 node")
 
-        before = self._begin_compound()
-
-        # Path has n-1 edges, wired by ID so unlabelled nodes work
-        node_ids = self._add_generated_nodes(n, label, type)
-        self._add_path_edges(node_ids, rel)
-
-        self._end_compound("add_path_graph", f"G.add_path_graph(n={n})", before)
+        with self._compound("add_path_graph", f"G.add_path_graph(n={n})"):
+            # Path has n-1 edges, wired by ID so unlabelled nodes work
+            node_ids = self._add_generated_nodes(n, label, type)
+            self._add_path_edges(node_ids, rel)
         return self
 
     def add_cycle_graph(
@@ -6147,15 +6175,12 @@ class Graph:
         if n < 3:
             raise ValueError("Cycle must have at least 3 nodes")
 
-        before = self._begin_compound()
-
-        # Add path first, then close the cycle with a final edge
-        node_ids = self._add_generated_nodes(n, label, type)
-        self._add_path_edges(node_ids, rel)
-        edge_attrs = {"rel": rel} if rel else {}
-        self.add_edge(node_ids[-1], node_ids[0], **edge_attrs)
-
-        self._end_compound("add_cycle_graph", f"G.add_cycle_graph(n={n})", before)
+        with self._compound("add_cycle_graph", f"G.add_cycle_graph(n={n})"):
+            # Add path first, then close the cycle with a final edge
+            node_ids = self._add_generated_nodes(n, label, type)
+            self._add_path_edges(node_ids, rel)
+            edge_attrs = {"rel": rel} if rel else {}
+            self.add_edge(node_ids[-1], node_ids[0], **edge_attrs)
         return self
 
     def add_star_graph(
@@ -6255,16 +6280,13 @@ class Graph:
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
 
-        before = self._begin_compound()
+        with self._compound("add_star_graph", f"G.add_star_graph(n={n})"):
+            center_id, *peripheral_ids = self._add_generated_nodes(n, label, type)
 
-        center_id, *peripheral_ids = self._add_generated_nodes(n, label, type)
-
-        # Add edges from center to all other nodes
-        edge_attrs = {"rel": rel} if rel else {}
-        for peripheral_id in peripheral_ids:
-            self.add_edge(center_id, peripheral_id, **edge_attrs)
-
-        self._end_compound("add_star_graph", f"G.add_star_graph(n={n})", before)
+            # Add edges from center to all other nodes
+            edge_attrs = {"rel": rel} if rel else {}
+            for peripheral_id in peripheral_ids:
+                self.add_edge(center_id, peripheral_id, **edge_attrs)
         return self
 
     def add_full_graph(
@@ -6362,27 +6384,24 @@ class Graph:
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
 
-        before = self._begin_compound()
+        with self._compound("add_full_graph", f"G.add_full_graph(n={n})"):
+            node_ids = self._add_generated_nodes(n, label, type)
 
-        node_ids = self._add_generated_nodes(n, label, type)
+            # Add edges between all pairs
+            edge_attrs = {}
+            if rel:
+                edge_attrs["rel"] = rel
 
-        # Add edges between all pairs
-        edge_attrs = {}
-        if rel:
-            edge_attrs["rel"] = rel
-
-        for i, source in enumerate(node_ids):
-            for j, target in enumerate(node_ids):
-                if i == j:
-                    # Self-loop
-                    if keep_loops:
-                        self.add_edge(source, source, **edge_attrs)
-                elif i < j or self.is_directed():
-                    # For undirected, only add each edge once (i < j)
-                    # For directed, add both directions
-                    self.add_edge(source, target, **edge_attrs)
-
-        self._end_compound("add_full_graph", f"G.add_full_graph(n={n})", before)
+            for i, source in enumerate(node_ids):
+                for j, target in enumerate(node_ids):
+                    if i == j:
+                        # Self-loop
+                        if keep_loops:
+                            self.add_edge(source, source, **edge_attrs)
+                    elif i < j or self.is_directed():
+                        # For undirected, only add each edge once (i < j)
+                        # For directed, add both directions
+                        self.add_edge(source, target, **edge_attrs)
         return self
 
     def add_balanced_tree(
@@ -6490,16 +6509,13 @@ class Graph:
         if h < 0:
             raise ValueError("Height h cannot be negative")
 
-        before = self._begin_compound()
-
-        # Nodes in breadth-first order: node i's parent is node (i - 1) // k
-        total = h + 1 if k == 1 else (k ** (h + 1) - 1) // (k - 1)
-        node_ids = self._add_generated_nodes(total, label, type)
-        edge_attrs = {"rel": rel} if rel else {}
-        for i in range(1, total):
-            self.add_edge(node_ids[(i - 1) // k], node_ids[i], **edge_attrs)
-
-        self._end_compound("add_balanced_tree", f"G.add_balanced_tree(k={k}, h={h})", before)
+        with self._compound("add_balanced_tree", f"G.add_balanced_tree(k={k}, h={h})"):
+            # Nodes in breadth-first order: node i's parent is node (i - 1) // k
+            total = h + 1 if k == 1 else (k ** (h + 1) - 1) // (k - 1)
+            node_ids = self._add_generated_nodes(total, label, type)
+            edge_attrs = {"rel": rel} if rel else {}
+            for i in range(1, total):
+                self.add_edge(node_ids[(i - 1) // k], node_ids[i], **edge_attrs)
         return self
 
     def add_grid_2d(
@@ -6598,24 +6614,21 @@ class Graph:
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
 
-        before = self._begin_compound()
-
-        # Nodes row by row, labelled "(row,col)"
-        ids = self._add_generated_nodes(
-            rows * cols, label, type, label_fn=lambda _, idx: f"({idx // cols},{idx % cols})"
-        )
-        edge_attrs = {"rel": rel} if rel else {}
-        for i in range(rows):
-            for j in range(cols):
-                current = ids[i * cols + j]
-                # Connect to right neighbor (if exists)
-                if j < cols - 1:
-                    self.add_edge(current, ids[i * cols + j + 1], **edge_attrs)
-                # Connect to bottom neighbor (if exists)
-                if i < rows - 1:
-                    self.add_edge(current, ids[(i + 1) * cols + j], **edge_attrs)
-
-        self._end_compound("add_grid_2d", f"G.add_grid_2d(rows={rows}, cols={cols})", before)
+        with self._compound("add_grid_2d", f"G.add_grid_2d(rows={rows}, cols={cols})"):
+            # Nodes row by row, labelled "(row,col)"
+            ids = self._add_generated_nodes(
+                rows * cols, label, type, label_fn=lambda _, idx: f"({idx // cols},{idx % cols})"
+            )
+            edge_attrs = {"rel": rel} if rel else {}
+            for i in range(rows):
+                for j in range(cols):
+                    current = ids[i * cols + j]
+                    # Connect to right neighbor (if exists)
+                    if j < cols - 1:
+                        self.add_edge(current, ids[i * cols + j + 1], **edge_attrs)
+                    # Connect to bottom neighbor (if exists)
+                    if i < rows - 1:
+                        self.add_edge(current, ids[(i + 1) * cols + j], **edge_attrs)
         return self
 
     def add_prism_graph(
@@ -6710,22 +6723,22 @@ class Graph:
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
 
-        before = self._begin_compound()
-
-        # Top cycle then bottom cycle, labelled "<id>_top" / "<id>_bottom"
-        ids = self._add_generated_nodes(
-            2 * n, label, type, label_fn=lambda nid, idx: f"{nid}_{'top' if idx < n else 'bottom'}"
-        )
-        top, bottom = ids[:n], ids[n:]
-        edge_attrs = {"rel": rel} if rel else {}
-        for cycle in (top, bottom):
-            for i in range(n):
-                self.add_edge(cycle[i], cycle[(i + 1) % n], **edge_attrs)
-        # Connect corresponding nodes between cycles
-        for top_node, bottom_node in zip(top, bottom):
-            self.add_edge(top_node, bottom_node, **edge_attrs)
-
-        self._end_compound("add_prism_graph", f"G.add_prism_graph(n={n})", before)
+        with self._compound("add_prism_graph", f"G.add_prism_graph(n={n})"):
+            # Top cycle then bottom cycle, labelled "<id>_top" / "<id>_bottom"
+            ids = self._add_generated_nodes(
+                2 * n,
+                label,
+                type,
+                label_fn=lambda nid, idx: f"{nid}_{'top' if idx < n else 'bottom'}",
+            )
+            top, bottom = ids[:n], ids[n:]
+            edge_attrs = {"rel": rel} if rel else {}
+            for cycle in (top, bottom):
+                for i in range(n):
+                    self.add_edge(cycle[i], cycle[(i + 1) % n], **edge_attrs)
+            # Connect corresponding nodes between cycles
+            for top_node, bottom_node in zip(top, bottom):
+                self.add_edge(top_node, bottom_node, **edge_attrs)
         return self
 
     def add_complete_bipartite_graph(
@@ -6822,17 +6835,14 @@ class Graph:
         if n1 < 0 or n2 < 0:
             raise ValueError("Group sizes n1 and n2 must be non-negative")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(
-            n1 + n2, label, type, node_attrs=self._group_attrs([0] * n1 + [1] * n2, part_attr)
-        )
-        self._add_generated_edges(ids, ((i, n1 + j) for i in range(n1) for j in range(n2)), rel)
-
-        self._end_compound(
-            "add_complete_bipartite_graph", f"G.add_complete_bipartite_graph(n1={n1}, n2={n2})",
-            before,
-        )
+        with self._compound(
+            "add_complete_bipartite_graph",
+            f"G.add_complete_bipartite_graph(n1={n1}, n2={n2})",
+        ):
+            ids = self._add_generated_nodes(
+                n1 + n2, label, type, node_attrs=self._group_attrs([0] * n1 + [1] * n2, part_attr)
+            )
+            self._add_generated_edges(ids, ((i, n1 + j) for i in range(n1) for j in range(n2)), rel)
         return self
 
     def _add_multipartite(self, sizes: list[int], label, type, rel, part_attr) -> None:
@@ -6942,13 +6952,11 @@ class Graph:
         if any(size < 0 for size in sizes):
             raise ValueError("Group sizes must be non-negative")
 
-        before = self._begin_compound()
-        self._add_multipartite(sizes, label, type, rel, part_attr)
-        self._end_compound(
+        with self._compound(
             "add_complete_multipartite_graph",
             f"G.add_complete_multipartite_graph(sizes={sizes})",
-            before,
-        )
+        ):
+            self._add_multipartite(sizes, label, type, rel, part_attr)
         return self
 
     def add_turan_graph(
@@ -7039,10 +7047,9 @@ class Graph:
         if not 1 <= r <= n:
             raise ValueError("Number of groups r must be between 1 and n")
 
-        before = self._begin_compound()
-        sizes = [n // r] * (r - n % r) + [n // r + 1] * (n % r)
-        self._add_multipartite(sizes, label, type, rel, part_attr)
-        self._end_compound("add_turan_graph", f"G.add_turan_graph(n={n}, r={r})", before)
+        with self._compound("add_turan_graph", f"G.add_turan_graph(n={n}, r={r})"):
+            sizes = [n // r] * (r - n % r) + [n // r + 1] * (n % r)
+            self._add_multipartite(sizes, label, type, rel, part_attr)
         return self
 
     def add_wheel_graph(
@@ -7130,15 +7137,12 @@ class Graph:
         if n < 4:
             raise ValueError("Wheel must have at least 4 nodes")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(n, label, type)
-        rim = n - 1
-        spokes = ((0, i) for i in range(1, n))
-        ring = ((i, i % rim + 1) for i in range(1, n))
-        self._add_generated_edges(ids, [*spokes, *ring], rel)
-
-        self._end_compound("add_wheel_graph", f"G.add_wheel_graph(n={n})", before)
+        with self._compound("add_wheel_graph", f"G.add_wheel_graph(n={n})"):
+            ids = self._add_generated_nodes(n, label, type)
+            rim = n - 1
+            spokes = ((0, i) for i in range(1, n))
+            ring = ((i, i % rim + 1) for i in range(1, n))
+            self._add_generated_edges(ids, [*spokes, *ring], rel)
         return self
 
     def add_ladder_graph(
@@ -7226,14 +7230,11 @@ class Graph:
         if n < 1:
             raise ValueError("Ladder must have at least 1 rung")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(2 * n, label, type)
-        rails = [(i, i + 1) for i in range(n - 1)] + [(n + i, n + i + 1) for i in range(n - 1)]
-        rungs = [(i, n + i) for i in range(n)]
-        self._add_generated_edges(ids, rails + rungs, rel)
-
-        self._end_compound("add_ladder_graph", f"G.add_ladder_graph(n={n})", before)
+        with self._compound("add_ladder_graph", f"G.add_ladder_graph(n={n})"):
+            ids = self._add_generated_nodes(2 * n, label, type)
+            rails = [(i, i + 1) for i in range(n - 1)] + [(n + i, n + i + 1) for i in range(n - 1)]
+            rungs = [(i, n + i) for i in range(n)]
+            self._add_generated_edges(ids, rails + rungs, rel)
         return self
 
     def add_circulant_graph(
@@ -7339,24 +7340,22 @@ class Graph:
         if any(o % n == 0 for o in offsets):
             raise ValueError("Offsets must not be multiples of n (that would give self-loops)")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(n, label, type)
-        directed = self.is_directed()
-        seen: set[tuple[int, int]] = set()
-        pairs = []
-        for o in offsets:
-            for i in range(n):
-                j = (i + o) % n
-                key = (i, j) if directed else (min(i, j), max(i, j))
-                if key not in seen:
-                    seen.add(key)
-                    pairs.append((i, j))
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound(
-            "add_circulant_graph", f"G.add_circulant_graph(n={n}, offsets={offsets})", before
-        )
+        with self._compound(
+            "add_circulant_graph",
+            f"G.add_circulant_graph(n={n}, offsets={offsets})",
+        ):
+            ids = self._add_generated_nodes(n, label, type)
+            directed = self.is_directed()
+            seen: set[tuple[int, int]] = set()
+            pairs = []
+            for o in offsets:
+                for i in range(n):
+                    j = (i + o) % n
+                    key = (i, j) if directed else (min(i, j), max(i, j))
+                    if key not in seen:
+                        seen.add(key)
+                        pairs.append((i, j))
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_barbell_graph(
@@ -7457,20 +7456,17 @@ class Graph:
         if m2 < 0:
             raise ValueError("Bar length m2 must be non-negative")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(2 * m1 + m2, label, type)
-        second = m1 + m2
-        bells = [
-            (start + i, start + j)
-            for start in (0, second)
-            for i in range(m1)
-            for j in range(i + 1, m1)
-        ]
-        bar = [(i, i + 1) for i in range(m1 - 1, second)]
-        self._add_generated_edges(ids, bells + bar, rel)
-
-        self._end_compound("add_barbell_graph", f"G.add_barbell_graph(m1={m1}, m2={m2})", before)
+        with self._compound("add_barbell_graph", f"G.add_barbell_graph(m1={m1}, m2={m2})"):
+            ids = self._add_generated_nodes(2 * m1 + m2, label, type)
+            second = m1 + m2
+            bells = [
+                (start + i, start + j)
+                for start in (0, second)
+                for i in range(m1)
+                for j in range(i + 1, m1)
+            ]
+            bar = [(i, i + 1) for i in range(m1 - 1, second)]
+            self._add_generated_edges(ids, bells + bar, rel)
         return self
 
     def add_lollipop_graph(
@@ -7555,14 +7551,11 @@ class Graph:
         if n < 0:
             raise ValueError("Stick length n must be non-negative")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(m + n, label, type)
-        clique = [(i, j) for i in range(m) for j in range(i + 1, m)]
-        stick = [(i, i + 1) for i in range(m - 1, m + n - 1)]
-        self._add_generated_edges(ids, clique + stick, rel)
-
-        self._end_compound("add_lollipop_graph", f"G.add_lollipop_graph(m={m}, n={n})", before)
+        with self._compound("add_lollipop_graph", f"G.add_lollipop_graph(m={m}, n={n})"):
+            ids = self._add_generated_nodes(m + n, label, type)
+            clique = [(i, j) for i in range(m) for j in range(i + 1, m)]
+            stick = [(i, i + 1) for i in range(m - 1, m + n - 1)]
+            self._add_generated_edges(ids, clique + stick, rel)
         return self
 
     def add_tadpole_graph(
@@ -7647,14 +7640,11 @@ class Graph:
         if n < 0:
             raise ValueError("Tail length n must be non-negative")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(m + n, label, type)
-        cycle = [(i, (i + 1) % m) for i in range(m)]
-        tail = [(i, i + 1) for i in range(m - 1, m + n - 1)]
-        self._add_generated_edges(ids, cycle + tail, rel)
-
-        self._end_compound("add_tadpole_graph", f"G.add_tadpole_graph(m={m}, n={n})", before)
+        with self._compound("add_tadpole_graph", f"G.add_tadpole_graph(m={m}, n={n})"):
+            ids = self._add_generated_nodes(m + n, label, type)
+            cycle = [(i, (i + 1) % m) for i in range(m)]
+            tail = [(i, i + 1) for i in range(m - 1, m + n - 1)]
+            self._add_generated_edges(ids, cycle + tail, rel)
         return self
 
     def add_windmill_graph(
@@ -7741,16 +7731,13 @@ class Graph:
         if k < 2:
             raise ValueError("Each blade must have at least 2 nodes")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(n * (k - 1) + 1, label, type)
-        pairs = []
-        for blade in range(n):
-            members = [0] + [1 + blade * (k - 1) + i for i in range(k - 1)]
-            pairs += [(a, b) for i, a in enumerate(members) for b in members[i + 1 :]]
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound("add_windmill_graph", f"G.add_windmill_graph(n={n}, k={k})", before)
+        with self._compound("add_windmill_graph", f"G.add_windmill_graph(n={n}, k={k})"):
+            ids = self._add_generated_nodes(n * (k - 1) + 1, label, type)
+            pairs = []
+            for blade in range(n):
+                members = [0] + [1 + blade * (k - 1) + i for i in range(k - 1)]
+                pairs += [(a, b) for i, a in enumerate(members) for b in members[i + 1 :]]
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_hypercube_graph(
@@ -7839,15 +7826,12 @@ class Graph:
         if d < 1:
             raise ValueError("Hypercube dimension d must be at least 1")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(
-            2**d, label, type, label_fn=lambda _, idx: format(idx, f"0{d}b")
-        )
-        pairs = ((i, i | 1 << b) for i in range(2**d) for b in range(d) if not i >> b & 1)
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound("add_hypercube_graph", f"G.add_hypercube_graph(d={d})", before)
+        with self._compound("add_hypercube_graph", f"G.add_hypercube_graph(d={d})"):
+            ids = self._add_generated_nodes(
+                2**d, label, type, label_fn=lambda _, idx: format(idx, f"0{d}b")
+            )
+            pairs = ((i, i | 1 << b) for i in range(2**d) for b in range(d) if not i >> b & 1)
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_grid_graph(
@@ -7954,31 +7938,29 @@ class Graph:
             if len(wrap) != len(dims):
                 raise ValueError("periodic must be a bool or have one entry per dimension")
 
-        before = self._begin_compound()
+        with self._compound(
+            "add_grid_graph",
+            f"G.add_grid_graph(dims={dims}, periodic={periodic})",
+        ):
+            # Row-major strides: the last coordinate changes fastest
+            strides = [math.prod(dims[a + 1 :]) for a in range(len(dims))]
+            total = math.prod(dims)
 
-        # Row-major strides: the last coordinate changes fastest
-        strides = [math.prod(dims[a + 1 :]) for a in range(len(dims))]
-        total = math.prod(dims)
+            def coords(idx: int) -> list[int]:
+                return [idx // stride % size for stride, size in zip(strides, dims)]
 
-        def coords(idx: int) -> list[int]:
-            return [idx // stride % size for stride, size in zip(strides, dims)]
-
-        ids = self._add_generated_nodes(
-            total, label, type, label_fn=lambda _, idx: f"({','.join(map(str, coords(idx)))})"
-        )
-        pairs = []
-        for idx in range(total):
-            point = coords(idx)
-            for axis, (size, stride) in enumerate(zip(dims, strides)):
-                if point[axis] + 1 < size:
-                    pairs.append((idx, idx + stride))
-                elif wrap[axis] and size >= 3:
-                    pairs.append((idx, idx - (size - 1) * stride))
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound(
-            "add_grid_graph", f"G.add_grid_graph(dims={dims}, periodic={periodic})", before
-        )
+            ids = self._add_generated_nodes(
+                total, label, type, label_fn=lambda _, idx: f"({','.join(map(str, coords(idx)))})"
+            )
+            pairs = []
+            for idx in range(total):
+                point = coords(idx)
+                for axis, (size, stride) in enumerate(zip(dims, strides)):
+                    if point[axis] + 1 < size:
+                        pairs.append((idx, idx + stride))
+                    elif wrap[axis] and size >= 3:
+                        pairs.append((idx, idx - (size - 1) * stride))
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_triangular_lattice_graph(
@@ -8081,26 +8063,22 @@ class Graph:
         ]
         index = {cell: idx for idx, cell in enumerate(cells)}
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(
-            len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
-        )
-        pairs = []
-        for r, c in cells:
-            # odd rows sit half a step right: a node touches columns c and c+1 of the next row
-            # from an odd row, and columns c-1 and c from an even one
-            diagonal = (r + 1, c + 1) if r % 2 else (r + 1, c - 1)
-            for other in ((r, c + 1), (r + 1, c), diagonal):
-                if other in index:
-                    pairs.append((index[(r, c)], index[other]))
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound(
+        with self._compound(
             "add_triangular_lattice_graph",
             f"G.add_triangular_lattice_graph(rows={rows}, cols={cols})",
-            before,
-        )
+        ):
+            ids = self._add_generated_nodes(
+                len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
+            )
+            pairs = []
+            for r, c in cells:
+                # odd rows sit half a step right: a node touches columns c and c+1 of the next row
+                # from an odd row, and columns c-1 and c from an even one
+                diagonal = (r + 1, c + 1) if r % 2 else (r + 1, c - 1)
+                for other in ((r, c + 1), (r + 1, c), diagonal):
+                    if other in index:
+                        pairs.append((index[(r, c)], index[other]))
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_hexagonal_lattice_graph(
@@ -8197,23 +8175,19 @@ class Graph:
         ]
         index = {cell: idx for idx, cell in enumerate(cells)}
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(
-            len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
-        )
-        pairs = []
-        for r, c in cells:
-            for other in ((r, c + 1) if (r + c) % 2 == 0 else None, (r + 1, c)):
-                if other in index:
-                    pairs.append((index[(r, c)], index[other]))
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound(
+        with self._compound(
             "add_hexagonal_lattice_graph",
             f"G.add_hexagonal_lattice_graph(rows={rows}, cols={cols})",
-            before,
-        )
+        ):
+            ids = self._add_generated_nodes(
+                len(cells), label, type, label_fn=lambda _, idx: "({},{})".format(*cells[idx])
+            )
+            pairs = []
+            for r, c in cells:
+                for other in ((r, c + 1) if (r + c) % 2 == 0 else None, (r + 1, c)):
+                    if other in index:
+                        pairs.append((index[(r, c)], index[other]))
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_kneser_graph(
@@ -8310,24 +8284,21 @@ class Graph:
         if not 1 <= k <= n:
             raise ValueError("Subset size k must be between 1 and n")
 
-        before = self._begin_compound()
+        with self._compound("add_kneser_graph", f"G.add_kneser_graph(n={n}, k={k})"):
+            import itertools
 
-        import itertools
-
-        subsets = list(itertools.combinations(range(n), k))
-        masks = [sum(1 << x for x in s) for s in subsets]
-        ids = self._add_generated_nodes(
-            len(subsets), label, type, label_fn=lambda _, idx: ",".join(map(str, subsets[idx]))
-        )
-        pairs = (
-            (i, j)
-            for i in range(len(masks))
-            for j in range(i + 1, len(masks))
-            if not masks[i] & masks[j]
-        )
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound("add_kneser_graph", f"G.add_kneser_graph(n={n}, k={k})", before)
+            subsets = list(itertools.combinations(range(n), k))
+            masks = [sum(1 << x for x in s) for s in subsets]
+            ids = self._add_generated_nodes(
+                len(subsets), label, type, label_fn=lambda _, idx: ",".join(map(str, subsets[idx]))
+            )
+            pairs = (
+                (i, j)
+                for i in range(len(masks))
+                for j in range(i + 1, len(masks))
+                if not masks[i] & masks[j]
+            )
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_mycielski_graph(
@@ -8409,13 +8380,10 @@ class Graph:
 
         from edgecase.named_graphs import mycielski_edges
 
-        before = self._begin_compound()
-
-        size, edges = mycielski_edges(n)
-        ids = self._add_generated_nodes(size, label, type)
-        self._add_generated_edges(ids, sorted((min(a, b), max(a, b)) for a, b in edges), rel)
-
-        self._end_compound("add_mycielski_graph", f"G.add_mycielski_graph(n={n})", before)
+        with self._compound("add_mycielski_graph", f"G.add_mycielski_graph(n={n})"):
+            size, edges = mycielski_edges(n)
+            ids = self._add_generated_nodes(size, label, type)
+            self._add_generated_edges(ids, sorted((min(a, b), max(a, b)) for a, b in edges), rel)
         return self
 
     def add_binomial_tree(
@@ -8499,14 +8467,11 @@ class Graph:
         if order < 0:
             raise ValueError("Binomial tree order must be non-negative")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(2**order, label, type)
-        # parent of node i: i with its lowest set bit cleared
-        pairs = ((i & (i - 1), i) for i in range(1, 2**order))
-        self._add_generated_edges(ids, pairs, rel)
-
-        self._end_compound("add_binomial_tree", f"G.add_binomial_tree(order={order})", before)
+        with self._compound("add_binomial_tree", f"G.add_binomial_tree(order={order})"):
+            ids = self._add_generated_nodes(2**order, label, type)
+            # parent of node i: i with its lowest set bit cleared
+            pairs = ((i & (i - 1), i) for i in range(1, 2**order))
+            self._add_generated_edges(ids, pairs, rel)
         return self
 
     def add_full_rary_tree(
@@ -8593,12 +8558,9 @@ class Graph:
         if n < 1:
             raise ValueError("Tree must have at least 1 node")
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(n, label, type)
-        self._add_generated_edges(ids, (((i - 1) // r, i) for i in range(1, n)), rel)
-
-        self._end_compound("add_full_rary_tree", f"G.add_full_rary_tree(r={r}, n={n})", before)
+        with self._compound("add_full_rary_tree", f"G.add_full_rary_tree(r={r}, n={n})"):
+            ids = self._add_generated_nodes(n, label, type)
+            self._add_generated_edges(ids, (((i - 1) // r, i) for i in range(1, n)), rel)
         return self
 
     def add_lcf_graph(
@@ -8696,14 +8658,12 @@ class Graph:
 
         from edgecase.named_graphs import lcf_edges
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(n, label, type)
-        self._add_generated_edges(ids, lcf_edges(n, shifts, repeats), rel)
-
-        self._end_compound(
-            "add_lcf_graph", f"G.add_lcf_graph(n={n}, shifts={shifts}, repeats={repeats})", before
-        )
+        with self._compound(
+            "add_lcf_graph",
+            f"G.add_lcf_graph(n={n}, shifts={shifts}, repeats={repeats})",
+        ):
+            ids = self._add_generated_nodes(n, label, type)
+            self._add_generated_edges(ids, lcf_edges(n, shifts, repeats), rel)
         return self
 
     def add_named_graph(
@@ -8841,12 +8801,9 @@ class Graph:
             )
         spec = NAMED_GRAPHS[key]
 
-        before = self._begin_compound()
-
-        ids = self._add_generated_nodes(spec.n, label, type)
-        self._add_generated_edges(ids, spec.edges, rel)
-
-        self._end_compound("add_named_graph", f'G.add_named_graph("{key}")', before)
+        with self._compound("add_named_graph", f'G.add_named_graph("{key}")'):
+            ids = self._add_generated_nodes(spec.n, label, type)
+            self._add_generated_edges(ids, spec.edges, rel)
         return self
 
     def _copy_generated_graph(self, temp: "Graph") -> None:
@@ -8958,17 +8915,14 @@ class Graph:
         ]
         ```
         """
-        before = self._begin_compound()
-
-        if directed is not None and directed != self.is_directed():
-            # Generate with the requested directedness, then copy in
-            temp = Graph(directed=directed)
-            temp._graph.generate_gnp_graph(n, p, seed)
-            self._copy_generated_graph(temp)
-        else:
-            self._graph.generate_gnp_graph(n, p, seed)
-
-        self._end_compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})", before)
+        with self._compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})"):
+            if directed is not None and directed != self.is_directed():
+                # Generate with the requested directedness, then copy in
+                temp = Graph(directed=directed)
+                temp._graph.generate_gnp_graph(n, p, seed)
+                self._copy_generated_graph(temp)
+            else:
+                self._graph.generate_gnp_graph(n, p, seed)
         return self
 
     def add_gnm_graph(
@@ -9071,17 +9025,14 @@ class Graph:
         directed.count_edges()
         ```
         """
-        before = self._begin_compound()
-
-        if directed is not None and directed != self.is_directed():
-            # Generate with the requested directedness, then copy in
-            temp = Graph(directed=directed)
-            temp._graph.generate_gnm_graph(n, m, seed)
-            self._copy_generated_graph(temp)
-        else:
-            self._graph.generate_gnm_graph(n, m, seed)
-
-        self._end_compound("add_gnm_graph", f"G.add_gnm_graph(n={n}, m={m})", before)
+        with self._compound("add_gnm_graph", f"G.add_gnm_graph(n={n}, m={m})"):
+            if directed is not None and directed != self.is_directed():
+                # Generate with the requested directedness, then copy in
+                temp = Graph(directed=directed)
+                temp._graph.generate_gnm_graph(n, m, seed)
+                self._copy_generated_graph(temp)
+            else:
+                self._graph.generate_gnm_graph(n, m, seed)
         return self
 
     def add_pa_graph(
@@ -9197,11 +9148,8 @@ class Graph:
         tree.get_edges_str_repr()
         ```
         """
-        before = self._begin_compound()
-
-        self._graph.generate_pa_graph(n, m, seed)
-
-        self._end_compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})", before)
+        with self._compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})"):
+            self._graph.generate_pa_graph(n, m, seed)
         return self
 
     def add_smallworld_graph(
@@ -9311,13 +9259,8 @@ class Graph:
         ```
 
         """
-        before = self._begin_compound()
-
-        self._graph.generate_smallworld_graph(n, k, p, seed)
-
-        self._end_compound(
-            "add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})", before
-        )
+        with self._compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})"):
+            self._graph.generate_smallworld_graph(n, k, p, seed)
         return self
 
     def add_johnson_graph(self, n: int, k: int) -> "Graph":
@@ -9461,11 +9404,8 @@ class Graph:
         {johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)}
         ```
         """
-        before = self._begin_compound()
-
-        self._graph.generate_johnson_graph(n, k)
-
-        self._end_compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})", before)
+        with self._compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})"):
+            self._graph.generate_johnson_graph(n, k)
         return self
 
     def add_random_geometric_graph(
@@ -9623,15 +9563,11 @@ class Graph:
         ```
 
         """
-        before = self._begin_compound()
-
-        self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
-
-        self._end_compound(
+        with self._compound(
             "add_random_geometric_graph",
             f"G.add_random_geometric_graph(n={n}, radius={radius}, dim={dim}, p_norm={p_norm})",
-            before,
-        )
+        ):
+            self._graph.generate_random_geometric_graph(n, radius, dim, p_norm, seed)
         return self
 
     def _add_index_graph(
@@ -9749,11 +9685,11 @@ class Graph:
 
         pairs = _random_regular_edges(n, d, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
-            "add_random_regular_graph", f"G.add_random_regular_graph(n={n}, d={d})", before
-        )
+        with self._compound(
+            "add_random_regular_graph",
+            f"G.add_random_regular_graph(n={n}, d={d})",
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_powerlaw_cluster_graph(
@@ -9858,13 +9794,11 @@ class Graph:
 
         pairs = _powerlaw_cluster_edges(n, m, p, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_powerlaw_cluster_graph",
             f"G.add_powerlaw_cluster_graph(n={n}, m={m}, p={p})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_newman_watts_strogatz_graph(
@@ -9969,13 +9903,11 @@ class Graph:
 
         pairs = _nws_edges(n, k, p, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_newman_watts_strogatz_graph",
             f"G.add_newman_watts_strogatz_graph(n={n}, k={k}, p={p})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_connected_watts_strogatz_graph(
@@ -10078,13 +10010,11 @@ class Graph:
 
         pairs = _cws_edges(n, k, p, tries, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_connected_watts_strogatz_graph",
             f"G.add_connected_watts_strogatz_graph(n={n}, k={k}, p={p}, tries={tries})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_extended_barabasi_albert_graph(
@@ -10198,13 +10128,11 @@ class Graph:
 
         pairs = _eba_edges(n, m, p, q, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_extended_barabasi_albert_graph",
             f"G.add_extended_barabasi_albert_graph(n={n}, m={m}, p={p}, q={q})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_dual_barabasi_albert_graph(
@@ -10312,13 +10240,11 @@ class Graph:
 
         pairs = _dba_edges(n, m1, m2, p, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_dual_barabasi_albert_graph",
             f"G.add_dual_barabasi_albert_graph(n={n}, m1={m1}, m2={m2}, p={p})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_random_lobster(
@@ -10417,11 +10343,8 @@ class Graph:
 
         size, pairs = _random_lobster_edges(n, p1, p2, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(size, pairs, label, type, rel)
-        self._end_compound(
-            "add_random_lobster", f"G.add_random_lobster(n={n}, p1={p1}, p2={p2})", before
-        )
+        with self._compound("add_random_lobster", f"G.add_random_lobster(n={n}, p1={p1}, p2={p2})"):
+            self._add_index_graph(size, pairs, label, type, rel)
         return self
 
     def add_random_labeled_tree(
@@ -10515,9 +10438,8 @@ class Graph:
 
         pairs = _random_labeled_tree_edges(n, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound("add_random_labeled_tree", f"G.add_random_labeled_tree(n={n})", before)
+        with self._compound("add_random_labeled_tree", f"G.add_random_labeled_tree(n={n})"):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_random_powerlaw_tree(
@@ -10617,13 +10539,11 @@ class Graph:
 
         pairs = _random_powerlaw_tree_edges(n, gamma, tries, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_random_powerlaw_tree",
             f"G.add_random_powerlaw_tree(n={n}, gamma={gamma}, tries={tries})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_havel_hakimi_graph(
@@ -10725,11 +10645,11 @@ class Graph:
         degree_sequence = list(degree_sequence)
         pairs = _havel_hakimi_edges(degree_sequence)
 
-        before = self._begin_compound()
-        self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
-        self._end_compound(
-            "add_havel_hakimi_graph", f"G.add_havel_hakimi_graph({degree_sequence})", before
-        )
+        with self._compound(
+            "add_havel_hakimi_graph",
+            f"G.add_havel_hakimi_graph({degree_sequence})",
+        ):
+            self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
         return self
 
     def add_directed_configuration_model(
@@ -10831,14 +10751,12 @@ class Graph:
         out_degree_sequence = list(out_degree_sequence)
         pairs = _directed_configuration_edges(in_degree_sequence, out_degree_sequence, seed)
 
-        before = self._begin_compound()
-        n = max(len(in_degree_sequence), len(out_degree_sequence))
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_directed_configuration_model",
             f"G.add_directed_configuration_model({in_degree_sequence}, {out_degree_sequence})",
-            before,
-        )
+        ):
+            n = max(len(in_degree_sequence), len(out_degree_sequence))
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_directed_havel_hakimi_graph(
@@ -10937,14 +10855,12 @@ class Graph:
         out_degree_sequence = list(out_degree_sequence)
         pairs = _directed_havel_hakimi_edges(in_degree_sequence, out_degree_sequence)
 
-        before = self._begin_compound()
-        n = max(len(in_degree_sequence), len(out_degree_sequence))
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_directed_havel_hakimi_graph",
             f"G.add_directed_havel_hakimi_graph({in_degree_sequence}, {out_degree_sequence})",
-            before,
-        )
+        ):
+            n = max(len(in_degree_sequence), len(out_degree_sequence))
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_random_degree_sequence_graph(
@@ -11051,13 +10967,11 @@ class Graph:
         degree_sequence = list(degree_sequence)
         pairs = _random_degree_sequence_edges(degree_sequence, tries, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_random_degree_sequence_graph",
             f"G.add_random_degree_sequence_graph({degree_sequence}, tries={tries})",
-            before,
-        )
+        ):
+            self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
         return self
 
     def add_joint_degree_graph(
@@ -11176,11 +11090,8 @@ class Graph:
 
         n, pairs = _joint_degree_edges(joint_degrees, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
-            "add_joint_degree_graph", f"G.add_joint_degree_graph({joint_degrees})", before
-        )
+        with self._compound("add_joint_degree_graph", f"G.add_joint_degree_graph({joint_degrees})"):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_gn_graph(
@@ -11286,10 +11197,9 @@ class Graph:
         table = None if kernel is None else [float(kernel(d)) for d in range(max(n, 2))]
         pairs = _gn_edges(n, table, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
         kernel_str = "" if kernel is None else ", kernel=..."
-        self._end_compound("add_gn_graph", f"G.add_gn_graph(n={n}{kernel_str})", before)
+        with self._compound("add_gn_graph", f"G.add_gn_graph(n={n}{kernel_str})"):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_gnr_graph(
@@ -11390,9 +11300,8 @@ class Graph:
 
         pairs = _gnr_edges(n, p, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound("add_gnr_graph", f"G.add_gnr_graph(n={n}, p={p})", before)
+        with self._compound("add_gnr_graph", f"G.add_gnr_graph(n={n}, p={p})"):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_gnc_graph(
@@ -11484,9 +11393,8 @@ class Graph:
 
         pairs = _gnc_edges(n, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound("add_gnc_graph", f"G.add_gnc_graph(n={n})", before)
+        with self._compound("add_gnc_graph", f"G.add_gnc_graph(n={n})"):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_scale_free_graph(
@@ -11608,14 +11516,12 @@ class Graph:
 
         pairs = _scale_free_edges(n, alpha, beta, gamma, delta_in, delta_out, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_scale_free_graph",
             f"G.add_scale_free_graph(n={n}, alpha={alpha}, beta={beta}, gamma={gamma}, "
             f"delta_in={delta_in}, delta_out={delta_out})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_random_k_out_graph(
@@ -11725,13 +11631,11 @@ class Graph:
 
         pairs = _random_k_out_edges(n, k, alpha, self_loops, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel)
-        self._end_compound(
+        with self._compound(
             "add_random_k_out_graph",
             f"G.add_random_k_out_graph(n={n}, k={k}, alpha={alpha}, self_loops={self_loops})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
         return self
 
     def add_waxman_graph(
@@ -11850,14 +11754,14 @@ class Graph:
 
         positions, pairs = _waxman_edges(n, beta, alpha, L, tuple(domain), seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel, self._group_attrs(positions, pos_attr))
-        self._end_compound(
+        with self._compound(
             "add_waxman_graph",
             f"G.add_waxman_graph(n={n}, beta={beta}, alpha={alpha}, L={L}, "
             f"domain={tuple(domain)})",
-            before,
-        )
+        ):
+            self._add_index_graph(
+                n, pairs, label, type, rel, self._group_attrs(positions, pos_attr)
+            )
         return self
 
     def add_soft_random_geometric_graph(
@@ -11974,15 +11878,15 @@ class Graph:
 
         positions, pairs = _soft_rgg_edges(n, radius, dim, p_norm, p_dist, seed)
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel, self._group_attrs(positions, pos_attr))
         p_dist_str = "" if p_dist is None else ", p_dist=..."
-        self._end_compound(
+        with self._compound(
             "add_soft_random_geometric_graph",
             f"G.add_soft_random_geometric_graph(n={n}, radius={radius}, dim={dim}, "
             f"p_norm={p_norm}{p_dist_str})",
-            before,
-        )
+        ):
+            self._add_index_graph(
+                n, pairs, label, type, rel, self._group_attrs(positions, pos_attr)
+            )
         return self
 
     def add_geographical_threshold_graph(
@@ -12120,15 +12024,13 @@ class Graph:
                 for pos, w in zip(positions, weights)
             ]
 
-        before = self._begin_compound()
-        self._add_index_graph(n, pairs, label, type, rel, node_attrs)
         p_dist_str = "" if p_dist is None else ", p_dist=..."
-        self._end_compound(
+        with self._compound(
             "add_geographical_threshold_graph",
             f"G.add_geographical_threshold_graph(n={n}, theta={theta}, dim={dim}, "
             f"p_norm={p_norm}{p_dist_str})",
-            before,
-        )
+        ):
+            self._add_index_graph(n, pairs, label, type, rel, node_attrs)
         return self
 
     def add_navigable_small_world_graph(
@@ -12265,13 +12167,11 @@ class Graph:
                 for index in range(n**dim)
             ]
 
-        before = self._begin_compound()
-        self._add_index_graph(n**dim, pairs, label, type, rel, node_attrs)
-        self._end_compound(
+        with self._compound(
             "add_navigable_small_world_graph",
             f"G.add_navigable_small_world_graph(n={n}, p={p}, q={q}, r={r}, dim={dim})",
-            before,
-        )
+        ):
+            self._add_index_graph(n**dim, pairs, label, type, rel, node_attrs)
         return self
 
     def _add_community_graph(
@@ -12381,17 +12281,13 @@ class Graph:
         if num_cliques < 1 or clique_size < 1:
             raise ValueError("num_cliques and clique_size must both be at least 1")
 
-        before = self._begin_compound()
-
-        groups = [c for c in range(num_cliques) for _ in range(clique_size)]
-        pairs = self._clique_pairs(num_cliques, clique_size)
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_caveman_graph",
             f"G.add_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size})",
-            before,
-        )
+        ):
+            groups = [c for c in range(num_cliques) for _ in range(clique_size)]
+            pairs = self._clique_pairs(num_cliques, clique_size)
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_connected_caveman_graph(
@@ -12495,23 +12391,19 @@ class Graph:
         if clique_size < 3:
             raise ValueError("Each clique of a connected caveman graph needs at least 3 nodes")
 
-        before = self._begin_compound()
-
-        k = clique_size
-        n = num_cliques * k
-        groups = [c for c in range(num_cliques) for _ in range(k)]
-        # each clique's first edge (s, s+1) becomes the ring edge (s, s-1)
-        pairs = [
-            (a, (a - 1) % n) if (a % k, b % k) == (0, 1) else (a, b)
-            for a, b in self._clique_pairs(num_cliques, k)
-        ]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_connected_caveman_graph",
             f"G.add_connected_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size})",
-            before,
-        )
+        ):
+            k = clique_size
+            n = num_cliques * k
+            groups = [c for c in range(num_cliques) for _ in range(k)]
+            # each clique's first edge (s, s+1) becomes the ring edge (s, s-1)
+            pairs = [
+                (a, (a - 1) % n) if (a % k, b % k) == (0, 1) else (a, b)
+                for a, b in self._clique_pairs(num_cliques, k)
+            ]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_ring_of_cliques(
@@ -12608,20 +12500,16 @@ class Graph:
         if clique_size < 2:
             raise ValueError("Each clique in a ring of cliques needs at least 2 nodes")
 
-        before = self._begin_compound()
-
-        k = clique_size
-        n = num_cliques * k
-        groups = [c for c in range(num_cliques) for _ in range(k)]
-        pairs = self._clique_pairs(num_cliques, k)
-        pairs += [(c * k + 1, ((c + 1) * k) % n) for c in range(num_cliques)]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_ring_of_cliques",
             f"G.add_ring_of_cliques(num_cliques={num_cliques}, clique_size={clique_size})",
-            before,
-        )
+        ):
+            k = clique_size
+            n = num_cliques * k
+            groups = [c for c in range(num_cliques) for _ in range(k)]
+            pairs = self._clique_pairs(num_cliques, k)
+            pairs += [(c * k + 1, ((c + 1) * k) % n) for c in range(num_cliques)]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_relaxed_caveman_graph(
@@ -12736,17 +12624,13 @@ class Graph:
 
         pairs = _relaxed_caveman_edges(num_cliques, clique_size, p, seed)
 
-        before = self._begin_compound()
-
-        groups = [c for c in range(num_cliques) for _ in range(clique_size)]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_relaxed_caveman_graph",
             f"G.add_relaxed_caveman_graph(num_cliques={num_cliques}, clique_size={clique_size}, "
             f"p={p})",
-            before,
-        )
+        ):
+            groups = [c for c in range(num_cliques) for _ in range(clique_size)]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_planted_partition_graph(
@@ -12869,17 +12753,13 @@ class Graph:
         sizes = [group_size] * num_groups
         pairs = _random_partition_edges(sizes, p_in, p_out, self.is_directed(), seed)
 
-        before = self._begin_compound()
-
-        groups = [c for c in range(num_groups) for _ in range(group_size)]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_planted_partition_graph",
             f"G.add_planted_partition_graph(num_groups={num_groups}, group_size={group_size}, "
             f"p_in={p_in}, p_out={p_out})",
-            before,
-        )
+        ):
+            groups = [c for c in range(num_groups) for _ in range(group_size)]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_random_partition_graph(
@@ -12994,16 +12874,12 @@ class Graph:
 
         pairs = _random_partition_edges(sizes, p_in, p_out, self.is_directed(), seed)
 
-        before = self._begin_compound()
-
-        groups = [c for c, size in enumerate(sizes) for _ in range(size)]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_random_partition_graph",
             f"G.add_random_partition_graph(sizes={sizes}, p_in={p_in}, p_out={p_out})",
-            before,
-        )
+        ):
+            groups = [c for c, size in enumerate(sizes) for _ in range(size)]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_gaussian_random_partition_graph(
@@ -13122,17 +12998,13 @@ class Graph:
             n, mean_size, shape, p_in, p_out, self.is_directed(), seed
         )
 
-        before = self._begin_compound()
-
-        groups = [c for c, size in enumerate(sizes) for _ in range(size)]
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_gaussian_random_partition_graph",
             f"G.add_gaussian_random_partition_graph(n={n}, mean_size={mean_size}, "
             f"shape={shape}, p_in={p_in}, p_out={p_out})",
-            before,
-        )
+        ):
+            groups = [c for c, size in enumerate(sizes) for _ in range(size)]
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def add_lfr_graph(
@@ -13298,16 +13170,12 @@ class Graph:
             n, mu, average_degree, max_degree, tau1, tau2, min_community, max_community, seed
         )
 
-        before = self._begin_compound()
-
-        self._add_community_graph(groups, pairs, label, type, rel, community_attr)
-
-        self._end_compound(
+        with self._compound(
             "add_lfr_graph",
             f"G.add_lfr_graph(n={n}, mu={mu}, average_degree={average_degree}, "
             f"max_degree={max_degree}, tau1={tau1}, tau2={tau2})",
-            before,
-        )
+        ):
+            self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
     def configuration_model(
@@ -21585,20 +21453,19 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection: replace it, or with add_to_selection=True keep it and add to it
-        self._recording_depth += 1
-        if not add_to_selection:
-            self.clear_selection()
+        with self._no_recording():
+            if not add_to_selection:
+                self.clear_selection()
 
-        if add_to_selection:
-            nodes_to_select = all_visited
-            if exclude_unmatched:
-                nodes_to_select = {n for n in all_visited if conditions(n)}
-        else:
-            nodes_to_select = final_nodes
+            if add_to_selection:
+                nodes_to_select = all_visited
+                if exclude_unmatched:
+                    nodes_to_select = {n for n in all_visited if conditions(n)}
+            else:
+                nodes_to_select = final_nodes
 
-        if nodes_to_select:
-            self.select_nodes_by_id(list(nodes_to_select))
-        self._recording_depth -= 1
+            if nodes_to_select:
+                self.select_nodes_by_id(list(nodes_to_select))
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
@@ -21786,20 +21653,19 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection: replace it, or with add_to_selection=True keep it and add to it
-        self._recording_depth += 1
-        if not add_to_selection:
-            self.clear_selection()
+        with self._no_recording():
+            if not add_to_selection:
+                self.clear_selection()
 
-        if add_to_selection:
-            nodes_to_select = all_visited
-            if exclude_unmatched:
-                nodes_to_select = {n for n in all_visited if conditions(n)}
-        else:
-            nodes_to_select = final_nodes
+            if add_to_selection:
+                nodes_to_select = all_visited
+                if exclude_unmatched:
+                    nodes_to_select = {n for n in all_visited if conditions(n)}
+            else:
+                nodes_to_select = final_nodes
 
-        if nodes_to_select:
-            self.select_nodes_by_id(list(nodes_to_select))
-        self._recording_depth -= 1
+            if nodes_to_select:
+                self.select_nodes_by_id(list(nodes_to_select))
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
@@ -26800,11 +26666,8 @@ class Graph:
             if nodes is None
             else [self._resolve_node_id(n, auto_create=False) for n in nodes]
         )
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             cliques = self.find_cliques()
-        finally:
-            self._recording_depth -= 1
         out = dict.fromkeys(ids, 0)
         for c in cliques:
             for n in c:
@@ -26963,11 +26826,8 @@ class Graph:
         sorted(cg.get_label_from_id(n) for n in cg.get_node_ids()), cg.count_edges()
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             cliques = [sorted(c) for c in self.find_cliques()]
-        finally:
-            self._recording_depth -= 1
         labels = ["{" + ",".join(self._node_label(n) for n in c) + "}" for c in cliques]
         result = Graph()
         if cliques:
@@ -34203,11 +34063,8 @@ class Graph:
         """
         if self.is_directed() != other.is_directed():
             raise ValueError("full_join() requires graphs with the same directedness")
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             result = self.disjoint_union(other)
-        finally:
-            self._recording_depth -= 1
         mine = self.get_node_ids(limit=None)
         offset = max(mine, default=0)
         theirs = [n + offset for n in other.get_node_ids(limit=None)]
@@ -35908,11 +35765,8 @@ class Graph:
         )
         nodes = [n for n, _ in within if center or n != node_id]
 
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             result = self.subgraph(nodes)
-        finally:
-            self._recording_depth -= 1
         result._record_step(
             KIND_BUILD_NODES,
             "ego_graph",
@@ -36176,35 +36030,31 @@ class Graph:
         """
         selected = list(self.get_selected_node_ids())
 
-        before = self._begin_compound()
-
-        # Create edges between all pairs
-        for i, source in enumerate(selected):
-            for target in selected[i + 1 :]:
-                # Check if edge already exists
-                has_edge = any(
-                    (s == source and t == target)
-                    or (not self.is_directed() and s == target and t == source)
-                    for _, s, t in self.get_edges_as_tuples()
-                )
-
-                if not has_edge:
-                    self.add_edge(source, target, **edge_attributes)
-
-                # For directed graphs, add reverse edge
-                if self.is_directed():
-                    has_reverse = any(
-                        s == target and t == source for _, s, t in self.get_edges_as_tuples()
-                    )
-                    if not has_reverse:
-                        self.add_edge(target, source, **edge_attributes)
-
-        self._end_compound(
+        with self._compound(
             "fully_connect_nodes_ws",
             f"G.fully_connect_nodes_ws()  # {len(selected)} nodes",
-            before,
             kind=KIND_TRANSFORM,
-        )
+        ):
+            # Create edges between all pairs
+            for i, source in enumerate(selected):
+                for target in selected[i + 1 :]:
+                    # Check if edge already exists
+                    has_edge = any(
+                        (s == source and t == target)
+                        or (not self.is_directed() and s == target and t == source)
+                        for _, s, t in self.get_edges_as_tuples()
+                    )
+
+                    if not has_edge:
+                        self.add_edge(source, target, **edge_attributes)
+
+                    # For directed graphs, add reverse edge
+                    if self.is_directed():
+                        has_reverse = any(
+                            s == target and t == source for _, s, t in self.get_edges_as_tuples()
+                        )
+                        if not has_reverse:
+                            self.add_edge(target, source, **edge_attributes)
 
         return self
 
@@ -36326,15 +36176,13 @@ class Graph:
                     edges_to_add.append((target, source))
 
         # Add reverse edges
-        before = self._begin_compound()
-        for source, target in edges_to_add:
-            self.add_edge(source, target, **edge_attributes)
-        self._end_compound(
+        with self._compound(
             "add_reverse_edges_ws",
             f"G.add_reverse_edges_ws()  # {len(edges_to_add)} added",
-            before,
             kind=KIND_TRANSFORM,
-        )
+        ):
+            for source, target in edges_to_add:
+                self.add_edge(source, target, **edge_attributes)
 
         return self
 
@@ -46834,14 +46682,11 @@ class Graph:
         sum(len(paths) for row in everything.values() for paths in row.values())
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             result = {
                 s: self.single_source_all_shortest_paths(s, weighted)
                 for s in sorted(self.get_node_ids(limit=None))
             }
-        finally:
-            self._recording_depth -= 1
         if self._recording_depth == 0:
             self._record_step(
                 KIND_QUERY,
@@ -47405,9 +47250,8 @@ class Graph:
 
         # Create dict mapping node_id -> position in traversal
         positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
-        self._recording_depth += 1
-        self.set_node_attrs(attr_name, positions)
-        self._recording_depth -= 1
+        with self._no_recording():
+            self.set_node_attrs(attr_name, positions)
 
         # Track computation
         params = {"start": start}
@@ -47539,9 +47383,8 @@ class Graph:
 
         # Create dict mapping node_id -> position in traversal
         positions = {node_id: idx for idx, node_id in enumerate(visited_order)}
-        self._recording_depth += 1
-        self.set_node_attrs(attr_name, positions)
-        self._recording_depth -= 1
+        with self._no_recording():
+            self.set_node_attrs(attr_name, positions)
 
         # Track computation
         params = {"start": start}
@@ -47850,11 +47693,8 @@ class Graph:
         {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.bfs_predecessors("A").items()}
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
-        finally:
-            self._recording_depth -= 1
         return {c: p for p, c in edges}
 
     def bfs_successors(
@@ -47905,11 +47745,8 @@ class Graph:
          for p, cs in g.bfs_successors("A").items()}
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
-        finally:
-            self._recording_depth -= 1
         out: dict[int, list[int]] = {}
         for p, c in edges:
             out.setdefault(p, []).append(c)
@@ -47967,11 +47804,8 @@ class Graph:
         {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.dfs_predecessors("A").items()}
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             edges = self.dfs_edges(source, depth_limit=depth_limit, mode=mode)
-        finally:
-            self._recording_depth -= 1
         return {c: p for p, c in edges}
 
     def dfs_successors(
@@ -48023,11 +47857,8 @@ class Graph:
          for p, cs in g.dfs_successors("A").items()}
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             edges = self.dfs_edges(source, depth_limit=depth_limit, mode=mode)
-        finally:
-            self._recording_depth -= 1
         out: dict[int, list[int]] = {}
         for p, c in edges:
             out.setdefault(p, []).append(c)
@@ -48080,11 +47911,8 @@ class Graph:
         sorted(g.get_label_from_id(n) for n in g.descendants_at_distance("A", 2))
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             layers = self.bfs_layers(source, mode=mode)
-        finally:
-            self._recording_depth -= 1
         result = set(layers[distance]) if 0 <= distance < len(layers) else set()
         if self._recording_depth == 0:
             self._record_step(
@@ -50318,18 +50146,17 @@ class Graph:
         labels = [[self._node_label(n) for n in comp] for comp in components]
 
         result = Graph(directed=True)
-        result._recording_depth += 1
-        ids = []
-        for members in labels:
-            name = members[0] if len(members) == 1 else "{" + ",".join(members) + "}"
-            result.add_node(name)
-            nid = result.get_id_from_label(name)
-            result._graph.set_node_attr(nid, "members", members)
-            result._graph.set_node_attr(nid, "size", len(members))
-            ids.append(nid)
-        if edges:
-            result.add_edges_by_id([(ids[a], ids[b]) for a, b in edges])
-        result._recording_depth -= 1
+        with result._no_recording():
+            ids = []
+            for members in labels:
+                name = members[0] if len(members) == 1 else "{" + ",".join(members) + "}"
+                result.add_node(name)
+                nid = result.get_id_from_label(name)
+                result._graph.set_node_attr(nid, "members", members)
+                result._graph.set_node_attr(nid, "size", len(members))
+                ids.append(nid)
+            if edges:
+                result.add_edges_by_id([(ids[a], ids[b]) for a, b in edges])
         result._record_step(
             KIND_BUILD_NODES,
             "condensation",
@@ -50426,11 +50253,8 @@ class Graph:
         self._require_dag("antichains")
         ids, succ, _ = self._arc_sets()
         if topo_order is None:
-            self._recording_depth += 1
-            try:
+            with self._no_recording():
                 order = list(self.get_topological_sort_order())
-            finally:
-                self._recording_depth -= 1
         else:
             order = [self._resolve_node_id(n, auto_create=False) for n in topo_order]
         reach: dict[int, set[int]] = {}
@@ -50884,14 +50708,11 @@ class Graph:
                 for u, v in pairs
             ]
         result = {}
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             for u, v in todo:
                 found = self.lowest_common_ancestor(u, v)
                 if found is not None:
                     result[(u, v)] = found
-        finally:
-            self._recording_depth -= 1
         if self._recording_depth == 0:
             self._record_step(
                 KIND_QUERY,
@@ -56875,11 +56696,8 @@ class Graph:
         return self._graph.is_strongly_connected()
 
     def _condensation_parts(self):
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             sccs = self.strongly_connected_components()
-        finally:
-            self._recording_depth -= 1
         comp = {n: i for i, c in enumerate(sccs) for n in c}
         succ = [set() for _ in sccs]
         for _, s, t in self.get_edges_as_tuples():
@@ -56980,11 +56798,8 @@ class Graph:
         cycle.is_attracting_component()
         ```
         """
-        self._recording_depth += 1
-        try:
+        with self._no_recording():
             comps = self.attracting_components()
-        finally:
-            self._recording_depth -= 1
         return len(comps) == 1 and len(comps[0]) == self.count_nodes()
 
     def is_semiconnected(self) -> bool:
