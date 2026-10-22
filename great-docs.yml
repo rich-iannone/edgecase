@@ -168,10 +168,65 @@ reference:
         - Graph.add_gaussian_random_partition_graph
         - Graph.add_lfr_graph
 
+    - title: Random Graph Models
+      desc: Random regular, small-world, preferential attachment, and random tree generators
+      contents:
+        - Graph.add_random_regular_graph
+        - Graph.add_powerlaw_cluster_graph
+        - Graph.add_newman_watts_strogatz_graph
+        - Graph.add_connected_watts_strogatz_graph
+        - Graph.add_extended_barabasi_albert_graph
+        - Graph.add_dual_barabasi_albert_graph
+        - Graph.add_random_lobster
+        - Graph.add_random_labeled_tree
+        - Graph.add_random_powerlaw_tree
+
+    - title: Degree Sequence Graphs
+      desc: Generators that realize a given degree sequence or joint degree matrix
+      contents:
+        - Graph.add_havel_hakimi_graph
+        - Graph.add_random_degree_sequence_graph
+        - Graph.add_directed_configuration_model
+        - Graph.add_directed_havel_hakimi_graph
+        - Graph.add_joint_degree_graph
+
+    - title: Directed Growth Models
+      desc: Growing networks and other generators of directed graphs
+      contents:
+        - Graph.add_gn_graph
+        - Graph.add_gnr_graph
+        - Graph.add_gnc_graph
+        - Graph.add_scale_free_graph
+        - Graph.add_random_k_out_graph
+
+    - title: Geometric Graphs
+      desc: Generators that place nodes in space and join them by distance
+      contents:
+        - Graph.add_waxman_graph
+        - Graph.add_soft_random_geometric_graph
+        - Graph.add_geographical_threshold_graph
+        - Graph.add_navigable_small_world_graph
+
     - title: Graph Information
       desc: Methods for getting information about the graph
       contents:
         - Graph.describe
+
+    - title: Graph Layout
+      desc: Methods that give every node an (x, y) position, stored as a node attribute
+      contents:
+        - Graph.layout_circular
+        - Graph.layout_shell
+        - Graph.layout_random
+        - Graph.layout_spiral
+        - Graph.layout_bipartite
+        - Graph.layout_multipartite
+        - Graph.layout_bfs
+        - Graph.layout_spectral
+        - Graph.layout_spring
+        - Graph.layout_kamada_kawai
+        - Graph.layout_forceatlas2
+        - Graph.layout_arf
 
     #- title: Graph Rendering
     #  desc: Methods for displaying and visualizing the graph
@@ -980,6 +1035,18 @@ reference:
         - to_sif
         - from_tsv_edge_list
         - to_tsv_edge_list
+        - from_gexf
+        - to_gexf
+        - from_node_link
+        - to_node_link
+        - from_cytoscape
+        - to_cytoscape
+        - from_pajek
+        - to_pajek
+        - from_graph6
+        - to_graph6
+        - from_sparse6
+        - to_sparse6
 
     - title: Multiplex Networks
       desc: Multi-layer network container and cross-layer algorithms
