@@ -1,0 +1,70 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Havel-Hakimi graph</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<path d="M 140.90 59.57 L 170.30 80.93" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 135.40 63.56 L 157.80 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 128.60 63.56 L 106.20 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 175.81 97.86 L 164.59 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 99.41 132.44 L 88.19 97.86" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 388.90 59.57 L 418.30 80.93" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 383.40 63.56 L 405.80 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 376.60 63.56 L 354.20 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 418.30 93.87 L 359.70 136.43" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 416.20 87.40 L 343.80 87.40" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 400.30 136.43 L 341.70 93.87" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 636.90 59.57 L 666.30 80.93" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 631.40 63.56 L 653.80 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 624.60 63.56 L 602.20 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 619.10 59.57 L 589.70 80.93" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 671.81 97.86 L 660.59 132.44" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 666.30 93.87 L 607.70 136.43" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 648.30 136.43 L 589.70 93.87" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="132.0" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="179.2" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="161.2" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="102.8" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="84.8" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="380.0" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="427.2" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="409.2" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="350.8" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="332.8" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="628.0" cy="53.1" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="675.2" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="657.2" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="598.8" cy="142.9" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="580.8" cy="87.4" r="11" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<rect x="123.5" y="27.1" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="188.2" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="166.7" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="80.3" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="58.8" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="371.5" y="27.1" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="436.2" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="414.7" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="328.3" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="306.8" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="619.5" y="27.1" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="684.2" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="662.7" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="576.3" y="149.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="554.8" y="79.4" width="17.0" height="16.0" rx="8.0" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<text x="132.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">degree_sequence=[3, 2, 2, 2, 1]</text>
+<text x="380.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">degree_sequence=[3, 3, 2, 2, 2]</text>
+<text x="628.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">degree_sequence=[4, 3, 3, 2, 2]</text>
+<text x="132.0" y="35.1" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="196.7" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="175.2" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="88.8" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="67.3" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">1</text>
+<text x="380.0" y="35.1" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="444.7" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="423.2" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="336.8" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="315.3" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="628.0" y="35.1" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">4</text>
+<text x="692.7" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="671.2" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">3</text>
+<text x="584.8" y="157.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+<text x="563.3" y="87.4" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1.0">2</text>
+</svg>
