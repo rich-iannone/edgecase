@@ -960,7 +960,7 @@ def shift(coords: dict[str, tuple[float, float]], dx: float, dy: float = 0) -> d
 Family = Literal[
     "mutation", "selection", "traversal", "paths", "node-metrics", "graph-metrics",
     "similarity", "communities", "predicates", "connectivity", "substructures",
-    "generators", "data", "transforms", "set-ops", "diffusion", "enrichment",
+    "generators", "data", "transforms", "set-ops", "diffusion", "enrichment", "layout",
 ]
 
 
