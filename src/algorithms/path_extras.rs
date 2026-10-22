@@ -417,9 +417,14 @@ pub struct ShortestSimplePaths {
     exhausted: bool,
 }
 
-#[derive(Clone, Copy, PartialEq, PartialOrd)]
+#[derive(Clone, Copy, PartialEq)]
 struct OrdF64(f64);
 impl Eq for OrdF64 {}
+impl PartialOrd for OrdF64 {
+    fn partial_cmp(&self, o: &Self) -> Option<Ordering> {
+        Some(self.cmp(o))
+    }
+}
 impl Ord for OrdF64 {
     fn cmp(&self, o: &Self) -> Ordering {
         self.0.partial_cmp(&o.0).unwrap_or(Ordering::Equal)
