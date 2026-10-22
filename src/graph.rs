@@ -500,6 +500,88 @@ impl Graph {
         self.next_node_id
     }
 
+    /// A mark for `_discard_additions()`: the lengths of the node and edge creation logs and
+    /// both ID counters
+    #[pyo3(name = "_addition_mark")]
+    pub fn addition_mark(&self) -> (usize, usize, u64, u64) {
+        (
+            self.node_creation_order.len(),
+            self.edge_creation_order.len(),
+            self.next_node_id,
+            self.next_edge_id,
+        )
+    }
+
+    /// Remove every node and edge added since `_addition_mark()` returned `mark` (with the edges
+    /// touching those nodes) and restore the ID counters, in one pass. Deletions made since the
+    /// mark are not undone.
+    #[pyo3(name = "_discard_additions")]
+    pub fn discard_additions(&mut self, mark: (usize, usize, u64, u64)) {
+        let (node_len, edge_len, next_node, next_edge) = mark;
+        let node_len = node_len.min(self.node_creation_order.len());
+        let edge_len = edge_len.min(self.edge_creation_order.len());
+        let new_nodes: FxHashSet<u64> = self.node_creation_order[node_len..].iter().copied().collect();
+        let new_edges: FxHashSet<u64> = self.edge_creation_order[edge_len..].iter().copied().collect();
+
+        let mut removed: Vec<Edge> = Vec::new();
+        let mut kept: Vec<Edge> = Vec::with_capacity(self.edges.len());
+        for edge in self.edges.drain(..) {
+            if new_edges.contains(&edge.id)
+                || new_nodes.contains(&edge.source)
+                || new_nodes.contains(&edge.target)
+            {
+                removed.push(edge);
+            } else {
+                kept.push(edge);
+            }
+        }
+        self.edges = kept;
+
+        // Each added edge appended its endpoints to the adjacency lists, so taking out the last
+        // occurrence, newest edge first, restores the lists of the surviving nodes exactly
+        fn drop_last(list: Option<&mut Vec<u64>>, value: u64) {
+            if let Some(list) = list {
+                if let Some(pos) = list.iter().rposition(|&n| n == value) {
+                    list.remove(pos);
+                }
+            }
+        }
+        for edge in removed.iter().rev() {
+            if !new_nodes.contains(&edge.source) {
+                drop_last(self.adjacency_list.get_mut(&edge.source), edge.target);
+            }
+            if !self.directed && !new_nodes.contains(&edge.target) {
+                drop_last(self.adjacency_list.get_mut(&edge.target), edge.source);
+            }
+            self.selected_edges.remove(&edge.id);
+        }
+
+        for id in &new_nodes {
+            if let Some(node) = self.nodes.remove(id) {
+                if let Some(label) = node.label {
+                    if self.node_labels.get(&label) == Some(id) {
+                        self.node_labels.remove(&label);
+                    }
+                }
+            }
+            self.adjacency_list.remove(id);
+            self.selected_nodes.remove(id);
+        }
+
+        self.node_creation_order.truncate(node_len);
+        self.edge_creation_order.truncate(edge_len);
+        // Every ID handed out since the mark is gone again, so the counters can rewind
+        if !self.nodes.keys().any(|&id| id >= next_node) {
+            self.next_node_id = next_node;
+            self.deleted_node_ids.retain(|&id| id < next_node);
+        }
+        if !self.edges.iter().any(|e| e.id >= next_edge) {
+            self.next_edge_id = next_edge;
+            self.deleted_edge_ids.retain(|&id| id < next_edge);
+        }
+        self.invalidate_edge_index();
+    }
+
     /// Rename nodes atomically.
     ///
     /// `mapping` pairs node IDs with their new labels. Every ID must exist, and after renaming
