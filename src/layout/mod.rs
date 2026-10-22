@@ -1,4 +1,5 @@
 // Layout algorithms for graph visualization
+pub mod algorithms;
 pub mod force_directed;
 
 pub use force_directed::{ForceDirectedLayout, LayoutConfig};
