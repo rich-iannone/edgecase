@@ -280,6 +280,31 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::generators::relaxed_caveman_edges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::generators::lfr_benchmark, m)?)?;
 
+    // Random graph models (growth, degree sequence, directed, geometric)
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_regular_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::powerlaw_cluster_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::newman_watts_strogatz_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::connected_watts_strogatz_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::extended_barabasi_albert_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::dual_barabasi_albert_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_lobster_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_labeled_tree_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_powerlaw_tree_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::havel_hakimi_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::directed_configuration_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::directed_havel_hakimi_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_degree_sequence_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::joint_degree_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::gn_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::gnr_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::gnc_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::scale_free_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::random_k_out_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::waxman_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::soft_random_geometric_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::geographical_threshold_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::random_models::navigable_small_world_edges, m)?)?;
+
     // Network motif census
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_census, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_significance, m)?)?;
@@ -312,6 +337,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::algorithms::spring_layout, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::algorithms::kamada_kawai_layout, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::algorithms::spectral_layout, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::algorithms::forceatlas2_layout, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::algorithms::arf_layout, m)?)?;
 
     Ok(())
 }
