@@ -227,6 +227,7 @@ reference:
         - Graph.layout_kamada_kawai
         - Graph.layout_forceatlas2
         - Graph.layout_arf
+        - Graph.rescale_layout
 
     #- title: Graph Rendering
     #  desc: Methods for displaying and visualizing the graph
@@ -963,6 +964,7 @@ reference:
         - Graph.directed_laplacian_matrix
         - Graph.modularity_matrix
         - Graph.bethe_hessian_matrix
+        - Graph.attr_matrix
         - Graph.modularity_spectrum
         - Graph.bethe_hessian_spectrum
         - Graph.algebraic_connectivity
@@ -992,13 +994,16 @@ reference:
         - ca_grqc
         - celegans
         - condmat
+        - davis_southern_women
         - dolphins
         - enron
+        - florentine_families
         - football
         - gnutella
         - internet
         - jazz
         - karate_club
+        - les_miserables
         - pgp
         - physics
         - polbooks
@@ -1063,6 +1068,10 @@ reference:
         - from_adjacency_data
         - to_tree_data
         - from_tree_data
+        - to_dict_of_dicts
+        - from_dict_of_dicts
+        - to_dict_of_lists
+        - from_dict_of_lists
 
     - title: Multiplex Networks
       desc: Multi-layer network container and cross-layer algorithms
