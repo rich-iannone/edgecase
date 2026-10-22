@@ -8,6 +8,9 @@
 //! - `gaussian_random_partition`: block sizes drawn from a normal distribution
 //! - `relaxed_caveman_edges`: disjoint cliques with each edge rewired with probability p
 //! - `lfr_benchmark`: the Lancichinetti-Fortunato-Radicchi benchmark
+//!
+//! The random, degree-sequence, directed, and geometric models live in
+//! `random_models`, which shares the helpers below.
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
@@ -15,16 +18,16 @@ use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
 use rustc_hash::{FxHashMap, FxHashSet};
 
-type EdgeList = Vec<(usize, usize)>;
+pub(crate) type EdgeList = Vec<(usize, usize)>;
 
-fn make_rng(seed: Option<u64>) -> ChaCha8Rng {
+pub(crate) fn make_rng(seed: Option<u64>) -> ChaCha8Rng {
     match seed {
         Some(s) => ChaCha8Rng::seed_from_u64(s),
         None => ChaCha8Rng::from_entropy(),
     }
 }
 
-fn key(a: usize, b: usize) -> (usize, usize) {
+pub(crate) fn key(a: usize, b: usize) -> (usize, usize) {
     if a <= b {
         (a, b)
     } else {
@@ -32,7 +35,7 @@ fn key(a: usize, b: usize) -> (usize, usize) {
     }
 }
 
-fn check_probability(name: &str, p: f64) -> PyResult<()> {
+pub(crate) fn check_probability(name: &str, p: f64) -> PyResult<()> {
     if !(0.0..=1.0).contains(&p) {
         return Err(PyValueError::new_err(format!("{} must be between 0.0 and 1.0, got {}", name, p)));
     }
