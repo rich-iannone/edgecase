@@ -27,7 +27,7 @@ OUT = ROOT / "assets" / "graphs"
 FAMILY_ORDER = [
     "mutation", "transforms", "set-ops", "selection", "data", "traversal", "paths",
     "node-metrics", "graph-metrics", "similarity", "diffusion", "connectivity", "communities",
-    "substructures", "enrichment", "predicates", "generators",
+    "substructures", "enrichment", "predicates", "generators", "layout",
 ]
 
 
