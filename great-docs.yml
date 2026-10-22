@@ -1047,6 +1047,22 @@ reference:
         - to_graph6
         - from_sparse6
         - to_sparse6
+        - to_numpy_array
+        - from_numpy_array
+        - to_scipy_sparse_array
+        - from_scipy_sparse_array
+        - to_pandas_adjacency
+        - from_pandas_adjacency
+        - to_pandas_edgelist
+        - from_pandas_edgelist
+        - to_adjlist
+        - from_adjlist
+        - to_multiline_adjlist
+        - from_multiline_adjlist
+        - to_adjacency_data
+        - from_adjacency_data
+        - to_tree_data
+        - from_tree_data
 
     - title: Multiplex Networks
       desc: Multi-layer network container and cross-layer algorithms
