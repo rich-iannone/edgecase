@@ -28,10 +28,18 @@ Shared layouts so siblings can be compared directly:
 - Community benchmarks share `_cluster_layout`: each group on a small ring,
   members ordered to keep edges clear of nodes, with a small bow on any edge
   that still grazes one. Their seeds were picked for a lint-clean layout.
+- The later random, degree-sequence, directed-growth, and geometric models also
+  run live, from the seeds in `SEEDS`. Directed models draw arrows, repeated
+  pairs bow apart, trees hang from their center (growing networks from their
+  first node), degree-driven models put each node's degree in a pill (`in/out`
+  when directed), and geometric models place nodes at their `pos`: the soft
+  random geometric graph circles its radius around a `soft` node, and the
+  geographical threshold graph shades each node by its weight (heat).
 """
 
 import itertools
 import math
+from collections import Counter
 
 from core import R_SMALL, Box, Scene, figure, multiples, place, ring
 
@@ -1082,3 +1090,525 @@ def add_lfr_graph(s: Scene) -> None:
         call = (f"add_lfr_graph(15, {mu}, 3, max_degree=4, min_community=5, max_community=5, "
                 f"seed={LFR_SEED})")
         _community_panel(s, box, call, f"mu{i}.", gap=LFR_GAP)
+
+
+# --- random models, degree sequences, directed growth, geometry ---------------
+# Drawn live like the shapes above, from a fixed seed per figure (in SEEDS, left
+# out of the captions as plumbing; each was picked for a lint-clean drawing).
+# Most sit on the shared 8-node ring in id order. `_live` handles what these
+# models can produce that the earlier figures never needed: arrows, parallel
+# edges (bowed apart), self-loops, and edges that would graze a node off the
+# ring (bowed clear with `_clear_bend`).
+
+SEEDS = {
+    "add_random_regular_graph": 0,
+    "add_powerlaw_cluster_graph": 11,
+    "add_newman_watts_strogatz_graph": 0,
+    "add_connected_watts_strogatz_graph": 0,
+    "add_extended_barabasi_albert_graph": 1,
+    "add_dual_barabasi_albert_graph": 0,
+    "add_random_lobster": 60,
+    "add_random_labeled_tree": 0,
+    "add_random_powerlaw_tree": 95,
+    "add_directed_configuration_model": 52,
+    "add_random_degree_sequence_graph": 0,
+    "add_joint_degree_graph": 0,
+    "add_gn_graph": 1,
+    "add_gnr_graph": 1,
+    "add_gnc_graph": 0,
+    "add_scale_free_graph": 1,
+    "add_random_k_out_graph": 18,
+    "add_waxman_graph": 41,
+    "add_soft_random_geometric_graph": 289,
+    "add_geographical_threshold_graph": 139,
+    "add_navigable_small_world_graph": 5,
+}
+
+
+def _seeded(method: str, args: str, directed: bool = False):
+    """`_built` for `method(args)` with the figure's seed."""
+    return _built(f"{method}({args}, seed={SEEDS[method]})", directed)
+
+
+def _live(s: Scene, box: Box, coords, edges, *, prefix: str, directed: bool = False,
+          styles=None, edge_style=None, labels=False, unit: float = UNIT, pad: float = 6) -> dict:
+    """Like `_draw`, for generator output that may hold arrows, repeats, or self-loops.
+
+    Copies of the same pair bow apart (two copies to either side, a third down
+    the middle); any other edge that would graze a node is bowed clear of it.
+    """
+    pos = place(coords, box, unit=unit, r=R_SMALL, pad=pad)
+    edge_style = edge_style or {}
+    count = Counter(frozenset((a, b)) for a, b in edges)
+    seen: Counter = Counter()
+    es = []
+    for a, b in edges:
+        key = frozenset((a, b))
+        opts = {}
+        if st := edge_style.get(key):
+            opts["style"] = st
+        if a != b and count[key] > 1:
+            # bends are set for the low -> high direction and flipped for the reverse
+            bend = (10, -10, 0)[seen[key]] if count[key] == 2 else (0, 14, -14)[seen[key]]
+            seen[key] += 1
+            opts["bend"] = bend if int(a) < int(b) else -bend
+        elif a != b and (bend := _clear_bend(pos, a, b)):
+            opts["bend"] = bend
+        es.append((a, b, opts))
+    s.graph(pos, es, labels=labels, prefix=prefix, r=R_SMALL, styles=styles, directed=directed)
+    return pos
+
+
+def _bfs_children(edges, root: str) -> dict[str, list[str]]:
+    """Children of each node in a tree hung from `root`, smaller ids first."""
+    adj: dict[str, list[str]] = {}
+    for a, b in edges:
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    kids: dict[str, list[str]] = {}
+    seen, queue = {root}, [root]
+    for v in queue:
+        for w in sorted(adj.get(v, []), key=int):
+            if w not in seen:
+                seen.add(w)
+                kids.setdefault(v, []).append(w)
+                queue.append(w)
+    return kids
+
+
+def _tree_center(edges) -> str:
+    """The node whose farthest node is nearest (smallest id on ties), for a low tree."""
+    nodes = sorted({v for e in edges for v in e}, key=int)
+
+    def height(kids, v):
+        return 1 + max((height(kids, c) for c in kids.get(v, [])), default=0)
+
+    return min(nodes, key=lambda v: height(_bfs_children(edges, v), v))
+
+
+def _tree_panel(s: Scene, box: Box, edges, prefix: str, *, root: str | None = None,
+                directed: bool = False, styles=None) -> None:
+    root = root or _tree_center(edges)
+    coords = _tidy_tree(_bfs_children(edges, root), root)
+    _live(s, box, coords, edges, prefix=prefix, directed=directed, styles=styles, pad=2)
+
+
+def _new_edges(edges, base) -> dict:
+    """`accent` style for each edge whose pair is not among the `base` pairs."""
+    base = {frozenset(e) for e in base}
+    return {frozenset(e): "accent" for e in edges if frozenset(e) not in base}
+
+
+def _ring_lattice(n: int, k: int) -> list[tuple[str, str]]:
+    """Each node joined to its k // 2 clockwise neighbors: the model's p=0 starting ring."""
+    return [(str(i), str((i + j - 1) % n + 1))
+            for i in range(1, n + 1) for j in range(1, k // 2 + 1)]
+
+
+def _seq(values, tight: bool = False) -> str:
+    """A list as it reads in a caption; `tight` drops the spaces for long ones."""
+    return f"[{(',' if tight else ', ').join(map(str, values))}]"
+
+
+@figure("add_random_regular_graph", "generators", "Random regular graph",
+        "Three random regular graphs on the same ring of eight nodes for degree d=2, 3, and 4. "
+        "Every node has exactly d neighbors, so the graphs have 8, 12, and 16 edges; which pairs "
+        "get joined is random, and the d=2 graph here splits into a triangle and a five-cycle "
+        "rather than one long cycle.")
+def add_random_regular_graph(s: Scene) -> None:
+    ds = (2, 3, 4)
+    boxes = multiples(s, tuple(f"n=8, d={d}" for d in ds))
+    for box, d in zip(boxes, ds):
+        _, edges = _seeded("add_random_regular_graph", f"8, {d}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"d{d}.")
+
+
+@figure("add_powerlaw_cluster_graph", "generators", "Powerlaw cluster graph",
+        "Three Holme-Kim graphs on a ring of eight nodes, each new node attaching to m=2 others "
+        "by preferential attachment, with triad-formation probability p=0, 0.5, and 1. Every "
+        "panel has 12 edges, but a higher p closes more of them into triangles: 1, 4, and 5 "
+        "triangles.")
+def add_powerlaw_cluster_graph(s: Scene) -> None:
+    ps = ("0", "0.5", "1")
+    boxes = multiples(s, tuple(f"n=8, m=2, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_powerlaw_cluster_graph", f"8, 2, {p}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"p{i}.")
+
+
+@figure("add_newman_watts_strogatz_graph", "generators", "Newman-Watts-Strogatz graph",
+        "Three Newman-Watts-Strogatz graphs on a ring of eight nodes with k=2 and shortcut "
+        "probability p=0, 0.3, and 0.6. The ring is never broken: accent-colored shortcuts are "
+        "added on top of it, 1 at p=0.3 and 4 at p=0.6, instead of replacing ring edges as in the "
+        "Watts-Strogatz model.")
+def add_newman_watts_strogatz_graph(s: Scene) -> None:
+    ps = ("0", "0.3", "0.6")
+    boxes = multiples(s, tuple(f"n=8, k=2, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_newman_watts_strogatz_graph", f"8, 2, {p}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"p{i}.",
+              edge_style=_new_edges(edges, _ring_lattice(8, 2)))
+
+
+@figure("add_connected_watts_strogatz_graph", "generators", "Connected Watts-Strogatz graph",
+        "Three connected Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring "
+        "probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on "
+        "each side; rewired edges show as accent-colored shortcuts, 3 at p=0.2 and 9 at p=1. "
+        "Every panel keeps all 16 edges and is connected, because a disconnected draw is retried.")
+def add_connected_watts_strogatz_graph(s: Scene) -> None:
+    ps = ("0", "0.2", "1")
+    boxes = multiples(s, tuple(f"n=8, k=4, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_connected_watts_strogatz_graph", f"8, 4, {p}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"p{i}.",
+              edge_style=_new_edges(edges, _ring_lattice(8, 4)))
+
+
+@figure("add_extended_barabasi_albert_graph", "generators", "Extended Barabási-Albert graph",
+        "Three extended Barabási-Albert graphs on a ring of eight nodes with m=1. With p=0 and "
+        "q=0 it is plain preferential attachment, a tree of 7 edges; with p=0.4 some steps add "
+        "edges between existing nodes instead, giving 12 edges and 7 triangles; with q=0.4 some "
+        "steps rewire an existing edge instead, so the count stays at 7 and here one node is left "
+        "with no edges.")
+def add_extended_barabasi_albert_graph(s: Scene) -> None:
+    params = (("0", "0"), ("0.4", "0"), ("0", "0.4"))
+    boxes = multiples(s, tuple(f"n=8, m=1, p={p}, q={q}" for p, q in params))
+    for i, (box, (p, q)) in enumerate(zip(boxes, params)):
+        _, edges = _seeded("add_extended_barabasi_albert_graph", f"8, 1, {p}, {q}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"e{i}.")
+
+
+@figure("add_dual_barabasi_albert_graph", "generators", "Dual Barabási-Albert graph",
+        "Three dual Barabási-Albert graphs on a ring of eight nodes, where each new node attaches "
+        "to m1=1 existing node with probability p and to m2=3 otherwise, for p=1, 0.5, and 0. At "
+        "p=1 every new node brings one edge and the graph is a tree of 7 edges; the mixed p=0.5 "
+        "gives 13 edges; at p=0 every new node brings three, for 15.")
+def add_dual_barabasi_albert_graph(s: Scene) -> None:
+    ps = ("1", "0.5", "0")
+    boxes = multiples(s, tuple(f"n=8, m1=1, m2=3, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_dual_barabasi_albert_graph", f"8, 1, 3, {p}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"p{i}.")
+
+
+def _lobster_coords(edges) -> dict:
+    """Backbone (ids 1..L, a path) in a row; legs below it, leaves below their legs."""
+    adj: dict[str, set[str]] = {}
+    for a, b in edges:
+        adj.setdefault(a, set()).add(b)
+        adj.setdefault(b, set()).add(a)
+    backbone = ["1"]
+    while str(len(backbone) + 1) in adj.get(backbone[-1], ()):
+        backbone.append(str(len(backbone) + 1))
+    # a stand-in root over the backbone lets `_tidy_tree` space the legs
+    kids = {"root": backbone}
+    for b in backbone:
+        kids[b] = sorted((v for v in adj[b] if int(v) > len(backbone)), key=int)
+        for leg in kids[b]:
+            kids[leg] = sorted((v for v in adj[leg] if int(v) > int(leg)), key=int)
+    coords = _tidy_tree(kids, "root")
+    del coords["root"]
+    return coords
+
+
+@figure("add_random_lobster", "generators", "Random lobster",
+        "Three random lobsters grown from the same backbone, a path of four nodes drawn as the "
+        "top row. With p1=0 and p2=0 nothing grows and the lobster is just the path; with p1=0.6 "
+        "five legs hang below the backbone, making a caterpillar; with p2=0.6 as well, two of the "
+        "legs grow three leaves between them, so every node stays within two steps of the "
+        "backbone.")
+def add_random_lobster(s: Scene) -> None:
+    params = (("0", "0"), ("0.6", "0"), ("0.6", "0.6"))
+    boxes = multiples(s, tuple(f"n=4, p1={p1}, p2={p2}" for p1, p2 in params))
+    for i, (box, (p1, p2)) in enumerate(zip(boxes, params)):
+        _, edges = _seeded("add_random_lobster", f"4, {p1}, {p2}")
+        coords = _lobster_coords(edges) if edges else {"1": (0.0, 0.0)}
+        _live(s, box, coords, edges, prefix=f"l{i}.", pad=2)
+
+
+@figure("add_random_labeled_tree", "generators", "Random labeled tree",
+        "Three random labeled trees on 5, 7, and 9 nodes, each hung from its most central node. "
+        "Every tree on n labeled nodes is equally likely, so the shapes vary freely, but each one "
+        "has n - 1 edges and no cycles.")
+def add_random_labeled_tree(s: Scene) -> None:
+    ns = (5, 7, 9)
+    boxes = multiples(s, tuple(f"g.add_random_labeled_tree(n={n})" for n in ns))
+    for box, n in zip(boxes, ns):
+        _, edges = _seeded("add_random_labeled_tree", str(n))
+        _tree_panel(s, box, edges, f"n{n}.")
+
+
+@figure("add_random_powerlaw_tree", "generators", "Random power-law tree",
+        "Three random power-law trees on eight nodes for exponent gamma=2, 3, and 5, each hung "
+        "from its most central node. The degrees are drawn from a power law, so a small gamma "
+        "gives a heavy tail: the biggest hub has 6 neighbors at gamma=2, 5 at gamma=3, and 3 at "
+        "gamma=5.")
+def add_random_powerlaw_tree(s: Scene) -> None:
+    gammas = ("2", "3", "5")
+    boxes = multiples(s, tuple(f"n=8, gamma={gm}" for gm in gammas))
+    for i, (box, gm) in enumerate(zip(boxes, gammas)):
+        _, edges = _seeded("add_random_powerlaw_tree", f"8, {gm}")
+        _tree_panel(s, box, edges, f"g{i}.")
+
+
+def _badged_ring(s: Scene, box: Box, edges, values: list[str], prefix: str, *,
+                 directed: bool = False) -> None:
+    """Nodes on the smaller badge ring, each with `values[i]` in a pill."""
+    pos = _live(s, box, _ring_xy(len(values), BADGE_RING), edges, prefix=prefix,
+                directed=directed)
+    _ring_badges(s, pos, prefix, {str(k): v for k, v in enumerate(values, 1)})
+
+
+@figure("add_havel_hakimi_graph", "generators", "Havel-Hakimi graph",
+        "Three Havel-Hakimi graphs on five nodes, each node's requested degree in a pill: 3, 2, "
+        "2, 2, 1; 3, 3, 2, 2, 2; and 4, 3, 3, 2, 2. The construction is deterministic, joining "
+        "the node with the most degree left to the next-highest nodes, and every node ends with "
+        "exactly the degree in its pill, using 5, 6, and 7 edges.")
+def add_havel_hakimi_graph(s: Scene) -> None:
+    seqs = ((3, 2, 2, 2, 1), (3, 3, 2, 2, 2), (4, 3, 3, 2, 2))
+    boxes = multiples(s, tuple(f"degree_sequence={_seq(d)}" for d in seqs))
+    for i, (box, seq) in enumerate(zip(boxes, seqs)):
+        _, edges = _built(f"add_havel_hakimi_graph({list(seq)})")
+        _badged_ring(s, box, edges, [str(d) for d in seq], f"h{i}.")
+
+
+@figure("add_random_degree_sequence_graph", "generators", "Random degree sequence graph",
+        "Three random graphs on a ring of six nodes built to match a degree sequence, each node's "
+        "degree in a pill: all ones gives three separate edges, all twos gives a six-cycle, and "
+        "3, 3, 2, 2, 1, 1 gives six edges with one triangle. Unlike the configuration model, the "
+        "result is always simple, with no doubled edges or self-loops.")
+def add_random_degree_sequence_graph(s: Scene) -> None:
+    seqs = ((1, 1, 1, 1, 1, 1), (2, 2, 2, 2, 2, 2), (3, 3, 2, 2, 1, 1))
+    boxes = multiples(s, tuple(f"degree_sequence={_seq(d, tight=True)}" for d in seqs))
+    for i, (box, seq) in enumerate(zip(boxes, seqs)):
+        _, edges = _seeded("add_random_degree_sequence_graph", f"{list(seq)}, tries=100")
+        _badged_ring(s, box, edges, [str(d) for d in seq], f"r{i}.")
+
+
+DIRECTED_SEQS = (  # (in-degrees, out-degrees)
+    ((1, 1, 1, 1), (1, 1, 1, 1)),
+    ((0, 1, 1, 2), (2, 1, 1, 0)),
+    ((2, 1, 1, 1, 1), (0, 1, 2, 1, 2)),
+)
+
+
+def _io_caption(ins, outs) -> str:
+    return f"in={_seq(ins, tight=True)}, out={_seq(outs, tight=True)}"
+
+
+@figure("add_directed_configuration_model", "generators", "Directed configuration model",
+        "Three directed configuration models, each node's in-degree and out-degree in a pill "
+        "written in/out. Four nodes at 1/1 form a directed four-cycle; 0/2, 1/1, 1/1, and 2/0 "
+        "send every arc from the source toward the sink; on five nodes two pairs of opposite arcs "
+        "appear, drawn bowed apart. Out-stubs are paired with in-stubs at random, so every node "
+        "meets its pill exactly; self-loops and repeated arcs are possible, though this draw has "
+        "none.")
+def add_directed_configuration_model(s: Scene) -> None:
+    boxes = multiples(s, tuple(_io_caption(i, o) for i, o in DIRECTED_SEQS))
+    for i, (box, (ins, outs)) in enumerate(zip(boxes, DIRECTED_SEQS)):
+        _, edges = _seeded("add_directed_configuration_model", f"{list(ins)}, {list(outs)}",
+                           directed=True)
+        _badged_ring(s, box, edges, [f"{a}/{b}" for a, b in zip(ins, outs)], f"c{i}.",
+                     directed=True)
+
+
+@figure("add_directed_havel_hakimi_graph", "generators", "Directed Havel-Hakimi graph",
+        "Three directed Havel-Hakimi graphs for the same degrees as the directed configuration "
+        "model figure, each node's in-degree and out-degree in a pill written in/out. The "
+        "construction is deterministic and never repeats an arc: four nodes at 1/1 pair up into "
+        "two 2-cycles, drawn as bowed opposite arcs; 0/2, 1/1, 1/1, and 2/0 give two two-step "
+        "paths from the source to the sink; and the five-node sequence uses one pair of opposite "
+        "arcs.")
+def add_directed_havel_hakimi_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(_io_caption(i, o) for i, o in DIRECTED_SEQS))
+    for i, (box, (ins, outs)) in enumerate(zip(boxes, DIRECTED_SEQS)):
+        _, edges = _built(f"add_directed_havel_hakimi_graph({list(ins)}, {list(outs)})",
+                          directed=True)
+        _badged_ring(s, box, edges, [f"{a}/{b}" for a, b in zip(ins, outs)], f"h{i}.",
+                     directed=True)
+
+
+JOINT = (  # a path of four, a diamond, and two joined stars; diagonals count edges twice
+    {1: {2: 2}, 2: {1: 2, 2: 2}},
+    {2: {3: 4}, 3: {2: 4, 3: 2}},
+    {1: {3: 4}, 3: {1: 4, 3: 2}},
+)
+
+
+@figure("add_joint_degree_graph", "generators", "Joint degree graph",
+        "Three joint degree graphs, each node's degree in a pill, with captions giving how many "
+        "edges join each pair of degrees, where pairs of equal degree count twice. Two edges from "
+        "degree 1 to degree 2 plus one between the degree-2 nodes give a path of four; four edges "
+        "from degree 2 to degree 3 plus one between the degree-3 nodes give a diamond; and two "
+        "joined degree-3 hubs with two leaves each give a double star.")
+def add_joint_degree_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(str(j).replace(" ", "") for j in JOINT))
+    for i, (box, joint) in enumerate(zip(boxes, JOINT)):
+        _, edges = _seeded("add_joint_degree_graph", str(joint))
+        degree = Counter(v for e in edges for v in e)
+        ids = sorted(degree, key=int)
+        _badged_ring(s, box, edges, [str(degree[v]) for v in ids], f"j{i}.")
+
+
+GN_KERNELS = ("lambda k: 1", "None", "lambda k: k**2")
+
+
+@figure("add_gn_graph", "generators", "Growing network",
+        "Three growing networks on eight nodes, drawn as trees with the first node at the top and "
+        "every arc pointing from a newer node to the older node it attached to. With a constant "
+        "kernel the target is uniform and the first node gets 3 arcs; with the default linear "
+        "kernel it gets 5; with the kernel k**2 the rich get richer so fast that all 7 later "
+        "nodes point at it.")
+def add_gn_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"n=8, kernel={k}" for k in GN_KERNELS))
+    for i, (box, kernel) in enumerate(zip(boxes, GN_KERNELS)):
+        _, edges = _seeded("add_gn_graph", f"8, kernel={kernel}", directed=True)
+        _tree_panel(s, box, edges, f"k{i}.", root="1", directed=True)
+
+
+@figure("add_gnr_graph", "generators", "Growing network with redirection",
+        "Three growing networks with redirection on eight nodes, drawn as trees with the first "
+        "node at the top and every arc pointing from a newer node to an older one. Each new node "
+        "picks a random target and, with probability p, links to the node that target points at "
+        "instead. At p=0 the tree is deep and stringy, at p=0.5 the first node collects 5 arcs, "
+        "and at p=1 every arc is redirected to it, giving a star.")
+def add_gnr_graph(s: Scene) -> None:
+    ps = ("0", "0.5", "1")
+    boxes = multiples(s, tuple(f"g.add_gnr_graph(n=8, p={p})" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_gnr_graph", f"8, {p}", directed=True)
+        _tree_panel(s, box, edges, f"p{i}.", root="1", directed=True)
+
+
+@figure("add_gnc_graph", "generators", "Growing network with copying",
+        "Three growing networks with copying on 4, 5, and 6 nodes, placed on a ring in arrival "
+        "order. Each new node links to a random existing node and also copies all of that node's "
+        "arcs, so arcs pile onto the earliest nodes: the first node receives 3, 4, and 5 arcs, "
+        "and the graphs have 4, 7, and 11 arcs in all.")
+def add_gnc_graph(s: Scene) -> None:
+    ns = (4, 5, 6)
+    boxes = multiples(s, tuple(f"g.add_gnc_graph(n={n})" for n in ns))
+    for box, n in zip(boxes, ns):
+        _, edges = _seeded("add_gnc_graph", str(n), directed=True)
+        _live(s, box, _ring_xy(n), edges, prefix=f"n{n}.", directed=True)
+
+
+@figure("add_scale_free_graph", "generators", "Scale-free directed graph",
+        "Three scale-free directed graphs on 4, 6, and 8 nodes on a ring, grown from a three- "
+        "cycle by the default mix of steps that add a node with an arc out, add an arc between "
+        "existing nodes, or add a node with an arc in. One node quickly becomes the hub, touching "
+        "7 of the 10 arcs at n=8; it and one neighbor have arcs both ways, plus a repeated arc at "
+        "n=8, drawn bowed apart, because the model keeps parallel arcs.")
+def add_scale_free_graph(s: Scene) -> None:
+    ns = (4, 6, 8)
+    boxes = multiples(s, tuple(f"g.add_scale_free_graph(n={n})" for n in ns))
+    for box, n in zip(boxes, ns):
+        _, edges = _seeded("add_scale_free_graph", str(n), directed=True)
+        _live(s, box, _ring_xy(n), edges, prefix=f"n{n}.", directed=True)
+
+
+@figure("add_random_k_out_graph", "generators", "Random k-out graph",
+        "Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, "
+        "for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target's "
+        "current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most "
+        "popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed "
+        "apart; self-loops are turned off.")
+def add_random_k_out_graph(s: Scene) -> None:
+    alphas = ("10", "1", "0.2")
+    boxes = multiples(s, tuple(f"n=8, k=2, alpha={a}" for a in alphas))
+    for i, (box, a) in enumerate(zip(boxes, alphas)):
+        _, edges = _seeded("add_random_k_out_graph", f"8, 2, {a}, self_loops=False",
+                           directed=True)
+        _live(s, box, _ring_xy(8), edges, prefix=f"a{i}.", directed=True)
+
+
+def _positions(g, attr: str = "pos") -> dict[str, tuple[float, float]]:
+    return {str(k): (x, y) for k, (x, y) in g.get_node_attrs(attr).items()}
+
+
+def _radius_circle(s: Scene, pos: dict, coords: dict, hub: str, radius: float) -> None:
+    """Faint dashed circle of abstract `radius` around `hub`, at the placed scale."""
+    a, b = sorted(set(coords) - {hub})[:2]
+    scale = math.dist(pos[a], pos[b]) / math.dist(coords[a], coords[b])
+    rad = radius * scale
+    cx, cy = pos[hub]
+    s.path(f"M {cx - rad:.1f} {cy:.1f} a {rad:.1f} {rad:.1f} 0 1 0 {2 * rad:.1f} 0 "
+           f"a {rad:.1f} {rad:.1f} 0 1 0 {-2 * rad:.1f} 0", color="accent", opacity=0.45,
+           width=1, dash="4 4")
+
+
+def _central(coords: dict) -> str:
+    """The node nearest the middle of the drawing."""
+    xs, ys = [x for x, _ in coords.values()], [y for _, y in coords.values()]
+    mid = ((max(xs) + min(xs)) / 2, (max(ys) + min(ys)) / 2)
+    return min(coords, key=lambda k: math.dist(coords[k], mid))
+
+
+GEO_UNIT = 150  # px per unit of the unit square, as in the random geometric graph
+
+
+@figure("add_waxman_graph", "generators", "Waxman graph",
+        "Three Waxman graphs on the same seven random points in the unit square, with beta=1 and "
+        "alpha=0.1, 0.25, and 1. Two points are joined with a probability that decays with their "
+        "distance, and alpha sets how slowly: at 0.1 only the closest pair is joined, at 0.25 "
+        "there are 3 edges, and at 1 longer links appear for 8 edges in all. A few edges bow "
+        "slightly to clear other nodes.")
+def add_waxman_graph(s: Scene) -> None:
+    alphas = ("0.1", "0.25", "1")
+    boxes = multiples(s, tuple(f"n=7, beta=1, alpha={a}" for a in alphas))
+    for i, (box, a) in enumerate(zip(boxes, alphas)):
+        g, edges = _seeded("add_waxman_graph", f"7, beta=1, alpha={a}")
+        _live(s, box, _positions(g), edges, prefix=f"a{i}.", unit=GEO_UNIT)
+
+
+@figure("add_soft_random_geometric_graph", "generators", "Soft random geometric graph",
+        "The same seven random points in the unit square at radius=0.25, 0.35, and 0.45, with a "
+        "faint dashed circle of that radius around the central node, drawn in the accent outline. "
+        "Unlike the random geometric graph, a pair within the radius is only joined with a "
+        "probability that falls with distance, so some nodes inside the circle stay unjoined to "
+        "the central one; the graphs have 2, 7, and 8 edges.")
+def add_soft_random_geometric_graph(s: Scene) -> None:
+    radii = ("0.25", "0.35", "0.45")
+    boxes = multiples(s, tuple(f"n=7, radius={r}" for r in radii))
+    for i, (box, r) in enumerate(zip(boxes, radii)):
+        g, edges = _seeded("add_soft_random_geometric_graph", f"7, {r}")
+        coords = _positions(g)
+        hub = _central(coords)
+        pos = place(coords, box, unit=GEO_UNIT, r=R_SMALL)
+        _radius_circle(s, pos, coords, hub, float(r))
+        _live(s, box, coords, edges, prefix=f"r{i}.", unit=GEO_UNIT, styles={hub: "soft"})
+
+
+@figure("add_geographical_threshold_graph", "generators", "Geographical threshold graph",
+        "Three geographical threshold graphs on the same seven random points, each node shaded by "
+        "its random weight, darker for heavier, at threshold theta=80, 30, and 10. Two nodes are "
+        "joined when their combined weight divided by their squared distance reaches theta, so "
+        "heavy nodes reach far: at theta=80 only the heaviest node has edges, 2 of them, and at "
+        "theta=10 it has 6 of the 13.")
+def add_geographical_threshold_graph(s: Scene) -> None:
+    thetas = ("80", "30", "10")
+    boxes = multiples(s, tuple(f"n=7, theta={t}" for t in thetas))
+    for i, (box, t) in enumerate(zip(boxes, thetas)):
+        g, edges = _seeded("add_geographical_threshold_graph", f"7, {t}")
+        weights = {str(k): w for k, w in g.get_node_attrs("weight").items()}
+        top = max(weights.values())
+        _live(s, box, _positions(g), edges, prefix=f"t{i}.", unit=GEO_UNIT)
+        for k, w in weights.items():
+            s.nodes[f"t{i}.{k}"].heat = w / top
+
+
+@figure("add_navigable_small_world_graph", "generators", "Navigable small-world graph",
+        "Three navigable small-world graphs on a 3 by 3 grid with p=1 and r=2, for q=0, 1, and 2 "
+        "long-range contacts per node. At q=0 it is just the grid; each node then adds q contacts "
+        "chosen with probability falling off as the squared grid distance, so most land on "
+        "neighbors already joined, and the accent edges are the ones that reach farther: 1 at q=1 "
+        "and 5 at q=2. Some bow to clear the nodes they would pass through.")
+def add_navigable_small_world_graph(s: Scene) -> None:
+    qs = (0, 1, 2)
+    boxes = multiples(s, tuple(f"n=3, p=1, q={q}, r=2" for q in qs))
+    for box, q in zip(boxes, qs):
+        g, edges = _seeded("add_navigable_small_world_graph", f"3, 1, {q}")
+        coords = _positions(g)
+        long = {frozenset((a, b)): "accent" for a, b in edges
+                if abs(coords[a][0] - coords[b][0]) + abs(coords[a][1] - coords[b][1]) > 1}
+        _live(s, box, coords, edges, prefix=f"q{q}.", edge_style=long)
