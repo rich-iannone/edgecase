@@ -729,6 +729,15 @@ impl Graph {
             .collect()
     }
 
+    /// Get all edges as (id, source, target, weight) tuples, for bulk export
+    #[pyo3(name = "_weighted_edges")]
+    pub fn weighted_edges(&self) -> Vec<(u64, u64, u64, Option<f64>)> {
+        self.edges
+            .iter()
+            .map(|e| (e.id, e.source, e.target, e.weight))
+            .collect()
+    }
+
     /// Get edges as "source->target" or "source--target" strings
     ///
     /// Returns edge definitions.
