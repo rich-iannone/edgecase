@@ -699,6 +699,9 @@ reference:
         - Graph.edge_overlap
         - Graph.differential_edges
         - Graph.graph_edit_distance
+        - Graph.optimal_edit_paths
+        - Graph.optimize_graph_edit_distance
+        - Graph.optimize_edit_paths
 
     - title: Isomorphism and Graph Hashing
       desc: Exact (sub)graph isomorphism, invariants and Weisfeiler-Lehman hashes
