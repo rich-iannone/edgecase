@@ -334,6 +334,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::edge_overlap, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::differential_edges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::network_comparison::graph_edit_distance, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::edit_distance::optimize_edit_paths, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
