@@ -3696,8 +3696,10 @@ class Graph:
         layout
             Layout algorithm. `"force"` (default) uses a Fruchterman-Reingold force-directed
             layout, which places connected nodes near each other. `"circular"` places nodes evenly
-            on a circle, and `"random"` scatters them uniformly over the canvas. Any other value
-            raises `ValueError`.
+            on a circle, and `"random"` scatters them uniformly over the canvas. Any other string
+            names a node attribute holding `(x, y)` positions, such as the `"pos"` attribute the
+            `layout_*()` methods set; the positions are fitted to the canvas with `y` pointing up.
+            `ValueError` is raised if some node lacks the attribute or doesn't hold two numbers.
         color_by
             Node attribute to map to categorical colors (e.g., `"community"` or `"type"`). Each
             distinct value gets the next color of `palette=` in order of first appearance (nodes
@@ -4093,7 +4095,9 @@ class Graph:
             BFS is run from this node. Default is `None`.
         layout
             Layout algorithm: `"force"` (default, force-directed), `"circular"`, or `"random"`
-            (unseeded). Any other value raises `ValueError`.
+            (unseeded), or the name of a node attribute holding `(x, y)` positions, such as the
+            `"pos"` attribute the `layout_*()` methods set (see `plot()`). Any other value raises
+            `ValueError`.
         theme
             Color theme: `"light"` (default) or `"dark"`, which also selects the colors used for
             the unvisited, frontier, current and visited states.
@@ -4296,6 +4300,1594 @@ class Graph:
             pass
 
         return "browser"
+
+    # ====================================================================
+    # Graph Layout
+    # ====================================================================
+
+    def _layout_point(self, value: Any, what: str) -> tuple[float, float]:
+        """An `(x, y)` pair of finite floats from `value`, or `ValueError` naming `what`."""
+        try:
+            if isinstance(value, (str, bytes, dict)):
+                raise TypeError
+            x, y = (float(v) for v in value)
+        except (TypeError, ValueError):
+            raise ValueError(f"{what} must be an (x, y) pair of numbers, got {value!r}") from None
+        if not (math.isfinite(x) and math.isfinite(y)):
+            raise ValueError(f"{what} must be finite, got {value!r}")
+        return x, y
+
+    def _layout_frame(
+        self, scale: Optional[float], center: Any, allow_none: bool = True
+    ) -> tuple[Optional[float], tuple[float, float]]:
+        """Validate `scale=` (a positive number, or `None` where allowed) and `center=`."""
+        if scale is None:
+            if not allow_none:
+                raise ValueError("scale must be a positive number, got None")
+        elif (
+            isinstance(scale, bool)
+            or not isinstance(scale, (int, float))
+            or not (math.isfinite(scale) and scale > 0)
+        ):
+            raise ValueError(f"scale must be a positive number, got {scale!r}")
+        return scale, self._layout_point(center, "center")
+
+    @staticmethod
+    def _layout_align(align: str) -> bool:
+        """True for `align="horizontal"`, False for `"vertical"`; anything else raises."""
+        if align not in ("vertical", "horizontal"):
+            raise ValueError(f"align must be 'vertical' or 'horizontal', got {align!r}")
+        return align == "horizontal"
+
+    def _layout_node_map(self, value: Any, what: str) -> Optional[dict[int, Any]]:
+        """Per-node values from a node attribute name or a `{node: value}` dict."""
+        if value is None:
+            return None
+        if isinstance(value, str):
+            found = self.get_node_attrs(value)
+            if not found:
+                raise ValueError(f"{what} names attribute {value!r}, which no node has")
+            return found
+        if isinstance(value, dict):
+            return {self._resolve_node_id(k): v for k, v in value.items()}
+        raise TypeError(
+            f"{what} must be a node attribute name or a dict, got {type(value).__name__}"
+        )
+
+    def _layout_initial(self, initial: Any) -> Optional[dict[int, tuple[float, float]]]:
+        """Starting positions from an attribute name or a `{node: (x, y)}` dict."""
+        values = self._layout_node_map(initial, "initial=")
+        if values is None:
+            return None
+        return {
+            nid: self._layout_point(v, f"Initial position of node {nid}")
+            for nid, v in values.items()
+        }
+
+    def _layout_numbers(self, value: Any, what: str) -> Optional[dict[int, float]]:
+        """Numeric per-node values (masses, sizes) from an attribute name or a dict."""
+        values = self._layout_node_map(value, what)
+        if values is None:
+            return None
+        out = {}
+        for nid, v in values.items():
+            if isinstance(v, bool) or not isinstance(v, (int, float)):
+                raise ValueError(f"{what} value for node {nid} must be a number, got {v!r}")
+            out[nid] = float(v)
+        return out
+
+    def _layout_adjacency(self, directed: bool = False) -> dict[int, list[int]]:
+        """Sorted neighbor lists (successors if `directed`), self-loops dropped."""
+        adj: dict[int, set] = {nid: set() for nid in self.get_node_ids(limit=None)}
+        for _, s, t in self._graph.edges():
+            if s != t:
+                adj[s].add(t)
+                if not directed:
+                    adj[t].add(s)
+        return {nid: sorted(nbrs) for nid, nbrs in adj.items()}
+
+    @staticmethod
+    def _rescale_positions(
+        coords: dict,
+        scale: Optional[float],
+        center: tuple[float, float],
+        swap: bool = False,
+    ) -> dict:
+        """Center on the mean and scale so the largest coordinate is `scale` (NetworkX's
+        `rescale_layout()`), optionally swap x and y, then shift to `center`. `scale=None`
+        returns the coordinates untouched."""
+        if scale is None or not coords:
+            return dict(coords)
+        n = len(coords)
+        mx = sum(p[0] for p in coords.values()) / n
+        my = sum(p[1] for p in coords.values()) / n
+        lim = max(max(abs(x - mx), abs(y - my)) for x, y in coords.values())
+        f = scale / lim if lim > 0 else 1.0
+        cx, cy = center
+        out = {}
+        for nid, (x, y) in coords.items():
+            x, y = (x - mx) * f, (y - my) * f
+            if swap:
+                x, y = y, x
+            out[nid] = (x + cx, y + cy)
+        return out
+
+    @staticmethod
+    def _layout_arg(value: Any) -> str:
+        """Short repr of a layout argument for step logs."""
+        text = repr(value)
+        if len(text) <= 60:
+            return text
+        return "{...}" if isinstance(value, dict) else "[...]"
+
+    def _layout_result(
+        self,
+        method: str,
+        coords: dict,
+        attr_name: Optional[str],
+        return_dict: bool,
+        params: dict,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """Return `{node_id: (x, y)}`, or store `[x, y]` lists and record a mutation step."""
+        # `+ 0.0` turns negative zeros into plain zeros
+        coords = {nid: (x + 0.0, y + 0.0) for nid, (x, y) in sorted(coords.items())}
+        if return_dict:
+            return coords
+        if attr_name is None:
+            attr_name = "pos"
+        for nid, (x, y) in coords.items():
+            self._graph.set_node_attr(nid, attr_name, [x, y])
+        self._computations.append((method, params, attr_name))
+        if self._recording_depth == 0:
+            args = ", ".join(
+                [f"{k}={self._layout_arg(v)}" for k, v in params.items()]
+                + [f"attr_name={attr_name!r}"]
+            )
+            self._record_step(
+                KIND_MUTATE,
+                method,
+                f"G.{method}({args})",
+                delta=StepDelta(attrs_changed={attr_name: len(coords)}),
+            )
+        return self
+
+    @staticmethod
+    def _changed(**pairs: tuple[Any, Any]) -> dict:
+        """The `name=(value, default)` pairs whose value differs from the default."""
+        return {k: v for k, (v, d) in pairs.items() if v != d}
+
+    def layout_circular(
+        self,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes evenly around a circle.
+
+        ![Circular layout](/assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
+
+        Node `i` (counting nodes in ID order from `0`) goes at angle `2 * pi * i / n`, starting
+        at the rightmost point of the circle and turning counterclockwise. The circle has
+        radius `scale=` and is centered on `center=`. Edges play no part, so the layout shows
+        the node order rather than the structure; it suits rings, small graphs where every
+        edge should stay visible, and chord-diagram style pictures. The positions match
+        NetworkX's `circular_layout()` with the nodes in ID order.
+
+        Like every `layout_*()` method, this stores each node's position as an `[x, y]` list in
+        the `attr_name=` node attribute (default `"pos"`), which `plot(layout="pos")` then draws.
+        The `y` axis points up.
+
+        Parameters
+        ----------
+        scale
+            Radius of the circle. Default is `1.0`.
+        center
+            Center of the circle, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+            Overwrites the attribute if it already exists.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `scale=` is not a positive number or `center=` is not a pair of numbers.
+
+        Examples
+        --------
+        Four nodes sit at the four compass points of the unit circle:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_cycle_graph(4)
+
+        pos = graph.layout_circular(return_dict=True)
+        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        ```
+
+        Stored positions are what `plot(layout=...)` draws:
+
+        ```{python}
+        ec.Graph().add_wheel_graph(9).layout_circular().plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        ids = sorted(self.get_node_ids(limit=None))
+        n = len(ids)
+        if n == 1:
+            coords = {ids[0]: center}
+        else:
+            coords = {
+                nid: (math.cos(2 * math.pi * i / n), math.sin(2 * math.pi * i / n))
+                for i, nid in enumerate(ids)
+            }
+            coords = self._rescale_positions(coords, scale, center)
+        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)))
+        return self._layout_result("layout_circular", coords, attr_name, return_dict, params)
+
+    def layout_shell(
+        self,
+        nlist: Optional[Union[list, str]] = None,
+        rotate: Optional[float] = None,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes on concentric circles (shells).
+
+        ![Shell layout](/assets/graphs/layout-shell.light.svg){.lightbox fig-alt="On the left, a ten-node graph scattered at random, its nodes colored by their shell attribute: a hub in the accent color, its three neighbors in teal and six outer nodes in violet, two on each neighbor. On the right, layout_shell(nlist='shell') puts the hub at the center, its neighbors on a small circle around it and the outer nodes on a larger circle outside." width="100%"}
+
+        `nlist=` splits the nodes into shells, innermost first. Shell `k` (of `s` shells) has
+        radius `k * scale / s`, counting from `1`, except that a first shell holding a single
+        node puts that node at the center and the next shell at radius `scale / s`. Nodes are
+        spread evenly around their shell, and each shell starts `rotate=` radians further round
+        than the one inside it, so neighboring shells don't line up. This matches NetworkX's
+        `shell_layout()`.
+
+        Shell layouts show a hierarchy or a grouping: a hub surrounded by its neighbors,
+        k-cores from the dense center outward, or nodes grouped by type. With `nlist=None`
+        every node goes on one circle (like `layout_circular()`, but starting at the `rotate=`
+        angle).
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        nlist
+            The shells, innermost first, as a list of lists of node IDs or labels, or the name
+            of a node attribute to group by: nodes sharing a value form a shell, with shells in
+            sorted value order and nodes in ID order. Every node must be in exactly one shell.
+            If `None` (default), all nodes form one shell, in ID order.
+        rotate
+            Angle, in radians, by which each shell is turned relative to the previous one; the
+            first shell starts at this angle too. If `None` (default), uses `pi / s` for `s`
+            shells.
+        scale
+            Sets the spacing of the shells, which are `scale / s` apart: the outermost shell has
+            radius `scale`, or `(s - 1) * scale / s` when the first shell is a single node at the
+            center. Default is `1.0`.
+        center
+            Center of the shells, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If a node is missing from `nlist=` or appears in more than one shell, a node in
+            `nlist=` doesn't exist, the named attribute is missing on some node, or `scale=` or
+            `center=` is invalid.
+
+        Examples
+        --------
+        A star with its hub in the middle and the leaves around it:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_star_graph(5)
+
+        pos = graph.layout_shell(nlist=[[1], [2, 3, 4, 5]], return_dict=True)
+        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        ```
+
+        Grouping by an attribute: the k-core number puts the densest core in the middle:
+
+        ```{python}
+        (
+            ec.karate_club()
+            .coreness(attr_name="core")
+            .layout_shell(nlist="core")
+            .plot(layout="pos", color_by="core", show_labels=False)
+        )
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        rotate_arg = rotate
+        if rotate is not None and (
+            isinstance(rotate, bool)
+            or not isinstance(rotate, (int, float))
+            or not math.isfinite(rotate)
+        ):
+            raise ValueError(f"rotate must be a finite number, got {rotate!r}")
+        ids = sorted(self.get_node_ids(limit=None))
+        if nlist is None:
+            shells = [ids]
+        elif isinstance(nlist, str):
+            values = self.get_node_attrs(nlist)
+            missing = [nid for nid in ids if nid not in values]
+            if missing:
+                raise ValueError(
+                    f"nlist={nlist!r}: {len(missing)} node(s) lack the attribute "
+                    f"(e.g. node {missing[0]})"
+                )
+            groups: dict = {}
+            for nid in ids:
+                groups.setdefault(values[nid], []).append(nid)
+            try:
+                keys = sorted(groups)
+            except TypeError:
+                keys = list(groups)
+            shells = [groups[k] for k in keys]
+        else:
+            shells = [[self._resolve_node_id(v) for v in shell] for shell in nlist]
+            seen: set = set()
+            for shell in shells:
+                for nid in shell:
+                    if nid in seen:
+                        raise ValueError(f"Node {nid} appears in more than one shell")
+                    seen.add(nid)
+            if len(seen) != len(ids):
+                missing = [nid for nid in ids if nid not in seen]
+                raise ValueError(
+                    f"Every node must be in a shell; {len(missing)} are not "
+                    f"(e.g. node {missing[0]})"
+                )
+
+        coords: dict = {}
+        if len(ids) == 1:
+            coords = {ids[0]: center}
+        elif shells:
+            bump = scale / len(shells)
+            radius = 0.0 if len(shells[0]) == 1 else bump
+            if rotate is None:
+                rotate = math.pi / len(shells)
+            first = rotate
+            for shell in shells:
+                m = len(shell)
+                for i, nid in enumerate(shell):
+                    theta = 2 * math.pi * i / m + first
+                    coords[nid] = (
+                        radius * math.cos(theta) + center[0],
+                        radius * math.sin(theta) + center[1],
+                    )
+                radius += bump
+                first += rotate
+        params = self._changed(
+            nlist=(nlist, None),
+            rotate=(rotate_arg, None),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+        )
+        return self._layout_result("layout_shell", coords, attr_name, return_dict, params)
+
+    def layout_random(
+        self,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        seed: Optional[int] = None,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Scatter the nodes uniformly at random over a square.
+
+        ![Random layout](/assets/graphs/layout-random.light.svg){.lightbox fig-alt="On the left, a ring of eight nodes with two chords, drawn on a circle. On the right, layout_random(seed=71) drops each node at a uniformly random point in a square, ignoring the edges, so the ring is scrambled." width="100%"}
+
+        Each coordinate is drawn independently and uniformly from
+        `[center - scale, center + scale)`. Edges play no part. A random layout is a baseline
+        to compare other layouts against, and a starting point for the iterative layouts via
+        their `initial=` argument. Unlike NetworkX's `random_layout()`, which always uses the
+        unit square `[0, 1)^2` shifted by `center`, the square here is `scale=`-sized and
+        centered, like the other layouts.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        scale
+            Half the side of the square. Default is `1.0`.
+        center
+            Center of the square, as `(x, y)`. Default is the origin.
+        seed
+            Integer seed for the random number generator. The same `seed=` always gives the
+            same positions. If `None` (default), the positions differ on every call.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `scale=` is not a positive number or `center=` is not a pair of numbers.
+
+        Examples
+        --------
+        Every coordinate falls within `scale=` of the center:
+
+        ```{python}
+        import edgecase as ec
+
+        pos = ec.Graph().add_path_graph(100).layout_random(seed=3, return_dict=True)
+
+        max(max(abs(x), abs(y)) for x, y in pos.values()) <= 1
+        ```
+
+        ```{python}
+        ec.Graph().add_grid_graph([5, 5]).layout_random(seed=3).plot(layout="pos")
+        ```
+        """
+        import random as _random
+
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        rng = _random.Random(seed)
+        coords = {
+            nid: (
+                center[0] + scale * (2 * rng.random() - 1),
+                center[1] + scale * (2 * rng.random() - 1),
+            )
+            for nid in sorted(self.get_node_ids(limit=None))
+        }
+        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)), seed=(seed, None))
+        return self._layout_result("layout_random", coords, attr_name, return_dict, params)
+
+    def layout_spiral(
+        self,
+        resolution: float = 0.35,
+        equidistant: bool = False,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes along a spiral, in ID order.
+
+        ![Spiral layout](/assets/graphs/layout-spiral.light.svg){.lightbox fig-alt="On the left, a path of nine nodes scattered at random. On the right, layout_spiral(1.4, equidistant=True) sets the nodes evenly spaced along a spiral in id order, so the path curls around half a turn; a faint line traces the spiral on in to its center." width="100%"}
+
+        By default node `i` (counting from `0`) goes at distance `i` from the center and angle
+        `resolution * i`, an Archimedean spiral whose turns get farther apart in arc length as
+        it grows. With `equidistant=True` consecutive nodes are instead one unit apart along
+        the curve, so the spacing stays even all the way out. The spiral is then centered and
+        scaled so the farthest coordinate is `scale=`. Edges play no part, so like
+        `layout_circular()` the picture shows node order; a spiral packs long sequences
+        (time-ordered events, paths) more compactly than a circle. This matches NetworkX's
+        `spiral_layout()`.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        resolution
+            Angle step between consecutive nodes, in radians: smaller values give a tighter,
+            more compact spiral. With `equidistant=True` it sets where the spiral starts
+            instead: at angle `resolution + 2 / resolution`, which is closest to the center
+            near `1.4`. Default is `0.35`.
+        equidistant
+            If `True`, space consecutive nodes evenly along the spiral. Default is `False`.
+        scale
+            Largest coordinate after rescaling. Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `resolution=` is not a positive number, or `scale=` or `center=` is invalid.
+
+        Examples
+        --------
+        A path of 40 nodes wound into a spiral:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_path_graph(40).layout_spiral(equidistant=True).plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        if (
+            isinstance(resolution, bool)
+            or not isinstance(resolution, (int, float))
+            or not (math.isfinite(resolution) and resolution > 0)
+        ):
+            raise ValueError(f"resolution must be a positive number, got {resolution!r}")
+        ids = sorted(self.get_node_ids(limit=None))
+        if len(ids) == 1:
+            coords = {ids[0]: center}
+        else:
+            raw = []
+            if equidistant:
+                chord, step = 1.0, 0.5
+                theta = resolution + chord / (step * resolution)
+                for _ in ids:
+                    r = step * theta
+                    theta += chord / r
+                    raw.append((math.cos(theta) * r, math.sin(theta) * r))
+            else:
+                raw = [
+                    (i * math.cos(resolution * i), i * math.sin(resolution * i))
+                    for i in range(len(ids))
+                ]
+            coords = self._rescale_positions(dict(zip(ids, raw)), scale, center)
+        params = self._changed(
+            resolution=(resolution, 0.35),
+            equidistant=(equidistant, False),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+        )
+        return self._layout_result("layout_spiral", coords, attr_name, return_dict, params)
+
+    def layout_bipartite(
+        self,
+        nodes: Optional[list] = None,
+        align: str = "vertical",
+        aspect_ratio: float = 4 / 3,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the two sides of a bipartite graph in two parallel lines.
+
+        ![Bipartite layout](/assets/graphs/layout-bipartite.light.svg){.lightbox fig-alt="On the left, a bipartite graph of seven nodes scattered at random, nodes 1 to 3 in the accent color and nodes 4 to 7 in teal. On the right, layout_bipartite(nodes=[1, 2, 3]) puts nodes 1 to 3 in a left column and the other four in a right column, so every edge runs across between the columns." width="100%"}
+
+        The nodes in `nodes=` (the first side) go evenly spaced, in ID order, on the left line
+        and all other nodes on the right line, `aspect_ratio=` times the height away. The
+        layout is then centered and scaled so the largest coordinate is `scale=`. With
+        `align="horizontal"` the lines run across instead, the first side on the bottom. This
+        follows NetworkX's `bipartite_layout()`.
+
+        If `nodes=` is not given the graph is two-colored (direction ignored), with the
+        lowest-ID node of each connected component on the first side; a graph that isn't
+        bipartite then raises `ValueError`. Two-line drawings suit affiliation networks
+        (people and the groups they belong to), user-item graphs and matchings.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        nodes
+            Node IDs or labels on the first side. If `None` (default), the sides are found by
+            two-coloring the graph.
+        align
+            `"vertical"` (default) for two vertical lines side by side, or `"horizontal"` for
+            two horizontal lines one above the other.
+        aspect_ratio
+            Distance between the lines relative to their length. Default is `4/3`.
+        scale
+            Largest coordinate after rescaling. Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `nodes=` is `None` and the graph is not bipartite, `align=` is unknown,
+            `aspect_ratio=` is not positive, or `scale=` or `center=` is invalid.
+
+        Examples
+        --------
+        The two sides of a complete bipartite graph are found by two-coloring:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_complete_bipartite_graph(2, 3)
+
+        pos = graph.layout_bipartite(return_dict=True)
+        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        ```
+
+        ```{python}
+        (
+            ec.Graph()
+            .add_complete_bipartite_graph(3, 5)
+            .layout_bipartite(align="horizontal")
+            .plot(layout="pos")
+        )
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        swap = self._layout_align(align)
+        if (
+            isinstance(aspect_ratio, bool)
+            or not isinstance(aspect_ratio, (int, float))
+            or not (math.isfinite(aspect_ratio) and aspect_ratio > 0)
+        ):
+            raise ValueError(f"aspect_ratio must be a positive number, got {aspect_ratio!r}")
+        ids = sorted(self.get_node_ids(limit=None))
+        if nodes is not None:
+            top_set = {self._resolve_node_id(v) for v in nodes}
+        else:
+            if any(s == t for _, s, t in self._graph.edges()):
+                raise ValueError(
+                    "The graph has a self-loop, so it is not bipartite; pass nodes= to choose "
+                    "the sides"
+                )
+            adj = self._layout_adjacency()
+            color: dict[int, int] = {}
+            for root in ids:
+                if root in color:
+                    continue
+                color[root] = 0
+                queue = [root]
+                for u in queue:
+                    for v in adj[u]:
+                        if v not in color:
+                            color[v] = 1 - color[u]
+                            queue.append(v)
+                        elif color[v] == color[u]:
+                            raise ValueError(
+                                "The graph is not bipartite; pass nodes= to choose the sides"
+                            )
+            top_set = {nid for nid in ids if color[nid] == 0}
+        top = [nid for nid in ids if nid in top_set]
+        bottom = [nid for nid in ids if nid not in top_set]
+
+        width = aspect_ratio
+        coords: dict = {}
+        for x, side in ((0.0, top), (width, bottom)):
+            m = len(side)
+            for j, nid in enumerate(side):
+                y = j / (m - 1) if m > 1 else 0.0
+                coords[nid] = (x - width / 2, y - 0.5)
+        coords = self._rescale_positions(coords, scale, center, swap=swap)
+        params = self._changed(
+            nodes=(nodes, None),
+            align=(align, "vertical"),
+            aspect_ratio=(aspect_ratio, 4 / 3),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+        )
+        return self._layout_result("layout_bipartite", coords, attr_name, return_dict, params)
+
+    def _multipartite_coords(self, layers: list[list[int]]) -> dict:
+        """NetworkX's multipartite placement: layer `i` at `x = i`, each layer centered."""
+        width = len(layers)
+        coords = {}
+        for i, layer in enumerate(layers):
+            h = len(layer)
+            for j, nid in enumerate(layer):
+                coords[nid] = (i - (width - 1) / 2, j - (h - 1) / 2)
+        return coords
+
+    def layout_multipartite(
+        self,
+        subset_key: Union[str, dict] = "subset",
+        align: str = "vertical",
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes in parallel lines, one line per layer.
+
+        ![Multipartite layout](/assets/graphs/layout-multipartite.light.svg){.lightbox fig-alt="On the left, a seven-node graph in three layers scattered at random, the layers colored accent, teal and violet. On the right, layout_multipartite('layer') puts each layer in its own column, left to right, so the edges step from one column to the next." width="100%"}
+
+        Each layer is drawn as a vertical line of evenly spaced nodes, the layers side by side
+        in sorted order (or one above another with `align="horizontal"`), and the whole layout
+        is centered and scaled so the largest coordinate is `scale=`. This follows NetworkX's
+        `multipartite_layout()`. Layered drawings suit multipartite graphs, pipelines and
+        neural-network diagrams, and any graph whose nodes carry a stage, level or rank. For
+        layers given by distance from a start node, see `layout_bfs()`.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        subset_key
+            The layers, as the name of a node attribute (nodes sharing a value form a layer,
+            in ID order) or a dict mapping each layer key to a list of node IDs or labels.
+            Layers are placed in sorted key order (or the given order, if the keys can't be
+            sorted). Every node must be in exactly one layer. Default is `"subset"`.
+        align
+            `"vertical"` (default) for vertical layers side by side, or `"horizontal"` for
+            horizontal layers one above another.
+        scale
+            Largest coordinate after rescaling. Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If some node has no layer or is in more than one, a node in `subset_key=` doesn't
+            exist, `align=` is unknown, or `scale=` or `center=` is invalid.
+
+        Examples
+        --------
+        Layers from a node attribute:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(
+                [
+                    ("in1", {"layer": 0}),
+                    ("in2", {"layer": 0}),
+                    ("h1", {"layer": 1}),
+                    ("h2", {"layer": 1}),
+                    ("h3", {"layer": 1}),
+                    ("out", {"layer": 2}),
+                ]
+            )
+            .add_edges(
+                [(i, h) for i in ("in1", "in2") for h in ("h1", "h2", "h3")]
+                + [(h, "out") for h in ("h1", "h2", "h3")]
+            )
+        )
+
+        graph.layout_multipartite(subset_key="layer").plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        swap = self._layout_align(align)
+        ids = sorted(self.get_node_ids(limit=None))
+        if isinstance(subset_key, str):
+            values = self.get_node_attrs(subset_key)
+            missing = [nid for nid in ids if nid not in values]
+            if missing:
+                raise ValueError(
+                    f"subset_key={subset_key!r}: {len(missing)} node(s) lack the attribute "
+                    f"(e.g. node {missing[0]})"
+                )
+            groups: dict = {}
+            for nid in ids:
+                groups.setdefault(values[nid], []).append(nid)
+        elif isinstance(subset_key, dict):
+            groups = {
+                k: [self._resolve_node_id(v) for v in layer] for k, layer in subset_key.items()
+            }
+            seen: set = set()
+            for layer in groups.values():
+                for nid in layer:
+                    if nid in seen:
+                        raise ValueError(f"Node {nid} appears in more than one layer")
+                    seen.add(nid)
+            if len(seen) != len(ids):
+                missing = [nid for nid in ids if nid not in seen]
+                raise ValueError(
+                    f"Every node must be in a layer; {len(missing)} are not "
+                    f"(e.g. node {missing[0]})"
+                )
+        else:
+            raise TypeError(
+                f"subset_key must be an attribute name or a dict, got {type(subset_key).__name__}"
+            )
+        try:
+            keys = sorted(groups)
+        except TypeError:
+            keys = list(groups)
+        coords = self._multipartite_coords([groups[k] for k in keys])
+        coords = self._rescale_positions(coords, scale, center, swap=swap)
+        params = self._changed(
+            subset_key=(subset_key, "subset"),
+            align=(align, "vertical"),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+        )
+        return self._layout_result("layout_multipartite", coords, attr_name, return_dict, params)
+
+    def layout_bfs(
+        self,
+        start: Union[int, str],
+        align: str = "vertical",
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes in layers by breadth-first distance from a start node.
+
+        ![BFS layout](/assets/graphs/layout-bfs.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="100%"}
+
+        The start node forms the first layer, its neighbors the second, their unvisited
+        neighbors the third, and so on; the layers are then drawn as in
+        `layout_multipartite()`, side by side (or one above another with
+        `align="horizontal"`), centered and scaled so the largest coordinate is `scale=`.
+        Within a layer, nodes keep the order the search reached them in, visiting neighbors
+        in ID order. Directed graphs are searched along edge directions. This matches
+        NetworkX's `bfs_layout()`.
+
+        Breadth-first layers make trees and shallow hierarchies readable and show how far
+        each node is from a chosen root, such as a source in a flow network or a seed
+        account in a social graph. Every node must be reachable from `start=`.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        start
+            Node ID or label to start from.
+        align
+            `"vertical"` (default) for vertical layers side by side, or `"horizontal"` for
+            horizontal layers one above another.
+        scale
+            Largest coordinate after rescaling. Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If some node can't be reached from `start=`, `align=` is unknown, or `scale=` or
+            `center=` is invalid.
+        NodeNotFoundError
+            If `start=` doesn't exist.
+
+        Examples
+        --------
+        A binary tree laid out from its root, one level per row:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_balanced_tree(2, 3).layout_bfs(start=1, align="horizontal").plot(
+            layout="pos"
+        )
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        swap = self._layout_align(align)
+        root = self._resolve_node_id(start)
+        adj = self._layout_adjacency(directed=self.is_directed())
+        seen = {root}
+        layers = [[root]]
+        while True:
+            nxt = []
+            for u in layers[-1]:
+                for v in adj[u]:
+                    if v not in seen:
+                        seen.add(v)
+                        nxt.append(v)
+            if not nxt:
+                break
+            layers.append(nxt)
+        if len(seen) != len(adj):
+            raise ValueError(
+                f"layout_bfs() reached {len(seen)} of {len(adj)} nodes from {start!r}; every "
+                "node must be reachable from start="
+            )
+        coords = self._rescale_positions(self._multipartite_coords(layers), scale, center, swap)
+        params = {
+            "start": start,
+            **self._changed(
+                align=(align, "vertical"), scale=(scale, 1.0), center=(center, (0.0, 0.0))
+            ),
+        }
+        return self._layout_result("layout_bfs", coords, attr_name, return_dict, params)
+
+    def layout_spectral(
+        self,
+        weighted: Optional[bool] = None,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes using eigenvectors of the graph Laplacian.
+
+        ![Spectral layout](/assets/graphs/layout-spectral.light.svg){.lightbox fig-alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_spectral() places the nodes by two eigenvectors of the graph's Laplacian, which recovers the grid: nine nodes in three rows of three, joined to their neighbors." width="100%"}
+
+        The coordinates of each node are its entries in the eigenvectors of the second and
+        third smallest eigenvalues of the Laplacian `L = D - A`. These vectors are the
+        smoothest non-constant functions on the graph, so adjacent nodes get similar
+        coordinates: the layout shows the global shape (rings, grids, the two halves of a
+        barbell) cleanly, but it can crowd dense regions into a small area. The result is
+        centered and scaled so the largest coordinate is `scale=`. This matches NetworkX's
+        `spectral_layout()`, up to the sign of each axis, which is fixed here so that the
+        first node with a nonzero coordinate has a positive one.
+
+        Edge direction is ignored (directed graphs use `A + A^T`), parallel edges add up and
+        self-loops are skipped. A disconnected graph has several zero eigenvalues, so its
+        components collapse onto a few points; lay out components separately or use a
+        force-directed layout instead. Graphs of 400 nodes and more use a sparse eigensolver.
+        Graphs with one or two nodes have no third eigenvector: one node goes to `center=`,
+        two nodes to either side of it.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        weighted
+            If `True`, use edge weights (`1` where missing) as adjacency entries. If `False`,
+            every edge counts `1`. If `None` (default), follows whether the graph was created
+            as weighted.
+        scale
+            Largest coordinate after rescaling. `None` keeps the raw eigenvector entries
+            (`center=` is then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `weighted=True` and an edge weight is negative or not finite, or `scale=` or
+            `center=` is invalid.
+
+        Examples
+        --------
+        A grid comes out as a grid:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_grid_graph([6, 6]).layout_spectral().plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        use_w = self._use_weights(weighted)
+        ids = sorted(self.get_node_ids(limit=None))
+        if len(ids) == 1:
+            coords = {ids[0]: center if scale is not None else (0.0, 0.0)}
+        elif len(ids) == 2:
+            coords = self._rescale_positions(
+                {ids[0]: (-1.0, 0.0), ids[1]: (1.0, 0.0)}, scale, center
+            )
+        elif not ids:
+            coords = {}
+        else:
+            raw = rust.spectral_layout(self._graph, weighted=use_w)
+            coords = self._rescale_positions({nid: (x, y) for nid, x, y in raw}, scale, center)
+        params = self._changed(
+            weighted=(weighted, None), scale=(scale, 1.0), center=(center, (0.0, 0.0))
+        )
+        return self._layout_result("layout_spectral", coords, attr_name, return_dict, params)
+
+    def layout_spring(
+        self,
+        k: Optional[float] = None,
+        iterations: int = 50,
+        threshold: float = 1e-4,
+        weighted: Optional[bool] = None,
+        initial: Optional[Union[str, dict]] = None,
+        fixed: Optional[list] = None,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        seed: Optional[int] = None,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes with the Fruchterman-Reingold force-directed algorithm.
+
+        ![Spring layout](/assets/graphs/layout-spring.light.svg){.lightbox fig-alt="On the left, the cube graph (eight nodes, each joined to three others) scattered at random. On the right, layout_spring(seed=1) treats edges as springs and nodes as repelling charges, and the cube settles into one square inside another." width="100%"}
+
+        Nodes behave like charged particles joined by springs: every pair repels with force
+        `k^2 / d` and every edge pulls its ends together with force `w * d^2 / k`, where `d`
+        is their distance, `w` the edge weight and `k` the ideal edge length. Starting from
+        random positions, each iteration moves every node along its net force by at most the
+        current "temperature", which cools linearly from a tenth of the starting area to zero,
+        so the layout settles. The run stops early once the mean move falls below
+        `threshold=`. The result is centered and scaled so the largest coordinate is
+        `scale=`.
+
+        Spring layouts are the general-purpose default: clusters pull together, bridges
+        stretch between them and symmetric graphs tend to look symmetric. Each iteration costs
+        `O(n^2)` (run in parallel on larger graphs), so use them up to a few thousand nodes.
+        This ports NetworkX's dense `spring_layout()` scheme (NetworkX switches to a different
+        energy-minimization method from 500 nodes; this method always uses the force
+        iteration). Edge direction is ignored and parallel edges add their weights. The same
+        `seed=` always gives the same layout, though not the same one as NetworkX, whose
+        random numbers differ.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        k
+            Ideal distance between adjacent nodes. If `None` (default), uses `1/sqrt(n)`
+            (or the starting domain size over `sqrt(n)` when `fixed=` is given), which suits
+            the unit square the layout starts in. Larger values spread the nodes apart.
+        iterations
+            Maximum number of iterations. Default is `50`.
+        threshold
+            Stop once the root-mean-square move per node falls below this. Default is `1e-4`.
+        weighted
+            If `True`, use edge weights (`1` where missing) as spring strengths, so heavier
+            edges pull harder. If `False`, every edge counts `1`. If `None` (default),
+            follows whether the graph was created as weighted.
+        initial
+            Starting positions, as the name of a node attribute holding `(x, y)` pairs or a
+            dict mapping node IDs or labels to pairs. Nodes without one start at random in a
+            square as large as the given positions. If `None` (default), all nodes start at
+            random in the unit square.
+        fixed
+            Node IDs or labels that keep their `initial=` positions. When given, the result
+            is not rescaled, so the fixed nodes stay where they are.
+        scale
+            Largest coordinate after rescaling. `None` keeps the raw coordinates (`center=` is
+            then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        seed
+            Integer seed for the random starting positions. If `None` (default), the layout
+            differs on every call.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `k=` is not positive, `threshold=` is negative, a `fixed=` node has no
+            `initial=` position, an initial position is not a pair of finite numbers,
+            `weighted=True` and an edge weight is negative, or `scale=` or `center=` is
+            invalid.
+
+        Examples
+        --------
+        The two communities of the karate club pull apart:
+
+        ```{python}
+        import edgecase as ec
+
+        (
+            ec.karate_club()
+            .layout_spring(seed=1)
+            .plot(layout="pos", color_by="faction")
+        )
+        ```
+
+        Positions from one layout can seed another. Here a spring layout refines a circular
+        one while node `1` stays put:
+
+        ```{python}
+        graph = ec.Graph().add_lollipop_graph(6, 4).layout_circular(attr_name="start")
+
+        pos = graph.layout_spring(initial="start", fixed=[1], seed=2, return_dict=True)
+        pos[1]
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        use_w = self._use_weights(weighted)
+        init = self._layout_initial(initial)
+        fixed_ids = None if fixed is None else [self._resolve_node_id(v) for v in fixed]
+        raw = rust.spring_layout(
+            self._graph,
+            k=k,
+            iterations=iterations,
+            threshold=threshold,
+            weighted=use_w,
+            initial=init,
+            fixed=fixed_ids,
+            seed=seed,
+        )
+        coords = {nid: (x, y) for nid, x, y in raw}
+        if fixed is None:
+            coords = self._rescale_positions(coords, scale, center)
+        params = self._changed(
+            k=(k, None),
+            iterations=(iterations, 50),
+            threshold=(threshold, 1e-4),
+            weighted=(weighted, None),
+            initial=(initial, None),
+            fixed=(fixed, None),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+            seed=(seed, None),
+        )
+        return self._layout_result("layout_spring", coords, attr_name, return_dict, params)
+
+    def layout_kamada_kawai(
+        self,
+        weighted: Optional[bool] = None,
+        initial: Optional[Union[str, dict]] = None,
+        max_iter: int = 500,
+        tol: float = 1e-6,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes so that drawn distances match shortest-path distances.
+
+        ![Kamada-Kawai layout](/assets/graphs/layout-kamada-kawai.light.svg){.lightbox fig-alt="On the left, a three-by-three grid graph scattered at random. On the right, layout_kamada_kawai() sets the distance between every two nodes to match their number of hops, which straightens the grid into three rows of three." width="100%"}
+
+        The Kamada-Kawai layout treats every pair of nodes as joined by a spring whose rest
+        length is their shortest-path distance `d_ij`, and minimizes the total spring energy
+        `sum (|x_i - x_j| - d_ij)^2 / d_ij^2`. The `1 / d_ij^2` factor makes nearby pairs
+        matter most, so local structure is drawn faithfully while far-apart pairs are allowed
+        to bend. The result is centered and scaled so the largest coordinate is `scale=`.
+
+        Compared with `layout_spring()` the layout is deterministic (it starts from a circle,
+        not random positions), edge lengths come out more uniform, and the global shape of
+        paths, grids and trees is usually clearer. Each sweep costs `O(n^2)`, plus an
+        all-pairs shortest-path computation up front, so it is best for graphs of up to a few
+        thousand nodes.
+
+        NetworkX's `kamada_kawai_layout()` minimizes the same energy with the L-BFGS
+        quasi-Newton method. This method first runs stress majorization sweeps (Gansner,
+        Koren & North, 2004), which move one node at a time to its best position and settle
+        the overall shape reliably, then finishes with L-BFGS, which is much faster through
+        the long, flat stretches of the energy (a path straightening out) where sweeps crawl.
+        The two reach the same kind of layout, though not always the same local minimum.
+        Distances ignore edge direction.
+        Pairs in different components, which have no path, are given a distance one more than
+        the largest finite one (NetworkX uses a fixed `1e6`), so components sit near one
+        another rather than drifting apart.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        weighted
+            If `True`, edge weights (`1` where missing) are edge lengths for the shortest
+            paths, and parallel edges use their lightest weight. If `False`, every edge has
+            length `1`. If `None` (default), follows whether the graph was created as weighted.
+        initial
+            Starting positions, as the name of a node attribute holding `(x, y)` pairs or a
+            dict mapping node IDs or labels to pairs; nodes without one start on the circle.
+            If `None` (default), all nodes start evenly spaced on the unit circle, in ID order.
+        max_iter
+            Maximum number of majorization sweeps, and separately of L-BFGS iterations.
+            Default is `500`.
+        tol
+            Stop once an L-BFGS iteration lowers the energy by at most this fraction. Default
+            is `1e-6`.
+        scale
+            Largest coordinate after rescaling. `None` keeps the raw coordinates, in units of
+            edge length (`center=` is then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `weighted=True` and an edge weight is not positive, `tol=` is negative, an
+            initial position is not a pair of finite numbers, or `scale=` or `center=` is
+            invalid.
+
+        Examples
+        --------
+        With `scale=None` the coordinates are in units of edge length, so the two ends of a
+        path of five edges come out five apart:
+
+        ```{python}
+        import edgecase as ec
+
+        pos = ec.Graph().add_path_graph(6).layout_kamada_kawai(scale=None, return_dict=True)
+        x1, y1 = pos[1]
+        x6, y6 = pos[6]
+        round(((x6 - x1) ** 2 + (y6 - y1) ** 2) ** 0.5, 3)
+        ```
+
+        ```{python}
+        ec.football().layout_kamada_kawai().plot(layout="pos", show_labels=False)
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        use_w = self._use_weights(weighted)
+        raw = rust.kamada_kawai_layout(
+            self._graph,
+            weighted=use_w,
+            initial=self._layout_initial(initial),
+            max_iter=max_iter,
+            tol=tol,
+        )
+        coords = self._rescale_positions({nid: (x, y) for nid, x, y in raw}, scale, center)
+        params = self._changed(
+            weighted=(weighted, None),
+            initial=(initial, None),
+            max_iter=(max_iter, 500),
+            tol=(tol, 1e-6),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+        )
+        return self._layout_result("layout_kamada_kawai", coords, attr_name, return_dict, params)
+
+    def layout_forceatlas2(
+        self,
+        max_iter: int = 100,
+        jitter_tolerance: float = 1.0,
+        scaling_ratio: float = 2.0,
+        gravity: float = 1.0,
+        strong_gravity: bool = False,
+        linlog: bool = False,
+        dissuade_hubs: bool = False,
+        node_mass: Optional[Union[str, dict]] = None,
+        node_size: Optional[Union[str, dict]] = None,
+        weighted: Optional[bool] = None,
+        initial: Optional[Union[str, dict]] = None,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        seed: Optional[int] = None,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes with ForceAtlas2, the force-directed layout of Gephi.
+
+        ![ForceAtlas2 layout](/assets/graphs/layout-forceatlas2.light.svg){.lightbox fig-alt="On the left, a ring of three triangles, each joined to the next by one edge, scattered at random. On the right, layout_forceatlas2(seed=1) pulls each triangle together and pushes the triangles apart, so they sit as three separate clusters linked in a ring." width="100%"}
+
+        ForceAtlas2 (Jacomy, Venturini, Heymann & Bastian, 2014) gives every node a mass of
+        its degree plus one. Every pair of nodes repels with force
+        `scaling_ratio * m_i * m_j / d`, so hubs push others away hard; every edge attracts
+        its ends with force `w * d`; and gravity pulls every node toward the centroid with
+        force `gravity * m`, so disconnected pieces don't fly off. Steps adapt as the run goes:
+        nodes whose force keeps swinging back and forth move less, nodes pulled steadily one
+        way move more, and a global speed rises or falls with how much the whole layout
+        swings. The result is centered and scaled so the largest coordinate is `scale=`.
+
+        The options are the ones in Gephi:
+
+        - `linlog=True` uses the weaker attraction `w * log(1 + d)`, which separates clusters
+          more sharply (Noack's LinLog energy);
+        - `dissuade_hubs=True` divides each node's attraction by its mass, pushing hubs toward
+          the edge of their cluster and authorities toward the center;
+        - `strong_gravity=True` makes gravity grow with distance, `gravity * m * d`, for a more
+          compact picture;
+        - `node_size=` turns on overlap prevention: distances are measured between node
+          borders, overlapping nodes repel strongly and stop attracting.
+
+        Each iteration costs `O(n^2)` (run in parallel on larger graphs; Gephi uses a
+        Barnes-Hut approximation instead). Edge direction is ignored and parallel edges add
+        their weights. NetworkX's `forceatlas2_layout()` takes the same parameters (its
+        `distributed_action=` is `dissuade_hubs=` here), but it measures swing from positions
+        rather than successive forces, and it returns unscaled coordinates; the update here
+        follows the paper and Gephi.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        max_iter
+            Number of iterations. The run stops sooner if the layout stops moving. Default is
+            `100`.
+        jitter_tolerance
+            How much swinging is tolerated: higher values allow faster, less precise
+            convergence. Default is `1.0`.
+        scaling_ratio
+            Strength of the repulsion; higher values spread the layout out. Default is `2.0`.
+        gravity
+            Strength of the pull toward the centroid. Default is `1.0`.
+        strong_gravity
+            If `True`, gravity grows with distance from the centroid. Default is `False`.
+        linlog
+            If `True`, use logarithmic attraction (LinLog mode). Default is `False`.
+        dissuade_hubs
+            If `True`, divide attraction by the node's mass. Default is `False`.
+        node_mass
+            Node masses, as the name of a numeric node attribute or a dict mapping node IDs or
+            labels to positive numbers. Nodes without one use degree plus one, the default for
+            all nodes.
+        node_size
+            Node radii for overlap prevention, as a node attribute name or a dict; nodes
+            without one have size `1`. If `None` (default), overlap prevention is off.
+        weighted
+            If `True`, use edge weights (`1` where missing) to scale attraction. If `False`,
+            every edge counts `1`. If `None` (default), follows whether the graph was created
+            as weighted.
+        initial
+            Starting positions, as the name of a node attribute holding `(x, y)` pairs or a
+            dict mapping node IDs or labels to pairs. Nodes without one start at random. If
+            `None` (default), all nodes start at random in the unit square.
+        scale
+            Largest coordinate after rescaling. `None` keeps the raw coordinates (`center=` is
+            then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        seed
+            Integer seed for the random starting positions. If `None` (default), the layout
+            differs on every call.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `jitter_tolerance=` or `scaling_ratio=` is not positive, `gravity=` is
+            negative, a mass is not positive or a size is negative, an initial position is not
+            a pair of finite numbers, `weighted=True` and an edge weight is negative, or
+            `scale=` or `center=` is invalid.
+
+        Examples
+        --------
+        LinLog mode separates the communities of the dolphin network:
+
+        ```{python}
+        import edgecase as ec
+
+        (
+            ec.dolphins()
+            .cmty_louvain(attr_name="community")
+            .layout_forceatlas2(linlog=True, seed=4)
+            .plot(layout="pos", color_by="community", show_labels=False)
+        )
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        use_w = self._use_weights(weighted)
+        raw = rust.forceatlas2_layout(
+            self._graph,
+            max_iter=max_iter,
+            jitter_tolerance=jitter_tolerance,
+            scaling_ratio=scaling_ratio,
+            gravity=gravity,
+            strong_gravity=strong_gravity,
+            linlog=linlog,
+            dissuade_hubs=dissuade_hubs,
+            weighted=use_w,
+            mass=self._layout_numbers(node_mass, "node_mass="),
+            size=self._layout_numbers(node_size, "node_size="),
+            initial=self._layout_initial(initial),
+            seed=seed,
+        )
+        coords = self._rescale_positions({nid: (x, y) for nid, x, y in raw}, scale, center)
+        params = self._changed(
+            max_iter=(max_iter, 100),
+            jitter_tolerance=(jitter_tolerance, 1.0),
+            scaling_ratio=(scaling_ratio, 2.0),
+            gravity=(gravity, 1.0),
+            strong_gravity=(strong_gravity, False),
+            linlog=(linlog, False),
+            dissuade_hubs=(dissuade_hubs, False),
+            node_mass=(node_mass, None),
+            node_size=(node_size, None),
+            weighted=(weighted, None),
+            initial=(initial, None),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+            seed=(seed, None),
+        )
+        return self._layout_result("layout_forceatlas2", coords, attr_name, return_dict, params)
+
+    def layout_arf(
+        self,
+        scaling: float = 1.0,
+        a: float = 1.1,
+        etol: float = 1e-6,
+        dt: float = 1e-3,
+        max_iter: int = 1000,
+        initial: Optional[Union[str, dict]] = None,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        seed: Optional[int] = None,
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes with the attractive and repulsive forces (ARF) layout.
+
+        ![ARF layout](/assets/graphs/layout-arf.light.svg){.lightbox fig-alt="On the left, a barbell graph scattered at random: two triangles, nodes 1 to 3 and 5 to 7, joined through node 4. On the right, layout_arf(seed=19) pulls joined nodes together and pushes every pair apart, so the two triangles sit apart with node 4 bridging them." width="100%"}
+
+        ARF (Geipel, 2007) joins every pair of nodes by a weak spring of strength `1`,
+        strengthened to `a=` for adjacent pairs, and lets every pair repel with force
+        `rho / d`, where `rho = scaling * sqrt(n)`. The springs on all pairs hold the layout
+        together in a round, evenly filled disc, avoiding the large gaps a spring layout can
+        leave, while the stronger springs on edges pull connected groups together.
+        Positions follow the force field in small time steps `dt=` until the summed force
+        falls to `etol=` or `max_iter=` steps have run. The result is centered and scaled so
+        the largest coordinate is `scale=`.
+
+        This follows NetworkX's `arf_layout()` with two differences: edges strengthen the
+        spring between their ends in both directions (NetworkX strengthens only the
+        `source -> target` entry of the spring matrix, so directed graphs get lopsided
+        forces), and the result is rescaled (NetworkX returns raw coordinates). Each step
+        costs `O(n^2)`. Edge weights are not used.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        scaling
+            Strength of the repulsion, which sets the size of the disc. Default is `1.0`.
+        a
+            Spring strength between adjacent nodes; must be greater than `1`. Larger values
+            separate clusters more clearly. Default is `1.1`.
+        etol
+            Stop once the summed force on all nodes falls to this. Default is `1e-6`.
+        dt
+            Time step of the simulation. Default is `1e-3`.
+        max_iter
+            Maximum number of steps. Default is `1000`.
+        initial
+            Starting positions, as the name of a node attribute holding `(x, y)` pairs or a
+            dict mapping node IDs or labels to pairs. Nodes without one start at random. If
+            `None` (default), all nodes start at random in the unit square.
+        scale
+            Largest coordinate after rescaling. `None` keeps the raw coordinates (`center=` is
+            then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        seed
+            Integer seed for the random starting positions. If `None` (default), the layout
+            differs on every call.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `a=` is not greater than `1`, `scaling=` or `dt=` is not positive, `etol=` is
+            negative, an initial position is not a pair of finite numbers, or `scale=` or
+            `center=` is invalid.
+
+        Examples
+        --------
+        Two cliques joined by a path, with a large `a=` to keep the cliques tight:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_barbell_graph(6, 3).layout_arf(a=3, seed=5).plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        raw = rust.arf_layout(
+            self._graph,
+            scaling=scaling,
+            a=a,
+            etol=etol,
+            dt=dt,
+            max_iter=max_iter,
+            initial=self._layout_initial(initial),
+            seed=seed,
+        )
+        coords = self._rescale_positions({nid: (x, y) for nid, x, y in raw}, scale, center)
+        params = self._changed(
+            scaling=(scaling, 1.0),
+            a=(a, 1.1),
+            etol=(etol, 1e-6),
+            dt=(dt, 1e-3),
+            max_iter=(max_iter, 1000),
+            initial=(initial, None),
+            scale=(scale, 1.0),
+            center=(center, (0.0, 0.0)),
+            seed=(seed, None),
+        )
+        return self._layout_result("layout_arf", coords, attr_name, return_dict, params)
 
     # ====================================================================
     # Graph Generators
@@ -8038,6 +9630,2646 @@ class Graph:
         self._end_compound(
             "add_random_geometric_graph",
             f"G.add_random_geometric_graph(n={n}, radius={radius}, dim={dim}, p_norm={p_norm})",
+            before,
+        )
+        return self
+
+    def _add_index_graph(
+        self,
+        n: int,
+        pairs,
+        label: bool,
+        type: str | None,
+        rel: str | None,
+        node_attrs: list[dict] | None = None,
+    ) -> None:
+        """Add `n` generated nodes, then an edge for each `(i, j)` index pair among them."""
+        ids = self._add_generated_nodes(n, label, type, node_attrs=node_attrs)
+        self._add_generated_edges(ids, pairs, rel)
+
+    @staticmethod
+    def _check_non_negative(**values: int) -> None:
+        """Raise `ValueError` for a negative count (Rust takes them as unsigned integers)."""
+        for name, value in values.items():
+            if value < 0:
+                raise ValueError(f"{name} must be non-negative, got {value}")
+
+    def add_random_regular_graph(
+        self,
+        n: int,
+        d: int,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random regular graph, in which every node has exactly `d` neighbors.
+
+        ![Random regular graph](/assets/graphs/add-random-regular-graph.light.svg){.lightbox fig-alt="Three random regular graphs on the same ring of eight nodes for degree d=2, 3, and 4. Every node has exactly d neighbors, so the graphs have 8, 12, and 16 edges; which pairs get joined is random, and the d=2 graph here splits into a triangle and a five-cycle rather than one long cycle." width="100%"}
+
+        Creates `n` nodes and joins them so that each one has exactly `d` neighbors, with no
+        self-loops or parallel edges, giving `n * d / 2` edges in all. The graph is built by
+        pairing stubs: every node gets `d` stubs, the stubs are shuffled and paired off, and
+        pairs that would make a self-loop or repeat an edge are set aside and paired again. If
+        the leftover stubs can't be joined, the construction starts over. For `d` small
+        compared with `n` the result is close to uniform over all `d`-regular graphs. The
+        process follows NetworkX's `random_regular_graph()`, whose arguments come in the order
+        `(d, n)`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Random regular graphs are useful for:
+
+        - null models in which every node has the same degree, so any structure comes from the
+          wiring alone
+        - expanders: for `d >= 3` they are connected and well-mixing with high probability
+        - testing algorithms whose behavior depends on degree heterogeneity
+
+        Parameters
+        ----------
+        n
+            Number of nodes. `n * d` must be even.
+        d
+            Degree of every node. Must be less than `n` (unless both are `0`).
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `d=` is negative, `n * d` is odd, or `d=` is not less than `n=`.
+
+        Examples
+        --------
+        Twenty nodes of degree three have `20 * 3 / 2 = 30` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_regular_graph(n=20, d=3, seed=5)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Every node has the same degree:
+
+        ```{python}
+        set(graph.degrees(return_dict=True).values())
+        ```
+
+        With `d=3` the graph is almost always connected, and its diameter stays small:
+
+        ```{python}
+        graph.is_connected(), graph.get_diameter()
+        ```
+        """
+        self._check_non_negative(n=n, d=d)
+
+        from edgecase._core import random_regular_edges as _random_regular_edges
+
+        pairs = _random_regular_edges(n, d, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_random_regular_graph", f"G.add_random_regular_graph(n={n}, d={d})", before
+        )
+        return self
+
+    def add_powerlaw_cluster_graph(
+        self,
+        n: int,
+        m: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Holme-Kim powerlaw cluster graph: preferential attachment with triangle closing.
+
+        ![Powerlaw cluster graph](/assets/graphs/add-powerlaw-cluster-graph.light.svg){.lightbox fig-alt="Three Holme-Kim graphs on a ring of eight nodes, each new node attaching to m=2 others by preferential attachment, with triad-formation probability p=0, 0.5, and 1. Every panel has 12 edges, but a higher p closes more of them into triangles: 1, 4, and 5 triangles." width="100%"}
+
+        Grows a graph from `m` isolated nodes, adding the other `n - m` nodes one at a time.
+        Each new node makes `m` links. Its first link goes to an existing node chosen with
+        probability proportional to its degree, as in `add_pa_graph()`. For each further link,
+        with probability `p` the new node closes a triangle by linking to a random neighbor of
+        the node it last attached to; otherwise it makes another preferential-attachment link.
+        With `p=0` this is the Barabási-Albert model. Raising `p` raises the clustering, while
+        the degree distribution keeps its power-law tail. The process follows NetworkX's
+        `powerlaw_cluster_graph()`.
+
+        Each new node normally adds `m` edges, so the graph has close to `(n - m) * m` edges; a
+        few fewer when a triangle-closing link lands on a node the new node was going to attach
+        to anyway. In a directed graph each edge points from the new node to the node it
+        attached to, as in `add_pa_graph()`. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Powerlaw cluster graphs are useful for:
+
+        - modeling social networks, which combine hubs with many closed triangles
+        - separating the effects of clustering and degree distribution, by sweeping `p=` while
+          the degree distribution stays roughly fixed
+        - benchmarking algorithms on scale-free graphs that aren't locally tree-like
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `m=`.
+        m
+            Number of links made by each new node. Must be at least `1`.
+        p
+            Probability of closing a triangle after each link, between `0` and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m=` is less than `1` or greater than `n=`, or `p=` is not between `0` and `1`.
+
+        Examples
+        --------
+        A hundred nodes, each new one making three links:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_powerlaw_cluster_graph(n=100, m=3, p=0.5, seed=2)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Raising `p=` closes more triangles, so the average clustering coefficient climbs:
+
+        ```{python}
+        [
+            round(
+                ec.Graph()
+                .add_powerlaw_cluster_graph(n=300, m=3, p=p, seed=2)
+                .get_avg_clustering_coefficient(),
+                3,
+            )
+            for p in (0.0, 0.3, 0.6, 0.9)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, m=m)
+
+        from edgecase._core import powerlaw_cluster_edges as _powerlaw_cluster_edges
+
+        pairs = _powerlaw_cluster_edges(n, m, p, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_powerlaw_cluster_graph",
+            f"G.add_powerlaw_cluster_graph(n={n}, m={m}, p={p})",
+            before,
+        )
+        return self
+
+    def add_newman_watts_strogatz_graph(
+        self,
+        n: int,
+        k: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Newman-Watts-Strogatz small-world graph: a ring lattice plus random shortcuts.
+
+        ![Newman-Watts-Strogatz graph](/assets/graphs/add-newman-watts-strogatz-graph.light.svg){.lightbox fig-alt="Three Newman-Watts-Strogatz graphs on a ring of eight nodes with k=2 and shortcut probability p=0, 0.3, and 0.6. The ring is never broken: accent-colored shortcuts are added on top of it, 1 at p=0.3 and 4 at p=0.6, instead of replacing ring edges as in the Watts-Strogatz model." width="100%"}
+
+        Arranges `n` nodes in a ring and joins each to its `k // 2` nearest neighbors on either
+        side (so an odd `k` rounds down). Then, for each lattice edge `(u, v)`, with
+        probability `p` a shortcut is added from `u` to a node chosen uniformly among those not
+        already adjacent to it. Unlike `add_smallworld_graph()`, which moves lattice edges, this
+        keeps every lattice edge and only adds shortcuts, so for `k >= 2` the graph is always
+        connected. With `k < n` the lattice has `n * (k // 2)` edges, and about a fraction `p`
+        of that number again is added as shortcuts; `k == n` gives the complete graph. The
+        process follows NetworkX's `newman_watts_strogatz_graph()`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Newman-Watts-Strogatz graphs are useful for:
+
+        - small-world experiments that shouldn't be confounded by the graph breaking apart
+        - studying how a few shortcuts shrink path lengths while clustering stays high
+        - analytic work, since the model is easier to treat than Watts-Strogatz rewiring
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        k
+            Each node is joined to its `k // 2` nearest neighbors on each side of the ring.
+            Must be at most `n=`.
+        p
+            Probability of adding a shortcut for each lattice edge, between `0` and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `k=` is negative, `k=` is greater than `n=`, or `p=` is not between `0`
+            and `1`.
+
+        Examples
+        --------
+        The lattice of `30` nodes with `k=4` has `30 * 2 = 60` edges, and the shortcuts come on
+        top of them:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_newman_watts_strogatz_graph(n=30, k=4, p=0.2, seed=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Adding shortcuts never disconnects the ring, but it does shrink the diameter:
+
+        ```{python}
+        [
+            (
+                p,
+                ec.Graph()
+                .add_newman_watts_strogatz_graph(n=60, k=4, p=p, seed=3)
+                .get_diameter(),
+            )
+            for p in (0.0, 0.05, 0.2, 0.5)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, k=k)
+
+        from edgecase._core import newman_watts_strogatz_edges as _nws_edges
+
+        pairs = _nws_edges(n, k, p, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_newman_watts_strogatz_graph",
+            f"G.add_newman_watts_strogatz_graph(n={n}, k={k}, p={p})",
+            before,
+        )
+        return self
+
+    def add_connected_watts_strogatz_graph(
+        self,
+        n: int,
+        k: int,
+        p: float,
+        tries: int = 100,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Watts-Strogatz small-world graph that is guaranteed to be connected.
+
+        ![Connected Watts-Strogatz graph](/assets/graphs/add-connected-watts-strogatz-graph.light.svg){.lightbox fig-alt="Three connected Watts-Strogatz graphs on a ring of eight nodes with k=4 and rewiring probability p=0, 0.2, and 1. At p=0 every node links to its two nearest neighbors on each side; rewired edges show as accent-colored shortcuts, 3 at p=0.2 and 9 at p=1. Every panel keeps all 16 edges and is connected, because a disconnected draw is retried." width="100%"}
+
+        Draws the same graph as `add_smallworld_graph()`: a ring lattice in which each node is
+        joined to its `k` nearest neighbors, with each edge rewired to a random node with
+        probability `p`. If the result is disconnected, the graph is drawn again, continuing
+        the same random stream, up to `tries=` times. With the same `seed=`, the first draw is
+        the graph that `add_smallworld_graph()` builds, so the two agree whenever that graph is
+        connected. The process follows NetworkX's `connected_watts_strogatz_graph()`.
+
+        In a directed graph each lattice edge points around the ring from a node to the ones
+        after it, and a rewired edge keeps its source, as in `add_smallworld_graph()`. The
+        graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Connected Watts-Strogatz graphs are useful for:
+
+        - small-world experiments that measure path lengths, which are only defined on a
+          connected graph
+        - spreading and synchronization studies in which every node must be reachable
+        - comparing against `add_newman_watts_strogatz_graph()`, which adds shortcuts instead
+          of moving edges
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        k
+            Number of nearest neighbors each node is joined to in the ring lattice. Must be even
+            and less than `n=`.
+        p
+            Probability of rewiring each edge, between `0` and `1`.
+        tries
+            Maximum number of graphs to draw before giving up. Default is `100`. Must be at
+            least `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `k=` is odd or not less than `n=`, `p=` is not between `0` and `1`, `tries=` is
+            less than `1`, or no connected graph turns up in `tries=` draws (always the case for
+            `k=0` with more than one node).
+
+        Examples
+        --------
+        Even with heavy rewiring, the graph comes out connected:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_connected_watts_strogatz_graph(n=40, k=2, p=0.6, seed=1)
+
+        graph.count_edges(), graph.is_connected()
+        ```
+
+        `add_smallworld_graph()` with the same seed gives a graph that has fallen apart, which
+        is why a redraw was needed here:
+
+        ```{python}
+        ec.Graph().add_smallworld_graph(n=40, k=2, p=0.6, seed=1).is_connected()
+        ```
+        """
+        self._check_non_negative(n=n, k=k, tries=tries)
+
+        from edgecase._core import connected_watts_strogatz_edges as _cws_edges
+
+        pairs = _cws_edges(n, k, p, tries, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_connected_watts_strogatz_graph",
+            f"G.add_connected_watts_strogatz_graph(n={n}, k={k}, p={p}, tries={tries})",
+            before,
+        )
+        return self
+
+    def add_extended_barabasi_albert_graph(
+        self,
+        n: int,
+        m: int,
+        p: float,
+        q: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add an extended Barabási-Albert graph, which grows by adding nodes, adding edges, and
+        rewiring edges.
+
+        ![Extended Barabási-Albert graph](/assets/graphs/add-extended-barabasi-albert-graph.light.svg){.lightbox fig-alt="Three extended Barabási-Albert graphs on a ring of eight nodes with m=1. With p=0 and q=0 it is plain preferential attachment, a tree of 7 edges; with p=0.4 some steps add edges between existing nodes instead, giving 12 edges and 7 triangles; with q=0.4 some steps rewire an existing edge instead, so the count stays at 7 and here one node is left with no edges." width="100%"}
+
+        Starts from `m` isolated nodes and repeats one of three steps until there are `n` nodes:
+
+        - with probability `p`, add `m` new edges, each from a random node to one chosen by
+          preferential attachment
+        - with probability `q`, rewire `m` edges: a random node drops one of its edges and
+          links to a node chosen by preferential attachment instead
+        - otherwise (probability `1 - p - q`), add a new node with `m` edges to existing nodes
+          chosen by preferential attachment
+
+        Preferential attachment chooses a node with probability proportional to its degree plus
+        one, so isolated nodes can still be picked. Adding edges makes the graph denser, while
+        rewiring moves links toward the hubs. A step that can't be carried out (no room for `m`
+        more edges, or too few edges to rewire) adds a node instead. With `p = q = 0` this is
+        plain preferential-attachment growth from `m` isolated nodes. The process follows
+        NetworkX's `extended_barabasi_albert_graph()`.
+
+        Because edges are also added between existing nodes and rewired, they have no natural
+        direction: in a directed graph every edge points from the earlier-created node to the
+        later one. The graph is appended without touching or connecting to existing nodes, and
+        the whole construction is recorded as a single step.
+
+        Extended Barabási-Albert graphs are useful for:
+
+        - modeling networks that grow both by newcomers and by new links among existing members
+        - tuning the degree exponent and density of a scale-free graph through `p=` and `q=`
+        - studying how rewiring toward hubs changes robustness and spreading
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be greater than `m=`.
+        m
+            Number of edges added, rewired, or attached to a new node in each step. Must be at
+            least `1`.
+        p
+            Probability of a step that adds edges between existing nodes, between `0` and `1`.
+        q
+            Probability of a step that rewires edges, between `0` and `1`. `p + q` must be less
+            than `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m=` is less than `1` or not less than `n=`, `p=` or `q=` is not between `0` and
+            `1`, or `p + q` is not less than `1`.
+
+        Examples
+        --------
+        With `p=0` and `q=0`, each of the `98` added nodes brings two edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_extended_barabasi_albert_graph(n=100, m=2, p=0, q=0, seed=4)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Steps that add edges between existing nodes make the graph denser:
+
+        ```{python}
+        [
+            ec.Graph()
+            .add_extended_barabasi_albert_graph(n=100, m=2, p=p, q=0.1, seed=4)
+            .count_edges()
+            for p in (0.0, 0.2, 0.4, 0.6)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, m=m)
+
+        from edgecase._core import extended_barabasi_albert_edges as _eba_edges
+
+        pairs = _eba_edges(n, m, p, q, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_extended_barabasi_albert_graph",
+            f"G.add_extended_barabasi_albert_graph(n={n}, m={m}, p={p}, q={q})",
+            before,
+        )
+        return self
+
+    def add_dual_barabasi_albert_graph(
+        self,
+        n: int,
+        m1: int,
+        m2: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a dual Barabási-Albert graph, in which each new node attaches with one of two edge
+        counts.
+
+        ![Dual Barabási-Albert graph](/assets/graphs/add-dual-barabasi-albert-graph.light.svg){.lightbox fig-alt="Three dual Barabási-Albert graphs on a ring of eight nodes, where each new node attaches to m1=1 existing node with probability p and to m2=3 otherwise, for p=1, 0.5, and 0. At p=1 every new node brings one edge and the graph is a tree of 7 edges; the mixed p=0.5 gives 13 edges; at p=0 every new node brings three, for 15." width="100%"}
+
+        Grows a graph from a star on `max(m1, m2) + 1` nodes. Each new node attaches with `m1`
+        edges with probability `p` and with `m2` edges otherwise, linking to distinct existing
+        nodes chosen with probability proportional to their degree. Mixing the two attachment
+        sizes gives a degree distribution between those of the two pure Barabási-Albert
+        models, and lets the average degree be any value between `2 * m1` and `2 * m2`. With
+        `p=1` (or `p=0`) this is the Barabási-Albert model with `m1` (or `m2`) edges per node,
+        started from a star on `m1 + 1` (or `m2 + 1`) nodes rather than the clique used by
+        `add_pa_graph()`. The process follows NetworkX's `dual_barabasi_albert_graph()`.
+
+        In a directed graph the star's edges point from its center to its leaves, and every
+        later edge points from the new node to the node it attached to, as in `add_pa_graph()`.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Dual Barabási-Albert graphs are useful for:
+
+        - scale-free graphs with a non-integer average degree, e.g. to match an observed network
+        - modeling growth in which newcomers differ in how many links they bring
+        - comparing against `add_pa_graph()` as the attachment mix varies
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be greater than both `m1=` and `m2=`.
+        m1
+            Number of edges a new node makes with probability `p=`. Must be at least `1`.
+        m2
+            Number of edges a new node makes otherwise. Must be at least `1`.
+        p
+            Probability of attaching with `m1=` edges, between `0` and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `m1=` or `m2=` is less than `1` or not less than `n=`, or `p=` is not between `0`
+            and `1`.
+
+        Examples
+        --------
+        New nodes bring one edge or four, with equal chance:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_dual_barabasi_albert_graph(n=200, m1=1, m2=4, p=0.5, seed=6)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The average degree slides between `2 * m2` and `2 * m1` as `p=` goes from `0` to `1`:
+
+        ```{python}
+        [
+            round(
+                ec.Graph()
+                .add_dual_barabasi_albert_graph(n=200, m1=1, m2=4, p=p, seed=6)
+                .get_average_degree(),
+                2,
+            )
+            for p in (0.0, 0.5, 1.0)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, m1=m1, m2=m2)
+
+        from edgecase._core import dual_barabasi_albert_edges as _dba_edges
+
+        pairs = _dba_edges(n, m1, m2, p, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_dual_barabasi_albert_graph",
+            f"G.add_dual_barabasi_albert_graph(n={n}, m1={m1}, m2={m2}, p={p})",
+            before,
+        )
+        return self
+
+    def add_random_lobster(
+        self,
+        n: int,
+        p1: float,
+        p2: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random lobster: a path with random legs, each of which may carry leaves.
+
+        ![Random lobster](/assets/graphs/add-random-lobster.light.svg){.lightbox fig-alt="Three random lobsters grown from the same backbone, a path of four nodes drawn as the top row. With p1=0 and p2=0 nothing grows and the lobster is just the path; with p1=0.6 five legs hang below the backbone, making a caterpillar; with p2=0.6 as well, two of the legs grow three leaves between them, so every node stays within two steps of the backbone." width="100%"}
+
+        A lobster is a tree in which every node is within distance two of a central path, the
+        backbone. The backbone's length is drawn uniformly so that it is `n` on average
+        (between `0` and `2 * n` nodes). Each backbone node then grows legs: it keeps adding a
+        leg while a draw falls below `p1`, so the number of legs has mean `p1 / (1 - p1)`. Each
+        leg grows leaves in the same way, using `p2`. With `p2=0` there are no leaves and the
+        tree is a caterpillar. The process follows NetworkX's `random_lobster()`.
+
+        The total number of nodes is random. The backbone comes first, in path order, followed
+        by the legs and leaves in the order they grow. Every edge points from the
+        earlier-created node to the later one in a directed graph: along the backbone and
+        outward to the legs and leaves. With probability about `1 / (4 * n)` the backbone is
+        empty, and nothing is added. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Random lobsters are useful for:
+
+        - test trees with a long spine and short side branches, e.g. for tree-width or
+          graceful-labeling experiments
+        - modeling branching structures such as river networks with tributaries
+        - exercising tree algorithms on shapes between a path and a star
+
+        Parameters
+        ----------
+        n
+            Expected number of backbone nodes.
+        p1
+            Probability of adding each further leg to a backbone node. Must be at least `0` and
+            less than `1`.
+        p2
+            Probability of adding each further leaf to a leg. Must be at least `0` and less than
+            `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, or `p1=` or `p2=` is not at least `0` and less than `1`.
+
+        Examples
+        --------
+        A lobster is always a tree, whatever its size:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_lobster(n=8, p1=0.6, p2=0.4, seed=1)
+
+        graph.count_nodes(), graph.is_tree()
+        ```
+
+        Every node is within two steps of the backbone, so the leaves hang at most two edges
+        away from it. The degrees show the branching:
+
+        ```{python}
+        sorted(graph.degrees(return_dict=True).values(), reverse=True)[:8]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import random_lobster_edges as _random_lobster_edges
+
+        size, pairs = _random_lobster_edges(n, p1, p2, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(size, pairs, label, type, rel)
+        self._end_compound(
+            "add_random_lobster", f"G.add_random_lobster(n={n}, p1={p1}, p2={p2})", before
+        )
+        return self
+
+    def add_random_labeled_tree(
+        self,
+        n: int,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a uniformly random labeled tree on `n` nodes.
+
+        ![Random labeled tree](/assets/graphs/add-random-labeled-tree.light.svg){.lightbox fig-alt="Three random labeled trees on 5, 7, and 9 nodes, each hung from its most central node. Every tree on n labeled nodes is equally likely, so the shapes vary freely, but each one has n - 1 edges and no cycles." width="100%"}
+
+        Every one of the `n ** (n - 2)` labeled trees on `n` nodes (Cayley's formula) is
+        equally likely. The tree is built by drawing a uniformly random Prüfer sequence, `n - 2`
+        entries each chosen from the `n` nodes, and decoding it, so a node's degree is one more
+        than the number of times it appears in the sequence. Random labeled trees are bushy
+        rather than path-like or star-like: their diameter grows like the square root of `n`
+        and their largest degree grows only slowly. The process follows NetworkX's
+        `random_labeled_tree()`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Random labeled trees are useful for:
+
+        - unbiased test inputs for tree algorithms
+        - null models for observed trees, e.g. comparing diameters or degree distributions
+        - random spanning structures to build other graphs from
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1`.
+
+        Examples
+        --------
+        A tree on `n` nodes always has `n - 1` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_labeled_tree(n=50, seed=12)
+
+        graph.count_edges(), graph.is_tree()
+        ```
+
+        Its Prüfer sequence, recovered with `to_prufer_sequence()`, has `n - 2` entries:
+
+        ```{python}
+        len(graph.to_prufer_sequence())
+        ```
+
+        The diameter is typically far from both extremes, `2` for a star and `49` for a path:
+
+        ```{python}
+        graph.get_diameter()
+        ```
+        """
+        if n < 1:
+            raise ValueError(f"a tree needs at least 1 node, got n={n}")
+
+        from edgecase._core import random_labeled_tree_edges as _random_labeled_tree_edges
+
+        pairs = _random_labeled_tree_edges(n, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound("add_random_labeled_tree", f"G.add_random_labeled_tree(n={n})", before)
+        return self
+
+    def add_random_powerlaw_tree(
+        self,
+        n: int,
+        gamma: float = 3.0,
+        tries: int = 100,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random tree whose degrees follow a power law.
+
+        ![Random power-law tree](/assets/graphs/add-random-powerlaw-tree.light.svg){.lightbox fig-alt="Three random power-law trees on eight nodes for exponent gamma=2, 3, and 5, each hung from its most central node. The degrees are drawn from a power law, so a small gamma gives a heavy tail: the biggest hub has 6 neighbors at gamma=2, 5 at gamma=3, and 3 at gamma=5." width="100%"}
+
+        Draws a degree for each of the `n` nodes from a power law with exponent `gamma`
+        (rounded to an integer and capped at `n`). Every tree on `n` nodes has degrees summing
+        to `2 * n - 2`, so until the draws do, one of them, chosen at random, is replaced by a
+        fresh draw, up to `tries=` times. The tree is then built from the accepted degrees: the
+        nodes of degree two or more form a path, highest degree at the start, and each takes
+        the rest of its degree in leaves. The shape is therefore always a caterpillar (every
+        node is on the central path or next to it); only the degrees are random. The process
+        follows NetworkX's `random_powerlaw_tree()`.
+
+        Hitting the exact degree sum gets harder as `n` grows, so larger trees may need more
+        `tries=`. In a directed graph every edge points from the earlier-created node to the
+        later one. The graph is appended without touching or connecting to existing nodes, and
+        the whole construction is recorded as a single step.
+
+        Random powerlaw trees are useful for:
+
+        - trees with a few hubs and many leaves, e.g. as hierarchy or broadcast trees
+        - testing algorithms on trees with heavy-tailed degrees
+        - comparing against `add_random_labeled_tree()`, whose degrees are much more even
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `1`.
+        gamma
+            Exponent of the power law. Must be greater than `1`; smaller values give bigger
+            hubs. Default is `3.0`.
+        tries
+            Maximum number of single-degree redraws while searching for a valid degree sequence.
+            Default is `100`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `1`, `gamma=` is not greater than `1`, `tries=` is negative,
+            or no valid degree sequence turns up within `tries=` redraws.
+
+        Examples
+        --------
+        A powerlaw tree on thirty nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_powerlaw_tree(n=30, seed=1)
+
+        graph.count_edges(), graph.is_tree()
+        ```
+
+        Most nodes are leaves, and a few hubs hold the tree together:
+
+        ```{python}
+        sorted(graph.degrees(return_dict=True).values(), reverse=True)
+        ```
+        """
+        if n < 1:
+            raise ValueError(f"a tree needs at least 1 node, got n={n}")
+        self._check_non_negative(tries=tries)
+
+        from edgecase._core import random_powerlaw_tree_edges as _random_powerlaw_tree_edges
+
+        pairs = _random_powerlaw_tree_edges(n, gamma, tries, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_random_powerlaw_tree",
+            f"G.add_random_powerlaw_tree(n={n}, gamma={gamma}, tries={tries})",
+            before,
+        )
+        return self
+
+    def add_havel_hakimi_graph(
+        self,
+        degree_sequence: list[int],
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a graph with a given degree sequence, built deterministically by the Havel-Hakimi
+        algorithm.
+
+        ![Havel-Hakimi graph](/assets/graphs/add-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three Havel-Hakimi graphs on five nodes, each node's requested degree in a pill: 3, 2, 2, 2, 1; 3, 3, 2, 2, 2; and 4, 3, 3, 2, 2. The construction is deterministic, joining the node with the most degree left to the next-highest nodes, and every node ends with exactly the degree in its pill, using 5, 6, and 7 edges." width="100%"}
+
+        Creates one node per entry of `degree_sequence`, and node `i` gets exactly
+        `degree_sequence[i]` neighbors, with no self-loops or parallel edges. The Havel-Hakimi
+        algorithm repeatedly takes the node with the largest remaining degree `d` and joins it
+        to the `d` nodes with the next-largest remaining degrees. It succeeds exactly when the
+        sequence is graphical (some simple graph has these degrees), which is checked first
+        with the Erdős-Gallai test.
+
+        There is no randomness: the same sequence always gives the same graph. Because
+        high-degree nodes are joined first, they tend to link to each other, so the result is
+        strongly assortative. For a random graph with the same degrees, see
+        `add_random_degree_sequence_graph()` (simple) or `configuration_model()` (with
+        self-loops and parallel edges). The process follows NetworkX's `havel_hakimi_graph()`
+        and gives the same edges. NetworkX numbers only the nodes of nonzero degree, though, so
+        when the sequence contains zeros its node `i` may not have degree `degree_sequence[i]`;
+        here it always does.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Havel-Hakimi graphs are useful for:
+
+        - checking that a degree sequence can be realized, and getting one realization
+        - a deterministic, maximally assortative starting point for degree-preserving
+          rewiring (see `double_edge_swap()`)
+        - test graphs with exactly prescribed degrees
+
+        Parameters
+        ----------
+        degree_sequence
+            Degree of each new node, as a list of non-negative integers. The sum must be even.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `degree_sequence=` contains a negative entry or is not graphical.
+
+        Examples
+        --------
+        Each node gets the degree at its position in the sequence:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_havel_hakimi_graph([3, 3, 2, 2, 1, 1])
+
+        [graph.get_degree(v) for v in sorted(graph.get_node_ids())]
+        ```
+
+        The highest-degree nodes are joined to each other first:
+
+        ```{python}
+        graph.get_edges_str_repr()
+        ```
+
+        A sequence with no simple realization is rejected. Two nodes of degree three would
+        each need three distinct neighbors among only three others, two of which have degree
+        one:
+
+        ```{python}
+        try:
+            ec.Graph().add_havel_hakimi_graph([3, 3, 1, 1])
+        except ValueError as err:
+            print(err)
+        ```
+        """
+        from edgecase._core import havel_hakimi_edges as _havel_hakimi_edges
+
+        degree_sequence = list(degree_sequence)
+        pairs = _havel_hakimi_edges(degree_sequence)
+
+        before = self._begin_compound()
+        self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
+        self._end_compound(
+            "add_havel_hakimi_graph", f"G.add_havel_hakimi_graph({degree_sequence})", before
+        )
+        return self
+
+    def add_directed_configuration_model(
+        self,
+        in_degree_sequence: list[int],
+        out_degree_sequence: list[int],
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random directed multigraph with given in-degree and out-degree sequences.
+
+        ![Directed configuration model](/assets/graphs/add-directed-configuration-model.light.svg){.lightbox fig-alt="Three directed configuration models, each node's in-degree and out-degree in a pill written in/out. Four nodes at 1/1 form a directed four-cycle; 0/2, 1/1, 1/1, and 2/0 send every arc from the source toward the sink; on five nodes two pairs of opposite arcs appear, drawn bowed apart. Out-stubs are paired with in-stubs at random, so every node meets its pill exactly; self-loops and repeated arcs are possible, though this draw has none." width="100%"}
+
+        Node `i` gets `in_degree_sequence[i]` incoming stubs and `out_degree_sequence[i]`
+        outgoing stubs. Both lists of stubs are shuffled and paired, each outgoing stub with an
+        incoming one, and each pair becomes an edge from the outgoing stub's node to the
+        incoming stub's. Every node's in-degree and out-degree come out exactly as given, but
+        self-loops and parallel edges can appear; they are rare when the degrees are small
+        compared with the number of edges, and `count_all_loops()` and `count_multi_edges()`
+        report them. If the two sequences differ in length, the shorter one is padded with
+        zeros. The process follows NetworkX's `directed_configuration_model()`; see
+        `configuration_model()` for the undirected version.
+
+        In an undirected graph the same edges are added without their direction, so each
+        node's degree is its in-degree plus its out-degree. The graph is appended without
+        touching or connecting to existing nodes, and the whole construction is recorded as a
+        single step.
+
+        Directed configuration models are useful for:
+
+        - null models that keep each node's in- and out-degree, e.g. for testing whether
+          reciprocity or motif counts are more than the degrees explain
+        - random directed graphs with heavy-tailed in-degrees, such as citation or follower
+          networks
+        - generating directed test graphs with exactly prescribed degrees
+
+        Parameters
+        ----------
+        in_degree_sequence
+            In-degree of each new node, as a list of non-negative integers.
+        out_degree_sequence
+            Out-degree of each new node, as a list of non-negative integers. Must have the same
+            sum as `in_degree_sequence=`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If either sequence contains a negative entry, or the two sums differ.
+
+        Examples
+        --------
+        Every node gets exactly the in-degree and out-degree it was given:
+
+        ```{python}
+        import edgecase as ec
+
+        in_degrees = [0, 1, 1, 2, 3]
+        out_degrees = [2, 2, 1, 1, 1]
+        graph = ec.Graph(directed=True).add_directed_configuration_model(
+            in_degrees, out_degrees, seed=9
+        )
+
+        nodes = sorted(graph.get_node_ids())
+
+        [graph.get_in_degree(v) for v in nodes], [graph.get_out_degree(v) for v in nodes]
+        ```
+
+        The random pairing can make self-loops and parallel edges:
+
+        ```{python}
+        graph.count_all_loops(), graph.count_multi_edges()
+        ```
+        """
+        from edgecase._core import directed_configuration_edges as _directed_configuration_edges
+
+        in_degree_sequence = list(in_degree_sequence)
+        out_degree_sequence = list(out_degree_sequence)
+        pairs = _directed_configuration_edges(in_degree_sequence, out_degree_sequence, seed)
+
+        before = self._begin_compound()
+        n = max(len(in_degree_sequence), len(out_degree_sequence))
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_directed_configuration_model",
+            f"G.add_directed_configuration_model({in_degree_sequence}, {out_degree_sequence})",
+            before,
+        )
+        return self
+
+    def add_directed_havel_hakimi_graph(
+        self,
+        in_degree_sequence: list[int],
+        out_degree_sequence: list[int],
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a directed graph with given in-degree and out-degree sequences, built
+        deterministically.
+
+        ![Directed Havel-Hakimi graph](/assets/graphs/add-directed-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three directed Havel-Hakimi graphs for the same degrees as the directed configuration model figure, each node's in-degree and out-degree in a pill written in/out. The construction is deterministic and never repeats an arc: four nodes at 1/1 pair up into two 2-cycles, drawn as bowed opposite arcs; 0/2, 1/1, 1/1, and 2/0 give two two-step paths from the source to the sink; and the five-node sequence uses one pair of opposite arcs." width="100%"}
+
+        Node `i` gets exactly `in_degree_sequence[i]` incoming and `out_degree_sequence[i]`
+        outgoing edges, with no self-loops and no repeated edges (a pair of nodes may still be
+        joined once in each direction). The Kleitman-Wang algorithm, a directed Havel-Hakimi,
+        repeatedly takes a node that still needs incoming edges, preferring the one with the
+        most remaining out-degree, and gives it those edges from the nodes with the most
+        remaining out-degree. It succeeds exactly when some simple directed graph has these
+        degrees. If the two sequences differ in length, the shorter one is padded with zeros.
+
+        There is no randomness: the same sequences always give the same graph. For a random
+        graph with the same degrees, see `add_directed_configuration_model()`. The process
+        follows NetworkX's `directed_havel_hakimi_graph()` and gives the same edges.
+
+        In an undirected graph the same edges are added without their direction, so a pair
+        joined both ways becomes two parallel edges and each node's degree is its in-degree
+        plus its out-degree. The graph is appended without touching or connecting to existing
+        nodes, and the whole construction is recorded as a single step.
+
+        Directed Havel-Hakimi graphs are useful for:
+
+        - checking that a pair of in- and out-degree sequences can be realized
+        - a deterministic starting point for degree-preserving rewiring of directed graphs
+        - directed test graphs with exactly prescribed degrees and no self-loops
+
+        Parameters
+        ----------
+        in_degree_sequence
+            In-degree of each new node, as a list of non-negative integers.
+        out_degree_sequence
+            Out-degree of each new node, as a list of non-negative integers. Must have the same
+            sum as `in_degree_sequence=`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If either sequence contains a negative entry, the two sums differ, or no simple
+            directed graph has these degrees.
+
+        Examples
+        --------
+        A source, two relays, and a sink:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_directed_havel_hakimi_graph(
+            in_degree_sequence=[0, 1, 2, 3],
+            out_degree_sequence=[3, 2, 1, 0],
+        )
+
+        graph.get_edges_str_repr()
+        ```
+
+        The sequences can't ask for a self-loop: a lone node can't point to itself.
+
+        ```{python}
+        try:
+            ec.Graph(directed=True).add_directed_havel_hakimi_graph([1], [1])
+        except ValueError as err:
+            print(err)
+        ```
+        """
+        from edgecase._core import directed_havel_hakimi_edges as _directed_havel_hakimi_edges
+
+        in_degree_sequence = list(in_degree_sequence)
+        out_degree_sequence = list(out_degree_sequence)
+        pairs = _directed_havel_hakimi_edges(in_degree_sequence, out_degree_sequence)
+
+        before = self._begin_compound()
+        n = max(len(in_degree_sequence), len(out_degree_sequence))
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_directed_havel_hakimi_graph",
+            f"G.add_directed_havel_hakimi_graph({in_degree_sequence}, {out_degree_sequence})",
+            before,
+        )
+        return self
+
+    def add_random_degree_sequence_graph(
+        self,
+        degree_sequence: list[int],
+        tries: int = 10,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random simple graph with a given degree sequence.
+
+        ![Random degree sequence graph](/assets/graphs/add-random-degree-sequence-graph.light.svg){.lightbox fig-alt="Three random graphs on a ring of six nodes built to match a degree sequence, each node's degree in a pill: all ones gives three separate edges, all twos gives a six-cycle, and 3, 3, 2, 2, 1, 1 gives six edges with one triangle. Unlike the configuration model, the result is always simple, with no doubled edges or self-loops." width="100%"}
+
+        Creates one node per entry of `degree_sequence`, and node `i` gets exactly
+        `degree_sequence[i]` neighbors, with no self-loops or parallel edges. That is the
+        difference from `configuration_model()`, which allows both and so matches the degrees
+        only as a multigraph. Edges are added one at a time between nodes that still have free
+        stubs, and a candidate pair `(u, v)` is accepted with probability
+        `1 - d_u * d_v / (4 * m)`, where `d` is the degree and `m` the number of edges. Damping
+        pairs of high-degree nodes this way makes the result nearly uniform over all simple
+        graphs with these degrees (the algorithm of Bayati, Kim and Saberi). An attempt
+        occasionally gets stuck with stubs that can't be joined, so up to `tries=` attempts are
+        made. The process follows NetworkX's `random_degree_sequence_graph()`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Random degree-sequence graphs are useful for:
+
+        - null models that keep every node's degree, e.g. to test whether clustering or
+          assortativity is more than the degrees explain
+        - random graphs that match an observed network's degrees exactly
+        - comparing against `add_havel_hakimi_graph()`, the deterministic realization
+
+        Parameters
+        ----------
+        degree_sequence
+            Degree of each new node, as a list of non-negative integers. The sum must be even.
+        tries
+            Maximum number of attempts. Default is `10`. Must be at least `1`. Small, dense
+            sequences get stuck more often (for `[5, 3, 3, 3, 2, 2, 1, 1]`, about two attempts
+            in three), so they may need more.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `degree_sequence=` contains a negative entry or is not graphical, `tries=` is
+            less than `1`, or every attempt gets stuck.
+
+        Examples
+        --------
+        Every node gets its degree, and there are no self-loops or parallel edges:
+
+        ```{python}
+        import edgecase as ec
+
+        degrees = [4, 3, 3, 2, 2, 2, 1, 1]
+        graph = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
+
+        [graph.get_degree(v) for v in sorted(graph.get_node_ids())] == degrees, graph.is_simple()
+        ```
+
+        Unlike `add_havel_hakimi_graph()`, which joins the highest-degree nodes to each other,
+        a random realization is close to neutral in its degree mixing:
+
+        ```{python}
+        degrees = [5] * 10 + [2] * 40
+        random_graph = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
+        hh_graph = ec.Graph().add_havel_hakimi_graph(degrees)
+
+        (
+            round(random_graph.degree_pearson_correlation_coefficient(), 2),
+            round(hh_graph.degree_pearson_correlation_coefficient(), 2),
+        )
+        ```
+        """
+        self._check_non_negative(tries=tries)
+
+        from edgecase._core import random_degree_sequence_edges as _random_degree_sequence_edges
+
+        degree_sequence = list(degree_sequence)
+        pairs = _random_degree_sequence_edges(degree_sequence, tries, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(len(degree_sequence), pairs, label, type, rel)
+        self._end_compound(
+            "add_random_degree_sequence_graph",
+            f"G.add_random_degree_sequence_graph({degree_sequence}, tries={tries})",
+            before,
+        )
+        return self
+
+    def add_joint_degree_graph(
+        self,
+        joint_degrees: dict,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random simple graph with a given joint degree matrix.
+
+        ![Joint degree graph](/assets/graphs/add-joint-degree-graph.light.svg){.lightbox fig-alt="Three joint degree graphs, each node's degree in a pill, with captions giving how many edges join each pair of degrees, where pairs of equal degree count twice. Two edges from degree 1 to degree 2 plus one between the degree-2 nodes give a path of four; four edges from degree 2 to degree 3 plus one between the degree-3 nodes give a diamond; and two joined degree-3 hubs with two leaves each give a double star." width="100%"}
+
+        The joint degree matrix records, for each pair of degrees `k` and `l`, how many edges
+        join a node of degree `k` to a node of degree `l`. It fixes the degree sequence (the
+        number of degree-`k` nodes is the sum of `joint_degrees[k]`, divided by `k`) and also
+        how degrees mix along edges, so it pins down the degree assortativity as well. The
+        matrix is given as a dict of dicts, `joint_degrees[k][l]`, and must be symmetric.
+        Diagonal entries `joint_degrees[k][k]` count each edge twice, once from each end, so
+        they are even. This is the same layout that `degree_mixing_dict()` returns for an
+        undirected graph, so a graph's own joint degrees can be fed back in to draw a random
+        graph that matches them.
+
+        Edges are placed degree class by degree class between random nodes of the right
+        degrees; when a chosen node is already full, one of its edges is moved to another node
+        of the same degree, which keeps the joint degrees intact (the algorithm of Gjoka,
+        Tillman and Markopoulou). The process follows NetworkX's `joint_degree_graph()`.
+
+        The number of nodes comes from the matrix, and the nodes are created degree class by
+        degree class in increasing order of degree. Nodes of degree zero can't be described by
+        the matrix, so none are created. In a directed graph every edge points from the
+        earlier-created node to the later one. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Joint degree graphs are useful for:
+
+        - null models that keep both the degrees and the degree correlations of a network
+        - testing whether a property such as clustering is explained by degree mixing alone
+        - generating assortative or disassortative graphs with an exact joint degree matrix
+
+        Parameters
+        ----------
+        joint_degrees
+            Dict of dicts of non-negative integers: `joint_degrees[k][l]` is the number of edges
+            between nodes of degree `k` and nodes of degree `l`. Must be symmetric, the entries
+            of each row `k` must sum to a multiple of `k`, and diagonal entries must be even.
+            Missing entries count as zero.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `joint_degrees=` is not symmetric, has a negative entry, a row whose sum isn't a
+            multiple of its degree, an odd diagonal entry, or more edges between two degree
+            classes than they can hold.
+
+        Examples
+        --------
+        Take the joint degrees of one graph:
+
+        ```{python}
+        import edgecase as ec
+
+        original = ec.Graph().add_powerlaw_cluster_graph(n=40, m=2, p=0.3, seed=5)
+        joint = original.degree_mixing_dict()
+
+        joint[2]
+        ```
+
+        A graph drawn from them is a different graph with the same joint degrees, and so the
+        same degree assortativity:
+
+        ```{python}
+        graph = ec.Graph().add_joint_degree_graph(joint, seed=5)
+
+        (
+            graph.degree_mixing_dict() == joint,
+            round(graph.degree_pearson_correlation_coefficient(), 4)
+            == round(original.degree_pearson_correlation_coefficient(), 4),
+        )
+        ```
+        """
+        if not isinstance(joint_degrees, dict) or not all(
+            isinstance(row, dict) for row in joint_degrees.values()
+        ):
+            raise ValueError("joint_degrees must be a dict of dicts, joint_degrees[k][l] = count")
+        for k, row in joint_degrees.items():
+            for j, count in row.items():
+                if k < 0 or j < 0 or count < 0:
+                    raise ValueError(
+                        f"joint_degrees must hold non-negative degrees and counts, got "
+                        f"joint_degrees[{k}][{j}] = {count}"
+                    )
+
+        from edgecase._core import joint_degree_edges as _joint_degree_edges
+
+        n, pairs = _joint_degree_edges(joint_degrees, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_joint_degree_graph", f"G.add_joint_degree_graph({joint_degrees})", before
+        )
+        return self
+
+    def add_gn_graph(
+        self,
+        n: int,
+        kernel: Optional[Callable[[int], float]] = None,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a growing network (GN): a random tree grown by degree-biased attachment.
+
+        ![Growing network](/assets/graphs/add-gn-graph.light.svg){.lightbox fig-alt="Three growing networks on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to the older node it attached to. With a constant kernel the target is uniform and the first node gets 3 arcs; with the default linear kernel it gets 5; with the kernel k**2 the rich get richer so fast that all 7 later nodes point at it." width="100%"}
+
+        Starts with two linked nodes and adds the rest one at a time. Each new node makes one
+        edge, to an existing node chosen with probability proportional to `kernel(degree)`.
+        The default kernel is the degree itself, which is linear preferential attachment (the
+        Barabási-Albert model with one edge per node) and gives a power-law degree
+        distribution. A superlinear kernel such as `lambda d: d ** 1.5` lets one hub win
+        nearly every new link, while a sublinear one such as `lambda d: d ** 0.5` gives a
+        distribution with a lighter, stretched-exponential tail. The model is due to Krapivsky
+        and Redner; the process follows NetworkX's `gn_graph()`.
+
+        Each edge points from the new node to the older node it attached to, so in a directed
+        graph every node but the first has one out-edge and all paths lead to the first node.
+        In an undirected graph the same edges are added without their direction. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        GN graphs are useful for:
+
+        - modeling citation-like growth, where each item points to one earlier item
+        - studying how the attachment kernel shapes the degree distribution
+        - random directed trees rooted at the oldest node
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        kernel
+            Function giving the attachment weight of a node from its degree (counting both
+            directions). It is called once for each degree from `0` to `n - 1` before the
+            growth starts and must return finite, non-negative numbers. If `None` (default),
+            the weight is the degree.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, `kernel=` returns a negative or non-finite weight, or every
+            existing node has zero weight when a target must be chosen.
+
+        Examples
+        --------
+        Every node but the first has exactly one out-edge:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_gn_graph(n=100, seed=7)
+
+        graph.count_edges(), {graph.get_out_degree(v) for v in graph.get_node_ids()}
+        ```
+
+        A superlinear kernel concentrates the links on one hub:
+
+        ```{python}
+        [
+            max(
+                ec.Graph(directed=True)
+                .add_gn_graph(n=100, kernel=kernel, seed=7)
+                .degrees(return_dict=True)
+                .values()
+            )
+            for kernel in (lambda d: d ** 0.5, None, lambda d: d ** 2)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import gn_edges as _gn_edges
+
+        table = None if kernel is None else [float(kernel(d)) for d in range(max(n, 2))]
+        pairs = _gn_edges(n, table, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        kernel_str = "" if kernel is None else ", kernel=..."
+        self._end_compound("add_gn_graph", f"G.add_gn_graph(n={n}{kernel_str})", before)
+        return self
+
+    def add_gnr_graph(
+        self,
+        n: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a growing network with redirection (GNR): a random tree grown by link copying.
+
+        ![Growing network with redirection](/assets/graphs/add-gnr-graph.light.svg){.lightbox fig-alt="Three growing networks with redirection on eight nodes, drawn as trees with the first node at the top and every arc pointing from a newer node to an older one. Each new node picks a random target and, with probability p, links to the node that target points at instead. At p=0 the tree is deep and stringy, at p=0.5 the first node collects 5 arcs, and at p=1 every arc is redirected to it, giving a star." width="100%"}
+
+        Adds nodes one at a time. Each new node picks an existing node uniformly at random and,
+        with probability `p`, links instead to the node that one links to (the first node links
+        to nothing, so picking it never redirects). Following a link lands on a node in
+        proportion to how many links it already has, so redirection works like preferential
+        attachment without anyone knowing the degrees: the in-degrees follow a power law with
+        exponent `1 + 1 / p`. With `p=0` the result is a random recursive tree. The model is
+        due to Krapivsky and Redner; the process follows NetworkX's `gnr_graph()`.
+
+        Each edge points from the new node to the older node it links to, so in a directed
+        graph every node but the first has one out-edge and all paths lead to the first node.
+        In an undirected graph the same edges are added without their direction. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        GNR graphs are useful for:
+
+        - modeling the web or citation networks, where new pages link to what they find by
+          following links
+        - a local mechanism that produces power-law in-degrees
+        - random directed trees whose hubs grow with `p=`
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        p
+            Probability of redirecting each new link to the chosen node's target, between `0`
+            and `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, or `p=` is not between `0` and `1`.
+
+        Examples
+        --------
+        Two hundred nodes joined by `199` edges into one weakly connected piece make a tree,
+        with all edges pointing toward the first node:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_gnr_graph(n=200, p=0.5, seed=3)
+
+        graph.count_edges(), graph.is_weakly_connected()
+        ```
+
+        More redirection makes bigger hubs, measured by the largest in-degree:
+
+        ```{python}
+        [
+            max(
+                ec.Graph(directed=True).add_gnr_graph(n=200, p=p, seed=3).get_in_degree(v)
+                for v in range(1, 201)
+            )
+            for p in (0.0, 0.5, 0.9)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import gnr_edges as _gnr_edges
+
+        pairs = _gnr_edges(n, p, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound("add_gnr_graph", f"G.add_gnr_graph(n={n}, p={p})", before)
+        return self
+
+    def add_gnc_graph(
+        self,
+        n: int,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a growing network with copying (GNC): each new node links to a random node and to
+        everything it links to.
+
+        ![Growing network with copying](/assets/graphs/add-gnc-graph.light.svg){.lightbox fig-alt="Three growing networks with copying on 4, 5, and 6 nodes, placed on a ring in arrival order. Each new node links to a random existing node and also copies all of that node's arcs, so arcs pile onto the earliest nodes: the first node receives 3, 4, and 5 arcs, and the graphs have 4, 7, and 11 arcs in all." width="100%"}
+
+        Adds nodes one at a time. Each new node picks an existing node uniformly at random and
+        links to it and to every node it links to. Since those links were copied the same way,
+        a node's out-neighbors are exactly the nodes on the path from it back to the first
+        node in the underlying random tree. The result is a directed acyclic graph that is
+        transitively closed: whenever `a -> b -> c`, also `a -> c`. It models a paper that
+        cites another along with that one's references. The model is due to Krapivsky and
+        Redner; the process follows NetworkX's `gnc_graph()`.
+
+        Each edge points from the new node to an older one. In an undirected graph the same
+        edges are added without their direction. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        GNC graphs are useful for:
+
+        - modeling citation networks in which references are copied
+        - random transitively closed DAGs, e.g. as partial orders
+        - comparing against `add_gnr_graph()`, which copies a single link instead of all of them
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative.
+
+        Examples
+        --------
+        Copying links makes the graph much denser than a tree:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_gnc_graph(n=50, seed=2)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Every node's successors include all of its successors' successors:
+
+        ```{python}
+        all(
+            set(graph.get_successors(w)) <= set(graph.get_successors(v))
+            for v in graph.get_node_ids()
+            for w in graph.get_successors(v)
+        )
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import gnc_edges as _gnc_edges
+
+        pairs = _gnc_edges(n, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound("add_gnc_graph", f"G.add_gnc_graph(n={n})", before)
+        return self
+
+    def add_scale_free_graph(
+        self,
+        n: int,
+        alpha: float = 0.41,
+        beta: float = 0.54,
+        gamma: float = 0.05,
+        delta_in: float = 0.2,
+        delta_out: float = 0.0,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a scale-free directed multigraph (the Bollobás-Borgs-Chayes-Riordan model).
+
+        ![Scale-free directed graph](/assets/graphs/add-scale-free-graph.light.svg){.lightbox fig-alt="Three scale-free directed graphs on 4, 6, and 8 nodes on a ring, grown from a three- cycle by the default mix of steps that add a node with an arc out, add an arc between existing nodes, or add a node with an arc in. One node quickly becomes the hub, touching 7 of the 10 arcs at n=8; it and one neighbor have arcs both ways, plus a repeated arc at n=8, drawn bowed apart, because the model keeps parallel arcs." width="100%"}
+
+        Starts from a directed 3-cycle and adds one edge per step until there are `n` nodes:
+
+        - with probability `alpha`, from a new node to an existing node chosen by in-degree
+        - with probability `beta`, between two existing nodes, the source chosen by out-degree
+          and the target by in-degree
+        - with probability `gamma`, from an existing node chosen by out-degree to a new node
+
+        A node is chosen by in-degree with probability proportional to its in-degree plus
+        `delta_in` (and likewise by out-degree with `delta_out`), so the deltas give nodes
+        without any edges of that kind a chance. Both the in-degrees and the out-degrees follow
+        power laws, with exponents set by the parameters. Because `beta` steps join existing
+        nodes freely, self-loops and parallel edges can appear, and they are kept. The number
+        of edges is random, about `n / (alpha + gamma)`. The defaults are NetworkX's, and the
+        process follows NetworkX's `scale_free_graph()`.
+
+        In an undirected graph the same edges are added without their direction. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Scale-free graphs are useful for:
+
+        - modeling the web graph and other directed networks with heavy-tailed in- and
+          out-degrees
+        - tuning in- and out-degree exponents separately
+        - stress-testing directed algorithms on graphs with hubs, loops, and repeated edges
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `3`.
+        alpha
+            Probability of adding a new node with an edge to an existing node. Default is
+            `0.41`.
+        beta
+            Probability of adding an edge between existing nodes. Default is `0.54`.
+        gamma
+            Probability of adding a new node with an edge from an existing node. Default is
+            `0.05`. `alpha`, `beta`, and `gamma` must be positive and sum to `1`.
+        delta_in
+            Bias added to every in-degree when choosing a target. Default is `0.2`. Must be
+            non-negative.
+        delta_out
+            Bias added to every out-degree when choosing a source. Default is `0.0`. Must be
+            non-negative.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `3`, any of `alpha=`, `beta=`, and `gamma=` is not positive,
+            they don't sum to `1`, or `delta_in=` or `delta_out=` is negative.
+
+        Examples
+        --------
+        With the default parameters, most steps add an edge between existing nodes, so there
+        are about twice as many edges as nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_scale_free_graph(n=200, seed=11)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        A few nodes collect most of the in-edges:
+
+        ```{python}
+        sorted((graph.get_in_degree(v) for v in graph.get_node_ids()), reverse=True)[:5]
+        ```
+
+        Self-loops and parallel edges are part of the model:
+
+        ```{python}
+        graph.count_all_loops(), graph.count_multi_edges()
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import scale_free_edges as _scale_free_edges
+
+        pairs = _scale_free_edges(n, alpha, beta, gamma, delta_in, delta_out, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_scale_free_graph",
+            f"G.add_scale_free_graph(n={n}, alpha={alpha}, beta={beta}, gamma={gamma}, "
+            f"delta_in={delta_in}, delta_out={delta_out})",
+            before,
+        )
+        return self
+
+    def add_random_k_out_graph(
+        self,
+        n: int,
+        k: int,
+        alpha: float,
+        self_loops: bool = True,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random k-out graph, in which every node has exactly `k` out-edges aimed by
+        preferential attachment.
+
+        ![Random k-out graph](/assets/graphs/add-random-k-out-graph.light.svg){.lightbox fig-alt="Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target's current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed apart; self-loops are turned off." width="100%"}
+
+        Repeatedly picks, uniformly at random, a node that has fewer than `k` out-edges and
+        gives it a new out-edge to a node chosen with probability proportional to `alpha` plus
+        that node's current in-degree. This continues until every node has `k` out-edges, so
+        there are `n * k` edges. A large `alpha` makes the targets nearly uniform, while a
+        small one lets the rich get richer and gives a heavy-tailed in-degree distribution.
+        Parallel edges can appear, and so can self-loops unless `self_loops=False`. The model
+        is due to Peterson and Pittel; the process follows NetworkX's `random_k_out_graph()`.
+
+        In an undirected graph the same edges are added without their direction. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Random k-out graphs are useful for:
+
+        - modeling networks where everyone makes the same number of choices, e.g. nominations,
+          follows, or votes, but popularity varies
+        - tuning in-degree inequality through `alpha=` while out-degrees stay fixed
+        - random directed graphs with a fixed out-degree, e.g. for random walks
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        k
+            Out-degree of every node.
+        alpha
+            Initial attractiveness of every node. Must be positive. Smaller values give a more
+            unequal in-degree distribution.
+        self_loops
+            If `True` (default), a node may pick itself as a target. If `False`, it never does.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `k=` is negative, `alpha=` is not positive, or `self_loops=False` with a
+            single node and `k=` above `0`.
+
+        Examples
+        --------
+        Every node has the same out-degree:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_random_k_out_graph(
+            n=100, k=3, alpha=0.5, self_loops=False, seed=4
+        )
+
+        graph.count_edges(), {graph.get_out_degree(v) for v in graph.get_node_ids()}
+        ```
+
+        A smaller `alpha=` lets the most popular node attract more of the edges:
+
+        ```{python}
+        [
+            max(
+                ec.Graph(directed=True)
+                .add_random_k_out_graph(n=100, k=3, alpha=alpha, seed=4)
+                .get_in_degree(v)
+                for v in range(1, 101)
+            )
+            for alpha in (10.0, 1.0, 0.1)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, k=k)
+
+        from edgecase._core import random_k_out_edges as _random_k_out_edges
+
+        pairs = _random_k_out_edges(n, k, alpha, self_loops, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel)
+        self._end_compound(
+            "add_random_k_out_graph",
+            f"G.add_random_k_out_graph(n={n}, k={k}, alpha={alpha}, self_loops={self_loops})",
+            before,
+        )
+        return self
+
+    def add_waxman_graph(
+        self,
+        n: int,
+        beta: float = 0.4,
+        alpha: float = 0.1,
+        L: Optional[float] = None,
+        domain: tuple[float, float, float, float] = (0.0, 0.0, 1.0, 1.0),
+        seed: Optional[int] = None,
+        pos_attr: Optional[str] = "pos",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a Waxman random geometric graph, in which links become less likely with distance.
+
+        ![Waxman graph](/assets/graphs/add-waxman-graph.light.svg){.lightbox fig-alt="Three Waxman graphs on the same seven random points in the unit square, with beta=1 and alpha=0.1, 0.25, and 1. Two points are joined with a probability that decays with their distance, and alpha sets how slowly: at 0.1 only the closest pair is joined, at 0.25 there are 3 edges, and at 1 longer links appear for 8 edges in all. A few edges bow slightly to clear other nodes." width="100%"}
+
+        Places `n` nodes uniformly at random in the rectangle `domain` and joins each pair
+        independently with probability `beta * exp(-d / (alpha * L))`, where `d` is the
+        Euclidean distance between them and `L` is the largest distance between any two nodes.
+        `beta` sets the overall density and `alpha` how quickly the probability falls with
+        distance: with a small `alpha` nearly every link is short. If `L` is given, the
+        positions are ignored when linking, and `d` is instead drawn uniformly from `[0, L)`
+        for each pair (Waxman's second model). The model is due to Waxman; the process follows
+        NetworkX's `waxman_graph()`.
+
+        Each node's position is stored as an `[x, y]` list in the `pos_attr=` node attribute.
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Waxman graphs are useful for:
+
+        - modeling internet router topologies and other networks where long links cost more
+        - spatial networks with mostly local links and a few long ones
+        - comparing against `add_random_geometric_graph()`, which joins every pair within a
+          fixed radius
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        beta
+            Overall link probability, greater than `0` and at most `1`. Default is `0.4`.
+        alpha
+            Distance scale, as a fraction of `L`. Must be positive. Default is `0.1`.
+        L
+            Maximum distance used by Waxman's second model. If `None` (default), the distance
+            between the farthest pair of nodes is used and links depend on the positions.
+            Must be positive.
+        domain
+            Rectangle to place the nodes in, as `(xmin, ymin, xmax, ymax)`. Default is the unit
+            square.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        pos_attr
+            Name of the node attribute that stores each node's position. Default is `"pos"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, `beta=` is not in `(0, 1]`, `alpha=` or `L=` is not positive,
+            or `domain=` has a minimum above its maximum.
+
+        Examples
+        --------
+        Sixty nodes in the unit square:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_waxman_graph(n=60, beta=0.5, alpha=0.2, seed=13)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The positions are stored on the nodes:
+
+        ```{python}
+        [round(x, 3) for x in graph.get_node_attrs("pos")[1]]
+        ```
+
+        A larger `alpha=` lets links reach farther, so there are more of them:
+
+        ```{python}
+        [
+            ec.Graph().add_waxman_graph(n=60, beta=0.5, alpha=alpha, seed=13).count_edges()
+            for alpha in (0.05, 0.1, 0.2, 0.4)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import waxman_edges as _waxman_edges
+
+        positions, pairs = _waxman_edges(n, beta, alpha, L, tuple(domain), seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel, self._group_attrs(positions, pos_attr))
+        self._end_compound(
+            "add_waxman_graph",
+            f"G.add_waxman_graph(n={n}, beta={beta}, alpha={alpha}, L={L}, "
+            f"domain={tuple(domain)})",
+            before,
+        )
+        return self
+
+    def add_soft_random_geometric_graph(
+        self,
+        n: int,
+        radius: float,
+        dim: int = 2,
+        p_norm: float = 2.0,
+        p_dist: Optional[Callable[[float], float]] = None,
+        seed: Optional[int] = None,
+        pos_attr: Optional[str] = "pos",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a soft random geometric graph, in which nearby nodes are joined with a
+        distance-dependent probability.
+
+        ![Soft random geometric graph](/assets/graphs/add-soft-random-geometric-graph.light.svg){.lightbox fig-alt="The same seven random points in the unit square at radius=0.25, 0.35, and 0.45, with a faint dashed circle of that radius around the central node, drawn in the accent outline. Unlike the random geometric graph, a pair within the radius is only joined with a probability that falls with distance, so some nodes inside the circle stay unjoined to the central one; the graphs have 2, 7, and 8 edges." width="100%"}
+
+        Places `n` nodes uniformly at random in the unit cube `[0, 1]^dim` and considers each
+        pair within distance `radius`, as `add_random_geometric_graph()` does. Instead of
+        always joining such a pair, it joins it with probability `p_dist(d)`, where `d` is the
+        distance between the two nodes; by default `p_dist(d) = exp(-d)`. The radius is thus a
+        hard cutoff, and `p_dist` softens the links inside it, e.g. to model a radio signal
+        that fades with distance. Distance is the Minkowski distance of order `p_norm`. The
+        model is due to Penrose; the process follows NetworkX's
+        `soft_random_geometric_graph()`.
+
+        Each node's position is stored as a list of `dim` coordinates in the `pos_attr=` node
+        attribute. In a directed graph every edge points from the earlier-created node to the
+        later one. The graph is appended without touching or connecting to existing nodes, and
+        the whole construction is recorded as a single step.
+
+        Soft random geometric graphs are useful for:
+
+        - modeling wireless networks, where links within range still fail with some
+          probability
+        - spatial networks whose link probability decays smoothly with distance
+        - studying how unreliable links change connectivity thresholds
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        radius
+            Largest distance at which two nodes can be joined. Must be non-negative.
+        dim
+            Number of dimensions of the unit cube. Default is `2`. Must be at least `1`.
+        p_norm
+            Order of the Minkowski distance: `1.0` for Manhattan, `2.0` (default) for Euclidean,
+            or `float("inf")` for Chebyshev. Must be positive.
+        p_dist
+            Function giving the probability of joining two nodes at distance `d`. It is called
+            once for each pair within `radius=`. Values of `1` or more always join, values of
+            `0` or less never do. If `None` (default), `exp(-d)` is used.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        pos_attr
+            Name of the node attribute that stores each node's position. Default is `"pos"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, `radius=` is negative, `dim=` is less than `1`, or `p_norm=`
+            is not positive.
+
+        Examples
+        --------
+        A hundred nodes, joined within radius `0.2` with probability `exp(-d)`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_soft_random_geometric_graph(n=100, radius=0.2, seed=6)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        With `p_dist=lambda d: 1` every pair within the radius is joined, which is the hard
+        random geometric graph on the same positions. A steeper fall-off keeps fewer links:
+
+        ```{python}
+        [
+            ec.Graph()
+            .add_soft_random_geometric_graph(n=100, radius=0.2, p_dist=p_dist, seed=6)
+            .count_edges()
+            for p_dist in (lambda d: 1, None, lambda d: 1 - 5 * d)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, dim=dim)
+
+        from edgecase._core import soft_random_geometric_edges as _soft_rgg_edges
+
+        positions, pairs = _soft_rgg_edges(n, radius, dim, p_norm, p_dist, seed)
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel, self._group_attrs(positions, pos_attr))
+        p_dist_str = "" if p_dist is None else ", p_dist=..."
+        self._end_compound(
+            "add_soft_random_geometric_graph",
+            f"G.add_soft_random_geometric_graph(n={n}, radius={radius}, dim={dim}, "
+            f"p_norm={p_norm}{p_dist_str})",
+            before,
+        )
+        return self
+
+    def add_geographical_threshold_graph(
+        self,
+        n: int,
+        theta: float,
+        dim: int = 2,
+        p_norm: float = 2.0,
+        p_dist: Optional[Callable[[float], float]] = None,
+        seed: Optional[int] = None,
+        pos_attr: Optional[str] = "pos",
+        weight_attr: Optional[str] = "weight",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a geographical threshold graph, in which heavy or nearby nodes are joined.
+
+        ![Geographical threshold graph](/assets/graphs/add-geographical-threshold-graph.light.svg){.lightbox fig-alt="Three geographical threshold graphs on the same seven random points, each node shaded by its random weight, darker for heavier, at threshold theta=80, 30, and 10. Two nodes are joined when their combined weight divided by their squared distance reaches theta, so heavy nodes reach far: at theta=80 only the heaviest node has edges, 2 of them, and at theta=10 it has 6 of the 13." width="100%"}
+
+        Gives each of `n` nodes a random weight, drawn from an exponential distribution with
+        mean `1`, and a position drawn uniformly from the unit cube `[0, 1]^dim`. Two nodes `u`
+        and `v` at distance `d` are joined when `(w_u + w_v) * p_dist(d) >= theta`; by default
+        `p_dist(d) = d ** -2`, so the rule is `(w_u + w_v) / d ** 2 >= theta`. Heavy nodes
+        therefore link over long distances and light ones only to close neighbors, which yields
+        hubs in a spatial graph. Once the weights and positions are drawn there is no further
+        randomness, and a larger `theta` gives a sparser graph. Distance is the Minkowski
+        distance of order `p_norm`. The model is due to Masuda, Miwa and Konno; the process
+        follows NetworkX's `geographical_threshold_graph()`.
+
+        Each node's position is stored as a list of `dim` coordinates in the `pos_attr=` node
+        attribute, and its weight in the `weight_attr=` node attribute. In a directed graph
+        every edge points from the earlier-created node to the later one. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Geographical threshold graphs are useful for:
+
+        - spatial networks with hubs, such as airline routes or trade between cities
+        - modeling links that need enough combined mass to bridge a distance
+        - studying how a single threshold controls density and degree heterogeneity
+
+        Parameters
+        ----------
+        n
+            Number of nodes.
+        theta
+            Threshold that `(w_u + w_v) * p_dist(d)` must reach for a link.
+        dim
+            Number of dimensions of the unit cube. Default is `2`. Must be at least `1`.
+        p_norm
+            Order of the Minkowski distance: `1.0` for Manhattan, `2.0` (default) for Euclidean,
+            or `float("inf")` for Chebyshev. Must be positive.
+        p_dist
+            Function of the distance `d` that scales the combined weight. It is called once for
+            each pair of nodes. If `None` (default), `d ** -2` is used.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        pos_attr
+            Name of the node attribute that stores each node's position. Default is `"pos"`.
+            Pass `None` to skip storing it.
+        weight_attr
+            Name of the node attribute that stores each node's weight. Default is `"weight"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative, `theta=` is NaN, `dim=` is less than `1`, or `p_norm=` is not
+            positive.
+
+        Examples
+        --------
+        A hundred nodes with threshold `100`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_geographical_threshold_graph(n=100, theta=100, seed=10)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Heavier nodes reach farther, so the heaviest node has more neighbors than the
+        lightest:
+
+        ```{python}
+        weights = graph.get_node_attrs("weight")
+        heaviest = max(weights, key=weights.get)
+        lightest = min(weights, key=weights.get)
+
+        graph.get_degree(heaviest), graph.get_degree(lightest)
+        ```
+
+        Raising `theta=` thins the graph out:
+
+        ```{python}
+        [
+            ec.Graph().add_geographical_threshold_graph(n=100, theta=theta, seed=10).count_edges()
+            for theta in (25, 50, 100, 200)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, dim=dim)
+
+        from edgecase._core import geographical_threshold_edges as _gtg_edges
+
+        positions, weights, pairs = _gtg_edges(n, theta, dim, p_norm, p_dist, seed)
+
+        node_attrs = None
+        if pos_attr is not None or weight_attr is not None:
+            node_attrs = [
+                {
+                    **({pos_attr: pos} if pos_attr is not None else {}),
+                    **({weight_attr: w} if weight_attr is not None else {}),
+                }
+                for pos, w in zip(positions, weights)
+            ]
+
+        before = self._begin_compound()
+        self._add_index_graph(n, pairs, label, type, rel, node_attrs)
+        p_dist_str = "" if p_dist is None else ", p_dist=..."
+        self._end_compound(
+            "add_geographical_threshold_graph",
+            f"G.add_geographical_threshold_graph(n={n}, theta={theta}, dim={dim}, "
+            f"p_norm={p_norm}{p_dist_str})",
+            before,
+        )
+        return self
+
+    def add_navigable_small_world_graph(
+        self,
+        n: int,
+        p: int = 1,
+        q: int = 1,
+        r: float = 2.0,
+        dim: int = 2,
+        seed: Optional[int] = None,
+        pos_attr: Optional[str] = "pos",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add Kleinberg's navigable small-world graph: a grid with long-range links.
+
+        ![Navigable small-world graph](/assets/graphs/add-navigable-small-world-graph.light.svg){.lightbox fig-alt="Three navigable small-world graphs on a 3 by 3 grid with p=1 and r=2, for q=0, 1, and 2 long-range contacts per node. At q=0 it is just the grid; each node then adds q contacts chosen with probability falling off as the squared grid distance, so most land on neighbors already joined, and the accent edges are the ones that reach farther: 1 at q=1 and 5 at q=2. Some bow to clear the nodes they would pass through." width="100%"}
+
+        Arranges `n ** dim` nodes in an `n` by `n` grid (or its analogue in `dim` dimensions).
+        Each node links to every node within lattice distance `p` (the Manhattan distance on
+        the grid), plus `q` long-range contacts, each chosen with probability proportional to
+        `d ** -r` where `d` is the lattice distance. Kleinberg showed that with `r` equal to
+        `dim`, greedy routing that only knows grid positions finds short paths, in a number of
+        steps polynomial in `log(n)`; for any other `r` it needs a power of `n`. The process
+        follows NetworkX's `navigable_small_world_graph()`, which can occasionally draw a node
+        as its own contact through an indexing slip; here a contact is always another node.
+
+        Each node's grid coordinates are stored as a list of `dim` integers in the `pos_attr=`
+        node attribute, and the nodes are created in lexicographic order of their coordinates.
+        The links are directed: each node's own contacts. A directed graph keeps them as they
+        are, with each lattice link present in both directions. In an undirected graph the two
+        directions of a link become a single edge. Either way, a long-range contact that
+        repeats an existing link is not added again. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Navigable small-world graphs are useful for:
+
+        - studying decentralized search and greedy routing
+        - modeling social networks, where most ties are local and a few are long-range
+        - testing how the distance exponent `r=` changes path lengths and navigability
+
+        Parameters
+        ----------
+        n
+            Number of nodes along each side of the grid, so `n ** dim` nodes in all (at most
+            `1,000,000`; building takes time proportional to the square of the node count).
+        p
+            Lattice distance within which every pair of nodes is linked. Default is `1`, the
+            grid's nearest neighbors. Must be at least `1`.
+        q
+            Number of long-range contacts per node. Default is `1`.
+        r
+            Exponent of the distance decay for long-range contacts. Default is `2.0`. Must be
+            non-negative; `0` makes the contacts uniform.
+        dim
+            Number of grid dimensions. Default is `2`. Must be at least `1`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        pos_attr
+            Name of the node attribute that stores each node's grid coordinates. Default is
+            `"pos"`. Pass `None` to skip storing them.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `q=` is negative, `p=` or `dim=` is less than `1`, `r=` is negative, or
+            `n ** dim` is more than `1,000,000`.
+
+        Examples
+        --------
+        A `10` by `10` directed grid with one long-range contact per node:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph(directed=True).add_navigable_small_world_graph(n=10, seed=1)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The grid coordinates are stored on the nodes, row by row:
+
+        ```{python}
+        [graph.get_node_attrs("pos")[v] for v in (1, 2, 11, 100)]
+        ```
+
+        With `r=0` the long-range contacts are spread uniformly and shorten paths the most;
+        with a large `r` they stay near home, and the diameter approaches the bare grid's `18`:
+
+        ```{python}
+        [
+            (
+                r,
+                ec.Graph()
+                .add_navigable_small_world_graph(n=10, r=r, seed=1)
+                .get_diameter(),
+            )
+            for r in (0.0, 2.0, 6.0)
+        ]
+        ```
+        """
+        self._check_non_negative(n=n, q=q)
+        if p < 1 or dim < 1:
+            raise ValueError(f"p and dim must both be at least 1, got p={p} and dim={dim}")
+
+        from edgecase._core import navigable_small_world_edges as _nsw_edges
+
+        pairs = _nsw_edges(n, p, q, r, dim, self.is_directed(), seed)
+
+        node_attrs = None
+        if pos_attr is not None:
+            # lexicographic order: the last coordinate varies fastest
+            node_attrs = [
+                {pos_attr: [(index // n ** (dim - 1 - axis)) % n for axis in range(dim)]}
+                for index in range(n**dim)
+            ]
+
+        before = self._begin_compound()
+        self._add_index_graph(n**dim, pairs, label, type, rel, node_attrs)
+        self._end_compound(
+            "add_navigable_small_world_graph",
+            f"G.add_navigable_small_world_graph(n={n}, p={p}, q={q}, r={r}, dim={dim})",
             before,
         )
         return self
