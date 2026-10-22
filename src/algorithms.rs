@@ -43,6 +43,7 @@ pub mod traversal;
 pub mod network_smoothing;
 pub mod null_models;
 pub mod generators;
+pub mod random_models;
 pub mod node_vitality;
 pub mod robustness;
 pub mod influence_maximization;
