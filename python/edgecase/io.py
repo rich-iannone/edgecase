@@ -3919,6 +3919,309 @@ def from_tree_data(
     return _build_graph(nodes, edges, directed, False, graph_name, _code("from_tree_data", source))
 
 
+def to_dict_of_dicts(
+    graph: Graph,
+    nodelist: Optional[Sequence[Union[int, str]]] = None,
+    edge_data: Any = None,
+    multigraph: Optional[bool] = None,
+) -> dict:
+    """
+    Convert a graph to a dict of dicts.
+
+    The layout of NetworkX's `to_dict_of_dicts()`: `{u: {v: data}}`, with an entry for every node
+    (keyed by its label, or its ID if unlabeled) mapping each neighbor to the data of the edge
+    between them, a dict holding the edge's `weight` (when it has one) and attributes. A directed
+    edge is listed under its source, an undirected edge under both of its endpoints, a self-loop
+    once. In a multigraph each data dict is replaced by `{key: data}`, with one entry per
+    parallel edge, keyed by its index among them (the layout of a NetworkX `MultiGraph`).
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    nodelist
+        The nodes (IDs or labels) to include, in order. Edges to nodes outside it are left out.
+        If `None`, every node is used, in ID order.
+    edge_data
+        If given, every edge gets this value instead of its data (as in NetworkX, where
+        `edge_data=1` gives a dict-of-dicts adjacency matrix).
+    multigraph
+        Whether to use the multigraph layout. If `None` (the default), it's used when the graph
+        has parallel edges. `False` raises an error for a graph with parallel edges, which the
+        plain layout can't hold.
+
+    Returns
+    -------
+    dict
+        The dict of dicts.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(weighted=True).add_nodes(["a", "b", "c"])
+    graph.add_edges([("a", "b", 2.0), ("b", "c", 1.0)])
+
+    # Returns {'a': {'b': {'weight': 2.0}}, 'b': {'a': {'weight': 2.0}, 'c': {'weight': 1.0}},
+    #          'c': {'b': {'weight': 1.0}}}
+    ec.to_dict_of_dicts(graph)
+    ```
+
+    """
+    ids = _node_order(graph, nodelist)
+    names = dict(zip(ids, _node_names(graph, ids)))
+    directed = graph.is_directed()
+    if edge_data is None:
+        edges = _edges_of(graph)
+    else:
+        edges = [(s, t, None, {}) for _, s, t in sorted(graph._graph.edges())]
+    edges = [edge for edge in edges if edge[0] in names and edge[1] in names]
+    parallel = _has_parallel_edges(edges, directed)
+    if multigraph is None:
+        multigraph = parallel
+    elif not multigraph and parallel:
+        raise ValueError(
+            "The graph has parallel edges, which a plain dict of dicts can't hold; "
+            "pass multigraph=True"
+        )
+
+    out: dict = {names[nid]: {} for nid in ids}
+    for source, target, weight, attrs in edges:
+        if edge_data is None:
+            data: Any = {"weight": weight} if weight is not None else {}
+            data.update((k, v) for k, v in attrs.items() if k != "weight")
+        else:
+            data = edge_data
+        u, v = names[source], names[target]
+        sides = [(u, v)] if directed or u == v else [(u, v), (v, u)]
+        for a, b in sides:
+            if multigraph:
+                keyed = out[a].setdefault(b, {})
+                keyed[len(keyed)] = data if edge_data is not None else dict(data)
+            else:
+                out[a][b] = data if edge_data is not None else dict(data)
+    return out
+
+
+def from_dict_of_dicts(
+    d: dict,
+    directed: bool = False,
+    multigraph_input: bool = False,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a dict of dicts.
+
+    Reads the layout of `to_dict_of_dicts()` and NetworkX's `to_dict_of_dicts()`: `{u: {v: data}}`,
+    where each `data` dict describes the edge from `u` to `v`. Every key becomes a node, labeled
+    with the key as text, in order (followed by any nodes that appear only as neighbors). A
+    numeric `weight` in an edge's data sets its weight; the other fields become edge attributes.
+    In undirected input, where each edge is usually listed under both endpoints, a node pair
+    gets one edge, whose data merges both listings (as NetworkX's `from_dict_of_dicts()` does).
+
+    Parameters
+    ----------
+    d
+        The dict of dicts.
+    directed
+        Whether to create a directed graph.
+    multigraph_input
+        If `True`, each `data` is instead `{key: data}`, with one entry per parallel edge (the
+        layout of a NetworkX `MultiGraph`), and every entry becomes an edge. For an undirected
+        graph, a node pair's edges are read from whichever endpoint lists them first.
+    weighted
+        Whether the graph has weights. If `None`, it does when any edge has a numeric `weight`.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    d = {"a": {"b": {"weight": 2.0}}, "b": {"a": {"weight": 2.0}, "c": {}}}
+    graph = ec.from_dict_of_dicts(d)
+
+    # Returns ['a--b', 'b--c']
+    graph.get_edges_str_repr(use_labels=True)
+    ```
+
+    """
+    if not isinstance(d, dict):
+        raise TypeError(f"d must be a dict of dicts, not {type(d).__name__}")
+
+    def check(u: Any, v: Any, data: Any, what: str) -> None:
+        if not isinstance(data, dict):
+            raise TypeError(f"{what} must be a dict, but the edge {u!r}-{v!r} has {data!r}")
+
+    def edge(u: Any, v: Any, data: dict) -> tuple:
+        values = dict(data)
+        weight = float(values.pop("weight")) if _is_number(values.get("weight")) else None
+        return (u, v, weight, values)
+
+    edges: list = []
+    merged: dict = {}  # without multigraph_input: node pair -> its index in `edges`
+    seen: set = set()  # with multigraph_input, undirected: pairs already read
+    for u, nbrs in d.items():
+        if not isinstance(nbrs, dict):
+            raise TypeError(f"The neighbors of {u!r} must be a dict, not {type(nbrs).__name__}")
+        for v, data in nbrs.items():
+            if multigraph_input:
+                check(u, v, data, "With multigraph_input=True, each neighbor's entry")
+                for value in data.values():
+                    check(u, v, value, "Each parallel edge's data")
+                if directed or (u, v) not in seen:
+                    edges.extend(edge(u, v, value) for value in data.values())
+                    seen.add((v, u))
+                continue
+            check(u, v, data, "Edge data")
+            pair = (u, v) if directed else frozenset((u, v))
+            if pair not in merged:
+                merged[pair] = len(edges)
+                edges.append(edge(u, v, data))
+            else:
+                # NetworkX updates the edge's data dict with each later listing
+                s, t, weight, values = edges[merged[pair]]
+                _, _, new_weight, new_values = edge(u, v, data)
+                values.update(new_values)
+                if new_weight is not None:
+                    weight = new_weight
+                edges[merged[pair]] = (s, t, weight, values)
+
+    if weighted is None:
+        weighted = any(weight is not None for _, _, weight, _ in edges)
+    nodes = [(u, str(u), {}) for u in d]
+    return _build_graph(
+        nodes, edges, directed, weighted, graph_name, _code("from_dict_of_dicts", d)
+    )
+
+
+def to_dict_of_lists(
+    graph: Graph,
+    nodelist: Optional[Sequence[Union[int, str]]] = None,
+) -> dict:
+    """
+    Convert a graph to a dict of lists.
+
+    The layout of NetworkX's `to_dict_of_lists()`: `{u: [v, ...]}`, with an entry for every node
+    (keyed by its label, or its ID if unlabeled) listing its neighbors (successors, in a directed
+    graph) in order of first appearance. A neighbor is listed once, however many parallel edges
+    join the two, and an undirected edge is listed under both of its endpoints. Weights and
+    attributes aren't kept.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    nodelist
+        The nodes (IDs or labels) to include, in order. Edges to nodes outside it are left out.
+        If `None`, every node is used, in ID order.
+
+    Returns
+    -------
+    dict
+        The dict of lists.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_path_graph(3)
+
+    # Returns {'1': ['2'], '2': ['1', '3'], '3': ['2']}
+    ec.to_dict_of_lists(graph)
+    ```
+
+    """
+    ids = _node_order(graph, nodelist)
+    names = dict(zip(ids, _node_names(graph, ids)))
+    directed = graph.is_directed()
+    neighbors: dict[int, dict[int, None]] = {nid: {} for nid in ids}
+    for _, source, target in sorted(graph._graph.edges()):
+        if source in names and target in names:
+            neighbors[source][target] = None
+            if not directed:
+                neighbors[target][source] = None
+    return {names[nid]: [names[nbr] for nbr in nbrs] for nid, nbrs in neighbors.items()}
+
+
+def from_dict_of_lists(
+    d: dict,
+    directed: bool = False,
+    parallel_edges: bool = False,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a dict of lists.
+
+    Reads the layout of `to_dict_of_lists()` and NetworkX's `to_dict_of_lists()`: `{u: [v, ...]}`,
+    listing each node's neighbors. Every key becomes a node, labeled with the key as text, in
+    order (followed by any nodes that appear only as neighbors), and each listed neighbor gives
+    an edge from the key's node.
+
+    Parameters
+    ----------
+    d
+        The dict of lists (any iterable of neighbors other than a string will do).
+    directed
+        Whether to create a directed graph.
+    parallel_edges
+        If `False` (the default), a node pair listed more than once (in either order, for an
+        undirected graph) gives one edge, as NetworkX's `from_dict_of_lists()` does. If `True`,
+        a directed graph gets an edge for every listing, and an undirected one for every
+        listing except those of edges already listed under the other endpoint (as
+        `from_dict_of_lists(create_using=nx.MultiGraph)` does).
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.from_dict_of_lists({"a": ["b", "c"], "b": ["a"], "c": ["a"]})
+
+    # Returns ['a--b', 'a--c']
+    graph.get_edges_str_repr(use_labels=True)
+    ```
+
+    """
+    if not isinstance(d, dict):
+        raise TypeError(f"d must be a dict of lists, not {type(d).__name__}")
+    edges = []
+    seen_pairs: set = set()
+    done: set = set()  # parallel_edges, undirected: nodes whose lists were read
+    for u, nbrs in d.items():
+        if isinstance(nbrs, (str, bytes, dict)) or not hasattr(nbrs, "__iter__"):
+            raise TypeError(f"The neighbors of {u!r} must be a list, not {type(nbrs).__name__}")
+        for v in nbrs:
+            if parallel_edges:
+                if not directed and v in done:
+                    continue
+            else:
+                pair = (u, v) if directed else frozenset((u, v))
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+            edges.append((u, v, None, {}))
+        done.add(u)
+    nodes = [(u, str(u), {}) for u in d]
+    return _build_graph(nodes, edges, directed, False, graph_name, _code("from_dict_of_lists", d))
+
+
 __all__ = [
     "from_matrix_market",
     "from_graphml",
@@ -3957,4 +4260,8 @@ __all__ = [
     "from_adjacency_data",
     "to_tree_data",
     "from_tree_data",
+    "to_dict_of_dicts",
+    "from_dict_of_dicts",
+    "to_dict_of_lists",
+    "from_dict_of_lists",
 ]
