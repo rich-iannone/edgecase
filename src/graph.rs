@@ -1589,44 +1589,9 @@ impl Graph {
             self.add_node(Node::new(node_id, None, None))?;
         }
 
-        // Create ring lattice: connect each node to k/2 neighbors on each side
-        let expected_edges = n * (k / 2);
-        let mut edges: Vec<(usize, usize)> = Vec::with_capacity(expected_edges);
-        for i in 0..n {
-            for j in 1..=(k / 2) {
-                let neighbor_idx = (i + j) % n;
-                edges.push((i, neighbor_idx));
-            }
-        }
-
-        // Rewire edges with probability p. `present` holds every edge of the graph
-        // as it currently stands, including lattice edges not yet visited: checking
-        // only already-processed edges let a rewired edge duplicate a later one.
-        let norm = |a: usize, b: usize| if a < b { (a, b) } else { (b, a) };
-        let mut present: FxHashSet<(usize, usize)> =
-            edges.iter().map(|&(u, v)| norm(u, v)).collect();
-
-        for edge in edges.iter_mut() {
-            let (u_idx, v_idx) = *edge;
-            if rng.gen::<f64>() < p {
-                // Rewire: choose new target
-                let mut new_v_idx = rng.gen_range(0..n);
-                let mut attempts = 0;
-
-                while (new_v_idx == u_idx || present.contains(&norm(u_idx, new_v_idx)))
-                    && attempts < 100 {
-                    new_v_idx = rng.gen_range(0..n);
-                    attempts += 1;
-                }
-
-                // Otherwise (no free target found) the original edge is kept.
-                if attempts < 100 {
-                    present.remove(&norm(u_idx, v_idx));
-                    present.insert(norm(u_idx, new_v_idx));
-                    *edge = (u_idx, new_v_idx);
-                }
-            }
-        }
+        // Ring lattice with k/2 neighbors on each side, then rewiring; shared with
+        // `add_connected_watts_strogatz_graph()` so both draw the same graphs
+        let edges = crate::algorithms::random_models::watts_strogatz(&mut rng, n, k, p);
 
         for (u_idx, v_idx) in edges {
             self.add_edge(Edge::new(0, node_ids[u_idx], node_ids[v_idx], None, None))?;
