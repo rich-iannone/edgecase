@@ -37,6 +37,7 @@ pub mod matching_cover;
 pub mod mixing_cuts;
 pub mod motifs;
 pub mod network_comparison;
+pub mod edit_distance;
 pub mod network_proximity;
 pub mod topological_overlap;
 pub mod traversal;
