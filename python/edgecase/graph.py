@@ -5920,6 +5920,89 @@ class Graph:
         )
         return self._layout_result("layout_arf", coords, attr_name, return_dict, params)
 
+    def rescale_layout(
+        self,
+        scale: float = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        pos: Union[str, dict] = "pos",
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Center and resize a layout that's already been computed.
+
+        Shifts the positions so their mean sits at `center=`, then scales them evenly (keeping
+        the drawing's shape) so the coordinate farthest from it is `scale=` away along `x` or
+        `y`. Every `layout_*()` method does this to its own result; use this to bring positions
+        from elsewhere (a file, another library, hand placement, or a layout run with
+        `scale=None`) into the same frame, for example to draw two layouts side by side. With a
+        single node, or all nodes at one point, the positions are only moved. Matches
+        NetworkX's `rescale_layout_dict()` (and `rescale_layout()` on an array of positions)
+        with the result shifted to `center=`.
+
+        Parameters
+        ----------
+        scale
+            The largest distance from `center=` along either axis. Default is `1.0`.
+        center
+            Where the positions' mean goes, as `(x, y)`. Default is the origin.
+        pos
+            The positions to rescale: the name of a node attribute holding `(x, y)` pairs
+            (default `"pos"`, where the `layout_*()` methods store them) or a
+            `{node: (x, y)}` dictionary keyed by node ID or label. Only the nodes that have a
+            position are rescaled.
+        attr_name
+            Node attribute to store the new positions in. If `None` (default), the attribute
+            named by `pos=` (so it's rescaled in place), or `"pos"` when `pos=` is a dictionary.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `scale=` is not a positive number, `center=` is not a pair of numbers, no node
+            has the `pos=` attribute, or a position is not a pair of finite numbers.
+
+        Examples
+        --------
+        Positions placed by hand are centered on the origin and fit into the unit square:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_path_graph(3)
+
+        graph.rescale_layout(pos={1: (0, 0), 2: (10, 5), 3: (20, 10)}, return_dict=True)
+        ```
+
+        Positions stored in a node attribute are rescaled in place:
+
+        ```{python}
+        graph.set_node_attrs("xy", {1: [0, 0], 2: [6, 0], 3: [6, 3]})
+
+        graph.rescale_layout(scale=2, pos="xy").get_node_attrs("xy")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center, allow_none=False)
+        values = self._layout_node_map(pos, "pos=")
+        if values is None:
+            raise TypeError("pos must be a node attribute name or a dict, got None")
+        coords = {
+            nid: self._layout_point(v, f"Position of node {nid}") for nid, v in values.items()
+        }
+        coords = self._rescale_positions(coords, scale, center)
+        if attr_name is None:
+            attr_name = pos if isinstance(pos, str) else "pos"
+        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)), pos=(pos, "pos"))
+        return self._layout_result("rescale_layout", coords, attr_name, return_dict, params)
+
     # ====================================================================
     # Graph Generators
     # ====================================================================
@@ -62897,6 +62980,147 @@ class Graph:
             "bethe_hessian_matrix", "G.bethe_hessian_matrix()", len(ids), len(ids)
         )
         return matrix, ids
+
+    def attr_matrix(
+        self,
+        edge_attr: Union[str, Callable[[rust.Edge], float], None] = None,
+        node_attr: Union[str, Callable[[rust.Node], Any], None] = None,
+        normalized: bool = False,
+        rc_order: Optional[list] = None,
+    ) -> tuple[list[list[float]], list]:
+        """
+        Get an adjacency matrix built from edge and node attributes.
+
+        Entry `[i][j]` adds up a value over the edges from the `i`-th row's nodes to the `j`-th
+        column's nodes. With `node_attr=None` the rows and columns are the nodes themselves, so
+        this is an adjacency matrix holding any edge attribute; with `node_attr=` they are the
+        values of a node attribute, so the matrix tallies the edges (or their weights) between
+        groups of nodes, such as how many ties run within and between departments. Each edge
+        adds its `edge_attr=` value (`1` by default, so entries count edges). On an undirected
+        graph the matrix is symmetric: each edge adds to both of its cells, a self-loop or an
+        edge within one group to its diagonal cell once. Matches NetworkX's `attr_matrix()`.
+
+        NetworkX returns only the matrix when `rc_order=` is given, and otherwise orders the rows
+        arbitrarily; EdgeCase always returns the matrix together with its row labels, sorted
+        unless `rc_order=` fixes them.
+
+        Parameters
+        ----------
+        edge_attr
+            What each edge adds. If `None` (default), `1`. `"weight"` adds the edge weight (`1`
+            for an edge without one); any other string names an edge attribute, which every edge
+            must have. A function is called with each `Edge` and returns its value.
+        node_attr
+            What labels the rows and columns. If `None` (default), the node IDs. A string names a
+            node attribute, which every node must have; a function is called with each `Node`
+            and returns its value.
+        normalized
+            If `True`, divide each row by its sum, so that row `i` gives the fraction of the
+            `i`-th row's edge value that goes to each column. Rows that sum to zero stay zero
+            (NetworkX gives NaN). Default is `False`.
+        rc_order
+            The row and column labels, in order: node IDs or labels when `node_attr=` is `None`,
+            attribute values otherwise. Edges with an endpoint whose label isn't listed are left
+            out. If `None` (default), every label is used, sorted (by its text if the labels
+            can't be compared).
+
+        Returns
+        -------
+        tuple[list[list[float]], list]
+            `(matrix, labels)`: the square matrix as a list of rows, and the node IDs or
+            attribute values labelling its rows and columns.
+
+        Raises
+        ------
+        ValueError
+            If a node or edge lacks the named attribute, an edge's value isn't a number, or
+            `rc_order=` lists a label twice.
+
+        Examples
+        --------
+        Count the ties within and between two teams, and the share of each team's ties that
+        stay inside it:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "C")])
+        )
+        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
+
+        graph.attr_matrix(node_attr="team", rc_order=["red", "blue"])
+        ```
+
+        ```{python}
+        graph.attr_matrix(node_attr="team", rc_order=["red", "blue"], normalized=True)
+        ```
+        """
+        node_ids = sorted(self.get_node_ids(limit=None))
+        if node_attr is None:
+            group = {nid: nid for nid in node_ids}
+        else:
+            group = {}
+            for nid in node_ids:
+                node = self.get_node(nid)
+                if callable(node_attr):
+                    group[nid] = node_attr(node)
+                elif node.attributes and node_attr in node.attributes:
+                    group[nid] = node.attributes[node_attr]
+                else:
+                    raise ValueError(f"Node {nid} has no {node_attr!r} attribute")
+
+        if rc_order is None:
+            labels = list(dict.fromkeys(group.values()))
+            try:
+                labels.sort()
+            except TypeError:
+                labels.sort(key=repr)
+        elif node_attr is None:
+            labels = [self._node_id_or_raise(node) for node in rc_order]
+        else:
+            labels = list(rc_order)
+        try:
+            index = {label: i for i, label in enumerate(labels)}
+        except TypeError:
+            raise ValueError("rc_order values must be hashable") from None
+        if len(index) < len(labels):
+            raise ValueError("rc_order lists a label more than once")
+
+        def value(edge_id: int, weight: Optional[float]) -> float:
+            if edge_attr is None:
+                return 1.0
+            if edge_attr == "weight":
+                return 1.0 if weight is None else weight
+            edge = self.get_edge(edge_id)
+            if callable(edge_attr):
+                result = edge_attr(edge)
+            elif edge.attributes and edge_attr in edge.attributes:
+                result = edge.attributes[edge_attr]
+            else:
+                raise ValueError(f"Edge {edge_id} has no {edge_attr!r} attribute")
+            if isinstance(result, bool) or not isinstance(result, (int, float)):
+                raise ValueError(f"Edge {edge_id} has a non-numeric value {result!r}")
+            return float(result)
+
+        n = len(labels)
+        matrix = [[0.0] * n for _ in range(n)]
+        directed = self.is_directed()
+        for eid, source, target, weight in sorted(self._graph._weighted_edges()):
+            i, j = index.get(group[source]), index.get(group[target])
+            if i is None or j is None:
+                continue
+            amount = value(eid, weight)
+            matrix[i][j] += amount
+            if not directed and i != j:
+                matrix[j][i] += amount
+        if normalized:
+            matrix = [[v / sum(row) for v in row] if sum(row) else row for row in matrix]
+
+        self._record_matrix_step("attr_matrix", "G.attr_matrix()", n, n)
+        return matrix, labels
 
     def modularity_spectrum(self, weighted: bool | None = None) -> list:
         """
