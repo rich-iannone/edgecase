@@ -38,23 +38,35 @@ from edgecase.datasets import (
     web_google,
     wiki_vote,
 )
+from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.graph import (
     Edge,
     Graph,
     Node,
 )
 from edgecase.io import (
+    from_cytoscape,
+    from_gexf,
     from_gml,
+    from_graph6,
     from_graphml,
     from_matrix_market,
+    from_node_link,
+    from_pajek,
     from_sif,
+    from_sparse6,
     from_tsv_edge_list,
+    to_cytoscape,
+    to_gexf,
     to_gml,
+    to_graph6,
     to_graphml,
+    to_node_link,
+    to_pajek,
     to_sif,
+    to_sparse6,
     to_tsv_edge_list,
 )
-from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.multiplex import MultiplexGraph
 from edgecase.svg_renderer import StepPlayer
 
@@ -123,6 +135,18 @@ __all__ = [
     "to_sif",
     "from_tsv_edge_list",
     "to_tsv_edge_list",
+    "from_gexf",
+    "to_gexf",
+    "from_node_link",
+    "to_node_link",
+    "from_cytoscape",
+    "to_cytoscape",
+    "from_pajek",
+    "to_pajek",
+    "from_graph6",
+    "to_graph6",
+    "from_sparse6",
+    "to_sparse6",
     # Datasets
     "from_matrix_market",
     "load_dataset",
