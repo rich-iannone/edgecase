@@ -1,6 +1,6 @@
 import math
 from contextlib import contextmanager, nullcontext
-from typing import Any, Callable, Optional, Union
+from typing import Any, Callable, Iterator, Optional, Union
 
 import polars as pl
 
@@ -34550,17 +34550,30 @@ class Graph:
         other: "Graph",
         node_cost: float = 1.0,
         edge_cost: float = 1.0,
+        exact: bool = False,
+        node_match: Optional[Callable[[dict, dict], bool]] = None,
+        edge_match: Optional[Callable[[dict, dict], bool]] = None,
+        node_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        node_del_cost: Optional[Callable[[dict], float]] = None,
+        node_ins_cost: Optional[Callable[[dict], float]] = None,
+        edge_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        edge_del_cost: Optional[Callable[[dict], float]] = None,
+        edge_ins_cost: Optional[Callable[[dict], float]] = None,
+        roots: Optional[tuple] = None,
+        upper_bound: Optional[float] = None,
+        timeout: Optional[float] = None,
     ) -> dict:
         """
-        Compute the approximate graph edit distance between this graph and another.
+        Compute the graph edit distance between this graph and another.
 
         ![Graph edit distance](/assets/graphs/graph-edit-distance.light.svg){.lightbox fig-alt="Graph G has nodes A, B, C, D and H has A, B, D, E; both share edges A–B and B–D. Turning G into H deletes node C and edge A–C (accent in G) and inserts node E and edge D–E (accent in H): four edits at cost 1 each, so the distance is 4." width="100%"}
 
-        Counts the minimum number of node insertions, node deletions, edge insertions, and edge
-        deletions to transform this graph into the other. Uses label-based matching (exact label
-        match = same node).
+        Counts the node insertions, node deletions, edge insertions, and edge deletions needed to
+        transform this graph into the other. By default the nodes are matched by label, which is
+        fast; with `exact=True` the method instead searches every node correspondence for the
+        cheapest edit path, as NetworkX's `graph_edit_distance()` does.
 
-        Nodes are matched by label (an unlabelled node is represented by its ID as a string), and
+        In the default label-based mode, nodes are matched by label (an unlabelled node is represented by its ID as a string), and
         edges by the labels of their endpoints. A node whose label exists only in `other=` costs
         one node insertion and a node whose label exists only in the calling graph costs one node
         deletion; edges are counted the same way. Each count is multiplied by its cost and the
@@ -34579,6 +34592,15 @@ class Graph:
         `B--A`, weights and attributes are ignored, and parallel edges count once. Edges attached
         to a deleted or inserted node are counted as separate edge edits as well.
 
+        With `exact=True`, labels play no part: the distance is the minimum cost of any edit
+        path that turns this graph into a graph isomorphic to `other=`, where each node and edge
+        is either substituted by one in `other=`, deleted, or inserted. Substitutions are free
+        unless `node_match=`, `edge_match=` or a substitution cost function says otherwise, so
+        two structurally identical graphs are at distance `0`. The search is exponential in the
+        worst case and is practical for graphs of up to about a dozen nodes; `upper_bound=` and
+        `timeout=` keep larger comparisons in check. Use `optimal_edit_paths()` to see the edits
+        themselves.
+
         Parameters
         ----------
         other
@@ -34589,28 +34611,88 @@ class Graph:
         node_cost
             Cost charged for each node insertion or deletion. The default is `1.0`. Set it to
             `0.0` to count only edge changes, or raise it to make changes to the node set weigh
-            more than rewiring.
+            more than rewiring. With `exact=True` it is the default for `node_del_cost=` and
+            `node_ins_cost=`.
         edge_cost
             Cost charged for each edge insertion or deletion. The default is `1.0`. Like
             `node_cost=`, this only scales the `distance` value; the individual counts in the
-            result are unaffected.
+            result are unaffected. With `exact=True` it is the default for `edge_del_cost=` and
+            `edge_ins_cost=`.
+        exact
+            If `False` (default), match nodes by label. If `True`, compute the exact graph edit
+            distance by searching over node correspondences. The remaining parameters apply only
+            to the exact mode, and passing any of them without `exact=True` raises an error.
+        node_match
+            A function called as `node_match(attrs1, attrs2)` with the attribute dictionaries of
+            a node of this graph and a node of `other=`, returning `True` if the two may be
+            substituted for free. A substitution of non-matching nodes costs `1`. Ignored when
+            `node_subst_cost=` is given. If neither is given, node attributes are ignored.
+        edge_match
+            Like `node_match=`, for the attribute dictionaries of two edges. An edge's dictionary
+            holds its attributes plus its `"weight"` when it has one.
+        node_subst_cost, node_del_cost, node_ins_cost
+            Functions returning the cost of substituting a node of this graph by a node of
+            `other=` (called with both attribute dictionaries), deleting a node of this graph,
+            and inserting a node of `other=` (each called with one attribute dictionary). Costs
+            must be non-negative numbers. Without them, a substitution costs `0` (or follows
+            `node_match=`) and a deletion or insertion costs `node_cost=`.
+        edge_subst_cost, edge_del_cost, edge_ins_cost
+            The same three functions for edges. Without them, a substitution costs `0` (or follows
+            `edge_match=`) and a deletion or insertion costs `edge_cost=`.
+        roots
+            A pair `(u, v)` of a node of this graph and a node of `other=` (IDs or labels) that
+            are forced to correspond, for comparing rooted graphs.
+        upper_bound
+            The largest distance to consider. If no edit path costs this much or less, the
+            `distance` is `None`.
+        timeout
+            A time limit in seconds, which must be positive. When it runs out the best distance
+            found so far is returned, which may be larger than the true distance.
 
         Returns
         -------
         dict
             Dictionary with float values under these keys:
 
-            - `distance`: the total cost, `(node_insertions + node_deletions) * node_cost +
+            - `distance`: the total cost. In the label-based mode this is
+              `(node_insertions + node_deletions) * node_cost +
               (edge_insertions + edge_deletions) * edge_cost`.
             - `node_insertions`, `node_deletions`: the number of node labels found only in
-              `other=` and only in the calling graph, respectively.
+              `other=` and only in the calling graph, respectively, or, with `exact=True`, the
+              number of nodes inserted and deleted by the optimal edit path.
             - `edge_insertions`, `edge_deletions`: the number of edges found only in `other=` and
-              only in the calling graph, respectively.
+              only in the calling graph, respectively, or the edges inserted and deleted by the
+              optimal edit path.
+
+            With `exact=True` the dictionary also holds `node_substitutions` and
+            `edge_substitutions`, the number of node and edge pairs the edit path maps onto each
+            other (substitutions that cost nothing included). When no edit path is within
+            `upper_bound=`, every value is `None`.
+
+        Raises
+        ------
+        ValueError
+            If an exact-mode parameter is given without `exact=True`, if (in exact mode) the
+            graphs differ in directedness, a cost is negative or not a number, a root is not in
+            its graph, or `timeout=` is not positive.
 
         See Also
         --------
         edge_overlap : Compare edge sets with a Jaccard index.
         differential_edges : List which edges were added or removed.
+        optimal_edit_paths : List every cheapest edit path.
+        optimize_graph_edit_distance : Iterate over improving distance estimates.
+
+        Technical Notes
+        ---------------
+        The exact mode runs the depth-first branch-and-bound search of Abu-Aisheh et al. (2015),
+        following NetworkX's `optimize_edit_paths()`: each step maps one more node of this graph
+        to a node of `other=` (or deletes or inserts it), settles the edges between mapped nodes,
+        and prunes a branch as soon as its cost plus a lower bound on the remaining edits, from
+        linear sum assignments solved with the Hungarian algorithm, reaches the best complete
+        path found so far. Self-loops can only be substituted by self-loops on the matching node;
+        NetworkX lets a loop stand in for any edge at the matched nodes and can then report a
+        distance below the true one.
 
         Examples
         --------
@@ -34641,10 +34723,551 @@ class Graph:
         ```{python}
         g.graph_edit_distance(h, node_cost=0.0)["distance"]
         ```
-        """
-        from edgecase._core import graph_edit_distance as _graph_edit_distance
 
-        return _graph_edit_distance(self._graph, other._graph, node_cost, edge_cost)
+        Both graphs are in fact four-node paths (`C--A--B--D` and `A--B--D--E`). The exact mode
+        ignores the labels, and relabelling nodes is free, so every node and edge is
+        substituted and the distance is `0`:
+
+        ```{python}
+        g.graph_edit_distance(h, exact=True)
+        ```
+
+        The exact distance between a six-node cycle and a seven-node wheel is `7`: one node
+        (the hub) and its six spokes are inserted:
+
+        ```{python}
+        cycle = ec.Graph().add_cycle_graph(6)
+        wheel = ec.Graph().add_wheel_graph(7)
+
+        cycle.graph_edit_distance(wheel, exact=True)["distance"]
+        ```
+
+        Attributes enter through the match and cost functions. Here substituting atoms of
+        different elements is not free, so the two chains differ by one substitution:
+
+        ```{python}
+        a = ec.Graph().add_nodes([("a1", {"el": "C"}), ("a2", {"el": "O"})])
+        a.add_edges([("a1", "a2")])
+        b = ec.Graph().add_nodes([("b1", {"el": "C"}), ("b2", {"el": "N"})])
+        b.add_edges([("b1", "b2")])
+
+        a.graph_edit_distance(b, exact=True, node_match=lambda x, y: x["el"] == y["el"])
+        ```
+        """
+        exact_options = {
+            "node_match": node_match,
+            "edge_match": edge_match,
+            "node_subst_cost": node_subst_cost,
+            "node_del_cost": node_del_cost,
+            "node_ins_cost": node_ins_cost,
+            "edge_subst_cost": edge_subst_cost,
+            "edge_del_cost": edge_del_cost,
+            "edge_ins_cost": edge_ins_cost,
+            "roots": roots,
+            "upper_bound": upper_bound,
+            "timeout": timeout,
+        }
+        if not exact:
+            given = [name for name, value in exact_options.items() if value is not None]
+            if given:
+                raise ValueError(f"{given[0]}= requires exact=True")
+            from edgecase._core import graph_edit_distance as _graph_edit_distance
+
+            return _graph_edit_distance(self._graph, other._graph, node_cost, edge_cost)
+
+        results = self._edit_path_search(
+            other,
+            **exact_options,
+            strictly_decreasing=True,
+            best_only=True,
+            node_cost=node_cost,
+            edge_cost=edge_cost,
+        )
+        keys = ("distance", "node_insertions", "node_deletions", "node_substitutions")
+        keys += ("edge_insertions", "edge_deletions", "edge_substitutions")
+        if not results:
+            return dict.fromkeys(keys)
+        node_path, edge_path, cost = results[-1]
+        counts = [cost]
+        for path in (node_path, edge_path):
+            counts.append(float(sum(a is None for a, b in path)))
+            counts.append(float(sum(b is None for a, b in path)))
+            counts.append(float(sum(a is not None and b is not None for a, b in path)))
+        return dict(zip(keys, counts))
+
+    def _edit_path_search(
+        self,
+        other: "Graph",
+        node_match=None,
+        edge_match=None,
+        node_subst_cost=None,
+        node_del_cost=None,
+        node_ins_cost=None,
+        edge_subst_cost=None,
+        edge_del_cost=None,
+        edge_ins_cost=None,
+        roots=None,
+        upper_bound=None,
+        timeout=None,
+        strictly_decreasing=True,
+        best_only=True,
+        node_cost=1.0,
+        edge_cost=1.0,
+    ) -> list:
+        """Run the exact edit path search; returns `(node_path, edge_path, cost)` triples."""
+        if not isinstance(other, Graph):
+            raise TypeError("other= must be a Graph")
+        if self.is_directed() != other.is_directed():
+            raise ValueError("both graphs must be directed or both undirected")
+        if timeout is not None and not timeout > 0:
+            raise ValueError("timeout= must be greater than 0")
+
+        def cost_value(value, what: str) -> float:
+            if isinstance(value, bool) or not isinstance(value, (int, float)):
+                raise ValueError(f"{what} must be a number, got {value!r}")
+            if not value >= 0 or math.isinf(value):
+                raise ValueError(f"{what} must be a finite non-negative number, got {value!r}")
+            return float(value)
+
+        node_cost = cost_value(node_cost, "node_cost=")
+        edge_cost = cost_value(edge_cost, "edge_cost=")
+        if upper_bound is not None:
+            upper_bound = float(upper_bound)
+
+        def node_data(graph: "Graph") -> tuple[list[int], list[dict]]:
+            ids = sorted(graph.get_node_ids(limit=None))
+            return ids, [dict(graph.get_node(nid).attributes or {}) for nid in ids]
+
+        def edge_data(graph: "Graph", position: dict) -> tuple[list, list, list]:
+            ids, ends, attrs = [], [], []
+            for eid, source, target, weight in sorted(graph._graph._weighted_edges()):
+                data = dict(graph.get_edge(eid).attributes or {})
+                if weight is not None:
+                    data["weight"] = weight
+                ids.append(eid)
+                ends.append((position[source], position[target]))
+                attrs.append(data)
+            return ids, ends, attrs
+
+        def costs(attrs1, attrs2, match, subst, delete, insert, default, what):
+            if subst is not None:
+                sub = [
+                    cost_value(subst(a, b), f"{what}_subst_cost=") for a in attrs1 for b in attrs2
+                ]
+            elif match is not None:
+                sub = [0.0 if match(a, b) else 1.0 for a in attrs1 for b in attrs2]
+            else:
+                sub = [0.0] * (len(attrs1) * len(attrs2))
+            dels = [cost_value(delete(a), f"{what}_del_cost=") for a in attrs1] if delete else None
+            ins = [cost_value(insert(b), f"{what}_ins_cost=") for b in attrs2] if insert else None
+            return sub, dels or [default] * len(attrs1), ins or [default] * len(attrs2)
+
+        ids1, nattrs1 = node_data(self)
+        ids2, nattrs2 = node_data(other)
+        pos1 = {nid: i for i, nid in enumerate(ids1)}
+        pos2 = {nid: i for i, nid in enumerate(ids2)}
+        pending_u, pending_v = list(range(len(ids1))), list(range(len(ids2)))
+        initial_cost = 0.0
+        root_pair = None
+        if roots is not None:
+            root_u, root_v = roots
+            root_pair = (
+                pos1[self._node_id_or_raise(root_u)],
+                pos2[other._node_id_or_raise(root_v)],
+            )
+            pending_u.remove(root_pair[0])
+            pending_v.remove(root_pair[1])
+            a, b = nattrs1[root_pair[0]], nattrs2[root_pair[1]]
+            if node_subst_cost is not None:
+                initial_cost = cost_value(node_subst_cost(a, b), "node_subst_cost=")
+            elif node_match is not None:
+                initial_cost = 0.0 if node_match(a, b) else 1.0
+        node_sub, node_del, node_ins = costs(
+            [nattrs1[i] for i in pending_u],
+            [nattrs2[j] for j in pending_v],
+            node_match,
+            node_subst_cost,
+            node_del_cost,
+            node_ins_cost,
+            node_cost,
+            "node",
+        )
+        eids1, ends1, eattrs1 = edge_data(self, pos1)
+        eids2, ends2, eattrs2 = edge_data(other, pos2)
+        edge_sub, edge_del, edge_ins = costs(
+            eattrs1,
+            eattrs2,
+            edge_match,
+            edge_subst_cost,
+            edge_del_cost,
+            edge_ins_cost,
+            edge_cost,
+            "edge",
+        )
+
+        found = rust.optimize_edit_paths(
+            pending_u,
+            pending_v,
+            node_sub,
+            node_del,
+            node_ins,
+            ends1,
+            ends2,
+            edge_sub,
+            edge_del,
+            edge_ins,
+            self.is_directed(),
+            root_pair,
+            initial_cost,
+            upper_bound,
+            strictly_decreasing,
+            timeout,
+            best_only,
+        )
+
+        def ids(pairs, left, right):
+            return [
+                (None if a is None else left[a], None if b is None else right[b]) for a, b in pairs
+            ]
+
+        return [
+            (ids(node_path, ids1, ids2), ids(edge_path, eids1, eids2), cost)
+            for node_path, edge_path, cost in found
+        ]
+
+    def optimal_edit_paths(
+        self,
+        other: "Graph",
+        node_match: Optional[Callable[[dict, dict], bool]] = None,
+        edge_match: Optional[Callable[[dict, dict], bool]] = None,
+        node_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        node_del_cost: Optional[Callable[[dict], float]] = None,
+        node_ins_cost: Optional[Callable[[dict], float]] = None,
+        edge_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        edge_del_cost: Optional[Callable[[dict], float]] = None,
+        edge_ins_cost: Optional[Callable[[dict], float]] = None,
+        upper_bound: Optional[float] = None,
+    ) -> tuple[list[tuple[list[tuple], list[tuple]]], Optional[float]]:
+        """
+        List every minimum-cost edit path that transforms this graph into another.
+
+        An edit path is a complete account of how this graph turns into a graph isomorphic to
+        `other=`: every node of this graph is substituted by a node of `other=` or deleted, every
+        node of `other=` not substituted is inserted, and the same holds for edges. The cost of
+        the cheapest path is the exact graph edit distance, the value returned by
+        `graph_edit_distance(exact=True)`; this method also returns the paths themselves, all of
+        them when several reach the minimum. For isomorphic graphs the cost is `0` and the paths
+        are the isomorphisms between the two graphs.
+
+        Edit paths are useful to:
+
+        - explain a graph edit distance, by showing which nodes and edges correspond
+        - align two small networks (molecules, workflows, circuits) node by node
+        - enumerate the different ways two structures can be matched at the same cost
+
+        The search is exponential in the worst case and is practical for graphs of up to about a
+        dozen nodes. Labels play no part, and the current selection is ignored.
+
+        Parameters
+        ----------
+        other
+            The target graph. It must have the same directedness as the calling graph.
+        node_match, edge_match
+            Functions called with two attribute dictionaries (a node or edge of this graph and
+            one of `other=`), returning `True` when the two may be substituted for free. An edge's
+            dictionary holds its attributes plus its `"weight"` when it has one. See
+            `graph_edit_distance()`.
+        node_subst_cost, node_del_cost, node_ins_cost
+            Functions returning the cost of substituting, deleting, and inserting a node. By
+            default a substitution costs `0` (or `1` for nodes that fail `node_match=`), and a
+            deletion or insertion costs `1`.
+        edge_subst_cost, edge_del_cost, edge_ins_cost
+            The same three functions for edges, with the same defaults.
+        upper_bound
+            The largest cost to consider. If no edit path costs this much or less, the result is
+            `([], None)`.
+
+        Returns
+        -------
+        tuple
+            A pair `(paths, cost)`. Each path is a tuple `(node_path, edge_path)`: `node_path`
+            lists `(u, v)` pairs of node IDs of this graph and of `other=`, and `edge_path` lists
+            `(e, f)` pairs of edge IDs. A `None` on the left is an insertion and a `None` on the
+            right a deletion. `cost` is the minimum cost, a `float`.
+
+        Raises
+        ------
+        ValueError
+            If the graphs differ in directedness, or a cost is negative or not a number.
+
+        See Also
+        --------
+        graph_edit_distance : The edit distance alone, label-based or exact.
+        optimize_edit_paths : Iterate over edit paths of decreasing cost.
+
+        Technical Notes
+        ---------------
+        Uses the branch-and-bound search described in `graph_edit_distance()`, keeping every
+        complete path whose cost ties the best one found. Every cheapest node correspondence is
+        listed; for each, the edges are matched by one optimal assignment. Unlike NetworkX's
+        `optimal_edit_paths()`, the edge path pairs edge IDs rather than `(u, v)` endpoint
+        tuples, so that parallel edges stay distinguishable. The order of the paths can differ
+        from NetworkX's, since equally good assignments may be explored in a different order.
+
+        Examples
+        --------
+        A three-node path becomes a triangle by inserting one edge. The path can be laid onto
+        the triangle in six ways (any of the three nodes can take the middle position, in either
+        orientation), so there are six optimal edit paths:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        triangle = ec.Graph().add_nodes(["X", "Y", "Z"])
+        triangle.add_edges([("X", "Y"), ("Y", "Z"), ("Z", "X")])
+
+        paths, cost = path.optimal_edit_paths(triangle)
+        len(paths), cost
+        ```
+
+        Each path pairs node IDs and edge IDs. In the first path, the one inserted edge shows up
+        as an edge pair with `None` on the left:
+
+        ```{python}
+        node_path, edge_path = paths[0]
+        node_path, edge_path
+        ```
+        """
+        results = self._edit_path_search(
+            other,
+            node_match=node_match,
+            edge_match=edge_match,
+            node_subst_cost=node_subst_cost,
+            node_del_cost=node_del_cost,
+            node_ins_cost=node_ins_cost,
+            edge_subst_cost=edge_subst_cost,
+            edge_del_cost=edge_del_cost,
+            edge_ins_cost=edge_ins_cost,
+            upper_bound=upper_bound,
+            strictly_decreasing=False,
+            best_only=True,
+        )
+        if not results:
+            return [], None
+        return [(node_path, edge_path) for node_path, edge_path, _ in results], results[-1][2]
+
+    def optimize_graph_edit_distance(
+        self,
+        other: "Graph",
+        node_match: Optional[Callable[[dict, dict], bool]] = None,
+        edge_match: Optional[Callable[[dict, dict], bool]] = None,
+        node_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        node_del_cost: Optional[Callable[[dict], float]] = None,
+        node_ins_cost: Optional[Callable[[dict], float]] = None,
+        edge_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        edge_del_cost: Optional[Callable[[dict], float]] = None,
+        edge_ins_cost: Optional[Callable[[dict], float]] = None,
+        upper_bound: Optional[float] = None,
+    ) -> Iterator[float]:
+        """
+        Iterate over improving estimates of the exact graph edit distance.
+
+        The exact search behind `graph_edit_distance(exact=True)` finds complete edit paths of
+        strictly decreasing cost until no cheaper one exists. This method yields each of those
+        costs in turn, so the last value is the exact graph edit distance and every earlier one
+        is an upper bound on it.
+
+        Use it to:
+
+        - stop early with a good-enough distance, by breaking out of the loop
+        - follow how quickly the search converges on a pair of graphs
+
+        The whole search runs before the first value is yielded, so breaking out early saves no
+        time; pass `upper_bound=` to `graph_edit_distance()`, or `timeout=` to it or to
+        `optimize_edit_paths()`, to cap the work instead. Parameters are as in
+        `optimal_edit_paths()`.
+
+        Parameters
+        ----------
+        other
+            The target graph. It must have the same directedness as the calling graph.
+        node_match, edge_match
+            Functions called with two attribute dictionaries, returning `True` when the two may
+            be substituted for free. See `graph_edit_distance()`.
+        node_subst_cost, node_del_cost, node_ins_cost
+            Functions returning the cost of substituting, deleting, and inserting a node.
+        edge_subst_cost, edge_del_cost, edge_ins_cost
+            The same three functions for edges.
+        upper_bound
+            The largest cost to consider. Only costs up to this value are yielded.
+
+        Returns
+        -------
+        Iterator[float]
+            The costs of successively cheaper edit paths, ending with the edit distance.
+
+        Raises
+        ------
+        ValueError
+            If the graphs differ in directedness, or a cost is negative or not a number.
+
+        See Also
+        --------
+        graph_edit_distance : The final value directly.
+        optimize_edit_paths : The same search, yielding the edit paths too.
+
+        Technical Notes
+        ---------------
+        Matches NetworkX's `optimize_graph_edit_distance()` in its final value. The intermediate
+        values depend on the order in which equally good assignments are explored, so they can
+        differ from NetworkX's.
+
+        Examples
+        --------
+        The estimates for a six-node cycle and a seven-node wheel end at the exact distance,
+        `7.0`:
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph().add_cycle_graph(6)
+        wheel = ec.Graph().add_wheel_graph(7)
+
+        list(cycle.optimize_graph_edit_distance(wheel))
+        ```
+        """
+        results = self._edit_path_search(
+            other,
+            node_match=node_match,
+            edge_match=edge_match,
+            node_subst_cost=node_subst_cost,
+            node_del_cost=node_del_cost,
+            node_ins_cost=node_ins_cost,
+            edge_subst_cost=edge_subst_cost,
+            edge_del_cost=edge_del_cost,
+            edge_ins_cost=edge_ins_cost,
+            upper_bound=upper_bound,
+            strictly_decreasing=True,
+            best_only=False,
+        )
+        return iter([cost for _, _, cost in results])
+
+    def optimize_edit_paths(
+        self,
+        other: "Graph",
+        node_match: Optional[Callable[[dict, dict], bool]] = None,
+        edge_match: Optional[Callable[[dict, dict], bool]] = None,
+        node_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        node_del_cost: Optional[Callable[[dict], float]] = None,
+        node_ins_cost: Optional[Callable[[dict], float]] = None,
+        edge_subst_cost: Optional[Callable[[dict, dict], float]] = None,
+        edge_del_cost: Optional[Callable[[dict], float]] = None,
+        edge_ins_cost: Optional[Callable[[dict], float]] = None,
+        upper_bound: Optional[float] = None,
+        strictly_decreasing: bool = True,
+        roots: Optional[tuple] = None,
+        timeout: Optional[float] = None,
+    ) -> Iterator[tuple[list[tuple], list[tuple], float]]:
+        """
+        Iterate over the edit paths found by the exact graph edit distance search.
+
+        This is the general interface behind `graph_edit_distance(exact=True)`,
+        `optimal_edit_paths()` and `optimize_graph_edit_distance()`. The search yields each
+        complete edit path it accepts: with `strictly_decreasing=True` (default) each path is
+        cheaper than the one before, so the last is optimal; with `strictly_decreasing=False` it
+        also yields paths that tie the best cost so far, so the trailing run of equal costs lists
+        every optimal path.
+
+        Use it when you need both the paths and control over the search, such as forcing two
+        root nodes to correspond with `roots=` or capping the running time with `timeout=`.
+
+        The whole search runs before the first path is yielded, so breaking out early saves no
+        time.
+
+        Parameters
+        ----------
+        other
+            The target graph. It must have the same directedness as the calling graph.
+        node_match, edge_match
+            Functions called with two attribute dictionaries, returning `True` when the two may
+            be substituted for free. See `graph_edit_distance()`.
+        node_subst_cost, node_del_cost, node_ins_cost
+            Functions returning the cost of substituting, deleting, and inserting a node.
+        edge_subst_cost, edge_del_cost, edge_ins_cost
+            The same three functions for edges.
+        upper_bound
+            The largest cost to consider. Only paths up to this cost are yielded.
+        strictly_decreasing
+            If `True` (default), yield only paths cheaper than every earlier one. If `False`,
+            also yield paths that tie the best cost so far.
+        roots
+            A pair `(u, v)` of a node of this graph and a node of `other=` (IDs or labels) that
+            are forced to correspond. The pair comes first in every node path.
+        timeout
+            A time limit in seconds, which must be positive. When it runs out, the paths found so
+            far are yielded.
+
+        Returns
+        -------
+        Iterator[tuple]
+            Triples `(node_path, edge_path, cost)`, in the format of `optimal_edit_paths()`, with
+            `cost` a `float`.
+
+        Raises
+        ------
+        ValueError
+            If the graphs differ in directedness, a cost is negative or not a number, a root is
+            not in its graph, or `timeout=` is not positive.
+
+        See Also
+        --------
+        optimal_edit_paths : Every cheapest edit path.
+        graph_edit_distance : The edit distance alone.
+
+        Technical Notes
+        ---------------
+        Mirrors NetworkX's `optimize_edit_paths()`, with edge IDs in the edge paths in place of
+        endpoint tuples. Which intermediate paths are found depends on the order in which equally
+        good assignments are explored, so they can differ from NetworkX's; the final cost does
+        not.
+
+        Examples
+        --------
+        A star compared with itself is at distance `0` when the centers are forced to
+        correspond, but forcing a leaf to correspond to the center costs `8`: the edit path has
+        to rewire the star around a new center. In this six-node star, node `1` is the center
+        and node `2` a leaf:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_star_graph(6)
+
+        [cost for _, _, cost in star.optimize_edit_paths(star, roots=(1, 1))][-1]
+        ```
+
+        ```{python}
+        [cost for _, _, cost in star.optimize_edit_paths(star, roots=(2, 1))][-1]
+        ```
+        """
+        results = self._edit_path_search(
+            other,
+            node_match=node_match,
+            edge_match=edge_match,
+            node_subst_cost=node_subst_cost,
+            node_del_cost=node_del_cost,
+            node_ins_cost=node_ins_cost,
+            edge_subst_cost=edge_subst_cost,
+            edge_del_cost=edge_del_cost,
+            edge_ins_cost=edge_ins_cost,
+            roots=roots,
+            upper_bound=upper_bound,
+            timeout=timeout,
+            strictly_decreasing=strictly_decreasing,
+            best_only=False,
+        )
+        return iter(results)
 
     def network_proximity(
         self,
