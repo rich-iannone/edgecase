@@ -1,3 +1,4 @@
+import ast
 import html
 import json
 import math
@@ -6,7 +7,7 @@ import re
 import warnings
 import xml.etree.ElementTree as ET
 from pathlib import Path
-from typing import Any, Optional, Union
+from typing import Any, Optional, Sequence, Union
 
 import polars as pl
 
@@ -2399,6 +2400,1525 @@ def _sparse6_pairs(data: bytes, k: int):
         yield b, x
 
 
+# =============================================================================
+# NumPy, SciPy sparse and pandas
+# =============================================================================
+
+
+def _require(module: str) -> Any:
+    """Import an optional dependency, with an install hint if it's missing."""
+    import importlib
+
+    try:
+        return importlib.import_module(module)
+    except ImportError as err:
+        package = module.split(".", 1)[0]
+        raise ImportError(
+            f"This function needs {package}, which isn't installed (`pip install {package}`)"
+        ) from err
+
+
+def _node_order(graph: Graph, nodelist: Optional[Sequence]) -> list[int]:
+    """Node IDs in matrix order: `nodelist` (IDs or labels) or else ID order."""
+    if nodelist is None:
+        return sorted(graph.get_node_ids(limit=None))
+    ids = [graph._node_id_or_raise(node) for node in nodelist]
+    if len(set(ids)) < len(ids):
+        raise ValueError("nodelist names a node more than once")
+    return ids
+
+
+def _node_names(graph: Graph, ids: list[int]) -> list[str]:
+    """The name each node gets in an export (its label, or its ID if unlabeled), for `ids`."""
+    keys = _node_keys(
+        [(nid, graph.get_label_from_id(nid), {}) for nid in graph.get_node_ids(limit=None)]
+    )
+    return [keys[nid] for nid in ids]
+
+
+def _matrix_entries(
+    graph: Graph,
+    ids: list[int],
+    weighted: Optional[bool],
+    multigraph_weight: str,
+) -> tuple[Any, Any, Any]:
+    """
+    The `(rows, cols, values)` arrays of a graph's adjacency matrix, one entry per nonzero cell.
+
+    An edge counts its weight (1 if it has none or weights aren't used). Parallel edges combine
+    by `multigraph_weight` ("sum", "min" or "max"). An undirected edge fills both of its cells, a
+    self-loop only its diagonal cell. Edges to nodes outside `ids` are left out.
+    """
+    np = _require("numpy")
+    reduce = {"sum": np.add, "min": np.minimum, "max": np.maximum}.get(multigraph_weight)
+    if reduce is None:
+        raise ValueError(
+            f"multigraph_weight must be 'sum', 'min' or 'max', not {multigraph_weight!r}"
+        )
+    index = {nid: i for i, nid in enumerate(ids)}
+    use_weights = graph._use_weights(weighted)
+    directed = graph.is_directed()
+    rows: list[int] = []
+    cols: list[int] = []
+    vals: list[float] = []
+    for _, source, target, weight in graph._graph._weighted_edges():
+        i, j = index.get(source), index.get(target)
+        if i is None or j is None:
+            continue
+        value = weight if use_weights and weight is not None else 1.0
+        rows.append(i)
+        cols.append(j)
+        vals.append(value)
+        if not directed and i != j:
+            rows.append(j)
+            cols.append(i)
+            vals.append(value)
+    r = np.asarray(rows, dtype=np.int64)
+    c = np.asarray(cols, dtype=np.int64)
+    v = np.asarray(vals, dtype=float)
+    if len(r):
+        order = np.lexsort((c, r))
+        r, c, v = r[order], c[order], v[order]
+        starts = np.flatnonzero(np.r_[True, (r[1:] != r[:-1]) | (c[1:] != c[:-1])])
+        r, c, v = r[starts], c[starts], reduce.reduceat(v, starts)
+    return r, c, v
+
+
+def _from_entries(
+    n: int,
+    rows: Any,
+    cols: Any,
+    vals: Any,
+    directed: bool,
+    weighted: Optional[bool],
+    parallel_edges: bool,
+    node_labels: Optional[Sequence],
+    graph_name: Optional[str],
+    code: str,
+) -> Graph:
+    """
+    Build a graph from the edge cells of a square matrix (already checked for symmetry when
+    undirected, and with each undirected edge's cell given only once).
+    """
+    np = _require("numpy")
+    if len(vals) and not np.all(np.isfinite(vals)):
+        raise ValueError(
+            "The matrix has non-finite entries; pass the value it uses for non-edges as nonedge="
+        )
+    if node_labels is None:
+        labels = [str(i) for i in range(n)]
+    else:
+        labels = [str(label) for label in node_labels]
+        if len(labels) != n:
+            raise ValueError(f"node_labels has {len(labels)} labels for {n} nodes")
+        if len(set(labels)) < n:
+            raise ValueError("node_labels holds the same label more than once")
+
+    if parallel_edges:
+        if len(vals) and not (np.all(vals >= 0) and np.all(vals == np.floor(vals))):
+            raise ValueError("With parallel_edges=True, each entry must be a whole number of edges")
+        weighted = bool(weighted)
+        edges = [
+            (i, j, 1.0, {})
+            for i, j, count in zip(rows.tolist(), cols.tolist(), vals.tolist())
+            for _ in range(int(count))
+        ]
+    else:
+        if weighted is None:
+            weighted = bool(np.any(vals != 1))
+        edges = [
+            (i, j, value, {})
+            for i, j, value in zip(rows.tolist(), cols.tolist(), vals.astype(float).tolist())
+        ]
+    nodes = [(i, label, {}) for i, label in enumerate(labels)]
+    return _build_graph(nodes, edges, directed, weighted, graph_name, code)
+
+
+def _from_dense(
+    array: Any,
+    directed: bool,
+    weighted: Optional[bool],
+    parallel_edges: bool,
+    node_labels: Optional[Sequence],
+    nonedge: float,
+    graph_name: Optional[str],
+    code: str,
+) -> Graph:
+    np = _require("numpy")
+    matrix = np.asarray(array)
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError(f"The matrix must be square, not of shape {matrix.shape}")
+    if not (np.issubdtype(matrix.dtype, np.number) or matrix.dtype == bool) or np.iscomplexobj(
+        matrix
+    ):
+        raise TypeError(f"The matrix must hold real numbers, not {matrix.dtype}")
+    matrix = matrix.astype(float)
+    edge = ~np.isnan(matrix) if math.isnan(nonedge) else matrix != nonedge
+    if not directed:
+        if not (np.array_equal(edge, edge.T) and np.array_equal(matrix[edge], matrix.T[edge])):
+            raise ValueError(
+                "The matrix isn't symmetric, so it can't describe an undirected graph; "
+                "pass directed=True"
+            )
+        edge = np.triu(edge)
+    rows, cols = np.nonzero(edge)
+    return _from_entries(
+        matrix.shape[0],
+        rows,
+        cols,
+        matrix[rows, cols],
+        directed,
+        weighted,
+        parallel_edges,
+        node_labels,
+        graph_name,
+        code,
+    )
+
+
+def to_numpy_array(
+    graph: Graph,
+    nodelist: Optional[Sequence[Union[int, str]]] = None,
+    weighted: Optional[bool] = None,
+    nonedge: float = 0.0,
+    multigraph_weight: str = "sum",
+    dtype: Any = None,
+) -> Any:
+    """
+    Convert a graph to a NumPy adjacency matrix.
+
+    Entry `[i, j]` holds the weight of the edge from node `i` to node `j` (1 for an edge with no
+    weight), or `nonedge=` when there's no such edge. An undirected graph gives a symmetric
+    matrix, and a self-loop puts its weight on the diagonal once. Parallel edges are combined:
+    by default their weights are summed, so in an unweighted graph the entry counts the edges.
+    The result matches NetworkX's `to_numpy_array()`.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    nodelist
+        The nodes (IDs or labels) for the rows and columns, in order. Edges to nodes outside it
+        are left out. If `None`, every node is used, in ID order.
+    weighted
+        Whether entries hold edge weights (`True`) or count edges (`False`). If `None`, follows
+        the graph's `weighted` setting.
+    nonedge
+        The value for node pairs with no edge between them, such as `0.0` (the default) or
+        `float("inf")` for distance-style matrices.
+    multigraph_weight
+        How parallel edges combine: `"sum"` (the default), `"min"` or `"max"`.
+    dtype
+        The NumPy dtype of the result (float by default).
+
+    Returns
+    -------
+    numpy.ndarray
+        The adjacency matrix. Use `get_node_ids()` or `nodelist=` to know which node each row is.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_path_graph(3)
+
+    # Returns array([[0., 1., 0.], [1., 0., 1.], [0., 1., 0.]])
+    ec.to_numpy_array(graph)
+    ```
+
+    """
+    np = _require("numpy")
+    ids = _node_order(graph, nodelist)
+    rows, cols, vals = _matrix_entries(graph, ids, weighted, multigraph_weight)
+    matrix = np.full((len(ids), len(ids)), nonedge, dtype=float)
+    matrix[rows, cols] = vals
+    return matrix if dtype is None else matrix.astype(dtype)
+
+
+def from_numpy_array(
+    array: Any,
+    directed: bool = False,
+    weighted: Optional[bool] = None,
+    parallel_edges: bool = False,
+    node_labels: Optional[Sequence[Union[int, str]]] = None,
+    nonedge: float = 0.0,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a NumPy adjacency matrix.
+
+    Each entry that isn't `nonedge=` (0 by default) becomes an edge from the row's node to the
+    column's node, weighted by the entry. For an undirected graph the matrix must be symmetric,
+    and each edge is read once from the upper triangle (with the diagonal holding self-loops).
+
+    Parameters
+    ----------
+    array
+        A square array (or anything `numpy.asarray()` accepts) of real numbers.
+    directed
+        Whether to create a directed graph.
+    weighted
+        Whether the edges get the entries as weights. If `None`, they do when any edge's entry
+        isn't 1.
+    parallel_edges
+        If `True`, each entry is a count of parallel edges (it must be a whole number), so an
+        entry of 3 gives three edges. This is how an unweighted multigraph's matrix reads back.
+    node_labels
+        Labels for the nodes, in row order. If `None`, the nodes are labeled `"0"`, `"1"`, ...
+    nonedge
+        The entry value that means "no edge" (it can be `float("nan")` or `float("inf")`).
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph with one node per row, built as a single step.
+
+    Examples
+    --------
+    ```python
+    import numpy as np
+    import edgecase as ec
+
+    array = np.array([[0, 2, 0], [2, 0, 1], [0, 1, 0]])
+    graph = ec.from_numpy_array(array, node_labels=["a", "b", "c"])
+
+    # Returns ['a--b', 'b--c']
+    graph.get_edges_str_repr(use_labels=True)
+
+    # Returns [2.0, 1.0]
+    graph.get_edge_df()["weight"].to_list()
+    ```
+
+    """
+    return _from_dense(
+        array,
+        directed,
+        weighted,
+        parallel_edges,
+        node_labels,
+        nonedge,
+        graph_name,
+        _code("from_numpy_array", array),
+    )
+
+
+def to_scipy_sparse_array(
+    graph: Graph,
+    nodelist: Optional[Sequence[Union[int, str]]] = None,
+    weighted: Optional[bool] = None,
+    multigraph_weight: str = "sum",
+    dtype: Any = None,
+    format: str = "csr",
+) -> Any:
+    """
+    Convert a graph to a SciPy sparse adjacency matrix.
+
+    The sparse counterpart of `to_numpy_array()`: entry `[i, j]` holds the weight of the edge from
+    node `i` to node `j` (1 for an edge with no weight), with parallel edges combined, and only
+    node pairs joined by an edge are stored. The result matches NetworkX's
+    `to_scipy_sparse_array()`.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    nodelist
+        The nodes (IDs or labels) for the rows and columns, in order. Edges to nodes outside it
+        are left out. If `None`, every node is used, in ID order.
+    weighted
+        Whether entries hold edge weights (`True`) or count edges (`False`). If `None`, follows
+        the graph's `weighted` setting.
+    multigraph_weight
+        How parallel edges combine: `"sum"` (the default), `"min"` or `"max"`.
+    dtype
+        The NumPy dtype of the result (float by default).
+    format
+        The sparse format: `"csr"` (the default), `"csc"`, `"coo"`, `"lil"`, `"dok"`, `"bsr"` or
+        `"dia"`.
+
+    Returns
+    -------
+    scipy.sparse.sparray
+        The sparse adjacency matrix.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_cycle_graph(100)
+    matrix = ec.to_scipy_sparse_array(graph)
+
+    # Returns 200
+    matrix.nnz
+    ```
+
+    """
+    sparse = _require("scipy.sparse")
+    ids = _node_order(graph, nodelist)
+    rows, cols, vals = _matrix_entries(graph, ids, weighted, multigraph_weight)
+    if dtype is not None:
+        vals = vals.astype(dtype)
+    matrix = sparse.coo_array((vals, (rows, cols)), shape=(len(ids), len(ids)))
+    return matrix.asformat(format)
+
+
+def from_scipy_sparse_array(
+    matrix: Any,
+    directed: bool = False,
+    weighted: Optional[bool] = None,
+    parallel_edges: bool = False,
+    node_labels: Optional[Sequence[Union[int, str]]] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a SciPy sparse adjacency matrix.
+
+    Each stored, nonzero entry becomes an edge from the row's node to the column's node, weighted
+    by the entry (explicitly stored zeros aren't edges, and duplicate entries in COO data are
+    summed first). For an undirected graph the matrix must be symmetric, and each edge is read
+    once from the upper triangle (with the diagonal holding self-loops).
+
+    Parameters
+    ----------
+    matrix
+        A square SciPy sparse array or matrix, in any format.
+    directed
+        Whether to create a directed graph.
+    weighted
+        Whether the edges get the entries as weights. If `None`, they do when any edge's entry
+        isn't 1.
+    parallel_edges
+        If `True`, each entry is a count of parallel edges (it must be a whole number).
+    node_labels
+        Labels for the nodes, in row order. If `None`, the nodes are labeled `"0"`, `"1"`, ...
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph with one node per row, built as a single step.
+
+    Examples
+    --------
+    ```python
+    import scipy.sparse as sp
+    import edgecase as ec
+
+    matrix = sp.csr_array(([1.0, 1.0], ([0, 1], [1, 2])), shape=(3, 3))
+    graph = ec.from_scipy_sparse_array(matrix, directed=True)
+
+    # Returns 2
+    graph.count_edges()
+    ```
+
+    """
+    np = _require("numpy")
+    sparse = _require("scipy.sparse")
+    if not sparse.issparse(matrix):
+        raise TypeError(f"Expected a SciPy sparse array or matrix, not {type(matrix).__name__}")
+    if matrix.ndim != 2 or matrix.shape[0] != matrix.shape[1]:
+        raise ValueError(f"The matrix must be square, not of shape {matrix.shape}")
+    if not np.issubdtype(matrix.dtype, np.number) or np.iscomplexobj(matrix.data[:0]):
+        raise TypeError(f"The matrix must hold real numbers, not {matrix.dtype}")
+    coo = sparse.coo_array(matrix, dtype=float)
+    coo.sum_duplicates()
+    coo.eliminate_zeros()
+    rows, cols, vals = coo.row.astype(np.int64), coo.col.astype(np.int64), coo.data
+    if len(vals) and not np.all(np.isfinite(vals)):
+        raise ValueError("The matrix has non-finite entries")
+    if not directed:
+        csr = coo.tocsr()
+        if (csr != csr.T).nnz:
+            raise ValueError(
+                "The matrix isn't symmetric, so it can't describe an undirected graph; "
+                "pass directed=True"
+            )
+        upper = rows <= cols
+        rows, cols, vals = rows[upper], cols[upper], vals[upper]
+    order = np.lexsort((cols, rows))
+    return _from_entries(
+        matrix.shape[0],
+        rows[order],
+        cols[order],
+        vals[order],
+        directed,
+        weighted,
+        parallel_edges,
+        node_labels,
+        graph_name,
+        _code("from_scipy_sparse_array", matrix),
+    )
+
+
+def to_pandas_adjacency(
+    graph: Graph,
+    nodelist: Optional[Sequence[Union[int, str]]] = None,
+    weighted: Optional[bool] = None,
+    nonedge: float = 0.0,
+    multigraph_weight: str = "sum",
+    dtype: Any = None,
+) -> Any:
+    """
+    Convert a graph to a pandas adjacency matrix.
+
+    The same matrix as `to_numpy_array()`, as a DataFrame whose index and columns are the node
+    labels (an unlabeled node is named by its ID). The result matches NetworkX's
+    `to_pandas_adjacency()`.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    nodelist
+        The nodes (IDs or labels) for the rows and columns, in order. Edges to nodes outside it
+        are left out. If `None`, every node is used, in ID order.
+    weighted
+        Whether entries hold edge weights (`True`) or count edges (`False`). If `None`, follows
+        the graph's `weighted` setting.
+    nonedge
+        The value for node pairs with no edge between them.
+    multigraph_weight
+        How parallel edges combine: `"sum"` (the default), `"min"` or `"max"`.
+    dtype
+        The NumPy dtype of the values (float by default).
+
+    Returns
+    -------
+    pandas.DataFrame
+        The adjacency matrix, labeled by node.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(directed=True).add_nodes(["a", "b"]).add_edge("a", "b")
+
+    # Returns 1.0
+    ec.to_pandas_adjacency(graph).loc["a", "b"]
+    ```
+
+    """
+    pd = _require("pandas")
+    ids = _node_order(graph, nodelist)
+    matrix = to_numpy_array(graph, ids, weighted, nonedge, multigraph_weight, dtype)
+    names = _node_names(graph, ids)
+    return pd.DataFrame(matrix, index=names, columns=names)
+
+
+def from_pandas_adjacency(
+    df: Any,
+    directed: bool = False,
+    weighted: Optional[bool] = None,
+    parallel_edges: bool = False,
+    nonedge: float = 0.0,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a pandas adjacency matrix.
+
+    The index and the columns must hold the same node names (in any order; the columns are put
+    in index order). Each node is labeled with its name, in index order, and each entry that
+    isn't `nonedge=` becomes an edge as in `from_numpy_array()`.
+
+    Parameters
+    ----------
+    df
+        A square DataFrame of real numbers.
+    directed
+        Whether to create a directed graph. An undirected graph needs a symmetric matrix.
+    weighted
+        Whether the edges get the entries as weights. If `None`, they do when any edge's entry
+        isn't 1.
+    parallel_edges
+        If `True`, each entry is a count of parallel edges (it must be a whole number).
+    nonedge
+        The entry value that means "no edge".
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import pandas as pd
+    import edgecase as ec
+
+    df = pd.DataFrame([[0, 1], [1, 0]], index=["a", "b"], columns=["a", "b"])
+
+    # Returns 1
+    ec.from_pandas_adjacency(df).count_edges()
+    ```
+
+    """
+    names = list(df.index)
+    if len(set(names)) < len(names) or set(names) != set(df.columns) or df.shape[1] != len(names):
+        raise ValueError("The index and the columns must hold the same node names, once each")
+    return _from_dense(
+        df.reindex(columns=names).to_numpy(),
+        directed,
+        weighted,
+        parallel_edges,
+        names,
+        nonedge,
+        graph_name,
+        _code("from_pandas_adjacency", df),
+    )
+
+
+def to_pandas_edgelist(
+    graph: Graph,
+    source: str = "source",
+    target: str = "target",
+) -> Any:
+    """
+    Convert a graph to a pandas edge list.
+
+    One row per edge, in edge ID order: the endpoints' labels (an unlabeled node is named by its
+    ID) in the `source=` and `target=` columns, a `weight` column when any edge has a weight, and
+    one column per edge attribute (missing values are `None`/`NaN`). Parallel edges are separate
+    rows. `from_pandas_edgelist()` and NetworkX's `from_pandas_edgelist()` read it back.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    source
+        The name of the source column.
+    target
+        The name of the target column.
+
+    Returns
+    -------
+    pandas.DataFrame
+        The edge list.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_path_graph(3)
+
+    # Returns [['1', '2'], ['2', '3']]
+    ec.to_pandas_edgelist(graph).values.tolist()
+    ```
+
+    """
+    pd = _require("pandas")
+    if source == target:
+        raise ValueError("source and target must be different column names")
+    node_rows = [(nid, graph.get_label_from_id(nid), {}) for nid in graph.get_node_ids(limit=None)]
+    keys = _node_keys(node_rows)
+    edge_rows = _edges_of(graph)
+    columns: dict[str, list] = {source: [], target: []}
+    has_weight = any(weight is not None for _, _, weight, _ in edge_rows)
+    if has_weight:
+        columns["weight"] = []
+    reserved = set(columns)
+    rows = []
+    for s, t, weight, attrs in edge_rows:
+        row = {source: keys[s], target: keys[t]}
+        if has_weight:
+            row["weight"] = weight
+        for name, value in attrs.items():
+            if name not in reserved:
+                row[name] = value
+                columns.setdefault(name, [])
+        rows.append(row)
+    for row in rows:
+        for name, values in columns.items():
+            values.append(row.get(name))
+    return pd.DataFrame(columns)
+
+
+def _missing(value: Any) -> bool:
+    """Whether a DataFrame cell is missing: `None`, `NaN` or pandas' `NA`/`NaT`."""
+    if value is None or (isinstance(value, float) and math.isnan(value)):
+        return True
+    return type(value).__name__ in ("NAType", "NaTType")
+
+
+def from_pandas_edgelist(
+    df: Any,
+    source: str = "source",
+    target: str = "target",
+    edge_attr: Union[bool, str, Sequence[str], None] = None,
+    directed: bool = False,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a pandas (or Polars) edge list.
+
+    Each row becomes an edge from the node in the `source=` column to the node in the `target=`
+    column; the nodes are created as they first appear and labeled with their values (as
+    strings). A numeric `weight` value among the attribute columns sets the edge's weight, and
+    missing values (`None`, `NaN`, `NA`) leave that attribute unset.
+
+    Parameters
+    ----------
+    df
+        The edge list, as a pandas or Polars DataFrame.
+    source
+        The name of the source column.
+    target
+        The name of the target column.
+    edge_attr
+        Which other columns become edge attributes: `None` (the default) for none, `True` for
+        all of them, or a column name or a list of column names. This follows NetworkX's
+        `from_pandas_edgelist()`.
+    directed
+        Whether to create a directed graph.
+    weighted
+        Whether the graph has weights. If `None`, it does when any edge gets a weight.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import pandas as pd
+    import edgecase as ec
+
+    df = pd.DataFrame({"source": ["a", "b"], "target": ["b", "c"], "weight": [2.0, 3.5]})
+    graph = ec.from_pandas_edgelist(df, edge_attr="weight")
+
+    # Returns [2.0, 3.5]
+    graph.get_edge_df()["weight"].to_list()
+    ```
+
+    """
+    if edge_attr is True:
+        attr_cols = [c for c in df.columns if c not in (source, target)]
+    elif edge_attr is None or edge_attr is False:
+        attr_cols = []
+    elif isinstance(edge_attr, (str, int)):
+        attr_cols = [edge_attr]
+    else:
+        attr_cols = list(edge_attr)
+    absent = [c for c in (source, target, *attr_cols) if c not in df.columns]
+    if absent:
+        raise ValueError(f"The DataFrame has no column {absent[0]!r}")
+
+    columns = [df[c].to_list() for c in (source, target, *attr_cols)]
+    names = [str(c) for c in attr_cols]
+    nodes: list = []
+    seen: set = set()
+    edges = []
+    for row in zip(*columns):
+        src, tgt = row[0], row[1]
+        for key in (src, tgt):
+            if _missing(key):
+                raise ValueError("The source and target columns can't have missing values")
+            if key not in seen:
+                seen.add(key)
+                nodes.append((key, None, {}))
+        attrs = {name: value for name, value in zip(names, row[2:]) if not _missing(value)}
+        weight = float(attrs.pop("weight")) if _is_number(attrs.get("weight")) else None
+        edges.append((src, tgt, weight, attrs))
+    if weighted is None:
+        weighted = any(weight is not None for _, _, weight, _ in edges)
+    return _build_graph(
+        nodes, edges, directed, weighted, graph_name, _code("from_pandas_edgelist", df)
+    )
+
+
+# =============================================================================
+# Adjacency lists
+# =============================================================================
+
+
+def _text_lines(source: Union[str, bytes, Path, Sequence[str]]) -> list[str]:
+    """
+    The lines of a text format. A `Path`, or a string with no newline, is a file to read; a
+    string with a newline (or bytes) is the text itself; a list holds the lines.
+    """
+    if isinstance(source, Path) or (isinstance(source, str) and "\n" not in source):
+        with open(Path(source), encoding="utf-8") as f:
+            return f.read().splitlines()
+    if isinstance(source, bytes):
+        return source.decode("utf-8").splitlines()
+    if isinstance(source, str):
+        return source.splitlines()
+    return [line.rstrip("\n") for line in source]
+
+
+def _split(line: str, delimiter: Optional[str], maxsplit: int = -1) -> list[str]:
+    """Split a line on `delimiter` (any whitespace if `None`), dropping empty fields."""
+    if delimiter is None:
+        return line.split(None, maxsplit)
+    return [part.strip() for part in line.split(delimiter, maxsplit) if part.strip()]
+
+
+def _uncomment(line: str, comments: Optional[str]) -> str:
+    if comments:
+        p = line.find(comments)
+        if p >= 0:
+            return line[:p]
+    return line
+
+
+def _token_names(graph: Graph, delimiter: str, fmt: str) -> dict[int, str]:
+    """Node ID -> name for a format that separates names with `delimiter`, checking each name."""
+    keys = _node_keys(
+        [(nid, graph.get_label_from_id(nid), {}) for nid in graph.get_node_ids(limit=None)]
+    )
+    for name in keys.values():
+        bad = (
+            not name
+            or name != name.strip()
+            or "#" in name
+            or "\n" in name
+            or "\r" in name
+            or delimiter in name
+            or (not delimiter.strip() and any(c.isspace() for c in name))
+        )
+        if bad:
+            raise ValueError(
+                f"The node label {name!r} can't be written to {fmt}: labels there can't be "
+                "empty or contain the delimiter, whitespace or '#'"
+            )
+    return keys
+
+
+def _adjacency_rows(graph: Graph, edges: list) -> dict[int, list]:
+    """
+    Node ID -> the edges listed on its line (in edge order), NetworkX-style: a directed edge under
+    its source, an undirected edge under whichever endpoint comes first in node ID order.
+    `edges` holds `(source, target, ...)` tuples; each row holds `(neighbor, *rest)`.
+    """
+    rows: dict[int, list] = {nid: [] for nid in sorted(graph.get_node_ids(limit=None))}
+    directed = graph.is_directed()
+    for source, target, *rest in edges:
+        if directed or source <= target:
+            rows[source].append((target, *rest))
+        else:
+            rows[target].append((source, *rest))
+    return rows
+
+
+def _write_text(lines: list[str], filepath: Union[str, Path, None]) -> str:
+    text = "".join(line + "\n" for line in lines)
+    if filepath is not None:
+        with open(Path(filepath), "w", encoding="utf-8") as f:
+            f.write(text)
+    return text
+
+
+def to_adjlist(
+    graph: Graph,
+    filepath: Union[str, Path, None] = None,
+    delimiter: str = " ",
+) -> str:
+    """
+    Encode a graph as an adjacency list.
+
+    Each line holds a node followed by its neighbors, as in NetworkX's `write_adjlist()`: nodes
+    are listed in ID order by label (an unlabeled node is named by its ID), a directed edge is
+    listed under its source, and an undirected edge once, under whichever endpoint comes first.
+    Parallel edges repeat the neighbor. The format holds structure only: weights and attributes
+    aren't written.
+
+    Parameters
+    ----------
+    graph
+        The graph to encode. Its labels can't be empty or contain the delimiter, whitespace or
+        `#` (the comment marker).
+    filepath
+        If given, the adjacency list is also written to this file.
+    delimiter
+        The separator between names on a line.
+
+    Returns
+    -------
+    str
+        The adjacency list, one line per node.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_cycle_graph(3)
+
+    # Returns '1 2 3\\n2 3\\n3\\n'
+    ec.to_adjlist(graph)
+    ```
+
+    """
+    if not delimiter:
+        raise ValueError("delimiter can't be empty")
+    keys = _token_names(graph, delimiter, "an adjacency list")
+    rows = _adjacency_rows(graph, [(s, t) for _, s, t in sorted(graph._graph.edges())])
+    lines = [
+        delimiter.join([keys[nid]] + [keys[nbr] for (nbr,) in nbrs]) for nid, nbrs in rows.items()
+    ]
+    return _write_text(lines, filepath)
+
+
+def from_adjlist(
+    source: Union[str, bytes, Path, Sequence[str]],
+    directed: bool = False,
+    delimiter: Optional[str] = None,
+    comments: Optional[str] = "#",
+    parallel_edges: bool = False,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from an adjacency list.
+
+    Each line holds a node followed by its neighbors, as written by `to_adjlist()` or NetworkX's
+    `write_adjlist()`. Every name becomes a node, labeled with the name: first the nodes that start
+    a line, in line order, then any that appear only as neighbors. Each neighbor gives an edge
+    from the line's node.
+
+    Parameters
+    ----------
+    source
+        A path to the file, the text itself (a string with at least one newline), or a list of
+        lines.
+    directed
+        Whether to create a directed graph.
+    delimiter
+        The separator between names on a line. If `None` (the default), any run of whitespace.
+    comments
+        The marker that starts a comment (the rest of the line is ignored), or `None` for none.
+    parallel_edges
+        If `False` (the default), a node pair listed more than once (in either order, for an
+        undirected graph) gives one edge, as NetworkX's `read_adjlist()` does. If `True`, every
+        listing gives an edge, as `read_adjlist(create_using=nx.MultiGraph)` does.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.from_adjlist("a b c\\nb c\\nd\\n")
+
+    # Returns (4, 3)
+    (graph.count_nodes(), graph.count_edges())
+    ```
+
+    """
+    nodes: list = []
+    seen_nodes: set = set()
+    edges = []
+    seen_pairs: set = set()
+    for line in _text_lines(source):
+        names = _split(_uncomment(line, comments), delimiter)
+        if not names:
+            continue
+        u = names[0]
+        if u not in seen_nodes:
+            seen_nodes.add(u)
+            nodes.append((u, u, {}))
+        for v in names[1:]:
+            if not parallel_edges:
+                pair = (u, v) if directed or u <= v else (v, u)
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+            edges.append((u, v, None, {}))
+    return _build_graph(nodes, edges, directed, False, graph_name, _code("from_adjlist", source))
+
+
+def _literal_ok(value: Any) -> bool:
+    """Whether `repr(value)` reads back with `ast.literal_eval()`."""
+    if value is None or isinstance(value, (bool, int, str)):
+        return True
+    if isinstance(value, float):
+        return math.isfinite(value)
+    if isinstance(value, (list, tuple)):
+        return all(_literal_ok(v) for v in value)
+    if isinstance(value, dict):
+        return all(_literal_ok(k) and _literal_ok(v) for k, v in value.items())
+    return False
+
+
+def to_multiline_adjlist(
+    graph: Graph,
+    filepath: Union[str, Path, None] = None,
+    delimiter: str = " ",
+) -> str:
+    """
+    Encode a graph as a multiline adjacency list.
+
+    The layout of NetworkX's `write_multiline_adjlist()`: for each node (in ID order), a line with
+    its name and neighbor count, then one line per neighbor with the neighbor's name and the
+    edge's data as a Python dict (its `weight`, if set, and its attributes). Edges are listed as
+    in `to_adjlist()`, so each undirected edge appears once. Unlike `to_adjlist()`, weights and
+    edge attributes are kept; node attributes aren't.
+
+    Parameters
+    ----------
+    graph
+        The graph to encode. Its labels can't be empty or contain the delimiter, whitespace or
+        `#`, and its edge attributes must be plain values (numbers, strings, booleans, `None`,
+        and lists, tuples and dicts of them).
+    filepath
+        If given, the adjacency list is also written to this file.
+    delimiter
+        The separator between a name and what follows it.
+
+    Returns
+    -------
+    str
+        The multiline adjacency list.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(weighted=True).add_nodes(["a", "b"]).add_edge("a", "b", weight=2.0)
+
+    # Returns "a 1\\nb {'weight': 2.0}\\nb 0\\n"
+    ec.to_multiline_adjlist(graph)
+    ```
+
+    """
+    if not delimiter:
+        raise ValueError("delimiter can't be empty")
+    keys = _token_names(graph, delimiter, "a multiline adjacency list")
+    edge_rows = [(s, t, (w, attrs)) for s, t, w, attrs in _edges_of(graph)]
+    lines = []
+    for nid, nbrs in _adjacency_rows(graph, edge_rows).items():
+        lines.append(f"{keys[nid]}{delimiter}{len(nbrs)}")
+        for nbr, (weight, attrs) in nbrs:
+            data = {} if weight is None else {"weight": weight}
+            data.update((k, v) for k, v in attrs.items() if k not in data)
+            if not _literal_ok(data):
+                raise ValueError(
+                    f"The edge data {data!r} can't be written to a multiline adjacency list, "
+                    "which holds plain values only (finite numbers, strings, booleans, None, and "
+                    "lists and dicts of them)"
+                )
+            lines.append(f"{keys[nbr]}{delimiter}{data!r}")
+    return _write_text(lines, filepath)
+
+
+def _edge_data(text: str, comments: Optional[str], line_no: int) -> Any:
+    """The edge data after a neighbor's name: a Python literal, possibly with a comment after it."""
+    cuts = [len(text)]
+    if comments:
+        cuts += [m.start() for m in re.finditer(re.escape(comments), text)]
+    for cut in sorted(set(cuts), reverse=True):
+        candidate = text[:cut].strip()
+        if not candidate:
+            return {}
+        try:
+            return ast.literal_eval(candidate)
+        except (ValueError, SyntaxError, TypeError):
+            continue
+    raise ValueError(f"Line {line_no}: can't read the edge data {text.strip()!r}")
+
+
+def from_multiline_adjlist(
+    source: Union[str, bytes, Path, Sequence[str]],
+    directed: bool = False,
+    delimiter: Optional[str] = None,
+    comments: Optional[str] = "#",
+    parallel_edges: bool = False,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a multiline adjacency list.
+
+    Reads the layout of `to_multiline_adjlist()` and NetworkX's `write_multiline_adjlist()`: a
+    line with a node's name and neighbor count, then that many lines, each with a neighbor's name
+    and (optionally) the edge's data as a Python dict. A numeric `weight` in the data sets the
+    edge's weight and the other entries become edge attributes; data that's a bare number is
+    taken as the weight. Nodes are created in the order of their count lines, then any that
+    appear only as neighbors. Unlike NetworkX's reader, string values containing spaces or `#`
+    are kept intact.
+
+    Parameters
+    ----------
+    source
+        A path to the file, the text itself (a string with at least one newline), or a list of
+        lines.
+    directed
+        Whether to create a directed graph.
+    delimiter
+        The separator after a name. If `None` (the default), any run of whitespace.
+    comments
+        The marker that starts a comment, or `None` for none.
+    parallel_edges
+        If `False` (the default), a node pair listed more than once (in either order, for an
+        undirected graph) gives one edge, keeping the first listing's data. If `True`, every
+        listing gives an edge.
+    weighted
+        Whether the graph has weights. If `None`, it does when any edge has a numeric `weight`.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    text = "a 2\\nb {'weight': 2.0}\\nc {'kind': 'x y'}\\nb 0\\nc 0\\n"
+    graph = ec.from_multiline_adjlist(text)
+
+    # Returns 'x y'
+    graph.get_edge_df()["kind"][1]
+    ```
+
+    """
+    lines = _text_lines(source)
+    nodes: list = []
+    seen_nodes: set = set()
+    edges = []
+    seen_pairs: set = set()
+    position = 0
+
+    def next_line() -> tuple[int, str]:
+        nonlocal position
+        while position < len(lines):
+            position += 1
+            line = lines[position - 1].strip()
+            if line and not (comments and line.startswith(comments)):
+                return position, line
+        return position, ""
+
+    while True:
+        line_no, line = next_line()
+        if not line:
+            break
+        parts = _split(_uncomment(line, comments), delimiter)
+        if not parts:
+            continue
+        if len(parts) != 2 or not parts[1].isdigit():
+            raise ValueError(f"Line {line_no}: expected a node name and its neighbor count")
+        u, count = parts[0], int(parts[1])
+        if u not in seen_nodes:
+            seen_nodes.add(u)
+            nodes.append((u, u, {}))
+        for _ in range(count):
+            line_no, line = next_line()
+            if not line:
+                raise ValueError(f"The file ends before all of node {u!r}'s neighbors are listed")
+            if delimiter is None:
+                fields = line.split(None, 1)
+                name, rest = fields[0], fields[1] if len(fields) > 1 else ""
+            else:
+                name, _, rest = line.partition(delimiter)
+            name = name.strip()
+            if comments and comments in name:
+                name, rest = name[: name.find(comments)].strip(), ""
+            if not name:
+                raise ValueError(f"Line {line_no}: expected a neighbor's name")
+            data = _edge_data(rest, comments, line_no)
+            weight = None
+            if _is_number(data):
+                data, weight = {}, float(data)
+            elif not isinstance(data, dict):
+                raise ValueError(f"Line {line_no}: the edge data must be a dict, not {data!r}")
+            else:
+                data = dict(data)
+                if _is_number(data.get("weight")):
+                    weight = float(data.pop("weight"))
+            if not parallel_edges:
+                pair = (u, name) if directed or u <= name else (name, u)
+                if pair in seen_pairs:
+                    continue
+                seen_pairs.add(pair)
+            edges.append((u, name, weight, {str(k): v for k, v in data.items()}))
+
+    if weighted is None:
+        weighted = any(weight is not None for _, _, weight, _ in edges)
+    return _build_graph(
+        nodes, edges, directed, weighted, graph_name, _code("from_multiline_adjlist", source)
+    )
+
+
+# =============================================================================
+# JSON adjacency and tree data
+# =============================================================================
+
+
+def to_adjacency_data(
+    graph: Graph,
+    filepath: Union[str, Path, None] = None,
+) -> dict:
+    """
+    Convert a graph to adjacency JSON data.
+
+    The layout of NetworkX's `adjacency_data()`: `directed`, `multigraph` (true when the graph has
+    parallel edges), `graph` (a list of `[key, value]` pairs, holding the graph's `name`), `nodes`
+    (each node's label as `id`, plus its attributes) and `adjacency`, which holds, for each node in
+    the same order, a list of its neighbors: each neighbor's `id` with the edge's `weight` and
+    attributes, and in a multigraph the edge's `key` (its index among the parallel edges). An
+    undirected edge is listed under both of its endpoints, a self-loop once.
+
+    Parameters
+    ----------
+    graph
+        The graph to convert.
+    filepath
+        If given, the data is also written to this file as JSON.
+
+    Returns
+    -------
+    dict
+        The adjacency data.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_path_graph(3)
+
+    # Returns [[{'id': '2'}], [{'id': '1'}, {'id': '3'}], [{'id': '2'}]]
+    ec.to_adjacency_data(graph)["adjacency"]
+    ```
+
+    """
+    node_rows = _nodes_of(graph)
+    edge_rows = _edges_of(graph)
+    keys = _node_keys(node_rows)
+    directed = graph.is_directed()
+    multigraph = _has_parallel_edges(edge_rows, directed)
+
+    # Each node's neighbors in order of first appearance, with each neighbor's edges grouped
+    neighbors: dict[int, dict[int, list[dict]]] = {nid: {} for nid, _, _ in node_rows}
+    edge_keys: dict[tuple[int, int], int] = {}
+    for source, target, weight, attrs in edge_rows:
+        pair = (source, target) if directed else (min(source, target), max(source, target))
+        key = edge_keys.get(pair, 0)
+        edge_keys[pair] = key + 1
+        record: dict = {}
+        if weight is not None:
+            record["weight"] = weight
+        record.update((k, v) for k, v in attrs.items() if k not in ("id", "key", *record))
+        if multigraph:
+            record["key"] = key
+        neighbors[source].setdefault(target, []).append(record)
+        if not directed and source != target:
+            neighbors[target].setdefault(source, []).append(record)
+
+    data = {
+        "directed": directed,
+        "multigraph": multigraph,
+        "graph": [["name", graph.get_graph_name()]] if graph.get_graph_name() else [],
+        "nodes": [
+            {"id": keys[nid], **{k: v for k, v in attrs.items() if k != "id"}}
+            for nid, _, attrs in node_rows
+        ],
+        "adjacency": [
+            [
+                {"id": keys[nbr], **record}
+                for nbr, records in neighbors[nid].items()
+                for record in records
+            ]
+            for nid, _, _ in node_rows
+        ],
+    }
+    if filepath is not None:
+        _write_json(data, filepath)
+    return data
+
+
+def from_adjacency_data(
+    source: Union[dict, str, bytes, Path],
+    directed: Optional[bool] = None,
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from adjacency JSON data.
+
+    Reads the layout of `to_adjacency_data()` and NetworkX's `adjacency_data()`. Each node's `id`
+    becomes its label and its other fields become attributes. Each neighbor entry gives an edge:
+    its numeric `weight` sets the edge's weight, its `key` is dropped and its other fields become
+    edge attributes. In undirected data, where each edge is listed under both endpoints, a node
+    pair gets as many edges as the longer of its two listings.
+
+    Parameters
+    ----------
+    source
+        The data: a dict, a JSON string, or a path to a JSON file.
+    directed
+        Whether to create a directed graph. If `None`, read from the `directed` field.
+    weighted
+        Whether the graph has weights. If `None`, detected from numeric `weight` fields.
+    graph_name
+        Name for the graph. If `None`, uses the `name` in the `graph` field.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    data = {
+        "directed": False,
+        "nodes": [{"id": "a"}, {"id": "b"}],
+        "adjacency": [[{"id": "b", "weight": 2.0}], [{"id": "a", "weight": 2.0}]],
+    }
+
+    # Returns 1
+    ec.from_adjacency_data(data).count_edges()
+    ```
+
+    """
+    data = _load_json(source)
+    if (
+        not isinstance(data, dict)
+        or not isinstance(data.get("nodes"), list)
+        or not isinstance(data.get("adjacency"), list)
+    ):
+        raise ValueError("Adjacency data must be an object with 'nodes' and 'adjacency' lists")
+    if len(data["nodes"]) != len(data["adjacency"]):
+        raise ValueError("Adjacency data needs one 'adjacency' list per node")
+
+    if directed is None:
+        directed = bool(data.get("directed", False))
+    if graph_name is None:
+        info = data.get("graph", {})
+        if isinstance(info, list):
+            info = {pair[0]: pair[1] for pair in info if isinstance(pair, list) and len(pair) == 2}
+        name = info.get("name") if isinstance(info, dict) else None
+        graph_name = name if isinstance(name, str) else None
+
+    nodes = []
+    for node in data["nodes"]:
+        values = dict(node)
+        if "id" not in values:
+            raise ValueError("Every node in adjacency data needs an 'id'")
+        key = _hashable(values.pop("id"))
+        nodes.append((key, str(key), values))
+
+    edges = []
+    # Undirected: node pair -> {listing node: its edges}, in order of first appearance
+    listings: dict[frozenset, dict[Any, list]] = {}
+    for (u, _, _), entries in zip(nodes, data["adjacency"]):
+        for entry in entries:
+            values = dict(entry)
+            if "id" not in values:
+                raise ValueError("Every neighbor in adjacency data needs an 'id'")
+            v = _hashable(values.pop("id"))
+            values.pop("key", None)
+            weight = float(values.pop("weight")) if _is_number(values.get("weight")) else None
+            edge = (u, v, weight, values)
+            if directed:
+                edges.append(edge)
+            else:
+                listings.setdefault(frozenset((u, v)), {}).setdefault(u, []).append(edge)
+    for sides in listings.values():
+        edges.extend(max(sides.values(), key=len))
+
+    if weighted is None:
+        weighted = any(weight is not None for _, _, weight, _ in edges)
+    return _build_graph(
+        nodes, edges, directed, weighted, graph_name, _code("from_adjacency_data", source)
+    )
+
+
+def to_tree_data(
+    graph: Graph,
+    root: Union[int, str],
+    filepath: Union[str, Path, None] = None,
+    ident: str = "id",
+    children: str = "children",
+) -> dict:
+    """
+    Convert a tree to nested JSON tree data.
+
+    The layout of NetworkX's `tree_data()` (and of D3.js hierarchies): the root node as an object
+    holding its label under `ident=`, its attributes, and (unless it's a leaf) its children under
+    `children=`, each child an object of the same kind. Children are listed in edge ID order.
+    Edge weights and attributes aren't kept.
+
+    Parameters
+    ----------
+    graph
+        The tree. A directed graph must be an arborescence with every edge pointing away from
+        `root=`; an undirected graph must be a tree (connected, with no cycles), and is oriented
+        away from `root=`.
+    root
+        The root node (ID or label).
+    filepath
+        If given, the data is also written to this file as JSON.
+    ident
+        The field that holds each node's label.
+    children
+        The field that holds each node's children.
+
+    Returns
+    -------
+    dict
+        The tree data, nested from the root.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(directed=True).add_nodes(["r", "a", "b"])
+    graph.add_edges([("r", "a"), ("r", "b")])
+
+    # Returns {'id': 'r', 'children': [{'id': 'a'}, {'id': 'b'}]}
+    ec.to_tree_data(graph, "r")
+    ```
+
+    """
+    if ident == children:
+        raise ValueError("ident and children must be different fields")
+    root_id = graph._node_id_or_raise(root)
+    node_rows = _nodes_of(graph)
+    keys = _node_keys(node_rows)
+    edges = sorted(graph._graph.edges())
+    if len(edges) != len(node_rows) - 1:
+        raise ValueError(
+            f"The graph isn't a tree: it has {len(node_rows)} nodes and {len(edges)} edges"
+        )
+    directed = graph.is_directed()
+    incident: dict[int, list[tuple[int, int]]] = {nid: [] for nid, _, _ in node_rows}
+    for eid, source, target in edges:
+        incident[source].append((eid, target))
+        if not directed:
+            incident[target].append((eid, source))
+
+    kids: dict[int, list[int]] = {root_id: []}
+    parent_edge = {root_id: None}
+    order = [root_id]
+    for nid in order:
+        for eid, nbr in incident[nid]:
+            if eid == parent_edge[nid]:
+                continue
+            if nbr in kids:
+                raise ValueError(
+                    f"The graph isn't a tree rooted at {root!r}: node {keys[nbr]!r} is reached "
+                    "more than once"
+                )
+            kids[nbr] = []
+            kids[nid].append(nbr)
+            parent_edge[nbr] = eid
+            order.append(nbr)
+    if len(order) < len(node_rows):
+        raise ValueError(f"The graph isn't a tree rooted at {root!r}: not every node is reached")
+
+    records = {}
+    for nid, _, attrs in node_rows:
+        clash = next((k for k in (ident, children) if k in attrs), None)
+        if clash is not None:
+            raise ValueError(
+                f"Node {keys[nid]!r} has an attribute {clash!r}, which tree data uses for "
+                "its own field; pass a different ident= or children="
+            )
+        records[nid] = {ident: keys[nid], **attrs}
+    for nid in order:
+        if kids[nid]:
+            records[nid][children] = [records[kid] for kid in kids[nid]]
+    data = records[root_id]
+    if filepath is not None:
+        _write_json(data, filepath)
+    return data
+
+
+def from_tree_data(
+    source: Union[dict, str, bytes, Path],
+    ident: str = "id",
+    children: str = "children",
+    directed: bool = True,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a tree from nested JSON tree data.
+
+    Reads the layout of `to_tree_data()`, NetworkX's `tree_data()` and D3.js hierarchies: an
+    object for the root node, holding its id under `ident=` and its children (objects of the
+    same kind) under `children=`. Each node is labeled with its id and gets the object's other
+    fields as attributes, and each child gets an edge from its parent. Nodes are added in
+    depth-first order, as NetworkX's `tree_graph()` does.
+
+    Parameters
+    ----------
+    source
+        The data: a dict, a JSON string, or a path to a JSON file.
+    ident
+        The field that holds each node's id.
+    children
+        The field that holds each node's children.
+    directed
+        Whether to create a directed tree (edges from parent to child, the default) or an
+        undirected one.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        The tree, built as a single step.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    data = {"id": "r", "children": [{"id": "a", "children": [{"id": "b"}]}]}
+
+    # Returns ['r->a', 'a->b']
+    ec.from_tree_data(data).get_edges_str_repr(use_labels=True)
+    ```
+
+    """
+    if ident == children:
+        raise ValueError("ident and children must be different fields")
+    data = _load_json(source)
+    nodes = []
+    edges = []
+    stack: list[tuple[Any, Any]] = [(data, None)]
+    while stack:
+        record, parent = stack.pop()
+        if not isinstance(record, dict) or ident not in record:
+            raise ValueError(f"Every node in tree data must be an object with an {ident!r} field")
+        values = dict(record)
+        key = _hashable(values.pop(ident))
+        kids = values.pop(children, [])
+        if not isinstance(kids, list):
+            raise ValueError(f"The {children!r} field must be a list")
+        nodes.append((key, str(key), values))
+        if parent is not None:
+            edges.append((parent, key, None, {}))
+        stack.extend((kid, key) for kid in reversed(kids))
+    return _build_graph(nodes, edges, directed, False, graph_name, _code("from_tree_data", source))
+
+
 __all__ = [
     "from_matrix_market",
     "from_graphml",
@@ -2421,4 +3941,20 @@ __all__ = [
     "to_graph6",
     "from_sparse6",
     "to_sparse6",
+    "to_numpy_array",
+    "from_numpy_array",
+    "to_scipy_sparse_array",
+    "from_scipy_sparse_array",
+    "to_pandas_adjacency",
+    "from_pandas_adjacency",
+    "to_pandas_edgelist",
+    "from_pandas_edgelist",
+    "to_adjlist",
+    "from_adjlist",
+    "to_multiline_adjlist",
+    "from_multiline_adjlist",
+    "to_adjacency_data",
+    "from_adjacency_data",
+    "to_tree_data",
+    "from_tree_data",
 ]
