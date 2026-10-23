@@ -667,26 +667,79 @@ def _crossings(s: Scene, prefix: str, edges) -> list[tuple[float, float]]:
     return pts
 
 
+# is_planar docstring: K4 with D inside triangle A B C; K3,3 (A, B, C against D, E, F) in its
+# one-crossing drawing, which is the fewest it can have
+K33 = {"A": (0, 0), "F": (4, 0), "E": (1, 1), "B": (3, 1), "D": (0, 2), "C": (4, 2)}
+
+
 @figure("is_planar", "predicates", "Is planar",
         "Left: the complete graph on four nodes drawn with D inside triangle A B C, so no "
-        "edges cross; its 6 edges are within the 3n - 6 bound and is_planar() returns True. "
-        "Right: the complete graph on five nodes, where the inner star's edges cross at the "
-        "points marked in the accent color; its 10 edges exceed the bound of 9, so is_planar() "
-        "returns False.")
+        "edges cross and is_planar() returns True. Right: the complete bipartite graph K3,3, "
+        "nodes A, B, C each joined to D, E, F, drawn with a single crossing, marked in the "
+        "accent color. Its 9 edges are within the 3n - 6 bound of 12, but no drawing avoids "
+        "every crossing, so is_planar() returns False.")
 def is_planar(s: Scene) -> None:
+    import edgecase as ec
+
+    k4_edges = [(a, b) for i, a in enumerate("ABCD") for b in "ABCD"[i + 1:]]
+    k33_edges = [(a, b) for a in "ABC" for b in "DEF"]
+    for edges, ok in ((k4_edges, True), (k33_edges, False)):
+        g = ec.Graph().add_nodes(sorted({x for e in edges for x in e}))
+        assert g.add_edges(edges).is_planar() is ok
     left, right = contrast(s, "g.is_planar()", "g.is_planar()")
     k4 = {"A": (1, 0), "B": (0, 1.6), "C": (2, 1.6), "D": (1, 1.05)}
-    k5 = ring(list("ABCDE"), radius=0.95)
-    for box, coords, n, e, bound, ok in ((left, k4, 4, 6, 6, True), (right, k5, 5, 10, 9, False)):
+    for box, coords, edges, note in (
+        (left, k4, k4_edges, "no edges cross"),
+        (right, K33, k33_edges, "9 edges ≤ 3n − 6 = 12, yet not planar"),
+    ):
         p = f"{box.x0}."
-        gb = Box(box.x0, box.y0, box.x1, box.y1 - 22)  # leave a row for the edge bound
-        edges = [(a, b) for i, a in enumerate(coords) for b in list(coords)[i + 1:]]
+        gb = Box(box.x0, box.y0, box.x1, box.y1 - 22)  # leave a row for the note
         s.graph(place(coords, gb), edges, prefix=p)
-        s.text(box.cx, box.y1 - 8, f"{e} edges {'≤' if ok else '>'} 3n − 6 = {bound}",
-               size=SIZE_NOTE, opacity=0.6 if ok else 1, color="ink" if ok else "accent")
+        s.text(box.cx, box.y1 - 8, note, size=SIZE_NOTE, opacity=0.6)
         for x, y in _crossings(s, p, edges):
             s.path(f"M {x - 4:.1f} {y:.1f} a 4 4 0 1 0 8 0 a 4 4 0 1 0 -8 0", color="accent",
                    fill="color", width=1)
+
+
+# check_planarity docstring: the wheel's rim is placed clockwise in the order the embedding
+# gives around the hub; Petersen is the outer pentagon 1-5 with the pentagram 6-10 inside
+PETERSEN = {**ring([str(i) for i in range(1, 6)]),
+            **ring([str(i) for i in range(6, 11)], radius=0.5)}
+
+
+@figure("check_planarity", "predicates", "Check planarity",
+        "Left: a wheel with hub 1 and rim 2 to 6, drawn so that going clockwise around the "
+        "hub meets 2, 6, 5, 4, 3, which is the hub's entry in the embedding that "
+        "check_planarity() returns with True. Right: the Petersen graph, which is not "
+        "planar; check_planarity(True) returns False with a counterexample h, shown in the "
+        "accent color: the graph without node 1 (dashed), a subdivided K3,3 whose six "
+        "branch nodes are 3, 9, 10 and 4, 7, 8.")
+def check_planarity(s: Scene) -> None:
+    import edgecase as ec
+
+    w = ec.Graph().add_wheel_graph(6)
+    ok, emb = w.check_planarity()
+    assert ok and emb[1] == [2, 6, 5, 4, 3]
+    wheel = {"1": (0, 0), **ring([str(v) for v in emb[1]])}
+    wheel_edges = [(str(a), str(b)) for _, a, b in w.get_edges_as_tuples()]
+
+    g = ec.Graph().add_named_graph("petersen")
+    ok, h = g.check_planarity(True)
+    assert not ok and h.count_edges() == 12
+    pet_edges = [(str(a), str(b)) for _, a, b in g.get_edges_as_tuples()]
+    kept = {(str(a), str(b)) for _, a, b in h.get_edges_as_tuples()}
+    branch = {str(v) for v in h.get_node_ids(limit=None) if h.get_degree(v) == 3}
+    assert branch == set("349") | {"10", "7", "8"}
+
+    left, right = contrast(s, "g.check_planarity()", "g.check_planarity(True)",
+                           "(True, emb)", "(False, h)")
+    gb = _note(s, left, "emb[1] = [2, 6, 5, 4, 3]")
+    s.graph(place(wheel, gb, r=R_SMALL), wheel_edges, r=R_SMALL, styles={"1": "soft"},
+            prefix="l.")
+    gb = _note(s, right, "h: a subdivided K3,3")
+    s.graph(place(PETERSEN, gb, r=R_SMALL),
+            [(a, b, {"style": "accent" if (a, b) in kept else "removed"}) for a, b in pet_edges],
+            r=R_SMALL, styles={"1": "removed", **dict.fromkeys(branch, "accent")}, prefix="r.")
 
 
 # is_chordal docstring: the square A, B, C, D, then with the diagonal A–C.

@@ -41,6 +41,7 @@ SCATTER = {
     "layout_multipartite": 37,
     "layout_bfs": 82,
     "layout_spectral": 146,
+    "layout_planar": 17,
     "layout_spring": 101,
     "layout_kamada_kawai": 146,
     "layout_forceatlas2": 307,
@@ -79,11 +80,11 @@ def _colored(edges, styles) -> list:
 
 
 def _before_after(s: Scene, method: str, g, call: str, *, styles=None,
-                  before: str | None = None, guide=None) -> None:
+                  before: str | None = None, guide=None, unit: float = UNIT) -> None:
     """Draw `g` scattered (or at `before`, a layout call) on the left and after `call` on the right.
 
     `guide` is a polyline in the right panel's layout coords (y flipped), drawn faintly
-    under the graph.
+    under the graph. `unit` is px per layout unit in both panels.
     """
     styles = styles or {}
     edges = _edges(g)
@@ -98,7 +99,7 @@ def _before_after(s: Scene, method: str, g, call: str, *, styles=None,
     end = _positions(g, call)
     for box, coords, prefix in ((left, start, "a."), (right, end, "b.")):
         extra = {f"~{i}": xy for i, xy in enumerate(guide or [])} if prefix == "b." else {}
-        pos = place({**coords, **extra}, box, unit=UNIT, r=R_SMALL)
+        pos = place({**coords, **extra}, box, unit=unit, r=R_SMALL)
         if extra:
             pts = [pos.pop(k) for k in extra]
             s.path("M " + " L ".join(f"{x:.1f} {y:.1f}" for x, y in pts), opacity=MUTED,
@@ -236,6 +237,17 @@ def layout_bfs(s: Scene) -> None:
 def layout_spectral(s: Scene) -> None:
     g = _graph("add_grid_graph([3, 3])")
     _before_after(s, "layout_spectral", g, "layout_spectral()")
+
+
+@figure("layout_planar", "layout", "Planar layout",
+        "On the left, the octahedron graph (six nodes, each joined to four others) scattered at "
+        "random, with several edges crossing. On the right, layout_planar() draws it with no "
+        "crossings: a large outer triangle of nodes 1, 2 and 4 with the other three nodes "
+        "inside it.")
+def layout_planar(s: Scene) -> None:
+    g = _graph('add_named_graph("octahedral")')
+    # the grid drawing packs inner nodes one step apart, so draw it larger than the others
+    _before_after(s, "layout_planar", g, "layout_planar()", unit=150)
 
 
 @figure("layout_spring", "layout", "Spring layout",
