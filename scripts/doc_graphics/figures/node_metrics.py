@@ -28,9 +28,13 @@ Single-node getters (`get_degree`, `get_in_degree`, `get_out_degree`,
 `get_node_vitality`) show the queried node `soft`, the counted elements
 `accent`, and a card with the value. Every number is what edgecase returns
 for the depicted graph (rounded to 2 decimals).
+
+`incremental_closeness_centrality` scores a hypothetical edge, so it draws
+that edge dashed (`ghost`) on a six-node path bent into a ring, the nodes it
+recomputes in accent, and a before / after table in place of the heat shading.
 """
 
-from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, text_width
+from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring, text_width
 
 UNIT = 80  # one scale for the whole family
 
@@ -112,6 +116,41 @@ def degree_centrality(s: Scene) -> None:
 def closeness_centrality(s: Scene) -> None:
     _metric(s, "g.closeness_centrality()", "score",
             {"A": 0.46, "B": 0.5, "C": 0.67, "D": 0.6, "E": 0.67, "F": 0.5, "G": 0.35})
+
+
+@figure("incremental_closeness_centrality", "node-metrics", "Incremental closeness centrality",
+        "A six-node path 1 to 6 drawn as a ring, with the edge e = (1, 6) that would close "
+        "it dashed; cc, the current closeness scores, is passed in. Nodes 1, 2, 5 and 6 (accent) are at least two hops closer to one end of "
+        "the new edge than the other, so their closeness is recomputed; nodes 3 and 4 are "
+        "not, and keep their previous score. The table gives each node's score before and "
+        "after: 1 and 6 rise from 0.33 to 0.56, 2 and 5 from 0.45 to 0.56, and 3 and 4 stay "
+        "at 0.56. The graph itself is not changed.")
+def incremental_closeness_centrality(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_path_graph(6)
+    lab = g.get_label_from_id
+    before = g.closeness_centrality(weighted=False, return_dict=True)
+    after = g.incremental_closeness_centrality((1, 6), prev_cc=before)
+    assert g.count_edges() == 5
+    rnd = {lab(n): (round(before[n], 2), round(after[n], 2)) for n in after}
+    assert rnd == {"1": (0.33, 0.56), "2": (0.45, 0.56), "3": (0.56, 0.56),
+                   "4": (0.56, 0.56), "5": (0.45, 0.56), "6": (0.33, 0.56)}
+    # a node is recomputed unless its hop distances to 1 and to 6 differ by at most 1
+    redo = [k for k in "123456" if abs((int(k) - 1) - (6 - int(k))) > 1]
+    assert redo == ["1", "2", "5", "6"]
+    left, right = compute(s, "g", "g.incremental_closeness_centrality(e, cc)")
+    s.text(left.cx, left.y0 + 8, "e = (1, 6)    cc = scores before", size=SIZE_NOTE, opacity=0.6)
+    pos = place(ring(list("123456"), start_deg=-60), Box(left.x0, left.y0 + 22, left.x1, left.y1),
+                unit=UNIT * 0.9)
+    path = [(str(i), str(i + 1)) for i in range(1, 6)]
+    s.graph(pos, path + [("1", "6", {"style": "ghost"})], styles=dict.fromkeys(redo, "accent"))
+    rows = [["node", "before", "after"]]
+    for ks in (["1", "6"], ["2", "5"], ["3", "4"]):
+        b, a = rnd[ks[0]]
+        rows.append([", ".join(ks), f"{b:.2f}", f"{a:.2f}" if ks[0] in redo else f"{a:.2f} kept"])
+    s.table_centered(right, rows, [56, 58, 78],
+                     highlight={(i, 2): "accent" for i in (1, 2)})
 
 
 @figure("harmonic_centrality", "node-metrics", "Harmonic centrality",

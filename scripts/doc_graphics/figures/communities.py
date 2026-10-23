@@ -27,7 +27,8 @@ is `muted`); `node_connected_component` shows one component: the query node
 `soft`, the rest of its component `accent` inside a hull, other nodes `muted`.
 
 Later additions share `TWO`, the docstrings' two K4 groups joined by D–E:
-`cmty_fluid` and `cmty_fast_label_propagation` draw the usual partition;
+`cmty_fluid`, `cmty_fast_label_propagation` and
+`cmty_semisync_label_propagation` draw the usual partition;
 `greedy_source_expansion` draws the source `soft`, the local community as an
 accent hull, its boundary node (members with outside neighbors) `g2` and the
 rest `muted`; `harmonic_function` and `local_and_global_consistency` follow
@@ -640,6 +641,21 @@ def cmty_fast_label_propagation(s: Scene) -> None:
     g = _ec_graph(TWO, TWO_EDGES)
     assert _groups(g, g.cmty_fast_label_propagation(seed=1, return_dict=True)) == TWO_GROUPS
     left, right = compute(s, "g", "g.cmty_fast_label_propagation(seed=1)")
+    _partition(s, place(TWO, left, unit=UNIT), TWO_EDGES, TWO_GROUPS)
+    s.card_centered(right, TWO_CARD, title="community")
+
+
+@figure("cmty_semisync_label_propagation", "communities",
+        "Semi-synchronous label propagation communities",
+        "Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge "
+        "D to E. The nodes are colored so that no two neighbors share a color, and each "
+        "color class adopts its neighbors' most common label at once; with no randomness, "
+        "the labels settle on the two groups, drawn in the accent color and teal. The card "
+        "lists community 0 as A, B, C, D and community 1 as E, F, G, H.")
+def cmty_semisync_label_propagation(s: Scene) -> None:
+    g = _ec_graph(TWO, TWO_EDGES)
+    assert _groups(g, g.cmty_semisync_label_propagation(return_dict=True)) == TWO_GROUPS
+    left, right = compute(s, "g", "g.cmty_semisync_label_propagation()")
     _partition(s, place(TWO, left, unit=UNIT), TWO_EDGES, TWO_GROUPS)
     s.card_centered(right, TWO_CARD, title="community")
 

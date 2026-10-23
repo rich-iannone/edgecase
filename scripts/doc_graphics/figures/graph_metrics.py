@@ -50,6 +50,9 @@ the step narration shows): the card gives each ratio's numbers and ends in
 sigma or omega in accent; the seed is in the caption. transforms.py draws
 random_reference and lattice_reference on the same ring.
 
+`maximal_extendability` draws the six-node cycle as a ring with a matching
+that cannot be extended (accent) and the two nodes it strands (`g2`).
+
 Every number on a card is what edgecase returns for the depicted graph.
 """
 
@@ -1060,3 +1063,46 @@ def spectral_bipartivity(s: Scene) -> None:
     s.text(right.cx, right.y0 + 8, "two triangles", size=SIZE_NOTE, opacity=0.6)
     s.graph(place(sq, Box(right.x0, right.y0 + 22, right.x1, right.y1), unit=UNIT),
             cycle + [("1", "3", {"style": "accent"})], prefix="r.")
+
+
+# maximal_extendability docstring: the six-node cycle, drawn as a ring. Every edge
+# lies in a perfect matching, but the two edges 1-2 and 4-5 (accent) strand 3 and 6
+# (g2), which are not adjacent, so the largest k is 1.
+def _perfect_matchings(nodes: list[str], edges: list) -> list[set]:
+    """Every perfect matching, by brute force (checks the card)."""
+    if not nodes:
+        return [set()]
+    a, out = nodes[0], []
+    for e in edges:
+        if a in e:
+            b = e[1] if e[0] == a else e[0]
+            if b in nodes:
+                rest = [k for k in nodes if k not in e]
+                out += [m | {e} for m in _perfect_matchings(rest, edges)]
+    return out
+
+
+@figure("maximal_extendability", "graph-metrics", "Maximal extendability",
+        "A six-node cycle 1 to 6 drawn as a ring. Every single edge belongs to some perfect "
+        "matching, but the two edges 1-2 and 4-5, in the accent color, cannot be extended: "
+        "they leave nodes 3 and 6 (teal), which are not joined. The card notes that k = 1 "
+        "works and k = 2 fails, so the maximal extendability is 1.")
+def maximal_extendability(s: Scene) -> None:
+    import edgecase as ec
+
+    ids = list("123456")
+    edges = [(ids[i], ids[(i + 1) % 6]) for i in range(6)]
+    g = ec.Graph().add_nodes(ids)
+    g.add_edges(edges)
+    value = g.maximal_extendability()
+    perfect = _perfect_matchings(ids, edges)
+    pair = {("1", "2"), ("4", "5")}
+    assert value == 1
+    assert all(any(e in m for m in perfect) for e in edges)
+    assert not any(pair <= m for m in perfect)
+    left, right = compute(s, "g", "g.maximal_extendability()")
+    s.graph(place(ring(ids, start_deg=-60), left, unit=UNIT * 0.85),
+            [(a, b, {"style": "accent"}) if (a, b) in pair else (a, b) for a, b in edges],
+            styles={**dict.fromkeys("1245", "accent"), "3": "g2", "6": "g2"})
+    s.card_centered(right, ["k = 1  every edge extends", ("k = 2  1-2, 4-5 strand 3, 6", "g2"),
+                            (f"extendability  {value}", "accent")], title="largest k")

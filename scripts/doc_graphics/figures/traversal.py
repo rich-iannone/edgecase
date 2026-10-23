@@ -47,6 +47,11 @@ gives the getting-dressed DAG filled order badges, like
 get_topological_sort_order. all_pairs_lowest_common_ancestor draws its
 taxonomy top down, the queried species `soft`, one answer (and the edges
 down to its pair) in accent and the other in g2, matching the card.
+
+bfs_beam_edges puts each node's score in an outline badge, the followed edges
+in accent and the unreached part muted. dfs_labeled_edges numbers its tree
+edges like dfs_edges, dashes the non-tree edge, and groups the labeled pairs
+by kind on the card.
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, transform
@@ -672,6 +677,71 @@ def edge_dfs(s: Scene) -> None:
     order = _edge_order(s, 'g.edge_dfs("A")',
                         [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")], "dfs_edges")
     assert order == [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")]
+
+
+# --- later additions: beam search and labeled DFS ---------------------------------
+#
+# bfs_beam_edges docstring: a small tree from A with a score badge on every node.
+# Only each node's best-scoring neighbor (width 1) is followed: accent edges, the
+# rest of the tree muted.
+BEAM = {"A": (0, 0.9), "B": (1.3, 0), "C": (1.3, 1.8), "D": (2.6, 0), "E": (2.6, 1.3),
+        "F": (2.6, 2.3)}
+BEAM_EDGES = [("A", "B"), ("A", "C"), ("B", "D"), ("C", "E"), ("C", "F")]
+BEAM_SCORE = {"A": 0, "B": 1, "C": 5, "D": 9, "E": 2, "F": 3}
+
+
+@figure("bfs_beam_edges", "traversal", "BFS beam edges",
+        "A six-node tree searched from A (outlined) with a beam of width 1; every node "
+        "carries its score in a badge. A's best neighbor is C (5), not B (1), and C's best "
+        "is F (3), not E (2), so the search follows the accent edges A-C and C-F only. B, "
+        "and with it the top-scoring D (9), is never reached. The card lists (A, C) and "
+        "(C, F).")
+def bfs_beam_edges(s: Scene) -> None:
+    g, lab = _labelled(BEAM, BEAM_EDGES)
+    g.set_node_attrs("score", BEAM_SCORE)
+    tree = [(lab(p), lab(c)) for p, c in g.bfs_beam_edges("A", value="score", width=1)]
+    assert tree == [("A", "C"), ("C", "F")]
+    left, right = compute(s, "g", 'g.bfs_beam_edges("A", "score", 1)')
+    reached = {v for e in tree for v in e}
+    s.graph(place(BEAM, left, unit=UNIT),
+            [(a, b, {"style": "accent" if (a, b) in tree else "muted"}) for a, b in BEAM_EDGES],
+            styles={"A": "soft", **{k: "muted" for k in BEAM if k not in reached}})
+    for k, v in BEAM_SCORE.items():
+        s.badge(k, str(v), color="accent" if k in reached and k != "A" else "ink")
+    s.card_centered(right, [(f"{i}  ({a}, {b})", "accent") for i, (a, b) in enumerate(tree, 1)],
+                    title="(parent, child) pairs")
+
+
+# dfs_labeled_edges docstring: a triangle A, B, C with a tail C-D. Tree edges are
+# accent and numbered in discovery order; the one non-tree edge, C-A, is dashed.
+# The card groups the 13 labeled edges by kind, each pair written uv.
+LABELED = {"A": (0, 0.8), "B": (1.3, 0), "C": (1.3, 1.6), "D": (2.6, 1.6)}
+LABELED_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+
+
+@figure("dfs_labeled_edges", "traversal", "DFS labeled edges",
+        "A triangle A, B, C with a tail C to D, searched depth-first from A (outlined). The "
+        "tree edges A-B, B-C and C-D are numbered in the accent color; the dashed edge C-A "
+        "leads to a node already visited. The card groups the thirteen labeled edges by "
+        "kind: forward for A, A (the root) and the three tree edges, nontree for B-A, C-B, "
+        "C-A, D-C and A-C, and reverse as the search backs up from D, C and B and finishes "
+        "at A.")
+def dfs_labeled_edges(s: Scene) -> None:
+    g, lab = _labelled(LABELED, LABELED_EDGES)
+    steps = [(lab(u) + lab(v), kind) for u, v, kind in g.dfs_labeled_edges("A")]
+    kinds = {k: [p for p, kind in steps if kind == k] for k in ("forward", "nontree", "reverse")}
+    assert kinds == {"forward": ["AA", "AB", "BC", "CD"],
+                     "nontree": ["BA", "CB", "CA", "DC", "AC"],
+                     "reverse": ["CD", "BC", "AB", "AA"]}
+    assert len(steps) == 13
+    left, right = compute(s, "g", 'g.dfs_labeled_edges("A")')
+    rank = {(p[0], p[1]): i for i, p in enumerate(kinds["forward"][1:], 1)}
+    s.graph(place(LABELED, left, unit=UNIT),
+            [(a, b, {"style": "accent", "weight": str(rank[(a, b)])}) if (a, b) in rank
+             else (a, b, {"style": "removed"}) for a, b in LABELED_EDGES],
+            styles={"A": "soft"})
+    s.card_centered(right, [(f"{k:<8} {' '.join(v)}", "accent" if k == "forward" else "ink")
+                            for k, v in kinds.items()], title="(u, v) by label")
 
 # --- later additions: dominators -------------------------------------------
 #
