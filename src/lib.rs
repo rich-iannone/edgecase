@@ -104,6 +104,11 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::branchings::is_branching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::branchings::to_prufer_sequence, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::branchings::from_prufer_sequence, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::branchings::partition_spanning_tree, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::branchings::random_spanning_tree_additive, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::branchings::join_trees, m)?)?;
+    m.add_class::<algorithms::branchings::SpanningTreeIter>()?;
+    m.add_class::<algorithms::branchings::ArborescenceIter>()?;
     m.add_function(wrap_pyfunction!(algorithms::matching_cover::blossom_max_weight_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching_cover::hopcroft_karp_matching, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::matching_cover::bipartite_vertex_cover, m)?)?;
