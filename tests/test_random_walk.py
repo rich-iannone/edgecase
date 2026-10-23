@@ -451,3 +451,76 @@ class TestRandomWalkUnlabelledAndMissing:
         g = Graph().add_path_graph(3)
         with pytest.raises(ValueError, match="does not exist"):
             g.random_walk(999, steps=2)
+
+
+class TestWeightedRandomWalk:
+    """weighted= on random_walk(): steps are proportional to edge weight."""
+
+    @staticmethod
+    def _star(weights, directed=False):
+        g = Graph(directed=directed, weighted=True).add_nodes(["hub", "a", "b", "c"])
+        g.add_edges([("hub", leaf, w) for leaf, w in zip("abc", weights)])
+        return g
+
+    def test_step_frequencies_follow_weights(self):
+        g = self._star([6.0, 3.0, 1.0])
+        walk = g.random_walk("hub", steps=20000, seed=7, weighted=True, return_list=True)
+        leaves = [g.get_label_from_id(n) for n in walk[1::2]]
+        assert set(walk[0::2]) == {g.get_id_from_label("hub")}
+        for leaf, share in zip("abc", [0.6, 0.3, 0.1]):
+            assert leaves.count(leaf) / len(leaves) == pytest.approx(share, abs=0.02)
+
+    def test_unweighted_ignores_weights(self):
+        g = self._star([100.0, 1.0, 1.0])
+        walk = g.random_walk("hub", steps=6000, seed=7, weighted=False, return_list=True)
+        leaves = [g.get_label_from_id(n) for n in walk[1::2]]
+        for leaf in "abc":
+            assert leaves.count(leaf) / len(leaves) == pytest.approx(1 / 3, abs=0.03)
+
+    def test_default_follows_graph_flag(self):
+        g = self._star([6.0, 3.0, 1.0])
+        assert g.random_walk("hub", steps=50, seed=3, return_list=True) == g.random_walk(
+            "hub", steps=50, seed=3, weighted=True, return_list=True
+        )
+
+    def test_parallel_edges_add_up(self):
+        g = Graph(weighted=True).add_nodes(["hub", "a", "b"])
+        g.add_edges([("hub", "a", 1.0), ("hub", "a", 2.0), ("hub", "b", 1.0)])
+        walk = g.random_walk("hub", steps=20000, seed=11, weighted=True, return_list=True)
+        leaves = [g.get_label_from_id(n) for n in walk[1::2]]
+        assert leaves.count("a") / len(leaves) == pytest.approx(0.75, abs=0.02)
+
+    def test_zero_weight_edges_are_never_taken(self):
+        g = self._star([1.0, 0.0, 1.0])
+        walk = g.random_walk("hub", steps=2000, seed=5, weighted=True, return_list=True)
+        assert g.get_id_from_label("b") not in walk
+
+    def test_only_zero_weight_edges_means_stuck(self):
+        g = self._star([0.0, 0.0, 0.0])
+        hub = g.get_id_from_label("hub")
+        assert g.random_walk("hub", steps=5, weighted=True, return_list=True) == [hub]
+        with pytest.raises(RuntimeError, match="stuck"):
+            g.random_walk("hub", steps=5, stuck="error", weighted=True, return_list=True)
+
+    def test_negative_weight_raises(self):
+        g = self._star([1.0, -1.0, 1.0])
+        with pytest.raises(ValueError, match="non-negative"):
+            g.random_walk("hub", steps=5, weighted=True, return_list=True)
+
+    def test_directed_modes(self):
+        g = Graph(directed=True, weighted=True).add_nodes(["x", "y", "z"])
+        g.add_edges([("x", "y", 1.0), ("z", "x", 1.0)])
+        ids = {lb: g.get_id_from_label(lb) for lb in "xyz"}
+        out = g.random_walk("x", steps=3, weighted=True, return_list=True)
+        assert out == [ids["x"], ids["y"]]  # y has no out-edges
+        back = g.random_walk("x", steps=3, mode="in", weighted=True, return_list=True)
+        assert back == [ids["x"], ids["z"]]
+        both = g.random_walk("x", steps=50, mode="all", seed=2, weighted=True, return_list=True)
+        assert len(both) == 51 and set(both) == set(ids.values())
+
+    def test_seed_reproducible_and_tracked(self):
+        g = self._star([6.0, 3.0, 1.0])
+        first = g.random_walk("hub", steps=30, seed=99, weighted=True, return_list=True)
+        assert first == g.random_walk("hub", steps=30, seed=99, weighted=True, return_list=True)
+        g.random_walk("hub", steps=30, seed=99, weighted=True)
+        assert g._computations[-1][1]["weighted"] is True
