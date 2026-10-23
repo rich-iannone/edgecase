@@ -421,6 +421,31 @@ class TestWalktrapEdgeCases:
         # Each component should be separate
         assert len(set(communities.values())) >= 3
 
+    def test_components_are_split_further(self):
+        """Communities inside each component are found, not just the components."""
+        G = ec.Graph()
+        groups = []
+        for comp in "AB":
+            # two 4-cliques joined by one bridge, per component
+            for half in "xy":
+                clique = [f"{comp}{half}{i}" for i in range(4)]
+                groups.append(set(clique))
+                for i in range(4):
+                    for j in range(i + 1, 4):
+                        G.add_edge(clique[i], clique[j], auto_create_nodes=True)
+            G.add_edge(f"{comp}x3", f"{comp}y0")
+        G.add_node(label="lone")
+
+        communities = G.cmty_walktrap(return_dict=True)
+        found = {}
+        for node_id, c in communities.items():
+            found.setdefault(c, set()).add(G.get_label_from_id(node_id))
+        assert sorted(map(sorted, found.values())) == sorted(
+            map(sorted, groups + [{"lone"}])
+        )
+        # IDs stay contiguous across components
+        assert set(communities.values()) == set(range(5))
+
     def test_cycle_graph(self):
         """Cycle graph (ring)."""
         G = ec.Graph()
