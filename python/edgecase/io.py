@@ -2059,6 +2059,593 @@ def to_pajek(
 
 
 # =============================================================================
+# LEDA I/O
+# =============================================================================
+
+_LEDA_ITEM = re.compile(r"\|\{(.*)\}\|")
+_LEDA_EDGE = re.compile(r"(\S+)\s+(\S+)\s+(\S+)\s+\|\{(.*)\}\|")
+_LEDA_NUMERIC = {"int", "integer", "long", "short", "float", "double", "real"}
+
+
+def from_leda(
+    source: Union[str, bytes, Path, Sequence[str]],
+    directed: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from a LEDA native graph (`LEDA.GRAPH`) file.
+
+    The format, from the LEDA C++ library, starts with three header lines (`LEDA.GRAPH`, the node
+    data type and the edge data type) and a direction line (`-1` for directed, `-2` for
+    undirected). Then come the number of nodes and one `|{data}|` line per node, and the number
+    of edges and one `source target reversal |{data}|` line per edge, with nodes numbered from 1.
+    Lines starting with `#` are comments.
+
+    Each node is labeled with its data (or its number, if the data is empty). Edge data of a
+    numeric type (`int`, `double` and the like) becomes the edge weight, giving a weighted graph;
+    other non-empty edge data is kept in a `label` attribute. The reversal field (used by LEDA's
+    bidirected graphs) is ignored. Files from LEDA versions before 4.5 have no direction line;
+    their graphs are directed.
+
+    Parameters
+    ----------
+    source
+        A path to the file, the text itself (a string with at least one newline), or a list of
+        lines.
+    directed
+        Whether to create a directed graph. If `None` (the default), taken from the file's
+        direction line.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Raises
+    ------
+    ValueError
+        If the text isn't a valid LEDA graph: a missing header, a bad count, a node or edge line
+        that can't be read, an edge naming a node number outside 1 to n, or non-numeric data under
+        a numeric edge type.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    text = "LEDA.GRAPH\\nstring\\nint\\n-2\\n3\\n|{a}|\\n|{b}|\\n|{c}|\\n2\\n1 2 0 |{4}|\\n2 3 0 |{7}|\\n"
+    graph = ec.from_leda(text)
+
+    # Returns [('a', 'b', 4.0), ('b', 'c', 7.0)]
+    [(graph.get_label_from_id(e.source), graph.get_label_from_id(e.target), e.weight)
+     for e in (graph.get_edge(i) for i in graph.get_edge_ids())]
+    ```
+
+    """
+    lines = [line.strip() for line in _text_lines(source)]
+    lines = [line for line in lines if line and not line.startswith("#")]
+    if len(lines) < 4 or lines[0] != "LEDA.GRAPH":
+        raise ValueError("Not a LEDA graph: the text must start with a LEDA.GRAPH header")
+    edge_type = lines[2].lower()
+    position = 3
+
+    def count(what: str) -> int:
+        nonlocal position
+        try:
+            value = int(lines[position])
+        except (IndexError, ValueError):
+            line = lines[position] if position < len(lines) else "the end of the text"
+            raise ValueError(f"Expected the number of {what}, got {line!r}") from None
+        if value < 0:
+            raise ValueError(f"The number of {what} can't be negative, got {value}")
+        position += 1
+        return value
+
+    file_directed = True
+    if lines[position].lstrip("+-").isdigit() and int(lines[position]) < 0:
+        if lines[position] not in ("-1", "-2"):
+            raise ValueError(f"The direction line must be -1 or -2, got {lines[position]!r}")
+        file_directed = lines[position] == "-1"
+        position += 1
+    if directed is None:
+        directed = file_directed
+
+    n = count("nodes")
+    nodes = []
+    for number in range(1, n + 1):
+        line = lines[position] if position < len(lines) else ""
+        match = _LEDA_ITEM.fullmatch(line)
+        if match is None:
+            raise ValueError(f"Can't read node {number}: expected '|{{data}}|', got {line!r}")
+        nodes.append((number, match.group(1) or None, {}))
+        position += 1
+
+    m = count("edges")
+    weighted = edge_type in _LEDA_NUMERIC
+    edges = []
+    for number in range(1, m + 1):
+        line = lines[position] if position < len(lines) else ""
+        match = _LEDA_EDGE.fullmatch(line)
+        if match is None:
+            raise ValueError(
+                f"Can't read edge {number}: expected 'source target reversal |{{data}}|', "
+                f"got {line!r}"
+            )
+        ends = []
+        for text in match.group(1, 2):
+            if not text.isdigit() or not 1 <= int(text) <= n:
+                raise ValueError(f"Edge {number} names node {text!r}, outside 1 to {n}")
+            ends.append(int(text))
+        data = match.group(4)
+        weight, attrs = None, {}
+        if weighted and data:
+            try:
+                weight = float(data)
+            except ValueError:
+                raise ValueError(
+                    f"Edge {number} has data {data!r}, which isn't a number of type {edge_type!r}"
+                ) from None
+        elif data:
+            attrs = {"label": data}
+        edges.append((ends[0], ends[1], weight, attrs))
+        position += 1
+
+    return _build_graph(nodes, edges, directed, weighted, graph_name, _code("from_leda", source))
+
+
+def _leda_item(text: str, what: str) -> str:
+    if "}|" in text or "\n" in text or "\r" in text:
+        raise ValueError(f"The {what} {text!r} can't be written to LEDA: it holds '}}|' or a newline")
+    return f"|{{{text}}}|"
+
+
+def to_leda(
+    graph: Graph,
+    filepath: Union[str, Path, None] = None,
+) -> str:
+    """
+    Encode a graph as a LEDA native graph (`LEDA.GRAPH`).
+
+    Nodes are numbered 1 to n in node ID order and written with their labels as `string` data
+    (an unlabeled node gets its ID). The edge data is the weight (type `double`) in a weighted
+    graph, the `label` attribute (type `string`) when any edge has one, and nothing (type `void`)
+    otherwise. Other attributes aren't written. Undirected graphs get direction line `-2` and
+    directed graphs `-1`; every reversal field is 0.
+
+    Parameters
+    ----------
+    graph
+        The graph to encode. Its labels (and edge `label` attributes) can't hold `}|` or a
+        newline, since the format has no escapes.
+    filepath
+        If given, the text is also written to this file.
+
+    Returns
+    -------
+    str
+        The LEDA text.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_path_graph(3)
+
+    # Returns 'LEDA.GRAPH\\nstring\\nvoid\\n-2\\n3\\n|{1}|\\n|{2}|\\n|{3}|\\n2\\n1 2 0 |{}|\\n2 3 0 |{}|\\n'
+    ec.to_leda(graph)
+    ```
+
+    """
+    nodes = _nodes_of(graph)
+    edges = _edges_of(graph)
+    index = {nid: i for i, (nid, _, _) in enumerate(nodes, 1)}
+    if graph.is_weighted():
+        edge_type = "double"
+        data = ["" if w is None else repr(float(w)) for _, _, w, _ in edges]
+    elif any("label" in attrs for *_, attrs in edges):
+        edge_type = "string"
+        data = ["" if a.get("label") is None else str(a["label"]) for *_, a in edges]
+    else:
+        edge_type = "void"
+        data = [""] * len(edges)
+
+    lines = ["LEDA.GRAPH", "string", edge_type, "-1" if graph.is_directed() else "-2"]
+    lines.append(str(len(nodes)))
+    for nid, label, _ in nodes:
+        lines.append(_leda_item(str(nid) if label is None else label, "node label"))
+    lines.append(str(len(edges)))
+    for (source, target, _, _), text in zip(edges, data):
+        lines.append(f"{index[source]} {index[target]} 0 {_leda_item(text, 'edge label')}")
+    return _write_text(lines, filepath)
+
+
+# =============================================================================
+# LaTeX (TikZ) output
+# =============================================================================
+
+_DOC_WRAPPER_TIKZ = r"""\documentclass{{report}}
+\usepackage{{tikz}}
+\usepackage{{subcaption}}
+
+\begin{{document}}
+{content}
+\end{{document}}"""
+
+
+_FIG_WRAPPER = r"""\begin{{figure}}
+{content}{caption}{label}
+\end{{figure}}"""
+
+
+_SUBFIG_WRAPPER = r"""  \begin{{subfigure}}{{{size}\textwidth}}
+{content}{caption}{label}
+  \end{{subfigure}}"""
+
+
+def _latex_node_values(graph: Graph, spec: Union[str, dict], what: str) -> dict[int, Any]:
+    """Node ID -> value, from a node attribute name or a dict keyed by node ID or label."""
+    if isinstance(spec, dict):
+        return {graph._resolve_node_id(node): value for node, value in spec.items()}
+    if not isinstance(spec, str):
+        raise TypeError(f"{what}= must be a node attribute name or a dict, got {spec!r}")
+    values = {}
+    for nid, _, attrs in _nodes_of(graph):
+        if spec in attrs:
+            values[nid] = attrs[spec]
+    return values
+
+
+def _latex_edge_values(
+    graph: Graph, edges: list[tuple[int, int, int, dict]], spec: Union[str, dict], what: str
+) -> dict[int, Any]:
+    """
+    Edge ID -> value, from an edge attribute name or a dict keyed by edge ID or by a
+    `(source, target)` pair of node IDs or labels (which covers every edge between them).
+    """
+    if isinstance(spec, str):
+        return {eid: attrs[spec] for eid, _, _, attrs in edges if spec in attrs}
+    if not isinstance(spec, dict):
+        raise TypeError(f"{what}= must be an edge attribute name or a dict, got {spec!r}")
+    directed = graph.is_directed()
+    by_pair: dict[tuple[int, int], list[int]] = {}
+    for eid, source, target, _ in edges:
+        pair = (source, target) if directed else (min(source, target), max(source, target))
+        by_pair.setdefault(pair, []).append(eid)
+    ids = {eid for eid, *_ in edges}
+    values = {}
+    for key, value in spec.items():
+        if isinstance(key, int) and not isinstance(key, bool):
+            if key not in ids:
+                raise ValueError(f"{what}= names edge {key}, which isn't in the graph")
+            values[key] = value
+        elif isinstance(key, tuple) and len(key) == 2:
+            s, t = (graph._resolve_node_id(node) for node in key)
+            pair = (s, t) if directed else (min(s, t), max(s, t))
+            if pair not in by_pair:
+                raise ValueError(f"{what}= names the node pair {key!r}, which has no edge")
+            for eid in by_pair[pair]:
+                values[eid] = value
+        else:
+            raise TypeError(
+                f"{what}= keys must be edge IDs or (source, target) node pairs, got {key!r}"
+            )
+    return values
+
+
+def to_latex_raw(
+    graph: Graph,
+    pos: Union[str, dict] = "pos",
+    tikz_options: str = "",
+    default_node_options: str = "",
+    node_options: Union[str, dict] = "node_options",
+    node_label: Union[str, dict] = "label",
+    default_edge_options: str = "",
+    edge_options: Union[str, dict] = "edge_options",
+    edge_label: Union[str, dict] = "label",
+    edge_label_options: Union[str, dict] = "edge_label_options",
+) -> str:
+    """
+    The LaTeX/TikZ code that draws a graph, as a bare `tikzpicture` environment.
+
+    The output matches NetworkX's `to_latex_raw()`: one `\\draw` path places every node, then a
+    `scope` draws each edge as `\\draw (u) to (v);` (with `[->]` arrows in a directed graph and
+    `loop` added to self-loops). TikZ names each node by its ID, and the node's text is its label
+    unless `node_label=` gives other text. Use `to_latex()` to wrap the picture in a figure (and,
+    by default, a compilable document).
+
+    Every per-node and per-edge setting is either the name of an attribute to read or a dict.
+    Node dicts are keyed by node ID or label; edge dicts by edge ID or by a `(source, target)`
+    pair of nodes, which covers every edge between them.
+
+    Parameters
+    ----------
+    graph
+        The graph to draw.
+    pos
+        The node attribute holding each node's position, or a dict of positions. A position is an
+        `(x, y)` pair (rounded to 3 decimals) or a TikZ coordinate string such as `"(1, 2)"` or
+        `"(45:2)"`. The default reads the `pos` attribute the `layout_*()` methods set. If no node
+        has a position, the nodes are placed on a circle of radius 2.
+    tikz_options
+        Options for the `tikzpicture` environment, such as `"[scale=2]"`.
+    default_node_options
+        Options for the path that draws all the nodes, such as `"[circle, draw]"`.
+    node_options
+        Per-node TikZ options (attribute name or dict), such as `"red"` or `"[fill=blue!20]"`.
+    node_label
+        Per-node text (attribute name or dict); LaTeX such as `"$v_1$"` is allowed. A node with
+        none shows its label.
+    default_edge_options
+        Options for the scope that draws all the edges. The default is `[-]` for undirected
+        graphs and `[->]` for directed ones; options with no `-` get that arrow style prepended.
+    edge_options
+        Per-edge TikZ options (attribute name or dict), such as `"bend left"`.
+    edge_label
+        Per-edge text (attribute name or dict). An edge with none has no label.
+    edge_label_options
+        Per-edge options for the label text (attribute name or dict), such as `"[above]"`.
+
+    Returns
+    -------
+    str
+        The `tikzpicture` code.
+
+    Raises
+    ------
+    ValueError
+        If some nodes have positions and others don't, or a position isn't a pair or a string.
+
+    Technical Notes
+    ---------------
+    NetworkX writes each node under its own name; EdgeCase uses node IDs, which are always valid
+    TikZ names (labels may hold characters such as `.`, `,` or `:` that TikZ reads specially).
+    Labels are written as they are, so LaTeX special characters in them (`_`, `&`, `%`, `#`)
+    need escaping or math mode, as in NetworkX.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(directed=True).add_path_graph(3)
+
+    print(ec.to_latex_raw(graph))
+    #   \\begin{tikzpicture}
+    #       \\draw
+    #         (0.0:2) node (1){1}
+    #         (120.0:2) node (2){2}
+    #         (240.0:2) node (3){3};
+    #       \\begin{scope}[->]
+    #         \\draw (1) to (2);
+    #         \\draw (2) to (3);
+    #       \\end{scope}
+    #     \\end{tikzpicture}
+    ```
+
+    """
+    i4 = "\n    "
+    i8 = "\n        "
+    nodes = _nodes_of(graph)
+    edges = [
+        (eid, s, t, dict(graph.get_edge(eid).attributes or {}))
+        for eid, s, t in sorted(graph._graph.edges())
+    ]
+
+    if isinstance(pos, dict):
+        positions = {graph._resolve_node_id(node): value for node, value in pos.items()}
+    else:
+        positions = _latex_node_values(graph, pos, "pos")
+    if not positions:
+        positions = {
+            nid: f"({round(360.0 * i / len(nodes), 3)}:2)" for i, (nid, _, _) in enumerate(nodes)
+        }
+    places = {}
+    for nid, label, _ in nodes:
+        name = str(nid) if label is None else label
+        if nid not in positions:
+            raise ValueError(f"Node {name!r} has no position")
+        place = positions[nid]
+        if not isinstance(place, str):
+            try:
+                x, y = place
+                place = f"({round(x, 3)}, {round(y, 3)})"
+            except (TypeError, ValueError):
+                raise ValueError(
+                    f"The position of node {name!r} isn't an (x, y) pair or a string: {place!r}"
+                ) from None
+        places[nid] = place
+
+    n_opts = _latex_node_values(graph, node_options, "node_options")
+    n_text = _latex_node_values(graph, node_label, "node_label")
+    e_opts_of = _latex_edge_values(graph, edges, edge_options, "edge_options")
+    e_text = _latex_edge_values(graph, edges, edge_label, "edge_label")
+    e_label_opts = _latex_edge_values(graph, edges, edge_label_options, "edge_label_options")
+
+    topts = "" if tikz_options == "" else f"[{tikz_options.strip('[]')}]"
+    defn = "" if default_node_options == "" else f"[{default_node_options.strip('[]')}]"
+    linestyle = "->" if graph.is_directed() else "-"
+    if default_edge_options == "":
+        defe = "[" + linestyle + "]"
+    elif "-" in default_edge_options:
+        defe = default_edge_options
+    else:
+        defe = f"[{linestyle},{default_edge_options.strip('[]')}]"
+
+    result = "  \\begin{tikzpicture}" + topts
+    result += i4 + "  \\draw" + defn
+    for nid, label, _ in nodes:
+        nopts = f"[{str(n_opts[nid]).strip('[]')}]" if nid in n_opts else ""
+        text = n_text[nid] if nid in n_text else (str(nid) if label is None else label)
+        result += i8 + f"{places[nid]} node{nopts} ({nid}){{{text}}}"
+    result += ";\n"
+
+    result += "      \\begin{scope}" + defe
+    for eid, u, v, _ in edges:
+        e_opts = f"{e_opts_of[eid]}".strip("[]") if eid in e_opts_of else ""
+        if u == v and "loop" not in e_opts:
+            e_opts = "loop," + e_opts
+        e_opts = f"[{e_opts}]" if e_opts != "" else ""
+        els = f"[{str(e_label_opts.get(eid, '')).strip('[]')}]"
+        label = f" node{els} {{{e_text[eid]}}}" if eid in e_text else ""
+        result += i8 + f"\\draw{e_opts} ({u}) to{label} ({v});"
+    result += "\n      \\end{scope}\n    \\end{tikzpicture}\n"
+    return result
+
+
+def to_latex(
+    graphs: Union[Graph, Sequence[Graph]],
+    pos: Union[str, dict, Sequence[Union[str, dict]]] = "pos",
+    tikz_options: str = "",
+    default_node_options: str = "",
+    node_options: Union[str, dict] = "node_options",
+    node_label: Union[str, dict] = "node_label",
+    default_edge_options: str = "",
+    edge_options: Union[str, dict] = "edge_options",
+    edge_label: Union[str, dict] = "edge_label",
+    edge_label_options: Union[str, dict] = "edge_label_options",
+    caption: str = "",
+    latex_label: str = "",
+    sub_captions: Optional[Sequence[str]] = None,
+    sub_labels: Optional[Sequence[str]] = None,
+    n_rows: int = 1,
+    as_document: bool = True,
+    document_wrapper: str = _DOC_WRAPPER_TIKZ,
+    figure_wrapper: str = _FIG_WRAPPER,
+    subfigure_wrapper: str = _SUBFIG_WRAPPER,
+    filepath: Union[str, Path, None] = None,
+) -> str:
+    """
+    LaTeX code that draws one or more graphs with TikZ, in a figure environment.
+
+    A single graph is drawn in a `figure`; a list of graphs is drawn as `subfigure`s of one
+    figure, arranged in `n_rows=` rows. By default the figure is wrapped in a minimal `report`
+    document that loads `tikz` and `subcaption`, so the output compiles as it is (with `pdflatex`,
+    say). The output matches NetworkX's `to_latex()`, and `filepath=` covers its `write_latex()`.
+    Each picture comes from `to_latex_raw()`, which describes the drawing settings.
+
+    Parameters
+    ----------
+    graphs
+        The graph to draw, or a list of graphs to draw as subfigures.
+    pos
+        Node positions, as in `to_latex_raw()`. For a list of graphs, a list with one setting per
+        graph is allowed too.
+    tikz_options
+        Options for each `tikzpicture` environment.
+    default_node_options
+        Options for the path that draws all the nodes.
+    node_options
+        Per-node TikZ options (attribute name or dict).
+    node_label
+        Per-node text (attribute name or dict). A node with none shows its label.
+    default_edge_options
+        Options for the scope that draws all the edges.
+    edge_options
+        Per-edge TikZ options (attribute name or dict).
+    edge_label
+        Per-edge text (attribute name or dict).
+    edge_label_options
+        Per-edge options for the label text (attribute name or dict).
+    caption
+        The figure's caption, if any.
+    latex_label
+        The figure's `\\label`, for `\\ref` from the text, if any.
+    sub_captions
+        One caption per subfigure (for a list of graphs).
+    sub_labels
+        One `\\label` per subfigure (for a list of graphs).
+    n_rows
+        The number of rows of subfigures; each subfigure is `1 / n_rows` of the text width wide.
+    as_document
+        Whether to wrap the figure in a compilable document.
+    document_wrapper
+        A format string with a `{content}` field that wraps the figure into a document.
+    figure_wrapper
+        A format string with `{content}`, `{caption}` and `{label}` fields for the figure.
+    subfigure_wrapper
+        A format string with `{size}`, `{content}`, `{caption}` and `{label}` fields for each
+        subfigure.
+    filepath
+        If given, the code is also written to this file.
+
+    Returns
+    -------
+    str
+        The LaTeX code.
+
+    Raises
+    ------
+    ValueError
+        If the lists of graphs, positions, subfigure captions and subfigure labels differ in
+        length, or a graph's positions are incomplete (see `to_latex_raw()`).
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph().add_cycle_graph(4).layout_circular()
+
+    # Returns the code for a compilable document with one captioned figure
+    ec.to_latex(graph, caption="A 4-cycle", latex_label="fig:cycle")
+
+    # Two graphs side by side, as subfigures
+    ec.to_latex(
+        [ec.Graph().add_path_graph(4), ec.Graph().add_full_graph(4)],
+        sub_captions=["Path", "Complete"],
+        as_document=False,
+    )
+    ```
+
+    """
+    settings = (
+        tikz_options,
+        default_node_options,
+        node_options,
+        node_label,
+        default_edge_options,
+        edge_options,
+        edge_label,
+        edge_label_options,
+    )
+    if isinstance(graphs, Graph):
+        raw = to_latex_raw(graphs, pos, *settings)
+    else:
+        graphs = list(graphs)
+        count = len(graphs)
+        positions = [pos] * count if isinstance(pos, (str, dict)) else list(pos)
+        sub_captions = [""] * count if sub_captions is None else list(sub_captions)
+        sub_labels = [""] * count if sub_labels is None else list(sub_labels)
+        if not (count == len(positions) == len(sub_captions) == len(sub_labels)):
+            raise ValueError(
+                "The lists of graphs, positions, sub_captions and sub_labels must be the same "
+                "length"
+            )
+        size = 1 / n_rows
+        raw = ""
+        for graph, place, subcap, sublbl in zip(graphs, positions, sub_captions, sub_labels):
+            subraw = to_latex_raw(graph, place, *settings)
+            cap = f"    \\caption{{{subcap}}}" if subcap else ""
+            lbl = f"\\label{{{sublbl}}}" if sublbl else ""
+            raw += subfigure_wrapper.format(size=size, content=subraw, caption=cap, label=lbl)
+            raw += "\n"
+
+    raw = raw[:-1]
+    cap = f"\n  \\caption{{{caption}}}" if caption else ""
+    lbl = f"\\label{{{latex_label}}}" if latex_label else ""
+    text = figure_wrapper.format(content=raw, caption=cap, label=lbl)
+    if as_document:
+        text = document_wrapper.format(content=text)
+    if filepath is not None:
+        with open(Path(filepath), "w", encoding="utf-8") as f:
+            f.write(text)
+    return text
+
+
+# =============================================================================
 # graph6 / sparse6
 # =============================================================================
 
@@ -4240,6 +4827,10 @@ __all__ = [
     "to_cytoscape",
     "from_pajek",
     "to_pajek",
+    "from_leda",
+    "to_leda",
+    "to_latex",
+    "to_latex_raw",
     "from_graph6",
     "to_graph6",
     "from_sparse6",
