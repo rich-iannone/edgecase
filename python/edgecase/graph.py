@@ -44760,11 +44760,13 @@ class Graph:
             The group's nodes, as integer IDs or string labels.
         normalized
             If `True` (default), divide by `(n - c)(n - c - 1)`, the number of ordered pairs
-            outside a group of size `c`, so the score lies in `[0, 1]`. If `False`, return the raw
+            outside a group of size `c`, or by `n(n - 1)`, the number of all ordered pairs, when
+            `endpoints=True`. Either way the score lies in `[0, 1]`. If `False`, return the raw
             sum (each unordered pair counted once on undirected graphs).
         endpoints
             If `True`, also count pairs with an endpoint in the group (every such path touches
-            the group). Default is `False`.
+            the group). The normalized score is then at least `c(c - 1) / (n(n - 1))`, the
+            share of pairs inside the group. Default is `False`.
         weighted
             Whether to measure path length by edge weight. If `None` (default), follows the
             graph.
@@ -44803,10 +44805,13 @@ class Graph:
 
         Notes
         -----
-        NetworkX's `group_betweenness_centrality()` can return values that disagree with this
-        definition (seen on directed graphs that are not strongly connected, where it can also
-        fail, and on some connected undirected graphs). EdgeCase counts shortest paths directly
-        and agrees with a brute-force count over all of them.
+        Before version 3.7, NetworkX's `group_betweenness_centrality()` could return values that
+        disagree with this definition (on directed graphs that are not strongly connected, where
+        it could also fail, and on some connected undirected graphs). EdgeCase counts shortest
+        paths directly and agrees with a brute-force count over all of them, as NetworkX 3.7
+        does. Version 3.7 also changed the `endpoints=True` normalization from
+        `(n - c)(n - c - 1)` to `n(n - 1)`, which EdgeCase follows.
+        `prominent_group()` keeps `(n - k)(n - k - 1)` in both libraries.
         """
         ids = self._group_ids(group)
         value = rust.group_betweenness_centrality(
@@ -44965,6 +44970,9 @@ class Graph:
             If `True`, also count pairs with an endpoint in the group. Default is `False`.
         normalized
             If `True` (default), divide by `(n - k)(n - k - 1)` so the score lies in `[0, 1]`.
+            NetworkX 3.7 uses the same divisor with `endpoints=True`, so EdgeCase does too,
+            although the score can then exceed 1. `group_betweenness_centrality(endpoints=True)`
+            divides by `n(n - 1)` instead, so set `normalized=False` to compare the two.
         greedy
             If `True`, add the node with the largest gain one at a time instead of searching
             exhaustively. Much faster on large graphs, but the group may not be the best one.
@@ -57436,6 +57444,12 @@ class Graph:
 
         Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
         the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
+
+        On a directed graph, "disconnected" means not strongly connected: some remaining node can
+        no longer reach another along edge directions. A digraph that is only weakly connected
+        therefore has connectivity `0`. Pairs are ordered (Even and Tarjan, 1975), because
+        separating `v` from `u` can take fewer nodes than separating `u` from `v`. Self-loops
+        and parallel edges don't change the result.
 
         Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
         Implementation transforms the problem to max-flow.
