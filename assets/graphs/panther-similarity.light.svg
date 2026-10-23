@@ -1,0 +1,38 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Panther similarity</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="512.0" y="48.0" width="224.0" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 124.00 72.00 L 124.00 124.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 137.50 131.41 L 176.50 106.59" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 176.50 89.41 L 137.50 64.59" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 206.00 98.00 L 246.00 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 275.50 89.41 L 314.50 64.59" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 328.00 72.00 L 328.00 124.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 314.50 131.41 L 275.50 106.59" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="124.0" cy="56.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="124.0" y="56.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">a</text>
+<circle cx="124.0" cy="140.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="124.0" y="140.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">b</text>
+<circle cx="190.0" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="190.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">c</text>
+<circle cx="262.0" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="262.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">x</text>
+<circle cx="328.0" cy="56.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="328.0" y="56.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">y</text>
+<circle cx="328.0" cy="140.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="328.0" y="140.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">z</text>
+<rect x="168.7" y="67.0" width="42.5" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="72.4" y="114.0" width="42.5" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<rect x="240.7" y="67.0" width="42.5" height="16.0" rx="8.0" fill="#c2410c" stroke="#c2410c" stroke-opacity="1" stroke-width="1"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="608.9" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.panther_similarity(&quot;a&quot;, k=3, seed=1)</text>
+<text x="190.0" y="75.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">0.609</text>
+<text x="93.7" y="122.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">0.478</text>
+<text x="262.0" y="75.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#ffffff" fill-opacity="1.0">0.391</text>
+<text x="526.0" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">top k = 3 similar to a</text>
+<text x="526.0" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">1  c  0.609</text>
+<text x="526.0" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">2  b  0.478</text>
+<text x="526.0" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">3  x  0.391</text>
+</svg>
