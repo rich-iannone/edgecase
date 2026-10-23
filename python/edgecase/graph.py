@@ -5931,6 +5931,8 @@ class Graph:
         """
         Center and resize a layout that's already been computed.
 
+        ![Rescale a layout](/assets/graphs/rescale-layout.light.svg){.lightbox fig-alt="A four-node cycle placed by hand: nodes 1 to 4 at (0, 0), (4, 8), (12, 8) and (16, 0), with a small cross at their mean (8, 4). After rescale_layout() the same shape is centered on the origin and fits the dashed square from -1 to 1: the nodes move to (-1, -0.5), (-0.5, 0.5), (0.5, 0.5) and (1, -0.5), shown in accent." width="100%"}
+
         Shifts the positions so their mean sits at `center=`, then scales them evenly (keeping
         the drawing's shape) so the coordinate farthest from it is `scale=` away along `x` or
         `y`. Every `layout_*()` method does this to its own result; use this to bring positions
@@ -34951,6 +34953,8 @@ class Graph:
         """
         List every minimum-cost edit path that transforms this graph into another.
 
+        ![Optimal edit paths](/assets/graphs/optimal-edit-paths.light.svg){.lightbox fig-alt="A three-node path A–B–C beside a triangle X, Y, Z. The first of the six optimal edit paths, each costing 1, maps A to X, B to Y and C to Z (matching colors in both graphs and the card); the path's two edges land on X–Y and Y–Z, and the triangle's third edge Z–X, dashed in accent, is the one insertion." width="100%"}
+
         An edit path is a complete account of how this graph turns into a graph isomorphic to
         `other=`: every node of this graph is substituted by a node of `other=` or deleted, every
         node of `other=` not substituted is inserted, and the same holds for edges. The cost of
@@ -35073,6 +35077,8 @@ class Graph:
         """
         Iterate over improving estimates of the exact graph edit distance.
 
+        ![Improving edit distance estimates](/assets/graphs/optimize-graph-edit-distance.light.svg){.lightbox fig-alt="Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on other labels, sharing D–E, with an extra node B hanging off E (accent). The search yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the exact distance: insert node B and edge E–B." width="100%"}
+
         The exact search behind `graph_edit_distance(exact=True)` finds complete edit paths of
         strictly decreasing cost until no cheaper one exists. This method yields each of those
         costs in turn, so the last value is the exact graph edit distance and every earlier one
@@ -35171,6 +35177,8 @@ class Graph:
     ) -> Iterator[tuple[list[tuple], list[tuple], float]]:
         """
         Iterate over the edit paths found by the exact graph edit distance search.
+
+        ![Edit paths with forced roots](/assets/graphs/optimize-edit-paths.light.svg){.lightbox fig-alt="A six-node star, center 1 and leaves 2 to 6, compared with itself twice, each comparison drawing the star and its copy side by side. On the left the roots pair the two centers (outlined in accent) and the cheapest edit path costs 0. On the right the roots force leaf 2 of the first star onto the center of the second, and the cheapest path costs 8: four edges deleted and four inserted to rewire the star around its new center." width="100%"}
 
         This is the general interface behind `graph_edit_distance(exact=True)`,
         `optimal_edit_paths()` and `optimize_graph_edit_distance()`. The search yields each
@@ -63613,6 +63621,8 @@ class Graph:
     ) -> tuple[list[list[float]], list]:
         """
         Get an adjacency matrix built from edge and node attributes.
+
+        ![Attribute matrix](/assets/graphs/attr-matrix.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, with team x on A, B, C (teal) and team y on D, E, F (violet), and the 2 by 2 matrix of edge counts between the teams. Each triangle's three edges stay inside its team, 3 in each diagonal cell, and the single cross edge C–D (accent) puts 1 in each off-diagonal cell." width="100%"}
 
         Entry `[i][j]` adds up a value over the edges from the `i`-th row's nodes to the `j`-th
         column's nodes. With `node_attr=None` the rows and columns are the nodes themselves, so
