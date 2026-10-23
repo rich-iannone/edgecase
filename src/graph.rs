@@ -2978,8 +2978,10 @@ impl Graph {
             ));
         }
 
-        // Special case: if not connected, connectivity is 0
-        if !self.is_connected() {
+        // Special case: nodes in different components have connectivity 0. The
+        // component map follows out-edges only, so on a digraph leave this to the
+        // max-flow below, which finds 0 by itself when target can't be reached.
+        if !self.directed && !self.is_connected() {
             // Check if source and target are in same component
             let components = self.find_connected_components();
             let source_comp = components.get(&source);
@@ -3006,12 +3008,14 @@ impl Graph {
             }
         }
 
-        // Add edges from original graph: u_out -> v_in (and v_out -> u_in if undirected)
+        // Add edges from original graph: u_out -> v_in (and v_out -> u_in if undirected).
+        // Capacity stays 1 under parallel edges, so a doubled source-target edge is still
+        // one path rather than two.
         for edge in &self.edges {
             let (s, t) = (edge.source, edge.target);
-            *capacity.entry((s * 2 + 1, t * 2)).or_insert(0) += 1;
+            capacity.insert((s * 2 + 1, t * 2), 1);
             if !self.directed {
-                *capacity.entry((t * 2 + 1, s * 2)).or_insert(0) += 1;
+                capacity.insert((t * 2 + 1, s * 2), 1);
             }
         }
         let (flow_source, flow_sink) = (source * 2 + 1, target * 2);
@@ -3053,77 +3057,74 @@ impl Graph {
 
     /// Compute global node connectivity
     ///
-    /// Returns the minimum number of nodes whose removal disconnects the graph.
-    /// This is computed as the minimum pairwise node connectivity over all pairs
-    /// of non-adjacent nodes.
+    /// Returns the minimum number of nodes whose removal disconnects the graph
+    /// (for a digraph, leaves it not strongly connected), or n - 1 if every
+    /// ordered pair of distinct nodes is joined by an arc. This is the minimum
+    /// local node connectivity over the pairs (u, v) with no edge u -> v; on a
+    /// digraph those pairs are ordered (Even and Tarjan 1975), since cutting u
+    /// off from v is not the same as cutting v off from u.
     pub fn node_connectivity(&self) -> PyResult<usize> {
         let n = self.num_nodes();
 
-        if n == 0 {
+        if n <= 1 {
             return Ok(0);
         }
 
-        if n == 1 {
+        // A digraph that is only weakly connected already has a node that can't
+        // reach another, so nothing needs removing.
+        let connected = if self.directed {
+            self.is_strongly_connected()?
+        } else {
+            self.is_connected()
+        };
+        if !connected {
             return Ok(0);
         }
 
-        // If disconnected, connectivity is 0
-        if !self.is_connected() {
-            return Ok(0);
-        }
-
-        // If complete graph, connectivity is n - 1
-        let num_edges = self.num_edges();
-        let expected_complete = n * (n - 1) / 2;
-        if !self.directed && num_edges == expected_complete {
-            return Ok(n - 1);
-        }
-
-        // Optimization: connectivity <= min_degree
-        let min_degree = self.nodes.keys()
-            .map(|&id| self.degree(id))
-            .min()
-            .unwrap_or(0);
-
-        if min_degree == 0 {
-            return Ok(0);
-        }
-
-        if min_degree == 1 {
-            return Ok(1);
-        }
-
-        // Compute minimum over all non-adjacent pairs
-        let mut min_connectivity = usize::MAX;
-        let mut nodes: Vec<u64> = Vec::with_capacity(n);
-        nodes.extend(self.nodes.keys().copied());
+        // Distinct out-neighbors (all neighbors if undirected) and in-neighbors,
+        // ignoring self-loops and parallel edges, which don't affect node cuts.
+        let mut nodes: Vec<u64> = self.nodes.keys().copied().collect();
         nodes.sort(); // Ensure consistent ordering
-
-        for i in 0..nodes.len() {
-            for j in (i + 1)..nodes.len() {
-                let u = nodes[i];
-                let v = nodes[j];
-
-                // Only check non-adjacent pairs (adjacent pairs have higher connectivity)
-                let are_adjacent = self.edges.iter().any(|e| {
-                    (e.source == u && e.target == v) || (e.source == v && e.target == u)
-                });
-
-                if !are_adjacent {
-                    let conn = self.node_connectivity_between(u, v)?;
-                    min_connectivity = min_connectivity.min(conn);
-
-                    // Early termination if we found connectivity 1
-                    if min_connectivity == 1 {
-                        return Ok(1);
-                    }
-                }
+        let mut succ: FxHashMap<u64, FxHashSet<u64>> =
+            nodes.iter().map(|&v| (v, FxHashSet::default())).collect();
+        let mut pred = succ.clone();
+        for e in &self.edges {
+            if e.source == e.target {
+                continue;
+            }
+            succ.get_mut(&e.source).unwrap().insert(e.target);
+            pred.get_mut(&e.target).unwrap().insert(e.source);
+            if !self.directed {
+                succ.get_mut(&e.target).unwrap().insert(e.source);
+                pred.get_mut(&e.source).unwrap().insert(e.target);
             }
         }
 
-        // If all pairs are adjacent (complete graph), connectivity is n-1
-        if min_connectivity == usize::MAX {
-            return Ok(n - 1);
+        // Removing all of a node's out- (or in-) neighbors cuts it off, so the
+        // connectivity is at most the smallest such count, and n - 1 when every
+        // pair is joined.
+        let mut min_connectivity = nodes
+            .iter()
+            .map(|v| succ[v].len().min(pred[v].len()))
+            .min()
+            .unwrap_or(0);
+        if min_connectivity <= 1 {
+            return Ok(min_connectivity);
+        }
+
+        for &u in &nodes {
+            for &v in &nodes {
+                if u == v || (!self.directed && v < u) || succ[&u].contains(&v) {
+                    continue;
+                }
+                let conn = self.node_connectivity_between(u, v)?;
+                min_connectivity = min_connectivity.min(conn);
+
+                // A connected graph can't do better than 1
+                if min_connectivity == 1 {
+                    return Ok(1);
+                }
+            }
         }
 
         Ok(min_connectivity)
