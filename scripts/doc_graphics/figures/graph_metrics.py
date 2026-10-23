@@ -19,9 +19,9 @@ Siblings share a few base graphs so they can be compared directly:
           variant (`HUB_EDGES`, degree badges, hub–leaf edges accent) is
           shared by every degree-mixing method: assortativity, Pearson r,
           mixing dict / matrix, average degree connectivity. The attribute
-          mixing methods draw the full PAIR with the two input teams as
-          `g2` / `g3` and the cross edge in accent; matrices are small
-          tables with their row/column labels in a note line above
+          mixing methods and attr_matrix draw the full PAIR with the two
+          input teams as `g2` / `g3` and the cross edge in accent; matrices
+          are small tables with their row/column labels in a note line above
 - `STAR`  a hub with three leaves and a three-node tail, where the
           center and the barycenter differ (get_barycenter; badges give each
           node's total distance)
@@ -682,6 +682,25 @@ def attribute_mixing_matrix(s: Scene) -> None:
     _, y0, _, _ = s.table_centered(right, rows, [40, 52, 52],
                                    highlight={(1, 1): "accent", (2, 2): "accent"})
     s.text(right.cx, y0 - 12, "values = [x, y]", size=SIZE_NOTE, opacity=0.6)
+
+
+@figure("attr_matrix", "graph-metrics", "Attribute matrix",
+        "Two triangles joined by the edge C–D, with team x on A, B, C (teal) and team y on D, "
+        "E, F (violet), and the 2 by 2 matrix of edge counts between the teams. Each triangle's three edges stay inside its team, "
+        "3 in each diagonal cell, and the single cross edge C–D (accent) puts 1 in each "
+        "off-diagonal cell.")
+def attr_matrix(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(PAIR)).add_edges(PAIR_EDGES)
+    g.set_node_attrs("team", {i: "x" if k in "ABC" else "y" for i, k in enumerate(PAIR, 1)})
+    m, labels = g.attr_matrix(node_attr="team")
+    assert (m, labels) == ([[3.0, 1.0], [1.0, 3.0]], ["x", "y"])
+    left, right = compute(s, "g", 'g.attr_matrix(node_attr="team")')
+    _teams(s, left)
+    _matrix(s, right, labels, [[int(v) for v in row] for row in m], "labels = [x, y]",
+            col_w=52, head_w=40, highlight={(0, 0): "g2", (1, 1): "g3", (0, 1): "accent",
+                                            (1, 0): "accent"})
 
 
 # --- triangles per edge -------------------------------------------------------------

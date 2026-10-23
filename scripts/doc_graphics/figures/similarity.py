@@ -13,6 +13,11 @@ degrees (C: 3, D: 2), which is what separates Adamic-Adar and resource
 allocation from the plain count. SimRank* and communicability reuse it too.
 The two graph-vs-graph comparisons (edge overlap, edit distance) draw G and H
 side by side in the input panel, with the matched or edited parts in accent.
+The exact edit-path methods do the same with graphs built and checked in
+edgecase: optimal_edit_paths colors the first path's node pairs g2 / g3 / g4
+in both graphs and the card, with the inserted edge dashed (`ghost`);
+optimize_graph_edit_distance lists the falling costs, ending in the distance;
+and optimize_edit_paths uses `contrast` on its docstring star, roots `soft`.
 The isomorphism and hashing methods follow their docstring examples and use
 node-group colors for classes: find_isomorphism gives each matched pair one
 color (accent / g2 / g3) in both graphs and the card, the Weisfeiler-Lehman
@@ -31,7 +36,7 @@ link, and the common neighbors the score counts are accent (C stays plain
 where the score ignores it); the card shows the formula's numbers.
 """
 
-from core import SIZE_LABEL, SIZE_NOTE, Box, Scene, compute, figure, place
+from core import SIZE_LABEL, SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
 
 UNIT = 60  # one graph scale for the whole family
 
@@ -372,6 +377,117 @@ def graph_edit_distance(s: Scene) -> None:
           h_pos={"A": (0, 0), "B": (1.5, 0), "E": (0, 1.5), "D": (1.5, 1.5)})
     s.card_centered(right, ["delete  node C, edge A–C", "insert  node E, edge D–E",
                             ("distance = 2 + 2 = 4", "accent")], w=CARD_W, title="cost 1 per edit")
+
+
+# --- exact edit paths ------------------------------------------------------
+#
+# The exact search (optimal_edit_paths, optimize_graph_edit_distance,
+# optimize_edit_paths) works on node and edge ids, so these figures build the
+# graphs with edgecase, assert what it returns, and draw from that.
+
+# optimal_edit_paths docstring: a three-node path laid onto a triangle.
+PATH3 = {"A": (0, 1.2), "B": (0.8, 0), "C": (1.6, 1.2)}
+TRI3 = {"X": (0, 1.2), "Y": (0.8, 0), "Z": (1.6, 1.2)}
+
+
+def _ids(g, pairs) -> list[tuple]:
+    """Node-id pairs of an edit path as label pairs (None stays None)."""
+    return [tuple(None if x is None else gr.get_label_from_id(x) for x, gr in zip(p, g))
+            for p in pairs]
+
+
+@figure("optimal_edit_paths", "similarity", "Optimal edit paths",
+        "A three-node path A–B–C beside a triangle X, Y, Z. The first of the six optimal edit "
+        "paths, each costing 1, maps A to X, B to Y and C to Z (matching colors in both "
+        "graphs and the card); the path's two edges land on X–Y and Y–Z, and the triangle's "
+        "third edge Z–X, dashed in accent, is the one insertion.")
+def optimal_edit_paths(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(PATH3)).add_edges([("A", "B"), ("B", "C")])
+    h = ec.Graph().add_nodes(list(TRI3)).add_edges([("X", "Y"), ("Y", "Z"), ("Z", "X")])
+    paths, cost = g.optimal_edit_paths(h)
+    assert (len(paths), cost) == (6, 1.0)
+    node_path, edge_path = paths[0]
+    assert _ids((g, h), node_path) == [("A", "X"), ("B", "Y"), ("C", "Z")]
+    inserted = [f for e, f in edge_path if e is None]
+    assert [h.get_node_ids_by_edge_id(f) for f in inserted] == [(3, 1)]  # Z–X
+
+    left, right = compute(s, "path", "path.optimal_edit_paths(triangle)")
+    pbox, tbox = _halves(s, left, "path", "triangle")
+    colors = dict(zip(PATH3, ("g2", "g3", "g4")))
+    s.graph(place(PATH3, pbox, unit=UNIT), [("A", "B"), ("B", "C")], styles=colors, prefix="g.")
+    s.graph(place(TRI3, tbox, unit=UNIT), [("X", "Y"), ("Y", "Z"), ("Z", "X", {"style": "ghost"})],
+            styles={v: colors[u] for u, v in _ids((g, h), node_path)}, prefix="h.")
+    s.card_centered(right, [(f"{u}  →  {v}", colors[u]) for u, v in _ids((g, h), node_path)]
+                    + [("insert edge Z–X", "accent")], w=CARD_W,
+                    title=f"paths[0] of {len(paths)}, cost = {cost}")
+
+
+# optimize_graph_edit_distance: a diamond against a relabeled diamond with a
+# pendant, edges listed in an order that sends the search through four
+# upper bounds before the distance (asserted below).
+DIA_G = {"A": (1, 0), "B": (1, 1.5), "C": (0, 0.75), "D": (2, 0.75)}
+DIA_G_EDGES = [("B", "C"), ("A", "D"), ("A", "C"), ("B", "D"), ("A", "B")]
+DIA_H = {"A": (0, 0.75), "B": (2, 1.5), "C": (2, 0.75), "D": (1, 0), "E": (1, 1.5)}
+DIA_H_EDGES = [("C", "D"), ("A", "E"), ("C", "E"), ("D", "E"), ("A", "D"), ("B", "E")]
+
+
+@figure("optimize_graph_edit_distance", "similarity", "Improving edit distance estimates",
+        "Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on "
+        "other labels, sharing D–E, with an extra node B hanging off E (accent). The search "
+        "yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the "
+        "exact distance: insert node B and edge E–B.")
+def optimize_graph_edit_distance(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list("ABCD")).add_edges(DIA_G_EDGES)
+    h = ec.Graph().add_nodes(list("ABCDE")).add_edges(DIA_H_EDGES)
+    costs = list(g.optimize_graph_edit_distance(h))
+    assert costs == [10.0, 8.0, 6.0, 4.0, 2.0]
+    *_, (node_path, _, _) = g.optimize_edit_paths(h)
+    assert ("A", "B") not in _ids((g, h), node_path) and (None, "B") in _ids((g, h), node_path)
+
+    left, right = compute(s, "G", "list(G.optimize_graph_edit_distance(H))")
+    gbox, hbox = _halves(s, left, "G", "H")
+    s.graph(place(DIA_G, gbox, unit=UNIT), DIA_G_EDGES, prefix="g.")
+    s.graph(place(DIA_H, hbox, unit=UNIT),
+            [(a, b, {"style": "accent"}) if "B" in (a, b) else (a, b) for a, b in DIA_H_EDGES],
+            styles={"B": "accent"}, prefix="h.")
+    first, *mid, last = costs
+    s.card_centered(right, [f"first  {first}", "then   " + "  ".join(map(str, mid)),
+                            (f"last   {last} = distance", "accent")],
+                    w=CARD_W, title="each cost below the last")
+
+
+# optimize_edit_paths docstring: a six-node star against itself, center 1.
+STAR6 = {"1": (0, 0), **ring([str(i) for i in range(2, 7)])}
+STAR_UNIT = 58  # two stars side by side in each half of the contrast
+
+
+@figure("optimize_edit_paths", "similarity", "Edit paths with forced roots",
+        "A six-node star, center 1 and leaves 2 to 6, compared with itself twice, each "
+        "comparison drawing the star and its copy side by side. On the left the roots pair "
+        "the two centers (outlined in accent) and the cheapest edit path costs "
+        "0. On the right the roots force leaf 2 of the first star onto the center of the "
+        "second, and the cheapest path costs 8: four edges deleted and four inserted to "
+        "rewire the star around its new center.")
+def optimize_edit_paths(s: Scene) -> None:
+    import edgecase as ec
+
+    star = ec.Graph().add_star_graph(6)
+    assert [(a, b) for _, a, b in star.get_edges_as_tuples()] == [(1, i) for i in range(2, 7)]
+    best = {r: [c for *_, c in star.optimize_edit_paths(star, roots=r)][-1] for r in ((1, 1), (2, 1))}
+    assert best == {(1, 1): 0.0, (2, 1): 8.0}
+
+    left, right = contrast(s, "optimize_edit_paths(star, roots=(1, 1))",
+                           "optimize_edit_paths(star, roots=(2, 1))",
+                           str(best[1, 1]), str(best[2, 1]))
+    edges = [("1", str(i)) for i in range(2, 7)]
+    for box, (u, v), tag in ((left, (1, 1), "l"), (right, (2, 1), "r")):
+        a, b = Box(box.x0, box.y0, box.cx, box.y1), Box(box.cx, box.y0, box.x1, box.y1)
+        s.graph(place(STAR6, a, unit=STAR_UNIT), edges, styles={str(u): "soft"}, prefix=f"{tag}g.")
+        s.graph(place(STAR6, b, unit=STAR_UNIT), edges, styles={str(v): "soft"}, prefix=f"{tag}h.")
 
 
 # --- isomorphism and structural hashes -------------------------------------

@@ -14,11 +14,16 @@ groups that `layout_shell()`, `layout_bipartite()` and `layout_multipartite()`
 place apart are colored `accent`, `g2`, `g3` (edges inside a group take its
 color), and the BFS start node is `soft`. The scatter for `layout_random()`
 itself is swapped for a circle, so its output is the scattered side.
+
+`rescale_layout()` changes coordinates, not the shape, so its figure draws
+both panels at their own coordinates instead (each node with its (x, y), the
+result in accent), with a cross at the positions' mean and a dashed square
+for the [-1, 1] frame the result fills.
 """
 
 import math
 
-from core import MUTED, R_SMALL, Scene, figure, place, transform
+from core import MUTED, R_SMALL, SIZE_NOTE, Scene, figure, place, transform
 
 UNIT = 96  # the layouts span about 2 units; this fills the panel height
 
@@ -267,3 +272,56 @@ def layout_forceatlas2(s: Scene) -> None:
 def layout_arf(s: Scene) -> None:
     g = _graph("add_barbell_graph(3, 1)")
     _before_after(s, "layout_arf", g, "layout_arf(seed=19)")
+
+
+# rescale_layout: hand-placed positions, drawn at their own coordinates (one
+# unit = HAND_PX) on the left and in the rescaled frame on the right, where
+# the dashed square is [-1, 1] on both axes. Each node carries its (x, y); a
+# small cross marks the positions' mean, which moves to the origin.
+HAND = {1: (0, 0), 2: (4, 8), 3: (12, 8), 4: (16, 0)}
+HAND_PX = 12
+UNIT_PX = 84  # one unit of the rescaled frame: the square fills the panel height
+COORD_AT = {1: "w", 2: "n", 3: "n", 4: "e"}  # clear of the edges and the frame
+
+
+def _fmt(p: tuple[float, float]) -> str:
+    return f"({p[0]:g}, {p[1]:g})"
+
+
+def _framed(s: Scene, box, coords: dict, px: float, prefix: str, color: str) -> tuple[float, float]:
+    """Draw the cycle at `coords` (px per unit), centered on their mean; return the mean's px."""
+    mx = sum(x for x, _ in coords.values()) / len(coords)
+    my = sum(y for _, y in coords.values()) / len(coords)
+    pos = {str(k): (box.cx + (x - mx) * px, box.cy - (y - my) * px) for k, (x, y) in coords.items()}
+    s.graph(pos, [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")], prefix=prefix, r=R_SMALL)
+    for k, where in COORD_AT.items():
+        n = s.nodes[f"{prefix}{k}"]
+        dx = {"w": -(n.r + 5), "e": n.r + 5}.get(where, 0)
+        dy = -(n.r + 9) if where == "n" else 0
+        s.text(n.x + dx, n.y + dy, _fmt(coords[k]), size=SIZE_NOTE,
+               anchor={"w": "end", "e": "start"}.get(where, "middle"), color=color)
+    for x1, y1, x2, y2 in ((-5, 0, 5, 0), (0, -5, 0, 5)):
+        s.line(box.cx + x1, box.cy + y1, box.cx + x2, box.cy + y2, width=1, opacity=0.6, role="axis")
+    return mx, my
+
+
+@figure("rescale_layout", "layout", "Rescale a layout",
+        "A four-node cycle placed by hand: nodes 1 to 4 at (0, 0), (4, 8), (12, 8) and (16, 0), "
+        "with a small cross at their mean (8, 4). After rescale_layout() the same shape is "
+        "centered on the origin and fits the dashed square from -1 to 1: the nodes move to "
+        "(-1, -0.5), (-0.5, 0.5), (0.5, 0.5) and (1, -0.5), shown in accent.")
+def rescale_layout(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(4)
+    g.set_node_attrs("xy", {k: list(v) for k, v in HAND.items()})
+    g.rescale_layout(pos="xy")
+    out = {k: tuple(v) for k, v in g.get_node_attrs("xy").items()}
+    assert out == {1: (-1, -0.5), 2: (-0.5, 0.5), 3: (0.5, 0.5), 4: (1, -0.5)}
+
+    left, right = transform(s, 'g, positions in "xy"', 'g.rescale_layout(pos="xy")')
+    mx, my = _framed(s, left, HAND, HAND_PX, "a.", "ink")
+    s.text(left.cx, left.cy + 14, f"mean {_fmt((mx, my))}", size=SIZE_NOTE, opacity=0.6)
+    _framed(s, right, out, UNIT_PX, "b.", "accent")
+    s.rect(right.cx - UNIT_PX, right.cy - UNIT_PX, 2 * UNIT_PX, 2 * UNIT_PX, rx=0,
+           fill="none", dash="3 4", role="frame")
