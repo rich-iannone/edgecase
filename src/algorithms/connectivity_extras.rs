@@ -987,6 +987,127 @@ pub fn find_negative_cycle(graph: &Graph, source: u64, weighted: bool) -> PyResu
     Ok(cycle.into_iter().map(|i| ids[i]).collect())
 }
 
+/// Goldberg-Radzik single-source shortest paths (negative weights allowed). Returns
+/// `(node, predecessor, distance)` for each node reachable from `source`, in node ID order (the
+/// source has no predecessor). Each round topologically sorts the nodes reachable through
+/// negative reduced-cost arcs from those relabeled in the previous round (finding a negative
+/// cycle as a back arc), then scans them in that order, as NetworkX's `goldberg_radzik()` does.
+#[pyfunction]
+#[pyo3(signature = (graph, source, weighted=true))]
+#[allow(clippy::type_complexity)]
+pub fn goldberg_radzik(
+    graph: &Graph,
+    source: u64,
+    weighted: bool,
+) -> PyResult<Vec<(u64, Option<u64>, f64)>> {
+    let (ids, idx) = sorted_ids(graph);
+    let Some(&s) = idx.get(&source) else {
+        return value_err(format!("Source node {source} does not exist"));
+    };
+    let n = ids.len();
+    let mut succ: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+    for (a, b, w) in bf_arcs(graph, &idx, weighted) {
+        if a == b && w < 0.0 {
+            return value_err("Negative cycle detected");
+        }
+        succ[a].push((b, w));
+    }
+
+    let mut d = vec![f64::INFINITY; n];
+    let mut pred: Vec<Option<usize>> = vec![None; n];
+    let mut reached = vec![false; n];
+    d[s] = 0.0;
+    reached[s] = true;
+
+    // Visit marker doubling as the count of negative reduced-cost arcs on the DFS path
+    let mut neg_count: Vec<Option<usize>> = vec![None; n];
+    let mut in_stack = vec![false; n];
+    let mut relabeled = vec![s];
+    let mut is_relabeled = vec![false; n];
+    while !relabeled.is_empty() {
+        // Topological sort of the nodes reachable through arcs of negative reduced cost
+        let mut to_scan: Vec<usize> = Vec::new();
+        let mut visited: Vec<usize> = Vec::new();
+        for &root in &relabeled {
+            if neg_count[root].is_some() || succ[root].iter().all(|&(v, w)| d[root] + w >= d[v]) {
+                continue;
+            }
+            let mut stack: Vec<(usize, usize)> = vec![(root, 0)];
+            in_stack[root] = true;
+            neg_count[root] = Some(0);
+            visited.push(root);
+            while let Some(top) = stack.last_mut() {
+                let u = top.0;
+                if top.1 == succ[u].len() {
+                    to_scan.push(u);
+                    stack.pop();
+                    in_stack[u] = false;
+                    continue;
+                }
+                let (v, w) = succ[u][top.1];
+                top.1 += 1;
+                let t = d[u] + w;
+                if t < d[v] {
+                    d[v] = t;
+                    pred[v] = Some(u);
+                    reached[v] = true;
+                    let count = neg_count[u].unwrap_or(0) + 1;
+                    match neg_count[v] {
+                        None => {
+                            neg_count[v] = Some(count);
+                            visited.push(v);
+                            stack.push((v, 0));
+                            in_stack[v] = true;
+                        }
+                        Some(c) if in_stack[v] && count > c => {
+                            return value_err("Negative cycle detected");
+                        }
+                        _ => {}
+                    }
+                }
+            }
+        }
+        for v in visited {
+            neg_count[v] = None;
+        }
+        to_scan.reverse();
+
+        // Relax the out-arcs in topological order
+        for &v in &relabeled {
+            is_relabeled[v] = false;
+        }
+        relabeled.clear();
+        for &u in &to_scan {
+            let d_u = d[u];
+            for &(v, w) in &succ[u] {
+                if d_u + w < d[v] {
+                    d[v] = d_u + w;
+                    pred[v] = Some(u);
+                    reached[v] = true;
+                    if !is_relabeled[v] {
+                        is_relabeled[v] = true;
+                        relabeled.push(v);
+                    }
+                }
+            }
+        }
+    }
+    Ok((0..n)
+        .filter(|&i| reached[i])
+        .map(|i| {
+            (
+                ids[i],
+                if i == s {
+                    None
+                } else {
+                    pred[i].map(|p| ids[p])
+                },
+                d[i],
+            )
+        })
+        .collect())
+}
+
 // ---------------------------------------------------------------------------------------------
 // Link prediction
 // ---------------------------------------------------------------------------------------------
