@@ -32943,8 +32943,10 @@ class Graph:
         densely connected communities. It computes distances between nodes based on random walk
         probabilities, then uses hierarchical clustering to identify community structure.
 
-        Works only with undirected graphs. Time complexity is `O(n²log n)` for typical networks with
-        small step parameter.
+        Works only with undirected graphs. On a disconnected graph each connected component is
+        clustered separately, so a community never spans two components and an isolated node is
+        a community of its own. Time complexity is `O(n²log n)` for typical networks with small
+        step parameter.
 
         Parameters
         ----------
