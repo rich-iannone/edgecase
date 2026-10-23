@@ -207,6 +207,46 @@ reference:
         - Graph.add_geographical_threshold_graph
         - Graph.add_navigable_small_world_graph
 
+    - title: Bipartite Generators
+      desc: Random and degree-sequence generators of two-part graphs, with each node's part stored
+      contents:
+        - Graph.add_bipartite_configuration_model
+        - Graph.add_bipartite_havel_hakimi_graph
+        - Graph.add_bipartite_preferential_attachment_graph
+        - Graph.add_bipartite_gnp_graph
+        - Graph.add_bipartite_gnm_graph
+
+    - title: Expanders
+      desc: Explicit and random sparse graphs with a large spectral gap
+      contents:
+        - Graph.add_margulis_gabber_galil_graph
+        - Graph.add_chordal_cycle_graph
+        - Graph.add_paley_graph
+        - Graph.add_maybe_regular_expander
+        - Graph.add_random_regular_expander_graph
+        - Graph.is_regular_expander
+
+    - title: Special Generators
+      desc: Duplication, clustered, kernel, and internet models, and graphs built from data
+      contents:
+        - Graph.add_random_kernel_graph
+        - Graph.add_random_clustered_graph
+        - Graph.add_duplication_divergence_graph
+        - Graph.add_partial_duplication_graph
+        - Graph.add_random_internet_as_graph
+        - Graph.add_visibility_graph
+        - Graph.add_interval_graph
+        - Graph.add_sudoku_graph
+        - Graph.add_prefix_tree
+
+    - title: Small Graph Enumeration
+      desc: The atlas of all graphs on up to seven nodes, and every tree of a given size
+      contents:
+        - Graph.add_atlas_graph
+        - Graph.atlas_graphs
+        - Graph.iter_nonisomorphic_trees
+        - Graph.count_nonisomorphic_trees
+
     - title: Graph Information
       desc: Methods for getting information about the graph
       contents:
