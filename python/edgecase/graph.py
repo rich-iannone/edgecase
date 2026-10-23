@@ -5374,6 +5374,97 @@ class Graph:
         )
         return self._layout_result("layout_spectral", coords, attr_name, return_dict, params)
 
+    def layout_planar(
+        self,
+        scale: Optional[float] = 1.0,
+        center: tuple[float, float] = (0.0, 0.0),
+        attr_name: Optional[str] = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, tuple[float, float]], "Graph"]:
+        """
+        Place the nodes of a planar graph so that no edges cross.
+
+        ![Planar layout](/assets/graphs/layout-planar.light.svg){.lightbox fig-alt="On the left, the octahedron graph (six nodes, each joined to four others) scattered at random, with several edges crossing. On the right, layout_planar() draws it with no crossings: a large outer triangle of nodes 1, 2 and 4 with the other three nodes inside it." width="100%"}
+
+        Finds a planar embedding (see `check_planarity()`), adds edges to make it 2-connected
+        and to triangulate every face but the largest, which becomes the outer face, and then
+        places the nodes one at a time in a canonical order with the shift method of Chrobak and
+        Payne. Every node lands on an integer grid point, `x` from `0` to `2n - 4` and `y` from
+        `0` to `n - 2`, and the edges drawn as straight lines never cross. The result is
+        centered and scaled so the largest coordinate is `scale=`. This ports NetworkX's
+        `planar_layout()`; a planar graph has many embeddings and this one need not be the one
+        NetworkX finds, so the positions can differ from NetworkX's while being just as
+        crossing-free.
+
+        The drawing guarantees no crossings, not good looks: the triangulation pulls the nodes
+        into a broad triangle, and nodes deep inside it can sit close together. It suits
+        checking or showing that a graph is planar; for a readable picture, a force-directed
+        layout such as `layout_spring()` often draws a planar graph without crossings too.
+        Edge direction, self-loops and parallel edges are ignored. Graphs with fewer than four
+        nodes use fixed points of a triangle, `(0, 0)`, `(2, 0)` and `(1, 1)`, in node ID order,
+        and separate components are joined before triangulating, so they are laid out together.
+
+        Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
+        `layout_circular()`.
+
+        Parameters
+        ----------
+        scale
+            Largest coordinate after rescaling. `None` keeps the integer grid coordinates
+            (`center=` is then ignored). Default is `1.0`.
+        center
+            Center of the layout, as `(x, y)`. Default is the origin.
+        attr_name
+            Node attribute to store the positions in. If `None` (default), uses `"pos"`.
+        return_dict
+            If `True`, returns a dictionary instead of self. If `False` (default), stores the
+            positions on the nodes and returns self for chaining.
+
+        Returns
+        -------
+        Union[dict[int, tuple[float, float]], Graph]
+            If `return_dict=` is `True`: dictionary mapping node IDs to `(x, y)` tuples. If
+            `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not planar (see `is_planar()`), or `scale=` or `center=` is
+            invalid.
+
+        See Also
+        --------
+        check_planarity : The planar embedding this layout draws.
+        is_planar : Whether a graph can be drawn without crossings at all.
+
+        Examples
+        --------
+        `K_4` is planar, so it can be drawn without crossings, with one node inside the triangle
+        of the other three. `scale=None` keeps the grid coordinates:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_full_graph(n=4).layout_planar(scale=None, return_dict=True)
+        ```
+
+        Stored positions are what `plot(layout=...)` draws:
+
+        ```{python}
+        ec.Graph().add_named_graph("dodecahedral").layout_planar().plot(layout="pos")
+        ```
+        """
+        scale, center = self._layout_frame(scale, center)
+        ids, pairs, _ = self._planarity_input()
+        grid = rust.planar_layout(len(ids), pairs)
+        if grid is None:
+            raise ValueError("The graph is not planar, so it has no drawing without crossings")
+        coords = self._rescale_positions(
+            {nid: (float(x), float(y)) for nid, (x, y) in zip(ids, grid)}, scale, center
+        )
+        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)))
+        return self._layout_result("layout_planar", coords, attr_name, return_dict, params)
+
     def layout_spring(
         self,
         k: Optional[float] = None,
@@ -17312,87 +17403,182 @@ class Graph:
         r"""
         Check if the graph is planar.
 
-        ![Is planar](/assets/graphs/is-planar.light.svg){.lightbox fig-alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross; its 6 edges are within the 3n - 6 bound and is_planar() returns True. Right: the complete graph on five nodes, where the inner star's edges cross at the points marked in the accent color; its 10 edges exceed the bound of 9, so is_planar() returns False." width="100%"}
+        ![Is planar](/assets/graphs/is-planar.light.svg){.lightbox fig-alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross and is_planar() returns True. Right: the complete bipartite graph K3,3, nodes A, B, C each joined to D, E, F, drawn with a single crossing, marked in the accent color. Its 9 edges are within the 3n - 6 bound of 12, but no drawing avoids every crossing, so is_planar() returns False." width="100%"}
 
-        A planar graph can be embedded in a plane without any edge crossings. This method uses
-        Euler's formula and necessary conditions to test planarity. For simple planar graphs with
-        `n ≥ 3` nodes, the number of edges *e* must satisfy `e ≤ 3n - 6`. For graphs without
-        triangles, the stricter bound *e* ≤ *2n - 4* applies.
+        A graph is planar if it can be drawn in the plane without any two edges crossing. This
+        is an exact test: it runs the left-right planarity test (Brandes' formulation of de
+        Fraysseix and Rosenstiehl's criterion) in linear time, like NetworkX's `is_planar()`.
+        Edge direction, self-loops and parallel edges make no difference to planarity, so they
+        are ignored.
+
+        Use `check_planarity()` to get a crossing-free arrangement of the edges around each
+        node when the graph is planar, or the Kuratowski subgraph that rules it out when it is
+        not, and `layout_planar()` to draw a planar graph without crossings.
 
         Returns
         -------
         bool
-            `True` if the graph satisfies planarity conditions, `False` otherwise.
+            `True` if the graph is planar, `False` otherwise.
+
+        See Also
+        --------
+        check_planarity : The test with its certificate: an embedding or a Kuratowski subgraph.
+        layout_planar : Positions that draw a planar graph without edge crossings.
 
         Technical Notes
         ---------------
-        This is a *necessary but not sufficient* test built around Euler's formula
-        $n - e + f = 2$ for a planar embedding, which, combined with the fact that every face
-        of a simple planar graph is bounded by at least three edges, gives the classic edge
-        bound $e \le 3n - 6$ (or the tighter $e \le 2n - 4$ when the graph has no triangles).
-        A graph that violates one of these bounds is definitively non-planar, but the converse
-        does not hold: the notorious counter-examples $K_5$ and $K_{3,3}$ are ruled out by the
-        edge bound and by triangle counts respectively, yet subdivisions of them may slip
-        through. A complete decision procedure would need Kuratowski's or Wagner's theorem, or
-        a linear-time algorithm like Boyer-Myrvold; the cheap check here is meant as a fast
-        pre-filter.
+        Euler's formula $n - e + f = 2$ for a connected planar drawing, together with every face
+        of a simple planar graph being bounded by at least three edges, gives the edge bound
+        $e \le 3n - 6$ for $n \ge 3$. A graph above the bound is rejected at once; otherwise a
+        depth-first search orients the edges and the test checks whether its back edges can be
+        split into a left and a right side without conflicts. By Kuratowski's theorem a graph is
+        planar exactly when it contains no subdivision of $K_5$ or $K_{3,3}$, so graphs that pass
+        the edge bound can still be non-planar: $K_{3,3}$ has 9 edges against a bound of 12, and
+        the Petersen graph 15 against 24.
 
         Examples
         --------
-        Small, sparse graphs are almost always planar:
+        `K_4` is planar: draw one node inside the triangle of the other three.
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.is_planar()
+        ec.Graph().add_full_graph(n=4).is_planar()
         ```
 
-        `K_4` sits right at the edge-count bound for planarity (`6 edges = 3*4 - 6`), and
-        is in fact planar:
+        `K_5` is not; its 10 edges are already more than `3 * 5 - 6 = 9`:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_full_graph(n=4)
-
-        graph.is_planar()
+        ec.Graph().add_full_graph(n=5).is_planar()
         ```
 
-        `K_5` exceeds that same bound (`10 edges > 3*5 - 6 = 9`), so this check correctly
-        flags it as non-planar:
+        `K_{3,3}` is not planar either, although it is well inside the edge bound:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_full_graph(n=5)
-
-        graph.is_planar()
+        ec.Graph().add_complete_bipartite_graph(3, 3).is_planar()
         ```
 
-        Trees always satisfy the bound comfortably, since they have only `n - 1` edges:
+        The Petersen graph contains a subdivision of `K_{3,3}`, so it is not planar:
 
         ```{python}
-        tree = ec.Graph(directed=False)
-        tree.add_balanced_tree(k=3, h=4)
-
-        tree.is_planar()
+        ec.Graph().add_named_graph("petersen").is_planar()
         ```
 
-        Grids are sparse enough to stay planar as well:
+        Trees and grids are planar at any size:
 
         ```{python}
-        grid = ec.Graph(directed=False)
-        grid.add_grid_2d(rows=5, cols=5)
+        grid = ec.Graph().add_grid_2d(rows=20, cols=20)
 
         grid.is_planar()
         ```
-
         """
         return self._graph.is_planar()
+
+    def _planarity_input(self) -> tuple[list[int], list[tuple[int, int]], list[int]]:
+        """Node IDs in order, plus the simple undirected edges as index pairs with the lowest
+        edge ID for each pair (self-loops dropped), in edge ID order."""
+        ids = sorted(self.get_node_ids(limit=None))
+        index = {nid: i for i, nid in enumerate(ids)}
+        first: dict[tuple[int, int], int] = {}
+        for eid, s, t in self._graph.edges():
+            if s != t:
+                a, b = index[s], index[t]
+                key = (a, b) if a < b else (b, a)
+                if key not in first or eid < first[key]:
+                    first[key] = eid
+        found = sorted(first.items(), key=lambda kv: kv[1])
+        return ids, [pair for pair, _ in found], [eid for _, eid in found]
+
+    def check_planarity(
+        self, counterexample: bool = False
+    ) -> tuple[bool, Optional[Union[dict[int, list[int]], "Graph"]]]:
+        """
+        Test planarity and return the evidence: an embedding or a Kuratowski subgraph.
+
+        ![Check planarity](/assets/graphs/check-planarity.light.svg){.lightbox fig-alt="Left: a wheel with hub 1 and rim 2 to 6, drawn so that going clockwise around the hub meets 2, 6, 5, 4, 3, which is the hub's entry in the embedding that check_planarity() returns with True. Right: the Petersen graph, which is not planar; check_planarity(True) returns False with a counterexample h, shown in the accent color: the graph without node 1 (dashed), a subdivided K3,3 whose six branch nodes are 3, 9, 10 and 4, 7, 8." width="100%"}
+
+        Runs the same exact test as `is_planar()`, but also returns its certificate. For a
+        planar graph that is a planar embedding (a rotation system): for every node, its
+        neighbors in clockwise order around it in some drawing without edge crossings. Any
+        straight-line or curved drawing that keeps these cyclic orders around every node can be
+        made crossing-free; `layout_planar()` computes one. For a non-planar graph, with
+        `counterexample=True`, it is a Kuratowski subgraph: a subdivision of `K_5` or `K_{3,3}`,
+        which by Kuratowski's theorem is what every non-planar graph contains.
+
+        This follows NetworkX's `check_planarity()`. Edge direction, self-loops and parallel
+        edges are ignored, so each neighbor appears once in the embedding. NetworkX returns a
+        `PlanarEmbedding` object; here the embedding is a plain dictionary of the same clockwise
+        neighbor orders (`PlanarEmbedding.neighbors_cw_order()` in NetworkX). A graph usually has
+        many planar embeddings, and the one returned here need not be the one NetworkX picks.
+
+        Parameters
+        ----------
+        counterexample
+            If `True`, return a Kuratowski subgraph when the graph is not planar. Finding it
+            reruns the planarity test once per edge, so it costs `O(e^2)` time; with `False`
+            (default), `None` is returned instead.
+
+        Returns
+        -------
+        tuple[bool, Optional[Union[dict[int, list[int]], Graph]]]
+            `(True, embedding)` if the graph is planar, where `embedding` maps each node ID to
+            its neighbors' IDs in clockwise order (an empty list for an isolated node).
+            `(False, None)` if it is not, or `(False, subgraph)` with `counterexample=True`:
+            a new graph holding the Kuratowski subgraph's edges (for a pair of nodes joined by
+            parallel edges, the one with the lowest ID) and their endpoints, with their IDs and
+            attributes.
+
+        See Also
+        --------
+        is_planar : Just the yes-or-no answer.
+        layout_planar : Positions that draw a planar graph without edge crossings.
+
+        Technical Notes
+        ---------------
+        The embedding comes from the left-right planarity test, which assigns each back edge
+        of a depth-first search to the left or right side of the tree and then orders the edges
+        around each node by their nesting depth. For a connected graph, tracing the faces of the
+        result gives the `e - n + 2` faces that Euler's formula requires of a planar drawing.
+
+        The counterexample is found as NetworkX does: drop each edge in turn and put it back
+        whenever the rest becomes planar. What remains is non-planar, but removing any one of
+        its edges makes it planar, so it is a minimal non-planar subgraph, which can only be a
+        subdivision of `K_5` or `K_{3,3}`.
+
+        Examples
+        --------
+        In a planar embedding of a wheel, the neighbors of the hub (node `1`) come around it in
+        the order of the rim, `2` to `6`:
+
+        ```{python}
+        import edgecase as ec
+
+        wheel = ec.Graph().add_wheel_graph(6)
+
+        planar, embedding = wheel.check_planarity()
+        planar, embedding[1]
+        ```
+
+        The Petersen graph is not planar; the counterexample is a subdivision of `K_{3,3}` on
+        nine of its ten nodes (six of them branch nodes of degree 3, three of them in the
+        middle of a subdivided edge):
+
+        ```{python}
+        petersen = ec.Graph().add_named_graph("petersen")
+
+        planar, kuratowski = petersen.check_planarity(counterexample=True)
+        planar, kuratowski.count_nodes(), kuratowski.count_edges()
+        ```
+        """
+        ids, pairs, eids = self._planarity_input()
+        embedding = rust.planar_embedding(len(ids), pairs)
+        if embedding is not None:
+            return True, {nid: [ids[i] for i in order] for nid, order in zip(ids, embedding)}
+        if not counterexample:
+            return False, None
+        kept = rust.planarity_counterexample(len(ids), pairs)
+        with self._no_recording():
+            return False, self.edge_subgraph([eids[i] for i in kept])
 
     def _match_colors(self, other: "Graph", node_attr, edge_attr):
         """Integer node and edge colors for matching, shared between `self` and `other`."""
