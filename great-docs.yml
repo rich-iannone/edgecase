@@ -596,6 +596,7 @@ reference:
         - Graph.chordal_graph_cliques
         - Graph.chordal_graph_treewidth
         - Graph.complete_to_chordal_graph
+        - Graph.junction_tree
         - Graph.find_induced_nodes
 
     - title: Community Detection
@@ -926,14 +927,19 @@ reference:
         - Graph.steiner_tree
         - Graph.directed_steiner_tree
         - Graph.all_spanning_trees
+        - Graph.iter_spanning_trees
         - Graph.number_of_spanning_trees
         - Graph.random_spanning_tree
         - Graph.maximum_branching
         - Graph.minimum_branching
         - Graph.maximum_spanning_arborescence
         - Graph.minimum_spanning_arborescence
+        - Graph.iter_spanning_arborescences
         - Graph.to_prufer_sequence
         - Graph.from_prufer_sequence
+        - Graph.to_nested_tuple
+        - Graph.from_nested_tuple
+        - Graph.join_trees
 
     - title: Edge Analysis
       desc: Methods for analyzing edge types
