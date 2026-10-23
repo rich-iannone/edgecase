@@ -374,6 +374,7 @@ reference:
         - Graph.constraint
         - Graph.degree_centrality
         - Graph.closeness_centrality
+        - Graph.incremental_closeness_centrality
         - Graph.betweenness_centrality
         - Graph.edge_betweenness_centrality
         - Graph.load_centrality
@@ -473,6 +474,7 @@ reference:
         - Graph.johnson
         - Graph.bfs
         - Graph.bfs_edges
+        - Graph.bfs_beam_edges
         - Graph.bfs_tree
         - Graph.bfs_layers
         - Graph.bfs_predecessors
@@ -484,6 +486,7 @@ reference:
         - Graph.edge_dfs
         - Graph.dfs
         - Graph.dfs_edges
+        - Graph.dfs_labeled_edges
         - Graph.dfs_tree
         - Graph.dfs_postorder_nodes
 
@@ -609,6 +612,7 @@ reference:
         - Graph.cmty_k_clique
         - Graph.cmty_fluid
         - Graph.cmty_fast_label_propagation
+        - Graph.cmty_semisync_label_propagation
         - Graph.cmty_louvain_levels
         - Graph.cmty_leiden_levels
         - Graph.kernighan_lin_bisection
@@ -634,6 +638,7 @@ reference:
         - Graph.bipartite_projection
         - Graph.biadjacency_matrix
         - Graph.is_bipartite_node_set
+        - Graph.maximal_extendability
         - Graph.latapy_clustering
         - Graph.robins_alexander_clustering
         - Graph.node_redundancy
