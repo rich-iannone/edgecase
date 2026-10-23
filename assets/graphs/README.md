@@ -2314,6 +2314,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Algebraic connectivity](/assets/graphs/algebraic-connectivity.light.svg){.lightbox fig-alt="Left, a six-node cycle whose closing edge F–A is in the accent color; right, the same nodes without that edge (dashed), a path. The cycle's algebraic connectivity is 1.0 and the path's only 0.268: the path is much easier to cut in two." width="100%"}
 ```
 
+### `attr_matrix()` — Attribute matrix
+
+<img src="attr-matrix.light.svg" alt="Two triangles joined by the edge C–D, with team x on A, B, C (teal) and team y on D, E, F (violet), and the 2 by 2 matrix of edge counts between the teams. Each triangle&#x27;s three edges stay inside its team, 3 in each diagonal cell, and the single cross edge C–D (accent) puts 1 in each off-diagonal cell." width="570">
+
+```markdown
+![Attribute matrix](/assets/graphs/attr-matrix.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, with team x on A, B, C (teal) and team y on D, E, F (violet), and the 2 by 2 matrix of edge counts between the teams. Each triangle's three edges stay inside its team, 3 in each diagonal cell, and the single cross edge C–D (accent) puts 1 in each off-diagonal cell." width="100%"}
+```
+
 ### `attribute_mixing_dict()` — Attribute mixing dict
 
 <img src="attribute-mixing-dict.light.svg" alt="Two triangles joined by one edge, with team x on A, B, C (teal) and team y on D, E, F (violet). Each triangle&#x27;s three edges count from both ends, 6 within each team, and the one accent edge C–D links x to y once each way: {x: {x: 6, y: 1}, y: {x: 1, y: 6}}." width="570">
@@ -2866,6 +2874,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Jaccard coefficient](/assets/graphs/jaccard-coefficient.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. A table scores three requested pairs by shared over total distinct neighbors: B, E is 2 of 5 = 0.4, C, D is 2 of 3 = 0.67, and A, E is 0." width="100%"}
+```
+
+### `optimal_edit_paths()` — Optimal edit paths
+
+<img src="optimal-edit-paths.light.svg" alt="A three-node path A–B–C beside a triangle X, Y, Z. The first of the six optimal edit paths, each costing 1, maps A to X, B to Y and C to Z (matching colors in both graphs and the card); the path&#x27;s two edges land on X–Y and Y–Z, and the triangle&#x27;s third edge Z–X, dashed in accent, is the one insertion." width="570">
+
+```markdown
+![Optimal edit paths](/assets/graphs/optimal-edit-paths.light.svg){.lightbox fig-alt="A three-node path A–B–C beside a triangle X, Y, Z. The first of the six optimal edit paths, each costing 1, maps A to X, B to Y and C to Z (matching colors in both graphs and the card); the path's two edges land on X–Y and Y–Z, and the triangle's third edge Z–X, dashed in accent, is the one insertion." width="100%"}
+```
+
+### `optimize_edit_paths()` — Edit paths with forced roots
+
+<img src="optimize-edit-paths.light.svg" alt="A six-node star, center 1 and leaves 2 to 6, compared with itself twice, each comparison drawing the star and its copy side by side. On the left the roots pair the two centers (outlined in accent) and the cheapest edit path costs 0. On the right the roots force leaf 2 of the first star onto the center of the second, and the cheapest path costs 8: four edges deleted and four inserted to rewire the star around its new center." width="570">
+
+```markdown
+![Edit paths with forced roots](/assets/graphs/optimize-edit-paths.light.svg){.lightbox fig-alt="A six-node star, center 1 and leaves 2 to 6, compared with itself twice, each comparison drawing the star and its copy side by side. On the left the roots pair the two centers (outlined in accent) and the cheapest edit path costs 0. On the right the roots force leaf 2 of the first star onto the center of the second, and the cheapest path costs 8: four edges deleted and four inserted to rewire the star around its new center." width="100%"}
+```
+
+### `optimize_graph_edit_distance()` — Improving edit distance estimates
+
+<img src="optimize-graph-edit-distance.light.svg" alt="Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on other labels, sharing D–E, with an extra node B hanging off E (accent). The search yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the exact distance: insert node B and edge E–B." width="570">
+
+```markdown
+![Improving edit distance estimates](/assets/graphs/optimize-graph-edit-distance.light.svg){.lightbox fig-alt="Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on other labels, sharing D–E, with an extra node B hanging off E (accent). The search yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the exact distance: insert node B and edge E–B." width="100%"}
 ```
 
 ### `preferential_attachment()` — Preferential attachment
@@ -5050,4 +5082,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Spring layout](/assets/graphs/layout-spring.light.svg){.lightbox fig-alt="On the left, the cube graph (eight nodes, each joined to three others) scattered at random. On the right, layout_spring(seed=1) treats edges as springs and nodes as repelling charges, and the cube settles into one square inside another." width="100%"}
+```
+
+### `rescale_layout()` — Rescale a layout
+
+<img src="rescale-layout.light.svg" alt="A four-node cycle placed by hand: nodes 1 to 4 at (0, 0), (4, 8), (12, 8) and (16, 0), with a small cross at their mean (8, 4). After rescale_layout() the same shape is centered on the origin and fits the dashed square from -1 to 1: the nodes move to (-1, -0.5), (-0.5, 0.5), (0.5, 0.5) and (1, -0.5), shown in accent." width="570">
+
+```markdown
+![Rescale a layout](/assets/graphs/rescale-layout.light.svg){.lightbox fig-alt="A four-node cycle placed by hand: nodes 1 to 4 at (0, 0), (4, 8), (12, 8) and (16, 0), with a small cross at their mean (8, 4). After rescale_layout() the same shape is centered on the origin and fits the dashed square from -1 to 1: the nodes move to (-1, -0.5), (-0.5, 0.5), (0.5, 0.5) and (1, -0.5), shown in accent." width="100%"}
 ```
