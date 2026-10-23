@@ -20374,6 +20374,7 @@ class Graph:
         node_attr: str | list[str] | None = None,
         edge_attr: str | list[str] | None = None,
         limit: int | None = None,
+        symmetry: bool = False,
     ) -> list[dict[int, int]]:
         """
         List the occurrences of a pattern graph inside this graph.
@@ -20407,6 +20408,11 @@ class Graph:
         limit
             Stop after this many occurrences. If `None` (default), return all of them, which
             can be very many for large graphs and symmetric patterns.
+        symmetry
+            If `True`, return one mapping per occurrence up to the pattern's symmetries: mappings
+            that differ only by an automorphism of the pattern (such as the 6 ways of matching a
+            triangle's corners) are reported once. The search skips the symmetric copies rather
+            than filtering them afterwards, so it is also faster.
 
         Returns
         -------
@@ -20425,6 +20431,14 @@ class Graph:
         the pattern size. The mappings go from pattern to this graph, the reverse of NetworkX's
         `GraphMatcher(G, pattern).subgraph_isomorphisms_iter()`, which yields graph-to-pattern
         dictionaries; the occurrences themselves are the same.
+
+        With `symmetry=True`, the symmetry breaking of ISMAGS (Houbraken et al., 2014) is used:
+        the pattern's automorphism group is summarized by its cosets (see
+        `automorphism_cosets()`), and each node must map to a smaller target node ID than the
+        other nodes in its coset. Exactly one mapping per class of symmetric equivalents
+        satisfies these constraints (Grochow and Kellis, 2007), so the count is the full count
+        divided by the number of automorphisms of the pattern. With `induced=True` the
+        occurrences are those of NetworkX's `ISMAGS(G, pattern).find_isomorphisms()`.
 
         Examples
         --------
@@ -20452,14 +20466,25 @@ class Graph:
         square = ec.Graph().add_cycle_graph(4)
         len(square.subgraph_isomorphisms(square))
         ```
+
+        With `symmetry=True`, each triangle of a complete graph on four nodes is found once
+        rather than 6 times:
+
+        ```{python}
+        k4 = ec.Graph().add_full_graph(4)
+        triangle = ec.Graph().add_cycle_graph(3)
+        len(k4.subgraph_isomorphisms(triangle)), len(k4.subgraph_isomorphisms(triangle, symmetry=True))
+        ```
         """
-        found = self._match_pattern(pattern, induced, node_attr, edge_attr, limit=limit)
+        found = self._match_pattern(
+            pattern, induced, node_attr, edge_attr, limit=limit, symmetry=symmetry
+        )
         mappings = [dict(m) for m in found]
         if self._recording_depth == 0:
             self._record_occurrence_step("subgraph_isomorphisms", pattern, found[:1], len(mappings))
         return mappings
 
-    def _match_pattern(self, pattern, induced, node_attr, edge_attr, limit):
+    def _match_pattern(self, pattern, induced, node_attr, edge_attr, limit, symmetry=False):
         (nc_p, ec_p), (nc_t, ec_t) = pattern._match_colors(self, node_attr, edge_attr)
         return rust.match_graphs(
             pattern._graph,
@@ -20470,7 +20495,184 @@ class Graph:
             ec_p,
             ec_t,
             limit,
+            symmetry,
         )
+
+    def largest_common_subgraph(
+        self,
+        other: "Graph",
+        symmetry: bool = True,
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> list[dict[int, int]]:
+        r"""
+        Find the largest induced subgraphs that this graph and another have in common.
+
+        ![Largest common subgraph](/assets/graphs/largest-common-subgraph.light.svg){.lightbox fig-alt="Left: graph square, the 4-cycle a, b, c, d, beside graph paw, a triangle x, y, z with a pendant w on z. The biggest induced subgraph they share is a path of three nodes, found 8 ways. The first match is in the accent color in both graphs: x maps to b, z to a and w to d, so the path x, z, w lands on b, a, d. y stays faint; its path is a symmetric copy of x's, so it isn't listed again." width="100%"}
+
+        A common induced subgraph is a set of nodes of `other` whose induced subgraph (the
+        nodes with every edge among them) also appears, as an induced subgraph, in this graph.
+        This method finds the largest such node sets and returns every way of matching them.
+        Comparing two molecules, two versions of a network, or a query against a database
+        graph by their largest shared structure gives a similarity that, unlike an exact
+        subgraph search, still says something when neither graph contains the other.
+
+        Parameters
+        ----------
+        other
+            The `Graph` to compare with. It is not modified. Both graphs must have the same
+            directedness.
+        symmetry
+            If `True` (default), mappings that differ only by an automorphism of `other` are
+            reported once (see `subgraph_isomorphisms()`). If `False`, every mapping is listed.
+        node_attr
+            Optional node attribute name, or list of names, whose values must be equal for
+            matched nodes.
+        edge_attr
+            Optional edge attribute name, or list of names, whose values must be equal for
+            matched edges.
+
+        Returns
+        -------
+        list[dict[int, int]]
+            One dictionary per largest common subgraph, mapping node IDs of `other` to node IDs
+            of this graph. All have the same size. If `other` has no nodes, the one empty
+            mapping; if this graph has none, an empty list.
+
+        Raises
+        ------
+        ValueError
+            If one graph is directed and the other is not.
+
+        Technical Notes
+        ---------------
+        This is the largest common subgraph search of ISMAGS (Houbraken et al., 2014), as in
+        NetworkX's `ISMAGS(G, other).largest_common_subgraph()`: `other` is first matched whole,
+        as an induced subgraph, into this graph; if it doesn't occur, every subset with one node
+        fewer is tried, and so on, until some subset occurs. With `symmetry=True`, the
+        constraints of `subgraph_isomorphisms(..., symmetry=True)` prune the matches, and a
+        removed node whose coset holds a larger node still in the subset is swapped for it, so
+        symmetric subsets are tried once. The mappings go from `other` to this graph, the
+        reverse of NetworkX's graph-to-subgraph dictionaries. The problem is NP-hard and the
+        number of subsets grows exponentially as the common part shrinks, so this suits small
+        graphs, or graphs that share most of their structure.
+
+        Examples
+        --------
+        A square and a triangle with a pendant share a path of three nodes, and nothing larger:
+
+        ```{python}
+        import edgecase as ec
+
+        square = ec.Graph().add_nodes(["a", "b", "c", "d"])
+        square.add_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
+        paw = ec.Graph().add_nodes(["x", "y", "z", "w"])
+        paw.add_edges([("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")])
+
+        found = square.largest_common_subgraph(paw)
+        len(found)
+        ```
+
+        The 8 matches are the square's 4 three-node paths, each run in both directions, laid
+        onto the path `x`-`z`-`w` (the path from `y` is a symmetric copy, so it is skipped):
+
+        ```{python}
+        {paw.get_label_from_id(k): square.get_label_from_id(v) for k, v in found[0].items()}
+        ```
+        """
+        (nc_t, ec_t), (nc_p, ec_p) = self._match_colors(other, node_attr, edge_attr)
+        found = rust.largest_common_subgraph(
+            other._graph, self._graph, nc_p, nc_t, ec_p, ec_t, symmetry
+        )
+        mappings = [dict(m) for m in found]
+        if self._recording_depth == 0:
+            delta = StepDelta()
+            if mappings and mappings[0]:
+                m = mappings[0]
+                delta.nodes_selected = [self._node_label(t) for t in m.values()]
+                delta.edges_selected = [
+                    (self._node_label(m[s]), self._node_label(m[t]))
+                    for _, s, t in other.get_edges_as_tuples()
+                    if s in m and t in m
+                ]
+            size = len(mappings[0]) if mappings else 0
+            self._record_step(
+                KIND_QUERY,
+                "largest_common_subgraph",
+                "G.largest_common_subgraph(H)",
+                delta=delta,
+                result=len(mappings),
+                narration=f"{len(mappings)} largest common subgraph"
+                f"{'s' if len(mappings) != 1 else ''} of {size} nodes.",
+            )
+        return mappings
+
+    def automorphism_cosets(
+        self,
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> dict[int, list[int]]:
+        r"""
+        Describe the graph's symmetries by the cosets of its automorphism group.
+
+        ![Automorphism cosets](/assets/graphs/automorphism-cosets.light.svg){.lightbox fig-alt="A square with nodes 1, 2, 3, 4 in order around it. Node 1 (accent) can be sent to any of the four corners by a symmetry, so its coset is 1, 2, 3, 4. With node 1 held in place, node 2 can only stay or swap with its opposite neighbor 4 (both teal), so its coset is 2, 4; after that nodes 3 and 4 are fixed. The card lists the cosets and multiplies their sizes, 4 × 2 × 1 × 1 = 8 symmetries." width="100%"}
+
+        An automorphism is a relabeling of the nodes that maps the graph onto itself, edge for
+        edge: a symmetry. Taking the nodes in ID order, the coset of a node lists the nodes it
+        can be sent to by an automorphism that leaves every smaller node in place. This compact
+        summary of the symmetry group (a stabilizer chain) answers which nodes are
+        interchangeable, gives the number of symmetries as the product of the coset sizes, and
+        is what `subgraph_isomorphisms(..., symmetry=True)` uses to skip symmetric matches.
+
+        Parameters
+        ----------
+        node_attr
+            Optional node attribute name, or list of names; symmetries must map nodes onto
+            nodes with equal values.
+        edge_attr
+            Optional edge attribute name, or list of names; symmetries must map edges onto edges
+            with equal values.
+
+        Returns
+        -------
+        dict[int, list[int]]
+            For every node ID, in ID order, the IDs in its coset: the node itself first, then the
+            larger IDs it can be swapped with, in ID order.
+
+        Technical Notes
+        ---------------
+        For node $v$, a node $u > v$ belongs to the coset when an isomorphism search of the
+        graph onto itself succeeds with every node below $v$ fixed and $v$ sent to $u$ (each
+        enforced by a unique color, which color refinement propagates). The product of the
+        coset sizes is the order of the automorphism group, by the orbit-stabilizer theorem.
+        NetworkX's `ISMAGS.analyze_symmetry()` returns the same cosets for the nodes it
+        reaches, though its partition-based search can miss members (on the Petersen graph it
+        gives `[1, 4]` for node 1 where the coset is `[1, 4, 5]`), so the product there can fall
+        short of the group order.
+
+        Examples
+        --------
+        A square has 8 symmetries: node 1 can go to any corner (4 ways), and with it fixed,
+        node 2 can swap with its opposite neighbor 4 (2 ways):
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_cycle_graph(4).automorphism_cosets()
+        ```
+        """
+        (nc, ec_), _ = self._match_colors(self, node_attr, edge_attr)
+        cosets = dict(rust.automorphism_cosets(self._graph, nc, ec_))
+        if self._recording_depth == 0:
+            order = math.prod(len(c) for c in cosets.values())
+            self._record_step(
+                KIND_QUERY,
+                "automorphism_cosets",
+                "G.automorphism_cosets()",
+                result=cosets,
+                narration=f"Automorphism cosets: {order} symmetr{'ies' if order != 1 else 'y'}.",
+            )
+        return cosets
 
     def _record_occurrence_step(self, method: str, pattern: "Graph", found, value) -> None:
         delta = StepDelta()
@@ -27548,6 +27750,209 @@ class Graph:
                 narration=narration,
             )
         return result
+
+    def panther_similarity(
+        self,
+        source: Union[int, str],
+        k: int = 5,
+        path_length: int = 5,
+        c: float = 0.5,
+        delta: float = 0.1,
+        eps: float | None = None,
+        weighted: bool | None = None,
+        seed: int | None = None,
+    ) -> dict[int, float]:
+        r"""
+        Find the nodes most similar to a source node by how often they share random paths.
+
+        ![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. The card ranks them." width="100%"}
+
+        Panther (Zhang et al., 2015) calls two nodes similar when they often appear on the same
+        paths. It samples many short random paths, each starting at a random node and stepping
+        to a random neighbor (with probability proportional to the edge weight), and scores each
+        node by the share of paths it shares with `source`. Nodes close to the source in a dense
+        part of the graph score highly, so Panther finds the top-$k$ similar nodes on large
+        networks quickly, without the all-pairs work of `simrank_similarity()`. The scores are
+        estimates; pass `seed=` for repeatable results.
+
+        Parameters
+        ----------
+        source
+            The node to compare against, as an ID or label.
+        k
+            How many of the most similar nodes to return.
+        path_length
+            The number of steps in each random path ($T$), at least 2.
+        c
+            A positive constant that scales the number of sampled paths.
+        delta
+            The probability, between 0 and 1, that the scores miss the `eps=` error bound.
+        eps
+            The error bound on the scores. If `None` (default), $\sqrt{1 / |E|}$, the value the
+            authors recommend.
+        weighted
+            Whether to use edge weights for the random steps. If `None` (default), follows the
+            graph's `weighted` flag; edges without a weight count as `1.0`.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        dict[int, float]
+            Up to `k` node IDs (never `source`) with their scores, from most to least similar
+            (ties in node ID order). A score is the share of the sampled paths that pass
+            through both nodes.
+
+        Raises
+        ------
+        ValueError
+            If `source` doesn't exist or is isolated, a parameter is out of range, a weight is
+            negative, or (in a directed graph) a path reaches a node with no out-edges.
+
+        Warns
+        -----
+        UserWarning
+            If `k` is more than the number of other non-isolated nodes, all of which are
+            returned.
+
+        Technical Notes
+        ---------------
+        Isolated nodes are dropped first. The number of sampled paths is
+        $R = \lfloor (c / \varepsilon^2)(\log_2 \binom{T}{2} + 1 + \ln(1/\delta)) \rfloor$,
+        which by the authors' sampling bound makes each score an $\varepsilon$-approximation of
+        its expected value with probability at least $1 - \delta$. Each path of $T$ steps has
+        $T + 1$ nodes and starts at a uniformly random node, and a score is the number of paths
+        holding both nodes divided by $R$. This follows NetworkX's `panther_similarity`, except
+        that NetworkX picks the top `k` nodes before dropping the source and so returns `k - 1`
+        nodes, while this method returns `k` other nodes. The random paths come from a different
+        generator, so the scores agree with NetworkX's only statistically.
+
+        Examples
+        --------
+        Two triangles joined by a bridge: the nodes in the source's own triangle score highest.
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
+        graph.add_edges(
+            [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"), ("z", "x")]
+        )
+
+        scores = graph.panther_similarity("a", k=3, seed=1)
+        {graph.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError(f"k must be a positive integer, got {k!r}")
+        _, scores = rust.panther_similarity(
+            self._graph, s, path_length, c, delta, eps, self._use_weights(weighted), seed
+        )
+        if k > len(scores):
+            import warnings
+
+            warnings.warn(
+                f"k is {k}, but only {len(scores)} other nodes aren't isolated, so all of them "
+                "are returned",
+                stacklevel=2,
+            )
+        ranked = sorted(scores, key=lambda item: (-item[1], item[0]))[:k]
+        result = dict(ranked)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "panther_similarity",
+                f"G.panther_similarity({self._node_label(s)!r}, k={k})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(s)],
+                    metric_values={self._node_label(n): v for n, v in result.items()},
+                ),
+                result=result,
+                narration=f"Panther similarity: the {len(result)} nodes most similar to "
+                f"{self._node_label(s)}.",
+            )
+        return result
+
+    def generate_random_paths(
+        self,
+        sample_size: int,
+        path_length: int = 5,
+        weighted: bool | None = None,
+        seed: int | None = None,
+        source: Union[int, str, None] = None,
+    ) -> list[list[int]]:
+        r"""
+        Sample random paths, as Panther similarity does.
+
+        ![Generate random paths](/assets/graphs/generate-random-paths.light.svg){.lightbox fig-alt="Three copies of a six-node cycle, one per sampled path of length 4 (five nodes, seed 2). Each path's edges and nodes are in its own color, accent, teal and violet, and filled badges give each node's positions along the path, 0 for the start. The first path, 6, 1, 6, 1, 2, steps back and forth before moving on; the third, 5, 6, 5, 6, 5, never leaves one edge." width="100%"}
+
+        Each path starts at a uniformly random node (or at `source`) and takes `path_length`
+        random steps, each to a neighbor (an out-neighbor in a directed graph) chosen with
+        probability proportional to the edge weight. Nodes may repeat, since a step can go back.
+        These are the paths `panther_similarity()` samples, and they suit other walk-based
+        estimates too, such as how often nodes co-occur or how far walks travel.
+
+        Parameters
+        ----------
+        sample_size
+            The number of paths.
+        path_length
+            The number of steps in each path, so each path holds `path_length + 1` nodes.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag; edges without a weight count as `1.0`.
+        seed
+            Random seed for reproducibility.
+        source
+            If given (as an ID or label), every path starts at this node.
+
+        Returns
+        -------
+        list[list[int]]
+            The paths, each as a list of node IDs.
+
+        Raises
+        ------
+        ValueError
+            If `source` doesn't exist, a weight is negative, or a path reaches a node with no
+            out-edges (an isolated node, or a sink in a directed graph).
+
+        Technical Notes
+        ---------------
+        A step from node $u$ moves to $v$ with probability $A_{uv} / \sum_x A_{ux}$, where $A$
+        is the weighted adjacency matrix (parallel edges add up, as in NetworkX's
+        `to_numpy_array`). This matches NetworkX's `generate_random_paths`, which returns a
+        generator and can also fill an `index_map` of node to path indices; here the paths come
+        back as a list, from which such an index is a short loop.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_cycle_graph(6)
+
+        graph.generate_random_paths(3, path_length=4, seed=2)
+        ```
+        """
+        if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
+            raise ValueError(f"sample_size must be a non-negative integer, got {sample_size!r}")
+        if isinstance(path_length, bool) or not isinstance(path_length, int) or path_length < 0:
+            raise ValueError(f"path_length must be a non-negative integer, got {path_length!r}")
+        s = None if source is None else self._resolve_node_id(source, auto_create=False)
+        paths = rust.generate_random_paths(
+            self._graph, sample_size, path_length, self._use_weights(weighted), seed, s
+        )
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "generate_random_paths",
+                f"G.generate_random_paths({sample_size}, path_length={path_length})",
+                result=paths,
+                narration=f"{len(paths)} random paths of {path_length} steps.",
+            )
+        return paths
 
     def simrank_star_similarity(
         self,
@@ -48270,6 +48675,102 @@ class Graph:
             )
         return cycle
 
+    def goldberg_radzik(
+        self, source: Union[int, str], weighted: bool | None = None
+    ) -> tuple[dict[int, int | None], dict[int, int | float]]:
+        r"""
+        Compute shortest paths from a source with the Goldberg-Radzik algorithm.
+
+        ![Goldberg-Radzik shortest paths](/assets/graphs/goldberg-radzik.light.svg){.lightbox fig-alt="Four nodes with directed weighted edges A to B 4, A to C 2, C to B −3 and B to D 1, searched from A (outlined). The shortest-path tree A, C, B, D is in the accent color and each node carries its distance as a badge: C 2, B 2 + (−3) = −1, D 0; the direct edge A to B stays faint. The table lists each node's predecessor and distance." width="100%"}
+
+        Like Bellman-Ford, the Goldberg-Radzik algorithm finds shortest paths when some edge
+        weights are negative (as long as no cycle reachable from `source` has negative total
+        weight), but it usually needs far fewer passes over the edges. Each pass first sorts the
+        nodes whose distance just improved, along with everything reachable from them through
+        edges that would improve a distance, into topological order, and then relaxes their
+        out-edges in that order, so an improvement travels down a whole chain of edges in a
+        single pass.
+
+        The result is a shortest-path tree: each reached node's predecessor on one shortest path
+        from `source`, and each node's distance. Use `predecessor()` to get every predecessor on
+        tied shortest paths.
+
+        Parameters
+        ----------
+        source
+            The start node, as an ID or label.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag; edges without a weight count as `1.0`.
+
+        Returns
+        -------
+        tuple[dict[int, int | None], dict[int, int | float]]
+            A `(predecessors, distances)` pair, each keyed by the IDs of the nodes reachable from
+            `source`, in ID order. The source's predecessor is `None` and its distance is `0`.
+            Distances are `int` hops when unweighted.
+
+        Raises
+        ------
+        ValueError
+            If `source` doesn't exist, or a cycle of negative total weight is reachable from it.
+            In an undirected graph, any reachable negative edge is such a cycle (there and back).
+
+        Technical Notes
+        ---------------
+        Goldberg and Radzik (1993) keep the $O(VE)$ worst case of Bellman-Ford but usually run
+        much faster. A pass takes the set $B$ of nodes relabeled in the previous pass, and a
+        depth-first search from $B$ along edges of negative reduced cost
+        $d(u) + w(u, v) - d(v) < 0$ collects the set $A$ to scan in topological order. A back
+        edge found by this search closes a cycle containing a negative reduced-cost edge, which
+        must have negative total weight, so negative cycles are detected as they appear. The
+        pass then relaxes the out-edges of $A$ in order, and the nodes it improves form the next
+        $B$. The search and the order of passes follow NetworkX's `goldberg_radzik`, whose
+        distances this method matches; when shortest paths tie, the predecessor picked may
+        differ.
+
+        Examples
+        --------
+        The direct edge from A to B costs `4`, but the route through C costs `2 + (-3) = -1`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True, weighted=True)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -3.0), ("B", "D", 1.0)])
+        )
+
+        pred, dist = graph.goldberg_radzik("A")
+        label = graph.get_label_from_id
+        {label(n): (None if p is None else label(p), dist[n]) for n, p in pred.items()}
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        use = self._use_weights(weighted)
+        rows = rust.goldberg_radzik(self._graph, s, use)
+        pred = {n: p for n, p, _ in rows}
+        distances = {n: self._as_number(d, use) for n, _, d in rows}
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "goldberg_radzik",
+                f"G.goldberg_radzik({self._node_label(s)!r})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(s)],
+                    metric_values={self._node_label(n): float(d) for n, d in distances.items()},
+                    edges_selected=[
+                        (self._node_label(p), self._node_label(n))
+                        for n, p in pred.items()
+                        if p is not None
+                    ],
+                ),
+                narration=f"Goldberg-Radzik shortest paths from {self._node_label(s)} to "
+                f"{len(pred)} nodes.",
+            )
+        return pred, distances
+
     def bellman_ford_shortest_path(
         self,
         source: Union[int, str],
@@ -62294,6 +62795,10 @@ class Graph:
           and improve it with random moves (`"threshold_accepting"` is the default for
           directed graphs, where Christofides does not apply). Use `seed=` for reproducible
           results.
+        - `"asadpour"`: Asadpour et al.'s randomized rounding of a linear programming bound,
+          for one-way streets and other asymmetric costs; within $O(\log k / \log \log k)$
+          of optimal (with high probability) for $k$ stops, and often much closer. Use
+          `seed=` for reproducible results.
 
         Parameters
         ----------
@@ -62310,7 +62815,7 @@ class Graph:
             graph's `weighted` flag; with `False` every edge costs `1`. Weights must be
             non-negative.
         seed
-            Random seed for the local search methods.
+            Random seed for the local search methods and `"asadpour"`.
         max_iterations
             Local search only: stop after this many outer rounds without an improvement.
         n_inner
@@ -62347,6 +62852,24 @@ class Graph:
         Both follow NetworkX's design, but unlike NetworkX they leave the current route
         unchanged when a move is rejected.
 
+        The `"asadpour"` method (Asadpour, Goemans, Madry, Oveis Gharan and Saberi, 2017)
+        first solves the Held-Karp relaxation: the cheapest fractional assignment of arcs with
+        one unit leaving and entering each stop and at least one unit leaving every subset of
+        stops. It is solved exactly by a dense two-phase simplex method, adding the subset
+        constraints as cutting planes found by minimum cuts. If the optimum is a tour, it is
+        returned (it is optimal). Otherwise the solution is symmetrized and scaled by
+        $(k - 1) / k$, a maximum entropy distribution of spanning trees matching those edge
+        marginals is fitted, and $2 \lceil \ln k \rceil$ trees are drawn from it (Wilson's
+        algorithm). The cheapest, with each edge oriented its cheaper way, is made Eulerian by a
+        minimum-cost flow that balances in- and out-degrees, and its Eulerian circuit is
+        shortcut into the tour. NetworkX's `asadpour_atsp()` follows the same steps but reaches
+        the relaxation by Held and Karp's ascent over enumerated 1-arborescences, which is much
+        slower (seconds already at 6 stops, against milliseconds here for 25), and it picks the
+        sampled tree and orients its edges by the tree distribution's weights instead of the
+        travel costs. The method also works on undirected graphs, where NetworkX raises an
+        error, but Christofides is the better choice there. The simplex tableau has $k^2$
+        columns, so this is meant for at most a few dozen stops.
+
         Examples
         --------
         Five sites linked by roads, weighted by travel time. The route visits every site and
@@ -62382,6 +62905,21 @@ class Graph:
 
         ```{python}
         [g.get_label_from_id(n) for n in g.traveling_salesman(cycle=False, method="greedy")]
+        ```
+
+        On a directed graph, travel costs can depend on the direction. Going clockwise around
+        these three sites costs 2 per leg, but counterclockwise only 1, which the
+        `"asadpour"` method finds:
+
+        ```{python}
+        oneway = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
+        oneway.add_edges(
+            [
+                ("A", "B", 2.0), ("B", "C", 2.0), ("C", "A", 2.0),
+                ("A", "C", 1.0), ("C", "B", 1.0), ("B", "A", 1.0),
+            ]
+        )
+        [oneway.get_label_from_id(n) for n in oneway.traveling_salesman(method="asadpour")]
         ```
         """
         if method is None:
