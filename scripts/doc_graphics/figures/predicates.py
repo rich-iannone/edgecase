@@ -30,7 +30,10 @@ is_aperiodic draws its docstring 4-cycle on a square: the chord C -> A and the
 3-cycle it closes are accent on the True side and the chord is `ghost` on the
 False side, with the cycle lengths in a note. is_triad compares a directed and
 an undirected graph on three nodes; the culprit, the undirected constructor,
-is named in an accent note.
+is named in an accent note. is_regular_expander compares two 3-regular graphs
+on six nodes, the prism and K3,3, with each second eigenvalue against the
+Ramanujan bound in a note; K3,3's two sides are `accent` / `g2`, since being
+bipartite is what fails it. Both answers are asserted.
 """
 
 
@@ -602,6 +605,39 @@ def is_k_regular(s: Scene) -> None:
     for p, c in (("l.", "ink"), ("r.", "accent")):
         for k in HEX:
             s.badge(p + k, "2", where=HEX_OUT[k], color=c)
+
+
+# Two 3-regular graphs on six nodes: the prism (outer and inner triangle, joined
+# by spokes) and K3,3 in two rows, whose bipartite split is the culprit.
+PRISM = {"A": (0, -1.25), "B": (1.08, 0.62), "C": (-1.08, 0.62),
+         "D": (0, -0.45), "E": (0.39, 0.22), "F": (-0.39, 0.22)}
+PRISM_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("D", "E"), ("E", "F"), ("F", "D"),
+               ("A", "D"), ("B", "E"), ("C", "F")]
+K33 = {"A": (-1.3, 0), "B": (0, 0), "C": (1.3, 0), "D": (-1.3, 1.4), "E": (0, 1.4),
+       "F": (1.3, 1.4)}
+K33_EDGES = [(a, b) for a in "ABC" for b in "DEF"]
+
+
+@figure("is_regular_expander", "predicates", "Is regular expander",
+        "Two 3-regular graphs on six nodes, each with its second eigenvalue, the largest one in "
+        "absolute value after the degree 3, in a note above it. Left: the prism, two triangles "
+        "joined by spokes, has eigenvalues down to -2, within the Ramanujan bound 2 sqrt(2), "
+        "about 2.83, so is_regular_expander() returns True. Right: the complete bipartite graph "
+        "K3,3, its two sides in the accent color and teal, has eigenvalue -3 because it is "
+        "bipartite, past the bound, so is_regular_expander() returns False.")
+def is_regular_expander(s: Scene) -> None:
+    import edgecase as ec
+
+    for edges, answer in ((PRISM_EDGES, True), (K33_EDGES, False)):
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges(edges)
+        assert g.is_regular_expander() is answer
+    left, right = contrast(s, "g.is_regular_expander()", "g.is_regular_expander()")
+    left = _note(s, left, "|λ2| = 2 ≤ 2√2 ≈ 2.83")
+    s.graph(place(PRISM, left), PRISM_EDGES, prefix="l.")
+    right = _note(s, right, "|λ2| = 3 > 2√2 ≈ 2.83")
+    s.graph(place(K33, right), K33_EDGES, prefix="r.",
+            styles={**dict.fromkeys("ABC", "accent"), **dict.fromkeys("DEF", "g2")})
 
 
 # --- structure -------------------------------------------------------------------

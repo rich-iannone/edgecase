@@ -35,13 +35,32 @@ Shared layouts so siblings can be compared directly:
   when directed), and geometric models place nodes at their `pos`: the soft
   random geometric graph circles its radius around a `soft` node, and the
   geographical threshold graph shades each node by its weight (heat).
+- Bipartite generators draw part 0 as an `accent` top row and part 1 as a
+  teal bottom row (`_rows`), with degree pills above and below the rows for
+  the degree-driven ones.
+- Expanders and the duplication, kernel, and clustered models sit on the ring.
+  Self-loops and repeated pairs are part of the picture: a pair repeated twice
+  bows apart by the first of `_pair_bends` that clears every node. The
+  Margulis-Gabber-Galil n=4 panel and the Sudoku graph are too dense to draw
+  whole, so they show their grid with only one `accent` node's edges and its
+  neighbors `soft`. Paley graphs at p = 3 mod 4 are drawn directed.
+- Furniture placed first: visibility graphs draw dashed stems up from a
+  baseline, interval graphs draw each interval as a faint `accent` bar, and
+  both then hand their placed coords to `_live(pos=...)`. The prefix tree
+  hangs from its root with the NIL sink `soft` and pilled below.
+- The Internet AS graph uses the `single` layout: tier-1 nodes on a ring, the
+  middle and customer tiers in rows sorted under their upstream links, each
+  type in its own color.
+- Enumerations (atlas slices, non-isomorphic trees) are galleries
+  (`_gallery`): one small graph per grid cell at a smaller unit, atlas graphs
+  on rings and trees by `_spine_layout`, their longest path as a row.
 """
 
 import itertools
 import math
 from collections import Counter
 
-from core import R_SMALL, Box, Scene, figure, multiples, place, ring
+from core import R_SMALL, Box, Scene, compute, figure, multiples, place, ring, single
 
 UNIT = 62  # one density for the whole family
 
@@ -941,20 +960,33 @@ def _cluster_layout(groups: list[list[str]], edges, gap: float = 0.6) -> dict:
     return coords
 
 
-def _clear_bend(pos: dict, a: str, b: str) -> float:
-    """Smallest bow (px) that keeps edge a-b clear of every other node; 0 if straight is."""
+def _bend_clears(pos: dict, a: str, b: str, bend: float, gap: float = 4) -> bool:
+    """True if edge a-b bowed by `bend` px passes every other node by at least `gap` px."""
     (ax, ay), (bx, by) = pos[a], pos[b]
     dist = math.hypot(bx - ax, by - ay)
     px, py = -(by - ay) / dist, (bx - ax) / dist
     others = [xy for v, xy in pos.items() if v not in (a, b)]
+    cx, cy = (ax + bx) / 2 + px * bend * 2, (ay + by) / 2 + py * bend * 2
+    pts = [((1 - t) ** 2 * ax + 2 * (1 - t) * t * cx + t * t * bx,
+            (1 - t) ** 2 * ay + 2 * (1 - t) * t * cy + t * t * by)
+           for t in (i / 40 for i in range(41))]
+    return all(_seg_dist(o, p, q) >= R_SMALL + gap for o in others for p, q in zip(pts, pts[1:]))
+
+
+def _clear_bend(pos: dict, a: str, b: str) -> float:
+    """Smallest bow (px) that keeps edge a-b clear of every other node; 0 if straight is."""
     for bend in (0, *(sign * size for size in range(8, 21, 4) for sign in (1, -1))):
-        cx, cy = (ax + bx) / 2 + px * bend * 2, (ay + by) / 2 + py * bend * 2
-        pts = [((1 - t) ** 2 * ax + 2 * (1 - t) * t * cx + t * t * bx,
-                (1 - t) ** 2 * ay + 2 * (1 - t) * t * cy + t * t * by)
-               for t in (i / 40 for i in range(41))]
-        if all(_seg_dist(o, p, q) >= R_SMALL + 4 for o in others for p, q in zip(pts, pts[1:])):
+        if _bend_clears(pos, a, b, bend):
             return bend
     return 0
+
+
+def _pair_bends(pos: dict, a: str, b: str) -> tuple[float, float]:
+    """Bows for two copies of a-b: either side of the line, or both to one side of a node."""
+    for pair in ((10, -10), (12, 24), (-12, -24), (16, 30), (-16, -30)):
+        if all(_bend_clears(pos, a, b, bend, gap=3) for bend in pair):
+            return pair
+    return (10, -10)
 
 
 def _community_panel(s: Scene, box: Box, call: str, prefix: str, gap: float = 0.6) -> None:
@@ -1122,6 +1154,17 @@ SEEDS = {
     "add_soft_random_geometric_graph": 289,
     "add_geographical_threshold_graph": 139,
     "add_navigable_small_world_graph": 5,
+    "add_bipartite_configuration_model": 0,
+    "add_bipartite_preferential_attachment_graph": 0,
+    "add_bipartite_gnp_graph": 0,
+    "add_bipartite_gnm_graph": 0,
+    "add_maybe_regular_expander": 1,
+    "add_random_regular_expander_graph": 0,
+    "add_random_kernel_graph": 0,
+    "add_random_clustered_graph": 0,
+    "add_duplication_divergence_graph": 23,
+    "add_partial_duplication_graph": 0,
+    "add_random_internet_as_graph": 9,
 }
 
 
@@ -1131,13 +1174,15 @@ def _seeded(method: str, args: str, directed: bool = False):
 
 
 def _live(s: Scene, box: Box, coords, edges, *, prefix: str, directed: bool = False,
-          styles=None, edge_style=None, labels=False, unit: float = UNIT, pad: float = 6) -> dict:
+          styles=None, edge_style=None, labels=False, unit: float = UNIT, pad: float = 6,
+          pos=None) -> dict:
     """Like `_draw`, for generator output that may hold arrows, repeats, or self-loops.
 
     Copies of the same pair bow apart (two copies to either side, a third down
     the middle); any other edge that would graze a node is bowed clear of it.
+    `pos` skips the placement, for callers that place extra furniture with it.
     """
-    pos = place(coords, box, unit=unit, r=R_SMALL, pad=pad)
+    pos = pos or place(coords, box, unit=unit, r=R_SMALL, pad=pad)
     edge_style = edge_style or {}
     count = Counter(frozenset((a, b)) for a, b in edges)
     seen: Counter = Counter()
@@ -1149,7 +1194,9 @@ def _live(s: Scene, box: Box, coords, edges, *, prefix: str, directed: bool = Fa
             opts["style"] = st
         if a != b and count[key] > 1:
             # bends are set for the low -> high direction and flipped for the reverse
-            bend = (10, -10, 0)[seen[key]] if count[key] == 2 else (0, 14, -14)[seen[key]]
+            lo, hi = sorted((a, b), key=int)
+            pair = _pair_bends(pos, lo, hi) if count[key] == 2 else (0, 14, -14)
+            bend = pair[seen[key]]
             seen[key] += 1
             opts["bend"] = bend if int(a) < int(b) else -bend
         elif a != b and (bend := _clear_bend(pos, a, b)):
@@ -1612,3 +1659,515 @@ def add_navigable_small_world_graph(s: Scene) -> None:
         long = {frozenset((a, b)): "accent" for a, b in edges
                 if abs(coords[a][0] - coords[b][0]) + abs(coords[a][1] - coords[b][1]) > 1}
         _live(s, box, coords, edges, prefix=f"q{q}.", edge_style=long)
+
+
+# --- bipartite generators -------------------------------------------------------
+# Part 0 in a top row in `accent`, part 1 in a teal bottom row, as in the
+# complete bipartite figure. Degree-driven models put each node's degree in a
+# pill outside its row (above the top row, below the bottom one).
+
+
+def _rows(g) -> dict[str, tuple[float, float]]:
+    """Abstract coords: each part centered in its own row, ids in order."""
+    parts = g.get_node_attrs("part")
+    coords = {}
+    for part in (0, 1):
+        ids = sorted(k for k, v in parts.items() if v == part)
+        coords |= {str(k): (i - (len(ids) - 1) / 2, 1.5 * part) for i, k in enumerate(ids)}
+    return coords
+
+
+def _bipartite_panel(s: Scene, box: Box, g, edges, prefix: str, *,
+                     degrees: bool = False) -> None:
+    coords = _rows(g)
+    if degrees:  # leave room for the pills above and below the rows
+        box = Box(box.x0, box.y0 + 14, box.x1, box.y1 - 14)
+    _live(s, box, coords, edges, prefix=prefix, styles=_group_styles(g, "part"),
+          directed=g.is_directed())
+    if degrees:
+        degree = Counter(v for e in edges for v in e)
+        parts = g.get_node_attrs("part")
+        for k in coords:
+            s.badge(prefix + k, str(degree[k]), where="n" if parts[int(k)] == 0 else "s")
+
+
+BIPARTITE_SEQS = (((1, 1, 1), (1, 1, 1)), ((2, 2, 2), (3, 3)), ((3, 2, 1), (2, 2, 1, 1)))
+
+
+@figure("add_bipartite_configuration_model", "generators", "Bipartite configuration model",
+        "Three bipartite configuration models, the first part in an accent top row and the "
+        "second in a teal bottom row, each node's degree in a pill. Three ones on each side give "
+        "a perfect matching; three twos against two threes give six edges in which the "
+        "stubs happened to pair into two doubled edges, drawn bowed apart; and 3, 2, 1 against "
+        "2, 2, 1, 1 gives six edges with one doubled. Every node meets its degree exactly, and "
+        "no edge joins two nodes in the same row.")
+def add_bipartite_configuration_model(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"aseq={_seq(a, True)}, bseq={_seq(b, True)}"
+                               for a, b in BIPARTITE_SEQS))
+    for i, (box, (a, b)) in enumerate(zip(boxes, BIPARTITE_SEQS)):
+        g, edges = _seeded("add_bipartite_configuration_model", f"{list(a)}, {list(b)}")
+        _bipartite_panel(s, box, g, edges, f"c{i}.", degrees=True)
+
+
+HH_VARIANTS = ("largest", "smallest", "alternating")
+
+
+@figure("add_bipartite_havel_hakimi_graph", "generators", "Bipartite Havel-Hakimi graph",
+        "Three bipartite Havel-Hakimi graphs for the same degrees, 3, 2, 1 in the accent top row "
+        "and 2, 2, 1, 1 in the teal bottom row, each node's degree in a pill. Each top node in "
+        "turn is joined to the bottom nodes with the most degree left, the fewest, or "
+        "alternately the most and the fewest, so the three variants wire the same six edges "
+        "differently while every node still meets its pill and no pair is joined twice.")
+def add_bipartite_havel_hakimi_graph(s: Scene) -> None:
+    a, b = BIPARTITE_SEQS[2]
+    boxes = multiples(s, tuple(f'variant="{v}"' for v in HH_VARIANTS))
+    for i, (box, v) in enumerate(zip(boxes, HH_VARIANTS)):
+        g, edges = _built(f"add_bipartite_havel_hakimi_graph({list(a)}, {list(b)}, "
+                          f"variant={v!r})")
+        _bipartite_panel(s, box, g, edges, f"h{i}.", degrees=True)
+
+
+@figure("add_bipartite_preferential_attachment_graph", "generators",
+        "Bipartite preferential attachment graph",
+        "Three bipartite preferential attachment graphs in which three accent top nodes bring "
+        "two edges each, and each edge makes a new teal bottom node with probability p or else "
+        "picks an existing one in proportion to its degree. At p=1 every edge gets its own "
+        "node, six in all; at p=0.5 the six edges share three bottom nodes, the busiest taking "
+        "three; and at p=0 every "
+        "edge lands on the single node the first edge made, so each top node reaches it twice, "
+        "drawn as bowed pairs.")
+def add_bipartite_preferential_attachment_graph(s: Scene) -> None:
+    ps = ("1", "0.5", "0")
+    boxes = multiples(s, tuple(f"aseq=[2, 2, 2], p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        g, edges = _seeded("add_bipartite_preferential_attachment_graph", f"[2, 2, 2], {p}")
+        _bipartite_panel(s, box, g, edges, f"p{i}.")
+
+
+@figure("add_bipartite_gnp_graph", "generators", "Bipartite G(n1, n2, p) random graph",
+        "Three random bipartite graphs with three accent top nodes and four teal bottom nodes, "
+        "where each of the 12 top-bottom pairs is joined independently with probability p=0.2, "
+        "0.5, and 0.8. Edges only ever run between the rows, and their number grows with p, "
+        "from 2 to 4 to 8.")
+def add_bipartite_gnp_graph(s: Scene) -> None:
+    ps = ("0.2", "0.5", "0.8")
+    boxes = multiples(s, tuple(f"n1=3, n2=4, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        g, edges = _seeded("add_bipartite_gnp_graph", f"3, 4, {p}")
+        _bipartite_panel(s, box, g, edges, f"p{i}.")
+
+
+@figure("add_bipartite_gnm_graph", "generators", "Bipartite G(n1, n2, m) random graph",
+        "Three random bipartite graphs with three accent top nodes and four teal bottom nodes "
+        "and exactly m=3, 6, and 9 edges, each set of m top-bottom pairs equally likely. Edges "
+        "only ever run between the rows.")
+def add_bipartite_gnm_graph(s: Scene) -> None:
+    ms = (3, 6, 9)
+    boxes = multiples(s, tuple(f"n1=3, n2=4, m={m}" for m in ms))
+    for box, m in zip(boxes, ms):
+        g, edges = _seeded("add_bipartite_gnm_graph", f"3, 4, {m}")
+        _bipartite_panel(s, box, g, edges, f"m{m}.")
+
+
+# --- expanders ------------------------------------------------------------------
+# On the shared ring in id order (the Margulis-Gabber-Galil graph on its torus
+# grid). These are regular multigraphs or near-regular graphs, so self-loops
+# and repeated pairs are part of the picture.
+
+
+MGG_CELL = "(1,1)"  # the node whose eight edges the n=4 panel shows
+
+
+@figure("add_margulis_gabber_galil_graph", "generators", "Margulis-Gabber-Galil graph",
+        "Margulis-Gabber-Galil graphs on the n by n grid of coordinate pairs modulo n. Each point "
+        "(x, y) is joined to eight images under fixed affine maps, so every node has degree 8 "
+        "counting self-loops, drawn as small loops, and repeated pairs, drawn bowed apart: n=2 "
+        "and n=3 on a ring, and for n=4 the 4 by 4 grid with only the eight edges of the point "
+        "(1, 1) shown, in the accent color, reaching its images such as (1, 3) and (3, 1).")
+def add_margulis_gabber_galil_graph(s: Scene) -> None:
+    boxes = multiples(s, ("n=2", "n=3", f"n=4, edges of {MGG_CELL.replace(',', ', ')}"))
+    for box, n in zip(boxes[:2], (2, 3)):
+        _, edges = _built(f"add_margulis_gabber_galil_graph({n})")
+        _live(s, box, _ring_xy(n * n), edges, prefix=f"n{n}.")
+    g, edges = _built("add_margulis_gabber_galil_graph(4)")
+    cells = {lab: k for k, lab in _labels(g).items()}
+    coords = {k: eval(lab)[::-1] for lab, k in cells.items()}  # x across, y down
+    hub = cells[MGG_CELL]
+    mine = [e for e in edges if hub in e]
+    nbrs = {v for e in mine for v in e} - {hub}
+    _live(s, boxes[2], coords, mine, prefix="n4.", unit=46,
+          styles={hub: "accent", **{v: "soft" for v in nbrs}},
+          edge_style={frozenset(e): "accent" for e in mine})
+
+
+@figure("add_chordal_cycle_graph", "generators", "Chordal cycle graph",
+        "Three chordal cycle graphs on rings of p=5, 7, and 11 nodes, the integers modulo p. "
+        "Each x is joined to x - 1 and x + 1 around the ring and by a chord to its inverse "
+        "modulo p, shown in the accent color; 0, 1, and p - 1 are their own inverses, so they "
+        "get self-loops. Where an inverse is a ring neighbor, as 2 and 3 at p=5 and 3 and 4 or 7 "
+        "and 8 at p=11, the chord doubles a ring edge, drawn bowed apart.")
+def add_chordal_cycle_graph(s: Scene) -> None:
+    ps = (5, 7, 11)
+    boxes = multiples(s, tuple(f"g.add_chordal_cycle_graph(p={p})" for p in ps))
+    for box, p in zip(boxes, ps):
+        _, edges = _built(f"add_chordal_cycle_graph({p})")
+        ring_pairs = {frozenset(e) for e in _cycle_edges(p)}
+        chords = {frozenset(e): "accent" for e in edges[p:] if frozenset(e) not in ring_pairs}
+        _live(s, box, _ring_xy(p), edges, prefix=f"p{p}.", edge_style=chords)
+
+
+@figure("add_paley_graph", "generators", "Paley graph",
+        "Three Paley graphs on the integers modulo a prime p, on a ring. At p=5 two numbers are "
+        "joined when their difference is a nonzero square, 1 or 4, which gives a five-cycle. At "
+        "p=3 and p=7, where -1 is not a square, the graph is directed: each pair gets exactly "
+        "one arc, from x to x plus a nonzero square, making a tournament, a directed triangle at "
+        "p=3 and 21 arcs at p=7.")
+def add_paley_graph(s: Scene) -> None:
+    params = ((3, True), (5, False), (7, True))
+    boxes = multiples(s, ("p=3, directed", "g.add_paley_graph(p=5)", "p=7, directed"))
+    for box, (p, directed) in zip(boxes, params):
+        _, edges = _built(f"add_paley_graph({p})", directed=directed)
+        _live(s, box, _ring_xy(p), edges, prefix=f"p{p}.", directed=directed)
+
+
+@figure("add_maybe_regular_expander", "generators", "Random regular expander candidate",
+        "Three random graphs on a ring of eight nodes built as unions of d / 2 random "
+        "Hamiltonian cycles that share no edge, for d=2, 4, and 6. Every node has exactly d "
+        "neighbors; d=2 is a single cycle visiting the nodes in random order. The graph is "
+        "only likely to be a good expander and is not checked, which is what the maybe means.")
+def add_maybe_regular_expander(s: Scene) -> None:
+    ds = (2, 4, 6)
+    boxes = multiples(s, tuple(f"n=8, d={d}" for d in ds))
+    for box, d in zip(boxes, ds):
+        _, edges = _seeded("add_maybe_regular_expander", f"8, {d}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"d{d}.")
+
+
+@figure("add_random_regular_expander_graph", "generators", "Random regular expander graph",
+        "Three random regular expanders on a ring of nine nodes for d=2, 4, and 6. Candidates "
+        "are built like the maybe-regular expander and kept only once their second eigenvalue "
+        "meets the Ramanujan bound, so each graph is d-regular and a proven expander: a "
+        "nine-cycle in shuffled order, then 18 and 27 edges.")
+def add_random_regular_expander_graph(s: Scene) -> None:
+    ds = (2, 4, 6)
+    boxes = multiples(s, tuple(f"n=9, d={d}" for d in ds))
+    for box, d in zip(boxes, ds):
+        _, edges = _seeded("add_random_regular_expander_graph", f"9, {d}")
+        _live(s, box, _ring_xy(9), edges, prefix=f"d{d}.")
+
+
+# --- special generators -----------------------------------------------------------
+
+
+@figure("add_random_kernel_graph", "generators", "Random kernel graph",
+        "Three random kernel graphs on a ring of eight nodes with a constant kernel c, given "
+        "through its integral c times (z - w), for c=1, 2, and 4. A constant kernel joins each "
+        "pair with probability about c / n, so the graph fills in as c grows, from one edge to "
+        "four to twelve.")
+def add_random_kernel_graph(s: Scene) -> None:
+    cs = (1, 2, 4)
+    boxes = multiples(s, tuple(f"lambda u, w, z: {c} * (z - w)" for c in cs))
+    for box, c in zip(boxes, cs):
+        _, edges = _seeded("add_random_kernel_graph", f"8, lambda u, w, z: {c} * (z - w)")
+        _live(s, box, _ring_xy(8), edges, prefix=f"c{c}.")
+
+
+CLUSTERED = ((1, 0), (0, 1), (1, 1))
+
+
+@figure("add_random_clustered_graph", "generators", "Random clustered graph",
+        "Three random clustered graphs on a ring of six nodes, where each node asks for a number "
+        "of plain edges and a number of triangles. One edge each pairs the nodes into three "
+        "separate edges; one triangle each groups them into two triangles; and one of each gives "
+        "two triangles plus three more edges, two of which happen to repeat a triangle side and "
+        "are drawn bowed apart.")
+def add_random_clustered_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"[{c}] * 6".replace(" ", "", 1) for c in CLUSTERED))
+    for i, (box, c) in enumerate(zip(boxes, CLUSTERED)):
+        _, edges = _seeded("add_random_clustered_graph", f"[{c}] * 6")
+        _live(s, box, _ring_xy(6), edges, prefix=f"c{i}.")
+
+
+@figure("add_duplication_divergence_graph", "generators", "Duplication-divergence graph",
+        "Three duplication-divergence graphs on a ring of eight nodes, each grown from a single "
+        "edge by copying a random node and keeping each of the copy's edges with probability p, "
+        "for p=0.3, 0.6, and 0.9. A copy that keeps no edge is discarded, so the graph stays "
+        "connected; a higher retention p gives denser graphs with more shared neighbors, 7, 11, "
+        "and 15 edges here.")
+def add_duplication_divergence_graph(s: Scene) -> None:
+    ps = ("0.3", "0.6", "0.9")
+    boxes = multiples(s, tuple(f"n=8, p={p}" for p in ps))
+    for i, (box, p) in enumerate(zip(boxes, ps)):
+        _, edges = _seeded("add_duplication_divergence_graph", f"8, {p}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"p{i}.")
+
+
+@figure("add_partial_duplication_graph", "generators", "Partial duplication graph",
+        "Three partial duplication graphs on a ring of eight nodes, grown from a triangle on the "
+        "first three nodes. Each new node copies a random node, keeps each of its edges with "
+        "probability p=0.5, and links to the original with probability q=0, 0.5, and 1. With "
+        "q=0 a copy that keeps no edge is left isolated, as three are here; with q=1 every copy "
+        "stays attached to its original.")
+def add_partial_duplication_graph(s: Scene) -> None:
+    qs = ("0", "0.5", "1")
+    boxes = multiples(s, tuple(f"n=8, n_initial=3, p=0.5, q={q}" for q in qs))
+    for i, (box, q) in enumerate(zip(boxes, qs)):
+        _, edges = _seeded("add_partial_duplication_graph", f"8, 3, 0.5, {q}")
+        _live(s, box, _ring_xy(8), edges, prefix=f"q{i}.")
+
+
+INTERNET_TYPES = {"T": "accent", "M": "g2", "CP": "g3", "C": "g4"}
+
+
+@figure("add_random_internet_as_graph", "generators", "Random Internet AS graph",
+        "One random Internet autonomous-system graph on 20 nodes in three tiers. The five tier-1 "
+        "providers, in the accent color, form a full clique at the top; the mid-level providers, "
+        "in teal, and the content provider, in a third color, sit in the middle row; and the "
+        "customers, in a fourth color, sit along the bottom. Customers buy transit from the "
+        "providers above them, and edges between two nodes of the same kind, the peering links, "
+        "take its color.")
+def add_random_internet_as_graph(s: Scene) -> None:
+    box = single(s, "g.add_random_internet_as_graph(n=20)")
+    g, edges = _seeded("add_random_internet_as_graph", "20")
+    kinds = {str(k): v for k, v in g.get_node_attrs("type").items()}
+    adj: dict[str, list[str]] = {}
+    for a, b in edges:
+        adj.setdefault(a, []).append(b)
+        adj.setdefault(b, []).append(a)
+    coords = ring(sorted((k for k, v in kinds.items() if v == "T"), key=int), 0.85)
+    for row, tier in ((2.0, ("M", "CP")), (3.3, ("C",))):
+        # each row sorted under the mean position of its links to the rows above
+        ids = [k for k, v in kinds.items() if v in tier]
+        above = {k: [coords[v][0] for v in adj.get(k, []) if v in coords] or [0.0] for k in ids}
+        ids.sort(key=lambda k: (sum(above[k]) / len(above[k]), int(k)))
+        step = 1.2 if tier == ("C",) else 2.2
+        coords |= {k: ((j - (len(ids) - 1) / 2) * step, row) for j, k in enumerate(ids)}
+    styles = {k: INTERNET_TYPES[v] for k, v in kinds.items()}
+    _live(s, box, coords, edges, prefix="as.", styles=styles, unit=44,
+          edge_style={frozenset((a, b)): styles[a] for a, b in edges if kinds[a] == kinds[b]})
+
+
+VISIBILITY = ((1, 3, 2), (3, 1, 2, 1, 3), (2, 1, 5, 1, 3, 1))
+
+
+@figure("add_visibility_graph", "generators", "Visibility graph",
+        "Three natural visibility graphs of short time series, each value drawn as a dashed "
+        "stem rising from a baseline with its node on top. Two values are joined when the "
+        "straight line between their tops clears every value in between, so neighbors in time "
+        "are always joined and a tall value such as the 5 in the last series sees far in both "
+        "directions.")
+def add_visibility_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"series={_seq(v)}" for v in VISIBILITY))
+    for i, (box, series) in enumerate(zip(boxes, VISIBILITY)):
+        _, edges = _built(f"add_visibility_graph({list(series)})")
+        coords = {str(k): (k, -0.5 * v) for k, v in enumerate(series, 1)}
+        coords |= {f"base{k}": (k, 0.0) for k in range(1, len(series) + 1)}
+        pos = place(coords, box, unit=UNIT, r=R_SMALL)
+        for k in range(1, len(series) + 1):
+            (x, y), (_, base) = pos[str(k)], pos.pop(f"base{k}")
+            s.line(x, y + R_SMALL, x, base, opacity=0.35, width=1, dash="3 3")
+        x0, x1 = pos["1"][0], pos[str(len(series))][0]
+        s.line(x0 - 14, base, x1 + 14, base, opacity=0.35, width=1, role="axis")
+        _live(s, box, {}, edges, prefix=f"v{i}.", pos=pos)
+
+
+INTERVALS = (
+    ((0, 2), (1, 3), (4, 5)),
+    ((0, 3), (1, 2), (2.5, 4), (3.5, 5)),
+    ((0, 1.5), (1, 4), (2, 3), (3.5, 5), (4.5, 6)),
+)
+
+
+@figure("add_interval_graph", "generators", "Interval graph",
+        "Three interval graphs, each interval drawn as a faint bar on its own row with its node "
+        "at the middle. Two nodes are joined when their intervals overlap, touching endpoints "
+        "included: the third interval of the first set meets neither of the others, and the long "
+        "second interval of the last set overlaps three of the other four.")
+def add_interval_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"{len(iv)} intervals" for iv in INTERVALS))
+    for i, (box, intervals) in enumerate(zip(boxes, INTERVALS)):
+        _, edges = _built(f"add_interval_graph({[tuple(map(float, iv)) for iv in intervals]})")
+        coords = {}
+        for k, (lo, hi) in enumerate(intervals, 1):
+            y = k - 1.0
+            coords |= {str(k): ((lo + hi) / 2, y), f"lo{k}": (lo, y), f"hi{k}": (hi, y)}
+        pos = place(coords, box, unit=40, r=R_SMALL)
+        for k in range(1, len(intervals) + 1):
+            (x0, y), (x1, _) = pos.pop(f"lo{k}"), pos.pop(f"hi{k}")
+            s.line(x0, y, x1, y, color="accent", opacity=0.35, width=5)
+        _live(s, box, {}, edges, prefix=f"i{i}.", pos=pos)
+
+
+SUDOKU_CELLS = ((0, 0), (1, 2), (3, 3))
+
+
+@figure("add_sudoku_graph", "generators", "Sudoku graph",
+        "The 4 by 4 Sudoku graph for n=2 three times, drawn as its grid with a small gap between "
+        "the 2 by 2 boxes and, in each panel, only the edges of one cell shown, in the accent "
+        "color. Each cell is joined to the other cells in its row, its column, and its box, "
+        "seven in all, so a valid Sudoku solution is a proper four-coloring of the graph. Edges "
+        "along a row or column bow around the cells in between.")
+def add_sudoku_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"n=2, neighbors of ({r}, {c})" for r, c in SUDOKU_CELLS))
+    g, edges = _built("add_sudoku_graph(2)")
+    cells = {lab: k for k, lab in _labels(g).items()}
+    coords = {k: (c + 0.3 * (c // 2), r + 0.3 * (r // 2))
+              for k, (r, c) in ((k, eval(lab)) for lab, k in cells.items())}
+    for i, (box, cell) in enumerate(zip(boxes, SUDOKU_CELLS)):
+        hub = cells[f"({cell[0]},{cell[1]})"]
+        mine = [e for e in edges if hub in e]
+        nbrs = {v for e in mine for v in e} - {hub}
+        _live(s, box, coords, mine, prefix=f"s{i}.", unit=38,
+              styles={hub: "accent", **{v: "soft" for v in nbrs}},
+              edge_style={frozenset(e): "accent" for e in mine})
+
+
+PREFIX_PATHS = (["ab", "ac"], ["ab", "ac", "b"], ["cat", "car", "dog"])
+
+
+@figure("add_prefix_tree", "generators", "Prefix tree",
+        "Three prefix trees (tries), each node labeled with the character it stands for and "
+        "hung from an unlabeled root at the top. Paths that share a prefix share its nodes, so "
+        "ab and ac branch below a single a, and every path ends at the one NIL node at the "
+        "bottom, as in NetworkX.")
+def add_prefix_tree(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"paths={_seq([repr(p) for p in ps])}".replace("'", '"')
+                               for ps in PREFIX_PATHS))
+    for i, (box, paths) in enumerate(zip(boxes, PREFIX_PATHS)):
+        g, edges = _built(f"add_prefix_tree({paths})")
+        source = {str(k): v for k, v in g.get_node_attrs("source").items()}
+        nil = next(k for k, v in source.items() if v == "NIL")
+        trie = [e for e in edges if nil not in e]
+        coords = _tidy_tree(_bfs_children(trie, "1"), "1")
+        xs = [x for x, _ in coords.values()]
+        coords[nil] = ((min(xs) + max(xs)) / 2, 1 + max(y for _, y in coords.values()))
+        labels = {k: "" if source.get(k) in (None, "NIL") else source[k] for k in coords}
+        box = Box(box.x0, box.y0, box.x1, box.y1 - 14)  # room for the NIL pill below
+        _live(s, box, coords, edges, prefix=f"t{i}.", labels=labels, styles={nil: "soft"},
+              pad=2)
+        s.badge(f"t{i}.{nil}", "NIL", where="s")
+
+
+# --- small graph enumeration ------------------------------------------------------
+# Several small graphs per panel, each in its own cell of a grid, at a smaller
+# unit so they read as a catalog.
+
+
+def _gallery(s: Scene, box: Box, graphs, prefix: str, *, cols: int, unit: float,
+             layout) -> None:
+    """Draw `graphs` (lists of str edge pairs plus node ids) in a `cols`-wide grid."""
+    rows = math.ceil(len(graphs) / cols)
+    w, h = box.w / cols, box.h / rows
+    for j, (ids, edges) in enumerate(graphs):
+        r, c = divmod(j, cols)
+        cell = Box(box.x0 + c * w, box.y0 + r * h, box.x0 + (c + 1) * w, box.y0 + (r + 1) * h)
+        _live(s, cell, layout(ids, edges), edges, prefix=f"{prefix}{j}.", unit=unit, pad=2)
+
+
+def _graph_parts(g) -> tuple[list[str], list[tuple[str, str]]]:
+    ids = [str(k) for k in sorted(g.get_node_ids(limit=None))]
+    return ids, [(str(a), str(b)) for _, a, b in g.get_edges_as_tuples()]
+
+
+def _ring_layout(ids, edges) -> dict:
+    return _ring_xy(len(ids))
+
+
+def _spine_layout(ids, edges) -> dict:
+    """A tree's longest path as a row, the other nodes hanging below it."""
+    def far(v):
+        kids = _bfs_children(edges, v)
+        order = [v] + [c for p in kids.values() for c in p]
+        return order[-1], kids
+
+    end, _ = far(ids[0])
+    other, kids = far(end)
+    spine = [other]
+    parent = {c: p for p, cs in kids.items() for c in cs}
+    while spine[-1] != end:
+        spine.append(parent[spine[-1]])
+    on_spine = set(spine)
+    tree = {"root": spine}
+    for v in spine:
+        hang = _bfs_children([e for e in edges if not set(e) <= on_spine], v)
+        tree[v] = hang.get(v, [])
+        tree |= {k: c for k, c in hang.items() if k != v}
+    coords = _tidy_tree(tree, "root")
+    del coords["root"]
+    return coords
+
+
+ATLAS_INDEXES = (16, 38, 52)
+
+
+@figure("add_atlas_graph", "generators", "Atlas graph",
+        "Three graphs from An Atlas of Graphs, on a ring in node order: index 16 is the "
+        "four-cycle, index 38 the five-cycle, and index 52 the complete graph K5, the last "
+        "graph on five nodes. "
+        "The atlas lists all 1253 graphs on up to seven nodes once each, up to isomorphism, "
+        "ordered by node count, then edge count, then degree sequence.")
+def add_atlas_graph(s: Scene) -> None:
+    boxes = multiples(s, tuple(f"g.add_atlas_graph(index={i})" for i in ATLAS_INDEXES))
+    for box, index in zip(boxes, ATLAS_INDEXES):
+        g, edges = _built(f"add_atlas_graph({index})")
+        _live(s, box, _ring_xy(g.count_nodes()), edges, prefix=f"a{index}.")
+
+
+ATLAS_SLICES = ((4, 8), (8, 12), (15, 19))
+
+
+@figure("atlas_graphs", "generators", "Atlas graphs",
+        "Three slices of the list of all 1253 atlas graphs, four small graphs each, in atlas "
+        "order. Items 4 to 7 are every graph on three nodes, from no edges to the triangle; "
+        "items 8 to 11 start the four-node graphs with zero, one, and two edges; items 15 to 18 "
+        "end them with four, five, and six edges, from the paw to the complete graph.")
+def atlas_graphs(s: Scene) -> None:
+    import edgecase as ec
+
+    atlas = ec.Graph.atlas_graphs()
+    boxes = multiples(s, tuple(f"Graph.atlas_graphs()[{a}:{b}]" for a, b in ATLAS_SLICES))
+    for i, (box, (a, b)) in enumerate(zip(boxes, ATLAS_SLICES)):
+        _gallery(s, box, [_graph_parts(g) for g in atlas[a:b]], f"s{i}.", cols=2, unit=34,
+                 layout=_ring_layout)
+
+
+TREE_ORDERS = (3, 4, 5)
+
+
+@figure("iter_nonisomorphic_trees", "generators", "Non-isomorphic trees",
+        "The trees yielded for order 3, 4, and 5, each drawn with its longest path as a row and "
+        "any other nodes hanging below. There is one tree on three nodes, the path; two on four "
+        "nodes, the path and the star; and three on five nodes, the path, the chair, and the "
+        "star. Every tree on that many nodes looks like exactly one of them.")
+def iter_nonisomorphic_trees(s: Scene) -> None:
+    import edgecase as ec
+
+    boxes = multiples(s, tuple(f"iter_nonisomorphic_trees({n})" for n in TREE_ORDERS))
+    for box, n in zip(boxes, TREE_ORDERS):
+        trees = [_graph_parts(g) for g in ec.Graph.iter_nonisomorphic_trees(n)]
+        _gallery(s, box, trees, f"n{n}.", cols=1, unit=34, layout=_spine_layout)
+
+
+COUNT_ORDERS = range(3, 10)
+COUNT_SHOWN = 5  # the order whose trees are drawn and whose count is highlighted
+
+
+@figure("count_nonisomorphic_trees", "generators", "Count non-isomorphic trees",
+        "Left: the three trees on five nodes, the path, the chair, and the star, each drawn with "
+        "its longest path as a row and any other nodes hanging below. Right: a table of how many "
+        "trees there are on 3 to 9 nodes, 1, 2, 3, 6, 11, 23, and 47, with the count 3 for five "
+        "nodes highlighted. The count comes from a formula, without building the trees, and "
+        "roughly doubles with each added node at these sizes.")
+def count_nonisomorphic_trees(s: Scene) -> None:
+    import edgecase as ec
+
+    left, right = compute(s, f"iter_nonisomorphic_trees({COUNT_SHOWN})",
+                          f"Graph.count_nonisomorphic_trees({COUNT_SHOWN})")
+    trees = [_graph_parts(g) for g in ec.Graph.iter_nonisomorphic_trees(COUNT_SHOWN)]
+    _gallery(s, left, trees, "t.", cols=1, unit=34, layout=_spine_layout)
+    counts = [ec.Graph.count_nonisomorphic_trees(n) for n in COUNT_ORDERS]
+    assert counts[COUNT_SHOWN - COUNT_ORDERS.start] == len(trees)
+    col = 1 + COUNT_SHOWN - COUNT_ORDERS.start
+    s.table_centered(right, [["order", *map(str, COUNT_ORDERS)], ["count", *map(str, counts)]],
+                     [48] + [26] * len(counts), header=False,
+                     highlight={(0, col): "accent", (1, col): "accent"})
