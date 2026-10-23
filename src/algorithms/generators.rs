@@ -46,7 +46,7 @@ pub(crate) fn check_probability(name: &str, p: f64) -> PyResult<()> {
 ///
 /// Gaps between kept values are drawn from a geometric distribution, so a sparse
 /// range costs time proportional to the values kept rather than to its length.
-fn sample_range(rng: &mut ChaCha8Rng, p: f64, lo: usize, hi: usize, mut f: impl FnMut(usize)) {
+pub(crate) fn sample_range(rng: &mut ChaCha8Rng, p: f64, lo: usize, hi: usize, mut f: impl FnMut(usize)) {
     if p <= 0.0 || lo >= hi {
         return;
     }
