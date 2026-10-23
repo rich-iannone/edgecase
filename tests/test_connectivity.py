@@ -311,6 +311,83 @@ class TestNodeConnectivityBetween:
             assert g.get_node_connectivity_between(i(s), i(t)) == nx.node_connectivity(ref, s, t)
 
 
+def _brute_node_connectivity(H):
+    """Smallest node set whose removal leaves H not (strongly) connected, else n - 1."""
+    connected = nx.is_strongly_connected if H.is_directed() else nx.is_connected
+    if len(H) <= 1 or not connected(H):
+        return 0
+    for k in range(1, len(H) - 1):
+        for cut in itertools.combinations(H, k):
+            if not connected(H.subgraph(set(H) - set(cut))):
+                return k
+    return len(H) - 1
+
+
+class TestNodeConnectivityDirectedAndMulti:
+    """Digraphs need strong connectivity and ordered pairs; parallel edges count once."""
+
+    @staticmethod
+    def _pair(n, edges, directed):
+        g = ec.Graph(directed=directed).add_nodes([str(i) for i in range(n)])
+        if edges:
+            g.add_edges([(str(u), str(v)) for u, v in edges])
+        H = (nx.DiGraph if directed else nx.Graph)()
+        H.add_nodes_from(range(n))
+        H.add_edges_from((u, v) for u, v in edges if u != v)
+        return g, H
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_against_brute_force(self, directed):
+        for seed in range(120):
+            rnd = random.Random(seed)
+            n = rnd.randint(1, 7)
+            edges = [(rnd.randrange(n), rnd.randrange(n)) for _ in range(rnd.randint(0, 3 * n))]
+            if rnd.random() < 0.3:
+                edges += [(u, v) for u in range(n) for v in range(n) if u != v and rnd.random() < 0.8]
+            g, H = self._pair(n, edges, directed)
+            assert g.get_node_connectivity() == _brute_node_connectivity(H), seed
+            for s, t in itertools.permutations(range(n), 2):
+                # a direct edge is one path that no node removal breaks
+                H2 = H.copy()
+                direct = H2.has_edge(s, t)
+                if direct:
+                    H2.remove_edge(s, t)
+                want = nx.node_connectivity(H2, s, t) + direct
+                assert g.get_node_connectivity_between(str(s), str(t)) == want, (seed, s, t)
+
+    def test_weakly_connected_digraph_is_zero(self):
+        # nothing reaches node 0, so the digraph is already not strongly connected
+        g, _ = self._pair(4, [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1), (3, 2)], True)
+        assert g.get_node_connectivity() == 0
+
+    def test_digraph_pairs_are_ordered(self):
+        # a bidirected 4-cycle plus the one-way chord 0 -> 2: from 0 to 2 there are the
+        # chord and the routes via 1 and 3, but from 2 to 0 only the two routes
+        cycle = [(i, (i + 1) % 4) for i in range(4)]
+        edges = cycle + [(v, u) for u, v in cycle] + [(0, 2)]
+        g, H = self._pair(4, edges, True)
+        assert g.get_node_connectivity() == 2 == nx.node_connectivity(H)
+        assert g.get_node_connectivity_between("0", "2") == 3
+        assert g.get_node_connectivity_between("2", "0") == 2
+
+    def test_complete_digraph(self):
+        g, _ = self._pair(4, [(u, v) for u in range(4) for v in range(4) if u != v], True)
+        assert g.get_node_connectivity() == 3
+        # one arc missing: the pair it joined can be separated by the other two nodes
+        g, _ = self._pair(4, [(u, v) for u in range(4) for v in range(4) if u != v][1:], True)
+        assert g.get_node_connectivity() == 2
+
+    def test_parallel_edges_and_self_loops(self):
+        # a path is 1-connected however its edges are doubled or looped
+        g, _ = self._pair(3, [(0, 1), (0, 1), (1, 2)], False)
+        assert g.get_node_connectivity() == 1
+        g, _ = self._pair(3, [(0, 0), (0, 1), (1, 2)], False)
+        assert g.get_node_connectivity() == 1
+        # a doubled direct edge is still a single path
+        g, _ = self._pair(3, [(0, 1), (0, 1), (1, 2), (0, 2)], False)
+        assert g.get_node_connectivity_between("0", "1") == 2
+
+
 # Edge- and node-disjoint paths, validated against NetworkX.
 
 
