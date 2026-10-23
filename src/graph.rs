@@ -3855,11 +3855,13 @@ impl Graph {
     /// * `mode` - Direction to follow: "out" (default), "in", "all"
     /// * `stuck` - What to do if stuck: "return" (default) or "error"
     /// * `seed` - Optional random seed for reproducibility
+    /// * `weighted` - Step to each neighbor with probability proportional to the
+    ///   weight of the edges joining them (parallel edges add up)
     ///
     /// # Returns
     /// Vector of vertex IDs of length steps + 1 (including start vertex), shorter if the walk
     /// gets stuck with `stuck="return"`
-    #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None))]
+    #[pyo3(signature = (start, steps, mode="out", stuck="return", seed=None, weighted=false))]
     pub fn random_walk(
         &self,
         start: u64,
@@ -3867,10 +3869,21 @@ impl Graph {
         mode: &str,
         stuck: &str,
         seed: Option<u64>,
+        weighted: bool,
     ) -> PyResult<Vec<u64>> {
         if !self.nodes.contains_key(&start) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 format!("Start node {} does not exist", start)
+            ));
+        }
+        if !matches!(mode, "out" | "in" | "all") {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
+            ));
+        }
+        if !matches!(stuck, "return" | "error") {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
             ));
         }
         let start_id = start;
@@ -3880,6 +3893,10 @@ impl Graph {
         } else {
             ChaCha8Rng::from_entropy()
         };
+
+        if weighted {
+            return self.weighted_random_walk(start_id, steps, mode, stuck, &mut rng);
+        }
 
         let mut path = vec![start_id];
         let mut current = start_id;
@@ -3923,28 +3940,17 @@ impl Graph {
 
                     all_neighbors.into_iter().collect()
                 }
-                _ => {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
-                    ));
-                }
+                _ => unreachable!("mode is validated above"),
             };
 
             if neighbors.is_empty() {
                 // Stuck! Handle according to stuck parameter
-                match stuck {
-                    "return" => break, // Return partial walk
-                    "error" => {
-                        return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                            "Random walk got stuck at vertex with no neighbors".to_string()
-                        ));
-                    }
-                    _ => {
-                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                            format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
-                        ));
-                    }
+                if stuck == "error" {
+                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "Random walk got stuck at vertex with no neighbors".to_string()
+                    ));
                 }
+                break; // Return partial walk
             }
 
             // Choose next vertex uniformly at random
@@ -5032,14 +5038,14 @@ impl Graph {
     /// Authority score: sum of hub scores of nodes pointing to this node
     /// Returns HashMap of node -> authority score
     #[inline]
-    fn get_authority_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
-        if !self.directed {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "HITS algorithm requires a directed graph",
-            ));
-        }
-
-        let (authorities, _) = self.compute_hits(max_iter, tol);
+    #[pyo3(signature = (max_iter, tol, weighted=false))]
+    fn get_authority_centrality(
+        &self,
+        max_iter: usize,
+        tol: f64,
+        weighted: bool,
+    ) -> PyResult<FxHashMap<u64, f64>> {
+        let (authorities, _) = self.compute_hits(max_iter, tol, weighted)?;
         Ok(authorities)
     }
 
@@ -5047,102 +5053,15 @@ impl Graph {
     /// Hub score: sum of authority scores of nodes this node points to
     /// Returns HashMap of node -> hub score
     #[inline]
-    fn get_hub_centrality(&self, max_iter: usize, tol: f64) -> PyResult<FxHashMap<u64, f64>> {
-        if !self.directed {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "HITS algorithm requires a directed graph",
-            ));
-        }
-
-        let (_, hubs) = self.compute_hits(max_iter, tol);
+    #[pyo3(signature = (max_iter, tol, weighted=false))]
+    fn get_hub_centrality(
+        &self,
+        max_iter: usize,
+        tol: f64,
+        weighted: bool,
+    ) -> PyResult<FxHashMap<u64, f64>> {
+        let (_, hubs) = self.compute_hits(max_iter, tol, weighted)?;
         Ok(hubs)
-    }
-
-    /// Helper: compute HITS (Hyperlink-Induced Topic Search) scores
-    /// Returns (authorities, hubs)
-    #[inline]
-    fn compute_hits(&self, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, FxHashMap<u64, f64>) {
-        let n = self.num_nodes();
-        if n == 0 {
-            return (FxHashMap::default(), FxHashMap::default());
-        }
-
-        // Preallocate HashMaps with capacity for better performance
-        let mut authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut new_authorities: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut new_hubs: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-        // Initialize all scores to 1.0
-        for &id in self.nodes.keys() {
-            authorities.insert(id, 1.0);
-            hubs.insert(id, 1.0);
-        }
-
-        for _ in 0..max_iter {
-            // Clear new maps for this iteration
-            new_authorities.clear();
-            new_hubs.clear();
-
-            // Update authority scores: sum of hub scores of incoming neighbors
-            for &node in self.nodes.keys() {
-                let mut auth_score = 0.0;
-                // Find all nodes that point to this node
-                for (&source, targets) in &self.adjacency_list {
-                    if targets.contains(&node) {
-                        auth_score += hubs.get(&source).unwrap_or(&0.0);
-                    }
-                }
-                new_authorities.insert(node, auth_score);
-            }
-
-            // Update hub scores: sum of authority scores of outgoing neighbors
-            for &node in self.nodes.keys() {
-                let mut hub_score = 0.0;
-                if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for &neighbor in neighbors {
-                        hub_score += authorities.get(&neighbor).unwrap_or(&0.0);
-                    }
-                }
-                new_hubs.insert(node, hub_score);
-            }
-
-            // Normalize using multiplication instead of division
-            let auth_norm: f64 = new_authorities.values().map(|&v| v * v).sum::<f64>().sqrt();
-            let hub_norm: f64 = new_hubs.values().map(|&v| v * v).sum::<f64>().sqrt();
-
-            if auth_norm > 0.0 {
-                let inv_auth_norm = 1.0 / auth_norm;
-                for val in new_authorities.values_mut() {
-                    *val *= inv_auth_norm;
-                }
-            }
-            if hub_norm > 0.0 {
-                let inv_hub_norm = 1.0 / hub_norm;
-                for val in new_hubs.values_mut() {
-                    *val *= inv_hub_norm;
-                }
-            }
-
-            // Check convergence
-            let auth_diff: f64 = new_authorities.iter()
-                .map(|(&k, &v)| (v - authorities.get(&k).unwrap()).abs())
-                .sum();
-            let hub_diff: f64 = new_hubs.iter()
-                .map(|(&k, &v)| (v - hubs.get(&k).unwrap()).abs())
-                .sum();
-
-            if auth_diff < tol && hub_diff < tol {
-                // Return the new values on convergence
-                return (new_authorities, new_hubs);
-            }
-
-            // Swap for next iteration - zero-cost move
-            std::mem::swap(&mut authorities, &mut new_authorities);
-            std::mem::swap(&mut hubs, &mut new_hubs);
-        }
-
-        (authorities, hubs)
     }
 
     /// Get eigenvector centrality
@@ -9548,6 +9467,154 @@ impl Graph {
         }
 
         components
+    }
+
+    /// Weighted version of `random_walk()`: from each node, step to a neighbor
+    /// with probability proportional to the total weight of the edges leading
+    /// there (in the direction `mode` allows). Zero-weight edges are never taken,
+    /// and a node whose edges all weigh zero counts as stuck. `mode` and `stuck`
+    /// are already validated.
+    fn weighted_random_walk(
+        &self,
+        start: u64,
+        steps: usize,
+        mode: &str,
+        stuck: &str,
+        rng: &mut ChaCha8Rng,
+    ) -> PyResult<Vec<u64>> {
+        // Candidate steps per node, in edge order, with parallel edges merged
+        let (forward, backward) = match (self.directed, mode) {
+            (false, _) | (true, "all") => (true, true),
+            (true, "out") => (true, false),
+            _ => (false, true),
+        };
+        let mut steps_from: FxHashMap<u64, Vec<(u64, f64)>> = FxHashMap::default();
+        let mut add = |from: u64, to: u64, w: f64| {
+            let list = steps_from.entry(from).or_default();
+            match list.iter_mut().find(|(v, _)| *v == to) {
+                Some(entry) => entry.1 += w,
+                None => list.push((to, w)),
+            }
+        };
+        for e in &self.edges {
+            let w = e.weight.unwrap_or(1.0);
+            if w.is_nan() || w < 0.0 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "A weighted random walk needs non-negative edge weights",
+                ));
+            }
+            if w == 0.0 {
+                continue;
+            }
+            if forward {
+                add(e.source, e.target, w);
+            }
+            // a self-loop is one way to stay put, however it is read
+            if backward && e.source != e.target {
+                add(e.target, e.source, w);
+            }
+        }
+
+        let mut path = vec![start];
+        let mut current = start;
+        for _ in 0..steps {
+            let choices = steps_from.get(&current).map(Vec::as_slice).unwrap_or(&[]);
+            if choices.is_empty() {
+                if stuck == "error" {
+                    return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
+                        "Random walk got stuck at vertex with no neighbors".to_string()
+                    ));
+                }
+                break;
+            }
+            let total: f64 = choices.iter().map(|&(_, w)| w).sum();
+            let mut r = rng.gen::<f64>() * total;
+            // fall back to the last choice if rounding leaves r just above zero
+            let mut next = choices[choices.len() - 1].0;
+            for &(v, w) in choices {
+                if r < w {
+                    next = v;
+                    break;
+                }
+                r -= w;
+            }
+            path.push(next);
+            current = next;
+        }
+        Ok(path)
+    }
+
+    /// Helper: compute HITS (Hyperlink-Induced Topic Search) scores
+    /// Returns (authorities, hubs)
+    ///
+    /// Each arc u -> v contributes its weight (1 if unweighted) to the link
+    /// matrix, so parallel arcs add up, as in NetworkX. Both vectors are updated
+    /// from the previous round's values and rescaled to unit Euclidean length.
+    fn compute_hits(
+        &self,
+        max_iter: usize,
+        tol: f64,
+        weighted: bool,
+    ) -> PyResult<(FxHashMap<u64, f64>, FxHashMap<u64, f64>)> {
+        if !self.directed {
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                "HITS algorithm requires a directed graph",
+            ));
+        }
+        let ids: Vec<u64> = self.nodes.keys().copied().collect();
+        let n = ids.len();
+        if n == 0 {
+            return Ok((FxHashMap::default(), FxHashMap::default()));
+        }
+        let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+
+        // Arc weights, summed over parallel arcs
+        let mut link: FxHashMap<(usize, usize), f64> = FxHashMap::default();
+        for e in &self.edges {
+            let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+            if w < 0.0 {
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
+                    "HITS needs non-negative edge weights",
+                ));
+            }
+            *link.entry((idx[&e.source], idx[&e.target])).or_insert(0.0) += w;
+        }
+        let arcs: Vec<(usize, usize, f64)> = link.into_iter().map(|((u, v), w)| (u, v, w)).collect();
+
+        let normalize = |x: &mut [f64]| {
+            let norm = x.iter().map(|v| v * v).sum::<f64>().sqrt();
+            if norm > 0.0 {
+                let inv = 1.0 / norm;
+                x.iter_mut().for_each(|v| *v *= inv);
+            }
+        };
+
+        // Start from all ones
+        let mut auth = vec![1.0; n];
+        let mut hub = vec![1.0; n];
+        for _ in 0..max_iter {
+            // authority: weighted sum of hub scores pointing in; hub: of
+            // authority scores pointed to
+            let mut new_auth = vec![0.0; n];
+            let mut new_hub = vec![0.0; n];
+            for &(u, v, w) in &arcs {
+                new_auth[v] += w * hub[u];
+                new_hub[u] += w * auth[v];
+            }
+            normalize(&mut new_auth);
+            normalize(&mut new_hub);
+
+            let auth_diff: f64 = new_auth.iter().zip(&auth).map(|(a, b)| (a - b).abs()).sum();
+            let hub_diff: f64 = new_hub.iter().zip(&hub).map(|(a, b)| (a - b).abs()).sum();
+            auth = new_auth;
+            hub = new_hub;
+            if auth_diff < tol && hub_diff < tol {
+                break;
+            }
+        }
+
+        let to_map = |x: &[f64]| ids.iter().copied().zip(x.iter().copied()).collect();
+        Ok((to_map(&auth), to_map(&hub)))
     }
 
     /// Walktrap partition of one connected component, as community indices
