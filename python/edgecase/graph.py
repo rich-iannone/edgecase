@@ -16745,6 +16745,80 @@ class Graph:
                 return False
         return True
 
+    def maximal_extendability(self) -> int:
+        r"""
+        Find the largest k for which every k independent edges extend to a perfect matching.
+
+        ![Maximal extendability](/assets/graphs/maximal-extendability.light.svg){.lightbox fig-alt="A six-node cycle 1 to 6 drawn as a ring. Every single edge belongs to some perfect matching, but the two edges 1-2 and 4-5, in the accent color, cannot be extended: they leave nodes 3 and 6 (teal), which are not joined. The card notes that k = 1 works and k = 2 fails, so the maximal extendability is 1." width="100%"}
+
+        A graph with a perfect matching is *k-extendable* if every set of `k` edges that share
+        no nodes can be completed to a perfect matching. The extendability is the largest such
+        `k`. It measures how robust the graph's perfect matchings are: at 0, some edges belong
+        to no perfect matching, so choosing one rules the matching out; at 1, every edge
+        belongs to at least one; and higher values mean that any `k` edges can be fixed in
+        advance (for example, pairings already agreed on) and the rest of the graph can still
+        be paired up.
+
+        The graph must be undirected, connected and bipartite, and have a perfect matching.
+        Parallel edges and edge weights are ignored.
+
+        Returns
+        -------
+        int
+            The extendability, from 0 up to `n/2 - 1` for `n` nodes (reached by the complete
+            bipartite graph).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or empty, or is not connected, not bipartite, or has no
+            perfect matching.
+
+        See Also
+        --------
+        is_perfect_matching : Check whether a set of edges is a perfect matching.
+        bipartite_sets : The two sides of a bipartite graph.
+
+        Technical Notes
+        ---------------
+        Following Lakhal and Litzler (1998), a perfect matching M is found (by augmenting
+        paths) and each edge is directed: edges of M from the second side to the first, the
+        others from the first side to the second. The graph is k-extendable exactly when this
+        residual graph is strongly connected and there are `k` internally node-disjoint
+        directed paths from every node of the first side to every node of the second, so the
+        answer is the fewest such paths over all those pairs, each count a unit-capacity
+        maximum flow, in $O(n^2 \cdot k \cdot (n + m))$ overall. The answer does not depend
+        on which perfect matching is used.
+
+        Matches NetworkX's `bipartite.maximal_extendability`, except that a graph whose
+        residual graph is not strongly connected (not 1-extendable) returns 0 here, where
+        NetworkX raises an error.
+
+        Examples
+        --------
+        In the complete bipartite graph K3,3 any two independent edges extend to a perfect
+        matching, and the third pair is then forced; a six-node cycle only manages one:
+
+        ```{python}
+        import edgecase as ec
+
+        (
+            ec.Graph().add_complete_bipartite_graph(3, 3).maximal_extendability(),
+            ec.Graph().add_cycle_graph(6).maximal_extendability(),
+        )
+        ```
+
+        In a four-node path the middle edge is in no perfect matching (it would leave both
+        end nodes unmatched), so the extendability is 0:
+
+        ```{python}
+        ec.Graph().add_path_graph(4).maximal_extendability()
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("maximal_extendability() requires an undirected graph")
+        return rust.maximal_extendability(self._graph)
+
     def bipartite_degree_centrality(
         self,
         which: int = 0,
@@ -30636,6 +30710,78 @@ class Graph:
             "cmty_fast_label_propagation", dict(zip(ids, labels)), attr_name, params, return_dict
         )
 
+    def cmty_semisync_label_propagation(
+        self,
+        attr_name: str | None = None,
+        return_dict: bool = False,
+    ) -> Union[dict[int, int], "Graph"]:
+        """
+        Find communities with semi-synchronous label propagation.
+
+        ![Semi-synchronous label propagation communities](/assets/graphs/cmty-semisync-label-propagation.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. The nodes are colored so that no two neighbors share a color, and each color class adopts its neighbors' most common label at once; with no randomness, the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+
+        Label propagation lets every node adopt the label most common among its neighbors until
+        labels settle into communities. Updating all nodes at once (synchronously) can make
+        labels flip back and forth forever, for example across the two sides of a bipartite
+        graph, while updating them one at a time in random order (as `cmty_label_propagation()`
+        does) gives a different answer on each run. The semi-synchronous method (Cordasco and
+        Gargano, 2010) takes the middle way: it colors the graph so that no two neighbors share
+        a color and updates one color class at a time. Neighbors never update together, so
+        labels cannot oscillate, and with ties broken by a fixed rule the result is
+        deterministic. There is no seed: the same graph always gives the same communities.
+
+        Edge direction and edge weights are ignored, and parallel edges count once.
+
+        Parameters
+        ----------
+        attr_name
+            Node attribute to store the communities in (default
+            `"cmty_semisync_label_propagation"`).
+        return_dict
+            If `True`, return the node-to-community dictionary instead of storing it.
+
+        Returns
+        -------
+        Union[dict[int, int], Graph]
+            With `return_dict=True`, a dictionary mapping node IDs to community labels (numbered
+            in order of the lowest node ID in each); otherwise `self`.
+
+        See Also
+        --------
+        cmty_label_propagation : Asynchronous label propagation, in random order.
+        cmty_fast_label_propagation : Label propagation that revisits only changed nodes.
+
+        Technical Notes
+        ---------------
+        The coloring is greedy, taking the nodes in order of decreasing degree with ties by ID
+        and giving each the smallest color its neighbors have not used (the order NetworkX's
+        `greedy_color()` uses by default). Every node starts with its own label, numbered in ID
+        order. Then, color by color, each node takes the label most frequent among its
+        neighbors; on a tie it keeps its label if that is one of the most frequent, and
+        otherwise takes the highest (the Prec-Max rule). The rounds stop once every node with
+        neighbors holds one of its most frequent neighbor labels, which the method is proven to
+        reach. Each round takes $O(V + E)$.
+
+        Matches NetworkX's `label_propagation_communities`, which raises an error for directed
+        graphs where EdgeCase ignores direction.
+
+        Examples
+        --------
+        Zachary's karate club splits into three groups, and the same three on every run:
+
+        ```{python}
+        import edgecase as ec
+
+        club = ec.karate_club()
+        communities = club.cmty_semisync_label_propagation(return_dict=True)
+        sorted(list(communities.values()).count(c) for c in set(communities.values()))
+        ```
+        """
+        ids, labels = rust.semi_synchronous_label_propagation(self._graph)
+        return self._community_result(
+            "cmty_semisync_label_propagation", dict(zip(ids, labels)), attr_name, {}, return_dict
+        )
+
     def _levels(self, leiden: bool, resolution: float, seed):
         if self.is_directed():
             raise ValueError("this method requires an undirected graph")
@@ -40748,6 +40894,109 @@ class Graph:
 
         return self
 
+    def incremental_closeness_centrality(
+        self,
+        edge: tuple[Union[int, str], Union[int, str]],
+        prev_cc: Optional[dict[int, float]] = None,
+        insertion: bool = True,
+        wf_improved: bool = True,
+    ) -> dict[int, float]:
+        """
+        Get the closeness centrality the graph would have after adding or removing one edge.
+
+        ![Incremental closeness centrality](/assets/graphs/incremental-closeness-centrality.light.svg){.lightbox fig-alt="A six-node path 1 to 6 drawn as a ring, with the edge e = (1, 6) that would close it dashed; cc, the current closeness scores, is passed in. Nodes 1, 2, 5 and 6 (accent) are at least two hops closer to one end of the new edge than the other, so their closeness is recomputed; nodes 3 and 4 are not, and keep their previous score. The table gives each node's score before and after: 1 and 6 rise from 0.33 to 0.56, 2 and 5 from 0.45 to 0.56, and 3 and 4 stay at 0.56. The graph itself is not changed." width="100%"}
+
+        A "what if" for closeness: the scores are those of the graph with `edge` added (or,
+        with `insertion=False`, with it removed), but the graph itself is not changed. Given
+        the current scores as `prev_cc=`, only the nodes whose distances can change are
+        recomputed, which is much faster than a fresh `closeness_centrality()` when the edge
+        affects only part of the graph. This makes it suited to trying many candidate edges in
+        turn, for example to find the new link that brings a node closest to everyone, or the
+        road closure that hurts access the least.
+
+        Distances are hop counts (weights are ignored), so `prev_cc=` should come from
+        `closeness_centrality(weighted=False, return_dict=True)` with the same `wf_improved=`;
+        scores computed some other way are copied into the result unchecked.
+
+        Parameters
+        ----------
+        edge
+            The edge to add or remove, as a pair of node IDs or labels.
+        prev_cc
+            The closeness scores of the graph as it is now, one per node. If `None` (default),
+            every score is computed from scratch.
+        insertion
+            If `True` (default), score the graph with `edge` added (a parallel copy, if the
+            nodes are already joined). If `False`, score it with one copy of `edge` removed.
+        wf_improved
+            Whether to scale each score by the fraction of other nodes it can reach (the
+            Wasserman-Faust correction), as in `closeness_centrality()`. Default `True`.
+
+        Returns
+        -------
+        dict[int, float]
+            Node ID to closeness score in the changed graph.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, a node does not exist, `insertion=False` and the nodes are
+            not joined by an edge, or `prev_cc=` does not have exactly the graph's nodes.
+
+        See Also
+        --------
+        closeness_centrality : Closeness centrality of the graph as it is.
+
+        Technical Notes
+        ---------------
+        Adding an edge `u`-`v` can only shorten paths that use it. A node `x` whose distances
+        to `u` and `v` differ by at most one gains nothing from the new edge, since going
+        through it is never shorter than the way `x` already reaches the farther end, so `x`
+        keeps its score (Kas, Carley and Carley, 2013). This needs a breadth-first search from
+        `u` and from `v` in the graph without the edge (before an insertion, after a removal),
+        then one more for each node that fails the test.
+
+        Matches NetworkX's `incremental_closeness_centrality`. NetworkX adds or removes the
+        edge temporarily and, when `prev_cc` is not given, leaves the graph changed; EdgeCase
+        never changes the graph.
+
+        Examples
+        --------
+        Closing a six-node path into a ring:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_path_graph(6)
+        before = g.closeness_centrality(weighted=False, return_dict=True)
+        after = g.incremental_closeness_centrality((1, 6), prev_cc=before)
+        {node: (round(before[node], 3), round(after[node], 3)) for node in sorted(after)}
+        ```
+
+        Nodes 3 and 4 sit in the middle, two hops from one end and three from the other, so
+        the new edge shortens none of their paths: their scores were copied from `before`
+        rather than recomputed. The graph itself is still a path:
+
+        ```{python}
+        g.count_edges()
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("incremental_closeness_centrality() requires an undirected graph")
+        try:
+            a, b = edge
+        except (TypeError, ValueError):
+            raise ValueError(f"edge must be a pair of nodes, got {edge!r}") from None
+        u = self._resolve_node_id(a, auto_create=False)
+        v = self._resolve_node_id(b, auto_create=False)
+        if prev_cc is not None:
+            prev_cc = dict(prev_cc)
+            if set(prev_cc) != set(self.get_node_ids(limit=None)):
+                raise ValueError("prev_cc must have one score for each node of the graph")
+        return rust.incremental_closeness_centrality(
+            self._graph, u, v, insertion=insertion, wf_improved=wf_improved, prev=prev_cc
+        )
+
     def degree_centrality(
         self,
         mode: str = "all",
@@ -48394,6 +48643,127 @@ class Graph:
             )
         return edges
 
+    def bfs_beam_edges(
+        self,
+        source: Union[int, str],
+        value: Union[Callable[[int], float], str, dict],
+        width: int | None = None,
+        mode: str = "out",
+    ) -> list[tuple[int, int]]:
+        """
+        Get the edges of a breadth-first search that follows only the most promising neighbors.
+
+        ![BFS beam edges](/assets/graphs/bfs-beam-edges.light.svg){.lightbox fig-alt="A six-node tree searched from A (outlined) with a beam of width 1; every node carries its score in a badge. A's best neighbor is C (5), not B (1), and C's best is F (3), not E (2), so the search follows the accent edges A-C and C-F only. B, and with it the top-scoring D (9), is never reached. The card lists (A, C) and (C, F)." width="100%"}
+
+        Beam search is a breadth-first search on a budget: at each node it ranks the
+        neighbors by `value=` and follows only the best `width=` of them, so the search fans
+        out along high-scoring nodes and skips the rest. It is a cheap way to explore a huge
+        graph (or one built on demand) when a score says which way looks promising, for
+        example following the most-cited papers outward from a starting paper, or the
+        best-rated items in a recommendation graph.
+
+        Nodes outside the beam are only skipped from that node: another node can still reach
+        them. As in a plain BFS, each node is reached once, so the result is a tree.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        value
+            The score that ranks neighbors (higher is better): a function taking a node ID and
+            returning a number, the name of a numeric node attribute, or a `{node: number}`
+            dictionary. Every node that gets ranked needs a score, including neighbors that
+            were already visited (the source among them).
+        width
+            How many of each node's neighbors to follow. If `None` (default), all of them,
+            which makes this an ordinary BFS that visits neighbors best first.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            `(parent, child)` node-ID pairs in the order the children were discovered.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `width=` is not a positive integer, `mode=` is
+            invalid, or a ranked neighbor has no numeric score (or a NaN one).
+        TypeError
+            If `value=` is not a function, an attribute name or a dictionary.
+
+        See Also
+        --------
+        bfs_edges : The edges of a full breadth-first search.
+
+        Technical Notes
+        ---------------
+        Each node's distinct neighbors are sorted by score, highest first, with ties kept in
+        edge insertion order, and the first `width` of them are followed if not yet visited.
+        Visited neighbors still take up places in the beam, as in NetworkX. Each node is
+        scored once, when it is first ranked. Matches NetworkX's `bfs_beam_edges`.
+
+        Examples
+        --------
+        From A, with a beam of width 1, the search follows only each node's highest-scoring
+        neighbor:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEF"))
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "E"), ("C", "F")])
+        g.set_node_attrs("score", {"A": 0, "B": 1, "C": 5, "D": 9, "E": 2, "F": 3})
+
+        label = g.get_label_from_id
+        [(label(p), label(c)) for p, c in g.bfs_beam_edges("A", value="score", width=1)]
+        ```
+
+        B is never reached, so neither is its high-scoring neighbor D. A wider beam takes
+        both of A's neighbors:
+
+        ```{python}
+        [(label(p), label(c)) for p, c in g.bfs_beam_edges("A", value="score", width=2)]
+        ```
+        """
+        self._check_traversal_args(None, mode)
+        if width is not None and (
+            isinstance(width, bool) or not isinstance(width, int) or width < 1
+        ):
+            raise ValueError(f"width must be a positive integer, got {width!r}")
+        source_id = self._resolve_node_id(source, auto_create=False)
+        if callable(value) and not isinstance(value, (str, dict)):
+            score = value
+        else:
+            scores = self._layout_node_map(value, "value=")
+
+            def score(nid):
+                if nid not in scores:
+                    raise ValueError(f"value= has no score for node {self._node_label(nid)}")
+                return scores[nid]
+
+        edges = rust.bfs_beam_search(self._graph, source_id, score, width, mode)
+
+        if self._recording_depth == 0:
+            desc = repr(value) if isinstance(value, str) else getattr(value, "__name__", "value")
+            args = [repr(source), f"value={desc}"]
+            if width is not None:
+                args.append(f"width={width!r}")
+            if mode != "out":
+                args.append(f"mode={mode!r}")
+            self._record_traversal(
+                "bfs",
+                source,
+                [source_id] + [c for _, c in edges],
+                tree_edges=edges,
+                method="bfs_beam_edges",
+                code=f"G.bfs_beam_edges({', '.join(args)})",
+                narration=f"Beam search from {self._node_label(source_id)}: {len(edges)} edges.",
+            )
+        return edges
+
     def bfs_tree(
         self,
         source: Union[int, str],
@@ -49115,6 +49485,120 @@ class Graph:
                 narration=f"DFS tree: {len(edges)} edges over {len(pre)} nodes.",
             )
         return edges
+
+    def dfs_labeled_edges(
+        self,
+        source: Union[int, str, None] = None,
+        depth_limit: int | None = None,
+        mode: str = "out",
+    ) -> list[tuple[int, int, str]]:
+        """
+        Get every step of a depth-first search, each edge labeled by what the search did.
+
+        ![DFS labeled edges](/assets/graphs/dfs-labeled-edges.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched depth-first from A (outlined). The tree edges A-B, B-C and C-D are numbered in the accent color; the dashed edge C-A leads to a node already visited. The card groups the thirteen labeled edges by kind: forward for A, A (the root) and the three tree edges, nontree for B-A, C-B, C-A, D-C and A-C, and reverse as the search backs up from D, C and B and finishes at A." width="100%"}
+
+        `dfs_edges()` gives only the edges that discover new nodes. This gives the full
+        transcript: every edge the search looks at, in order, and every time it backs up, each
+        tagged with one of these labels:
+
+        - `"forward"`: the search reaches `v` for the first time, from `u`. Each tree also
+          starts with `(root, root, "forward")`.
+        - `"nontree"`: `v` was already visited, so the edge is not followed. In an undirected
+          graph this includes looking back at the node it came from.
+        - `"reverse"`: the search is done with `v` and backs up to `u`. Each tree ends with
+          `(root, root, "reverse")`.
+        - `"reverse-depth_limit"`: `v` is `depth_limit=` hops from the root, so the search
+          turns back without exploring it.
+
+        The labels are what classic DFS algorithms are built from: discovery and finishing
+        times (`"forward"` and `"reverse"`), back edges for cycle detection, and the
+        low-point values behind articulation points and strongly connected components. They
+        also make a step-by-step record for animating or teaching a search.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label. If `None` (default), search
+            from every unvisited node in ID order, covering the whole graph.
+        depth_limit
+            Do not explore nodes more than this many hops from the start of each tree. If `None`
+            (default), there is no limit.
+        mode
+            Which way to follow edges on a directed graph: `"out"` (default), `"in"`, or
+            `"all"`. Ignored for undirected graphs.
+
+        Returns
+        -------
+        list[tuple[int, int, str]]
+            `(u, v, label)` triples of node IDs and a label, in the order the search made them.
+
+        Raises
+        ------
+        ValueError
+            If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
+
+        See Also
+        --------
+        dfs_edges : Just the edges that discover new nodes.
+        edge_dfs : Every edge in depth-first order, by edge ID.
+
+        Technical Notes
+        ---------------
+        Neighbors are explored in edge insertion order, the same order `dfs_edges()` uses, so
+        the `"forward"` edges between distinct nodes are exactly `dfs_edges()`. A neighbor
+        joined by parallel edges is looked at once, and a self-loop gives one `"nontree"`
+        step. Matches NetworkX's `dfs_labeled_edges`, except with `depth_limit=0`: NetworkX
+        then still steps to the root's neighbors (as with `depth_limit=1`), while EdgeCase
+        reports only the root, as `dfs_edges(depth_limit=0)` does.
+
+        Examples
+        --------
+        A triangle with a tail. The search goes A, B, C, finds that C's neighbor A has been
+        visited (`"nontree"`), goes on to D, and backs up when each node is done:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCD"))
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+
+        label = g.get_label_from_id
+        [(label(u), label(v), kind) for u, v, kind in g.dfs_labeled_edges("A")]
+        ```
+
+        On an undirected graph, a `"nontree"` edge to any node other than the one the search
+        came from closes a cycle, which gives a quick cycle test:
+
+        ```{python}
+        def has_cycle(graph):
+            parent = {}
+            for u, v, kind in graph.dfs_labeled_edges():
+                if kind == "forward":
+                    parent[v] = u
+                elif kind == "nontree" and parent.get(u) != v:
+                    return True
+            return False
+
+        has_cycle(g), has_cycle(ec.Graph().add_path_graph(5))
+        ```
+        """
+        self._check_traversal_args(depth_limit, mode)
+        source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
+        steps = rust.dfs_labeled_search(self._graph, source_id, depth_limit, mode)
+
+        if self._recording_depth == 0:
+            pre = [v for _, v, kind in steps if kind == "forward"]
+            edges = [(u, v) for u, v, kind in steps if kind == "forward" and u != v]
+            self._record_traversal(
+                "dfs",
+                source,
+                pre,
+                tree_edges=edges,
+                method="dfs_labeled_edges",
+                code=f"G.dfs_labeled_edges({self._traversal_args(source, depth_limit, mode)})",
+                narration=f"DFS with labeled edges: {len(steps)} steps over {len(pre)} nodes.",
+            )
+        return steps
 
     def dfs_tree(
         self,
