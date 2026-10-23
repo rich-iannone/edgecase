@@ -7,10 +7,17 @@
 //! edge "label" between an ordered pair is the sorted list of its edge colors, one entry per
 //! parallel edge, which must be equal (iso, induced) or contained (mono). Node and edge colors
 //! are integers computed by the caller from attributes (all zero to ignore attributes).
+//!
+//! Symmetry breaking follows ISMAGS (Houbraken et al., 2014) and Grochow and Kellis (2007): the
+//! pattern's automorphism group is described by its cosets (for each node, the nodes it can be
+//! swapped with while every smaller node stays fixed), and requiring each node to map below the
+//! rest of its coset keeps exactly one mapping per class of symmetric equivalents. The same
+//! constraints drive the ISMAGS largest common induced subgraph search.
 
 use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
+use std::collections::BTreeSet;
 
 fn value_err<T>(msg: impl Into<String>) -> PyResult<T> {
     Err(pyo3::exceptions::PyValueError::new_err(msg.into()))
@@ -18,6 +25,7 @@ fn value_err<T>(msg: impl Into<String>) -> PyResult<T> {
 
 type Label = Vec<i64>;
 
+#[derive(Clone)]
 struct Side {
     ids: Vec<u64>,
     color: Vec<i64>,
@@ -27,6 +35,8 @@ struct Side {
     deg_in: Vec<usize>,
     /// undirected neighbors in either direction (for ordering and candidate generation)
     any: Vec<Vec<usize>>,
+    edges: usize,
+    directed: bool,
 }
 
 impl Side {
@@ -68,7 +78,79 @@ impl Side {
             })
             .collect();
         let color = ids.iter().map(|id| node_colors.get(id).copied().unwrap_or(0)).collect();
-        Side { ids, color, out, inn, deg_out, deg_in, any }
+        let edges = graph.num_edges();
+        Side {
+            ids,
+            color,
+            out,
+            inn,
+            deg_out,
+            deg_in,
+            any,
+            edges,
+            directed,
+        }
+    }
+
+    /// The subgraph induced by `keep` (sorted node indices), reindexed in that order.
+    fn induced(&self, keep: &[usize]) -> Side {
+        let mut new = vec![NONE; self.ids.len()];
+        for (i, &u) in keep.iter().enumerate() {
+            new[u] = i;
+        }
+        let restrict = |maps: &[FxHashMap<usize, Label>]| -> Vec<FxHashMap<usize, Label>> {
+            keep.iter()
+                .map(|&u| {
+                    maps[u]
+                        .iter()
+                        .filter(|(&w, _)| new[w] != NONE)
+                        .map(|(&w, l)| (new[w], l.clone()))
+                        .collect()
+                })
+                .collect()
+        };
+        let out = restrict(&self.out);
+        let inn = restrict(&self.inn);
+        let deg_out: Vec<usize> = out
+            .iter()
+            .map(|m| m.values().map(|l| l.len()).sum())
+            .collect();
+        let deg_in: Vec<usize> = inn
+            .iter()
+            .map(|m| m.values().map(|l| l.len()).sum())
+            .collect();
+        let any = keep
+            .iter()
+            .map(|&u| {
+                self.any[u]
+                    .iter()
+                    .filter(|&&w| new[w] != NONE)
+                    .map(|&w| new[w])
+                    .collect()
+            })
+            .collect();
+        // Each edge is counted once: at its source, or (undirected) at its smaller end
+        let directed = self.directed;
+        let edges = (0..keep.len())
+            .map(|a| {
+                out[a]
+                    .iter()
+                    .filter(|(&b, _)| directed || b >= a)
+                    .map(|(_, l)| l.len())
+                    .sum::<usize>()
+            })
+            .sum();
+        Side {
+            ids: keep.iter().map(|&u| self.ids[u]).collect(),
+            color: keep.iter().map(|&u| self.color[u]).collect(),
+            out,
+            inn,
+            deg_out,
+            deg_in,
+            any,
+            edges,
+            directed,
+        }
     }
 }
 
@@ -142,6 +224,10 @@ struct Matcher<'a> {
     /// number of mapped neighbors (either direction) of every node, per side
     touch_p: Vec<usize>,
     touch_t: Vec<usize>,
+    /// symmetry constraints: `below[u]` lists the pattern nodes that must map above `u`, and
+    /// `above[u]` those that must map below it (in target node order)
+    below: Vec<Vec<usize>>,
+    above: Vec<Vec<usize>>,
     limit: usize,
     results: Vec<Vec<usize>>,
 }
@@ -162,6 +248,15 @@ impl<'a> Matcher<'a> {
     fn feasible(&self, u: usize, x: usize) -> bool {
         let (p, t) = (self.p, self.t);
         if self.pc[u] != self.tc[x] {
+            return false;
+        }
+        if self.below[u]
+            .iter()
+            .any(|&w| self.map[w] != NONE && self.map[w] <= x)
+            || self.above[u]
+                .iter()
+                .any(|&w| self.map[w] != NONE && self.map[w] >= x)
+        {
             return false;
         }
         if self.mode == 0 {
@@ -283,8 +378,11 @@ impl<'a> Matcher<'a> {
 }
 
 /// Mappings `(pattern node ID, target node ID)` from `pattern` into `target`.
+///
+/// With `symmetry`, only one mapping is kept per class of mappings that differ by an
+/// automorphism of the pattern (ISMAGS symmetry breaking).
 #[pyfunction]
-#[pyo3(signature = (pattern, target, mode, node_colors_p, node_colors_t, edge_colors_p, edge_colors_t, limit=None))]
+#[pyo3(signature = (pattern, target, mode, node_colors_p, node_colors_t, edge_colors_p, edge_colors_t, limit=None, symmetry=false))]
 #[allow(clippy::too_many_arguments)]
 pub fn match_graphs(
     pattern: &Graph,
@@ -295,6 +393,7 @@ pub fn match_graphs(
     edge_colors_p: FxHashMap<u64, i64>,
     edge_colors_t: FxHashMap<u64, i64>,
     limit: Option<usize>,
+    symmetry: bool,
 ) -> PyResult<Vec<Vec<(u64, u64)>>> {
     let mode = match mode {
         "iso" => 0u8,
@@ -308,19 +407,52 @@ pub fn match_graphs(
     let directed = pattern.is_directed();
     let p = Side::new(pattern, &node_colors_p, &edge_colors_p);
     let t = Side::new(target, &node_colors_t, &edge_colors_t);
+    let constraints = if symmetry {
+        coset_constraints(&p, directed)
+    } else {
+        Vec::new()
+    };
+    let found = run_matcher(
+        &p,
+        &t,
+        mode,
+        directed,
+        limit.unwrap_or(usize::MAX),
+        &constraints,
+    );
+    Ok(found
+        .into_iter()
+        .map(|map| {
+            (0..p.ids.len())
+                .map(|u| (p.ids[u], t.ids[map[u]]))
+                .collect()
+        })
+        .collect())
+}
+
+/// All mappings (as pattern index -> target index vectors) of `p` into `t`, up to `limit`,
+/// honoring the `(low, high)` constraints `map[low] < map[high]`.
+fn run_matcher(
+    p: &Side,
+    t: &Side,
+    mode: u8,
+    directed: bool,
+    limit: usize,
+    constraints: &[(usize, usize)],
+) -> Vec<Vec<usize>> {
     let (np, nt) = (p.ids.len(), t.ids.len());
-    let limit = limit.unwrap_or(usize::MAX).max(1);
-    if np > nt || (mode == 0 && (np != nt || pattern.num_edges() != target.num_edges())) {
-        return Ok(Vec::new());
+    let limit = limit.max(1);
+    if np > nt || (mode == 0 && (np != nt || p.edges != t.edges)) {
+        return Vec::new();
     }
     let (pc, tc) = if mode == 0 {
-        let (pc, tc) = refine(&p, &t, directed);
+        let (pc, tc) = refine(p, t, directed);
         let mut a = pc.clone();
         let mut b = tc.clone();
         a.sort_unstable();
         b.sort_unstable();
         if a != b {
-            return Ok(Vec::new());
+            return Vec::new();
         }
         (pc, tc)
     } else {
@@ -378,9 +510,15 @@ pub fn match_graphs(
             layer = next;
         }
     }
+    let mut below = vec![Vec::new(); np];
+    let mut above = vec![Vec::new(); np];
+    for &(low, high) in constraints {
+        below[low].push(high);
+        above[high].push(low);
+    }
     let mut m = Matcher {
-        p: &p,
-        t: &t,
+        p,
+        t,
         mode,
         directed,
         pc,
@@ -390,14 +528,178 @@ pub fn match_graphs(
         inv: vec![NONE; nt],
         touch_p: vec![0; np],
         touch_t: vec![0; nt],
+        below,
+        above,
         limit,
         results: Vec::new(),
     };
     m.search(0);
-    Ok(m.results
+    m.results
+}
+
+/// The cosets of the automorphism group of `p` (preserving node and edge colors): for each
+/// node `v`, in index order, the nodes `u >= v` that some automorphism fixing every node below
+/// `v` maps `v` to (`v` itself first). Each candidate is tested with an isomorphism search of
+/// `p` onto itself in which the fixed nodes, and `v` and `u`, get matching unique colors.
+fn cosets(p: &Side) -> Vec<Vec<usize>> {
+    let n = p.ids.len();
+    // Compact the colors so that fresh unique colors can follow them
+    let mut palette: Vec<i64> = p.color.clone();
+    palette.sort_unstable();
+    palette.dedup();
+    let base: Vec<i64> = p
+        .color
+        .iter()
+        .map(|c| palette.binary_search(c).unwrap() as i64)
+        .collect();
+    let fresh = palette.len() as i64;
+    let mut a = p.clone();
+    let mut b = p.clone();
+    a.color = base.clone();
+    b.color = base.clone();
+    let mut out = Vec::with_capacity(n);
+    for v in 0..n {
+        let mut orbit = vec![v];
+        let tag = fresh + n as i64;
+        for u in v + 1..n {
+            if base[u] != base[v] || p.deg_out[u] != p.deg_out[v] || p.deg_in[u] != p.deg_in[v] {
+                continue;
+            }
+            a.color[v] = tag;
+            b.color[u] = tag;
+            if !run_matcher(&a, &b, 0, p.directed, 1, &[]).is_empty() {
+                orbit.push(u);
+            }
+            a.color[v] = base[v];
+            b.color[u] = base[u];
+        }
+        out.push(orbit);
+        // v is now fixed for the later stabilizers
+        a.color[v] = fresh + v as i64;
+        b.color[v] = fresh + v as i64;
+    }
+    out
+}
+
+/// ISMAGS symmetry constraints `(low, high)`, meaning `map[low] < map[high]`, from the cosets,
+/// sorted.
+fn coset_constraints(p: &Side, _directed: bool) -> Vec<(usize, usize)> {
+    let mut constraints: Vec<(usize, usize)> = cosets(p)
         .into_iter()
-        .map(|map| (0..np).map(|u| (p.ids[u], t.ids[map[u]])).collect())
-        .collect())
+        .enumerate()
+        .flat_map(|(v, orbit)| {
+            orbit
+                .into_iter()
+                .filter(move |&u| u != v)
+                .map(move |u| (v, u))
+        })
+        .collect();
+    constraints.sort_unstable();
+    constraints
+}
+
+/// The automorphism cosets of a graph (see `cosets`), as `(node ID, coset node IDs)` in node ID
+/// order, the node itself first.
+#[pyfunction]
+#[pyo3(signature = (graph, node_colors, edge_colors))]
+pub fn automorphism_cosets(
+    graph: &Graph,
+    node_colors: FxHashMap<u64, i64>,
+    edge_colors: FxHashMap<u64, i64>,
+) -> Vec<(u64, Vec<u64>)> {
+    let p = Side::new(graph, &node_colors, &edge_colors);
+    cosets(&p)
+        .into_iter()
+        .enumerate()
+        .map(|(v, orbit)| (p.ids[v], orbit.into_iter().map(|u| p.ids[u]).collect()))
+        .collect()
+}
+
+/// `nodes` without `node`, except that when a constraint `(node, high)` has `high` in `nodes`,
+/// `high` (followed further the same way) is removed instead, as ISMAGS does to skip subsets
+/// that are symmetric to ones already tried.
+fn remove_node(mut node: usize, nodes: &[usize], constraints: &[(usize, usize)]) -> Vec<usize> {
+    while let Some(&(_, high)) = constraints
+        .iter()
+        .find(|&&(low, high)| low == node && nodes.binary_search(&high).is_ok())
+    {
+        node = high;
+    }
+    nodes.iter().copied().filter(|&w| w != node).collect()
+}
+
+/// The largest common induced subgraphs of `pattern` and `target`, by the ISMAGS search: the
+/// whole pattern is matched (as an induced subgraph) into the target, then every subset with
+/// one node fewer, and so on, until some subset matches; every mapping at that size is
+/// returned, as `(pattern node ID, target node ID)` pairs. With `symmetry`, mappings and
+/// subsets that are symmetric (under the pattern's automorphisms) to others are skipped.
+#[pyfunction]
+#[pyo3(signature = (pattern, target, node_colors_p, node_colors_t, edge_colors_p, edge_colors_t, symmetry=true))]
+#[allow(clippy::too_many_arguments)]
+pub fn largest_common_subgraph(
+    pattern: &Graph,
+    target: &Graph,
+    node_colors_p: FxHashMap<u64, i64>,
+    node_colors_t: FxHashMap<u64, i64>,
+    edge_colors_p: FxHashMap<u64, i64>,
+    edge_colors_t: FxHashMap<u64, i64>,
+    symmetry: bool,
+) -> PyResult<Vec<Vec<(u64, u64)>>> {
+    if pattern.is_directed() != target.is_directed() {
+        return value_err("both graphs must be directed, or both undirected");
+    }
+    let directed = pattern.is_directed();
+    let p = Side::new(pattern, &node_colors_p, &edge_colors_p);
+    let t = Side::new(target, &node_colors_t, &edge_colors_t);
+    let (np, nt) = (p.ids.len(), t.ids.len());
+    if np == 0 {
+        return Ok(vec![Vec::new()]);
+    }
+    if nt == 0 {
+        return Ok(Vec::new());
+    }
+    let constraints = if symmetry {
+        coset_constraints(&p, directed)
+    } else {
+        Vec::new()
+    };
+    let mut family: BTreeSet<Vec<usize>> = BTreeSet::new();
+    family.insert((0..np).collect());
+    loop {
+        let size = family.iter().next().map_or(0, |s| s.len());
+        let mut found = Vec::new();
+        if size <= nt {
+            for nodes in &family {
+                let sub = p.induced(nodes);
+                let mut local = vec![NONE; np];
+                for (i, &u) in nodes.iter().enumerate() {
+                    local[u] = i;
+                }
+                let cons: Vec<(usize, usize)> = constraints
+                    .iter()
+                    .filter(|&&(a, b)| local[a] != NONE && local[b] != NONE)
+                    .map(|&(a, b)| (local[a], local[b]))
+                    .collect();
+                for map in run_matcher(&sub, &t, 1, directed, usize::MAX, &cons) {
+                    found.push(
+                        (0..nodes.len())
+                            .map(|i| (sub.ids[i], t.ids[map[i]]))
+                            .collect(),
+                    );
+                }
+            }
+        }
+        if !found.is_empty() || size <= 1 {
+            return Ok(found);
+        }
+        let mut next = BTreeSet::new();
+        for nodes in &family {
+            for &u in nodes {
+                next.insert(remove_node(u, nodes, &constraints));
+            }
+        }
+        family = next;
+    }
 }
 
 /// SimRank similarity (Jeh and Widom), iterated as in NetworkX:
