@@ -1,3 +1,5 @@
+import networkx as nx
+import pytest
 from edgecase import Graph
 
 
@@ -379,3 +381,94 @@ class TestRichClubCoefficientMonotonicity:
 
         for k, phi in rc.items():
             assert 0 <= phi <= 1.0, f"φ({k}) = {phi} is out of bounds [0, 1]"
+
+
+def _from_nx(nxg):
+    g = Graph().add_nodes([str(v) for v in nxg.nodes()])
+    return g.add_edges([(str(u), str(v)) for u, v in nxg.edges()])
+
+
+class TestRichClubCoefficientNormalized:
+    """normalized=, Q=, seed= and n_samples=, following NetworkX's rich_club_coefficient()."""
+
+    @pytest.mark.parametrize("seed", range(5))
+    def test_raw_values_match_networkx(self, seed):
+        nxg = nx.gnm_random_graph(40, 120, seed=seed)
+        expected = nx.rich_club_coefficient(nxg, normalized=False)
+        got = _from_nx(nxg).rich_club_coefficient()
+        assert got.keys() == expected.keys()
+        for k, phi in expected.items():
+            assert got[k] == pytest.approx(phi)
+
+    def test_same_keys_as_raw(self):
+        g = Graph().add_pa_graph(80, 2, seed=5)
+        assert g.rich_club_coefficient(normalized=True, Q=5, seed=1).keys() == (
+            g.rich_club_coefficient().keys()
+        )
+
+    def test_seed_is_reproducible(self):
+        g = Graph().add_pa_graph(80, 2, seed=5)
+        first = g.rich_club_coefficient(normalized=True, Q=5, seed=8, n_samples=3)
+        assert first == g.rich_club_coefficient(normalized=True, Q=5, seed=8, n_samples=3)
+        assert first != g.rich_club_coefficient(normalized=True, Q=5, seed=9, n_samples=3)
+
+    def test_random_graph_is_near_one(self):
+        """A G(n, m) graph is its own null model, so low-k ratios hover around 1."""
+        g = _from_nx(nx.gnm_random_graph(60, 240, seed=2))
+        rc = g.rich_club_coefficient(normalized=True, Q=20, seed=4, n_samples=10)
+        for k in range(5):
+            assert rc[k] == pytest.approx(1.0, abs=0.05)
+
+    def test_rigid_graph_gives_one(self):
+        """No swap can rewire a complete graph, so every ratio is exactly 1."""
+        g = Graph().add_full_graph(6)
+        rc = g.rich_club_coefficient(normalized=True, seed=1)
+        assert rc and all(phi == pytest.approx(1.0) for phi in rc.values())
+
+    def test_planted_rich_club_is_above_one(self):
+        """Hubs wired to each other beyond chance give a ratio well above 1 at high k."""
+        nxg = nx.gnm_random_graph(60, 150, seed=1)
+        top = sorted(nxg, key=nxg.degree, reverse=True)[:8]
+        nxg.add_edges_from((a, b) for a in top for b in top if a < b)
+        rc = _from_nx(nxg).rich_club_coefficient(normalized=True, Q=20, seed=3, n_samples=10)
+        assert rc[1] == pytest.approx(1.0, abs=0.05)
+        assert min(rc[k] for k in range(7, 11)) > 1.5
+
+    def test_directed_runs_and_is_near_one(self):
+        g = Graph(directed=True).add_gnp_graph(60, 0.1, seed=3)
+        rc = g.rich_club_coefficient(normalized=True, Q=20, seed=2, n_samples=5)
+        assert rc.keys() == g.rich_club_coefficient().keys()
+        for k in range(3):
+            assert rc[k] == pytest.approx(1.0, abs=0.05)
+
+    @pytest.mark.parametrize(
+        "kwargs, match",
+        [({"n_samples": 0}, "n_samples"), ({"Q": -1}, "Q must not be negative")],
+    )
+    def test_bad_arguments(self, kwargs, match):
+        g = Graph().add_cycle_graph(6)
+        with pytest.raises(ValueError, match=match):
+            g.rich_club_coefficient(normalized=True, **kwargs)
+        g.rich_club_coefficient(**kwargs)  # ignored without normalized=True
+
+    def test_self_loops_and_parallel_edges_raise(self):
+        loops = Graph().add_cycle_graph(5).add_edge("1", "1")
+        with pytest.raises(ValueError, match="self-loops"):
+            loops.rich_club_coefficient(normalized=True)
+        multi = Graph().add_cycle_graph(5).add_edge("1", "2")
+        with pytest.raises(ValueError, match="parallel edges"):
+            multi.rich_club_coefficient(normalized=True)
+
+    def test_too_small_raises(self):
+        with pytest.raises(ValueError, match="four nodes"):
+            Graph().add_path_graph(3).rich_club_coefficient(normalized=True)
+
+    def test_zero_average_raises(self):
+        """Two linked hubs: a random graph that pulls them apart has no club at k=1."""
+        g = Graph().add_nodes([str(i) for i in range(8)])
+        g.add_edges([("0", "1"), ("0", "2"), ("0", "3"), ("1", "4"), ("1", "5"), ("6", "7")])
+        with pytest.raises(ValueError, match="normalization failed at degree 1"):
+            g.rich_club_coefficient(normalized=True, Q=50, seed=9)
+        # averaging over more random graphs avoids the zero
+        rc = g.rich_club_coefficient(normalized=True, Q=50, seed=9, n_samples=20)
+        assert rc[1] > 1
