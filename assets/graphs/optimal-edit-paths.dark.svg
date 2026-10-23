@@ -1,0 +1,32 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Optimal edit paths</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="512.0" y="38.0" width="224.0" height="120.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 79.88 120.69 L 110.12 75.31" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 127.88 75.31 L 158.12 120.69" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 293.88 120.69 L 324.12 75.31" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 341.88 75.31 L 372.12 120.69" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 365.00 134.00 L 301.00 134.00" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3"/>
+<circle cx="71.0" cy="134.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="71.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">A</text>
+<circle cx="119.0" cy="62.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="119.0" y="62.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">B</text>
+<circle cx="167.0" cy="134.0" r="16" fill="#2e2b17" stroke="#facc15" stroke-opacity="1" stroke-width="2.25"/>
+<text x="167.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1">C</text>
+<circle cx="285.0" cy="134.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="285.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">X</text>
+<circle cx="333.0" cy="62.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="333.0" y="62.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">Y</text>
+<circle cx="381.0" cy="134.0" r="16" fill="#2e2b17" stroke="#facc15" stroke-opacity="1" stroke-width="2.25"/>
+<text x="381.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1">Z</text>
+<text x="119.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">path</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">path.optimal_edit_paths(triangle)</text>
+<text x="333.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">triangle</text>
+<text x="526.0" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">paths[0] of 6, cost = 1.0</text>
+<text x="526.0" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1.0">A  →  X</text>
+<text x="526.0" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1.0">B  →  Y</text>
+<text x="526.0" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1.0">C  →  Z</text>
+<text x="526.0" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">insert edge Z–X</text>
+</svg>
