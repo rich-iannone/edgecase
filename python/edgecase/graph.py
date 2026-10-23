@@ -45772,6 +45772,7 @@ class Graph:
         self,
         max_iter: int = 100,
         tol: float = 1e-6,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -45799,9 +45800,11 @@ class Graph:
         - recommendation or follower graphs (accounts followed by well-connected curators)
 
         Unlike in-degree, which counts every incoming edge equally, authority rewards being
-        pointed to by nodes that themselves point to many good targets. Edge weights are ignored.
-        The graph must be directed. Each iteration scans all edges once per node, so the method
-        is best suited to small and medium-sized graphs.
+        pointed to by nodes that themselves point to many good targets. With `weighted=`, each
+        edge passes on its weight times the hub score of its source, so heavier links count for
+        more. Parallel edges add up, so two `A -> B` edges count like one edge of twice the
+        weight, which is also what NetworkX's `hits()` does with a multigraph. The graph must be
+        directed. Each iteration takes time proportional to the number of edges.
 
         Parameters
         ----------
@@ -45814,6 +45817,11 @@ class Graph:
             Convergence threshold. Iteration stops once the sum of absolute changes between two
             consecutive rounds is below `tol=` for both the authority and the hub vector.
             Defaults to `1e-6`. Larger values stop earlier with less precise scores.
+        weighted
+            If `True`, each edge counts with its weight (`1` where missing), and weights must
+            not be negative. If `False`, every edge counts `1`. If `None` (default), follows
+            whether the graph was created as weighted. NetworkX's `hits()` always reads the
+            `"weight"` attribute, so pass `weighted=True` to match it.
         attr_name
             Column name used to store the scores in the node DataFrame. If `None` (default), the
             column is named `"authority_centrality"`. An existing column with the same name is
@@ -45833,7 +45841,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If graph is undirected.
+            If graph is undirected, or if `weighted=` is in effect and an edge has a negative
+            weight.
 
         Examples
         --------
@@ -45895,7 +45904,7 @@ class Graph:
         )
         ```
         """
-        centrality = self._graph.get_authority_centrality(max_iter, tol)
+        centrality = self._graph.get_authority_centrality(max_iter, tol, self._use_weights(weighted))
 
         if return_dict:
             return centrality
@@ -45912,6 +45921,8 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
+        if weighted is not None:
+            params["weighted"] = weighted
         self._computations.append(("authority_centrality", params, attr_name))
 
         return self
@@ -45920,6 +45931,7 @@ class Graph:
         self,
         max_iter: int = 100,
         tol: float = 1e-6,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -45947,9 +45959,11 @@ class Graph:
         - curators, aggregators, or brokers in follower and trade networks
 
         Unlike out-degree, which counts every outgoing edge equally, a high hub score requires
-        pointing to nodes that are themselves widely endorsed. Edge weights are ignored. The
-        graph must be directed. Each iteration scans all edges once per node, so the method is
-        best suited to small and medium-sized graphs.
+        pointing to nodes that are themselves widely endorsed. With `weighted=`, each edge passes
+        on its weight times the authority score of its target, so heavier links count for more.
+        Parallel edges add up, so two `A -> B` edges count like one edge of twice the weight,
+        which is also what NetworkX's `hits()` does with a multigraph. The graph must be
+        directed. Each iteration takes time proportional to the number of edges.
 
         Parameters
         ----------
@@ -45962,6 +45976,11 @@ class Graph:
             Convergence threshold. Iteration stops once the sum of absolute changes between two
             consecutive rounds is below `tol=` for both the hub and the authority vector.
             Defaults to `1e-6`. Larger values stop earlier with less precise scores.
+        weighted
+            If `True`, each edge counts with its weight (`1` where missing), and weights must
+            not be negative. If `False`, every edge counts `1`. If `None` (default), follows
+            whether the graph was created as weighted. NetworkX's `hits()` always reads the
+            `"weight"` attribute, so pass `weighted=True` to match it.
         attr_name
             Column name used to store the scores in the node DataFrame. If `None` (default), the
             column is named `"hub_centrality"`. An existing column with the same name is
@@ -45981,7 +46000,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If graph is undirected.
+            If graph is undirected, or if `weighted=` is in effect and an edge has a negative
+            weight.
 
         Examples
         --------
@@ -46044,7 +46064,7 @@ class Graph:
         )
         ```
         """
-        centrality = self._graph.get_hub_centrality(max_iter, tol)
+        centrality = self._graph.get_hub_centrality(max_iter, tol, self._use_weights(weighted))
 
         if return_dict:
             return centrality
@@ -46061,6 +46081,8 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
+        if weighted is not None:
+            params["weighted"] = weighted
         self._computations.append(("hub_centrality", params, attr_name))
 
         return self
@@ -47862,7 +47884,13 @@ class Graph:
         result = Graph._from_rust(k_corona(self._graph, k))
         return result
 
-    def rich_club_coefficient(self) -> dict[int, float]:
+    def rich_club_coefficient(
+        self,
+        normalized: bool = False,
+        Q: int = 100,
+        seed: int | None = None,
+        n_samples: int = 1,
+    ) -> dict[int, float]:
         r"""
         Compute the rich-club coefficient for all degree values.
 
@@ -47882,12 +47910,51 @@ class Graph:
         to each other, forming a 'rich club'. Values less than expected in random graphs suggest the
         hubs avoid connecting to each other.
 
+        Because high-degree nodes are likely to meet even by chance, the raw `φ(k)` is easiest to
+        read against a baseline. With `normalized=True`, each `φ(k)` is divided by the average
+        `φ(k)` of `n_samples=` random graphs that keep every node's degree: each is a copy of the
+        graph rewired by `Q=` times as many double-edge swaps as there are edges (`a-b, c-d`
+        becomes `a-d, c-b`), never creating self-loops or parallel edges. A normalized value
+        above `1` means the hubs are more tightly knit than their degrees alone would explain.
+        Directed graphs keep each node's in- and out-degree. Normalizing needs a graph with at
+        least four nodes and two edges, and no self-loops or parallel edges.
+
+        Parameters
+        ----------
+        normalized
+            If `True`, divide each coefficient by that of degree-preserving random graphs (see
+            above). Defaults to `False`, which returns the raw coefficients, quickly and
+            deterministically. NetworkX's `rich_club_coefficient()` defaults to
+            `normalized=True`, so pass it explicitly when porting code.
+        Q
+            How many swaps per edge to attempt to make while randomizing each reference graph.
+            Defaults to `100`, as in NetworkX. Up to `10 * Q` times as many swaps as edges are
+            tried; if the graph is too constrained to reach the target, the rewiring keeps the
+            swaps it managed rather than raising an error (NetworkX raises in that case). Only
+            used when `normalized=True`.
+        seed
+            Integer seed for the random rewiring, so that normalized results are reproducible. If
+            `None` (default), the rewiring is seeded from system entropy. Only used when
+            `normalized=True`.
+        n_samples
+            Number of random graphs whose coefficients are averaged before dividing. Defaults to
+            `1`. More samples give a steadier baseline and make a zero average, which would leave
+            the ratio undefined, less likely. Must be at least `1` when `normalized=True`.
+
         Returns
         -------
         dict[int, float]
-            Dictionary mapping degree `k` to rich-club coefficient `φ(k)`. Only degrees for
-            which at least `2` nodes have degree > `k` are included (otherwise the coefficient
-            is undefined).
+            Dictionary mapping degree `k` to rich-club coefficient `φ(k)` (or to the normalized
+            ratio when `normalized=True`). Only degrees for which at least `2` nodes have degree
+            > `k` are included (otherwise the coefficient is undefined).
+
+        Raises
+        ------
+        ValueError
+            With `normalized=True`: if the graph has self-loops or parallel edges, has fewer than
+            four nodes or two edges, if `n_samples=` is below `1` or `Q=` is negative, or if the
+            random graphs average a coefficient of zero at some degree (try a larger
+            `n_samples=`).
 
         Technical Notes
         ---------------
@@ -47899,9 +47966,11 @@ class Graph:
         first characterized by Zhou and Mondragón (2004). The raw values returned here are
         *unnormalized*, which matters because $\phi(k)$ trivially approaches $1$ near the
         top of the degree spectrum: so few nodes remain to divide by. To decide whether a
-        real rich-club signal is present, compare against $\phi_{\mathrm{rand}}(k)$ computed
-        on a degree-preserving randomization of the graph and inspect the ratio
-        $\phi(k)/\phi_{\mathrm{rand}}(k)$.
+        real rich-club signal is present, `normalized=True` compares against
+        $\phi_{\mathrm{rand}}(k)$ computed on degree-preserving randomizations of the graph
+        and returns the ratio $\phi(k)/\phi_{\mathrm{rand}}(k)$ (Colizza et al., 2006). Each
+        random graph comes from its own stretch of one seeded random stream, so the
+        `n_samples=` graphs differ from one another even with a fixed `seed=`.
 
         Examples
         --------
@@ -47945,10 +48014,26 @@ class Graph:
         # Filter coefficients > 0.5 to see strong rich-club effect
         {k: phi for k, phi in rc.items() if phi > 0.5}
         ```
+
+        The raw values climb toward `1` at the top of the degree range partly because so few
+        nodes are left there. Normalizing against degree-preserving random graphs shows how
+        much of that is a genuine preference of hubs for one another (values near `1` mean
+        no more than chance):
+
+        ```{python}
+        rc_norm = ba_graph.rich_club_coefficient(normalized=True, Q=10, seed=23, n_samples=5)
+        {k: round(phi, 2) for k, phi in sorted(rc_norm.items())[-6:]}
+        ```
         """
         from edgecase._core import rich_club_coefficient
 
-        return rich_club_coefficient(self._graph)
+        if not normalized:
+            return rich_club_coefficient(self._graph)
+        if n_samples < 1:
+            raise ValueError("n_samples must be >= 1 if normalized=True")
+        if Q < 0:
+            raise ValueError("Q must not be negative")
+        return rich_club_coefficient(self._graph, normalized, Q, seed, n_samples)
 
     # ==============================================================================
     # ------------------------------------------------------------------------------
@@ -53114,6 +53199,7 @@ class Graph:
         mode: str = "out",
         stuck: str = "return",
         seed: int | None = None,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_list: bool = False,
     ) -> Union[list[int], "Graph"]:
@@ -53122,8 +53208,9 @@ class Graph:
 
         ![Random walk](/assets/graphs/random-walk.light.svg){.lightbox fig-alt="A directed house-shaped graph walked from A for 6 steps with a fixed seed. Filled badges give each node's positions in the walk, 0 for the start; A and B are visited twice. The card lists the 7 visited nodes, A, B, C, A, B, D, E; edge E to C is unused." width="100%"}
 
-        Takes a random walk starting from a given node, choosing neighbors uniformly at random at
-        each step. Edge weights are ignored. Can return the visit order as a list of node IDs, or
+        Takes a random walk starting from a given node, choosing the next node at random at each
+        step: uniformly among the neighbors, or, with `weighted=`, in proportion to the weight of
+        the edges leading to each neighbor. Can return the visit order as a list of node IDs, or
         store the position of each node in the walk as a node attribute for visualization.
 
         The walk follows edges according to the `mode=` parameter:
@@ -53143,7 +53230,8 @@ class Graph:
 
         Time complexity: `O(steps)` with `O(degree)` neighbor lookups per step for `mode="out"`;
         `"in"` and `"all"` scan the adjacency of every node at each step, so they cost `O(n)` per
-        step.
+        step. A weighted walk first gathers every node's weighted neighbors in one pass over the
+        edges, then costs `O(degree)` per step in any mode.
 
         Parameters
         ----------
@@ -53164,6 +53252,13 @@ class Graph:
             Integer seed for the random number generator. The same seed on the same graph always
             produces the same walk. If `None` (default), the walk is seeded from system entropy
             and differs from call to call.
+        weighted
+            If `True`, step from a node to each neighbor with probability proportional to the
+            total weight of the edges joining them (`1` where missing), so parallel edges add up.
+            Zero-weight edges are never followed, a node whose usable edges all weigh zero counts
+            as stuck, and negative weights raise an error. This matches the `weight=` argument
+            of NetworkX's `random_walk()`. If `False`, every neighbor is equally likely. If
+            `None` (default), follows whether the graph was created as weighted.
         attr_name
             Name of the node attribute that receives each node's position in the walk. If `None`
             (default), the attribute is called `random_walk_order`. Positions are 0-indexed, so
@@ -53186,8 +53281,8 @@ class Graph:
         ------
         ValueError
             If `start=` is a label or integer ID that does not exist, `mode=` is not one of
-            `"out"`, `"in"`, `"all"`, or the walk gets stuck and `stuck=` is not `"return"` or
-            `"error"`.
+            `"out"`, `"in"`, `"all"`, `stuck=` is not `"return"` or `"error"`, or a weighted walk
+            meets a negative edge weight.
         RuntimeError
             If walk gets stuck and `stuck="error"`.
 
@@ -53278,9 +53373,28 @@ class Graph:
 
         graph.random_walk("A", steps=10, return_list=True)
         ```
+
+        With `weighted=True` heavier edges are followed more often. From the hub of this star,
+        the edge to `"B"` weighs nine times as much as the others put together, so a walk that
+        keeps returning to the hub visits `"B"` far more often than `"C"` or `"D"`:
+
+        ```{python}
+        from collections import Counter
+
+        graph = (
+            ec.Graph(weighted=True)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B", 18.0), ("A", "C", 1.0), ("A", "D", 1.0)])
+        )
+
+        path = graph.random_walk("A", steps=200, seed=23, weighted=True, return_list=True)
+        Counter(graph.get_label_from_id(nid) for nid in path[1::2])
+        ```
         """
         start_id = self._resolve_node_id(start, auto_create=False)
-        walk_ids = self._graph.random_walk(start_id, steps, mode, stuck, seed)
+        walk_ids = self._graph.random_walk(
+            start_id, steps, mode, stuck, seed, self._use_weights(weighted)
+        )
 
         if return_list:
             return walk_ids
@@ -53295,6 +53409,8 @@ class Graph:
 
         # Track computation
         params = {"start": start, "steps": steps, "mode": mode, "stuck": stuck, "seed": seed}
+        if weighted is not None:
+            params["weighted"] = weighted
         self._computations.append(("random_walk", params, attr_name))
 
         return self
