@@ -13354,6 +13354,2296 @@ class Graph:
             self._add_community_graph(groups, pairs, label, type, rel, community_attr)
         return self
 
+    def add_bipartite_configuration_model(
+        self,
+        aseq: list[int],
+        bseq: list[int],
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a random bipartite graph with given degrees on each side (configuration model).
+
+        ![Bipartite configuration model](/assets/graphs/add-bipartite-configuration-model.light.svg){.lightbox fig-alt="Three bipartite configuration models, the first part in an accent top row and the second in a teal bottom row, each node's degree in a pill. Three ones on each side give a perfect matching; three twos against two threes give six edges in which the stubs happened to pair into two doubled edges, drawn bowed apart; and 3, 2, 1 against 2, 2, 1, 1 gives six edges with one doubled. Every node meets its degree exactly, and no edge joins two nodes in the same row." width="100%"}
+
+        Creates `len(aseq)` nodes in a first part and `len(bseq)` in a second, and gives
+        first-part node `i` exactly `aseq[i]` edges and second-part node `j` exactly `bseq[j]`.
+        Each node gets one stub per unit of degree, the two parts' stub lists are shuffled, and
+        the stubs are paired off in order, so every edge joins the two parts. Because stubs are
+        paired blindly, the same two nodes can be joined more than once: the result can have
+        parallel edges (but never self-loops). `simplify()` collapses them, at the cost of exact
+        degrees. The model is NetworkX's `bipartite.configuration_model()`.
+
+        Each node's part is stored in the `part_attr=` node attribute (`0` for the first, `1`
+        for the second). The first part is created first, and in a directed graph every edge
+        points from the first part to the second. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Bipartite configuration models are useful for:
+
+        - null models for two-mode networks (authors and papers, people and events) that keep
+          every node's degree but randomize who is linked to whom
+        - testing whether a bipartite network's projections or clustering are explained by its
+          degrees alone
+        - generating two-mode test data with prescribed, e.g. heavy-tailed, degrees
+
+        Parameters
+        ----------
+        aseq
+            Degrees of the first-part nodes, as a list of non-negative integers.
+        bseq
+            Degrees of the second-part nodes, as a list of non-negative integers. Must have the
+            same sum as `aseq=`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's part (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If a degree is negative or the two sequences have different sums.
+
+        Examples
+        --------
+        Three first-part nodes of degree `2` and two second-part nodes of degree `3` share six
+        edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_bipartite_configuration_model([2, 2, 2], [3, 3], seed=1)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        Every node gets exactly its degree, and the `part` column tells the two sides apart:
+
+        ```{python}
+        graph.get_node_df().select("label", "part", "degree")
+        ```
+
+        Edges only ever join the two parts, so the graph is bipartite even when stubs pair up
+        twice:
+
+        ```{python}
+        graph.is_bipartite(), graph.is_simple()
+        ```
+        """
+        from edgecase._core import bipartite_configuration_edges as _edges
+
+        aseq, bseq = list(aseq), list(bseq)
+        pairs = _edges(aseq, bseq, seed)
+
+        with self._compound(
+            "add_bipartite_configuration_model",
+            f"G.add_bipartite_configuration_model({aseq}, {bseq})",
+        ):
+            groups = [0] * len(aseq) + [1] * len(bseq)
+            self._add_index_graph(
+                len(groups), pairs, label, type, rel, self._group_attrs(groups, part_attr)
+            )
+        return self
+
+    def add_bipartite_havel_hakimi_graph(
+        self,
+        aseq: list[int],
+        bseq: list[int],
+        variant: str = "largest",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a bipartite graph with given degrees on each side, built deterministically by a
+        Havel-Hakimi construction.
+
+        ![Bipartite Havel-Hakimi graph](/assets/graphs/add-bipartite-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three bipartite Havel-Hakimi graphs for the same degrees, 3, 2, 1 in the accent top row and 2, 2, 1, 1 in the teal bottom row, each node's degree in a pill. Each top node in turn is joined to the bottom nodes with the most degree left, the fewest, or alternately the most and the fewest, so the three variants wire the same six edges differently while every node still meets its pill and no pair is joined twice." width="100%"}
+
+        Creates `len(aseq)` nodes in a first part and `len(bseq)` in a second, and gives
+        first-part node `i` exactly `aseq[i]` neighbors and second-part node `j` exactly
+        `bseq[j]`, with no parallel edges. The construction repeatedly takes the first-part
+        node with the most degree left, say `d`, and joins it to `d` second-part nodes, chosen
+        by `variant=`:
+
+        - `"largest"` (default): the `d` nodes with the most degree left. This succeeds
+          whenever any simple bipartite graph has these degrees (the Gale-Ryser condition), and
+          is NetworkX's `bipartite.havel_hakimi_graph()`
+        - `"smallest"`: the `d` nodes with the least degree left, in their initial order, as in
+          NetworkX's `bipartite.reverse_havel_hakimi_graph()`
+        - `"alternating"`: alternately one of the largest and one of the smallest, as in
+          NetworkX's `bipartite.alternating_havel_hakimi_graph()`
+
+        The variants spread the edges differently: `"largest"` concentrates them among the
+        high-degree nodes (strongly assortative), `"smallest"` pairs hubs with low-degree nodes
+        (disassortative), and `"alternating"` lands in between. The `"smallest"` and
+        `"alternating"` choices can paint themselves into a corner and fail on sequences that
+        `"largest"` realizes. NetworkX then silently returns a graph with the wrong degrees or
+        with parallel edges, and it also counts second-part nodes of degree `0` as targets; here
+        the graph is always simple with every degree exact, and a construction that can't finish
+        raises `ValueError`.
+
+        Each node's part is stored in the `part_attr=` node attribute (`0` for the first, `1`
+        for the second). The first part is created first, and in a directed graph every edge
+        points from the first part to the second. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Bipartite Havel-Hakimi graphs are useful for:
+
+        - checking that a pair of degree sequences can be realized by a bipartite graph, and
+          getting one realization
+        - deterministic starting points for degree-preserving rewiring of two-mode networks
+        - test graphs with exactly prescribed degrees and a controlled degree mixing
+
+        Parameters
+        ----------
+        aseq
+            Degrees of the first-part nodes, as a list of non-negative integers.
+        bseq
+            Degrees of the second-part nodes, as a list of non-negative integers. Must have the
+            same sum as `aseq=`.
+        variant
+            Which second-part nodes each step joins: `"largest"` (default), `"smallest"` or
+            `"alternating"`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's part (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If a degree is negative, the two sequences have different sums, `variant=` is not
+            one of the three names, or the construction runs out of second-part nodes (for
+            `"largest"`, exactly when no simple bipartite graph has these degrees).
+
+        Examples
+        --------
+        Each node gets the degree at its position, first part then second:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1])
+
+        [graph.get_degree(v) for v in sorted(graph.get_node_ids())]
+        ```
+
+        The variants realize the same degrees with different edges. With `"largest"` the
+        first-part hub `"1"` takes both second-part nodes of degree `2`, `"4"` and `"5"`; with
+        `"smallest"` it starts with `"6"` and `"7"`, of degree `1`:
+
+        ```{python}
+        for variant in ("largest", "smallest", "alternating"):
+            g = ec.Graph().add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1], variant=variant)
+            print(variant, g.get_edges_str_repr())
+        ```
+
+        One first-part node can't have three neighbors when the other side has only two
+        nodes:
+
+        ```{python}
+        try:
+            ec.Graph().add_bipartite_havel_hakimi_graph([3, 1], [2, 2])
+        except ValueError as err:
+            print(err)
+        ```
+        """
+        from edgecase._core import bipartite_havel_hakimi_edges as _edges
+
+        aseq, bseq = list(aseq), list(bseq)
+        pairs = _edges(aseq, bseq, variant)
+
+        with self._compound(
+            "add_bipartite_havel_hakimi_graph",
+            f"G.add_bipartite_havel_hakimi_graph({aseq}, {bseq}, variant={variant!r})",
+        ):
+            groups = [0] * len(aseq) + [1] * len(bseq)
+            self._add_index_graph(
+                len(groups), pairs, label, type, rel, self._group_attrs(groups, part_attr)
+            )
+        return self
+
+    def add_bipartite_preferential_attachment_graph(
+        self,
+        aseq: list[int],
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a bipartite graph grown by preferential attachment on its second part.
+
+        ![Bipartite preferential attachment graph](/assets/graphs/add-bipartite-preferential-attachment-graph.light.svg){.lightbox fig-alt="Three bipartite preferential attachment graphs in which three accent top nodes bring two edges each, and each edge makes a new teal bottom node with probability p or else picks an existing one in proportion to its degree. At p=1 every edge gets its own node, six in all; at p=0.5 the six edges share three bottom nodes, the busiest taking three; and at p=0 every edge lands on the single node the first edge made, so each top node reaches it twice, drawn as bowed pairs." width="100%"}
+
+        Creates `len(aseq)` nodes in a first part, then grows a second part while wiring them:
+        first-part node `i` gets exactly `aseq[i]` edges, handed out node by node. Each edge
+        goes, with probability `p`, to a brand-new second-part node, and otherwise to an
+        existing second-part node chosen with probability proportional to its current degree
+        (the first edge always creates a node). Popular second-part nodes therefore keep
+        getting more popular, and their degrees end up heavy-tailed, while the number of
+        second-part nodes is random, about `p` times the number of edges. The same pair can be
+        joined twice, so the graph can have parallel edges. The process is NetworkX's
+        `bipartite.preferential_attachment_graph()`.
+
+        Each node's part is stored in the `part_attr=` node attribute (`0` for the first, `1`
+        for the second). Second-part nodes are created in the order they first get an edge,
+        after all the first-part nodes, and in a directed graph every edge points from the
+        first part to the second. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Bipartite preferential attachment graphs are useful for:
+
+        - modeling two-mode networks where one side's popularity snowballs, such as users and
+          the hashtags, tags or products they pick
+        - collaboration-style data (authors and papers, actors and films) with a few very
+          popular items
+        - testing bipartite measures on heavy-tailed degree distributions
+
+        Parameters
+        ----------
+        aseq
+            Number of edges of each first-part node, as a list of non-negative integers.
+        p
+            Probability, between `0` and `1`, that an edge creates a new second-part node rather
+            than attaching to an existing one. With `p=1` every edge gets its own node; with
+            `p=0` all edges go to the single node the first edge created.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's part (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If an entry of `aseq=` is negative or `p=` is outside `0` to `1`.
+
+        Examples
+        --------
+        Fifty first-part nodes with three edges each. About `p = 0.3` of the 150 edges open a
+        new second-part node:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_bipartite_preferential_attachment_graph([3] * 50, p=0.3, seed=2)
+        parts = graph.get_node_df()["part"]
+
+        (parts == 0).sum(), (parts == 1).sum(), graph.count_edges()
+        ```
+
+        The second part's degrees are heavy-tailed: most nodes have one or two edges, and a few
+        early ones collect many:
+
+        ```{python}
+        df = graph.get_node_df()
+
+        sorted(df.filter(df["part"] == 1)["degree"].to_list(), reverse=True)[:8]
+        ```
+        """
+        from edgecase._core import bipartite_preferential_attachment_edges as _edges
+
+        aseq = list(aseq)
+        size, pairs = _edges(aseq, p, seed)
+
+        with self._compound(
+            "add_bipartite_preferential_attachment_graph",
+            f"G.add_bipartite_preferential_attachment_graph({aseq}, p={p})",
+        ):
+            groups = [0] * len(aseq) + [1] * (size - len(aseq))
+            self._add_index_graph(
+                size, pairs, label, type, rel, self._group_attrs(groups, part_attr)
+            )
+        return self
+
+    def add_bipartite_gnp_graph(
+        self,
+        n1: int,
+        n2: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a random bipartite graph in which each cross pair is an edge with probability `p`.
+
+        ![Bipartite G(n1, n2, p) random graph](/assets/graphs/add-bipartite-gnp-graph.light.svg){.lightbox fig-alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes, where each of the 12 top-bottom pairs is joined independently with probability p=0.2, 0.5, and 0.8. Edges only ever run between the rows, and their number grows with p, from 2 to 4 to 8." width="100%"}
+
+        Creates `n1` nodes in a first part and `n2` in a second, and joins each of the
+        `n1 * n2` pairs across the parts independently with probability `p`. No edge runs
+        inside a part, and the number of edges is random with mean `p * n1 * n2`. Pairs are
+        skipped over in geometrically distributed jumps, so a sparse graph costs time in
+        proportion to its edges rather than to `n1 * n2`. This is the bipartite version of
+        `add_gnp_graph()` and NetworkX's `bipartite.random_graph()`.
+
+        In a directed graph, every pair gets two independent chances, one for an edge from the
+        first part to the second and one for an edge back, as with NetworkX's
+        `directed=True`, so the expected edge count doubles. Each node's part is stored in the
+        `part_attr=` node attribute (`0` for the first, `1` for the second), and the first
+        part is created first. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Random bipartite graphs are useful for:
+
+        - null models for two-mode networks at a given density
+        - test inputs for matching, projection and bipartite centrality algorithms
+        - studying thresholds, such as when a perfect matching appears
+
+        Parameters
+        ----------
+        n1
+            Number of nodes in the first part. Must be non-negative.
+        n2
+            Number of nodes in the second part. Must be non-negative.
+        p
+            Probability, between `0` and `1`, that a given cross pair is joined.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's part (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n1=` or `n2=` is negative or `p=` is outside `0` to `1`.
+
+        Examples
+        --------
+        Twenty by thirty nodes at `p=0.1` give about `0.1 * 20 * 30 = 60` edges:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_bipartite_gnp_graph(20, 30, p=0.1, seed=3)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        No edge joins two nodes of the same part:
+
+        ```{python}
+        graph.is_bipartite()
+        ```
+
+        In a directed graph each pair is tried in both directions:
+
+        ```{python}
+        ec.Graph(directed=True).add_bipartite_gnp_graph(20, 30, p=0.1, seed=3).count_edges()
+        ```
+        """
+        self._check_non_negative(n1=n1, n2=n2)
+
+        from edgecase._core import bipartite_gnp_edges as _edges
+
+        pairs = _edges(n1, n2, p, self.is_directed(), seed)
+
+        with self._compound(
+            "add_bipartite_gnp_graph", f"G.add_bipartite_gnp_graph(n1={n1}, n2={n2}, p={p})"
+        ):
+            groups = [0] * n1 + [1] * n2
+            self._add_index_graph(
+                n1 + n2, pairs, label, type, rel, self._group_attrs(groups, part_attr)
+            )
+        return self
+
+    def add_bipartite_gnm_graph(
+        self,
+        n1: int,
+        n2: int,
+        m: int,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+        part_attr: Optional[str] = "part",
+    ) -> "Graph":
+        """
+        Add a random bipartite graph with exactly `m` edges.
+
+        ![Bipartite G(n1, n2, m) random graph](/assets/graphs/add-bipartite-gnm-graph.light.svg){.lightbox fig-alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes and exactly m=3, 6, and 9 edges, each set of m top-bottom pairs equally likely. Edges only ever run between the rows." width="100%"}
+
+        Creates `n1` nodes in a first part and `n2` in a second, and picks `m` of the
+        `n1 * n2` pairs across the parts uniformly at random, with no repeats, so every
+        bipartite graph on these parts with `m` edges is equally likely. If `m` is at least
+        `n1 * n2`, every pair is joined, giving the complete bipartite graph. This is the
+        bipartite version of `add_gnm_graph()` and NetworkX's `bipartite.gnmk_random_graph()`.
+        NetworkX returns no edges at all when either part has a single node; here those cases
+        get their `m` edges too.
+
+        Each node's part is stored in the `part_attr=` node attribute (`0` for the first, `1`
+        for the second). The first part is created first, and in a directed graph every edge
+        points from the first part to the second. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Random bipartite graphs with a fixed edge count are useful for:
+
+        - null models for two-mode networks that keep the exact number of edges
+        - benchmarking bipartite algorithms at a controlled size
+        - comparing an observed bipartite network with random ones of the same density
+
+        Parameters
+        ----------
+        n1
+            Number of nodes in the first part. Must be non-negative.
+        n2
+            Number of nodes in the second part. Must be non-negative.
+        m
+            Number of edges. Must be non-negative; values above `n1 * n2` are capped there.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+        part_attr
+            Name of the node attribute that records each node's part (`0` or `1`). Default is
+            `"part"`. Pass `None` to skip storing it.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n1=`, `n2=` or `m=` is negative.
+
+        Examples
+        --------
+        Ten edges between a part of four nodes and a part of five:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_bipartite_gnm_graph(4, 5, m=10, seed=1)
+
+        graph.count_nodes(), graph.count_edges(), graph.is_simple()
+        ```
+
+        Asking for more edges than there are pairs gives the complete bipartite graph:
+
+        ```{python}
+        ec.Graph().add_bipartite_gnm_graph(4, 5, m=100).count_edges()
+        ```
+        """
+        self._check_non_negative(n1=n1, n2=n2, m=m)
+
+        from edgecase._core import bipartite_gnmk_edges as _edges
+
+        pairs = _edges(n1, n2, m, seed)
+
+        with self._compound(
+            "add_bipartite_gnm_graph", f"G.add_bipartite_gnm_graph(n1={n1}, n2={n2}, m={m})"
+        ):
+            groups = [0] * n1 + [1] * n2
+            self._add_index_graph(
+                n1 + n2, pairs, label, type, rel, self._group_attrs(groups, part_attr)
+            )
+        return self
+
+    def add_random_kernel_graph(
+        self,
+        n: int,
+        kernel_integral: Callable[[float, float, float], float],
+        kernel_root: Optional[Callable[[float, float, float], float]] = None,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        r"""
+        Add an inhomogeneous random graph defined by a kernel function.
+
+        ![Random kernel graph](/assets/graphs/add-random-kernel-graph.light.svg){.lightbox fig-alt="Three random kernel graphs on a ring of eight nodes with a constant kernel c, given through its integral c times (z - w), for c=1, 2, and 4. A constant kernel joins each pair with probability about c / n, so the graph fills in as c grows, from one edge to four to twelve." width="100%"}
+
+        Places `n` nodes at the points $x_i = i / n$ of the unit interval and joins nodes `i`
+        and `j` with probability about $\kappa(x_i, x_j) / n$, where the kernel $\kappa$ is a
+        symmetric, non-negative function on $[0, 1]^2$ (the model of Bollobás, Janson and
+        Riordan). A constant kernel $\kappa = c$ gives an Erdős-Rényi graph with mean degree
+        about `c`; a kernel that is large near `0` makes the early nodes hubs.
+
+        The kernel is passed through its integral: `kernel_integral(u, w, z)` must return
+        $\int_w^z \kappa(u, y)\,dy$. The method walks along each node's row of the kernel and
+        jumps straight to the next edge by solving `kernel_integral(u, w, z) = r` for `z`, so
+        it costs time in proportion to the edges, not to `n^2`. If you know that inverse in
+        closed form, pass it as `kernel_root(u, w, r)`; otherwise it is found by bisection. The
+        sampling scheme is NetworkX's `random_kernel_graph()` and so is the random stream
+        (Python's `random.Random(seed)`): with the same `kernel_root=` and `seed=`, the edges
+        are the same as NetworkX's. Without one, NetworkX uses SciPy's `brentq`, whose small
+        rounding differences can very rarely move an edge.
+
+        The result is a simple graph. In a directed graph every edge points from the
+        earlier-created node to the later one. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Kernel random graphs are useful for:
+
+        - random graphs with a prescribed, smoothly varying expected degree along the node
+          order, such as rank-1 kernels $\kappa(x, y) = \psi(x)\psi(y)$
+        - studying the giant component and phase transitions of inhomogeneous random graphs
+        - generating graphs whose density between any two groups of nodes is set by a formula
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be non-negative.
+        kernel_integral
+            Function `(u, w, z) -> float` returning the integral of the kernel `kappa(u, y)`
+            over `y` from `w` to `z`.
+        kernel_root
+            Optional function `(u, w, r) -> float` returning the `z` at which
+            `kernel_integral(u, w, z) == r`. If `None` (default), it is found numerically.
+        seed
+            Integer seed for Python's `random.Random`. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative.
+
+        Examples
+        --------
+        The constant kernel $\kappa = 5$ has integral `5 * (z - w)`, and gives a sparse
+        Erdős-Rényi graph with mean degree about `5`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_kernel_graph(
+            n=400, kernel_integral=lambda u, w, z: 5 * (z - w), seed=4
+        )
+
+        graph.count_nodes(), round(2 * graph.count_edges() / graph.count_nodes(), 1)
+        ```
+
+        Passing the inverse avoids the numerical root finding:
+
+        ```{python}
+        fast = ec.Graph().add_random_kernel_graph(
+            n=400,
+            kernel_integral=lambda u, w, z: 5 * (z - w),
+            kernel_root=lambda u, w, r: w + r / 5,
+            seed=4,
+        )
+
+        fast.count_edges() == graph.count_edges()
+        ```
+
+        The rank-1 kernel $\kappa(x, y) = 1 / \sqrt{xy}$ makes the low-numbered nodes hubs.
+        Its integral is $2(\sqrt{z} - \sqrt{w}) / \sqrt{u}$:
+
+        ```{python}
+        hubs = ec.Graph().add_random_kernel_graph(
+            n=400, kernel_integral=lambda u, w, z: 2 * (z**0.5 - w**0.5) / u**0.5, seed=4
+        )
+        degrees = [hubs.get_degree(v) for v in sorted(hubs.get_node_ids())]
+
+        degrees[:5], degrees[-5:]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._generators import random_kernel_edges
+
+        pairs = random_kernel_edges(n, kernel_integral, kernel_root, seed)
+
+        with self._compound("add_random_kernel_graph", f"G.add_random_kernel_graph(n={n})"):
+            self._add_index_graph(n, pairs, label, type, rel)
+        return self
+
+    def add_random_clustered_graph(
+        self,
+        joint_degree_sequence: list[tuple[int, int]],
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random graph with given numbers of single edges and triangles at each node.
+
+        ![Random clustered graph](/assets/graphs/add-random-clustered-graph.light.svg){.lightbox fig-alt="Three random clustered graphs on a ring of six nodes, where each node asks for a number of plain edges and a number of triangles. One edge each pairs the nodes into three separate edges; one triangle each groups them into two triangles; and one of each gives two triangles plus three more edges, two of which happen to repeat a triangle side and are drawn bowed apart." width="100%"}
+
+        Newman's clustered configuration model. Node `i` is given `(s, t)` from
+        `joint_degree_sequence[i]`: `s` stubs for single edges and `t` corners of triangles.
+        The edge stubs are shuffled and joined in pairs, and the triangle corners are shuffled
+        and joined in triples, each triple becoming a triangle. Node `i` therefore ends with
+        degree `s + 2 * t`, and unlike the plain configuration model the graph has plenty of
+        triangles, so its clustering can be tuned. As in the configuration model, stubs are
+        paired blindly, so self-loops and parallel edges can appear (`simplify()` removes
+        them). The process is NetworkX's `random_clustered_graph()`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Random clustered graphs are useful for:
+
+        - null models that keep both the degrees and the triangle counts of a network
+        - studying how clustering changes percolation and epidemic thresholds, which have
+          exact solutions for this model
+        - generating test networks with a chosen clustering coefficient
+
+        Parameters
+        ----------
+        joint_degree_sequence
+            One `(s, t)` pair of non-negative integers per node: its number of single-edge
+            stubs and of triangle corners. The `s` values must sum to an even number and the
+            `t` values to a multiple of `3`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If an entry is negative, the single-edge stubs sum to an odd number, or the
+            triangle corners don't sum to a multiple of `3`.
+
+        Examples
+        --------
+        Sixty nodes, each with one single edge and two triangle corners, so degree `4`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_clustered_graph([(1, 2)] * 60, seed=7)
+
+        graph.count_nodes(), graph.count_edges(), sum(graph.count_triangles().values()) // 3
+        ```
+
+        The planted triangles give a high clustering coefficient, which a configuration model
+        with the same degrees lacks:
+
+        ```{python}
+        plain = ec.Graph().configuration_model([4] * 60, seed=7)
+
+        round(graph.get_transitivity(), 2), round(plain.get_transitivity(), 2)
+        ```
+        """
+        from edgecase._core import random_clustered_edges as _edges
+
+        joint = [(int(s), int(t)) for s, t in joint_degree_sequence]
+        pairs = _edges(joint, seed)
+
+        with self._compound("add_random_clustered_graph", f"G.add_random_clustered_graph({joint})"):
+            self._add_index_graph(len(joint), pairs, label, type, rel)
+        return self
+
+    def add_duplication_divergence_graph(
+        self,
+        n: int,
+        p: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a graph grown by node duplication with edge loss, a model of protein interaction
+        networks.
+
+        ![Duplication-divergence graph](/assets/graphs/add-duplication-divergence-graph.light.svg){.lightbox fig-alt="Three duplication-divergence graphs on a ring of eight nodes, each grown from a single edge by copying a random node and keeping each of the copy's edges with probability p, for p=0.3, 0.6, and 0.9. A copy that keeps no edge is discarded, so the graph stays connected; a higher retention p gives denser graphs with more shared neighbors, 7, 11, and 15 edges here." width="100%"}
+
+        Starts from two joined nodes and grows to `n`. Each step picks an existing node at
+        random and makes a copy, which keeps each of the original's edges independently with
+        probability `p` and is never joined to the original itself. A copy that keeps no edge
+        is thrown away and the step is retried, so the graph stays connected. Gene duplication
+        followed by divergence works the same way, and the model (Ispolatov, Krapivsky and
+        Yuryev 2005) reproduces the sparse, heavy-tailed, connected networks of protein
+        interactions: small `p` gives sparse, tree-like graphs, and `p` near `1` dense ones.
+        The process is NetworkX's `duplication_divergence_graph()`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Duplication-divergence graphs are useful for:
+
+        - modeling protein-protein interaction and gene regulatory networks
+        - growth models where new nodes copy the links of existing ones, as in citation or web
+          link copying
+        - connected, heavy-tailed test graphs
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be at least `2`.
+        p
+            Probability, between `0` and `1`, that a copy keeps each edge of the original. Must
+            be positive when `n > 2`; very small values need many retries.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `2`, `p=` is outside `0` to `1`, `p=0` with `n > 2`, or a
+            million copies in a row keep no edge.
+
+        Examples
+        --------
+        A 200-node graph at `p=0.4` is connected and sparse:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_duplication_divergence_graph(n=200, p=0.4, seed=1)
+
+        graph.count_nodes(), graph.count_edges(), graph.is_connected()
+        ```
+
+        Copying makes some nodes hubs while most have one or two neighbors:
+
+        ```{python}
+        degrees = graph.get_node_df()["degree"]
+
+        degrees.median(), degrees.max()
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import duplication_divergence_edges as _edges
+
+        pairs = _edges(n, p, seed)
+
+        with self._compound(
+            "add_duplication_divergence_graph",
+            f"G.add_duplication_divergence_graph(n={n}, p={p})",
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
+        return self
+
+    def add_partial_duplication_graph(
+        self,
+        n: int,
+        n_initial: int,
+        p: float,
+        q: float,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a graph grown by partial node duplication from a small complete graph.
+
+        ![Partial duplication graph](/assets/graphs/add-partial-duplication-graph.light.svg){.lightbox fig-alt="Three partial duplication graphs on a ring of eight nodes, grown from a triangle on the first three nodes. Each new node copies a random node, keeps each of its edges with probability p=0.5, and links to the original with probability q=0, 0.5, and 1. With q=0 a copy that keeps no edge is left isolated, as three are here; with q=1 every copy stays attached to its original." width="100%"}
+
+        Starts from a complete graph on `n_initial` nodes and adds nodes one at a time until
+        there are `n`. Each new node picks an existing node at random and copies part of its
+        neighborhood: it joins each of that node's neighbors independently with probability
+        `p`, and then the node itself with probability `q`. Unlike
+        `add_duplication_divergence_graph()`, a new node that gets no edge is kept, so the
+        graph can have isolated nodes. The model (Chung, Lu, Dewey and Galas 2003) gives
+        power-law degree distributions for suitable `p`, and is NetworkX's
+        `partial_duplication_graph()` with `N=n` and `n=n_initial`.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Partial duplication graphs are useful for:
+
+        - modeling the evolution of biological networks by gene duplication
+        - copying models of the web, where new pages copy part of an existing page's links
+        - heavy-tailed test graphs with tunable density
+
+        Parameters
+        ----------
+        n
+            Final number of nodes. Must be at least `n_initial=`.
+        n_initial
+            Size of the starting complete graph. Must be at least `1` when `n > 0`.
+        p
+            Probability, between `0` and `1`, that the new node joins each neighbor of the
+            copied node.
+        q
+            Probability, between `0` and `1`, that the new node joins the copied node itself.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` or `n_initial=` is negative, `n_initial=` exceeds `n=` (or is `0` while
+            `n > 0`), or `p=` or `q=` is outside `0` to `1`.
+
+        Examples
+        --------
+        Growing a triangle to 100 nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_partial_duplication_graph(n=100, n_initial=3, p=0.5, q=0.5, seed=2)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        With `q=1` every new node is joined at least to the node it copied, so the graph stays
+        connected:
+
+        ```{python}
+        joined = ec.Graph().add_partial_duplication_graph(n=100, n_initial=3, p=0.5, q=1, seed=2)
+
+        joined.is_connected()
+        ```
+        """
+        self._check_non_negative(n=n, n_initial=n_initial)
+
+        from edgecase._core import partial_duplication_edges as _edges
+
+        pairs = _edges(n, n_initial, p, q, seed)
+
+        with self._compound(
+            "add_partial_duplication_graph",
+            f"G.add_partial_duplication_graph(n={n}, n_initial={n_initial}, p={p}, q={q})",
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
+        return self
+
+    def add_visibility_graph(
+        self,
+        series: list[float],
+        value_attr: Optional[str] = "value",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the natural visibility graph of a time series.
+
+        ![Visibility graph](/assets/graphs/add-visibility-graph.light.svg){.lightbox fig-alt="Three natural visibility graphs of short time series, each value drawn as a dashed stem rising from a baseline with its node on top. Two values are joined when the straight line between their tops clears every value in between, so neighbors in time are always joined and a tall value such as the 5 in the last series sees far in both directions." width="100%"}
+
+        Creates one node per value of `series`, in order, and joins two time points when they
+        can "see" each other: drawing the series as bars, two bar tops are joined if the
+        straight line between them passes strictly above every bar in between. Neighboring
+        points always see each other, so the graph contains the path through the series, and
+        peaks see far, so they become hubs. The construction (Lacasa et al. 2008) turns a time
+        series into a network whose structure reflects the series: periodic series give
+        regular graphs, random ones exponential degree distributions, and fractal ones power
+        laws. It is NetworkX's `visibility_graph()`.
+
+        A point exactly on the line blocks the view, as in NetworkX. Slopes are compared by
+        cross-multiplication, which is exact for integer values; NetworkX computes the line
+        and can round the other way when integer points are exactly collinear. Each node's
+        value is stored in the `value_attr=` node attribute. In a directed graph every edge
+        points forward in time. The graph is appended without touching or connecting to
+        existing nodes, and the whole construction is recorded as a single step.
+
+        Visibility graphs are useful for:
+
+        - analyzing time series with network measures (degree distribution, clustering,
+          motifs), e.g. to tell chaotic from random signals
+        - detecting peaks and regime changes, since high points get high degree
+        - comparing series through the networks they generate
+
+        Parameters
+        ----------
+        series
+            The time series, as a list of finite numbers.
+        value_attr
+            Name of the node attribute that stores each node's value. Default is `"value"`.
+            Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If a value is not a finite number.
+
+        Examples
+        --------
+        The peak at the third position sees everything up to the `3`, which hides the last
+        point from it, while the low points only see their two neighbors:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_visibility_graph([2, 1, 5, 1, 3, 1])
+
+        graph.get_edges_str_repr()
+        ```
+
+        Each node keeps its value, and the peak has the highest degree:
+
+        ```{python}
+        graph.get_node_df().select("label", "value", "degree")
+        ```
+
+        A straight line is just a path, since every middle point blocks the view:
+
+        ```{python}
+        ec.Graph().add_visibility_graph([1, 2, 3, 4]).count_edges()
+        ```
+        """
+        from edgecase._core import visibility_edges as _edges
+
+        values = list(series)
+        pairs = _edges([float(v) for v in values])
+
+        with self._compound("add_visibility_graph", f"G.add_visibility_graph({values})"):
+            attrs = None if value_attr is None else [{value_attr: v} for v in values]
+            self._add_index_graph(len(values), pairs, label, type, rel, attrs)
+        return self
+
+    def add_interval_graph(
+        self,
+        intervals: list[tuple[float, float]],
+        interval_attr: Optional[str] = "interval",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the interval graph of a list of closed intervals.
+
+        ![Interval graph](/assets/graphs/add-interval-graph.light.svg){.lightbox fig-alt="Three interval graphs, each interval drawn as a faint bar on its own row with its node at the middle. Two nodes are joined when their intervals overlap, touching endpoints included: the third interval of the first set meets neither of the others, and the long second interval of the last set overlaps three of the other four." width="100%"}
+
+        Creates one node per interval `(lo, hi)`, in order, and joins two nodes when their
+        intervals overlap, touching endpoints included (the intervals are closed). Interval
+        graphs model anything that occupies a span of time or space: meetings that clash,
+        genes that overlap on a chromosome, tasks that run at the same time. They are chordal
+        and perfect, so problems that are hard in general, such as coloring (assigning rooms
+        or registers) and maximum clique (the busiest moment), are easy on them. The edges
+        are found by sorting the intervals and sweeping, in time proportional to `n log n`
+        plus the number of edges.
+
+        Each node's interval is stored as a `(lo, hi)` tuple in the `interval_attr=` node
+        attribute. Unlike NetworkX's `interval_graph()`, which uses the intervals themselves as
+        nodes, a repeated interval gets its own node (joined to its twin) rather than becoming
+        a single node with a self-loop. In a directed graph every edge points from the
+        earlier-created node to the later one. The graph is appended without touching or
+        connecting to existing nodes, and the whole construction is recorded as a single step.
+
+        Interval graphs are useful for:
+
+        - scheduling and resource allocation: overlapping bookings, register allocation,
+          frequency assignment
+        - genomics: overlapping reads, genes or regulatory regions
+        - test cases for chordal and perfect graph algorithms
+
+        Parameters
+        ----------
+        intervals
+            The intervals, each a `(lo, hi)` pair of numbers (a list or tuple) with `lo <= hi`.
+        interval_attr
+            Name of the node attribute that stores each node's interval. Default is
+            `"interval"`. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        TypeError
+            If an interval is not a sequence of two values.
+        ValueError
+            If an interval has its lower value second or an endpoint is NaN.
+
+        Examples
+        --------
+        Four meetings, in hours. The first two touch at 10:00, so they count as overlapping:
+
+        ```{python}
+        import edgecase as ec
+
+        meetings = [(9.0, 10.0), (10.0, 11.5), (13.0, 14.0), (11.0, 13.0)]
+        graph = ec.Graph().add_interval_graph(meetings)
+
+        graph.get_edges_str_repr()
+        ```
+
+        Each node keeps its interval:
+
+        ```{python}
+        graph.get_node_df().select("label", "interval", "degree")
+        ```
+
+        Interval graphs are chordal, and a greedy coloring gives the number of rooms needed:
+
+        ```{python}
+        graph.is_chordal(), len(set(graph.greedy_color().values()))
+        ```
+        """
+        from collections.abc import Sequence
+
+        from edgecase._core import interval_edges as _edges
+
+        spans = []
+        for interval in intervals:
+            if isinstance(interval, (str, bytes)) or not (
+                isinstance(interval, Sequence) and len(interval) == 2
+            ):
+                raise TypeError(f"each interval must be a (lo, hi) pair, got {interval!r}")
+            spans.append(tuple(interval))
+        pairs = _edges([(float(lo), float(hi)) for lo, hi in spans])
+
+        with self._compound("add_interval_graph", f"G.add_interval_graph({spans})"):
+            attrs = None if interval_attr is None else [{interval_attr: s} for s in spans]
+            self._add_index_graph(len(spans), pairs, label, type, rel, attrs)
+        return self
+
+    def add_random_internet_as_graph(
+        self,
+        n: int,
+        seed: Optional[int] = None,
+        label: bool = True,
+    ) -> "Graph":
+        """
+        Add a random graph of the internet's autonomous systems, with their business
+        relationships.
+
+        ![Random Internet AS graph](/assets/graphs/add-random-internet-as-graph.light.svg){.lightbox fig-alt="One random Internet autonomous-system graph on 20 nodes in three tiers. The five tier-1 providers, in the accent color, form a full clique at the top; the mid-level providers, in teal, and the content provider, in a third color, sit in the middle row; and the customers, in a fourth color, sit along the bottom. Customers buy transit from the providers above them, and edges between two nodes of the same kind, the peering links, take its color." width="100%"}
+
+        The model of Elmokashfi, Kvalbein and Dovrolis (2010) builds an internet-like graph of
+        `n` autonomous systems (AS) of four kinds, stored as each node's `type`:
+
+        - `"T"`: a handful (4 to 6) of tier-1 transit providers, all peering with each other
+        - `"M"`: mid-level providers (about 15% of the nodes), customers of T or other M nodes
+        - `"CP"`: content providers (about 5%), customers that also peer with M and CP nodes
+        - `"C"`: customer networks (the rest), at the edge of the network
+
+        Nodes live in five geographic regions and pick their providers inside their own
+        region(s), by preferential attachment on degree. Each edge's `rel` attribute records
+        the relationship: `"transit"` for a customer buying transit from a provider, and
+        `"peer"` for two networks exchanging traffic as equals. A transit edge runs from the
+        customer to its provider, so its `source` is the customer (in an undirected graph
+        too). The process is NetworkX's `random_internet_as_graph()`, which instead stores the
+        customer in a `customer` edge attribute. NetworkX can create more than `n` nodes when
+        `n < 8`; here the M and CP counts are capped so there are always exactly `n`.
+
+        Peer edges point from the earlier-created node to the later one in a directed graph.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Internet AS graphs are useful for:
+
+        - studying routing, resilience and attacks on internet-like topologies
+        - testing algorithms on hierarchical networks with typed nodes and edges
+        - simulating how traffic or failures propagate along customer-provider chains
+
+        Parameters
+        ----------
+        n
+            Number of autonomous systems. Must be non-negative.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative.
+
+        Examples
+        --------
+        A 1000-node internet has a few tier-1 providers and mostly customer networks:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_internet_as_graph(n=1000, seed=3)
+
+        graph.get_node_df()["type"].value_counts().sort("type")
+        ```
+
+        Most edges are transit links from a customer to its provider:
+
+        ```{python}
+        graph.get_edge_df()["rel"].value_counts().sort("rel")
+        ```
+
+        The five best-connected networks are tier-1 and mid-level providers:
+
+        ```{python}
+        graph.get_node_df().sort("degree", descending=True)["type"][:5].to_list()
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import internet_as_graph as _internet_as_graph
+
+        kinds, edges = _internet_as_graph(n, seed)
+
+        with self._compound(
+            "add_random_internet_as_graph", f"G.add_random_internet_as_graph(n={n})"
+        ):
+            ids = self._add_generated_nodes(n, label, None, node_attrs=[{"type": k} for k in kinds])
+            for u, v, transit in edges:
+                self.add_edge(ids[u], ids[v], rel="transit" if transit else "peer")
+        return self
+
+    def add_margulis_gabber_galil_graph(
+        self,
+        n: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the Margulis-Gabber-Galil expander on an `n x n` torus.
+
+        ![Margulis-Gabber-Galil graph](/assets/graphs/add-margulis-gabber-galil-graph.light.svg){.lightbox fig-alt="Margulis-Gabber-Galil graphs on the n by n grid of coordinate pairs modulo n. Each point (x, y) is joined to eight images under fixed affine maps, so every node has degree 8 counting self-loops, drawn as small loops, and repeated pairs, drawn bowed apart: n=2 and n=3 on a ring, and for n=4 the 4 by 4 grid with only the eight edges of the point (1, 1) shown, in the accent color, reaching its images such as (1, 3) and (3, 1)." width="100%"}
+
+        Creates the `n^2` nodes `(x, y)` with `x` and `y` taken modulo `n`, and joins each node
+        to four images under fixed linear maps of the torus: `(x + 2y, y)`, `(x + 2y + 1, y)`,
+        `(x, y + 2x)` and `(x, y + 2x + 1)`. Every node sends four edges and receives four, so
+        the graph is 8-regular, and its second-largest adjacency eigenvalue stays below
+        `5 * sqrt(2) ≈ 7.07` for every `n`: it was the first explicit family of expanders
+        (Margulis 1973, made effective by Gabber and Galil 1981). Some images coincide with
+        the node itself or with each other, so the graph has self-loops (counting `2` toward
+        the degree) and parallel edges. It is NetworkX's `margulis_gabber_galil_graph()`.
+
+        Nodes are created row by row (`x` then `y`), and with `label=True` each is labelled
+        `"(x,y)"`. In a directed graph every edge points from a node to its image. The graph is
+        appended without touching or connecting to existing nodes, and the whole construction
+        is recorded as a single step.
+
+        Margulis-Gabber-Galil graphs are useful for:
+
+        - explicit, deterministic expanders for testing mixing, routing and error-correcting
+          constructions
+        - comparing spectral gaps of structured and random regular graphs
+        - sparse graphs where random walks mix quickly at every size
+
+        Parameters
+        ----------
+        n
+            Side of the torus. Must be non-negative; the graph has `n^2` nodes and `4 n^2`
+            edges.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each node is labelled with its torus position as `"(x,y)"`.
+            Because these labels don't depend on the existing nodes, adding a second labelled
+            torus raises `ValueError`; pass `label=False` for it. If `False`, the nodes are left
+            unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative.
+
+        Examples
+        --------
+        On a 5 x 5 torus there are 25 nodes and 100 edges, and every node has degree `8`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_margulis_gabber_galil_graph(n=5)
+
+        graph.count_nodes(), graph.count_edges(), set(graph.degrees(return_dict=True).values())
+        ```
+
+        The origin maps to itself under two of the maps, giving two self-loops:
+
+        ```{python}
+        origin = graph.get_id_from_label("(0,0)")
+
+        [graph.get_label_from_id(t) for _, s, t in graph.get_edges_as_tuples() if s == origin]
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import margulis_gabber_galil_edges as _edges
+
+        pairs = _edges(n)
+
+        with self._compound(
+            "add_margulis_gabber_galil_graph", f"G.add_margulis_gabber_galil_graph(n={n})"
+        ):
+            ids = self._add_generated_nodes(
+                n * n, label, type, label_fn=lambda _, idx: f"({idx // n},{idx % n})"
+            )
+            self._add_generated_edges(ids, pairs, rel)
+        return self
+
+    def add_chordal_cycle_graph(
+        self,
+        p: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the chordal cycle graph on the integers modulo a prime `p`, a 3-regular expander.
+
+        ![Chordal cycle graph](/assets/graphs/add-chordal-cycle-graph.light.svg){.lightbox fig-alt="Three chordal cycle graphs on rings of p=5, 7, and 11 nodes, the integers modulo p. Each x is joined to x - 1 and x + 1 around the ring and by a chord to its inverse modulo p, shown in the accent color; 0, 1, and p - 1 are their own inverses, so they get self-loops. Where an inverse is a ring neighbor, as 2 and 3 at p=5 and 3 and 4 or 7 and 8 at p=11, the chord doubles a ring edge, drawn bowed apart." width="100%"}
+
+        Creates `p` nodes `0, 1, ..., p - 1` joined in a cycle, and adds a chord from each
+        node `x` to its multiplicative inverse modulo `p` (the `y` with `x * y = 1 mod p`,
+        computed as `x^(p - 2) mod p`; `0` is its own "inverse"). Each node thus has three
+        neighbors: `x - 1`, `x + 1` and `1 / x`. The nodes `0`, `1` and `p - 1` are their own
+        inverses and carry a self-loop instead of a chord, and when `x` and `x + 1` are inverses
+        (for primes `p` where `5` is a square), their chord doubles a cycle edge. For a prime `p` these graphs form a
+        family of 3-regular expanders (Lubotzky's construction), with a spectral gap that
+        doesn't shrink as `p` grows.
+
+        Each cycle edge and each chord appears once, so every node has degree `3` counting
+        a self-loop once (the graph's degrees count it twice, giving `4` at the three
+        self-inverse nodes). NetworkX's `chordal_cycle_graph()` adds every edge from both
+        ends, so its multigraph has each cycle edge and chord twice; `simplify()` on it gives
+        the same simple graph as here. `p` is not checked for primality; for a composite `p`
+        the "inverse" is just `x^(p - 2) mod p`.
+
+        In a directed graph the cycle runs `x -> x + 1` and each chord points from the smaller
+        number to the larger. The graph is appended without touching or connecting to existing
+        nodes, and the whole construction is recorded as a single step.
+
+        Chordal cycle graphs are useful for:
+
+        - explicit expanders with the smallest possible degree, for testing mixing and
+          connectivity
+        - examples of number-theoretic graph constructions
+        - sparse test graphs with small diameter (about `log p`)
+
+        Parameters
+        ----------
+        p
+            Number of nodes, normally a prime. Must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `p=` is negative.
+
+        Examples
+        --------
+        For `p = 11` there are 11 cycle edges, 4 chords and 3 self-loops:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_chordal_cycle_graph(p=11)
+
+        graph.count_nodes(), graph.count_edges()
+        ```
+
+        The chords pair each number with its inverse modulo 11 (node `"k"` is the number
+        `k - 1`), such as 2 and 6 (`2 * 6 = 12 = 1 mod 11`):
+
+        ```{python}
+        graph.get_edges_str_repr()
+        ```
+
+        The diameter stays small as `p` grows:
+
+        ```{python}
+        [ec.Graph().add_chordal_cycle_graph(p).get_diameter() for p in (11, 101, 1009)]
+        ```
+        """
+        self._check_non_negative(p=p)
+
+        from edgecase._core import chordal_cycle_edges as _edges
+
+        pairs = _edges(p)
+
+        with self._compound("add_chordal_cycle_graph", f"G.add_chordal_cycle_graph(p={p})"):
+            self._add_index_graph(p, pairs, label, type, rel)
+        return self
+
+    def add_paley_graph(
+        self,
+        p: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the Paley graph of a prime `p`: numbers modulo `p` joined when they differ by a
+        square.
+
+        ![Paley graph](/assets/graphs/add-paley-graph.light.svg){.lightbox fig-alt="Three Paley graphs on the integers modulo a prime p, on a ring. At p=5 two numbers are joined when their difference is a nonzero square, 1 or 4, which gives a five-cycle. At p=3 and p=7, where -1 is not a square, the graph is directed: each pair gets exactly one arc, from x to x plus a nonzero square, making a tournament, a directed triangle at p=3 and 21 arcs at p=7." width="100%"}
+
+        Creates `p` nodes `0, 1, ..., p - 1` and joins `x` to `x + s mod p` for every nonzero
+        square `s` modulo `p` (the quadratic residues, of which a prime has `(p - 1) / 2`).
+        When `p = 1 mod 4`, `-1` is a square, so the relation is symmetric and the Paley graph
+        is an undirected, `(p - 1) / 2`-regular, strongly regular graph that is isomorphic to
+        its own complement; Paley graphs are standard examples of pseudo-random graphs with
+        excellent expansion. When `p = 3 mod 4`, exactly one of `x - y` and `y - x` is a
+        square, and the directed version is the Paley tournament.
+
+        In a directed graph every relation `x -> x + s` becomes an edge, as in NetworkX's
+        `paley_graph()` (which returns a directed graph): for `p = 1 mod 4` each pair is joined
+        in both directions. In an undirected graph each related pair gets a single edge, from
+        the earlier-created node to the later one, so `p = 3 mod 4` gives a complete graph.
+        `p` is not checked for primality. The graph is appended without touching or connecting
+        to existing nodes, and the whole construction is recorded as a single step.
+
+        Paley graphs are useful for:
+
+        - strongly regular and self-complementary examples, with known spectra
+        - pseudo-random graphs that behave like `G(p, 1/2)` but are fully deterministic
+        - Paley tournaments, which are standard examples in tournament theory and Ramsey
+          theory
+
+        Parameters
+        ----------
+        p
+            Number of nodes, normally a prime. Must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `p=` is negative.
+
+        Examples
+        --------
+        The Paley graph of 13 is 6-regular and isomorphic to its own complement:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_paley_graph(p=13)
+
+        graph.count_edges(), set(graph.degrees(return_dict=True).values()), graph.is_isomorphic(graph.complement())
+        ```
+
+        The Paley graph of 5 is the 5-cycle:
+
+        ```{python}
+        pentagon = ec.Graph().add_paley_graph(p=5)
+
+        pentagon.is_isomorphic(ec.Graph().add_cycle_graph(5))
+        ```
+
+        For `p = 7` the directed version is a tournament: all `7 * 6 / 2 = 21` pairs are joined
+        exactly once, and every node beats three others:
+
+        ```{python}
+        tournament = ec.Graph(directed=True).add_paley_graph(p=7)
+
+        tournament.count_edges(), [len(tournament.neighbors(v)) for v in tournament.get_node_ids()]
+        ```
+        """
+        self._check_non_negative(p=p)
+
+        from edgecase._core import paley_edges as _edges
+
+        pairs = _edges(p, self.is_directed())
+
+        with self._compound("add_paley_graph", f"G.add_paley_graph(p={p})"):
+            self._add_index_graph(p, pairs, label, type, rel)
+        return self
+
+    def add_maybe_regular_expander(
+        self,
+        n: int,
+        d: int,
+        max_tries: int = 100,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random `d`-regular graph made of `d / 2` edge-disjoint Hamiltonian cycles, which
+        is very likely an expander.
+
+        ![Random regular expander candidate](/assets/graphs/add-maybe-regular-expander.light.svg){.lightbox fig-alt="Three random graphs on a ring of eight nodes built as unions of d / 2 random Hamiltonian cycles that share no edge, for d=2, 4, and 6. Every node has exactly d neighbors; d=2 is a single cycle visiting the nodes in random order. The graph is only likely to be a good expander and is not checked, which is what the maybe means." width="100%"}
+
+        Creates `n` nodes and lays `d / 2` random cycles through all of them, each one drawn
+        again (up to `max_tries` times) until it shares no edge with the cycles before it. The
+        union is a simple, connected `d`-regular graph. Friedman's theorem says such a graph is
+        almost always nearly Ramanujan, with second-largest adjacency eigenvalue close to the
+        optimal `2 sqrt(d - 1)`, but this method doesn't check;
+        `add_random_regular_expander_graph()` retries until the bound holds, and
+        `is_regular_expander()` checks a graph. It is NetworkX's `maybe_regular_expander()`.
+
+        A random cycle avoids the `k - 1` cycles before it with probability only about
+        `exp(-2 (k - 1))`, so the default `max_tries=100` is plenty for `d` up to `6` but
+        should be raised for larger degrees (to about `20 * exp(d - 2)`).
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Unions of random cycles are useful for:
+
+        - quickly generating sparse, well-connected regular graphs of any even degree
+        - random expanders for testing network robustness, mixing and load balancing
+        - Hamiltonian test graphs (every one contains a Hamiltonian cycle by construction)
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be positive and at least `d + 1`.
+        d
+            Degree of every node: an even number, at least `2`.
+        max_tries
+            How many times each cycle may be redrawn before giving up. Default is `100`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is not positive, `d=` is odd or less than `2`, `n - 1` is less than `d=`, or a
+            cycle disjoint from the others isn't found in `max_tries=` draws.
+
+        Examples
+        --------
+        A 4-regular graph on 50 nodes, from two disjoint Hamiltonian cycles:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_maybe_regular_expander(n=50, d=4, seed=1)
+
+        graph.count_edges(), set(graph.degrees(return_dict=True).values()), graph.is_simple()
+        ```
+
+        It is (almost always) an expander:
+
+        ```{python}
+        graph.is_regular_expander()
+        ```
+        """
+        self._check_non_negative(n=n, d=d, max_tries=max_tries)
+
+        from edgecase._core import maybe_regular_expander_edges as _edges
+
+        pairs = _edges(n, d, max_tries, seed)
+
+        with self._compound(
+            "add_maybe_regular_expander", f"G.add_maybe_regular_expander(n={n}, d={d})"
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
+        return self
+
+    def add_random_regular_expander_graph(
+        self,
+        n: int,
+        d: int,
+        epsilon: float = 0.0,
+        max_tries: int = 100,
+        seed: Optional[int] = None,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a random `d`-regular graph that is guaranteed to be a (nearly) Ramanujan expander.
+
+        ![Random regular expander graph](/assets/graphs/add-random-regular-expander-graph.light.svg){.lightbox fig-alt="Three random regular expanders on a ring of nine nodes for d=2, 4, and 6. Candidates are built like the maybe-regular expander and kept only once their second eigenvalue meets the Ramanujan bound, so each graph is d-regular and a proven expander: a nine-cycle in shuffled order, then 18 and 27 edges." width="100%"}
+
+        Builds candidates like `add_maybe_regular_expander()`, as the union of `d / 2`
+        edge-disjoint random Hamiltonian cycles on `n` nodes, and keeps the first one whose
+        second-largest adjacency eigenvalue (in absolute value) is below
+        `2 sqrt(d - 1) + epsilon`. With `epsilon=0` that is the Ramanujan bound, the best
+        spectral gap a large `d`-regular graph can have, so the result mixes random walks and
+        spreads information about as fast as possible for its degree. Most candidates pass, so
+        few retries are needed. It is NetworkX's `random_regular_expander_graph()`. Each test
+        computes all `n` eigenvalues, which takes time proportional to `n^3`, so the method
+        suits graphs of up to a few thousand nodes.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        Random regular expanders are useful for:
+
+        - sparse networks with provably fast mixing, for gossip, load balancing and
+          peer-to-peer overlays
+        - benchmarks for spectral and random-walk algorithms
+        - building blocks of pseudo-random constructions and error-correcting codes
+
+        Parameters
+        ----------
+        n
+            Number of nodes. Must be positive and at least `d + 1`.
+        d
+            Degree of every node: an even number, at least `2`.
+        epsilon
+            Slack added to the Ramanujan bound `2 sqrt(d - 1)`. Default is `0`. Must be
+            non-negative.
+        max_tries
+            How many candidates to test, and how many times each cycle may be redrawn, before
+            giving up. Default is `100`.
+        seed
+            Integer seed for the random number generator. The same `seed=` with the same other
+            arguments always gives the same graph. If `None` (default), the graph differs on
+            every call.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is not positive, `d=` is odd or less than `2`, `n - 1` is less than `d=`,
+            `epsilon=` is negative, or no candidate passes in `max_tries=` attempts.
+
+        Examples
+        --------
+        A 6-regular expander on 100 nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_random_regular_expander_graph(n=100, d=6, seed=2)
+
+        graph.count_edges(), graph.is_regular_expander()
+        ```
+
+        Its small diameter reflects the expansion:
+
+        ```{python}
+        graph.get_diameter()
+        ```
+        """
+        self._check_non_negative(n=n, d=d, max_tries=max_tries)
+
+        from edgecase._core import random_regular_expander_edges as _edges
+
+        pairs = _edges(n, d, epsilon, max_tries, seed)
+
+        with self._compound(
+            "add_random_regular_expander_graph",
+            f"G.add_random_regular_expander_graph(n={n}, d={d}, epsilon={epsilon})",
+        ):
+            self._add_index_graph(n, pairs, label, type, rel)
+        return self
+
+    def add_sudoku_graph(
+        self,
+        n: int = 3,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the Sudoku graph of order `n`: the cells of an `n^2 x n^2` Sudoku grid, joined when
+        they can't hold the same digit.
+
+        ![Sudoku graph](/assets/graphs/add-sudoku-graph.light.svg){.lightbox fig-alt="The 4 by 4 Sudoku graph for n=2 three times, drawn as its grid with a small gap between the 2 by 2 boxes and, in each panel, only the edges of one cell shown, in the accent color. Each cell is joined to the other cells in its row, its column, and its box, seven in all, so a valid Sudoku solution is a proper four-coloring of the graph. Edges along a row or column bow around the cells in between." width="100%"}
+
+        Creates one node per cell of an `n^2 x n^2` grid (81 cells for the usual `n = 3`), row
+        by row, and joins two cells when they share a row, a column or an `n x n` box. Solving
+        a Sudoku puzzle is exactly finding a proper coloring of this graph with `n^2` colors
+        (the digits) that extends the given clues, so the graph turns puzzles into graph
+        coloring problems. Every cell has `3 n^2 - 2 n - 1` neighbors (20 for `n = 3`), giving
+        `n^4 (3 n^2 - 2 n - 1) / 2` edges (810 for `n = 3`). Orders `0` and `1` have no
+        edges. It is NetworkX's `sudoku_graph()`.
+
+        With `label=True` each cell is labelled `"(row,col)"`, counting from zero. In a
+        directed graph every edge points from the earlier cell (in row-by-row order) to the
+        later one. The graph is appended without touching or connecting to existing nodes, and
+        the whole construction is recorded as a single step.
+
+        Sudoku graphs are useful for:
+
+        - solving and analyzing Sudoku and Latin-square puzzles with coloring algorithms
+        - test graphs with known chromatic number (`n^2`) and many large cliques
+        - teaching graph coloring with a familiar example
+
+        Parameters
+        ----------
+        n
+            Order of the puzzle: the boxes are `n x n` and the grid `n^2 x n^2`. Default is `3`
+            (the standard 9 x 9 Sudoku). Must be non-negative.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each cell is labelled with its zero-based position as
+            `"(row,col)"`. Because these labels don't depend on the existing nodes, adding a
+            second labelled grid raises `ValueError`; pass `label=False` for it. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is negative.
+
+        Examples
+        --------
+        The standard Sudoku graph has 81 cells, each with 20 neighbors:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph().add_sudoku_graph()
+
+        graph.count_nodes(), graph.count_edges(), set(graph.degrees(return_dict=True).values())
+        ```
+
+        Each row, column and box is a clique of nine cells, so at least nine digits are needed,
+        and a completed Sudoku shows nine are enough:
+
+        ```{python}
+        graph.clique_number()
+        ```
+
+        The 4 x 4 puzzle (`n=2`) is small enough to see a cell's neighbors: its row, its column
+        and the rest of its box:
+
+        ```{python}
+        small = ec.Graph().add_sudoku_graph(n=2)
+
+        sorted(small.get_label_from_id(v) for v in small.neighbors("(0,0)"))
+        ```
+        """
+        self._check_non_negative(n=n)
+
+        from edgecase._core import sudoku_edges as _edges
+
+        pairs = _edges(n)
+        side = n * n
+
+        with self._compound("add_sudoku_graph", f"G.add_sudoku_graph(n={n})"):
+            ids = self._add_generated_nodes(
+                side * side, label, type, label_fn=lambda _, idx: f"({idx // side},{idx % side})"
+            )
+            self._add_generated_edges(ids, pairs, rel)
+        return self
+
+    def add_prefix_tree(
+        self,
+        paths: list,
+        source_attr: Optional[str] = "source",
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add the prefix tree (trie) of a list of paths.
+
+        ![Prefix tree](/assets/graphs/add-prefix-tree.light.svg){.lightbox fig-alt="Three prefix trees (tries), each node labeled with the character it stands for and hung from an unlabeled root at the top. Paths that share a prefix share its nodes, so ab and ac branch below a single a, and every path ends at the one NIL node at the bottom, as in NetworkX." width="100%"}
+
+        Each path is a sequence of items, such as the letters of a word. The prefix tree has a
+        root, one node for each distinct prefix of the paths, and a shared NIL node marking the
+        end of a path: walking from the root, each step adds the next item, and paths that
+        start the same way share their first nodes. Each node stores the item it adds in the
+        `source_attr=` node attribute; the NIL node stores `"NIL"` and the root nothing. A path
+        that ends at a node (because it is complete there) joins that node to NIL, so the
+        paths can be read back as the root-to-NIL walks.
+
+        Nodes are created as in NetworkX's `prefix_tree()`: the root first, then NIL, then the
+        prefixes depth first, each node's children in order of first appearance. NetworkX
+        numbers the root `0` and NIL `-1`; here they are simply the first two new nodes. Edges
+        run from each prefix to its extensions (and to NIL), which a directed graph keeps as
+        their direction. The graph is appended without touching or connecting to existing
+        nodes, and the whole construction is recorded as a single step.
+
+        Prefix trees are useful for:
+
+        - storing and searching a set of words or sequences by prefix (autocomplete, spell
+          checking, routing tables)
+        - comparing sequences, such as event logs or clickstreams, by their shared beginnings
+        - building directed trees from lists of root-to-leaf paths
+
+        Parameters
+        ----------
+        paths
+            The paths, each an iterable of hashable items (a string is a path of characters).
+        source_attr
+            Name of the node attribute that stores each node's item. Default is `"source"`, as
+            in NetworkX. Pass `None` to skip storing it.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        TypeError
+            If a path is not iterable or holds an unhashable item.
+
+        Examples
+        --------
+        Four words share their first letters. The tree has a root, NIL, and one node per
+        distinct prefix:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = ec.Graph(directed=True).add_prefix_tree(["ant", "and", "bee", "be"])
+
+        tree.count_nodes(), tree.count_edges()
+        ```
+
+        Each node keeps the letter it adds. `"1"` is the root and `"2"` the NIL node:
+
+        ```{python}
+        tree.get_node_df().select("label", "source")
+        ```
+
+        Every word is a walk from the root to NIL, and "be" ends at the node that "bee" passes
+        through:
+
+        ```{python}
+        tree.get_edges_str_repr()
+        ```
+        """
+        from edgecase._generators import prefix_tree_structure
+
+        sources, pairs = prefix_tree_structure(paths)
+
+        with self._compound("add_prefix_tree", "G.add_prefix_tree(paths)"):
+            attrs = None
+            if source_attr is not None:
+                attrs = [{} if s is None else {source_attr: s} for s in sources]
+            self._add_index_graph(len(sources), pairs, label, type, rel, attrs)
+        return self
+
+    def add_atlas_graph(
+        self,
+        index: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add graph number `index` from "An Atlas of Graphs".
+
+        ![Atlas graph](/assets/graphs/add-atlas-graph.light.svg){.lightbox fig-alt="Three graphs from An Atlas of Graphs, on a ring in node order: index 16 is the four-cycle, index 38 the five-cycle, and index 52 the complete graph K5, the last graph on five nodes. The atlas lists all 1253 graphs on up to seven nodes once each, up to isomorphism, ordered by node count, then edge count, then degree sequence." width="100%"}
+
+        Ronald C. Read and Robin J. Wilson's "An Atlas of Graphs" (Oxford University Press,
+        1998) lists all 1253 graphs with up to seven nodes, up to isomorphism, numbered `0` to
+        `1252` in a fixed order: by number of nodes, then by number of edges, then by degree
+        sequence, then by number of automorphisms. So graph `0` is the empty graph, `1` a
+        single node, `2` and `3` the two graphs on two nodes, and `208` to `1252` the 1044
+        graphs on seven nodes. This method adds one of them
+        with exactly the nodes and edges NetworkX's `graph_atlas()` gives. `atlas_graphs()`
+        returns them all.
+
+        In a directed graph every edge points from the earlier-created node to the later one.
+        The graph is appended without touching or connecting to existing nodes, and the whole
+        construction is recorded as a single step.
+
+        The atlas is useful for:
+
+        - exhaustively testing a conjecture or an algorithm on every small graph
+        - looking up small graphs by their standard atlas number
+        - finding small counterexamples
+
+        Parameters
+        ----------
+        index
+            Atlas number, from `0` to `1252`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `index=` is outside `0` to `1252`.
+
+        Examples
+        --------
+        Graph 6 is the path on three nodes, and graph 7 the triangle:
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_atlas_graph(6).get_edges_str_repr(), ec.Graph().add_atlas_graph(7).get_edges_str_repr()
+        ```
+
+        The last graph in the atlas is the complete graph on seven nodes:
+
+        ```{python}
+        last = ec.Graph().add_atlas_graph(1252)
+
+        last.count_nodes(), last.count_edges()
+        ```
+        """
+        from edgecase._generators import NUM_ATLAS_GRAPHS, atlas_entries
+
+        if isinstance(index, bool) or not isinstance(index, int):
+            raise TypeError(f"index must be an integer, got {index!r}")
+        if not 0 <= index < NUM_ATLAS_GRAPHS:
+            raise ValueError(f"index must be between 0 and {NUM_ATLAS_GRAPHS - 1}, got {index}")
+        size, pairs = atlas_entries()[index]
+
+        with self._compound("add_atlas_graph", f"G.add_atlas_graph({index})"):
+            self._add_index_graph(size, pairs, label, type, rel)
+        return self
+
+    @classmethod
+    def atlas_graphs(cls) -> list["Graph"]:
+        """
+        Every graph from "An Atlas of Graphs", as a list of 1253 new graphs.
+
+        ![Atlas graphs](/assets/graphs/atlas-graphs.light.svg){.lightbox fig-alt="Three slices of the list of all 1253 atlas graphs, four small graphs each, in atlas order. Items 4 to 7 are every graph on three nodes, from no edges to the triangle; items 8 to 11 start the four-node graphs with zero, one, and two edges; items 15 to 18 end them with four, five, and six edges, from the paw to the complete graph." width="100%"}
+
+        Returns all the graphs with up to seven nodes, up to isomorphism, in the atlas order
+        of Read and Wilson's "An Atlas of Graphs" (1998): by number of nodes, then edges, then
+        degree sequence, then number of automorphisms. Item `i` is the graph that
+        `add_atlas_graph(i)` adds, built in a new undirected `Graph` whose name is `"G<i>"`, as
+        in NetworkX's `graph_atlas_g()`. Graph 0 is the empty graph.
+
+        The atlas is useful for exhaustively checking a property or an algorithm on every
+        small graph, and for finding the smallest counterexample to a conjecture.
+
+        Returns
+        -------
+        list[Graph]
+            The 1253 atlas graphs, in order.
+
+        Examples
+        --------
+        There are 1253 graphs in all, and 34 on five nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        atlas = ec.Graph.atlas_graphs()
+
+        len(atlas), sum(1 for g in atlas if g.count_nodes() == 5)
+        ```
+
+        Exhaustive checks are quick. Of the 1044 seven-node graphs, how many are planar?
+
+        ```{python}
+        sevens = [g for g in atlas if g.count_nodes() == 7]
+
+        len(sevens), sum(g.is_planar() for g in sevens)
+        ```
+
+        Each graph is named by its atlas number:
+
+        ```{python}
+        atlas[7].get_graph_name(), atlas[7].count_edges()
+        ```
+        """
+        from edgecase._generators import atlas_entries
+
+        graphs = []
+        for i, (size, pairs) in enumerate(atlas_entries()):
+            graph = cls(graph_name=f"G{i}")
+            with graph._compound("atlas_graphs", f"Graph.atlas_graphs()[{i}]"):
+                graph._add_index_graph(size, pairs, True, None, None)
+            graphs.append(graph)
+        return graphs
+
+    @classmethod
+    def iter_nonisomorphic_trees(cls, order: int) -> Iterator["Graph"]:
+        """
+        Iterate over every tree on `order` nodes, one from each isomorphism class.
+
+        ![Non-isomorphic trees](/assets/graphs/iter-nonisomorphic-trees.light.svg){.lightbox fig-alt="The trees yielded for order 3, 4, and 5, each drawn with its longest path as a row and any other nodes hanging below. There is one tree on three nodes, the path; two on four nodes, the path and the star; and three on five nodes, the path, the chair, and the star. Every tree on that many nodes looks like exactly one of them." width="100%"}
+
+        Yields one new undirected `Graph` for each unlabeled tree on `order` nodes, so the
+        trees yielded are pairwise non-isomorphic and every tree on `order` nodes is
+        isomorphic to exactly one of them. There are 1, 1, 2, 3, 6, 11, 23, ... trees on 2,
+        3, 4, ... nodes (`count_nonisomorphic_trees()` gives the count without building them),
+        and the number grows about threefold with each extra node, so orders up to the high
+        teens are practical.
+
+        The trees are generated lazily, in constant amortized time each, by the algorithm of
+        Wright, Richmond, Odlyzko and McKay (1986), which walks the level sequences of
+        canonical rooted trees, rooted at a center. The trees come in the same order and with
+        the same edges as from NetworkX's `nonisomorphic_trees()`: each tree's nodes are
+        labelled `"1"` to `"n"` in the depth-first order of its level sequence, so node `"1"`
+        is a center and edges point from parent to child.
+
+        Non-isomorphic trees are useful for:
+
+        - exhaustively testing a tree algorithm or conjecture on every tree of a given size
+        - enumerating molecular skeletons such as alkane isomers (trees of maximum degree 4)
+        - generating one representative of each tree shape for small benchmarks
+
+        Parameters
+        ----------
+        order
+            Number of nodes in each tree. Must be at least `2`.
+
+        Returns
+        -------
+        Iterator[Graph]
+            A generator of new, undirected trees.
+
+        Raises
+        ------
+        ValueError
+            If `order=` is less than `2` (raised on the first `next()`).
+
+        Examples
+        --------
+        The three trees on five nodes are the path, the star, and the "chair" between them:
+
+        ```{python}
+        import edgecase as ec
+
+        for tree in ec.Graph.iter_nonisomorphic_trees(5):
+            print(tree.get_edges_str_repr(), sorted(tree.degrees(return_dict=True).values()))
+        ```
+
+        The count matches `count_nonisomorphic_trees()`, and no two trees are isomorphic:
+
+        ```{python}
+        trees = list(ec.Graph.iter_nonisomorphic_trees(7))
+
+        len(trees), ec.Graph.count_nonisomorphic_trees(7), trees[0].is_isomorphic(trees[1])
+        ```
+
+        Trees of maximum degree four are the carbon skeletons of alkanes. Octane, with eight
+        carbons, has 18 structural isomers:
+
+        ```{python}
+        sum(
+            max(tree.degrees(return_dict=True).values()) <= 4
+            for tree in ec.Graph.iter_nonisomorphic_trees(8)
+        )
+        ```
+        """
+        from edgecase._generators import nonisomorphic_tree_edges
+
+        if order < 2:
+            raise ValueError(f"order must be at least 2, got {order}")
+        for pairs in nonisomorphic_tree_edges(order):
+            tree = cls()
+            with tree._compound(
+                "iter_nonisomorphic_trees", f"Graph.iter_nonisomorphic_trees({order})"
+            ):
+                tree._add_index_graph(order, pairs, True, None, None)
+            yield tree
+
+    @staticmethod
+    def count_nonisomorphic_trees(order: int) -> int:
+        """
+        Count the trees on `order` nodes up to isomorphism.
+
+        ![Count non-isomorphic trees](/assets/graphs/count-nonisomorphic-trees.light.svg){.lightbox fig-alt="Left: the three trees on five nodes, the path, the chair, and the star, each drawn with its longest path as a row and any other nodes hanging below. Right: a table of how many trees there are on 3 to 9 nodes, 1, 2, 3, 6, 11, 23, and 47, with the count 3 for five nodes highlighted. The count comes from a formula, without building the trees, and roughly doubles with each added node at these sizes." width="100%"}
+
+        Returns the number of unlabeled (free) trees on `order` nodes, the number of graphs
+        `iter_nonisomorphic_trees()` yields, without building them: 1, 1, 2, 3, 6, 11, 23,
+        47, 106, 235, ... for 2, 3, 4, ... nodes (OEIS A000055). It uses Otter's formula,
+        which expresses free trees through rooted ones, whose numbers follow a recurrence over
+        divisors, as NetworkX's `number_of_nonisomorphic_trees()` does. The result is an exact
+        Python integer however large it gets.
+
+        Parameters
+        ----------
+        order
+            Number of nodes. Must be at least `2`.
+
+        Returns
+        -------
+        int
+            The number of non-isomorphic trees on `order` nodes.
+
+        Raises
+        ------
+        ValueError
+            If `order=` is less than `2`.
+
+        Examples
+        --------
+        The counts grow roughly threefold with each node:
+
+        ```{python}
+        import edgecase as ec
+
+        [ec.Graph.count_nonisomorphic_trees(n) for n in range(2, 13)]
+        ```
+
+        Counting is fast even where listing would be hopeless:
+
+        ```{python}
+        ec.Graph.count_nonisomorphic_trees(100)
+        ```
+        """
+        from edgecase._generators import count_nonisomorphic_trees
+
+        if order < 2:
+            raise ValueError(f"order must be at least 2, got {order}")
+        return count_nonisomorphic_trees(order)
+
     def configuration_model(
         self,
         degree_sequence: list[int],
@@ -18569,6 +20859,110 @@ class Graph:
         from edgecase._core import is_regular
 
         return is_regular(self._graph)
+
+    def is_regular_expander(self, epsilon: float = 0.0) -> bool:
+        r"""
+        Check whether the graph is a regular expander that meets the Ramanujan bound.
+
+        ![Is regular expander](/assets/graphs/is-regular-expander.light.svg){.lightbox fig-alt="Two 3-regular graphs on six nodes, each with its second eigenvalue, the largest one in absolute value after the degree 3, in a note above it. Left: the prism, two triangles joined by spokes, has eigenvalues down to -2, within the Ramanujan bound 2 sqrt(2), about 2.83, so is_regular_expander() returns True. Right: the complete bipartite graph K3,3, its two sides in the accent color and teal, has eigenvalue -3 because it is bipartite, past the bound, so is_regular_expander() returns False." width="100%"}
+
+        A `d`-regular graph's adjacency matrix has largest eigenvalue `d`; how far the other
+        eigenvalues stay from it, the spectral gap, measures how well the graph expands: how
+        many edges leave every set of nodes, and how fast random walks mix. The
+        Alon-Boppana bound says the second-largest eigenvalue in absolute value can't be much
+        smaller than `2 sqrt(d - 1)` for large graphs, and graphs that reach it are called
+        Ramanujan. This method returns `True` when the graph is `d`-regular for some `d >= 1`
+        and that eigenvalue is below `2 sqrt(d - 1) + epsilon`, as NetworkX's
+        `is_regular_expander()` does.
+
+        The eigenvalues are computed exactly from the dense adjacency matrix, in time
+        proportional to `n^3`, so the check suits graphs of up to a few thousand nodes. The
+        graph must be undirected and simple, and edge weights are ignored. The whole graph is
+        checked and the current selection is ignored.
+
+        Checking for expansion is useful for:
+
+        - verifying that a generated network (a random regular graph, a peer-to-peer overlay)
+          has the fast mixing it was built for
+        - confirming the output of `add_random_regular_expander_graph()` or
+          `add_maybe_regular_expander()`
+        - comparing explicit expander constructions with random ones
+
+        Parameters
+        ----------
+        epsilon
+            Slack added to the Ramanujan bound `2 sqrt(d - 1)`. Default is `0`. Must be
+            non-negative.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is regular of positive degree and its second-largest absolute
+            adjacency eigenvalue is below the bound. Graphs that aren't regular, have degree
+            `0`, or have fewer than two nodes return `False`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or has self-loops or parallel edges, or `epsilon=` is
+            negative.
+
+        Technical Notes
+        ---------------
+        For a $d$-regular graph with adjacency eigenvalues
+        $d = \lambda_1 \ge \lambda_2 \ge \dots \ge \lambda_n$, let
+        $\lambda = \max(|\lambda_2|, |\lambda_n|)$. The graph passes when
+        $\lambda < 2\sqrt{d - 1} + \varepsilon$. A disconnected regular graph has $\lambda_2 = d$
+        and a bipartite one $\lambda_n = -d$, and since $d \ge 2\sqrt{d - 1}$ for every $d$,
+        both fail when `epsilon=0`. So does any 2-regular graph with an even cycle, whose
+        eigenvalue $-2$ sits exactly on the bound; a small margin keeps rounding error from
+        passing it, as NetworkX's floating-point comparison sometimes does.
+
+        Examples
+        --------
+        The Petersen graph is 3-regular with eigenvalues `3`, `1` and `-2`, so it is Ramanujan
+        (`2 < 2 sqrt(2) ≈ 2.83`):
+
+        ```{python}
+        import edgecase as ec
+
+        ec.Graph().add_named_graph("petersen").is_regular_expander()
+        ```
+
+        A long cycle is 2-regular but mixes slowly, and a star isn't regular at all:
+
+        ```{python}
+        ec.Graph().add_cycle_graph(20).is_regular_expander(), ec.Graph().add_star_graph(5).is_regular_expander()
+        ```
+
+        Random regular graphs are almost always expanders:
+
+        ```{python}
+        ec.Graph().add_random_regular_graph(n=200, d=5, seed=1).is_regular_expander()
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("is_regular_expander() requires an undirected graph")
+        if not self.is_simple():
+            raise ValueError(
+                "is_regular_expander() requires a graph without self-loops or parallel edges"
+            )
+        if math.isnan(epsilon) or epsilon < 0:
+            raise ValueError(f"epsilon must be non-negative, got {epsilon}")
+
+        from edgecase._core import adjacency_second_eigenvalue
+
+        node_ids = sorted(self.get_node_ids(limit=None))
+        if len(node_ids) < 2 or not self.is_regular():
+            return False
+        degree = self.get_degree(node_ids[0])
+        if degree == 0:
+            return False
+        index = {nid: i for i, nid in enumerate(node_ids)}
+        pairs = [(index[s], index[t]) for _, s, t in self.get_edges_as_tuples()]
+        # a small margin keeps rounding error from passing a graph exactly on the bound
+        bound = 2 * math.sqrt(degree - 1) + epsilon - 1e-9 * degree
+        return adjacency_second_eigenvalue(len(node_ids), pairs) < bound
 
     def is_k_regular(self, k: int) -> bool:
         r"""
