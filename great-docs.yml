@@ -488,6 +488,7 @@ reference:
         - Graph.bellman_ford_shortest_path
         - Graph.negative_edge_cycle
         - Graph.find_negative_cycle
+        - Graph.goldberg_radzik
         - Graph.shortest_path
         - Graph.shortest_path_length
         - Graph.has_path
@@ -758,6 +759,8 @@ reference:
         - Graph.could_be_isomorphic
         - Graph.is_subgraph_isomorphic
         - Graph.subgraph_isomorphisms
+        - Graph.largest_common_subgraph
+        - Graph.automorphism_cosets
         - Graph.weisfeiler_lehman_graph_hash
         - Graph.weisfeiler_lehman_subgraph_hashes
 
@@ -790,6 +793,8 @@ reference:
         - Graph.simrank_similarity
         - Graph.simrank_star_similarity
         - Graph.simrank_star_similarity_pair
+        - Graph.panther_similarity
+        - Graph.generate_random_paths
 
     - title: Bridges and Connectivity
       desc: Methods for finding bridges and articulation points
@@ -1104,6 +1109,10 @@ reference:
         - to_cytoscape
         - from_pajek
         - to_pajek
+        - from_leda
+        - to_leda
+        - to_latex
+        - to_latex_raw
         - from_graph6
         - to_graph6
         - from_sparse6
