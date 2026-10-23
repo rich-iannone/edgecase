@@ -5,10 +5,15 @@
 //! et al., SIGMOD 2026) reformulates SimRank* as a Lyapunov equation and
 //! solves it exactly via Bartels-Stewart (real Schur decomposition), avoiding
 //! the iteration/tolerance trade-off of iterative solvers.
+//!
+//! Also Panther (Zhang et al., KDD 2015): similarity as the share of random paths that two
+//! nodes both appear on, with the weighted random walks it samples.
 
 use crate::graph::Graph;
 use nalgebra::DMatrix;
 use pyo3::prelude::*;
+use rand::{Rng, SeedableRng};
+use rand_chacha::ChaCha8Rng;
 use rustc_hash::FxHashMap;
 
 /// Compute SimRank* similarity between all node pairs.
@@ -409,6 +414,228 @@ fn normalize_similarity(s: DMatrix<f64>, n: usize) -> DMatrix<f64> {
     }
 
     result
+}
+
+// ---------------------------------------------------------------------------------------------
+// Panther (random-path similarity)
+// ---------------------------------------------------------------------------------------------
+
+/// Sorted node IDs and, per node, its out-arcs with cumulative transition weights (an arc per
+/// edge, both ways in an undirected graph, a self-loop once), as NetworkX's
+/// `to_numpy_array()` rows.
+#[allow(clippy::type_complexity)]
+fn walk_table(
+    graph: &Graph,
+    weighted: bool,
+) -> PyResult<(Vec<u64>, FxHashMap<u64, usize>, Vec<Vec<(usize, f64)>>)> {
+    let mut ids = graph.get_node_ids();
+    ids.sort_unstable();
+    let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let mut edges: Vec<_> = graph.get_edges_internal().iter().collect();
+    edges.sort_unstable_by_key(|e| e.id);
+    let mut out: Vec<Vec<(usize, f64)>> = vec![Vec::new(); ids.len()];
+    for e in edges {
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        if !w.is_finite() || w < 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Random paths need non-negative finite weights; edge {} has weight {w}",
+                e.id
+            )));
+        }
+        let (a, b) = (idx[&e.source], idx[&e.target]);
+        out[a].push((b, w));
+        if !graph.is_directed() && a != b {
+            out[b].push((a, w));
+        }
+    }
+    for arcs in &mut out {
+        let mut total = 0.0;
+        for arc in arcs.iter_mut() {
+            total += arc.1;
+            arc.1 = total;
+        }
+    }
+    Ok((ids, idx, out))
+}
+
+/// `sample_size` random walks of `path_length` steps (so `path_length + 1` nodes each), as
+/// node indices. Each starts at `start`, or at a uniformly random node, and steps to an
+/// out-neighbor with probability proportional to the edge weight.
+fn walks(
+    ids: &[u64],
+    out: &[Vec<(usize, f64)>],
+    sample_size: usize,
+    path_length: usize,
+    start: Option<usize>,
+    rng: &mut ChaCha8Rng,
+) -> PyResult<Vec<Vec<usize>>> {
+    let n = ids.len();
+    let mut paths = Vec::with_capacity(sample_size);
+    for _ in 0..sample_size {
+        let mut u = start.unwrap_or_else(|| rng.gen_range(0..n));
+        let mut path = Vec::with_capacity(path_length + 1);
+        path.push(u);
+        for _ in 0..path_length {
+            let arcs = &out[u];
+            let total = arcs.last().map_or(0.0, |a| a.1);
+            if total <= 0.0 {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "A random path reached node {}, which has no out-edges of positive weight",
+                    ids[u]
+                )));
+            }
+            let r = rng.gen::<f64>() * total;
+            let k = arcs.partition_point(|a| a.1 <= r).min(arcs.len() - 1);
+            u = arcs[k].0;
+            path.push(u);
+        }
+        paths.push(path);
+    }
+    Ok(paths)
+}
+
+fn rng_from(seed: Option<u64>) -> ChaCha8Rng {
+    match seed {
+        Some(s) => ChaCha8Rng::seed_from_u64(s),
+        None => ChaCha8Rng::from_entropy(),
+    }
+}
+
+/// Random walks for Panther, as lists of node IDs (see `walks`).
+#[pyfunction]
+#[pyo3(signature = (graph, sample_size, path_length=5, weighted=true, seed=None, source=None))]
+pub fn generate_random_paths(
+    graph: &Graph,
+    sample_size: usize,
+    path_length: usize,
+    weighted: bool,
+    seed: Option<u64>,
+    source: Option<u64>,
+) -> PyResult<Vec<Vec<u64>>> {
+    let (ids, idx, out) = walk_table(graph, weighted)?;
+    if ids.is_empty() {
+        return if sample_size == 0 {
+            Ok(Vec::new())
+        } else {
+            Err(pyo3::exceptions::PyValueError::new_err(
+                "The graph has no nodes",
+            ))
+        };
+    }
+    let start = match source {
+        Some(s) => Some(*idx.get(&s).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("Source node {s} does not exist"))
+        })?),
+        None => None,
+    };
+    let mut rng = rng_from(seed);
+    let paths = walks(&ids, &out, sample_size, path_length, start, &mut rng)?;
+    Ok(paths
+        .into_iter()
+        .map(|p| p.into_iter().map(|i| ids[i]).collect())
+        .collect())
+}
+
+/// Panther similarity (Zhang et al., KDD 2015) of every non-isolated node to `source`: the
+/// share of `R` random paths that contain both. Isolated nodes are dropped first, as in
+/// NetworkX. `R = floor((c / eps^2) (log2 C(T, 2) + 1 + ln(1 / delta)))` with `T` the path
+/// length and `eps` defaulting to `sqrt(1 / |E|)`. Returns `R` and `(node, score)` for every
+/// non-isolated node other than the source, in node ID order.
+#[pyfunction]
+#[pyo3(signature = (graph, source, path_length=5, c=0.5, delta=0.1, eps=None, weighted=true, seed=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn panther_similarity(
+    graph: &Graph,
+    source: u64,
+    path_length: usize,
+    c: f64,
+    delta: f64,
+    eps: Option<f64>,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<(usize, Vec<(u64, f64)>)> {
+    let err = |msg: String| Err(pyo3::exceptions::PyValueError::new_err(msg));
+    if path_length < 2 {
+        return err(format!("path_length must be at least 2, got {path_length}"));
+    }
+    if c.is_nan() || c <= 0.0 {
+        return err(format!("c must be positive, got {c}"));
+    }
+    if delta.is_nan() || delta <= 0.0 || delta >= 1.0 {
+        return err(format!("delta must be between 0 and 1, got {delta}"));
+    }
+    if matches!(eps, Some(e) if e.is_nan() || e <= 0.0) {
+        return err("eps must be positive".to_string());
+    }
+    let (ids, idx, out) = walk_table(graph, weighted)?;
+    let Some(&s) = idx.get(&source) else {
+        return err(format!("Source node {source} does not exist"));
+    };
+    let n = ids.len();
+    let mut isolated = vec![true; n];
+    for e in graph.get_edges_internal() {
+        isolated[idx[&e.source]] = false;
+        isolated[idx[&e.target]] = false;
+    }
+    if isolated[s] {
+        return err(format!(
+            "Panther similarity isn't defined for the isolated source node {source}"
+        ));
+    }
+
+    // Walk on the graph without its isolated nodes (which no walk can reach anyway)
+    let kept: Vec<usize> = (0..n).filter(|&i| !isolated[i]).collect();
+    let mut new_index = vec![usize::MAX; n];
+    for (j, &i) in kept.iter().enumerate() {
+        new_index[i] = j;
+    }
+    let kept_ids: Vec<u64> = kept.iter().map(|&i| ids[i]).collect();
+    let kept_out: Vec<Vec<(usize, f64)>> = kept
+        .iter()
+        .map(|&i| out[i].iter().map(|&(v, w)| (new_index[v], w)).collect())
+        .collect();
+
+    let m = graph.get_edges_internal().len() as f64;
+    let eps = eps.unwrap_or_else(|| (1.0 / m).sqrt());
+    let pairs = (path_length * (path_length - 1) / 2) as f64;
+    let size = (c / (eps * eps)) * (pairs.log2() + 1.0 + (1.0 / delta).ln());
+    let sample_size = size.floor().max(0.0) as usize;
+    if sample_size == 0 {
+        return err("The sample size works out to 0 paths; lower eps or raise c".to_string());
+    }
+
+    let mut rng = rng_from(seed);
+    let paths = walks(
+        &kept_ids,
+        &kept_out,
+        sample_size,
+        path_length,
+        None,
+        &mut rng,
+    )?;
+    let src = new_index[s];
+    let mut common = vec![0usize; kept.len()];
+    let mut seen = vec![usize::MAX; kept.len()];
+    for (r, path) in paths.iter().enumerate() {
+        if !path.contains(&src) {
+            continue;
+        }
+        for &v in path {
+            if seen[v] != r {
+                seen[v] = r;
+                common[v] += 1;
+            }
+        }
+    }
+    let scores = (0..kept.len())
+        .filter(|&j| j != src)
+        .map(|j| (kept_ids[j], common[j] as f64 / sample_size as f64))
+        .collect();
+    Ok((sample_size, scores))
 }
 
 #[cfg(test)]
