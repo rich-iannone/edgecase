@@ -315,6 +315,26 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::random_models::geographical_threshold_edges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::random_models::navigable_small_world_edges, m)?)?;
 
+    // Bipartite, duplication, internet, expander and other special generators
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::bipartite_configuration_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::bipartite_havel_hakimi_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::bipartite_preferential_attachment_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::bipartite_gnp_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::bipartite_gnmk_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::partial_duplication_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::duplication_divergence_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::random_clustered_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::internet_as_graph, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::margulis_gabber_galil_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::chordal_cycle_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::paley_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::maybe_regular_expander_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::random_regular_expander_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::adjacency_second_eigenvalue, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::sudoku_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::visibility_edges, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::special_generators::interval_edges, m)?)?;
+
     // Network motif census
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_census, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::motifs::motif_significance, m)?)?;
