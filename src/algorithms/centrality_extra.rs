@@ -302,8 +302,9 @@ fn sp_dag(adj: &[Vec<(usize, f64)>], s: usize) -> SpDag {
 
 /// Group betweenness (Everett & Borgatti 1999): the share of shortest paths between pairs of
 /// nodes outside the group that pass through at least one group member. With `endpoints`,
-/// pairs with an endpoint in the group count too. Normalized by (n-c)(n-c-1); unnormalized
-/// undirected values count each pair once. Matches NetworkX.
+/// pairs with an endpoint in the group count too. Normalized by (n-c)(n-c-1), or by n(n-1) with
+/// `endpoints` since every ordered pair can then contribute; unnormalized undirected values
+/// count each pair once. Matches NetworkX 3.7.
 #[pyfunction]
 #[pyo3(signature = (graph, group, normalized=true, endpoints=false, weighted=false))]
 pub fn group_betweenness_centrality(
@@ -352,7 +353,11 @@ pub fn group_betweenness_centrality(
         }
     }
     if normalized {
-        let denom = ((n - c) * (n.saturating_sub(c + 1))) as f64;
+        let denom = if endpoints {
+            (n * n.saturating_sub(1)) as f64
+        } else {
+            ((n - c) * (n.saturating_sub(c + 1))) as f64
+        };
         if denom > 0.0 {
             total /= denom;
         }
