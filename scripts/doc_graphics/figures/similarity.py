@@ -34,9 +34,24 @@ share one four-node square (`CMTY`): community 0 (A, B, D) and community 1
 (C) are `g2` / `g3` hulls, the pair A, D is `soft` with a dashed candidate
 link, and the common neighbors the score counts are accent (C stays plain
 where the score ignores it); the card shows the formula's numbers.
+The random-path methods follow their docstrings too: panther_similarity draws
+two bridged triangles with the source `soft` and its top-k nodes accent with
+score badges; generate_random_paths uses `multiples`, one 6-cycle per sampled
+path in accent / g2 / g3 with filled badges for the path positions.
 """
 
-from core import SIZE_LABEL, SIZE_NOTE, Box, Scene, compute, contrast, figure, place, ring
+from core import (
+    SIZE_LABEL,
+    SIZE_NOTE,
+    Box,
+    Scene,
+    compute,
+    contrast,
+    figure,
+    multiples,
+    place,
+    ring,
+)
 
 UNIT = 60  # one graph scale for the whole family
 
@@ -761,3 +776,65 @@ def within_inter_cluster(s: Scene) -> None:
     _cmty(s, left, "B")
     s.card_centered(right, ["within  {B}  1", "inter   {C}  1",
                             ("1 / (1 + 0.001) = 0.999", "accent")], w=CARD_W, title="pairs = [(A, D)]")
+
+
+# --- random-path similarity ------------------------------------------------
+
+# panther_similarity docstring: two triangles joined by the bridge c - x.
+TWIN = {"a": (0, 0), "b": (0, 1.4), "c": (1.1, 0.7), "x": (2.3, 0.7), "y": (3.4, 0),
+        "z": (3.4, 1.4)}
+TWIN_EDGES = [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"),
+              ("z", "x")]
+
+
+@figure("panther_similarity", "similarity", "Panther similarity",
+        "Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples "
+        "random paths and scores each node by how often it shares a path with the source a "
+        "(outlined). The k = 3 most similar nodes are in the accent color with their scores "
+        "as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. "
+        "The card ranks them.")
+def panther_similarity(s: Scene) -> None:
+    g = _link_graph(list(TWIN), TWIN_EDGES)
+    got = {g.get_label_from_id(n): round(v, 3)
+           for n, v in g.panther_similarity("a", k=3, seed=1).items()}
+    assert got == {"c": 0.609, "b": 0.478, "x": 0.391}
+    left, right = compute(s, "g", 'g.panther_similarity("a", k=3, seed=1)')
+    s.graph(place(TWIN, left, unit=UNIT), TWIN_EDGES,
+            styles={"a": "soft"} | dict.fromkeys(got, "accent"))
+    for k, v in got.items():  # c and x go above the bridge
+        s.badge(k, f"{v:.3f}", where="auto" if k == "b" else "n", filled=True)
+    s.card_centered(right, [(f"{i}  {k}  {v:.3f}", "accent")
+                            for i, (k, v) in enumerate(got.items(), 1)],
+                    w=CARD_W, title="top k = 3 similar to a")
+
+
+RP_COLORS = ("accent", "g2", "g3")
+
+
+@figure("generate_random_paths", "similarity", "Generate random paths",
+        "Three copies of a six-node cycle, one per sampled path of length 4 (five nodes, "
+        "seed 2). Each path's edges and nodes are in its own color, accent, teal and violet, "
+        "and filled badges give each node's positions along the path, 0 for the start. The "
+        "first path, 6, 1, 6, 1, 2, steps back and forth before moving on; the third, 5, 6, "
+        "5, 6, 5, never leaves one edge.")
+def generate_random_paths(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_cycle_graph(6)
+    paths = g.generate_random_paths(3, path_length=4, seed=2)
+    assert paths == [[6, 1, 6, 1, 2], [5, 6, 5, 4, 3], [5, 6, 5, 6, 5]]
+    ids = [str(n) for n in range(1, 7)]
+    cycle = list(zip(ids, ids[1:] + ids[:1]))
+    boxes = multiples(s, tuple("[" + ", ".join(map(str, p)) + "]" for p in paths))
+    for i, (box, path, color) in enumerate(zip(boxes, paths, RP_COLORS)):
+        p = [str(n) for n in path]
+        used = {frozenset(st) for st in zip(p, p[1:])}
+        s.graph(place(ring(ids, start_deg=-60), box, unit=UNIT * 0.9),
+                [(a, b, {"style": color if frozenset((a, b)) in used else "muted"})
+                 for a, b in cycle],
+                styles={k: color if k in p else "muted" for k in ids}, prefix=f"p{i}.")
+        steps: dict[str, list[int]] = {}
+        for j, k in enumerate(p):
+            steps.setdefault(k, []).append(j)
+        for k, v in steps.items():
+            s.badge(f"p{i}.{k}", ",".join(map(str, v)), filled=True, color=color)

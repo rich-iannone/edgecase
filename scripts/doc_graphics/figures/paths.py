@@ -53,7 +53,9 @@ Shared layouts keep siblings comparable:
   all_pairs_all_shortest_paths (4-cycle + path-count matrix), floyd_warshall and
   johnson (NEG triangle, negative shortcut A -> C -> B), shortest_simple_paths
   (KITE, ranked routes in accent / g2 / g3) and all_simple_edge_paths (parallel
-  A-B edges as bent arcs labeled with edge ids).
+  A-B edges as bent arcs labeled with edge ids). goldberg_radzik extends NEG
+  with a tail B -> D: the shortest-path tree in accent from the `soft` source,
+  distance badges, and a node / pred / dist table.
 """
 
 import math
@@ -1151,6 +1153,37 @@ def johnson(s: Scene) -> None:
     _neg_panel(s, left)
     s.card_centered(right, [("A → C → B", "accent"), "cost  2 + (−1) = 1",
                             "direct A → B  4"], title="result[A][B]")
+
+
+# goldberg_radzik docstring: NEG with a steeper shortcut and a tail B -> D.
+GR = NEG | {"D": (3.4, 0)}
+GR_EDGES = [("A", "B", 4), ("A", "C", 2), ("C", "B", -3), ("B", "D", 1)]
+
+
+@figure("goldberg_radzik", "paths", "Goldberg-Radzik shortest paths",
+        "Four nodes with directed weighted edges A to B 4, A to C 2, C to B −3 and B to D 1, "
+        "searched from A (outlined). The shortest-path tree A, C, B, D is in the accent color "
+        "and each node carries its distance as a badge: C 2, B 2 + (−3) = −1, D 0; the direct "
+        "edge A to B stays faint. The table lists each node's predecessor and distance.")
+def goldberg_radzik(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True, weighted=True).add_nodes(list(GR))
+    g.add_edges([(a, b, float(w)) for a, b, w in GR_EDGES])
+    pred, dist = g.goldberg_radzik("A")
+    L = g.get_label_from_id
+    found = {L(n): (None if p is None else L(p), dist[n]) for n, p in pred.items()}
+    assert found == {"A": (None, 0.0), "B": ("C", -1.0), "C": ("A", 2.0), "D": ("B", 0.0)}
+    left, right = compute(s, "g", 'g.goldberg_radzik("A")')
+    routes(s, place(GR, left, unit=UNIT * 1.1), GR_EDGES, [list("ACBD")], directed=True,
+           ends=("A",), weights=True)
+    for k, (_, d) in found.items():
+        if k != "A":
+            s.badge(k, f"{d:g}".replace("-", "−"), filled=True)
+    rows = [["node", "pred", "dist"]] + [[k, p or "·", f"{d:.1f}".replace("-", "−")]
+                                         for k, (p, d) in sorted(found.items())]
+    _, y0, _, _ = s.table_centered(right, rows, [48, 48, 48])
+    matrix_note(s, right, y0, "pred[node], dist[node]")
 
 
 # shortest_simple_paths docstring: a diamond A-B-D / A-C-D with a rung B-C.

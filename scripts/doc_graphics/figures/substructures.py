@@ -47,6 +47,9 @@ of unlabeled miniatures with weights, iter_spanning_arborescences as a card.
 to/from_nested_tuple give each child subtree one group color, shared with its
 tuple on the card; join_trees keeps the input trees' colors and shows old
 labels as badges.
+largest_common_subgraph splits the input panel like subgraph_isomorphisms
+(square and paw, each captioned) with the first match accent in both;
+automorphism_cosets colors node 1 and its coset accent, node 2's coset g2.
 """
 
 from core import (
@@ -58,6 +61,7 @@ from core import (
     compute,
     figure,
     place,
+    ring,
     text_width,
     transform,
 )
@@ -1682,3 +1686,68 @@ def subgraph_isomorphisms(s: Scene) -> None:
                 r=R_SMALL, prefix=f"m{i}.")
         s.text(x0 + gw + gap, cell.cy, label, size=SIZE_CARD, anchor="start", color="accent",
                weight=600, role="card")
+
+
+# largest_common_subgraph docstring: a square and a paw (a triangle with a
+# pendant) share a three-node path and nothing larger. Both are drawn in the
+# input panel, captioned by their variable names, with the first match in
+# accent; the card reads it as paw node -> square node.
+LCS_SQUARE = {"a": (0, 0), "b": (1, 0), "c": (1, 1), "d": (0, 1)}
+LCS_SQUARE_EDGES = [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")]
+LCS_PAW = {"x": (0, 0), "y": (0, 1), "z": (0.9, 0.5), "w": (1.8, 0.5)}
+LCS_PAW_EDGES = [("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")]
+
+
+@figure("largest_common_subgraph", "substructures", "Largest common subgraph",
+        "Left: graph square, the 4-cycle a, b, c, d, beside graph paw, a triangle x, y, z "
+        "with a pendant w on z. The biggest induced subgraph they share is a path of three "
+        "nodes, found 8 ways. The first match is in the accent color in both graphs: x maps "
+        "to b, z to a and w to d, so the path x, z, w lands on b, a, d. y stays faint; its "
+        "path is a symmetric copy of x's, so it isn't listed again.")
+def largest_common_subgraph(s: Scene) -> None:
+    square = _ec_graph(list(LCS_SQUARE), LCS_SQUARE_EDGES)
+    paw = _ec_graph(list(LCS_PAW), LCS_PAW_EDGES)
+    found = square.largest_common_subgraph(paw)
+    first = {paw.get_label_from_id(k): square.get_label_from_id(v) for k, v in found[0].items()}
+    assert len(found) == 8 and first == {"x": "b", "z": "a", "w": "d"}
+    left, right = compute(s, "square", "square.largest_common_subgraph(paw)")
+    sbox = Box(left.x0, left.y0, left.x0 + 140, left.y1)
+    pbox = Box(sbox.x1, left.y0, left.x1, left.y1)
+    cap = next(t for t in s.texts if t.role == "caption" and t.text == "square")
+    cap.x = sbox.cx
+    s.caption(pbox.cx, "paw", max_w=pbox.w)
+    hit = set(first.values())
+    s.graph(place(LCS_SQUARE, sbox, unit=UNIT * 0.8),
+            _edges(LCS_SQUARE_EDGES, {_key(a, b) for a, b in LCS_SQUARE_EDGES if {a, b} <= hit}),
+            styles={k: "accent" if k in hit else "muted" for k in LCS_SQUARE}, prefix="s.")
+    s.graph(place(LCS_PAW, pbox, unit=UNIT * 0.8),
+            _edges(LCS_PAW_EDGES, {_key(a, b) for a, b in LCS_PAW_EDGES if {a, b} <= set(first)}),
+            styles={k: "accent" if k in first else "muted" for k in LCS_PAW}, prefix="p.")
+    s.card_centered(right, [(f"{k} → {v}", "accent") for k, v in first.items()]
+                    + [f"{len(found)} matches of {len(first)} nodes"], title="found[0]")
+
+
+# automorphism_cosets docstring: the 4-cycle's 8 symmetries split as 4 places
+# for node 1 times 2 for node 2 once 1 is fixed. Node 1 and its coset are
+# accent, node 2 and its coset (2 and its opposite neighbor 4) g2.
+C4 = ring(["1", "2", "3", "4"], start_deg=-135)
+C4_EDGES = [("1", "2"), ("2", "3"), ("3", "4"), ("4", "1")]
+
+
+@figure("automorphism_cosets", "substructures", "Automorphism cosets",
+        "A square with nodes 1, 2, 3, 4 in order around it. Node 1 (accent) can be sent to "
+        "any of the four corners by a symmetry, so its coset is 1, 2, 3, 4. With node 1 held "
+        "in place, node 2 can only stay or swap with its opposite neighbor 4 (both teal), so "
+        "its coset is 2, 4; after that nodes 3 and 4 are fixed. The card lists the cosets and multiplies their sizes, "
+        "4 × 2 × 1 × 1 = 8 symmetries.")
+def automorphism_cosets(s: Scene) -> None:
+    import edgecase as ec
+
+    cosets = ec.Graph().add_cycle_graph(4).automorphism_cosets()
+    assert cosets == {1: [1, 2, 3, 4], 2: [2, 4], 3: [3], 4: [4]}
+    left, right = compute(s, "g", "g.automorphism_cosets()")
+    s.graph(place(C4, left, unit=UNIT), C4_EDGES, styles={"1": "accent", "2": "g2", "4": "g2"})
+    colors = {1: "accent", 2: "g2"}
+    s.card_centered(right, [(f"{k}  [{', '.join(map(str, v))}]", colors.get(k, "ink"))
+                            for k, v in cosets.items()]
+                    + ["4 × 2 × 1 × 1 = 8"], title="node  coset")
