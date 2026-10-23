@@ -39,6 +39,14 @@ hulls with node-metrics heat and a sorted table; make_max_clique_graph is a
 (chordal_graph_cliques, chordal_graph_treewidth, find_induced_nodes) share the
 diamond-plus-pendant graph or the path A–D of their docstrings;
 find_induced_nodes draws the hypothetical edge s–t as a `ghost` arc.
+junction_tree is a `transform` from the student Bayesian network (its moral
+edge `ghost`, its cliques as hulls) to the clique/separator row, the clique
+nodes in their hull colors and every node's members written above it.
+The ranked iterators show yielded order: iter_spanning_trees as a 2 x 4 grid
+of unlabeled miniatures with weights, iter_spanning_arborescences as a card.
+to/from_nested_tuple give each child subtree one group color, shared with its
+tuple on the card; join_trees keeps the input trees' colors and shows old
+labels as badges.
 """
 
 from core import (
@@ -595,6 +603,45 @@ def find_induced_nodes(s: Scene) -> None:
             styles={"A": "soft", "B": "accent", "C": "accent", "D": "soft"})
     s.card_centered(right, [("[A, B, C, D]", "accent"), "A–D would close", "a 4-cycle"],
                     title="induced nodes")
+
+
+# The "student" Bayesian network of the junction_tree docstring.
+STUDENT = {"D": (0, 0), "I": (2, 0), "G": (1, 1), "S": (3, 1), "L": (1, 2)}
+STUDENT_ARCS = [("D", "G"), ("I", "G"), ("I", "S"), ("G", "L")]
+
+
+@figure("junction_tree", "substructures", "Junction tree",
+        "Left: a directed network where D and I point to G, I points to S and G points to L. "
+        "Moralizing adds the dashed edge D to I between the two parents of G, and the "
+        "maximal cliques are tinted regions: D, I, G in the accent color, I, S in teal and "
+        "G, L in violet. Right: the junction tree as a row C2, S1, C1, S2, C3. The clique "
+        "nodes take their region colors and are labeled with their members, and each "
+        "separator between two cliques holds the node they share, I or G.")
+def junction_tree(s: Scene) -> None:
+    import edgecase as ec
+
+    bn = ec.Graph(directed=True).add_nodes(list(STUDENT))
+    bn.add_edges(STUDENT_ARCS)
+    jt = bn.junction_tree()
+    members = {jt.get_label_from_id(n): jt.get_node(n).attributes["nodes"]
+               for n in jt.get_node_ids(limit=None)}
+    assert members == {"C1": ["D", "I", "G"], "C2": ["I", "S"], "C3": ["G", "L"],
+                       "S1": ["I"], "S2": ["G"]}
+    assert sorted(jt.get_edges_str_repr(use_labels=True)) == sorted(
+        ["C1--S1", "S1--C2", "C1--S2", "S2--C3"])
+    colors = {"C1": "accent", "C2": "g2", "C3": "g3"}
+    left, right = transform(s, "g", "g.junction_tree()")
+    s.graph(place(STUDENT, left, unit=UNIT), STUDENT_ARCS, directed=True, prefix="l.")
+    s.edge("l.D", "l.I", style="ghost")
+    for c, color in colors.items():
+        s.hull(["l." + k for k in members[c]], color)
+    row = {"C2": (0, 0), "S1": (1, 0), "C1": (2, 0), "S2": (3, 0), "C3": (4, 0)}
+    pos = place(row, right, unit=UNIT * 0.85)
+    s.graph(pos, [(a, b) for a, b in (("C2", "S1"), ("S1", "C1"), ("C1", "S2"), ("S2", "C3"))],
+            styles=colors, prefix="r.")
+    for k, (x, y) in pos.items():
+        s.text(x, y - 30, "{" + ",".join(members[k]) + "}", size=SIZE_NOTE,
+               color=colors.get(k, "ink"), opacity=1 if k in colors else 0.7)
 
 
 
@@ -1198,6 +1245,167 @@ def from_prufer_sequence(s: Scene) -> None:
             [(a, b, {"style": "accent"}) if _key(a, b) in entries else (a, b)
              for a, b in sorted(got)],
             styles={k: "accent" for k in set(PRUFER_SEQ)})
+
+
+# --- later additions: ranked trees, nested tuples, joins -------------------
+#
+# iter_spanning_trees reuses the square-with-diagonal shape of
+# number_of_spanning_trees, weighted as in its docstring, and draws all eight
+# trees as miniatures in yielded order; iter_spanning_arborescences uses the
+# relay-station digraph of minimum_spanning_arborescence. The nested-tuple
+# figures color each child subtree and its tuple alike; join_trees colors the
+# input trees and keeps them in the joined tree, with the new root's edges in
+# the accent color and the old labels as badges.
+
+RANKED_EDGES = [("A", "B", 1), ("B", "C", 2), ("C", "D", 3), ("D", "A", 4), ("A", "C", 5)]
+
+
+@figure("iter_spanning_trees", "substructures", "Iterate spanning trees",
+        "Left: a weighted square A, B, C, D with sides A–B (1), B–C (2), C–D (3), D–A (4) and "
+        "the diagonal A–C (5). Right: its eight spanning trees as miniatures in two rows, "
+        "in the order the iterator yields them, with each tree's edges in the accent color, "
+        "the unused edges dashed and its total weight underneath: 6, 7, 8, 9 on the top row "
+        "and 9, 10, 10, 11 below. The first, A–B, B–C, C–D, is the minimum spanning tree.")
+def iter_spanning_trees(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(weighted=True).add_nodes(list(SQUARE))
+    g.add_edges([(a, b, float(w)) for a, b, w in RANKED_EDGES])
+    trees = [({_key(a, b) for a, b, _ in _ec_edges(t)}, sum(w for _, _, w in _ec_edges(t)))
+             for t in g.iter_spanning_trees()]
+    weights = [w for _, w in trees]
+    assert weights == [6, 7, 8, 9, 9, 10, 10, 11]
+    assert trees[0][0] == {_key(a, b) for a, b, _ in _ec_edges(g.minimum_spanning_tree())}
+
+    left, right = compute(s, "g", "g.iter_spanning_trees()")
+    s.graph(place(SQUARE, left, unit=UNIT * 1.3),
+            [(a, b, {"weight": w}) for a, b, w in RANKED_EDGES])
+    side, gap, per_row = 28, 26, 4
+    row_w = per_row * (side + 2 * DOT) + (per_row - 1) * gap
+    x0 = right.cx - row_w / 2
+    for i, (tree, w) in enumerate(trees):
+        row, col = divmod(i, per_row)
+        cx0 = x0 + col * (side + 2 * DOT + gap) + DOT
+        cy = right.y0 + 40 + row * 80
+        pos = {k: (cx0 + x * side, cy - side / 2 + y * side) for k, (x, y) in SQUARE.items()}
+        s.graph(pos, [(a, b, {"style": "accent" if _key(a, b) in tree else "removed"})
+                      for a, b, _ in RANKED_EDGES],
+                styles=dict.fromkeys(SQUARE, "accent"), labels=False, r=DOT, prefix=f"t{i}.")
+        s.text(cx0 + side / 2, cy + side / 2 + 18, _num(w), size=SIZE_NOTE,
+               color="accent" if i == 0 else "ink", weight=600 if i == 0 else 400)
+
+
+@figure("iter_spanning_arborescences", "substructures", "Iterate spanning arborescences",
+        "One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), "
+        "C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest arborescence, A→C, C→B, B→D, "
+        "is in the accent color. The card lists all five spanning arborescences in the order "
+        "the iterator yields them, with their costs: 6 for that one, then 8, 8, 9, and 11.")
+def iter_spanning_arborescences(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True, weighted=True).add_nodes(list(MINA))
+    g.add_edges([(a, b, float(w)) for a, b, w in MINA_ARCS])
+    found = [_ec_edges(t) for t in g.iter_spanning_arborescences()]
+    costs = [sum(w for _, _, w in t) for t in found]
+    assert costs == [6, 8, 8, 9, 11]
+    best = {(a, b) for a, b, _ in found[0]}
+
+    left, right = compute(s, "g", "g.iter_spanning_arborescences()")
+    s.graph(place(MINA, left, unit=UNIT),
+            [(a, b, {"style": "accent" if (a, b) in best else "muted", "weight": _num(w),
+                     **({"bend": 12} if (b, a) in {(x, y) for x, y, _ in MINA_ARCS} else {})})
+             for a, b, w in MINA_ARCS],
+            directed=True, styles={"A": "soft"})
+    lines = [f"{_num(c):<3} {_arrows(t)}" for c, t in zip(costs, found)]
+    s.card_centered(right, [(lines[0], "accent")] + lines[1:], title="cheapest first")
+
+
+# to_nested_tuple docstring tree, rooted at A; one color per child subtree.
+NESTED = {"A": (1.5, 0), "B": (0.5, 1), "C": (1.5, 1), "D": (2.5, 1), "E": (0, 2),
+          "F": (1, 2), "G": (2.5, 2)}
+NESTED_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("B", "F"), ("D", "G")]
+NESTED_COLORS = {"B": "g2", "E": "g2", "F": "g2", "C": "g3", "D": "g4", "G": "g4"}
+
+
+@figure("to_nested_tuple", "substructures", "To nested tuple",
+        "A tree rooted at A, outlined in the accent color, with children B, C and D. B has "
+        "two leaf children E and F, drawn in teal; C is a leaf, in violet; D has one leaf "
+        "child G, in gold. The card writes each child's subtree as a tuple of its "
+        "children's tuples, in the same colors: B is ((), ()), C is () and D is ((),). "
+        "Together they give the result (((), ()), (), ((),)).")
+def to_nested_tuple(s: Scene) -> None:
+    t = _ec_graph(list(NESTED), NESTED_EDGES)
+    code = t.to_nested_tuple("A")
+    assert code == (((), ()), (), ((),))
+    left, right = compute(s, "g", 'g.to_nested_tuple("A")')
+    s.graph(place(NESTED, left, unit=UNIT),
+            [(a, b, {"style": NESTED_COLORS[b]}) for a, b in NESTED_EDGES],
+            styles={"A": "soft", **NESTED_COLORS})
+    s.card_centered(right, [(f"{k}  {sub}", NESTED_COLORS[k])
+                            for k, sub in zip("BCD", map(str, code))]
+                    + [(str(code), "accent")], title="children of A, in order")
+
+
+FROM_NESTED = ((), ((), ()))
+FROM_NESTED_POS = {"1": (1, 0), "2": (0, 1), "3": (2, 1), "4": (1.5, 2), "5": (2.5, 2)}
+FROM_NESTED_COLORS = {"2": "g2", "3": "g3", "4": "g3", "5": "g3"}
+
+
+@figure("from_nested_tuple", "substructures", "From nested tuple",
+        "Left: a card with the nested tuple ((), ((), ())), whose two entries are the "
+        "children of the root: the empty tuple, a leaf, in teal, and ((), ()), a node with "
+        "two leaves, in violet. Right: the tree it builds, with nodes numbered depth first: "
+        "the root 1, outlined in the accent color, the leaf 2 in teal and node 3 with its "
+        "leaves 4 and 5 in violet.")
+def from_nested_tuple(s: Scene) -> None:
+    import edgecase as ec
+
+    t = ec.Graph.from_nested_tuple(FROM_NESTED)
+    edges = sorted(_key(a, b) for a, b, _ in _ec_edges(t))
+    assert edges == [("1", "2"), ("1", "3"), ("3", "4"), ("3", "5")]
+    left, right = transform(s, "code", "Graph.from_nested_tuple(code)")
+    s.card_centered(left, [(str(FROM_NESTED), "accent"), ("2  ()", "g2"),
+                           ("3  ((), ())", "g3")], title="children of the root 1")
+    s.graph(place(FROM_NESTED_POS, right, unit=UNIT),
+            [(a, b, {"style": FROM_NESTED_COLORS[b]}) for a, b in edges],
+            styles={"1": "soft", **FROM_NESTED_COLORS})
+
+
+JOIN_LEFT = {"b": (0.5, 0), "a": (0, 1), "c": (1, 1), "x": (2.3, 0)}
+JOIN_RIGHT = {"1": (1.25, 0), "3": (0.5, 1), "2": (0, 2), "4": (1, 2), "5": (2, 1)}
+
+
+@figure("join_trees", "substructures", "Join trees",
+        "Left: two rooted trees, the path a, b, c rooted at its middle node b, in teal, and "
+        "the single node x, in violet; badges mark the roots. Right: the joined tree, with "
+        "the new root 1 in the accent color and edges in the accent color to the old roots, "
+        "now 3 and 5. The path keeps its shape as 2, 3, 4, and badges give each node's old "
+        "label: a, b, c and x.")
+def join_trees(s: Scene) -> None:
+    import edgecase as ec
+
+    path = _ec_graph(["a", "b", "c"], [("a", "b"), ("b", "c")])
+    leaf = ec.Graph().add_nodes(["x"])
+    j = ec.Graph.join_trees([(path, "b"), (leaf, "x")], label_attribute="old")
+    old = {j.get_label_from_id(n): (j.get_node(n).attributes or {}).get("old")
+           for n in j.get_node_ids(limit=None)}
+    assert old == {"1": None, "2": "a", "3": "b", "4": "c", "5": "x"}
+    edges = sorted(_key(a, b) for a, b, _ in _ec_edges(j))
+    assert edges == [("1", "3"), ("1", "5"), ("2", "3"), ("3", "4")]
+
+    left, right = transform(s, 'trees = [(path, "b"), (leaf, "x")]',
+                            'Graph.join_trees(trees, label_attribute="old")')
+    s.graph(place(JOIN_LEFT, left, unit=UNIT), [("a", "b", {"style": "g2"}),
+                                                 ("b", "c", {"style": "g2"})],
+            styles={"a": "g2", "b": "g2", "c": "g2", "x": "g3"}, prefix="l.")
+    for root in ("b", "x"):
+        s.badge("l." + root, "root", where="e")
+    s.graph(place(JOIN_RIGHT, right, unit=UNIT),
+            [(a, b, {"style": "accent" if a == "1" else "g2"}) for a, b in edges],
+            styles={"1": "accent", "2": "g2", "3": "g2", "4": "g2", "5": "g3"}, prefix="r.")
+    for k, v in old.items():
+        if v is not None:
+            s.badge("r." + k, v, color="g3" if v == "x" else "g2")
 
 
 # --- later additions: exact matchings and covers ---------------------------
