@@ -1,0 +1,34 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>To nested tuple</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="525.7" y="38.0" width="196.5" height="120.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 230.69 45.31 L 189.31 86.69" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 242.00 50.00 L 242.00 82.00" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 253.31 45.31 L 294.69 86.69" fill="none" stroke="#facc15" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 170.84 112.31 L 153.16 147.69" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 185.16 112.31 L 202.84 147.69" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 306.00 114.00 L 306.00 146.00" fill="none" stroke="#facc15" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="242.0" cy="34.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="242.0" y="34.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">A</text>
+<circle cx="178.0" cy="98.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="178.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">B</text>
+<circle cx="242.0" cy="98.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="242.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">C</text>
+<circle cx="306.0" cy="98.0" r="16" fill="#2e2b17" stroke="#facc15" stroke-opacity="1" stroke-width="2.25"/>
+<text x="306.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1">D</text>
+<circle cx="146.0" cy="162.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="146.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">E</text>
+<circle cx="210.0" cy="162.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="210.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">F</text>
+<circle cx="306.0" cy="162.0" r="16" fill="#2e2b17" stroke="#facc15" stroke-opacity="1" stroke-width="2.25"/>
+<text x="306.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1">G</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.to_nested_tuple(&quot;A&quot;)</text>
+<text x="539.7" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">children of A, in order</text>
+<text x="539.7" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1.0">B  ((), ())</text>
+<text x="539.7" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1.0">C  ()</text>
+<text x="539.7" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#facc15" fill-opacity="1.0">D  ((),)</text>
+<text x="539.7" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">(((), ()), (), ((),))</text>
+</svg>
