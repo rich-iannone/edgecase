@@ -26811,6 +26811,135 @@ class Graph:
             )
         return result, dict(alpha)
 
+    def junction_tree(self) -> "Graph":
+        r"""
+        Build a junction tree (clique tree) of the graph.
+
+        ![Junction tree](/assets/graphs/junction-tree.light.svg){.lightbox fig-alt="Left: a directed network where D and I point to G, I points to S and G points to L. Moralizing adds the dashed edge D to I between the two parents of G, and the maximal cliques are tinted regions: D, I, G in the accent color, I, S in teal and G, L in violet. Right: the junction tree as a row C2, S1, C1, S2, C3. The clique nodes take their region colors and are labeled with their members, and each separator between two cliques holds the node they share, I or G." width="100%"}
+
+        A junction tree arranges the maximal cliques of a chordal graph into a tree so that
+        the cliques holding any given node form a connected subtree (the *running
+        intersection property*). Between every two adjacent cliques sits a *separator* node
+        holding the nodes they share. Junction trees are the data structure behind exact
+        inference in probabilistic graphical models (the junction tree algorithm passes
+        messages between cliques through the separators), and behind many dynamic programs
+        over tree decompositions.
+
+        The graph is first made suitable: a directed graph (such as a Bayesian network) is
+        replaced by its moral graph (see `moral_graph()`), and the result is made chordal by
+        adding fill edges (see `complete_to_chordal_graph()`). Its maximal cliques become the
+        clique nodes, and they are linked by a maximum spanning tree of the clique graph,
+        where two cliques are joined with weight equal to the number of nodes they share.
+
+        The result has nodes of two kinds. Clique nodes are labeled `"C1"`, `"C2"`, ... and
+        separator nodes `"S1"`, `"S2"`, ...; their `type` is `"clique"` or `"sepset"`, and a
+        `nodes` attribute lists the labels of the original nodes they contain. Each separator
+        has exactly two neighbors, the cliques it joins. A disconnected graph gives a forest,
+        one junction tree per component.
+
+        Returns
+        -------
+        Graph
+            A new undirected, unweighted graph with the clique and separator nodes.
+
+        Technical Notes
+        ---------------
+        The triangulation uses MCS-M (as `complete_to_chordal_graph()` does), and the maximal
+        cliques of the chordal result are read off a perfect elimination ordering in linear
+        time. A spanning tree of the clique graph satisfies the running intersection property
+        exactly when it has maximum total separator size (Jensen and Jensen, 1994), so
+        Kruskal's algorithm on the clique pairs that share a node finds one. The cost is
+        dominated by the clique pairs, at most $O(c^2)$ for $c \le V$ cliques. NetworkX names
+        nodes by their contents (sorted tuples), so equal separators on different tree edges
+        share one node there; here every tree edge gets its own separator, which keeps the
+        labels short and gives each separator exactly two neighbors. The cliques, and the
+        clique pairs the tree joins, are the same as NetworkX's when ties are broken alike.
+
+        Examples
+        --------
+        The classic "student" Bayesian network: difficulty and intelligence determine the
+        grade, intelligence also drives the SAT score, and the grade determines the letter.
+        Moralizing marries difficulty and intelligence, the parents of grade:
+
+        ```{python}
+        import edgecase as ec
+
+        bn = ec.Graph(directed=True).add_nodes(["D", "I", "G", "S", "L"])
+        bn.add_edges([("D", "G"), ("I", "G"), ("I", "S"), ("G", "L")])
+
+        jt = bn.junction_tree()
+        {
+            jt.get_label_from_id(n): jt.get_node(n).attributes["nodes"]
+            for n in sorted(jt.get_node_ids(limit=None))
+        }
+        ```
+
+        Each separator joins two cliques:
+
+        ```{python}
+        jt.get_edges_str_repr(use_labels=True)
+        ```
+
+        A 4-cycle is not chordal. One fill edge splits it into two triangles, which share
+        the two ends of that edge:
+
+        ```{python}
+        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        jt = square.junction_tree()
+        [jt.get_node(n).attributes["nodes"] for n in sorted(jt.get_node_ids(limit=None))]
+        ```
+        """
+        with self._no_recording():
+            base = self.moral_graph() if self.is_directed() else self
+        chords, _ = rust.complete_to_chordal(base._graph)
+        cliques = rust.chordal_graph_cliques(rust.with_extra_edges(base._graph, chords))
+
+        # Clique pairs sharing a node, in NetworkX's order, weighted by the shared count
+        containing: dict[int, list[int]] = {}
+        for i, clique in enumerate(cliques):
+            for node in clique:
+                containing.setdefault(node, []).append(i)
+        pairs = sorted({(a, b) for ids in containing.values() for a in ids for b in ids if a < b})
+        sets = [set(c) for c in cliques]
+        clique_graph = Graph(weighted=True)
+        clique_graph.add_nodes(range(len(cliques)))
+        clique_graph.add_edges(
+            [(str(a), str(b), float(len(sets[a] & sets[b]))) for a, b in pairs]
+        )
+        tree = clique_graph._graph.kruskal_mst_edges(minimum=False, weight_attr=None)
+
+        def members(ids) -> list[str]:
+            return [self._node_label(n) for n in sorted(ids)]
+
+        result = Graph()
+        result.add_nodes(
+            [(f"C{i + 1}", {"nodes": members(c)}) for i, c in enumerate(cliques)], type="clique"
+        )
+        joins = [pairs[eid - 1] for eid in tree]
+        result.add_nodes(
+            [(f"S{k + 1}", {"nodes": members(sets[a] & sets[b])}) for k, (a, b) in enumerate(joins)],
+            type="sepset",
+        )
+        result.add_edges(
+            [
+                edge
+                for k, (a, b) in enumerate(joins)
+                for edge in ((f"C{a + 1}", f"S{k + 1}"), (f"S{k + 1}", f"C{b + 1}"))
+            ]
+        )
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "junction_tree",
+                "G.junction_tree()",
+                result=len(cliques),
+                narration=(
+                    f"junction_tree(): {len(cliques)} cliques joined by {len(joins)} separators."
+                ),
+            )
+        return result
+
     def find_induced_nodes(self, s: Union[int, str], t: Union[int, str]) -> list[int]:
         """
         Find the nodes on induced paths between two nodes of a chordal graph.
@@ -61032,6 +61161,8 @@ class Graph:
         self,
         weight_attr: str | None = None,
         return_subgraph: bool = True,
+        include: list | None = None,
+        exclude: list | None = None,
     ) -> "Graph | list[str]":
         r"""
         Find the minimum spanning tree using Kruskal's algorithm.
@@ -61057,6 +61188,11 @@ class Graph:
         component. Self-loops are never selected, and among parallel edges only the lightest can
         be chosen. The original graph is not modified.
 
+        With `include=` and `exclude=`, the tree is the cheapest one that uses every included
+        edge and none of the excluded ones (NetworkX's `partition_spanning_tree()`). This
+        answers questions like "what is the cheapest network that keeps this existing link?"
+        and is the building block of `iter_spanning_trees()`.
+
         Parameters
         ----------
         weight_attr
@@ -61067,8 +61203,15 @@ class Graph:
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
-            strings) in the order Kruskal's algorithm picked them, from lightest to heaviest;
-            this is cheaper when you only need to know which edges belong to the tree.
+            strings) in the order Kruskal's algorithm picked them, from lightest to heaviest
+            (included edges first); this is cheaper when you only need to know which edges
+            belong to the tree.
+        include
+            Edges the tree must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge between the two nodes, in either direction). They must not form a cycle.
+        exclude
+            Edges the tree must not contain, given the same way. Excluding edges can disconnect
+            the graph, in which case the result is a spanning forest.
 
         Returns
         -------
@@ -61077,6 +61220,13 @@ class Graph:
             weighting, every node of the original (same IDs, labels and attributes) and the tree
             edges (same IDs, weights and attributes). If `return_subgraph=` is `False`: a list of
             edge ID strings referring to edges of the original graph.
+
+        Raises
+        ------
+        ValueError
+            If the included edges contain a cycle, an edge is both included and excluded, an
+            edge or node pair in `include=`/`exclude=` does not exist, or (with constraints) an
+            edge value is NaN.
 
         Technical Notes
         ---------------
@@ -61153,8 +61303,16 @@ class Graph:
             for e in (roads.get_edge(int(eid)) for eid in ids)
         ]
         ```
+
+        Constraints change the answer. Forcing the expensive diagonal A-C (5) into the tree,
+        and ruling out B-C, gives the cheapest tree that still meets both requirements:
+
+        ```{python}
+        forced = g.minimum_spanning_tree(include=[("A", "C")], exclude=[("B", "C")])
+        sorted(forced.get_edges_str_repr(use_labels=True))
+        ```
         """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=True, weight_attr=weight_attr)
+        edge_ids = self._spanning_tree_ids(True, weight_attr, include, exclude)
 
         if return_subgraph:
             # Every node and the tree edges, keeping IDs, labels, weights and attributes
@@ -61166,6 +61324,8 @@ class Graph:
         self,
         weight_attr: str | None = None,
         return_subgraph: bool = True,
+        include: list | None = None,
+        exclude: list | None = None,
     ) -> "Graph | list[str]":
         r"""
         Find the maximum spanning tree using Kruskal's algorithm.
@@ -61192,6 +61352,10 @@ class Graph:
         graph is disconnected, the result is a maximum spanning *forest*: one tree per connected
         component. Self-loops are never selected. The original graph is not modified.
 
+        With `include=` and `exclude=`, the tree is the heaviest one that uses every included
+        edge and none of the excluded ones (NetworkX's `partition_spanning_tree()` with
+        `minimum=False`).
+
         Parameters
         ----------
         weight_attr
@@ -61202,7 +61366,14 @@ class Graph:
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
-            strings) in the order Kruskal's algorithm picked them, from heaviest to lightest.
+            strings) in the order Kruskal's algorithm picked them, from heaviest to lightest
+            (included edges first).
+        include
+            Edges the tree must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge between the two nodes, in either direction). They must not form a cycle.
+        exclude
+            Edges the tree must not contain, given the same way. Excluding edges can disconnect
+            the graph, in which case the result is a spanning forest.
 
         Returns
         -------
@@ -61211,6 +61382,13 @@ class Graph:
             weighting, every node of the original (same IDs, labels and attributes) and the tree
             edges (same IDs, weights and attributes). If `return_subgraph=` is `False`: a list of
             edge ID strings referring to edges of the original graph.
+
+        Raises
+        ------
+        ValueError
+            If the included edges contain a cycle, an edge is both included and excluded, an
+            edge or node pair in `include=`/`exclude=` does not exist, or (with constraints) an
+            edge value is NaN.
 
         Technical Notes
         ---------------
@@ -61267,14 +61445,210 @@ class Graph:
             for e in (sim.get_edge(int(eid)) for eid in ids)
         ]
         ```
+
+        Excluding the strongest tie, `cat-dog`, forces the backbone to reach `cat` through its
+        next best link:
+
+        ```{python}
+        ids = sim.maximum_spanning_tree(return_subgraph=False, exclude=[("cat", "dog")])
+        [
+            (sim.get_label_from_id(e.source), sim.get_label_from_id(e.target), e.weight)
+            for e in (sim.get_edge(int(eid)) for eid in ids)
+        ]
+        ```
         """
-        edge_ids = self._graph.kruskal_mst_edges(minimum=False, weight_attr=weight_attr)
+        edge_ids = self._spanning_tree_ids(False, weight_attr, include, exclude)
 
         if return_subgraph:
             # Every node and the tree edges, keeping IDs, labels, weights and attributes
             return Graph._from_rust(rust.spanning_subgraph(self._graph, edge_ids))
         else:
             return [str(eid) for eid in edge_ids]
+
+    def iter_spanning_trees(
+        self,
+        minimum: bool = True,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+        return_subgraphs: bool = True,
+    ) -> "Iterator[Graph | list[str]]":
+        r"""
+        Iterate over the spanning trees in order of total weight, lightest first.
+
+        ![Iterate spanning trees](/assets/graphs/iter-spanning-trees.light.svg){.lightbox fig-alt="Left: a weighted square A, B, C, D with sides A–B (1), B–C (2), C–D (3), D–A (4) and the diagonal A–C (5). Right: its eight spanning trees as miniatures in two rows, in the order the iterator yields them, with each tree's edges in the accent color, the unused edges dashed and its total weight underneath: 6, 7, 8, 9 on the top row and 9, 10, 10, 11 below. The first, A–B, B–C, C–D, is the minimum spanning tree." width="100%"}
+
+        `minimum_spanning_tree()` finds the single cheapest tree. This method keeps going: it
+        yields the cheapest spanning tree, then the second cheapest, and so on, one at a time
+        and only as far as you iterate (with `minimum=False`, from heaviest to lightest). Every
+        spanning tree is produced exactly once, so exhausting the iterator lists them all, but
+        the point of the ordering is that you can stop early:
+
+        - the `k` best alternatives to the MST, for robust or multi-criteria network design
+          (rank by cost, then pick the best tree that also meets a constraint the MST ignores)
+        - the cheapest tree with a property that is hard to optimize directly, such as a
+          bounded degree or diameter: iterate until a tree passes the test
+        - ranking explanations of tree-structured data by likelihood
+
+        As with `minimum_spanning_tree()`, edge direction is ignored, self-loops are never used
+        and parallel edges count as different trees. `include=` and `exclude=` restrict the
+        iteration to the trees that use every included edge and none of the excluded ones.
+        The iterator works on a snapshot of the edges and weights taken when it is created.
+
+        Parameters
+        ----------
+        minimum
+            If `True` (the default), yield trees from lightest to heaviest; if `False`, from
+            heaviest to lightest.
+        weight_attr
+            Name of the edge attribute to use as the weight. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+        include
+            Edges every tree must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge between the two nodes, in either direction).
+        exclude
+            Edges no tree may contain, given the same way.
+        return_subgraphs
+            If `True` (the default), yield a new `Graph` per tree, with every node of the
+            original and the tree's edges. If `False`, yield the tree's edge IDs as strings,
+            which is much cheaper.
+
+        Returns
+        -------
+        Iterator[Graph] or Iterator[list[str]]
+            The spanning trees in order of total weight. Ties between equally heavy trees come
+            out in a fixed order. When no tree satisfies the constraints, nothing is yielded;
+            an empty or single-node graph yields one tree without edges.
+
+        Raises
+        ------
+        ValueError
+            If the graph is disconnected (it has no spanning tree), an edge value is NaN, an
+            edge is both included and excluded, or an edge or node pair in `include=` or
+            `exclude=` does not exist.
+
+        Technical Notes
+        ---------------
+        Sörensen and Janssens (2005) partition the set of spanning trees. A partition is the
+        set of trees that contain some included edges and avoid some excluded ones, and its
+        cheapest tree comes from Kruskal's algorithm run on the included edges first. After
+        a partition's tree $T$ is yielded, the rest of the partition is split on the open
+        edges $e_1, \dots, e_k$ of $T$: part $i$ includes $e_1, \dots, e_{i-1}$ and excludes
+        $e_i$. Every other tree of the partition lies in exactly one part, so a priority queue
+        of parts keyed by their cheapest tree yields all trees in order, each once. Each tree
+        costs at most $V - 1$ Kruskal runs, $O(V E)$ time after the edges are sorted once.
+        This is NetworkX's `SpanningTreeIterator`.
+
+        Examples
+        --------
+        A weighted square with one diagonal has eight spanning trees. Their weights, in order:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "A", 4.0), ("A", "C", 5.0)]
+        )
+
+        [
+            sum(t.get_edge(e).weight for e in t.get_edge_ids(limit=None))
+            for t in g.iter_spanning_trees()
+        ]
+        ```
+
+        The iterator is lazy, so taking the three cheapest trees doesn't enumerate the rest:
+
+        ```{python}
+        from itertools import islice
+
+        for tree in islice(g.iter_spanning_trees(), 3):
+            print(sorted(tree.get_edges_str_repr(use_labels=True)))
+        ```
+
+        Here the best tree whose nodes all have degree at most 2 (a Hamiltonian path) is the
+        first one that passes the test:
+
+        ```{python}
+        best_path = next(
+            t for t in g.iter_spanning_trees() if max(t.get_degree(n) for n in "ABCD") <= 2
+        )
+        sorted(best_path.get_edges_str_repr(use_labels=True))
+        ```
+
+        Constraints restrict the iteration. Only two trees use the diagonal and avoid A-B:
+
+        ```{python}
+        [
+            sorted(ids)
+            for ids in g.iter_spanning_trees(
+                include=[("A", "C")], exclude=[("A", "B")], return_subgraphs=False
+            )
+        ]
+        ```
+        """
+        trees = rust.SpanningTreeIter(
+            self._graph,
+            minimum,
+            weight_attr,
+            self._constraint_edge_ids(include, "include", True),
+            self._constraint_edge_ids(exclude, "exclude", True),
+        )
+        return self._spanning_results(trees, return_subgraphs)
+
+    def _spanning_results(self, trees, return_subgraphs: bool):
+        """Turn an iterator of edge-ID lists into subgraphs or edge-ID strings."""
+        for eids in trees:
+            if return_subgraphs:
+                yield Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
+            else:
+                yield [str(e) for e in eids]
+
+    def _constraint_edge_ids(self, specs: list | None, name: str, either_way: bool) -> list[int]:
+        """Edge IDs for an `include=`/`exclude=` list of edge IDs and `(u, v)` node pairs.
+
+        A pair stands for every edge from `u` to `v` (in either direction when `either_way`
+        or the graph is undirected); a pair that matches no edge raises.
+        """
+        if specs is None:
+            return []
+        ids: list[int] = []
+        for spec in specs:
+            if isinstance(spec, (tuple, list)):
+                if len(spec) != 2:
+                    raise ValueError(f"{name}= pairs must have two nodes, got {spec!r}")
+                u, v = spec
+                found = self.find_edge_ids(u, v)
+                if either_way and self.is_directed():
+                    found = found + [e for e in self.find_edge_ids(v, u) if e not in found]
+                if not found:
+                    raise ValueError(f"{name}= refers to a missing edge {u!r}-{v!r}")
+                ids.extend(found)
+            elif isinstance(spec, (int, str)) and not isinstance(spec, bool):
+                try:
+                    ids.append(int(spec))
+                except ValueError:
+                    raise ValueError(f"{name}= holds an invalid edge ID {spec!r}") from None
+            else:
+                raise TypeError(
+                    f"{name}= entries must be edge IDs or (u, v) node pairs, got {spec!r}"
+                )
+        return list(dict.fromkeys(ids))
+
+    def _spanning_tree_ids(
+        self, minimum: bool, weight_attr: str | None, include: list | None, exclude: list | None
+    ) -> list[int]:
+        """Kruskal edge IDs, with the `include=`/`exclude=` partition when one is given."""
+        if include is None and exclude is None:
+            return self._graph.kruskal_mst_edges(minimum=minimum, weight_attr=weight_attr)
+        return rust.partition_spanning_tree(
+            self._graph,
+            minimum,
+            weight_attr,
+            self._constraint_edge_ids(include, "include", True),
+            self._constraint_edge_ids(exclude, "exclude", True),
+        )
 
     def _steiner_result(
         self,
@@ -61895,13 +62269,26 @@ class Graph:
     # Edge Type Analysis
     # ==============================================================================
 
-    def _branching(self, kind: str, method: str, weight_attr: str | None) -> "Graph":
+    def _branching(
+        self,
+        kind: str,
+        method: str,
+        weight_attr: str | None,
+        include: list | None = None,
+        exclude: list | None = None,
+    ) -> "Graph":
         """Shared driver for the four Edmonds branching and arborescence methods."""
-        eids = rust.optimum_branching(self._graph, kind, weight_attr)
-        result = Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
-        code = (
-            f"G.{method}()" if weight_attr is None else f"G.{method}(weight_attr={weight_attr!r})"
+        eids = rust.optimum_branching(
+            self._graph,
+            kind,
+            weight_attr,
+            self._constraint_edge_ids(include, "include", False),
+            self._constraint_edge_ids(exclude, "exclude", False),
         )
+        result = Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
+        args = [f"weight_attr={weight_attr!r}"] if weight_attr is not None else []
+        args += [f"{k}={v!r}" for k, v in (("include", include), ("exclude", exclude)) if v]
+        code = f"G.{method}({', '.join(args)})"
         values = rust.edge_values(self._graph, eids, weight_attr) if eids else []
         self._record_spanning_result(
             result,
@@ -61941,7 +62328,12 @@ class Graph:
                 narration=narration,
             )
 
-    def maximum_branching(self, weight_attr: str | None = None) -> "Graph":
+    def maximum_branching(
+        self,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+    ) -> "Graph":
         r"""
         Find a maximum-weight branching of a directed graph (Edmonds' algorithm).
 
@@ -61963,8 +62355,9 @@ class Graph:
 
         Only edges with positive weight help, so edges of weight zero or less are never chosen
         and the branching need not span the graph (use `maximum_spanning_arborescence()` to
-        force a single tree that reaches every node). Self-loops are never chosen. The original
-        graph is not modified.
+        force a single tree that reaches every node). `include=` forces edges into the result,
+        whatever their weight, and `exclude=` rules edges out. Self-loops are never chosen. The
+        original graph is not modified.
 
         Parameters
         ----------
@@ -61972,6 +62365,11 @@ class Graph:
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
             weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
             or hold a non-numeric value, count as `1.0`.
+        include
+            Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge from `u` to `v`).
+        exclude
+            Edges the result must not contain, given the same way.
 
         Returns
         -------
@@ -61982,7 +62380,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected or an edge value is NaN.
+            If the graph is undirected, an edge value is NaN, or the included edges don't form a
+            branching (a node with two included in-edges, or an included cycle).
 
         Technical Notes
         ---------------
@@ -62036,9 +62435,16 @@ class Graph:
         g2.maximum_branching().get_edges_str_repr(use_labels=True)
         ```
         """
-        return self._branching("max_branching", "maximum_branching", weight_attr)
+        return self._branching(
+            "max_branching", "maximum_branching", weight_attr, include, exclude
+        )
 
-    def minimum_branching(self, weight_attr: str | None = None) -> "Graph":
+    def minimum_branching(
+        self,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+    ) -> "Graph":
         r"""
         Find a minimum-weight branching of a directed graph (Edmonds' algorithm).
 
@@ -62052,7 +62458,8 @@ class Graph:
         values meaning gains). To connect every node as cheaply as possible, use
         `minimum_spanning_arborescence()` instead.
 
-        Self-loops are never chosen, and the original graph is not modified.
+        `include=` forces edges into the result and `exclude=` rules edges out. Self-loops are
+        never chosen, and the original graph is not modified.
 
         Parameters
         ----------
@@ -62060,6 +62467,11 @@ class Graph:
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
             weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
             or hold a non-numeric value, count as `1.0`.
+        include
+            Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge from `u` to `v`).
+        exclude
+            Edges the result must not contain, given the same way.
 
         Returns
         -------
@@ -62070,7 +62482,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected or an edge value is NaN.
+            If the graph is undirected, an edge value is NaN, or the included edges don't form a
+            branching (a node with two included in-edges, or an included cycle).
 
         Technical Notes
         ---------------
@@ -62101,9 +62514,16 @@ class Graph:
         positive.minimum_branching().count_edges()
         ```
         """
-        return self._branching("min_branching", "minimum_branching", weight_attr)
+        return self._branching(
+            "min_branching", "minimum_branching", weight_attr, include, exclude
+        )
 
-    def maximum_spanning_arborescence(self, weight_attr: str | None = None) -> "Graph":
+    def maximum_spanning_arborescence(
+        self,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+    ) -> "Graph":
         r"""
         Find a maximum-weight spanning arborescence of a directed graph (Edmonds' algorithm).
 
@@ -62119,7 +62539,9 @@ class Graph:
         process (a broadcast or contagion tree, a phylogeny with a common ancestor) and
         dependency parsing, where every word but the root takes exactly one head.
 
-        Self-loops are never chosen, and the original graph is not modified.
+        `include=` and `exclude=` restrict the search to the arborescences that use every
+        included edge and none of the excluded ones. Self-loops are never chosen, and the
+        original graph is not modified.
 
         Parameters
         ----------
@@ -62127,6 +62549,11 @@ class Graph:
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
             weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
             or hold a non-numeric value, count as `1.0`.
+        include
+            Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge from `u` to `v`).
+        exclude
+            Edges the result must not contain, given the same way.
 
         Returns
         -------
@@ -62137,8 +62564,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, or no spanning arborescence
-            exists (no single node can reach all the others).
+            If the graph is undirected, an edge value is NaN, no spanning arborescence
+            exists (no single node can reach all the others), or none uses every included
+            edge and avoids every excluded one.
 
         Technical Notes
         ---------------
@@ -62146,7 +62574,9 @@ class Graph:
         weight): every edge counts as one unit of the first component, so the optimum first
         takes as many edges as possible and only then maximizes the weight. This makes the
         result a spanning arborescence whenever one exists, without adding a large constant to
-        the weights (which would cost floating-point precision). It runs in $O(V E)$ time.
+        the weights (which would cost floating-point precision). Included edges get one more
+        component ranked before both, so the optimum takes all of them whenever it can, and
+        excluded edges are dropped up front. It runs in $O(V E)$ time.
 
         Examples
         --------
@@ -62183,9 +62613,16 @@ class Graph:
             print(err)
         ```
         """
-        return self._branching("max_arborescence", "maximum_spanning_arborescence", weight_attr)
+        return self._branching(
+            "max_arborescence", "maximum_spanning_arborescence", weight_attr, include, exclude
+        )
 
-    def minimum_spanning_arborescence(self, weight_attr: str | None = None) -> "Graph":
+    def minimum_spanning_arborescence(
+        self,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+    ) -> "Graph":
         r"""
         Find a minimum-weight spanning arborescence of a directed graph (Edmonds' algorithm).
 
@@ -62198,7 +62635,10 @@ class Graph:
         broadcast from one site to all others over one-way links?". Edge direction matters:
         an edge `u -> v` can only carry the signal from `u` to `v`.
 
-        Self-loops are never chosen, and the original graph is not modified.
+        With `include=` and `exclude=`, the result is the cheapest spanning arborescence that
+        uses every included edge and none of the excluded ones; `iter_spanning_arborescences()`
+        builds on this to list the arborescences in order of cost. Self-loops are never chosen,
+        and the original graph is not modified.
 
         Parameters
         ----------
@@ -62206,6 +62646,11 @@ class Graph:
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
             weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
             or hold a non-numeric value, count as `1.0`.
+        include
+            Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
+            every edge from `u` to `v`).
+        exclude
+            Edges the result must not contain, given the same way.
 
         Returns
         -------
@@ -62216,8 +62661,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, or no spanning arborescence
-            exists (no single node can reach all the others).
+            If the graph is undirected, an edge value is NaN, no spanning arborescence
+            exists (no single node can reach all the others), or none uses every included
+            edge and avoids every excluded one.
 
         Technical Notes
         ---------------
@@ -62252,8 +62698,129 @@ class Graph:
         ```{python}
         sum(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
         ```
+
+        If the direct link A -> B has to stay in service, `include=` forces it into the tree.
+        B no longer needs C, and the cheapest tree with that link costs 4 + 1 + 3 = 8:
+
+        ```{python}
+        g.minimum_spanning_arborescence(include=[("A", "B")]).get_edges_str_repr(use_labels=True)
+        ```
         """
-        return self._branching("min_arborescence", "minimum_spanning_arborescence", weight_attr)
+        return self._branching(
+            "min_arborescence", "minimum_spanning_arborescence", weight_attr, include, exclude
+        )
+
+    def iter_spanning_arborescences(
+        self,
+        minimum: bool = True,
+        weight_attr: str | None = None,
+        include: list | None = None,
+        exclude: list | None = None,
+        return_subgraphs: bool = True,
+    ) -> "Iterator[Graph | list[str]]":
+        r"""
+        Iterate over the spanning arborescences of a directed graph in order of total weight.
+
+        ![Iterate spanning arborescences](/assets/graphs/iter-spanning-arborescences.light.svg){.lightbox fig-alt="One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest arborescence, A→C, C→B, B→D, is in the accent color. The card lists all five spanning arborescences in the order the iterator yields them, with their costs: 6 for that one, then 8, 8, 9, and 11." width="100%"}
+
+        A spanning arborescence is a directed tree in which one root reaches every node along
+        the edge directions. `minimum_spanning_arborescence()` finds the cheapest one; this
+        method yields the cheapest, then the second cheapest, and so on, lazily (with
+        `minimum=False`, from heaviest to lightest). Every spanning arborescence, over every
+        possible root, comes out exactly once. Ranked arborescences are used for the `k` best
+        parses of a sentence in dependency parsing, for alternative broadcast or command trees
+        over one-way links, and for the most likely origins of a cascade.
+
+        Self-loops are never used, and parallel edges count as different arborescences.
+        `include=` and `exclude=` restrict the iteration to the arborescences that use every
+        included edge and none of the excluded ones. The iterator works on a snapshot of the
+        edges and weights taken when it is created.
+
+        Parameters
+        ----------
+        minimum
+            If `True` (the default), yield arborescences from lightest to heaviest; if `False`,
+            from heaviest to lightest.
+        weight_attr
+            Name of the edge attribute holding the weights. If `None` (the default), each edge's
+            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
+            or hold a non-numeric value, count as `1.0`.
+        include
+            Edges every arborescence must contain, as edge IDs or `(u, v)` node pairs (a pair
+            stands for every edge from `u` to `v`).
+        exclude
+            Edges no arborescence may contain, given the same way.
+        return_subgraphs
+            If `True` (the default), yield a new directed `Graph` per arborescence, with every
+            node of the original and the arborescence's edges. If `False`, yield its edge IDs
+            as strings, which is much cheaper.
+
+        Returns
+        -------
+        Iterator[Graph] or Iterator[list[str]]
+            The spanning arborescences in order of total weight. Ties come out in a fixed
+            order. When none satisfies the constraints, nothing is yielded.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected, an edge value is NaN, the graph has no spanning
+            arborescence at all, an edge is both included and excluded, or an edge or node
+            pair in `include=` or `exclude=` does not exist.
+
+        Technical Notes
+        ---------------
+        This is the partition scheme of Sörensen and Janssens (2005) used by
+        `iter_spanning_trees()`, with Edmonds' algorithm in place of Kruskal's to find the
+        best arborescence of each partition, as in NetworkX's `ArborescenceIterator`. After an
+        arborescence is yielded, its open edges $e_1, \dots, e_k$ split the rest of its
+        partition into parts that include $e_1, \dots, e_{i-1}$ and exclude $e_i$, and a
+        priority queue keyed by each part's best arborescence returns them in order. Each
+        arborescence costs up to $V - 1$ runs of Edmonds' algorithm, $O(V^2 E)$ time.
+
+        Examples
+        --------
+        One-way links between four relay stations, weighted by cost. The three cheapest ways
+        to reach every station, with their costs:
+
+        ```{python}
+        from itertools import islice
+
+        import edgecase as ec
+
+        g = ec.Graph(directed=True, weighted=True)
+        g.add_nodes(["A", "B", "C", "D"])
+        g.add_edges(
+            [
+                ("A", "B", 4.0), ("A", "C", 1.0), ("C", "B", 2.0),
+                ("B", "D", 3.0), ("C", "D", 6.0), ("D", "C", 1.0),
+            ]
+        )
+
+        for tree in islice(g.iter_spanning_arborescences(), 3):
+            cost = sum(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
+            print(cost, tree.get_edges_str_repr(use_labels=True))
+        ```
+
+        Exhausting the iterator counts every spanning arborescence. They all start at A,
+        which has no incoming link, so the count matches `number_of_spanning_trees()` rooted
+        there:
+
+        ```{python}
+        (
+            sum(1 for _ in g.iter_spanning_arborescences(return_subgraphs=False)),
+            g.number_of_spanning_trees(root="A", weighted=False),
+        )
+        ```
+        """
+        trees = rust.ArborescenceIter(
+            self._graph,
+            minimum,
+            weight_attr,
+            self._constraint_edge_ids(include, "include", False),
+            self._constraint_edge_ids(exclude, "exclude", False),
+        )
+        return self._spanning_results(trees, return_subgraphs)
 
     def is_branching(self) -> bool:
         """
@@ -62435,7 +63002,10 @@ class Graph:
         return value
 
     def random_spanning_tree(
-        self, weighted: bool | None = None, seed: int | None = None
+        self,
+        weighted: bool | None = None,
+        seed: int | None = None,
+        multiplicative: bool = True,
     ) -> "Graph":
         r"""
         Draw a random spanning tree of a connected undirected graph.
@@ -62444,12 +63014,17 @@ class Graph:
 
         Every spanning tree is equally likely on an unweighted graph. On a weighted graph (or
         with `weighted=True`), a tree is chosen with probability proportional to the product
-        of its edge weights, so heavier edges are more likely to appear. Random spanning trees
-        are used to generate random mazes, to build sparse random backbones of a network, in
-        Monte Carlo estimates of network reliability, and as a null model for tree-shaped data.
+        of its edge weights, so heavier edges are more likely to appear. With
+        `multiplicative=False`, the probability is proportional to the *sum* of the edge
+        weights instead, a much flatter distribution in which a single heavy edge can't make
+        or break a tree. Random spanning trees are used to generate random mazes, to build
+        sparse random backbones of a network, in Monte Carlo estimates of network reliability,
+        and as a null model for tree-shaped data.
 
-        Self-loops are never chosen, and edges with weight zero are never chosen. Among
-        parallel edges, each is a separate candidate. The original graph is not modified.
+        Self-loops are never chosen. With the product distribution, edges with weight zero are
+        never chosen either; with the sum, they can be, as long as the tree has some positive
+        weight. Among parallel edges, each is a separate candidate. The original graph is not
+        modified.
 
         Parameters
         ----------
@@ -62459,6 +63034,10 @@ class Graph:
         seed
             Seed for the random number generator, for reproducible results. If `None`
             (default), a fresh random tree is drawn on each call.
+        multiplicative
+            If `True` (the default), a weighted draw picks each tree with probability
+            proportional to the product of its edge weights; if `False`, proportional to their
+            sum. Ignored when the draw is unweighted (both are then uniform).
 
         Returns
         -------
@@ -62470,7 +63049,8 @@ class Graph:
         ------
         ValueError
             If the graph is directed, empty, disconnected (counting only positive-weight edges
-            when weighted), or has a negative weight.
+            for a weighted product draw), or has a negative weight, or if every weight is zero
+            in a sum draw.
 
         Technical Notes
         ---------------
@@ -62480,8 +63060,17 @@ class Graph:
         with probability proportional to its weight, the result follows the weighted uniform
         spanning tree distribution exactly, $P(T) \propto \prod_{e \in T} w(e)$. The expected
         running time is the mean hitting time of the random walk, which is close to linear for
-        well-connected graphs. NetworkX also offers an additive (sum of weights) distribution,
-        which is not supported here.
+        well-connected graphs.
+
+        The sum distribution $P(T) \propto \sum_{e \in T} w(e)$ is an exact mixture: pick one
+        edge $e$ with probability proportional to $w(e)\,\tau(G / e)$, the number of trees
+        through it times its weight, then draw a uniform spanning tree of $G$ with $e$
+        contracted and add $e$. By Kirchhoff's theorem $\tau(G / e) / \tau(G)$ is the effective
+        resistance between the ends of $e$ (unit resistors), read from the inverse of the
+        Laplacian with one row and column removed. That inverse costs $O(V^3)$ time and
+        $O(V^2)$ memory, so sum draws suit graphs of up to a few thousand nodes. NetworkX
+        computes the same distribution by sampling edges one at a time from contracted
+        Laplacian determinants, which is exact but slower.
 
         Examples
         --------
@@ -62515,14 +63104,25 @@ class Graph:
         draws = [tri.random_spanning_tree(seed=s) for s in range(3000)]
         sum(t.find_edge_ids("C", "A") == [] for t in draws) / 3000
         ```
+
+        With `multiplicative=False` the same tree weighs `4 + 4 = 8` against `4 + 1 = 5` for
+        each of the others, so it comes up only `8 / 18`, or about 44%, of the time:
+
+        ```{python}
+        draws = [tri.random_spanning_tree(seed=s, multiplicative=False) for s in range(3000)]
+        sum(t.find_edge_ids("C", "A") == [] for t in draws) / 3000
+        ```
         """
-        eids = rust.random_spanning_tree(self._graph, self._use_weights(weighted), seed)
+        use = self._use_weights(weighted)
+        if use and not multiplicative:
+            eids = rust.random_spanning_tree_additive(self._graph, seed)
+        else:
+            eids = rust.random_spanning_tree(self._graph, use, seed)
         result = Graph._from_rust(rust.spanning_subgraph(self._graph, eids))
-        code = (
-            "G.random_spanning_tree()"
-            if seed is None
-            else (f"G.random_spanning_tree(seed={seed!r})")
-        )
+        args = [f"seed={seed!r}"] if seed is not None else []
+        if not multiplicative:
+            args.append("multiplicative=False")
+        code = f"G.random_spanning_tree({', '.join(args)})"
         self._record_spanning_result(
             result,
             "random_spanning_tree",
@@ -62687,6 +63287,322 @@ class Graph:
         graph.add_nodes(labels)
         graph.add_edges([(labels[a], labels[b]) for a, b in edges])
         return graph
+
+    def to_nested_tuple(self, root: Union[int, str], canonical_form: bool = False) -> tuple:
+        """
+        Encode an undirected tree, hanging from `root=`, as nested tuples.
+
+        ![To nested tuple](/assets/graphs/to-nested-tuple.light.svg){.lightbox fig-alt="A tree rooted at A, outlined in the accent color, with children B, C and D. B has two leaf children E and F, drawn in teal; C is a leaf, in violet; D has one leaf child G, in gold. The card writes each child's subtree as a tuple of its children's tuples, in the same colors: B is ((), ()), C is () and D is ((),). Together they give the result (((), ()), (), ((),))." width="100%"}
+
+        The nested tuple code describes the *shape* of a rooted tree without its labels: a leaf
+        is the empty tuple `()`, and a node with `k` children is the tuple of its `k` children's
+        codes. So a root with two leaf children is `((), ())`, and a path of three nodes read
+        from one end is `(((),),)`. The code is a plain Python value, handy for printing,
+        hashing and comparing tree shapes, and `Graph.from_nested_tuple()` turns it back into a
+        tree.
+
+        By default the children appear in ascending order of node ID. With
+        `canonical_form=True`, the children of every node are sorted by their own codes
+        instead, so two rooted trees get the same code exactly when they are isomorphic (the
+        same shape, whatever the labels). That turns rooted tree isomorphism into an equality
+        test and makes the code usable as a dictionary key.
+
+        Parameters
+        ----------
+        root
+            The node (ID or label) to hang the tree from.
+        canonical_form
+            If `True`, sort the children of every node by their codes, giving a canonical code
+            for the rooted tree. If `False` (the default), children follow ascending node ID.
+
+        Returns
+        -------
+        tuple
+            The nested tuple code of the tree rooted at `root=`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or not a tree, or `root=` is not in the graph.
+
+        Technical Notes
+        ---------------
+        One breadth-first pass from the root finds every node's children, and the codes are
+        then assembled bottom-up, so deep trees (long paths) cause no recursion. Sorting for
+        the canonical form compares tuples lexicographically, with shorter tuples first on a
+        common prefix, which is the AHU-style encoding behind linear-time rooted tree
+        isomorphism. NetworkX visits children in set order, which for integer node labels is
+        ascending, so on such trees the default code matches NetworkX's.
+
+        Examples
+        --------
+        Hang a small tree from A: B has two leaves below it, C is a leaf, and D has one:
+
+        ```{python}
+        import edgecase as ec
+
+        t = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F", "G"])
+        t.add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("B", "F"), ("D", "G")])
+        t.to_nested_tuple("A")
+        ```
+
+        The canonical form sorts every list of children, lighter subtrees first:
+
+        ```{python}
+        t.to_nested_tuple("A", canonical_form=True)
+        ```
+
+        The same tree hung from a different node has a different shape:
+
+        ```{python}
+        t.to_nested_tuple("G")
+        ```
+
+        Two differently labeled trees with the same rooted shape get equal canonical codes:
+
+        ```{python}
+        u = ec.Graph().add_nodes(["r", "x", "y", "z", "w", "v", "q"])
+        u.add_edges([("r", "x"), ("r", "y"), ("r", "z"), ("y", "w"), ("z", "v"), ("z", "q")])
+        u.to_nested_tuple("r", canonical_form=True) == t.to_nested_tuple("A", canonical_form=True)
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("to_nested_tuple() requires an undirected tree")
+        root_id = self._node_id_or_raise(root)
+        with self._no_recording():
+            tree = self.is_tree()
+        if not tree:
+            raise ValueError("the graph is not a tree")
+        adjacency: dict[int, list[int]] = {n: [] for n in self.get_node_ids(limit=None)}
+        for _, u, v in self._graph.edges():
+            adjacency[u].append(v)
+            adjacency[v].append(u)
+        parent = {root_id: None}
+        order = [root_id]
+        children: dict[int, list[int]] = {}
+        for u in order:
+            kids = sorted(v for v in adjacency[u] if v != parent[u])
+            children[u] = kids
+            for v in kids:
+                parent[v] = u
+                order.append(v)
+        codes: dict[int, tuple] = {}
+        for u in reversed(order):
+            nested = [codes.pop(v) for v in children[u]]
+            if canonical_form:
+                nested.sort()
+            codes[u] = tuple(nested)
+        result = codes[root_id]
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "to_nested_tuple",
+                f"G.to_nested_tuple({root!r}"
+                + (", canonical_form=True)" if canonical_form else ")"),
+                delta=StepDelta(nodes_selected=[self._node_label(root_id)]),
+                result=result,
+                narration=f"to_nested_tuple(): {result}.",
+            )
+        return result
+
+    @classmethod
+    def from_nested_tuple(cls, sequence: tuple, sensible_relabeling: bool = False) -> "Graph":
+        """
+        Build the rooted tree described by a nested tuple code.
+
+        ![From nested tuple](/assets/graphs/from-nested-tuple.light.svg){.lightbox fig-alt="Left: a card with the nested tuple ((), ((), ())), whose two entries are the children of the root: the empty tuple, a leaf, in teal, and ((), ()), a node with two leaves, in violet. Right: the tree it builds, with nodes numbered depth first: the root 1, outlined in the accent color, the leaf 2 in teal and node 3 with its leaves 4 and 5 in violet." width="100%"}
+
+        This is the decoder for `to_nested_tuple()`: the empty tuple `()` is a single node,
+        and a tuple of `k` codes is a root joined to the roots of the `k` trees they describe.
+        It is a quick way to write down a tree by its shape, such as `((), ((), ()))` for a
+        root with a leaf child and a child that has two leaves.
+
+        The nodes are labeled `"1"` to `"n"` (with IDs `1` to `n`), and the root is always node
+        `"1"`. By default the numbering follows a depth-first walk that finishes each subtree
+        before starting the next; with `sensible_relabeling=True` it goes level by level
+        instead, so the root's children come next, then their children, and so on.
+
+        Parameters
+        ----------
+        sequence
+            The nested tuple code. Lists are accepted in place of tuples.
+        sensible_relabeling
+            If `True`, number the nodes in breadth-first order from the root. If `False` (the
+            default), number them in depth-first order.
+
+        Returns
+        -------
+        Graph
+            A new undirected, unweighted tree with one node per tuple in the code.
+
+        Raises
+        ------
+        TypeError
+            If the code holds something other than tuples or lists.
+
+        Technical Notes
+        ---------------
+        The decoder walks the code with an explicit stack (or a queue, for breadth-first
+        labels), giving each tuple the next node number and an edge to its parent's node, in
+        $O(n)$ time without recursion. NetworkX numbers the nodes from `0`, building the
+        tree with repeated `join_trees()` calls whose default numbering is not a simple walk
+        order; its docs only promise a tree of the same shape, which this also gives. With
+        `sensible_relabeling=True` both visit children in tuple order, so the trees match
+        NetworkX's exactly, with every label shifted up by one.
+
+        Examples
+        --------
+        A root with a leaf and a two-leaf child:
+
+        ```{python}
+        import edgecase as ec
+
+        tree = ec.Graph.from_nested_tuple(((), ((), ())))
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+
+        Breadth-first labels number the levels in turn: the root's children are `"2"` and
+        `"3"`, and the grandchildren `"4"` and `"5"`:
+
+        ```{python}
+        ec.Graph.from_nested_tuple(((), ((), ())), sensible_relabeling=True).get_edges_str_repr(
+            use_labels=True
+        )
+        ```
+
+        Decoding and re-encoding from the root gives the code back:
+
+        ```{python}
+        code = (((), ()), (), ((),))
+        ec.Graph.from_nested_tuple(code).to_nested_tuple("1") == code
+        ```
+        """
+        if not isinstance(sequence, (tuple, list)):
+            raise TypeError(f"a nested tuple code must be a tuple, got {sequence!r}")
+        edges: list[tuple[int, int]] = []
+        count = 0
+        if sensible_relabeling:
+            from collections import deque
+
+            pending = deque([(sequence, 0)])
+            take = pending.popleft
+        else:
+            pending = [(sequence, 0)]
+            take = pending.pop
+        while pending:
+            code, parent = take()
+            count += 1
+            if parent:
+                edges.append((parent, count))
+            kids = list(code)
+            for kid in kids:
+                if not isinstance(kid, (tuple, list)):
+                    raise TypeError(f"a nested tuple code must hold only tuples, got {kid!r}")
+            if not sensible_relabeling:
+                kids.reverse()
+            pending.extend((kid, count) for kid in kids)
+        graph = cls()
+        graph.add_nodes([str(i) for i in range(1, count + 1)])
+        graph.add_edges([(str(a), str(b)) for a, b in edges])
+        return graph
+
+    @classmethod
+    def join_trees(
+        cls,
+        rooted_trees: list,
+        label_attribute: str | None = None,
+        first_label: int = 1,
+    ) -> "Graph":
+        """
+        Join rooted trees under a new common root.
+
+        ![Join trees](/assets/graphs/join-trees.light.svg){.lightbox fig-alt="Left: two rooted trees, the path a, b, c rooted at its middle node b, in teal, and the single node x, in violet; badges mark the roots. Right: the joined tree, with the new root 1 in the accent color and edges in the accent color to the old roots, now 3 and 5. The path keeps its shape as 2, 3, 4, and badges give each node's old label: a, b, c and x." width="100%"}
+
+        Given trees with a chosen root each, this builds the tree that has a fresh root node
+        with an edge to every one of those roots: the trees become the subtrees of the new
+        root. It is the basic way to grow rooted trees from smaller ones, so for example two
+        complete binary trees of height `h` joined this way give one of height `h + 1`, and it
+        is how `from_nested_tuple()` builds a tree from its code.
+
+        The nodes are renumbered, since labels from different trees may clash: the new root is
+        node `1`, labeled `str(first_label)`, and then come the nodes of each tree in turn, in
+        ascending ID order, with IDs `2`, `3`, ... and labels counting up from
+        `first_label + 1`. With `label_attribute=`, each copied node remembers its old label
+        (or its ID, if it had no label) under that attribute. Node and edge attributes and
+        edge weights are copied.
+
+        Parameters
+        ----------
+        rooted_trees
+            A list of `(tree, root)` pairs: a `Graph` and the node (ID or label) of it that
+            becomes a child of the new root. The trees must be all undirected or all directed;
+            they are not checked for being trees.
+        label_attribute
+            Name of a node attribute in which to store the old label of every copied node. If
+            `None` (the default), the old labels are dropped.
+        first_label
+            The number in the root's label; the other labels count up from it. Defaults to `1`,
+            so labels match the node IDs (NetworkX's default is `0`).
+
+        Returns
+        -------
+        Graph
+            A new tree with directedness and weighting of the first tree (undirected and
+            unweighted for an empty list, which gives a single node). On directed trees the new
+            edges point from the new root to the old roots, and on weighted trees they weigh
+            `1.0`.
+
+        Raises
+        ------
+        ValueError
+            If a root is not in its tree, or the trees mix directed and undirected graphs.
+
+        Technical Notes
+        ---------------
+        The join copies every node and edge once, so it runs in $O(V + E)$ time for the total
+        size of the trees. NetworkX numbers the nodes the same way, tree by tree in node
+        order, but adds the root last; here the root comes first (ID `1`), which keeps the
+        root easy to find. With `first_label=0`, the labels are NetworkX's.
+
+        Examples
+        --------
+        Joining a path and a single node under a new root:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
+        leaf = ec.Graph().add_nodes(["x"])
+        joined = ec.Graph.join_trees([(path, "b"), (leaf, "x")], label_attribute="old")
+        joined.get_edges_str_repr(use_labels=True)
+        ```
+
+        The new root is `"1"`, joined to the old roots `b` (now `"3"`) and `x` (now `"5"`).
+        The old labels are kept in the `old` attribute:
+
+        ```{python}
+        {
+            joined.get_label_from_id(n): joined.get_node(n).attributes["old"]
+            for n in sorted(joined.get_node_ids(limit=None))[1:]
+        }
+        ```
+
+        Two complete binary trees of height 2, joined at their roots, form one of height 3:
+
+        ```{python}
+        half = ec.Graph.from_nested_tuple((((), ()), ((), ())))
+        whole = ec.Graph.join_trees([(half, "1"), (half, "1")])
+        whole.to_nested_tuple("1") == ((((), ()), ((), ())), (((), ()), ((), ())))
+        ```
+        """
+        graphs, roots = [], []
+        for pair in rooted_trees:
+            tree, root = pair
+            if not isinstance(tree, Graph):
+                raise TypeError(f"join_trees() expects (Graph, root) pairs, got {pair!r}")
+            graphs.append(tree._graph)
+            roots.append(tree._node_id_or_raise(root))
+        return Graph._from_rust(rust.join_trees(graphs, roots, label_attribute, first_label))
 
     def which_multiple(self) -> list[int]:
         """
