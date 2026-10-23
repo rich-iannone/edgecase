@@ -1481,6 +1481,121 @@ pub fn closeness_centrality(
     Ok(node_ids.iter().zip(scores).map(|(&id, c)| (id, c)).collect())
 }
 
+/// Hop distances from `src` (-1 where unreachable).
+fn hop_distances(adj: &[Vec<usize>], src: usize) -> Vec<i64> {
+    let mut dist = vec![-1i64; adj.len()];
+    let mut queue = std::collections::VecDeque::from([src]);
+    dist[src] = 0;
+    while let Some(v) = queue.pop_front() {
+        for &w in &adj[v] {
+            if dist[w] < 0 {
+                dist[w] = dist[v] + 1;
+                queue.push_back(w);
+            }
+        }
+    }
+    dist
+}
+
+/// Closeness centrality by hop count after inserting (or removing) the undirected edge `u`-`v`,
+/// without changing the graph (NetworkX's `incremental_closeness_centrality`).
+///
+/// With `prev` (the scores before the change), only nodes whose distances can change are
+/// recomputed: if a node is reachable from both `u` and `v` and its distances to them differ by
+/// at most one (before an insertion, after a removal), the edge is on none of its shortest
+/// paths and its score is copied from `prev` (Kas, Carley and Carley, 2013). Without `prev`,
+/// every score is computed. Removing one of several parallel edges changes no distance.
+#[pyfunction]
+#[pyo3(signature = (graph, u, v, insertion=true, wf_improved=true, prev=None))]
+pub fn incremental_closeness_centrality(
+    graph: &Graph,
+    u: u64,
+    v: u64,
+    insertion: bool,
+    wf_improved: bool,
+    prev: Option<FxHashMap<u64, f64>>,
+) -> PyResult<FxHashMap<u64, f64>> {
+    use rayon::prelude::*;
+
+    let mut ids = graph.get_node_ids();
+    ids.sort_unstable();
+    let n = ids.len();
+    let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let index = |id: u64| {
+        idx.get(&id).copied().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("Node {} not found in graph", id))
+        })
+    };
+    let (a, b) = (index(u)?, index(v)?);
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    let mut copies = 0usize;
+    for e in graph.get_edges_internal() {
+        let (s, t) = (idx[&e.source], idx[&e.target]);
+        if (s, t) == (a, b) || (s, t) == (b, a) {
+            copies += 1;
+        }
+        if s != t {
+            adj[s].push(t);
+            adj[t].push(s);
+        }
+    }
+    if !insertion && copies == 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "There is no edge between nodes {} and {} to remove",
+            u, v
+        )));
+    }
+    // the edge changes the adjacency only if it is the first (or last) copy between two nodes
+    let toggles = a != b && copies == usize::from(!insertion);
+    let mut near = None;
+    if insertion {
+        near = Some((hop_distances(&adj, a), hop_distances(&adj, b)));
+    }
+    if toggles {
+        if insertion {
+            adj[a].push(b);
+            adj[b].push(a);
+        } else {
+            adj[a].retain(|&x| x != b);
+            adj[b].retain(|&x| x != a);
+        }
+    }
+    if !insertion {
+        near = Some((hop_distances(&adj, a), hop_distances(&adj, b)));
+    }
+    let (du, dv) = near.unwrap();
+
+    let closeness = |src: usize| {
+        let dist = hop_distances(&adj, src);
+        let (mut total, mut reached) = (0i64, 0usize);
+        for &d in &dist {
+            if d > 0 {
+                total += d;
+                reached += 1;
+            }
+        }
+        if total == 0 || n < 2 {
+            return 0.0;
+        }
+        let r = reached as f64;
+        let mut c = r / total as f64;
+        if wf_improved {
+            c *= r / (n - 1) as f64;
+        }
+        c
+    };
+    let scores: Vec<f64> = (0..n)
+        .into_par_iter()
+        .map(|x| match &prev {
+            Some(p) if du[x] >= 0 && dv[x] >= 0 && (du[x] - dv[x]).abs() <= 1 => {
+                p.get(&ids[x]).copied().unwrap_or(0.0)
+            }
+            _ => closeness(x),
+        })
+        .collect();
+    Ok(ids.iter().copied().zip(scores).collect())
+}
+
 /// Calculate degree centrality for all nodes
 ///
 /// The degree divided by `n - 1`, the largest degree possible in a simple graph. `mode` picks
