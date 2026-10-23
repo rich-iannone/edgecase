@@ -2733,67 +2733,16 @@ impl Graph {
         true
     }
 
-    /// Check if the graph is planar using Euler's formula.
-    /// A planar graph can be drawn on a plane without edge crossings.
-    ///
-    /// Uses necessary conditions:
-    /// - For simple planar graphs: e ≤ 3n - 6 (n ≥ 3)
-    /// - For simple planar graphs without triangles: e ≤ 2n - 4
-    ///
-    /// Note: This is a necessary but not sufficient test. Some non-planar
-    /// graphs may pass this test. For a complete test, use specialized
-    /// planarity testing algorithms (Kuratowski's theorem).
-    ///
-    /// # Returns
-    /// true if graph satisfies planarity conditions, false otherwise
-    #[inline]
+    /// Check if the graph is planar: whether it can be drawn in the plane without edge
+    /// crossings. Exact (the left-right planarity test in `algorithms::planarity`); edge
+    /// direction, self-loops and parallel edges are ignored.
     fn is_planar(&self) -> bool {
-        let n = self.num_nodes();
-        let e = self.num_edges();
-
-        // Empty graph, single node, or very small graphs are planar
-        if n <= 2 {
-            return true;
-        }
-
-        // Must be simple (no self-loops or multi-edges)
-        if !self.is_simple() {
-            return false;
-        }
-
-        // Euler's formula for planar graphs: e ≤ 3n - 6
-        if e > 3 * n - 6 {
-            return false;
-        }
-
-        // If no triangles exist, stricter bound: e ≤ 2n - 4
-        // Check for triangles by looking for 3-cycles
-        let has_triangles = self.has_triangles();
-
-        if !has_triangles && e > 2 * n - 4 {
-            return false;
-        }
-
-        // Passed necessary conditions (but not sufficient)
-        true
-    }
-
-    /// Helper method to check if graph has any triangles (3-cycles)
-    fn has_triangles(&self) -> bool {
-        for (&node, neighbors) in &self.adjacency_list {
-            for &neighbor in neighbors {
-                if let Some(neighbor_neighbors) = self.adjacency_list.get(&neighbor) {
-                    for &third in neighbor_neighbors {
-                        if third != node && self.adjacency_list.get(&third)
-                            .is_some_and(|thirds| thirds.contains(&node))
-                        {
-                            return true;
-                        }
-                    }
-                }
-            }
-        }
-        false
+        let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
+        ids.sort_unstable();
+        let index: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        let edges: Vec<(usize, usize)> =
+            self.edges().into_iter().map(|(_, s, t)| (index[&s], index[&t])).collect();
+        crate::algorithms::planarity::is_planar_edges(ids.len(), &edges)
     }
 
     /// Check if this graph is isomorphic to another graph.
