@@ -121,6 +121,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::approximation::densest_subgraph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::approximation::max_cut, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::match_graphs, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::isomorphism::automorphism_cosets, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::isomorphism::largest_common_subgraph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::simrank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::chain_decomposition, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::dominators, m)?)?;
@@ -132,6 +134,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::small_world, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::negative_edge_cycle, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::find_negative_cycle, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::goldberg_radzik, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::link_scores, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_product, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_power, m)?)?;
@@ -260,6 +263,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     // SimRank* similarity
     m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity_pair, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::simrank::panther_similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::simrank::generate_random_paths, m)?)?;
 
     // Propagation algorithms
     m.add_function(wrap_pyfunction!(algorithms::propagation::personalized_pagerank, m)?)?;
