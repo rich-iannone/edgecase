@@ -30,6 +30,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::centrality::bridging_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::laplacian_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::closeness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::centrality::incremental_closeness_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::degree_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::edge_betweenness_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_queries::multi_source_distances, m)?)?;
@@ -59,6 +60,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::structure_basics::nodes_within, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::traversal::bfs_search, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::traversal::dfs_search, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::traversal::bfs_beam_search, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::traversal::dfs_labeled_search, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::traversal::tree_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::eulerian::eulerian_path, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::eulerian::has_eulerian_path, m)?)?;
@@ -144,6 +147,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::community_extra::fluid_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::kernighan_lin, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::fast_label_propagation, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::semi_synchronous_label_propagation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::lukes_partitioning, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::spread_labels, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::community_levels, m)?)?;
@@ -263,6 +267,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::bipartite::bipartite_degree_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::bipartite::bipartite_closeness_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::bipartite::bipartite_betweenness_centrality, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::bipartite::maximal_extendability, m)?)?;
 
     // Seed module discovery
     m.add_function(wrap_pyfunction!(algorithms::spanning_trees::prize_collecting_steiner_tree, m)?)?;
