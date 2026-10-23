@@ -760,6 +760,13 @@ class TestGroupCentrality:
                     assert ours == pytest.approx(
                         _brute_group_betweenness(G, grp, endpoints=endpoints)
                     )
+                # normalized over ordered pairs: those outside the group, or all n(n - 1)
+                # with endpoints (the NetworkX 3.7 scale)
+                n, scale = len(G), 1 if directed else 2
+                for endpoints, pairs in ((False, (n - 3) * (n - 4)), (True, n * (n - 1))):
+                    ours = g.group_betweenness_centrality(grp_ids, endpoints=endpoints)
+                    ref = _brute_group_betweenness(G, grp, endpoints=endpoints) * scale / pairs
+                    assert ours == pytest.approx(ref)
                 ours_w = gw.group_betweenness_centrality(grp_ids, False)
                 assert ours_w == pytest.approx(_brute_group_betweenness(G, grp, weight="weight"))
                 # (NetworkX's group betweenness is not compared: it deviates from the
@@ -1488,14 +1495,21 @@ class TestProminentGroup:
                     ids = graph.get_node_ids(limit=None)
                     for k in (1, 2, 3):
                         for endpoints in (False, True):
-                            value, group = graph.prominent_group(k, endpoints=endpoints)
+                            # raw scores: with endpoints, prominent_group() and
+                            # group_betweenness_centrality() normalize differently (as in
+                            # NetworkX 3.7)
+                            value, group = graph.prominent_group(
+                                k, endpoints=endpoints, normalized=False
+                            )
                             best = max(
-                                graph.group_betweenness_centrality(list(c), endpoints=endpoints)
+                                graph.group_betweenness_centrality(
+                                    list(c), normalized=False, endpoints=endpoints
+                                )
                                 for c in itertools.combinations(ids, k)
                             )
                             assert value == pytest.approx(best)
                             assert graph.group_betweenness_centrality(
-                                group, endpoints=endpoints
+                                group, normalized=False, endpoints=endpoints
                             ) == pytest.approx(best)
 
     def test_matches_networkx_on_connected_graphs(self):
