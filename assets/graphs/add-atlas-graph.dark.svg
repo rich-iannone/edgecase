@@ -1,0 +1,40 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Atlas graph</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<path d="M 99.20 54.20 L 164.80 54.20" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 88.20 65.20 L 88.20 130.80" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 175.80 65.20 L 175.80 130.80" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 164.80 141.80 L 99.20 141.80" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 388.90 48.37 L 430.10 78.33" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 371.10 48.37 L 329.90 78.33" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 435.59 95.26 L 419.81 143.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 405.40 154.10 L 354.60 154.10" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 340.19 143.64 L 324.41 95.26" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 636.90 48.37 L 678.10 78.33" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 631.39 52.36 L 661.01 143.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 624.61 52.36 L 594.99 143.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 619.10 48.37 L 577.90 78.33" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 683.59 95.26 L 667.81 143.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 678.10 91.26 L 600.50 147.64" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 676.00 84.80 L 580.00 84.80" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 653.40 154.10 L 602.60 154.10" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 655.50 147.64 L 577.90 91.26" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<path d="M 588.19 143.64 L 572.41 95.26" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="88.2" cy="54.2" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="175.8" cy="54.2" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="175.8" cy="141.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="88.2" cy="141.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="380.0" cy="41.9" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="439.0" cy="84.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="416.4" cy="154.1" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="343.6" cy="154.1" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="321.0" cy="84.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="628.0" cy="41.9" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="687.0" cy="84.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="664.4" cy="154.1" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="591.6" cy="154.1" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="569.0" cy="84.8" r="11" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="132.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.add_atlas_graph(index=16)</text>
+<text x="380.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.add_atlas_graph(index=38)</text>
+<text x="628.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.add_atlas_graph(index=52)</text>
+</svg>
