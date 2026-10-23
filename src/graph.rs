@@ -7889,44 +7889,30 @@ impl Graph {
             return Ok(result);
         }
 
-        // Create node index mapping
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let n = node_ids.len();
-        let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (idx, &node_id) in node_ids.iter().enumerate() {
-            node_to_idx.insert(node_id, idx);
-        }
-
-        // Check for disconnected components first
+        // Cluster each connected component on its own: walks never cross between
+        // components, and each component's share of the modularity depends only on
+        // how its own nodes are split, so the best cut per component is also the
+        // best overall. Community IDs run on from one component to the next.
         let components = self.find_connected_components();
-        let num_components = components.values().copied().max().unwrap_or(0) + 1;
-
-        if num_components > 1 {
-            // Return components as communities
-            return Ok(components);
+        let mut members: Vec<Vec<u64>> = Vec::new();
+        let mut slot: FxHashMap<usize, usize> = FxHashMap::default();
+        for &node_id in self.nodes.keys() {
+            let next = members.len();
+            let s = *slot.entry(components[&node_id]).or_insert(next);
+            if s == members.len() {
+                members.push(Vec::new());
+            }
+            members[s].push(node_id);
         }
 
-        // Compute transition probability matrix P
-        #[allow(non_snake_case)]
-        let P = self.compute_transition_matrix(&node_ids, &node_to_idx);
-
-        // Compute t-step transition probabilities P^t
-        #[allow(non_snake_case)]
-        let P_t = self.matrix_power(&P, steps);
-
-        // Compute distance matrix between nodes
-        let distances = self.compute_random_walk_distances(&P_t, &node_ids, &node_to_idx);
-
-        // Hierarchical clustering using Ward's method
-        let dendrogram = self.ward_clustering(&distances, n);
-
-        // Find best partition by maximizing modularity
-        let best_partition = self.find_best_partition(&dendrogram, &node_ids, &node_to_idx);
-
-        // Convert to result format
-        let mut result = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for (idx, &node_id) in node_ids.iter().enumerate() {
-            result.insert(node_id, best_partition[idx]);
+        let mut result = FxHashMap::with_capacity_and_hasher(self.nodes.len(), Default::default());
+        let mut offset = 0;
+        for node_ids in &members {
+            let partition = self.walktrap_component(node_ids, steps);
+            for (&node_id, &c) in node_ids.iter().zip(&partition) {
+                result.insert(node_id, offset + c);
+            }
+            offset += partition.iter().copied().max().map_or(0, |c| c + 1);
         }
 
         Ok(result)
@@ -9562,6 +9548,38 @@ impl Graph {
         }
 
         components
+    }
+
+    /// Walktrap partition of one connected component, as community indices
+    /// (0, 1, ...) aligned with `node_ids`.
+    fn walktrap_component(&self, node_ids: &[u64], steps: usize) -> Vec<usize> {
+        let n = node_ids.len();
+        if n == 1 {
+            return vec![0];
+        }
+        let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        for (idx, &node_id) in node_ids.iter().enumerate() {
+            node_to_idx.insert(node_id, idx);
+        }
+
+        // Compute transition probability matrix P
+        #[allow(non_snake_case)]
+        let P = self.compute_transition_matrix(node_ids, &node_to_idx);
+
+        // Compute t-step transition probabilities P^t
+        #[allow(non_snake_case)]
+        let P_t = self.matrix_power(&P, steps);
+
+        // Compute distance matrix between nodes
+        let distances = self.compute_random_walk_distances(&P_t, node_ids, &node_to_idx);
+
+        // Hierarchical clustering using Ward's method
+        let dendrogram = self.ward_clustering(&distances, n);
+
+        // Find best partition by maximizing modularity (this component's share of
+        // it: the helper sums over `node_ids` only, with the whole graph's degrees
+        // and edge count)
+        self.find_best_partition(&dendrogram, node_ids, &node_to_idx)
     }
 
     /// Compute transition probability matrix P
