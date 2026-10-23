@@ -1,0 +1,27 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>From nested tuple</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="93.2" y="48.0" width="177.6" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="362.0" y1="98.0" x2="390.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="398.0,98.0 389.0,102.5 389.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 550.69 45.31 L 509.31 86.69" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 573.31 45.31 L 614.69 86.69" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 618.84 112.31 L 601.16 147.69" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 633.16 112.31 L 650.84 147.69" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="562.0" cy="34.0" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="562.0" y="34.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">1</text>
+<circle cx="498.0" cy="98.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<text x="498.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1">2</text>
+<circle cx="626.0" cy="98.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="626.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1">3</text>
+<circle cx="594.0" cy="162.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="594.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1">4</text>
+<circle cx="658.0" cy="162.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="658.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1">5</text>
+<text x="182.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">code</text>
+<text x="578.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">Graph.from_nested_tuple(code)</text>
+<text x="107.2" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">children of the root 1</text>
+<text x="107.2" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">((), ((), ()))</text>
+<text x="107.2" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">2  ()</text>
+<text x="107.2" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">3  ((), ())</text>
+</svg>
