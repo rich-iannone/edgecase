@@ -7,6 +7,7 @@ import random
 
 import edgecase as ec
 import networkx as nx
+import numpy as np
 import pytest
 from edgecase import Graph
 from edgecase.steps import KIND_METRIC, KIND_QUERY
@@ -493,6 +494,89 @@ class TestHITSCentrality:
 
         # Hubs should have similar high scores
         assert hub["hub1"] == pytest.approx(hub["hub2"], rel=0.1)
+
+
+class TestHITSWeighted:
+    """weighted= on HITS, checked against NetworkX's hits() (which always reads weights)."""
+
+    @staticmethod
+    def _sum_to_one(G, scores):
+        total = sum(scores.values())
+        return {G.get_label_from_id(nid): v / total for nid, v in scores.items()}
+
+    @pytest.mark.parametrize("seed", range(30))
+    def test_matches_networkx(self, seed):
+        rnd = random.Random(seed)
+        n = rnd.randint(3, 10)
+        nxg = nx.MultiDiGraph() if seed % 3 == 0 else nx.DiGraph()
+        nxg.add_nodes_from(range(n))
+        for _ in range(rnd.randint(2, 3 * n)):
+            u, v = rnd.randrange(n), rnd.randrange(n)
+            nxg.add_edge(u, v, weight=rnd.choice([0.5, 1.0, 2.0, 3.5]))
+        # With a repeated top singular value the scores are not unique, and NetworkX's SVD
+        # may return any vector in that space; power iteration from all ones picks one. A
+        # near tie is unique but converges too slowly for a tight comparison
+        sv = np.linalg.svd(nx.to_numpy_array(nxg, weight="weight"), compute_uv=False)
+        if sv[1] > 0.95 * sv[0]:
+            pytest.skip("top singular value is (nearly) repeated")
+        try:
+            nx_hub, nx_auth = nx.hits(nxg, max_iter=1000, tol=1e-12)
+        except nx.PowerIterationFailedConvergence:
+            pytest.skip("NetworkX did not converge")
+
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_nodes([str(v) for v in nxg.nodes()])
+        G.add_edges([(str(u), str(v), w) for u, v, w in nxg.edges(data="weight")])
+        hub = self._sum_to_one(G, G.hub_centrality(1000, 1e-12, weighted=True, return_dict=True))
+        auth = self._sum_to_one(
+            G, G.authority_centrality(1000, 1e-12, weighted=True, return_dict=True)
+        )
+        for v in nxg.nodes():
+            assert hub[str(v)] == pytest.approx(nx_hub[v], abs=1e-6)
+            assert auth[str(v)] == pytest.approx(nx_auth[v], abs=1e-6)
+
+    def test_weight_shifts_scores(self):
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_nodes(["A", "B", "C"])
+        G.add_edges([("A", "B", 3.0), ("A", "C", 1.0)])
+
+        plain = _by_label(G, G.authority_centrality(weighted=False, return_dict=True))
+        heavy = _by_label(G, G.authority_centrality(return_dict=True))  # follows the graph
+
+        assert plain["B"] == pytest.approx(plain["C"])
+        assert heavy["B"] == pytest.approx(3 * heavy["C"])
+
+    def test_parallel_edges_add_up(self):
+        """Two A->B edges count like one edge of weight 2, for hubs and authorities alike."""
+        multi = ec.Graph(directed=True)
+        multi.add_nodes(["a", "b", "c"])
+        multi.add_edges([("a", "b"), ("a", "b"), ("a", "c"), ("c", "b")])
+        single = ec.Graph(directed=True, weighted=True)
+        single.add_nodes(["a", "b", "c"])
+        single.add_edges([("a", "b", 2.0), ("a", "c", 1.0), ("c", "b", 1.0)])
+
+        for method in ("hub_centrality", "authority_centrality"):
+            m = _by_label(multi, getattr(multi, method)(return_dict=True))
+            s = _by_label(single, getattr(single, method)(weighted=True, return_dict=True))
+            for v in "abc":
+                assert m[v] == pytest.approx(s[v], abs=1e-6)
+
+    def test_negative_weight_raises(self):
+        G = ec.Graph(directed=True, weighted=True)
+        G.add_nodes(["A", "B"])
+        G.add_edges([("A", "B", -1.0)])
+
+        with pytest.raises(ValueError, match="non-negative"):
+            G.hub_centrality(return_dict=True)
+        # unweighted runs ignore the weight
+        G.hub_centrality(weighted=False, return_dict=True)
+
+    def test_weighted_is_tracked(self):
+        G = ec.Graph(directed=True)
+        G.add_nodes(["A", "B"])
+        G.add_edge("A", "B")
+        G.hub_centrality(weighted=True)
+        assert G._computations[-1] == ("hub_centrality", {"weighted": True}, "hub_centrality")
 
 
 class TestAlphaCentrality:
