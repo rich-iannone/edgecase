@@ -53,6 +53,7 @@ pub mod path_extras;
 pub mod path_queries;
 pub mod paths;
 pub mod percolation;
+pub mod planarity;
 pub mod products;
 pub mod propagation;
 pub mod regularity;
