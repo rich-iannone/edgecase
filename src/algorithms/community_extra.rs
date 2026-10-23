@@ -1,6 +1,7 @@
 //! More community detection and node classification: asynchronous fluid communities,
-//! Kernighan-Lin bisection, fast label propagation, Lukes' optimal tree partitioning, and the
-//! harmonic-function and local-and-global-consistency label spreading classifiers.
+//! Kernighan-Lin bisection, fast and semi-synchronous label propagation, Lukes' optimal tree
+//! partitioning, and the harmonic-function and local-and-global-consistency label spreading
+//! classifiers.
 
 use crate::graph::Graph;
 use pyo3::prelude::*;
@@ -286,6 +287,89 @@ pub fn fast_label_propagation(graph: &Graph, weighted: bool, seed: Option<u64>) 
                 if label[u] != chosen && !queued[u] {
                     queued[u] = true;
                     queue.push_back(u);
+                }
+            }
+        }
+    }
+    let mut map: FxHashMap<usize, usize> = FxHashMap::default();
+    let labels = label
+        .into_iter()
+        .map(|l| {
+            let next = map.len();
+            *map.entry(l).or_insert(next)
+        })
+        .collect();
+    Ok((adj.ids, labels))
+}
+
+/// Semi-synchronous label propagation (Cordasco and Gargano, 2010), NetworkX's
+/// `label_propagation_communities`.
+///
+/// The nodes are colored greedily, highest degree first (ties by ID; a self-loop counts twice),
+/// so no two neighbors share a color. Every node starts with its own label; then, color class
+/// by color class, each node takes the label most common among its distinct neighbors. On a
+/// tie it keeps its label if that is among the best and otherwise takes the highest
+/// (Prec-Max). Nodes of one color are never neighbors, so updating a class at once is the
+/// same as updating its nodes one by one. Stops when every node with neighbors holds one of
+/// its most common neighbor labels. Edge weights and direction are ignored; deterministic.
+#[pyfunction]
+pub fn semi_synchronous_label_propagation(graph: &Graph) -> PyResult<(Vec<u64>, Vec<usize>)> {
+    let adj = Adj::new(graph, false, true);
+    let n = adj.n();
+    let nbrs: Vec<Vec<usize>> = adj.nbrs.iter().map(|l| l.iter().map(|&(u, _)| u).collect()).collect();
+
+    // greedy coloring, largest degree first (NetworkX's greedy_color default)
+    let degree = |v: usize| nbrs[v].len() + usize::from(nbrs[v].contains(&v));
+    let mut order: Vec<usize> = (0..n).collect();
+    order.sort_by_key(|&v| std::cmp::Reverse(degree(v)));
+    let mut color = vec![usize::MAX; n];
+    let mut classes: Vec<Vec<usize>> = Vec::new();
+    let mut taken = vec![usize::MAX; n + 1];
+    for &v in &order {
+        for &u in &nbrs[v] {
+            if color[u] != usize::MAX {
+                taken[color[u]] = v;
+            }
+        }
+        let c = (0..).find(|&c| taken[c] != v).unwrap();
+        color[v] = c;
+        if c == classes.len() {
+            classes.push(Vec::new());
+        }
+        classes[c].push(v);
+    }
+
+    let mut label: Vec<usize> = (0..n).collect();
+    let mut freq = vec![0usize; n];
+    // the labels with the highest count among v's neighbors (v's own label if it has none)
+    let best = |v: usize, label: &[usize], freq: &mut [usize]| -> Vec<usize> {
+        if nbrs[v].is_empty() {
+            return vec![label[v]];
+        }
+        for &u in &nbrs[v] {
+            freq[label[u]] += 1;
+        }
+        let top = nbrs[v].iter().map(|&u| freq[label[u]]).max().unwrap_or(0);
+        let mut out: Vec<usize> = nbrs[v].iter().map(|&u| label[u]).filter(|&l| freq[l] == top).collect();
+        for &u in &nbrs[v] {
+            freq[label[u]] = 0;
+        }
+        out.sort_unstable();
+        out.dedup();
+        out
+    };
+    loop {
+        let done = (0..n).all(|v| nbrs[v].is_empty() || best(v, &label, &mut freq).contains(&label[v]));
+        if done {
+            break;
+        }
+        for class in &classes {
+            for &v in class {
+                let high = best(v, &label, &mut freq);
+                if high.len() == 1 {
+                    label[v] = high[0];
+                } else if !high.contains(&label[v]) {
+                    label[v] = *high.last().unwrap();
                 }
             }
         }
