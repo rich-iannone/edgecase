@@ -223,6 +223,7 @@ reference:
         - Graph.layout_multipartite
         - Graph.layout_bfs
         - Graph.layout_spectral
+        - Graph.layout_planar
         - Graph.layout_spring
         - Graph.layout_kamada_kawai
         - Graph.layout_forceatlas2
@@ -275,6 +276,7 @@ reference:
         - Graph.is_arborescence
         - Graph.is_branching
         - Graph.is_planar
+        - Graph.check_planarity
         - Graph.is_isomorphic
         - Graph.is_regular
         - Graph.is_k_regular
