@@ -1100,6 +1100,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Breadth-first search](/assets/graphs/bfs.light.svg){.lightbox fig-alt="A six-node graph searched breadth-first from A, with nodes in columns by distance from A (0 to 3). Numbered badges give the visit order, which finishes each column before starting the next, and the search tree's edges are in the accent color. The result card lists the order A, B, C, D, E, F." width="100%"}
 ```
 
+### `bfs_beam_edges()` — BFS beam edges
+
+<img src="bfs-beam-edges.light.svg" alt="A six-node tree searched from A (outlined) with a beam of width 1; every node carries its score in a badge. A&#x27;s best neighbor is C (5), not B (1), and C&#x27;s best is F (3), not E (2), so the search follows the accent edges A-C and C-F only. B, and with it the top-scoring D (9), is never reached. The card lists (A, C) and (C, F)." width="570">
+
+```markdown
+![BFS beam edges](/assets/graphs/bfs-beam-edges.light.svg){.lightbox fig-alt="A six-node tree searched from A (outlined) with a beam of width 1; every node carries its score in a badge. A's best neighbor is C (5), not B (1), and C's best is F (3), not E (2), so the search follows the accent edges A-C and C-F only. B, and with it the top-scoring D (9), is never reached. The card lists (A, C) and (C, F)." width="100%"}
+```
+
 ### `bfs_edges()` — BFS edges
 
 <img src="bfs-edges.light.svg" alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined). The tree edges are numbered in discovery order: A finds both B and C before moving on, so C is reached directly from A and the edge B-C is not used; the separate pair E-F is never reached. The card lists (A, B), (A, C), (C, D)." width="570">
@@ -1178,6 +1186,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![DFS edges](/assets/graphs/dfs-edges.light.svg){.lightbox fig-alt="The same graph searched depth-first with no source. The tree edges are numbered in discovery order: from A the search dives to B and then C, so C is reached through B rather than from A, and the edge A-C is not used. It then restarts at E for the separate pair. The card lists (A, B), (B, C), (C, D), (E, F)." width="100%"}
+```
+
+### `dfs_labeled_edges()` — DFS labeled edges
+
+<img src="dfs-labeled-edges.light.svg" alt="A triangle A, B, C with a tail C to D, searched depth-first from A (outlined). The tree edges A-B, B-C and C-D are numbered in the accent color; the dashed edge C-A leads to a node already visited. The card groups the thirteen labeled edges by kind: forward for A, A (the root) and the three tree edges, nontree for B-A, C-B, C-A, D-C and A-C, and reverse as the search backs up from D, C and B and finishes at A." width="570">
+
+```markdown
+![DFS labeled edges](/assets/graphs/dfs-labeled-edges.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched depth-first from A (outlined). The tree edges A-B, B-C and C-D are numbered in the accent color; the dashed edge C-A leads to a node already visited. The card groups the thirteen labeled edges by kind: forward for A, A (the root) and the three tree edges, nontree for B-A, C-B, C-A, D-C and A-C, and reverse as the search backs up from D, C and B and finishes at A." width="100%"}
 ```
 
 ### `dfs_postorder_nodes()` — DFS postorder
@@ -1628,6 +1644,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Girth](/assets/graphs/get-girth.light.svg){.lightbox fig-alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="100%"}
+```
+
+### `goldberg_radzik()` — Goldberg-Radzik shortest paths
+
+<img src="goldberg-radzik.light.svg" alt="Four nodes with directed weighted edges A to B 4, A to C 2, C to B −3 and B to D 1, searched from A (outlined). The shortest-path tree A, C, B, D is in the accent color and each node carries its distance as a badge: C 2, B 2 + (−3) = −1, D 0; the direct edge A to B stays faint. The table lists each node&#x27;s predecessor and distance." width="570">
+
+```markdown
+![Goldberg-Radzik shortest paths](/assets/graphs/goldberg-radzik.light.svg){.lightbox fig-alt="Four nodes with directed weighted edges A to B 4, A to C 2, C to B −3 and B to D 1, searched from A (outlined). The shortest-path tree A, C, B, D is in the accent color and each node carries its distance as a badge: C 2, B 2 + (−3) = −1, D 0; the direct edge A to B stays faint. The table lists each node's predecessor and distance." width="100%"}
 ```
 
 ### `johnson()` — Johnson all-pairs shortest paths
@@ -2126,6 +2150,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![HITS hub scores](/assets/graphs/hub-centrality.light.svg){.lightbox fig-alt="The same five-node directed graph shaded by hub score. A points to B, C and the top authority D and scores 0.82; B and C each point to D and score 0.41; D and E point to no authority and score 0." width="100%"}
+```
+
+### `incremental_closeness_centrality()` — Incremental closeness centrality
+
+<img src="incremental-closeness-centrality.light.svg" alt="A six-node path 1 to 6 drawn as a ring, with the edge e = (1, 6) that would close it dashed; cc, the current closeness scores, is passed in. Nodes 1, 2, 5 and 6 (accent) are at least two hops closer to one end of the new edge than the other, so their closeness is recomputed; nodes 3 and 4 are not, and keep their previous score. The table gives each node&#x27;s score before and after: 1 and 6 rise from 0.33 to 0.56, 2 and 5 from 0.45 to 0.56, and 3 and 4 stay at 0.56. The graph itself is not changed." width="570">
+
+```markdown
+![Incremental closeness centrality](/assets/graphs/incremental-closeness-centrality.light.svg){.lightbox fig-alt="A six-node path 1 to 6 drawn as a ring, with the edge e = (1, 6) that would close it dashed; cc, the current closeness scores, is passed in. Nodes 1, 2, 5 and 6 (accent) are at least two hops closer to one end of the new edge than the other, so their closeness is recomputed; nodes 3 and 4 are not, and keep their previous score. The table gives each node's score before and after: 1 and 6 rise from 0.33 to 0.56, 2 and 5 from 0.45 to 0.56, and 3 and 4 stay at 0.56. The graph itself is not changed." width="100%"}
 ```
 
 ### `katz_centrality()` — Katz centrality
@@ -2658,6 +2690,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Laplacian matrix](/assets/graphs/laplacian-matrix.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C plus a pendant E, each node badged with its degree, and the 5 by 5 Laplacian D minus A. The degrees 2, 3, 3, 3, 1 run down the diagonal (accent), each edge puts -1 in its two cells, and every row sums to 0." width="100%"}
 ```
 
+### `maximal_extendability()` — Maximal extendability
+
+<img src="maximal-extendability.light.svg" alt="A six-node cycle 1 to 6 drawn as a ring. Every single edge belongs to some perfect matching, but the two edges 1-2 and 4-5, in the accent color, cannot be extended: they leave nodes 3 and 6 (teal), which are not joined. The card notes that k = 1 works and k = 2 fails, so the maximal extendability is 1." width="570">
+
+```markdown
+![Maximal extendability](/assets/graphs/maximal-extendability.light.svg){.lightbox fig-alt="A six-node cycle 1 to 6 drawn as a ring. Every single edge belongs to some perfect matching, but the two edges 1-2 and 4-5, in the accent color, cannot be extended: they leave nodes 3 and 6 (teal), which are not joined. The card notes that k = 1 works and k = 2 fails, so the maximal extendability is 1." width="100%"}
+```
+
 ### `modularity_matrix()` — Modularity matrix
 
 <img src="modularity-matrix.light.svg" alt="Two triangles A, B, C and D, E, F joined by the edge C–D, each node badged with its degree, and the 6 by 6 modularity matrix: actual edges minus those expected from the degrees, rounded to one decimal. The positive cells (accent) form one block per triangle plus C–D at 0.4; pairs across the triangles, such as C and E at -0.4, and the diagonal are negative." width="570">
@@ -2796,6 +2836,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Find isomorphism](/assets/graphs/find-isomorphism.light.svg){.lightbox fig-alt="Two directed graphs drawn differently. Graph a is a workflow where fetch points to build and test, and build points to test; graph b has nodes s1, s2, s3 with s1 pointing to s2 and s3, and s2 pointing to s3. Matching colors pair each node of a with its partner in b, and the card returns the mapping fetch to s1 (accent), build to s2 (teal), and test to s3 (violet), under which every edge of a lands on an edge of b." width="100%"}
 ```
 
+### `generate_random_paths()` — Generate random paths
+
+<img src="generate-random-paths.light.svg" alt="Three copies of a six-node cycle, one per sampled path of length 4 (five nodes, seed 2). Each path&#x27;s edges and nodes are in its own color, accent, teal and violet, and filled badges give each node&#x27;s positions along the path, 0 for the start. The first path, 6, 1, 6, 1, 2, steps back and forth before moving on; the third, 5, 6, 5, 6, 5, never leaves one edge." width="570">
+
+```markdown
+![Generate random paths](/assets/graphs/generate-random-paths.light.svg){.lightbox fig-alt="Three copies of a six-node cycle, one per sampled path of length 4 (five nodes, seed 2). Each path's edges and nodes are in its own color, accent, teal and violet, and filled badges give each node's positions along the path, 0 for the start. The first path, 6, 1, 6, 1, 2, steps back and forth before moving on; the third, 5, 6, 5, 6, 5, never leaves one edge." width="100%"}
+```
+
 ### `get_common_neighbors()` — Common neighbors
 
 <img src="get-common-neighbors.light.svg" alt="Nodes B and E are outlined in the accent color; their two shared neighbors C and D are filled in accent, while A (only next to B) and F and G (only next to E) stay plain. The card lists N(B) = A, C, D and N(E) = C, D, F, G, and returns C and D." width="570">
@@ -2898,6 +2946,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Improving edit distance estimates](/assets/graphs/optimize-graph-edit-distance.light.svg){.lightbox fig-alt="Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on other labels, sharing D–E, with an extra node B hanging off E (accent). The search yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the exact distance: insert node B and edge E–B." width="100%"}
+```
+
+### `panther_similarity()` — Panther similarity
+
+<img src="panther-similarity.light.svg" alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a&#x27;s own triangle, then x 0.391 across the bridge. The card ranks them." width="570">
+
+```markdown
+![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. The card ranks them." width="100%"}
 ```
 
 ### `preferential_attachment()` — Preferential attachment
@@ -3490,6 +3546,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Louvain community levels](/assets/graphs/cmty-louvain-levels.light.svg){.lightbox fig-alt="A two-by-four ladder, A to D on top and E to H below. Left, Louvain's first level (seed 0) pairs neighbors along the rails into four communities, A, B in the accent color, C, D in teal, E, F in violet and G, H in gold. Right, the next level merges those pairs into two communities, the left half A, B, E, F (accent) and the right half C, D, G, H (teal)." width="100%"}
 ```
 
+### `cmty_semisync_label_propagation()` — Semi-synchronous label propagation communities
+
+<img src="cmty-semisync-label-propagation.light.svg" alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. The nodes are colored so that no two neighbors share a color, and each color class adopts its neighbors&#x27; most common label at once; with no randomness, the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="570">
+
+```markdown
+![Semi-synchronous label propagation communities](/assets/graphs/cmty-semisync-label-propagation.light.svg){.lightbox fig-alt="Two dense four-node groups, A, B, C, D and E, F, G, H, joined by the single edge D to E. The nodes are colored so that no two neighbors share a color, and each color class adopts its neighbors' most common label at once; with no randomness, the labels settle on the two groups, drawn in the accent color and teal. The card lists community 0 as A, B, C, D and community 1 as E, F, G, H." width="100%"}
+```
+
 ### `cmty_stochastic_block_model()` — Stochastic block model
 
 <img src="cmty-stochastic-block-model.light.svg" alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. A two-block model fitted with seed 7 puts each cluster in its own block, dense inside and sparse between, drawn in the accent color and teal. The card lists block 0 as D, E, F, G and block 1 as A, B, C." width="570">
@@ -3708,6 +3772,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![All triads](/assets/graphs/all-triads.light.svg){.lightbox fig-alt="Left: a directed graph with four nodes, ids 1 to 4, and no edges. Right: one miniature per triad, its three nodes in the accent color and the fourth faded, labeled with the id triple returned: (1, 2, 3), (1, 2, 4), (1, 3, 4), and (2, 3, 4), the 4 ways to choose 3 of 4 nodes." width="100%"}
 ```
 
+### `automorphism_cosets()` — Automorphism cosets
+
+<img src="automorphism-cosets.light.svg" alt="A square with nodes 1, 2, 3, 4 in order around it. Node 1 (accent) can be sent to any of the four corners by a symmetry, so its coset is 1, 2, 3, 4. With node 1 held in place, node 2 can only stay or swap with its opposite neighbor 4 (both teal), so its coset is 2, 4; after that nodes 3 and 4 are fixed. The card lists the cosets and multiplies their sizes, 4 × 2 × 1 × 1 = 8 symmetries." width="570">
+
+```markdown
+![Automorphism cosets](/assets/graphs/automorphism-cosets.light.svg){.lightbox fig-alt="A square with nodes 1, 2, 3, 4 in order around it. Node 1 (accent) can be sent to any of the four corners by a symmetry, so its coset is 1, 2, 3, 4. With node 1 held in place, node 2 can only stay or swap with its opposite neighbor 4 (both teal), so its coset is 2, 4; after that nodes 3 and 4 are fixed. The card lists the cosets and multiplies their sizes, 4 × 2 × 1 × 1 = 8 symmetries." width="100%"}
+```
+
 ### `bipartite_maximum_matching()` — Bipartite maximum matching
 
 <img src="bipartite-maximum-matching.light.svg" alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="570">
@@ -3804,6 +3876,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Find maximal independent sets](/assets/graphs/find-maximal-independent-sets.light.svg){.lightbox fig-alt="Left: a five-node graph, a triangle 2, 3, 5 with pendant nodes 1 and 4. Right: three miniature copies, each highlighting one maximal independent set in the accent color, listed beside it: [1, 3], [1, 4, 5], and [2, 4]." width="100%"}
 ```
 
+### `from_nested_tuple()` — From nested tuple
+
+<img src="from-nested-tuple.light.svg" alt="Left: a card with the nested tuple ((), ((), ())), whose two entries are the children of the root: the empty tuple, a leaf, in teal, and ((), ()), a node with two leaves, in violet. Right: the tree it builds, with nodes numbered depth first: the root 1, outlined in the accent color, the leaf 2 in teal and node 3 with its leaves 4 and 5 in violet." width="570">
+
+```markdown
+![From nested tuple](/assets/graphs/from-nested-tuple.light.svg){.lightbox fig-alt="Left: a card with the nested tuple ((), ((), ())), whose two entries are the children of the root: the empty tuple, a leaf, in teal, and ((), ()), a node with two leaves, in violet. Right: the tree it builds, with nodes numbered depth first: the root 1, outlined in the accent color, the leaf 2 in teal and node 3 with its leaves 4 and 5 in violet." width="100%"}
+```
+
 ### `from_prufer_sequence()` — From Prüfer sequence
 
 <img src="from-prufer-sequence.light.svg" alt="Left: a card with the node names A to F, smallest first, and the sequence D, D, E, E. Each entry joins the smallest remaining leaf to it: A–D, B–D, C–E, and D–E; the last two nodes left, E and F, are then joined. Right: the decoded six-node tree, with D and E, the nodes named in the sequence, and the four edges added for its entries in the accent color, and the final edge E–F plain." width="570">
@@ -3818,6 +3898,46 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Isolates](/assets/graphs/isolates.light.svg){.lightbox fig-alt="Eight nodes with ids 1 to 8, joined by five edges into one chain, except nodes 4 and 6, which touch no edge. Those two isolates are drawn in the accent color, and the card returns their ids [4, 6]." width="100%"}
+```
+
+### `iter_spanning_arborescences()` — Iterate spanning arborescences
+
+<img src="iter-spanning-arborescences.light.svg" alt="One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest arborescence, A→C, C→B, B→D, is in the accent color. The card lists all five spanning arborescences in the order the iterator yields them, with their costs: 6 for that one, then 8, 8, 9, and 11." width="570">
+
+```markdown
+![Iterate spanning arborescences](/assets/graphs/iter-spanning-arborescences.light.svg){.lightbox fig-alt="One-way links between four relay stations, weighted by cost: A→B (4), A→C (1), C→B (2), B→D (3), C→D (6), and D→C (1). The cheapest arborescence, A→C, C→B, B→D, is in the accent color. The card lists all five spanning arborescences in the order the iterator yields them, with their costs: 6 for that one, then 8, 8, 9, and 11." width="100%"}
+```
+
+### `iter_spanning_trees()` — Iterate spanning trees
+
+<img src="iter-spanning-trees.light.svg" alt="Left: a weighted square A, B, C, D with sides A–B (1), B–C (2), C–D (3), D–A (4) and the diagonal A–C (5). Right: its eight spanning trees as miniatures in two rows, in the order the iterator yields them, with each tree&#x27;s edges in the accent color, the unused edges dashed and its total weight underneath: 6, 7, 8, 9 on the top row and 9, 10, 10, 11 below. The first, A–B, B–C, C–D, is the minimum spanning tree." width="570">
+
+```markdown
+![Iterate spanning trees](/assets/graphs/iter-spanning-trees.light.svg){.lightbox fig-alt="Left: a weighted square A, B, C, D with sides A–B (1), B–C (2), C–D (3), D–A (4) and the diagonal A–C (5). Right: its eight spanning trees as miniatures in two rows, in the order the iterator yields them, with each tree's edges in the accent color, the unused edges dashed and its total weight underneath: 6, 7, 8, 9 on the top row and 9, 10, 10, 11 below. The first, A–B, B–C, C–D, is the minimum spanning tree." width="100%"}
+```
+
+### `join_trees()` — Join trees
+
+<img src="join-trees.light.svg" alt="Left: two rooted trees, the path a, b, c rooted at its middle node b, in teal, and the single node x, in violet; badges mark the roots. Right: the joined tree, with the new root 1 in the accent color and edges in the accent color to the old roots, now 3 and 5. The path keeps its shape as 2, 3, 4, and badges give each node&#x27;s old label: a, b, c and x." width="570">
+
+```markdown
+![Join trees](/assets/graphs/join-trees.light.svg){.lightbox fig-alt="Left: two rooted trees, the path a, b, c rooted at its middle node b, in teal, and the single node x, in violet; badges mark the roots. Right: the joined tree, with the new root 1 in the accent color and edges in the accent color to the old roots, now 3 and 5. The path keeps its shape as 2, 3, 4, and badges give each node's old label: a, b, c and x." width="100%"}
+```
+
+### `junction_tree()` — Junction tree
+
+<img src="junction-tree.light.svg" alt="Left: a directed network where D and I point to G, I points to S and G points to L. Moralizing adds the dashed edge D to I between the two parents of G, and the maximal cliques are tinted regions: D, I, G in the accent color, I, S in teal and G, L in violet. Right: the junction tree as a row C2, S1, C1, S2, C3. The clique nodes take their region colors and are labeled with their members, and each separator between two cliques holds the node they share, I or G." width="570">
+
+```markdown
+![Junction tree](/assets/graphs/junction-tree.light.svg){.lightbox fig-alt="Left: a directed network where D and I point to G, I points to S and G points to L. Moralizing adds the dashed edge D to I between the two parents of G, and the maximal cliques are tinted regions: D, I, G in the accent color, I, S in teal and G, L in violet. Right: the junction tree as a row C2, S1, C1, S2, C3. The clique nodes take their region colors and are labeled with their members, and each separator between two cliques holds the node they share, I or G." width="100%"}
+```
+
+### `largest_common_subgraph()` — Largest common subgraph
+
+<img src="largest-common-subgraph.light.svg" alt="Left: graph square, the 4-cycle a, b, c, d, beside graph paw, a triangle x, y, z with a pendant w on z. The biggest induced subgraph they share is a path of three nodes, found 8 ways. The first match is in the accent color in both graphs: x maps to b, z to a and w to d, so the path x, z, w lands on b, a, d. y stays faint; its path is a symmetric copy of x&#x27;s, so it isn&#x27;t listed again." width="570">
+
+```markdown
+![Largest common subgraph](/assets/graphs/largest-common-subgraph.light.svg){.lightbox fig-alt="Left: graph square, the 4-cycle a, b, c, d, beside graph paw, a triangle x, y, z with a pendant w on z. The biggest induced subgraph they share is a path of three nodes, found 8 ways. The first match is in the accent color in both graphs: x maps to b, z to a and w to d, so the path x, z, w lands on b, a, d. y stays faint; its path is a symmetric copy of x's, so it isn't listed again." width="100%"}
 ```
 
 ### `list_triangles()` — List triangles
@@ -4036,6 +4156,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Subgraph isomorphisms](/assets/graphs/subgraph-isomorphisms.light.svg){.lightbox fig-alt="Left: pattern p, a feed-forward loop where A points to B and C and B points to C, beside graph g, a four-node directed network with edges x→y, y→z, x→z, z→w, and y→w. Right: two miniature copies of g, each highlighting one occurrence of the pattern in the accent color, listed beside it: A→x B→y C→z, and A→y B→z C→w." width="100%"}
 ```
 
+### `to_nested_tuple()` — To nested tuple
+
+<img src="to-nested-tuple.light.svg" alt="A tree rooted at A, outlined in the accent color, with children B, C and D. B has two leaf children E and F, drawn in teal; C is a leaf, in violet; D has one leaf child G, in gold. The card writes each child&#x27;s subtree as a tuple of its children&#x27;s tuples, in the same colors: B is ((), ()), C is () and D is ((),). Together they give the result (((), ()), (), ((),))." width="570">
+
+```markdown
+![To nested tuple](/assets/graphs/to-nested-tuple.light.svg){.lightbox fig-alt="A tree rooted at A, outlined in the accent color, with children B, C and D. B has two leaf children E and F, drawn in teal; C is a leaf, in violet; D has one leaf child G, in gold. The card writes each child's subtree as a tuple of its children's tuples, in the same colors: B is ((), ()), C is () and D is ((),). Together they give the result (((), ()), (), ((),))." width="100%"}
+```
+
 ### `to_prufer_sequence()` — To Prüfer sequence
 
 <img src="to-prufer-sequence.light.svg" alt="A tree on node ids 1 to 6: 3–1, 1–5, 5–2, 5–6, and 6–4. Repeatedly removing the smallest leaf and writing down its neighbor removes 2, 3, 1, and 4 in that order (filled order badges), along the four edges in the accent color; removing 3 turns 1 into a leaf, so it goes next. The card shows the removed leaves and the returned sequence [5, 1, 5, 6]." width="570">
@@ -4127,6 +4255,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ```
 
 ## predicates
+
+### `check_planarity()` — Check planarity
+
+<img src="check-planarity.light.svg" alt="Left: a wheel with hub 1 and rim 2 to 6, drawn so that going clockwise around the hub meets 2, 6, 5, 4, 3, which is the hub&#x27;s entry in the embedding that check_planarity() returns with True. Right: the Petersen graph, which is not planar; check_planarity(True) returns False with a counterexample h, shown in the accent color: the graph without node 1 (dashed), a subdivided K3,3 whose six branch nodes are 3, 9, 10 and 4, 7, 8." width="570">
+
+```markdown
+![Check planarity](/assets/graphs/check-planarity.light.svg){.lightbox fig-alt="Left: a wheel with hub 1 and rim 2 to 6, drawn so that going clockwise around the hub meets 2, 6, 5, 4, 3, which is the hub's entry in the embedding that check_planarity() returns with True. Right: the Petersen graph, which is not planar; check_planarity(True) returns False with a counterexample h, shown in the accent color: the graph without node 1 (dashed), a subdivided K3,3 whose six branch nodes are 3, 9, 10 and 4, 7, 8." width="100%"}
+```
 
 ### `could_be_isomorphic()` — Could be isomorphic
 
@@ -4338,10 +4474,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `is_planar()` — Is planar
 
-<img src="is-planar.light.svg" alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross; its 6 edges are within the 3n - 6 bound and is_planar() returns True. Right: the complete graph on five nodes, where the inner star&#x27;s edges cross at the points marked in the accent color; its 10 edges exceed the bound of 9, so is_planar() returns False." width="570">
+<img src="is-planar.light.svg" alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross and is_planar() returns True. Right: the complete bipartite graph K3,3, nodes A, B, C each joined to D, E, F, drawn with a single crossing, marked in the accent color. Its 9 edges are within the 3n - 6 bound of 12, but no drawing avoids every crossing, so is_planar() returns False." width="570">
 
 ```markdown
-![Is planar](/assets/graphs/is-planar.light.svg){.lightbox fig-alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross; its 6 edges are within the 3n - 6 bound and is_planar() returns True. Right: the complete graph on five nodes, where the inner star's edges cross at the points marked in the accent color; its 10 edges exceed the bound of 9, so is_planar() returns False." width="100%"}
+![Is planar](/assets/graphs/is-planar.light.svg){.lightbox fig-alt="Left: the complete graph on four nodes drawn with D inside triangle A B C, so no edges cross and is_planar() returns True. Right: the complete bipartite graph K3,3, nodes A, B, C each joined to D, E, F, drawn with a single crossing, marked in the accent color. Its 9 edges are within the 3n - 6 bound of 12, but no drawing avoids every crossing, so is_planar() returns False." width="100%"}
 ```
 
 ### `is_regular()` — Is regular
@@ -4350,6 +4486,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is regular](/assets/graphs/is-regular.light.svg){.lightbox fig-alt="Left: a six-node cycle; the badges show every node has degree 2, so is_regular() returns True. Right: the same cycle plus a chord between C and F (shown in the accent color), which raises C and F to degree 3 while the rest stay at 2, so is_regular() returns False." width="100%"}
+```
+
+### `is_regular_expander()` — Is regular expander
+
+<img src="is-regular-expander.light.svg" alt="Two 3-regular graphs on six nodes, each with its second eigenvalue, the largest one in absolute value after the degree 3, in a note above it. Left: the prism, two triangles joined by spokes, has eigenvalues down to -2, within the Ramanujan bound 2 sqrt(2), about 2.83, so is_regular_expander() returns True. Right: the complete bipartite graph K3,3, its two sides in the accent color and teal, has eigenvalue -3 because it is bipartite, past the bound, so is_regular_expander() returns False." width="570">
+
+```markdown
+![Is regular expander](/assets/graphs/is-regular-expander.light.svg){.lightbox fig-alt="Two 3-regular graphs on six nodes, each with its second eigenvalue, the largest one in absolute value after the degree 3, in a note above it. Left: the prism, two triangles joined by spokes, has eigenvalues down to -2, within the Ramanujan bound 2 sqrt(2), about 2.83, so is_regular_expander() returns True. Right: the complete bipartite graph K3,3, its two sides in the accent color and teal, has eigenvalue -3 because it is bipartite, past the bound, so is_regular_expander() returns False." width="100%"}
 ```
 
 ### `is_semiconnected()` — Is semiconnected
@@ -4450,6 +4594,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## generators
 
+### `add_atlas_graph()` — Atlas graph
+
+<img src="add-atlas-graph.light.svg" alt="Three graphs from An Atlas of Graphs, on a ring in node order: index 16 is the four-cycle, index 38 the five-cycle, and index 52 the complete graph K5, the last graph on five nodes. The atlas lists all 1253 graphs on up to seven nodes once each, up to isomorphism, ordered by node count, then edge count, then degree sequence." width="570">
+
+```markdown
+![Atlas graph](/assets/graphs/add-atlas-graph.light.svg){.lightbox fig-alt="Three graphs from An Atlas of Graphs, on a ring in node order: index 16 is the four-cycle, index 38 the five-cycle, and index 52 the complete graph K5, the last graph on five nodes. The atlas lists all 1253 graphs on up to seven nodes once each, up to isomorphism, ordered by node count, then edge count, then degree sequence." width="100%"}
+```
+
 ### `add_balanced_tree()` — Balanced tree
 
 <img src="add-balanced-tree.light.svg" alt="Three binary trees side by side for k=2 and heights h=1, 2, and 3: a root with two children, then two more levels of doubling, ending with eight leaves. Every internal node has exactly two children and all leaves sit at the same depth." width="570">
@@ -4474,12 +4626,60 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Binomial tree](/assets/graphs/add-binomial-tree.light.svg){.lightbox fig-alt="Three binomial trees side by side for orders 1, 2, and 3, roots at the top. Each is two copies of the tree before it with one root hung under the other, so the size doubles from 2 to 4 to 8 nodes and the root gains one child per order." width="100%"}
 ```
 
+### `add_bipartite_configuration_model()` — Bipartite configuration model
+
+<img src="add-bipartite-configuration-model.light.svg" alt="Three bipartite configuration models, the first part in an accent top row and the second in a teal bottom row, each node&#x27;s degree in a pill. Three ones on each side give a perfect matching; three twos against two threes give six edges in which the stubs happened to pair into two doubled edges, drawn bowed apart; and 3, 2, 1 against 2, 2, 1, 1 gives six edges with one doubled. Every node meets its degree exactly, and no edge joins two nodes in the same row." width="570">
+
+```markdown
+![Bipartite configuration model](/assets/graphs/add-bipartite-configuration-model.light.svg){.lightbox fig-alt="Three bipartite configuration models, the first part in an accent top row and the second in a teal bottom row, each node's degree in a pill. Three ones on each side give a perfect matching; three twos against two threes give six edges in which the stubs happened to pair into two doubled edges, drawn bowed apart; and 3, 2, 1 against 2, 2, 1, 1 gives six edges with one doubled. Every node meets its degree exactly, and no edge joins two nodes in the same row." width="100%"}
+```
+
+### `add_bipartite_gnm_graph()` — Bipartite G(n1, n2, m) random graph
+
+<img src="add-bipartite-gnm-graph.light.svg" alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes and exactly m=3, 6, and 9 edges, each set of m top-bottom pairs equally likely. Edges only ever run between the rows." width="570">
+
+```markdown
+![Bipartite G(n1, n2, m) random graph](/assets/graphs/add-bipartite-gnm-graph.light.svg){.lightbox fig-alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes and exactly m=3, 6, and 9 edges, each set of m top-bottom pairs equally likely. Edges only ever run between the rows." width="100%"}
+```
+
+### `add_bipartite_gnp_graph()` — Bipartite G(n1, n2, p) random graph
+
+<img src="add-bipartite-gnp-graph.light.svg" alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes, where each of the 12 top-bottom pairs is joined independently with probability p=0.2, 0.5, and 0.8. Edges only ever run between the rows, and their number grows with p, from 2 to 4 to 8." width="570">
+
+```markdown
+![Bipartite G(n1, n2, p) random graph](/assets/graphs/add-bipartite-gnp-graph.light.svg){.lightbox fig-alt="Three random bipartite graphs with three accent top nodes and four teal bottom nodes, where each of the 12 top-bottom pairs is joined independently with probability p=0.2, 0.5, and 0.8. Edges only ever run between the rows, and their number grows with p, from 2 to 4 to 8." width="100%"}
+```
+
+### `add_bipartite_havel_hakimi_graph()` — Bipartite Havel-Hakimi graph
+
+<img src="add-bipartite-havel-hakimi-graph.light.svg" alt="Three bipartite Havel-Hakimi graphs for the same degrees, 3, 2, 1 in the accent top row and 2, 2, 1, 1 in the teal bottom row, each node&#x27;s degree in a pill. Each top node in turn is joined to the bottom nodes with the most degree left, the fewest, or alternately the most and the fewest, so the three variants wire the same six edges differently while every node still meets its pill and no pair is joined twice." width="570">
+
+```markdown
+![Bipartite Havel-Hakimi graph](/assets/graphs/add-bipartite-havel-hakimi-graph.light.svg){.lightbox fig-alt="Three bipartite Havel-Hakimi graphs for the same degrees, 3, 2, 1 in the accent top row and 2, 2, 1, 1 in the teal bottom row, each node's degree in a pill. Each top node in turn is joined to the bottom nodes with the most degree left, the fewest, or alternately the most and the fewest, so the three variants wire the same six edges differently while every node still meets its pill and no pair is joined twice." width="100%"}
+```
+
+### `add_bipartite_preferential_attachment_graph()` — Bipartite preferential attachment graph
+
+<img src="add-bipartite-preferential-attachment-graph.light.svg" alt="Three bipartite preferential attachment graphs in which three accent top nodes bring two edges each, and each edge makes a new teal bottom node with probability p or else picks an existing one in proportion to its degree. At p=1 every edge gets its own node, six in all; at p=0.5 the six edges share three bottom nodes, the busiest taking three; and at p=0 every edge lands on the single node the first edge made, so each top node reaches it twice, drawn as bowed pairs." width="570">
+
+```markdown
+![Bipartite preferential attachment graph](/assets/graphs/add-bipartite-preferential-attachment-graph.light.svg){.lightbox fig-alt="Three bipartite preferential attachment graphs in which three accent top nodes bring two edges each, and each edge makes a new teal bottom node with probability p or else picks an existing one in proportion to its degree. At p=1 every edge gets its own node, six in all; at p=0.5 the six edges share three bottom nodes, the busiest taking three; and at p=0 every edge lands on the single node the first edge made, so each top node reaches it twice, drawn as bowed pairs." width="100%"}
+```
+
 ### `add_caveman_graph()` — Caveman graph
 
 <img src="add-caveman-graph.light.svg" alt="Three caveman graphs side by side, each clique in its own color: two triangles, three triangles, and three complete graphs on four nodes. The cliques are completely separate, with no edges between them, so each one is its own community." width="570">
 
 ```markdown
 ![Caveman graph](/assets/graphs/add-caveman-graph.light.svg){.lightbox fig-alt="Three caveman graphs side by side, each clique in its own color: two triangles, three triangles, and three complete graphs on four nodes. The cliques are completely separate, with no edges between them, so each one is its own community." width="100%"}
+```
+
+### `add_chordal_cycle_graph()` — Chordal cycle graph
+
+<img src="add-chordal-cycle-graph.light.svg" alt="Three chordal cycle graphs on rings of p=5, 7, and 11 nodes, the integers modulo p. Each x is joined to x - 1 and x + 1 around the ring and by a chord to its inverse modulo p, shown in the accent color; 0, 1, and p - 1 are their own inverses, so they get self-loops. Where an inverse is a ring neighbor, as 2 and 3 at p=5 and 3 and 4 or 7 and 8 at p=11, the chord doubles a ring edge, drawn bowed apart." width="570">
+
+```markdown
+![Chordal cycle graph](/assets/graphs/add-chordal-cycle-graph.light.svg){.lightbox fig-alt="Three chordal cycle graphs on rings of p=5, 7, and 11 nodes, the integers modulo p. Each x is joined to x - 1 and x + 1 around the ring and by a chord to its inverse modulo p, shown in the accent color; 0, 1, and p - 1 are their own inverses, so they get self-loops. Where an inverse is a ring neighbor, as 2 and 3 at p=5 and 3 and 4 or 7 and 8 at p=11, the chord doubles a ring edge, drawn bowed apart." width="100%"}
 ```
 
 ### `add_circulant_graph()` — Circulant graph
@@ -4552,6 +4752,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Dual Barabási-Albert graph](/assets/graphs/add-dual-barabasi-albert-graph.light.svg){.lightbox fig-alt="Three dual Barabási-Albert graphs on a ring of eight nodes, where each new node attaches to m1=1 existing node with probability p and to m2=3 otherwise, for p=1, 0.5, and 0. At p=1 every new node brings one edge and the graph is a tree of 7 edges; the mixed p=0.5 gives 13 edges; at p=0 every new node brings three, for 15." width="100%"}
+```
+
+### `add_duplication_divergence_graph()` — Duplication-divergence graph
+
+<img src="add-duplication-divergence-graph.light.svg" alt="Three duplication-divergence graphs on a ring of eight nodes, each grown from a single edge by copying a random node and keeping each of the copy&#x27;s edges with probability p, for p=0.3, 0.6, and 0.9. A copy that keeps no edge is discarded, so the graph stays connected; a higher retention p gives denser graphs with more shared neighbors, 7, 11, and 15 edges here." width="570">
+
+```markdown
+![Duplication-divergence graph](/assets/graphs/add-duplication-divergence-graph.light.svg){.lightbox fig-alt="Three duplication-divergence graphs on a ring of eight nodes, each grown from a single edge by copying a random node and keeping each of the copy's edges with probability p, for p=0.3, 0.6, and 0.9. A copy that keeps no edge is discarded, so the graph stays connected; a higher retention p gives denser graphs with more shared neighbors, 7, 11, and 15 edges here." width="100%"}
 ```
 
 ### `add_extended_barabasi_albert_graph()` — Extended Barabási-Albert graph
@@ -4674,6 +4882,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Hypercube graph](/assets/graphs/add-hypercube-graph.light.svg){.lightbox fig-alt="Three hypercube graphs side by side for d=1, 2, and 3: a single edge, a square, and a cube drawn in perspective. Each dimension doubles the graph, joining every node to its copy, so the d-cube has 2^d nodes and every node has d neighbors." width="100%"}
 ```
 
+### `add_interval_graph()` — Interval graph
+
+<img src="add-interval-graph.light.svg" alt="Three interval graphs, each interval drawn as a faint bar on its own row with its node at the middle. Two nodes are joined when their intervals overlap, touching endpoints included: the third interval of the first set meets neither of the others, and the long second interval of the last set overlaps three of the other four." width="570">
+
+```markdown
+![Interval graph](/assets/graphs/add-interval-graph.light.svg){.lightbox fig-alt="Three interval graphs, each interval drawn as a faint bar on its own row with its node at the middle. Two nodes are joined when their intervals overlap, touching endpoints included: the third interval of the first set meets neither of the others, and the long second interval of the last set overlaps three of the other four." width="100%"}
+```
+
 ### `add_johnson_graph()` — Johnson graph
 
 <img src="add-johnson-graph.light.svg" alt="Three Johnson graphs side by side, each node labeled with its subset. J(3, 1) is a triangle on 0, 1, 2 and J(4, 1) is a complete graph on four singletons; J(4, 2) is a hexagon of the six pairs from 0 to 3, where two pairs are joined when they share one element, so only complementary pairs such as 0,1 and 2,3 stay unjoined." width="570">
@@ -4730,6 +4946,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Lollipop graph](/assets/graphs/add-lollipop-graph.light.svg){.lightbox fig-alt="Three lollipop graphs side by side: a triangle with a one-node tail for m=3 and n=1, a complete graph on four nodes with a two-node tail, and a complete graph on five nodes with a two-node tail. The tail is a path hanging off one node of the clique." width="100%"}
 ```
 
+### `add_margulis_gabber_galil_graph()` — Margulis-Gabber-Galil graph
+
+<img src="add-margulis-gabber-galil-graph.light.svg" alt="Margulis-Gabber-Galil graphs on the n by n grid of coordinate pairs modulo n. Each point (x, y) is joined to eight images under fixed affine maps, so every node has degree 8 counting self-loops, drawn as small loops, and repeated pairs, drawn bowed apart: n=2 and n=3 on a ring, and for n=4 the 4 by 4 grid with only the eight edges of the point (1, 1) shown, in the accent color, reaching its images such as (1, 3) and (3, 1)." width="570">
+
+```markdown
+![Margulis-Gabber-Galil graph](/assets/graphs/add-margulis-gabber-galil-graph.light.svg){.lightbox fig-alt="Margulis-Gabber-Galil graphs on the n by n grid of coordinate pairs modulo n. Each point (x, y) is joined to eight images under fixed affine maps, so every node has degree 8 counting self-loops, drawn as small loops, and repeated pairs, drawn bowed apart: n=2 and n=3 on a ring, and for n=4 the 4 by 4 grid with only the eight edges of the point (1, 1) shown, in the accent color, reaching its images such as (1, 3) and (3, 1)." width="100%"}
+```
+
+### `add_maybe_regular_expander()` — Random regular expander candidate
+
+<img src="add-maybe-regular-expander.light.svg" alt="Three random graphs on a ring of eight nodes built as unions of d / 2 random Hamiltonian cycles that share no edge, for d=2, 4, and 6. Every node has exactly d neighbors; d=2 is a single cycle visiting the nodes in random order. The graph is only likely to be a good expander and is not checked, which is what the maybe means." width="570">
+
+```markdown
+![Random regular expander candidate](/assets/graphs/add-maybe-regular-expander.light.svg){.lightbox fig-alt="Three random graphs on a ring of eight nodes built as unions of d / 2 random Hamiltonian cycles that share no edge, for d=2, 4, and 6. Every node has exactly d neighbors; d=2 is a single cycle visiting the nodes in random order. The graph is only likely to be a good expander and is not checked, which is what the maybe means." width="100%"}
+```
+
 ### `add_mycielski_graph()` — Mycielski graph
 
 <img src="add-mycielski-graph.light.svg" alt="Three Mycielski graphs side by side: a single edge for n=2, a five-cycle for n=3, and the 11-node Grötzsch graph for n=4, drawn as the five-cycle on the outside, a shadow copy of each of its nodes inside, and a hub in the middle joined to every shadow. None of them contains a triangle, yet each needs one more color than the last." width="570">
@@ -4770,6 +5002,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Preferential attachment graph](/assets/graphs/add-pa-graph.light.svg){.lightbox fig-alt="Three preferential attachment graphs on eight nodes, placed on a ring in arrival order, for m=1, 2, and 3 edges per new node. The first node, in the accent color, collects the most links in every panel (degree 6, 5, and 7), showing how early, well-connected nodes become hubs." width="100%"}
 ```
 
+### `add_paley_graph()` — Paley graph
+
+<img src="add-paley-graph.light.svg" alt="Three Paley graphs on the integers modulo a prime p, on a ring. At p=5 two numbers are joined when their difference is a nonzero square, 1 or 4, which gives a five-cycle. At p=3 and p=7, where -1 is not a square, the graph is directed: each pair gets exactly one arc, from x to x plus a nonzero square, making a tournament, a directed triangle at p=3 and 21 arcs at p=7." width="570">
+
+```markdown
+![Paley graph](/assets/graphs/add-paley-graph.light.svg){.lightbox fig-alt="Three Paley graphs on the integers modulo a prime p, on a ring. At p=5 two numbers are joined when their difference is a nonzero square, 1 or 4, which gives a five-cycle. At p=3 and p=7, where -1 is not a square, the graph is directed: each pair gets exactly one arc, from x to x plus a nonzero square, making a tournament, a directed triangle at p=3 and 21 arcs at p=7." width="100%"}
+```
+
+### `add_partial_duplication_graph()` — Partial duplication graph
+
+<img src="add-partial-duplication-graph.light.svg" alt="Three partial duplication graphs on a ring of eight nodes, grown from a triangle on the first three nodes. Each new node copies a random node, keeps each of its edges with probability p=0.5, and links to the original with probability q=0, 0.5, and 1. With q=0 a copy that keeps no edge is left isolated, as three are here; with q=1 every copy stays attached to its original." width="570">
+
+```markdown
+![Partial duplication graph](/assets/graphs/add-partial-duplication-graph.light.svg){.lightbox fig-alt="Three partial duplication graphs on a ring of eight nodes, grown from a triangle on the first three nodes. Each new node copies a random node, keeps each of its edges with probability p=0.5, and links to the original with probability q=0, 0.5, and 1. With q=0 a copy that keeps no edge is left isolated, as three are here; with q=1 every copy stays attached to its original." width="100%"}
+```
+
 ### `add_path_graph()` — Path graph
 
 <img src="add-path-graph.light.svg" alt="Three path graphs side by side: two nodes joined by one edge for n=2, a chain of three nodes for n=3, and a chain of four nodes for n=4. Each is a single line in which the two end nodes have one neighbor and every inner node has two." width="570">
@@ -4794,12 +5042,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Powerlaw cluster graph](/assets/graphs/add-powerlaw-cluster-graph.light.svg){.lightbox fig-alt="Three Holme-Kim graphs on a ring of eight nodes, each new node attaching to m=2 others by preferential attachment, with triad-formation probability p=0, 0.5, and 1. Every panel has 12 edges, but a higher p closes more of them into triangles: 1, 4, and 5 triangles." width="100%"}
 ```
 
+### `add_prefix_tree()` — Prefix tree
+
+<img src="add-prefix-tree.light.svg" alt="Three prefix trees (tries), each node labeled with the character it stands for and hung from an unlabeled root at the top. Paths that share a prefix share its nodes, so ab and ac branch below a single a, and every path ends at the one NIL node at the bottom, as in NetworkX." width="570">
+
+```markdown
+![Prefix tree](/assets/graphs/add-prefix-tree.light.svg){.lightbox fig-alt="Three prefix trees (tries), each node labeled with the character it stands for and hung from an unlabeled root at the top. Paths that share a prefix share its nodes, so ab and ac branch below a single a, and every path ends at the one NIL node at the bottom, as in NetworkX." width="100%"}
+```
+
 ### `add_prism_graph()` — Prism graph
 
 <img src="add-prism-graph.light.svg" alt="Three prism graphs side by side for n=3, 4, and 5, each drawn as an outer n-cycle around an inner n-cycle with n rungs joining matching nodes. That gives 2n nodes and 3n edges: 6 and 9, 8 and 12, 10 and 15." width="570">
 
 ```markdown
 ![Prism graph](/assets/graphs/add-prism-graph.light.svg){.lightbox fig-alt="Three prism graphs side by side for n=3, 4, and 5, each drawn as an outer n-cycle around an inner n-cycle with n rungs joining matching nodes. That gives 2n nodes and 3n edges: 6 and 9, 8 and 12, 10 and 15." width="100%"}
+```
+
+### `add_random_clustered_graph()` — Random clustered graph
+
+<img src="add-random-clustered-graph.light.svg" alt="Three random clustered graphs on a ring of six nodes, where each node asks for a number of plain edges and a number of triangles. One edge each pairs the nodes into three separate edges; one triangle each groups them into two triangles; and one of each gives two triangles plus three more edges, two of which happen to repeat a triangle side and are drawn bowed apart." width="570">
+
+```markdown
+![Random clustered graph](/assets/graphs/add-random-clustered-graph.light.svg){.lightbox fig-alt="Three random clustered graphs on a ring of six nodes, where each node asks for a number of plain edges and a number of triangles. One edge each pairs the nodes into three separate edges; one triangle each groups them into two triangles; and one of each gives two triangles plus three more edges, two of which happen to repeat a triangle side and are drawn bowed apart." width="100%"}
 ```
 
 ### `add_random_degree_sequence_graph()` — Random degree sequence graph
@@ -4818,12 +5082,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Random geometric graph](/assets/graphs/add-random-geometric-graph.light.svg){.lightbox fig-alt="The same seven random points in the unit square joined at radius=0.25, 0.4, and 0.55. A faint dashed circle of that radius surrounds the central node, and two points are joined exactly when they lie within the radius of each other, so edges fill in as the radius grows (1, 6, and 10 edges)." width="100%"}
 ```
 
+### `add_random_internet_as_graph()` — Random Internet AS graph
+
+<img src="add-random-internet-as-graph.light.svg" alt="One random Internet autonomous-system graph on 20 nodes in three tiers. The five tier-1 providers, in the accent color, form a full clique at the top; the mid-level providers, in teal, and the content provider, in a third color, sit in the middle row; and the customers, in a fourth color, sit along the bottom. Customers buy transit from the providers above them, and edges between two nodes of the same kind, the peering links, take its color." width="570">
+
+```markdown
+![Random Internet AS graph](/assets/graphs/add-random-internet-as-graph.light.svg){.lightbox fig-alt="One random Internet autonomous-system graph on 20 nodes in three tiers. The five tier-1 providers, in the accent color, form a full clique at the top; the mid-level providers, in teal, and the content provider, in a third color, sit in the middle row; and the customers, in a fourth color, sit along the bottom. Customers buy transit from the providers above them, and edges between two nodes of the same kind, the peering links, take its color." width="100%"}
+```
+
 ### `add_random_k_out_graph()` — Random k-out graph
 
 <img src="add-random-k-out-graph.light.svg" alt="Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target&#x27;s current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed apart; self-loops are turned off." width="570">
 
 ```markdown
 ![Random k-out graph](/assets/graphs/add-random-k-out-graph.light.svg){.lightbox fig-alt="Three random k-out graphs on a ring of eight nodes in which every node sends k=2 arcs, for alpha=10, 1, and 0.2. Each arc picks its target with weight alpha plus the target's current in-degree, so a smaller alpha concentrates arcs on a few popular nodes: the most popular node receives 5, 6, and 7 arcs. Repeated arcs and opposite arcs are drawn bowed apart; self-loops are turned off." width="100%"}
+```
+
+### `add_random_kernel_graph()` — Random kernel graph
+
+<img src="add-random-kernel-graph.light.svg" alt="Three random kernel graphs on a ring of eight nodes with a constant kernel c, given through its integral c times (z - w), for c=1, 2, and 4. A constant kernel joins each pair with probability about c / n, so the graph fills in as c grows, from one edge to four to twelve." width="570">
+
+```markdown
+![Random kernel graph](/assets/graphs/add-random-kernel-graph.light.svg){.lightbox fig-alt="Three random kernel graphs on a ring of eight nodes with a constant kernel c, given through its integral c times (z - w), for c=1, 2, and 4. A constant kernel joins each pair with probability about c / n, so the graph fills in as c grows, from one edge to four to twelve." width="100%"}
 ```
 
 ### `add_random_labeled_tree()` — Random labeled tree
@@ -4856,6 +5136,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Random power-law tree](/assets/graphs/add-random-powerlaw-tree.light.svg){.lightbox fig-alt="Three random power-law trees on eight nodes for exponent gamma=2, 3, and 5, each hung from its most central node. The degrees are drawn from a power law, so a small gamma gives a heavy tail: the biggest hub has 6 neighbors at gamma=2, 5 at gamma=3, and 3 at gamma=5." width="100%"}
+```
+
+### `add_random_regular_expander_graph()` — Random regular expander graph
+
+<img src="add-random-regular-expander-graph.light.svg" alt="Three random regular expanders on a ring of nine nodes for d=2, 4, and 6. Candidates are built like the maybe-regular expander and kept only once their second eigenvalue meets the Ramanujan bound, so each graph is d-regular and a proven expander: a nine-cycle in shuffled order, then 18 and 27 edges." width="570">
+
+```markdown
+![Random regular expander graph](/assets/graphs/add-random-regular-expander-graph.light.svg){.lightbox fig-alt="Three random regular expanders on a ring of nine nodes for d=2, 4, and 6. Candidates are built like the maybe-regular expander and kept only once their second eigenvalue meets the Ramanujan bound, so each graph is d-regular and a proven expander: a nine-cycle in shuffled order, then 18 and 27 edges." width="100%"}
 ```
 
 ### `add_random_regular_graph()` — Random regular graph
@@ -4914,6 +5202,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Star graph](/assets/graphs/add-star-graph.light.svg){.lightbox fig-alt="Three star graphs side by side: a hub with three spokes for n=4, four spokes for n=5, and six spokes for n=7. The hub is joined to every other node and the spokes are not joined to each other, so n nodes give n - 1 edges." width="100%"}
 ```
 
+### `add_sudoku_graph()` — Sudoku graph
+
+<img src="add-sudoku-graph.light.svg" alt="The 4 by 4 Sudoku graph for n=2 three times, drawn as its grid with a small gap between the 2 by 2 boxes and, in each panel, only the edges of one cell shown, in the accent color. Each cell is joined to the other cells in its row, its column, and its box, seven in all, so a valid Sudoku solution is a proper four-coloring of the graph. Edges along a row or column bow around the cells in between." width="570">
+
+```markdown
+![Sudoku graph](/assets/graphs/add-sudoku-graph.light.svg){.lightbox fig-alt="The 4 by 4 Sudoku graph for n=2 three times, drawn as its grid with a small gap between the 2 by 2 boxes and, in each panel, only the edges of one cell shown, in the accent color. Each cell is joined to the other cells in its row, its column, and its box, seven in all, so a valid Sudoku solution is a proper four-coloring of the graph. Edges along a row or column bow around the cells in between." width="100%"}
+```
+
 ### `add_tadpole_graph()` — Tadpole graph
 
 <img src="add-tadpole-graph.light.svg" alt="Three tadpole graphs side by side: a triangle with a one-node tail for m=3 and n=1, a square with a two-node tail, and a hexagon with a two-node tail. Unlike the lollipop, the head is a plain cycle, so every head node but the one holding the tail has two neighbors." width="570">
@@ -4936,6 +5232,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Turán graph](/assets/graphs/add-turan-graph.light.svg){.lightbox fig-alt="Three Turán graphs on a ring of seven nodes for r=2, 3, and 4 parts, each part in its own color. The seven nodes are split into parts as equal as possible (4 and 3; 3, 2, and 2; 2, 2, 2, and 1) and every pair of nodes in different parts is joined, so the graph gains edges as r grows (12, 16, and 18)." width="100%"}
+```
+
+### `add_visibility_graph()` — Visibility graph
+
+<img src="add-visibility-graph.light.svg" alt="Three natural visibility graphs of short time series, each value drawn as a dashed stem rising from a baseline with its node on top. Two values are joined when the straight line between their tops clears every value in between, so neighbors in time are always joined and a tall value such as the 5 in the last series sees far in both directions." width="570">
+
+```markdown
+![Visibility graph](/assets/graphs/add-visibility-graph.light.svg){.lightbox fig-alt="Three natural visibility graphs of short time series, each value drawn as a dashed stem rising from a baseline with its node on top. Two values are joined when the straight line between their tops clears every value in between, so neighbors in time are always joined and a tall value such as the 5 in the last series sees far in both directions." width="100%"}
 ```
 
 ### `add_waxman_graph()` — Waxman graph
@@ -4962,12 +5266,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Windmill graph](/assets/graphs/add-windmill-graph.light.svg){.lightbox fig-alt="Three windmill graphs side by side, each a hub shared by several blades: three triangles (the friendship graph) for n=3 and k=3, four triangles for n=4, and three complete graphs on four nodes for k=4. Blades meet only at the hub, so removing it leaves n separate pieces." width="100%"}
 ```
 
+### `atlas_graphs()` — Atlas graphs
+
+<img src="atlas-graphs.light.svg" alt="Three slices of the list of all 1253 atlas graphs, four small graphs each, in atlas order. Items 4 to 7 are every graph on three nodes, from no edges to the triangle; items 8 to 11 start the four-node graphs with zero, one, and two edges; items 15 to 18 end them with four, five, and six edges, from the paw to the complete graph." width="570">
+
+```markdown
+![Atlas graphs](/assets/graphs/atlas-graphs.light.svg){.lightbox fig-alt="Three slices of the list of all 1253 atlas graphs, four small graphs each, in atlas order. Items 4 to 7 are every graph on three nodes, from no edges to the triangle; items 8 to 11 start the four-node graphs with zero, one, and two edges; items 15 to 18 end them with four, five, and six edges, from the paw to the complete graph." width="100%"}
+```
+
 ### `configuration_model()` — Configuration model
 
 <img src="configuration-model.light.svg" alt="Three random graphs built to match a degree sequence, each node&#x27;s target degree in a pill: 1, 1, 1, 1 gives two separate edges; 2, 2, 2, 2 gives a four-cycle; and 3, 2, 2, 2, 1 on five nodes includes a doubled edge, because the model pairs edge stubs at random and may create multi-edges. Every node ends with exactly the degree in its pill." width="570">
 
 ```markdown
 ![Configuration model](/assets/graphs/configuration-model.light.svg){.lightbox fig-alt="Three random graphs built to match a degree sequence, each node's target degree in a pill: 1, 1, 1, 1 gives two separate edges; 2, 2, 2, 2 gives a four-cycle; and 3, 2, 2, 2, 1 on five nodes includes a doubled edge, because the model pairs edge stubs at random and may create multi-edges. Every node ends with exactly the degree in its pill." width="100%"}
+```
+
+### `count_nonisomorphic_trees()` — Count non-isomorphic trees
+
+<img src="count-nonisomorphic-trees.light.svg" alt="Left: the three trees on five nodes, the path, the chair, and the star, each drawn with its longest path as a row and any other nodes hanging below. Right: a table of how many trees there are on 3 to 9 nodes, 1, 2, 3, 6, 11, 23, and 47, with the count 3 for five nodes highlighted. The count comes from a formula, without building the trees, and roughly doubles with each added node at these sizes." width="570">
+
+```markdown
+![Count non-isomorphic trees](/assets/graphs/count-nonisomorphic-trees.light.svg){.lightbox fig-alt="Left: the three trees on five nodes, the path, the chair, and the star, each drawn with its longest path as a row and any other nodes hanging below. Right: a table of how many trees there are on 3 to 9 nodes, 1, 2, 3, 6, 11, 23, and 47, with the count 3 for five nodes highlighted. The count comes from a formula, without building the trees, and roughly doubles with each added node at these sizes." width="100%"}
 ```
 
 ### `expected_degree_graph()` — Expected degree graph
@@ -4984,6 +5304,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Stochastic block model](/assets/graphs/generate-stochastic-block-model.light.svg){.lightbox fig-alt="Three stochastic block models with two blocks of four nodes, block one in the accent color on the left and block two in teal on the right, with edge probability 0.9 inside a block and 0, 0.1, and 0.5 between blocks. Both blocks come out fully connected in every panel while the plain cross-block edges grow from none to 2 to 7, blurring the split." width="100%"}
+```
+
+### `iter_nonisomorphic_trees()` — Non-isomorphic trees
+
+<img src="iter-nonisomorphic-trees.light.svg" alt="The trees yielded for order 3, 4, and 5, each drawn with its longest path as a row and any other nodes hanging below. There is one tree on three nodes, the path; two on four nodes, the path and the star; and three on five nodes, the path, the chair, and the star. Every tree on that many nodes looks like exactly one of them." width="570">
+
+```markdown
+![Non-isomorphic trees](/assets/graphs/iter-nonisomorphic-trees.light.svg){.lightbox fig-alt="The trees yielded for order 3, 4, and 5, each drawn with its longest path as a row and any other nodes hanging below. There is one tree on three nodes, the path; two on four nodes, the path and the star; and three on five nodes, the path, the chair, and the star. Every tree on that many nodes looks like exactly one of them." width="100%"}
 ```
 
 ## layout
@@ -5042,6 +5370,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Multipartite layout](/assets/graphs/layout-multipartite.light.svg){.lightbox fig-alt="On the left, a seven-node graph in three layers scattered at random, the layers colored accent, teal and violet. On the right, layout_multipartite('layer') puts each layer in its own column, left to right, so the edges step from one column to the next." width="100%"}
+```
+
+### `layout_planar()` — Planar layout
+
+<img src="layout-planar.light.svg" alt="On the left, the octahedron graph (six nodes, each joined to four others) scattered at random, with several edges crossing. On the right, layout_planar() draws it with no crossings: a large outer triangle of nodes 1, 2 and 4 with the other three nodes inside it." width="570">
+
+```markdown
+![Planar layout](/assets/graphs/layout-planar.light.svg){.lightbox fig-alt="On the left, the octahedron graph (six nodes, each joined to four others) scattered at random, with several edges crossing. On the right, layout_planar() draws it with no crossings: a large outer triangle of nodes 1, 2 and 4 with the other three nodes inside it." width="100%"}
 ```
 
 ### `layout_random()` — Random layout
