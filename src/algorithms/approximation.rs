@@ -1,8 +1,9 @@
 //! Approximation and optimization: traveling salesperson heuristics on the metric closure
-//! (Christofides, nearest neighbor, simulated annealing, threshold accepting), the metric
-//! closure itself, tree decompositions (min-degree and min-fill-in elimination), the densest
-//! subgraph (exact via Goldberg's max-flow reduction, or Greedy++ peeling) and max-cut local
-//! search.
+//! (Christofides, nearest neighbor, simulated annealing, threshold accepting, and Asadpour's
+//! rounding of the Held-Karp relaxation, solved by a dense simplex method with cutting planes),
+//! the metric closure itself, tree decompositions (min-degree and min-fill-in elimination), the
+//! densest subgraph (exact via Goldberg's max-flow reduction, or Greedy++ peeling) and max-cut
+//! local search.
 
 use crate::algorithms::matching_cover::blossom_matching;
 use crate::graph::{Edge, Graph, Node};
@@ -256,6 +257,519 @@ fn local_search(
     best
 }
 
+// ---------------------------------------------------------------------------------------------
+// Asadpour's asymmetric traveling salesperson algorithm
+// ---------------------------------------------------------------------------------------------
+
+const LP_EPS: f64 = 1e-9;
+
+fn lp_pivot(t: &mut [Vec<f64>], obj: &mut [f64], r: usize, c: usize) {
+    let p = t[r][c];
+    for v in t[r].iter_mut() {
+        *v /= p;
+    }
+    let prow = t[r].clone();
+    for (i, row) in t.iter_mut().enumerate() {
+        let f = row[c];
+        if i != r && f != 0.0 {
+            for (v, &pv) in row.iter_mut().zip(&prow) {
+                *v -= f * pv;
+            }
+        }
+    }
+    let f = obj[c];
+    if f != 0.0 {
+        for (v, &pv) in obj.iter_mut().zip(&prow) {
+            *v -= f * pv;
+        }
+    }
+}
+
+/// Simplex iterations with Bland's rule over the first `nv` columns; `None` if unbounded.
+fn lp_iterate(t: &mut [Vec<f64>], obj: &mut [f64], basis: &mut [usize], nv: usize) -> Option<()> {
+    let last = obj.len() - 1;
+    while let Some(c) = (0..nv).find(|&j| obj[j] < -LP_EPS) {
+        let mut leave: Option<(f64, usize)> = None;
+        for (i, row) in t.iter().enumerate() {
+            if row[c] > LP_EPS {
+                let ratio = row[last] / row[c];
+                leave = match leave {
+                    Some((best, b))
+                        if ratio > best + LP_EPS
+                            || (ratio >= best - LP_EPS && basis[i] > basis[b]) =>
+                    {
+                        Some((best, b))
+                    }
+                    _ => Some((ratio, i)),
+                };
+            }
+        }
+        let (_, r) = leave?;
+        lp_pivot(t, obj, r, c);
+        basis[r] = c;
+    }
+    Some(())
+}
+
+/// Minimize `c·x` subject to `rows·x = b` and `x >= 0` (with `b >= 0`), by the two-phase
+/// tableau simplex method with Bland's anti-cycling rule. `None` if infeasible or unbounded.
+fn simplex(c: &[f64], rows: &[Vec<f64>], b: &[f64]) -> Option<Vec<f64>> {
+    let (m, nv) = (rows.len(), c.len());
+    let width = nv + m + 1;
+    let mut t: Vec<Vec<f64>> = rows
+        .iter()
+        .zip(b)
+        .enumerate()
+        .map(|(i, (r, &bi))| {
+            let mut row = vec![0.0; width];
+            row[..nv].copy_from_slice(r);
+            row[nv + i] = 1.0;
+            row[width - 1] = bi;
+            row
+        })
+        .collect();
+    let mut basis: Vec<usize> = (nv..nv + m).collect();
+    // phase 1: minimize the sum of the artificial variables
+    let mut obj = vec![0.0; width];
+    for row in &t {
+        for (o, &v) in obj[..nv].iter_mut().zip(row) {
+            *o -= v;
+        }
+        obj[width - 1] -= row[width - 1];
+    }
+    lp_iterate(&mut t, &mut obj, &mut basis, nv)?;
+    if -obj[width - 1] > 1e-7 {
+        return None;
+    }
+    // drive artificial variables left at zero out of the basis (rows where none can leave
+    // are redundant and stay at zero)
+    for r in 0..m {
+        if basis[r] >= nv {
+            if let Some(col) = (0..nv).find(|&j| t[r][j].abs() > LP_EPS) {
+                lp_pivot(&mut t, &mut obj, r, col);
+                basis[r] = col;
+            }
+        }
+    }
+    // phase 2: the real objective
+    let mut obj = vec![0.0; width];
+    obj[..nv].copy_from_slice(c);
+    for (row, &bv) in t.iter().zip(&basis) {
+        let cb = if bv < nv { c[bv] } else { 0.0 };
+        if cb != 0.0 {
+            for (o, &v) in obj.iter_mut().zip(row) {
+                *o -= cb * v;
+            }
+        }
+    }
+    lp_iterate(&mut t, &mut obj, &mut basis, nv)?;
+    let mut x = vec![0.0; nv];
+    for (row, &bv) in t.iter().zip(&basis) {
+        if bv < nv {
+            x[bv] = row[width - 1].max(0.0);
+        }
+    }
+    Some(x)
+}
+
+/// Maximum flow from `s` to `t` under capacities `cap` (Edmonds-Karp), stopping once it
+/// reaches `enough`. Returns the flow and, when it falls short, the nodes on the source side
+/// of a minimum cut.
+fn max_flow_cut(cap: &[Vec<f64>], s: usize, t: usize, enough: f64) -> (f64, Vec<bool>) {
+    let n = cap.len();
+    let mut r = cap.to_vec();
+    let mut total = 0.0;
+    loop {
+        let mut prev = vec![usize::MAX; n];
+        prev[s] = s;
+        let mut queue = VecDeque::from([s]);
+        while let Some(u) = queue.pop_front() {
+            for v in 0..n {
+                if prev[v] == usize::MAX && r[u][v] > 1e-10 {
+                    prev[v] = u;
+                    queue.push_back(v);
+                }
+            }
+        }
+        if prev[t] == usize::MAX {
+            return (total, prev.iter().map(|&p| p != usize::MAX).collect());
+        }
+        let mut f = f64::INFINITY;
+        let mut v = t;
+        while v != s {
+            f = f.min(r[prev[v]][v]);
+            v = prev[v];
+        }
+        let mut v = t;
+        while v != s {
+            r[prev[v]][v] -= f;
+            r[v][prev[v]] += f;
+            v = prev[v];
+        }
+        total += f;
+        if total >= enough {
+            return (total, Vec::new());
+        }
+    }
+}
+
+/// Solve the Held-Karp relaxation of the asymmetric TSP on the complete digraph `d`: minimize
+/// the cost of `x` with one unit leaving and entering each node and at least one unit leaving
+/// every proper node subset. The exponentially many subset constraints are added as cutting
+/// planes, found by minimum cuts between node 0 and every other node.
+fn held_karp_lp(d: &[Vec<f64>]) -> Option<Vec<Vec<f64>>> {
+    let n = d.len();
+    let arcs: Vec<(usize, usize)> = (0..n)
+        .flat_map(|i| (0..n).filter(move |&j| j != i).map(move |j| (i, j)))
+        .collect();
+    let mut cuts: Vec<Vec<bool>> = Vec::new();
+    loop {
+        let nv = arcs.len() + cuts.len();
+        let mut c = vec![0.0; nv];
+        for (cost, &(i, j)) in c.iter_mut().zip(&arcs) {
+            *cost = d[i][j];
+        }
+        let mut rows = Vec::new();
+        // out-degree of every node and in-degree of all but the last (the remaining in-degree
+        // constraint is implied)
+        for v in 0..n {
+            rows.push(
+                arcs.iter()
+                    .map(|&(i, _)| if i == v { 1.0 } else { 0.0 })
+                    .chain(std::iter::repeat(0.0))
+                    .take(nv)
+                    .collect::<Vec<f64>>(),
+            );
+        }
+        for v in 0..n - 1 {
+            rows.push(
+                arcs.iter()
+                    .map(|&(_, j)| if j == v { 1.0 } else { 0.0 })
+                    .chain(std::iter::repeat(0.0))
+                    .take(nv)
+                    .collect(),
+            );
+        }
+        // x(out of S) - surplus = 1
+        for (k, s) in cuts.iter().enumerate() {
+            let mut row: Vec<f64> = arcs
+                .iter()
+                .map(|&(i, j)| if s[i] && !s[j] { 1.0 } else { 0.0 })
+                .collect();
+            row.resize(nv, 0.0);
+            row[arcs.len() + k] = -1.0;
+            rows.push(row);
+        }
+        let b = vec![1.0; rows.len()];
+        let sol = simplex(&c, &rows, &b)?;
+        let mut x = vec![vec![0.0; n]; n];
+        for (&v, &(i, j)) in sol.iter().zip(&arcs) {
+            x[i][j] = v;
+        }
+        let mut added = false;
+        for t in 1..n {
+            for (s, sink) in [(0, t), (t, 0)] {
+                let (flow, side) = max_flow_cut(&x, s, sink, 1.0 - 1e-7);
+                if flow < 1.0 - 1e-7 && !cuts.contains(&side) {
+                    cuts.push(side);
+                    added = true;
+                }
+            }
+        }
+        if !added {
+            return Some(x);
+        }
+    }
+}
+
+/// The probability that edge `e` is in a spanning tree drawn with probability proportional to
+/// the product of `lambda` over its edges: `lambda_e` times the effective resistance between
+/// its ends when edge weights are conductances.
+fn tree_edge_probability(n: usize, edges: &[(usize, usize, f64)], lambda: &[f64], e: usize) -> f64 {
+    // the Laplacian with node 0 removed, inverted by Gauss-Jordan elimination
+    let m = n - 1;
+    let mut a = vec![vec![0.0; 2 * m]; m];
+    for (&(u, v, _), &l) in edges.iter().zip(lambda) {
+        for (p, q) in [(u, v), (v, u)] {
+            if p > 0 {
+                a[p - 1][p - 1] += l;
+                if q > 0 {
+                    a[p - 1][q - 1] -= l;
+                }
+            }
+        }
+    }
+    for (i, row) in a.iter_mut().enumerate() {
+        row[m + i] = 1.0;
+    }
+    for col in 0..m {
+        let piv = (col..m)
+            .max_by(|&x, &y| a[x][col].abs().total_cmp(&a[y][col].abs()))
+            .unwrap();
+        a.swap(col, piv);
+        let p = a[col][col];
+        for v in a[col].iter_mut() {
+            *v /= p;
+        }
+        let prow = a[col].clone();
+        for (i, row) in a.iter_mut().enumerate() {
+            let f = row[col];
+            if i != col && f != 0.0 {
+                for (v, &pv) in row.iter_mut().zip(&prow) {
+                    *v -= f * pv;
+                }
+            }
+        }
+    }
+    let inv = |p: usize, q: usize| {
+        if p == 0 || q == 0 {
+            0.0
+        } else {
+            a[p - 1][m + q - 1]
+        }
+    };
+    let (u, v, _) = edges[e];
+    lambda[e] * (inv(u, u) + inv(v, v) - 2.0 * inv(u, v))
+}
+
+/// Asadpour et al.'s maximum entropy rounding (section 7): weights `gamma` such that a
+/// spanning tree drawn with probability proportional to `exp(sum of gamma)` contains each
+/// edge with probability at most `(1 + 0.2)` times its `z` value. Ported from NetworkX's
+/// `spanning_tree_distribution`.
+fn spanning_tree_distribution(n: usize, edges: &[(usize, usize, f64)]) -> Vec<f64> {
+    const EPSILON: f64 = 0.2;
+    let mut gamma = vec![0.0; edges.len()];
+    // the loop converges (Asadpour et al., theorem 7.1); the cap only guards against
+    // floating point stalls
+    for _ in 0..1000 {
+        let mut changed = false;
+        for e in 0..edges.len() {
+            let lambda: Vec<f64> = gamma.iter().map(|g: &f64| g.exp()).collect();
+            let q = tree_edge_probability(n, edges, &lambda, e);
+            let z = edges[e].2;
+            if q > (1.0 + EPSILON) * z {
+                let target = (1.0 + EPSILON / 2.0) * z;
+                gamma[e] -= ((q * (1.0 - target)) / ((1.0 - q) * target)).ln();
+                changed = true;
+            }
+        }
+        if !changed {
+            break;
+        }
+    }
+    gamma
+}
+
+/// A random spanning tree (edge indices) drawn with probability proportional to the product
+/// of its edge weights, by Wilson's loop-erased random walk algorithm.
+fn wilson_tree(
+    n: usize,
+    edges: &[(usize, usize, f64)],
+    lambda: &[f64],
+    rng: &mut ChaCha8Rng,
+) -> Vec<usize> {
+    let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n];
+    let mut total = vec![0.0; n];
+    for (e, &(u, v, _)) in edges.iter().enumerate() {
+        adj[u].push((v, e));
+        adj[v].push((u, e));
+        total[u] += lambda[e];
+        total[v] += lambda[e];
+    }
+    let mut in_tree = vec![false; n];
+    in_tree[0] = true;
+    let mut next = vec![(0, 0); n];
+    let mut tree = Vec::with_capacity(n - 1);
+    for start in 1..n {
+        let mut u = start;
+        while !in_tree[u] {
+            let mut r = rng.gen::<f64>() * total[u];
+            let mut pick = adj[u][adj[u].len() - 1];
+            for &(v, e) in &adj[u] {
+                r -= lambda[e];
+                if r < 0.0 {
+                    pick = (v, e);
+                    break;
+                }
+            }
+            next[u] = pick;
+            u = pick.0;
+        }
+        let mut u = start;
+        while !in_tree[u] {
+            in_tree[u] = true;
+            tree.push(next[u].1);
+            u = next[u].0;
+        }
+    }
+    tree
+}
+
+/// A minimum-cost integral flow on the complete digraph `d` (uncapacitated) that sends
+/// `-excess[v]` units out of each node with negative `excess` and `excess[v]` units into each
+/// node with positive `excess`, by successive shortest paths. Returns the flow matrix.
+fn balancing_flow(d: &[Vec<f64>], excess: &[i64]) -> Vec<Vec<i64>> {
+    let n = d.len();
+    let mut supply: Vec<i64> = excess.iter().map(|&e| -e).collect();
+    let mut flow = vec![vec![0i64; n]; n];
+    // a residual arc u -> v cancels flow on v -> u when there is some, which is never more
+    // expensive than sending new flow (weights are non-negative)
+    let cost =
+        |flow: &[Vec<i64>], u: usize, v: usize| if flow[v][u] > 0 { -d[v][u] } else { d[u][v] };
+    while supply.iter().any(|&s| s > 0) {
+        let mut dist: Vec<f64> = supply
+            .iter()
+            .map(|&s| if s > 0 { 0.0 } else { f64::INFINITY })
+            .collect();
+        let mut prev = vec![usize::MAX; n];
+        for _ in 0..n {
+            let mut updated = false;
+            for u in 0..n {
+                if dist[u].is_finite() {
+                    for v in (0..n).filter(|&v| v != u) {
+                        let nd = dist[u] + cost(&flow, u, v);
+                        if nd < dist[v] - 1e-12 {
+                            dist[v] = nd;
+                            prev[v] = u;
+                            updated = true;
+                        }
+                    }
+                }
+            }
+            if !updated {
+                break;
+            }
+        }
+        let sink = (0..n)
+            .filter(|&v| supply[v] < 0)
+            .min_by(|&a, &b| dist[a].total_cmp(&dist[b]))
+            .expect("supplies and demands balance");
+        let mut path = vec![sink];
+        while prev[*path.last().unwrap()] != usize::MAX {
+            path.push(prev[*path.last().unwrap()]);
+        }
+        path.reverse();
+        let mut amount = supply[path[0]].min(-supply[sink]);
+        for w in path.windows(2) {
+            if flow[w[1]][w[0]] > 0 {
+                amount = amount.min(flow[w[1]][w[0]]);
+            }
+        }
+        for w in path.windows(2) {
+            if flow[w[1]][w[0]] > 0 {
+                flow[w[1]][w[0]] -= amount;
+            } else {
+                flow[w[0]][w[1]] += amount;
+            }
+        }
+        supply[path[0]] -= amount;
+        supply[sink] += amount;
+    }
+    flow
+}
+
+/// Asadpour et al.'s randomized `O(log n / log log n)`-approximation for the asymmetric TSP
+/// on the complete digraph `d` (at least 3 nodes, satisfying the triangle inequality).
+fn asadpour_tour(d: &[Vec<f64>], rng: &mut ChaCha8Rng) -> PyResult<Vec<usize>> {
+    let n = d.len();
+    let x = match held_karp_lp(d) {
+        Some(x) => x,
+        None => return value_err("the Held-Karp relaxation could not be solved"),
+    };
+    // an integral optimum is an optimal tour
+    if x.iter()
+        .flatten()
+        .all(|&v| !(1e-7..=1.0 - 1e-7).contains(&v))
+    {
+        let mut tour = vec![0];
+        let mut u = 0;
+        loop {
+            u = (0..n).find(|&j| j != u && x[u][j] > 0.5).unwrap();
+            tour.push(u);
+            if u == 0 {
+                return Ok(tour);
+            }
+        }
+    }
+    // symmetrize and scale (equation 5 of the paper), then fit the tree distribution
+    let scale = (n - 1) as f64 / n as f64;
+    let edges: Vec<(usize, usize, f64)> = (0..n)
+        .flat_map(|u| (u + 1..n).map(move |v| (u, v)))
+        .filter_map(|(u, v)| {
+            let f = x[u][v] + x[v][u];
+            (f > LP_EPS).then_some((u, v, scale * f))
+        })
+        .collect();
+    let lambda: Vec<f64> = spanning_tree_distribution(n, &edges)
+        .iter()
+        .map(|g| g.exp())
+        .collect();
+    // keep the cheapest of 2 ceil(ln n) sampled trees, each edge costing its cheaper direction
+    let edge_cost = |e: usize| {
+        let (u, v, _) = edges[e];
+        d[u][v].min(d[v][u])
+    };
+    let mut best: Option<(f64, Vec<usize>)> = None;
+    for _ in 0..2 * (n as f64).ln().ceil() as usize {
+        let tree = wilson_tree(n, &edges, &lambda, rng);
+        let w: f64 = tree.iter().map(|&e| edge_cost(e)).sum();
+        match &best {
+            Some((bw, _)) if *bw <= w => {}
+            _ => best = Some((w, tree)),
+        }
+    }
+    let tree = best.map(|b| b.1).unwrap_or_default();
+    // orient each tree edge its cheaper way, then balance in- and out-degrees by a
+    // minimum-cost flow so the arcs form an Eulerian multigraph
+    let mut arcs: Vec<(usize, usize)> = tree
+        .iter()
+        .map(|&e| {
+            let (u, v, _) = edges[e];
+            if d[u][v] <= d[v][u] {
+                (u, v)
+            } else {
+                (v, u)
+            }
+        })
+        .collect();
+    let mut excess = vec![0i64; n];
+    for &(u, v) in &arcs {
+        excess[u] += 1;
+        excess[v] -= 1;
+    }
+    let flow = balancing_flow(d, &excess);
+    for (u, row) in flow.iter().enumerate() {
+        for (v, &f) in row.iter().enumerate() {
+            arcs.extend(std::iter::repeat((u, v)).take(f as usize));
+        }
+    }
+    // Eulerian circuit (Hierholzer) from node 0 and shortcutting
+    let mut out: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for &(u, v) in &arcs {
+        out[u].push(v);
+    }
+    let mut ptr = vec![0usize; n];
+    let mut stack = vec![0usize];
+    let mut circuit = Vec::new();
+    while let Some(&u) = stack.last() {
+        if ptr[u] < out[u].len() {
+            stack.push(out[u][ptr[u]]);
+            ptr[u] += 1;
+        } else {
+            circuit.push(u);
+            stack.pop();
+        }
+    }
+    circuit.reverse();
+    let mut seen = vec![false; n];
+    let mut tour: Vec<usize> = circuit
+        .into_iter()
+        .filter(|&v| !std::mem::replace(&mut seen[v], true))
+        .collect();
+    tour.push(0);
+    Ok(tour)
+}
+
 /// A traveling salesperson tour (or path) through `nodes` (default: all), on the metric
 /// closure: `(walk of node IDs, total cost)`. Consecutive tour nodes are joined by shortest
 /// paths, so the walk may pass through other nodes.
@@ -331,6 +845,7 @@ pub fn traveling_salesman(
         match method {
             "christofides" => christofides_tour(&d),
             "greedy" => greedy_tour(&d),
+            "asadpour" => asadpour_tour(&d, &mut rng_from(seed))?,
             "simulated_annealing" | "threshold_accepting" => {
                 let anneal = method == "simulated_annealing";
                 let mut rng = rng_from(seed);
