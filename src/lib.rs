@@ -45,12 +45,16 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::dag::condensation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::lowest_common_ancestor, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::modularity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_detection::constant_potts_model, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_detection::overlapping_modularity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_detection::bipartite_modularity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::leiden, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::label_propagation_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::k_clique_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::betweenness_centrality_weighted, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_queries::bidirectional_dijkstra, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::all_topological_sorts, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::dag::antichain_width, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::partition_quality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::greedy_modularity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure_basics::biconnected_components, m)?)?;
@@ -92,6 +96,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::centrality_extra::edge_load_centrality, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality_extra::prominent_group, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::square_clustering, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::butterflies, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::generalized_degree, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::average_degree_connectivity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::mixing_cuts::degree_pairs, m)?)?;
@@ -138,6 +143,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::link_scores, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_product, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::products::graph_power, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::products::random_k_lift, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_path_predecessors, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_extras::floyd_warshall, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_extras::johnson, m)?)?;
@@ -146,6 +152,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_simple_paths, m)?)?;
     m.add_class::<algorithms::path_extras::ShortestSimplePaths>()?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::is_chordal, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::chordal::is_perfect_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::chordal_graph_cliques, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::complete_to_chordal, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::find_induced_nodes, m)?)?;
@@ -154,6 +161,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::chordal::with_extra_edges, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::fluid_communities, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::kernighan_lin, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::community_extra::greedy_node_swap_bipartition, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::fast_label_propagation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::semi_synchronous_label_propagation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_extra::lukes_partitioning, m)?)?;
@@ -165,6 +173,9 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::linalg::laplacian_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::directed_laplacian_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::modularity_matrix, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::linalg::spectral_modularity_bipartition, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::linalg::magnetic_laplacian_matrix, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::linalg::magnetic_spectrum, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::bethe_hessian_matrix, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::modularity_spectrum, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::linalg::bethe_hessian_spectrum, m)?)?;
@@ -254,6 +265,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::percolation::largest_component_size, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::percolation::percolation_threshold_analysis, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::distance_metrics::wiener_index, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::distance_metrics::hyper_wiener_index, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::distance_metrics::estrada_index, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::distance_metrics::resistance_distance, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::distance_metrics::resistance_distance_matrix, m)?)?;
@@ -264,6 +276,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::simrank::simrank_star_similarity_pair, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::simrank::panther_similarity, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::simrank::panther_vector_similarity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::simrank::generate_random_paths, m)?)?;
 
     // Propagation algorithms
@@ -373,6 +386,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::planarity::planar_embedding, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::planarity::planarity_counterexample, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::planarity::planar_layout, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::planarity::planar_faces, m)?)?;
 
     // Layout functions
     m.add_function(wrap_pyfunction!(layout::force_directed_layout_rust, m)?)?;
