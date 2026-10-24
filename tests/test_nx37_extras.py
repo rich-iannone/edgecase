@@ -342,11 +342,16 @@ class TestPantherVectorSimilarity:
         star = ec.Graph().add_star_graph(100, label=False)
         scores = star.panther_vector_similarity(2, k=10, seed=1)
         assert len(scores) == 10 and 1 not in scores and 2 not in scores
-        assert all(v == 1.0 for v in scores.values())
-        assert list(scores) == sorted(scores)
+        # A leaf whose vector equals the source's scores 1 / (machine epsilon), as in NetworkX
+        # #8578; the others are near
+        top = 1 / np.finfo(float).eps
+        assert max(scores.values()) == top
+        assert all(v > 100 for v in scores.values())
+        values = list(scores.values())
+        assert values == sorted(values, reverse=True)
         # The center is unlike any leaf
         center = star.panther_vector_similarity(1, k=99, seed=1)
-        assert max(center.values()) < 1.0
+        assert max(center.values()) < 2
 
     def test_roles_across_communities(self):
         g = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
@@ -356,7 +361,7 @@ class TestPantherVectorSimilarity:
         top = set(sorted(scores, key=scores.get, reverse=True)[:3])
         # b is a's twin; y and z mirror a and b in the other triangle; c and x are bridge ends
         assert top == {2, 5, 6}
-        assert scores[3] < 0.5 and scores[4] < 0.5
+        assert max(scores[3], scores[4]) < min(scores[v] for v in top) / 10
 
     def test_matches_reference_on_its_paths(self):
         # Without isolates the method samples the same paths as generate_random_paths(), so
@@ -366,7 +371,7 @@ class TestPantherVectorSimilarity:
         H = nx.convert_node_labels_to_integers(H, first_label=1)
         g, _ = _from_nx(H)
         n, eps, dims = g.count_nodes(), 0.05, 5
-        size = math.floor(0.5 / eps**2 * (math.log2(math.comb(5, 2)) + 1 + math.log(1 / 0.1)))
+        size = math.ceil(0.5 / eps**2 * (math.log2(math.comb(6, 2)) + 1 + math.log(1 / 0.1)))
         for seed in range(3):
             paths = g.generate_random_paths(size, path_length=5, seed=seed)
             member = np.zeros((n, size))
@@ -377,7 +382,9 @@ class TestPantherVectorSimilarity:
             for source in (1, 4):
                 d = np.linalg.norm(theta - theta[source - 1], axis=1)
                 expected = {
-                    i + 1: min(1.0, eps / max(d[i], eps)) for i in range(n) if i + 1 != source
+                    i + 1: 1 / max(d[i], np.finfo(float).eps)
+                    for i in range(n)
+                    if i + 1 != source
                 }
                 scores = g.panther_vector_similarity(
                     source, D=dims, k=n - 1, eps=eps, seed=seed
