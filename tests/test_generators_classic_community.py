@@ -397,6 +397,7 @@ INVARIANTS = {
     "grotzsch": (11, 20, None, 4),
     "mcgee": (24, 36, 3, 7),
     "nauru": (24, 36, 3, 6),
+    "shrikhande": (16, 48, 6, 3),
     "tutte_coxeter": (30, 45, 3, 8),
 }
 
@@ -471,6 +472,7 @@ ALL_CALLS = {
     "add_binomial_tree": dict(order=2),
     "add_full_rary_tree": dict(r=2, n=4),
     "add_lcf_graph": dict(n=6, shifts=[3], repeats=6),
+    "add_generalized_petersen_graph": dict(n=5, k=2),
     "add_named_graph": dict(name="house"),
     "add_caveman_graph": dict(num_cliques=2, clique_size=3),
     "add_connected_caveman_graph": dict(num_cliques=2, clique_size=3),
