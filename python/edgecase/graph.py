@@ -8842,6 +8842,114 @@ class Graph:
             self._add_generated_edges(ids, lcf_edges(n, shifts, repeats), rel)
         return self
 
+    def add_generalized_petersen_graph(
+        self,
+        n: int,
+        k: int,
+        type: Optional[str] = None,
+        label: bool = True,
+        rel: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Add a generalized Petersen graph GP(n, k) to the current graph.
+
+        The generalized Petersen graph GP(n, k) (Coxeter, 1950; named by Watkins, 1969) has an
+        outer cycle `u_0, ..., u_{n-1}`, an inner "star polygon" in which each `v_i` is joined to
+        `v_{(i + k) mod n}`, and a spoke from every `u_i` to `v_i`. The Petersen graph is
+        GP(5, 2), and the family takes in many of the famous cubic graphs: the prism GP(n, 1),
+        the cube GP(4, 1), the dodecahedron GP(10, 2), the Desargues graph GP(10, 3), the
+        Möbius-Kantor graph GP(8, 3) and the Nauru graph GP(12, 5).
+
+        With `k < n / 2` the graph is cubic, with `2n` nodes and `3n` edges. With `k = n / 2`
+        (for even `n`) each inner node's two chords coincide, so the inner nodes have degree 2
+        and there are `n / 2` fewer edges. GP(n, k) and GP(n, n - k) are the same graph, which
+        is why `k` is limited to `n / 2`.
+
+        Nodes are created in the order `u_0, ..., u_{n-1}, v_0, ..., v_{n-1}`, matching the node
+        numbering of NetworkX's `generalized_petersen_graph()` (its node `i` is the `i`-th node
+        created here). In a directed graph every edge points from the earlier-created node to
+        the later one. The graph is appended without touching or connecting to existing nodes,
+        and the whole construction is recorded as a single step.
+
+        Generalized Petersen graphs are useful for:
+
+        - a parametrized supply of cubic graphs, symmetric or not (GP(n, k) is vertex-transitive
+          exactly when `k^2 = ±1 mod n` or `(n, k) = (10, 2)`; Frucht, Graver and Watkins, 1971)
+        - test cases for coloring, Hamiltonicity and matching algorithms (GP(n, 2) is
+          non-Hamiltonian exactly when `n = 5 mod 6`; Alspach, 1983)
+        - examples and counterexamples in algebraic and topological graph theory
+
+        Parameters
+        ----------
+        n
+            Number of nodes on each of the two rings. Must be at least `3`.
+        k
+            Step of the inner star polygon. Must satisfy `1 <= k <= n / 2`.
+        type
+            Optional value stored in the `type` attribute of every new node. If `None` (default),
+            no `type` attribute is set.
+        label
+            If `True` (default), each new node is labelled with its node ID as a string; a label
+            that is already used raises `ValueError` before anything is added. If `False`, the
+            nodes are left unlabelled.
+        rel
+            Optional value stored in the `rel` attribute of every new edge. If `None` (default),
+            no `rel` attribute is set.
+
+        Returns
+        -------
+        Graph
+            Self for method chaining. The graph is modified in place.
+
+        Raises
+        ------
+        ValueError
+            If `n=` is less than `3`, or `k=` is not between `1` and `n / 2`.
+
+        Examples
+        --------
+        GP(5, 2) is the Petersen graph:
+
+        ```{python}
+        import edgecase as ec
+
+        gp = ec.Graph().add_generalized_petersen_graph(5, 2)
+
+        gp.count_nodes(), gp.count_edges(), gp.is_isomorphic(
+            ec.Graph().add_named_graph("petersen")
+        )
+        ```
+
+        Varying `k` with `n = 10` gives graphs of different girth: the prism GP(10, 1) has
+        squares, the dodecahedron GP(10, 2) has pentagons, and the Desargues graph GP(10, 3) is
+        bipartite with girth 6:
+
+        ```{python}
+        {k: ec.Graph().add_generalized_petersen_graph(10, k).get_girth() for k in (1, 2, 3)}
+        ```
+        """
+        if n < 3:
+            raise ValueError(f"n must be at least 3, got {n}")
+        if k < 1 or 2 * k > n:
+            raise ValueError(f"k must satisfy 1 <= k <= n / 2, got n={n}, k={k}")
+
+        edges = [(i, (i + 1) % n) for i in range(n)]
+        seen = {frozenset(e) for e in edges}
+        for i in range(n):
+            for e in ((i, n + i), (n + i, n + (i + k) % n)):
+                if frozenset(e) not in seen:
+                    seen.add(frozenset(e))
+                    edges.append(e)
+        edges = [(min(a, b), max(a, b)) for a, b in edges]
+
+        with self._compound(
+            "add_generalized_petersen_graph",
+            f"G.add_generalized_petersen_graph(n={n}, k={k})",
+        ):
+            ids = self._add_generated_nodes(2 * n, label, type)
+            self._add_generated_edges(ids, edges, rel)
+        return self
+
     def add_named_graph(
         self,
         name: str,
@@ -8884,6 +8992,7 @@ class Graph:
         | `pappus` | 18 | 27 | Cubic symmetric; Levi graph of the Pappus configuration |
         | `petersen` | 10 | 15 | The (3,5)-cage, a common counterexample in graph theory |
         | `sedgewick_maze` | 8 | 10 | Small maze from Sedgewick's Algorithms |
+        | `shrikhande` | 16 | 48 | Strongly regular, like the 4 x 4 rook's graph but not it |
         | `tetrahedral` | 4 | 6 | Skeleton of the tetrahedron, the complete graph K4 |
         | `truncated_cube` | 24 | 36 | Skeleton of the truncated cube |
         | `truncated_tetrahedron` | 12 | 18 | Skeleton of the truncated tetrahedron |
@@ -8891,7 +9000,8 @@ class Graph:
         | `tutte_coxeter` | 30 | 45 | The (3,8)-cage, Levi graph of Cremona-Richmond |
 
         Where NetworkX has the same graph, the node numbering matches its numbering, with node
-        `0` there being the first node created here; the cubic Hamiltonian graphs follow their
+        `0` there being the first node created here (NetworkX labels the Shrikhande graph's nodes
+        `(x, y)`, which is node `4x + y` here); the cubic Hamiltonian graphs follow their
         LCF notation (see `add_lcf_graph()`), so their first `n` edges in order form a
         Hamiltonian cycle. In a directed graph every edge points from the earlier-created node
         to the later one. The graph is appended without touching or connecting to existing
@@ -15644,6 +15754,61 @@ class Graph:
             raise ValueError(f"order must be at least 2, got {order}")
         return count_nonisomorphic_trees(order)
 
+    @staticmethod
+    def is_valid_tree_degree_sequence(degree_sequence: list[int]) -> bool:
+        """
+        Check whether a degree sequence is the degree sequence of some tree.
+
+        A list of degrees belongs to a tree exactly when two conditions hold: the degrees sum
+        to `2 * (n - 1)`, since a tree on `n` nodes has `n - 1` edges and each edge adds 2 to
+        the sum, and every degree is positive, since a tree with more than one node has no
+        isolated nodes. The single-node tree has sequence `[0]`. When both hold, a tree can
+        always be built (for instance by repeatedly joining a leaf to a node that still needs
+        edges), so no further test is needed. This is NetworkX's
+        `is_valid_tree_degree_sequence()`, which returns the reason for a failure alongside
+        the verdict; here the result is a plain boolean.
+
+        Parameters
+        ----------
+        degree_sequence
+            The degrees, in any order.
+
+        Returns
+        -------
+        bool
+            `True` if some tree has these degrees.
+
+        Technical Notes
+        ---------------
+        The empty sequence is not a tree degree sequence (a tree has at least one node).
+
+        Examples
+        --------
+        A star on four nodes and a path on four nodes pass; a cycle's degrees fail the sum
+        condition and a sequence with a zero fails the positivity condition:
+
+        ```{python}
+        import edgecase as ec
+
+        [
+            ec.Graph.is_valid_tree_degree_sequence(seq)
+            for seq in ([3, 1, 1, 1], [1, 2, 2, 1], [2, 2, 2, 2], [2, 2, 0, 1, 1])
+        ]
+        ```
+
+        Every tree's degrees pass:
+
+        ```{python}
+        tree = ec.Graph().add_random_labeled_tree(12, seed=3)
+        degrees = [tree.get_degree(n) for n in tree.get_node_ids()]
+        degrees, ec.Graph.is_valid_tree_degree_sequence(degrees)
+        ```
+        """
+        seq = [int(d) for d in degree_sequence]
+        if 2 * len(seq) - sum(seq) != 2:
+            return False
+        return seq == [0] or all(d > 0 for d in seq)
+
     def configuration_model(
         self,
         degree_sequence: list[int],
@@ -18564,6 +18729,94 @@ class Graph:
             )
         return value
 
+    def butterflies(self, nodes: list[Union[int, str]] | None = None) -> dict[int, int]:
+        r"""
+        Count the butterflies each node of a bipartite graph belongs to.
+
+        A *butterfly* is a complete bipartite $K_{2,2}$: two nodes on each side with all four
+        edges between them, which is a 4-cycle. It is the bipartite counterpart of a triangle
+        (a bipartite graph has no triangles), so butterfly counts play the role that triangle
+        counts play in clustering coefficients: two customers who both bought the same two
+        products, or two authors who both wrote for the same two venues, form one. They are
+        the squares counted by `robins_alexander_clustering()`, broken down per node.
+
+        Each butterfly is counted once at each of its four nodes, so the values sum to four
+        times the number of butterflies. On a graph that is not bipartite every 4-cycle is
+        counted the same way (bipartiteness is not checked). Parallel edges count once and
+        self-loops are ignored.
+
+        Parameters
+        ----------
+        nodes
+            Optional nodes (IDs or labels) to report. If `None` (default), all nodes. The count
+            always uses the whole graph.
+
+        Returns
+        -------
+        dict[int, int]
+            Node ID to the number of butterflies containing it.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        Uses the vertex-priority wedge counting of Wang et al. (2019): nodes are ranked by
+        degree, and each 4-cycle is found exactly once from its highest-ranked node $u$ as two
+        wedges $u - v - w$ that share the opposite node $w$, with both middle nodes and $w$
+        ranked below $u$. A pair $(u, w)$ with $k$ such wedges closes $\binom{k}{2}$ butterflies,
+        and each wedge's middle node belongs to $k - 1$ of them. This takes
+        $O(\sum_{(u, v)} \min(d_u, d_v))$ time, far less than enumerating cycles. Results match
+        NetworkX's `bipartite.butterflies()`, which counts the same way (and also ignores
+        bipartiteness).
+
+        Examples
+        --------
+        Three customers and three products: Ann and Bob both bought tea and jam, and Bob and Cy
+        both bought jam and oats, so there are two butterflies, both through Bob and jam:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["ann", "bob", "cy", "tea", "jam", "oat"])
+        g.add_edges(
+            [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "jam"), ("bob", "oat"),
+             ("cy", "oat"), ("cy", "jam")]
+        )
+
+        {g.get_label_from_id(n): c for n, c in g.butterflies().items()}
+        ```
+
+        In a complete bipartite $K_{3,3}$ every pair from one side and pair from the other form
+        a butterfly, nine in all, and each node is in six of them:
+
+        ```{python}
+        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
+        counts = k33.butterflies()
+
+        counts, sum(counts.values()) // 4
+        ```
+        """
+        counts = rust.butterflies(self._graph)
+        targets = (
+            sorted(counts)
+            if nodes is None
+            else [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        )
+        result = {v: counts[v] for v in targets}
+        if self._recording_depth == 0:
+            total = sum(counts.values()) // 4
+            self._record_step(
+                KIND_METRIC,
+                "butterflies",
+                "G.butterflies()" if nodes is None else "G.butterflies(nodes=nodes)",
+                delta=StepDelta(metric_values={self._node_label(n): c for n, c in result.items()}),
+                narration=f"Butterfly counts of {len(result)} nodes ({total} butterflies in all).",
+            )
+        return result
+
     def node_redundancy(self, nodes: list[Union[int, str]] | None = None) -> dict[int, float]:
         """
         Compute the redundancy coefficient of nodes in a bipartite graph.
@@ -19943,6 +20196,79 @@ class Graph:
         kept = rust.planarity_counterexample(len(ids), pairs)
         with self._no_recording():
             return False, self.edge_subgraph([eids[i] for i in kept])
+
+    def planar_faces(self) -> list[list[int]]:
+        """
+        List the faces of a planar embedding of the graph.
+
+        A crossing-free drawing of a planar graph cuts the plane into regions, its *faces*,
+        one of them the unbounded outer face. Each face is described by the walk of nodes
+        around its boundary. For a connected graph there are `e - n + 2` of them (Euler's
+        formula), and every edge borders two faces or, for a bridge, the same face twice, so
+        the walks have `2e` steps in all. Faces are what planar duals, mesh processing, map
+        coloring and face-based planar algorithms work with.
+
+        The faces come from the embedding `check_planarity()` returns, traced as NetworkX's
+        `PlanarEmbedding.faces()` traces them: start from a node and an edge leaving it, and at
+        each node turn to the next edge in the clockwise order around it. A graph usually has
+        several planar embeddings with different faces (only 3-connected planar graphs have
+        just one), and the one here need not match NetworkX's.
+
+        Edge direction, self-loops and parallel edges are ignored.
+
+        Returns
+        -------
+        list[list[int]]
+            One list of node IDs per face, in order around it (the last node is joined back to
+            the first). Walks repeat a node that the face's boundary passes more than once, as
+            around a bridge or a cut node: a path `A - B` has the single face `[A, B]`, walked
+            along both sides of its edge. Isolated nodes lie on no face, and each connected
+            component with edges contributes its own outer face.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not planar.
+
+        See Also
+        --------
+        check_planarity : The embedding the faces are traced from.
+
+        Technical Notes
+        ---------------
+        Every half-edge (an edge taken in one direction) lies on exactly one face, so tracing
+        the face of each not yet visited half-edge, with nodes visited in ID order and their
+        neighbors in clockwise order, finds every face once in `O(n + e)` time after the
+        planarity test.
+
+        Examples
+        --------
+        A square with one diagonal has three faces: the two triangles and the outer square:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+
+        [[g.get_label_from_id(n) for n in face] for face in g.planar_faces()]
+        ```
+
+        A cube has six faces, each a square, as Euler's formula requires for 8 nodes and 12
+        edges:
+
+        ```{python}
+        cube = ec.Graph().add_hypercube_graph(3)
+        faces = cube.planar_faces()
+
+        len(faces), [len(f) for f in faces]
+        ```
+        """
+        ids, pairs, _ = self._planarity_input()
+        faces = rust.planar_faces(len(ids), pairs)
+        if faces is None:
+            raise ValueError("the graph is not planar")
+        return [[ids[i] for i in face] for face in faces]
 
     def _match_colors(self, other: "Graph", node_attr, edge_attr):
         """Integer node and edge colors for matching, shared between `self` and `other`."""
@@ -27874,6 +28200,146 @@ class Graph:
             )
         return result
 
+    def panther_vector_similarity(
+        self,
+        source: Union[int, str],
+        D: int = 10,
+        k: int = 5,
+        path_length: int = 5,
+        c: float = 0.5,
+        delta: float = 0.1,
+        eps: float | None = None,
+        weighted: bool | None = None,
+        seed: int | None = None,
+    ) -> dict[int, float]:
+        r"""
+        Find the nodes most similar to a source node by comparing their Panther profiles.
+
+        Panther++ (Zhang et al., 2015) extends `panther_similarity()`: instead of asking how
+        often two nodes share random paths, it gives every node a feature vector of its `D`
+        largest Panther scores (against any node, itself included) and compares those vectors.
+        Two nodes are similar when their neighborhoods look alike, even if they are far apart
+        and never share a path, so it captures structural roles, such as the leaves of
+        different stars or the hubs of different communities, much as role-based embeddings
+        do. The scores are estimates; pass `seed=` for repeatable results.
+
+        Parameters
+        ----------
+        source
+            The node to compare against, as an ID or label.
+        D
+            The length of each node's feature vector: how many of its largest Panther scores
+            to keep. At most the number of non-isolated nodes.
+        k
+            How many of the most similar nodes to return.
+        path_length
+            The number of steps in each random path ($T$), at least 2.
+        c
+            A positive constant that scales the number of sampled paths.
+        delta
+            The probability, between 0 and 1, that the Panther scores miss the `eps=` error
+            bound.
+        eps
+            The error bound on the Panther scores, also the distance below which two vectors
+            count as identical. If `None` (default), $\sqrt{1 / |E|}$.
+        weighted
+            Whether to use edge weights for the random steps. If `None` (default), follows the
+            graph's `weighted` flag; edges without a weight count as `1.0`.
+        seed
+            Random seed for reproducibility.
+
+        Returns
+        -------
+        dict[int, float]
+            Up to `k` node IDs (never `source`) with their scores, from most to least similar
+            (ties in node ID order). A score is $\min(1, \varepsilon / d)$ for the Euclidean
+            distance $d$ between the two feature vectors, so nodes whose vectors are within
+            `eps` of the source's score 1.
+
+        Raises
+        ------
+        ValueError
+            If `source` doesn't exist or is isolated, `D` is not a positive integer or exceeds
+            the number of non-isolated nodes, another parameter is out of range, a weight is
+            negative, or (in a directed graph) a path reaches a node with no out-edges.
+
+        Warns
+        -----
+        UserWarning
+            If `k` is more than the number of other non-isolated nodes, all of which are
+            returned.
+
+        Technical Notes
+        ---------------
+        The paths are sampled exactly as in `panther_similarity()`, after dropping isolated
+        nodes. Node $v$'s vector $\theta_v$ holds its `D` largest scores $s(v, u)$ (the share
+        of paths holding both $v$ and $u$, with $s(v, v)$ the share holding $v$) in descending
+        order, padded with zeros when $v$ shares paths with fewer than `D` nodes. The similarity
+        is $1 / \max(\lVert \theta_v - \theta_s \rVert, \varepsilon)$ scaled so the source
+        itself would score 1. Co-occurrences are counted sparsely, so the cost is about
+        $O(R T^2 + V \log V)$ for $R$ sampled paths. NetworkX's `panther_vector_similarity`
+        raises an error when the graph has isolated nodes and when `k` exceeds the number of
+        nodes, and finds the nearest vectors with a k-d tree (ties in arbitrary order); its
+        random paths come from a different generator, so the scores agree only statistically.
+
+        Examples
+        --------
+        In a star, the leaves all look alike, so every other leaf is as similar as possible to
+        a leaf, though no path joins two leaves without passing through the center:
+
+        ```{python}
+        import edgecase as ec
+
+        star = ec.Graph().add_star_graph(20, label=False)
+        star.panther_vector_similarity(2, k=3, seed=1)
+        ```
+
+        Two triangles joined by a bridge. With a tight `eps=`, `a` matches its triangle twin `b`
+        and also `y` and `z`, which hold the same place in the other triangle, while the bridge
+        ends `c` and `x` score low:
+
+        ```{python}
+        graph = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
+        graph.add_edges(
+            [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"), ("z", "x")]
+        )
+
+        scores = graph.panther_vector_similarity("a", D=4, eps=0.05, seed=1)
+        {graph.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        ```
+        """
+        s = self._resolve_node_id(source, auto_create=False)
+        if isinstance(k, bool) or not isinstance(k, int) or k < 1:
+            raise ValueError(f"k must be a positive integer, got {k!r}")
+        if isinstance(D, bool) or not isinstance(D, int) or D < 1:
+            raise ValueError(f"D must be a positive integer, got {D!r}")
+        scores = rust.panther_vector_similarity(
+            self._graph, s, D, path_length, c, delta, eps, self._use_weights(weighted), seed
+        )
+        if k > len(scores):
+            import warnings
+
+            warnings.warn(
+                f"k is {k}, but only {len(scores)} other nodes aren't isolated, so all of them "
+                "are returned",
+                stacklevel=2,
+            )
+        result = dict(sorted(scores, key=lambda item: (-item[1], item[0]))[:k])
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_METRIC,
+                "panther_vector_similarity",
+                f"G.panther_vector_similarity({self._node_label(s)!r}, D={D}, k={k})",
+                delta=StepDelta(
+                    nodes_selected=[self._node_label(s)],
+                    metric_values={self._node_label(n): v for n, v in result.items()},
+                ),
+                result=result,
+                narration=f"Panther vector similarity: the {len(result)} nodes most similar to "
+                f"{self._node_label(s)}.",
+            )
+        return result
+
     def generate_random_paths(
         self,
         sample_size: int,
@@ -29448,6 +29914,74 @@ class Graph:
                 "G.is_chordal()",
                 result=value,
                 narration=f"is_chordal(): {value}.",
+            )
+        return value
+
+    def is_perfect_graph(self) -> bool:
+        r"""
+        Check if an undirected graph is perfect.
+
+        A graph is *perfect* when, in it and in every induced subgraph, the chromatic number
+        equals the size of the largest clique: the only thing forcing extra colors is a clique
+        that needs them. Bipartite graphs, chordal graphs, comparability graphs, interval
+        graphs and the complements of all of these are perfect. On perfect graphs maximum
+        cliques, maximum independent sets and optimal colorings can be found in polynomial
+        time, problems that are NP-hard in general.
+
+        By the Strong Perfect Graph Theorem (Chudnovsky, Robertson, Seymour and Thomas, 2006),
+        a graph is perfect exactly when it contains no *odd hole* (an induced cycle of odd
+        length 5 or more) and no *odd antihole* (the complement of one). This is what is
+        checked. The five-cycle is the smallest imperfect graph: its largest clique is an edge,
+        yet it needs three colors.
+
+        Parallel edges count once and self-loops are ignored.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is perfect. Graphs with at most four nodes always are.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        Bipartite and chordal graphs are accepted immediately, since neither can contain an
+        odd hole or antihole. Otherwise a depth-first search grows induced paths from each
+        node, extending only by nodes adjacent to the path's last node and to nothing else on
+        it, and stops at the first odd induced cycle of length 5 or more; the same search then
+        runs on the complement. Each cycle is searched for only from its smallest node, so the
+        search is fast on the graphs met in practice, but it is exponential in the worst case
+        (the polynomial recognition algorithm of Chudnovsky et al., 2005, runs in O(n⁹) and is
+        not practical). Results match NetworkX's `is_perfect_graph()`.
+
+        Examples
+        --------
+        Even cycles are bipartite and so perfect; odd cycles of length 5 or more are odd holes:
+
+        ```{python}
+        import edgecase as ec
+
+        {n: ec.Graph().add_cycle_graph(n).is_perfect_graph() for n in range(3, 9)}
+        ```
+
+        A seven-cycle's complement is an odd antihole, so it is not perfect either, though it
+        has no odd hole:
+
+        ```{python}
+        ec.Graph().add_cycle_graph(7).complement().is_perfect_graph()
+        ```
+        """
+        value = rust.is_perfect_graph(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_perfect_graph",
+                "G.is_perfect_graph()",
+                result=value,
+                narration=f"is_perfect_graph(): {value}.",
             )
         return value
 
@@ -33278,6 +33812,351 @@ class Graph:
             )
         return coverage, performance
 
+    def constant_potts_model(
+        self,
+        communities,
+        resolution: float = 1.0,
+        node_weight: str | None = None,
+    ) -> float:
+        """
+        Score a partition of the nodes by the Constant Potts Model.
+
+        The Constant Potts Model (CPM; Traag, Van Dooren & Nesterov, 2011) rewards edges
+        inside communities and charges a fixed price, the resolution `γ`, for every pair of
+        nodes placed in the same community. For an undirected graph,
+
+        `CPM = Σ_c [ E_c - γ n_c² / 2 ]`
+
+        where `E_c` is the number of edges inside community `c` (each self-loop counted once)
+        and `n_c` is its number of nodes. Directed graphs use `E_c - γ n_c²`. On a weighted
+        graph (`Graph(weighted=True)`) edge weights replace edge counts, and with
+        `node_weight=` each node counts with its weight instead of `1`.
+
+        Unlike modularity, the price of a pair does not depend on the rest of the graph, so
+        `γ` acts as a density threshold: grouping nodes pays off when the edge density among
+        them exceeds `γ`. This removes modularity's resolution limit (its tendency to merge
+        small communities in large graphs). Because the score scales with the number of edges,
+        it is meant for comparing partitions of the same graph at the same `γ`, such as
+        `cmty_leiden(objective="cpm")` results. The results match NetworkX's
+        `community.constant_potts_model()`.
+
+        Parameters
+        ----------
+        communities
+            The partition to score, given like the `communities=` argument of `modularity()`:
+            the name of a node attribute holding community labels, a dictionary mapping node
+            IDs or labels to community labels, or a list of node groups. Every node must belong
+            to exactly one community.
+        resolution
+            The resolution `γ`, the price of each pair of nodes in the same community. Default
+            is `1.0`.
+        node_weight
+            Optional name of a numeric node attribute giving each node's size. Nodes without
+            the attribute count as `1`. If `None` (default), every node counts as `1`.
+
+        Returns
+        -------
+        float
+            The CPM score of the partition. Higher is better.
+
+        Raises
+        ------
+        ValueError
+            If a node is missing from the partition, appears in two groups, or a label or
+            attribute does not exist.
+
+        Examples
+        --------
+        Two triangles joined by a bridge: with `γ = 0.5`, each triangle (3 edges, 3 nodes)
+        scores `3 - 0.5 · 9 / 2 = 0.75`, so the split beats both one big community and the
+        all-singletons partition:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E", "F"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                        ("D", "E"), ("E", "F"), ("F", "D")])
+        )
+
+        (
+            graph.constant_potts_model([["A", "B", "C"], ["D", "E", "F"]], resolution=0.5),
+            graph.constant_potts_model([["A", "B", "C", "D", "E", "F"]], resolution=0.5),
+            graph.constant_potts_model([[n] for n in "ABCDEF"], resolution=0.5),
+        )
+        ```
+
+        Score a CPM Leiden result at the resolution it was found with:
+
+        ```{python}
+        graph.cmty_leiden(objective="cpm", resolution=0.5, seed=1)
+        graph.constant_potts_model("cmty_leiden", resolution=0.5)
+        ```
+        """
+        membership = self._membership_from(communities)
+        weights = None
+        if node_weight is not None:
+            raw = self.get_node_attrs(node_weight)
+            if not raw:
+                raise ValueError(f"No node attribute named {node_weight!r}")
+            weights = {n: float(w) for n, w in raw.items() if w is not None}
+        q = rust.constant_potts_model(self._graph, membership, resolution, weights)
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): c for n, c in sorted(membership.items())}
+            k = len(set(membership.values()))
+            arg = repr(communities) if isinstance(communities, str) else "communities"
+            extra = f", resolution={resolution!r}" if resolution != 1.0 else ""
+            if node_weight is not None:
+                extra += f", node_weight={node_weight!r}"
+            self._record_step(
+                KIND_QUERY,
+                "constant_potts_model",
+                f"G.constant_potts_model({arg}{extra})",
+                delta=StepDelta(node_groups=groups),
+                result=q,
+                narration=f"Constant Potts Model score of {k} communities: {q:.3f}.",
+            )
+        return q
+
+    def _cover_from(self, communities) -> list[list[int]]:
+        """Resolve a list of possibly overlapping node groups to lists of node IDs."""
+        if isinstance(communities, (str, dict)):
+            raise TypeError("communities= must be a list of node groups for a cover")
+        return [
+            [self._resolve_node_id(node, auto_create=False) for node in group]
+            for group in communities
+        ]
+
+    def is_cover(self, communities) -> bool:
+        """
+        Check whether a collection of node groups covers every node.
+
+        A *cover* is a collection of node groups such that every node belongs to at least one
+        group. Unlike a partition, the groups may overlap, as in the output of
+        `cmty_k_clique()` or other overlapping community methods. Use this to check a
+        collection before scoring it with `overlapping_modularity()`.
+
+        Nodes in the groups that are not in the graph are ignored, matching NetworkX's
+        `community.is_cover()`.
+
+        Parameters
+        ----------
+        communities
+            A list of node groups, each a list or set of node IDs or labels.
+
+        Returns
+        -------
+        bool
+            `True` if every node of the graph is in at least one group. An empty graph is
+            covered by any collection.
+
+        Examples
+        --------
+        Two triangles sharing node C: overlapping groups that reach every node form a cover,
+        and dropping a node breaks it:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                        ("C", "D"), ("D", "E"), ("E", "C")])
+        )
+
+        graph.is_cover([["A", "B", "C"], ["C", "D", "E"]]), graph.is_cover([["A", "B", "C"]])
+        ```
+        """
+        if isinstance(communities, (str, dict)):
+            raise TypeError("communities= must be a list of node groups")
+        covered: set[int] = set()
+        for group in communities:
+            for node in group:
+                try:
+                    covered.add(self._resolve_node_id(node, auto_create=False))
+                except (KeyError, ValueError):
+                    continue
+        return covered.issuperset(self.get_node_ids(limit=None))
+
+    def overlapping_modularity(self, communities, resolution: float = 1.0) -> float:
+        """
+        Score an overlapping cover of the nodes by Shen et al.'s extended modularity.
+
+        Modularity (see `modularity()`) needs each node in exactly one community. Extended
+        modularity (Shen, Cheng, Cai & Hu, 2009) allows overlapping communities by sharing out
+        each node: a node that belongs to `O_v` communities contributes `1 / O_v` of its degree
+        to each, and an edge inside a community counts `1 / (O_u O_v)`:
+
+        `EQ = Σ_c [ L̃_c / m - γ (D̃_c / 2m)² ]`
+
+        where `L̃_c` is the discounted number of edges inside community `c`, `D̃_c` the
+        discounted sum of its nodes' degrees, and `m` the number of edges. When the cover is a
+        partition, this equals the ordinary modularity. On a weighted graph
+        (`Graph(weighted=True)`) edge weights replace edge counts. The results match
+        NetworkX's `community.overlapping_modularity()`.
+
+        Parameters
+        ----------
+        communities
+            The cover to score: a list of node groups, each a list or set of node IDs or
+            labels. Every node must be in at least one group (see `is_cover()`); groups may
+            overlap. A node listed twice in the same group counts once.
+        resolution
+            The resolution parameter `γ`, as in `modularity()`. Default is `1.0`.
+
+        Returns
+        -------
+        float
+            The extended modularity of the cover. A graph without edges scores `0`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, a node is in no group, or a label does not exist.
+
+        Examples
+        --------
+        Two triangles sharing node C: giving C to both communities scores higher than forcing
+        it into one of them:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
+                        ("C", "D"), ("D", "E"), ("E", "C")])
+        )
+
+        (
+            round(graph.overlapping_modularity([["A", "B", "C"], ["C", "D", "E"]]), 3),
+            round(graph.overlapping_modularity([["A", "B", "C"], ["D", "E"]]), 3),
+        )
+        ```
+
+        Score the overlapping communities found by clique percolation:
+
+        ```{python}
+        cover = graph.cmty_k_clique(3)
+        round(graph.overlapping_modularity(cover), 3)
+        ```
+        """
+        cover = self._cover_from(communities)
+        q = rust.overlapping_modularity(self._graph, cover, resolution)
+
+        if self._recording_depth == 0:
+            k = len(cover)
+            res = f", resolution={resolution!r}" if resolution != 1.0 else ""
+            self._record_step(
+                KIND_QUERY,
+                "overlapping_modularity",
+                f"G.overlapping_modularity(communities{res})",
+                result=q,
+                narration=f"Extended modularity of {k} overlapping communities: EQ = {q:.3f}.",
+            )
+        return q
+
+    def bipartite_modularity(
+        self,
+        communities,
+        top_nodes: list[Union[int, str]] | None = None,
+        resolution: float = 1.0,
+    ) -> float:
+        """
+        Score a partition of a bipartite graph by Barber's bipartite modularity.
+
+        Ordinary modularity (see `modularity()`) compares a partition against random graphs
+        in which any two nodes may be joined, which misjudges bipartite networks such as
+        users and items, authors and papers, or genes and diseases, where edges only ever run
+        between the two sides. Barber's bipartite modularity (2007) uses a null model with
+        edges only between the sides:
+
+        `Q_B = Σ_c [ L_c / m - γ k_c d_c / m² ]`
+
+        where `L_c` is the number of edges inside community `c`, `k_c` and `d_c` are the sums
+        of the degrees of its top-side and bottom-side nodes, and `m` is the number of edges.
+        Communities usually mix nodes from both sides. On a weighted graph
+        (`Graph(weighted=True)`) edge weights replace edge counts. The results match
+        NetworkX's `bipartite.modularity()`.
+
+        Parameters
+        ----------
+        communities
+            The partition to score, given like the `communities=` argument of `modularity()`:
+            the name of a node attribute holding community labels, a dictionary mapping node
+            IDs or labels to community labels, or a list of node groups. Every node must belong
+            to exactly one community.
+        top_nodes
+            Optional list of the nodes on one side (IDs or labels); all other nodes form the
+            other side. If `None` (default), the sides are found by 2-coloring each connected
+            component. The choice only matters when a community spans several components,
+            since flipping the sides of one component changes how its nodes pair up with the
+            rest of the community.
+        resolution
+            The resolution parameter `γ`, as in `modularity()`. Default is `1.0`.
+
+        Returns
+        -------
+        float
+            The bipartite modularity of the partition, at most `1`. A graph without edges
+            scores `0`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed or not bipartite, `top_nodes=` does not split it into two
+            sides, a node is missing from the partition or appears in two groups, or a label or
+            attribute does not exist.
+
+        Examples
+        --------
+        Two groups of customers and the products they buy: grouping each customer with their
+        products scores well, while lumping everything together scores `0`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph()
+            .add_nodes(["Ann", "Bob", "Cy", "Dee", "tea", "jam", "nails", "glue"])
+            .add_edges([("Ann", "tea"), ("Ann", "jam"), ("Bob", "tea"), ("Bob", "jam"),
+                        ("Cy", "nails"), ("Cy", "glue"), ("Dee", "glue"), ("Bob", "glue")])
+        )
+
+        split = [["Ann", "Bob", "tea", "jam"], ["Cy", "Dee", "nails", "glue"]]
+        (
+            round(graph.bipartite_modularity(split, top_nodes=["Ann", "Bob", "Cy", "Dee"]), 3),
+            graph.bipartite_modularity([graph.get_node_ids()]),
+        )
+        ```
+        """
+        membership = self._membership_from(communities)
+        q = rust.bipartite_modularity(
+            self._graph, membership, self._top_ids(top_nodes), resolution
+        )
+
+        if self._recording_depth == 0:
+            groups = {self._node_label(n): c for n, c in sorted(membership.items())}
+            k = len(set(membership.values()))
+            arg = repr(communities) if isinstance(communities, str) else "communities"
+            extra = ", top_nodes=top_nodes" if top_nodes is not None else ""
+            if resolution != 1.0:
+                extra += f", resolution={resolution!r}"
+            self._record_step(
+                KIND_QUERY,
+                "bipartite_modularity",
+                f"G.bipartite_modularity({arg}{extra})",
+                delta=StepDelta(node_groups=groups),
+                result=q,
+                narration=f"Bipartite modularity of {k} communities: Q = {q:.3f}.",
+            )
+        return q
+
     def _store_communities(
         self, method: str, membership: dict[int, int], attr_name: str, params: dict, code: str
     ) -> None:
@@ -33300,6 +34179,8 @@ class Graph:
         self,
         resolution: float = 1.0,
         seed: int | None = None,
+        objective: str = "modularity",
+        theta: float = 0.01,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, int], "Graph"]:
@@ -33316,18 +34197,43 @@ class Graph:
         also tends to reach higher modularity, and does so quickly, which makes it the usual
         recommendation over Louvain today.
 
-        The algorithm is repeated, each run starting from the previous partition, until
-        modularity stops improving. Edge weights are used on weighted graphs
+        The algorithm is repeated, each run starting from the previous partition, until the
+        quality stops improving. Edge weights are used on weighted graphs
         (`Graph(weighted=True)`).
+
+        Leiden can optimize either of two qualities, chosen with `objective=`:
+
+        - `"modularity"` (default): the usual modularity (see `modularity()`), which compares
+          each community against a random graph with the same degrees.
+        - `"cpm"`: the Constant Potts Model (see `constant_potts_model()`), which rewards edges
+          inside communities and charges `resolution` for every pair of nodes placed together.
+          Here `resolution` is a density threshold: communities end up with an internal edge
+          density above it and are linked to each other with a density below it. CPM has no
+          resolution limit, so small, dense groups are found even in a very large graph, but
+          `resolution` must be set to suit the graph. On an unweighted graph, values between
+          `0` and `1` make sense (the graph's density is a natural starting point); at `1` or
+          above, no merge pays off and every node stays in a community of its own.
+
+        NetworkX's `community.leiden_communities()` defaults to `"cpm"`; pass
+        `objective="cpm"` to match it.
 
         Parameters
         ----------
         resolution
-            The resolution parameter of modularity. Values above `1.0` produce more, smaller
-            communities; values below `1.0` fewer, larger ones. Default is `1.0`.
+            The resolution parameter of the objective. With modularity, values above `1.0`
+            produce more, smaller communities and values below `1.0` fewer, larger ones. With
+            CPM, it is the density threshold described above (larger values give smaller,
+            denser communities). Default is `1.0`.
         seed
             Random seed. The algorithm visits nodes in random order, so different seeds can
             give (usually slightly) different partitions. Set it for reproducible results.
+        objective
+            The quality to maximize: `"modularity"` (default) or `"cpm"`.
+        theta
+            Randomness of the refinement step. A refined subset is chosen with probability
+            proportional to `exp(gain / theta)`, so small values almost always take the best
+            merge and larger ones explore more. Must be positive. Default is `0.01`, the value
+            Traag et al. recommend.
         attr_name
             Name of the node attribute to store community labels in. If `None` (default),
             uses `"cmty_leiden"`.
@@ -33345,7 +34251,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is directed.
+            If the graph is directed, `objective=` is not `"modularity"` or `"cpm"`, or
+            `theta=` is not positive.
 
         Examples
         --------
@@ -33374,8 +34281,22 @@ class Graph:
         labels = karate.get_node_attrs("cmty_leiden")
         round(karate.modularity("cmty_leiden"), 4), len(set(labels.values()))
         ```
+
+        With `objective="cpm"`, `resolution` sets the density a community must exceed. A low
+        threshold keeps the two factions of the karate club; a higher one breaks them into
+        smaller, denser groups:
+
+        ```{python}
+        [
+            len(set(karate.cmty_leiden(objective="cpm", resolution=r, seed=1,
+                                       return_dict=True).values()))
+            for r in [0.05, 0.2, 0.5]
+        ]
+        ```
         """
-        membership = rust.leiden(self._graph, resolution=resolution, seed=seed)
+        membership = rust.leiden(
+            self._graph, resolution=resolution, seed=seed, objective=objective, theta=theta
+        )
         if return_dict:
             return membership
         if attr_name is None:
@@ -33385,6 +34306,10 @@ class Graph:
             params["resolution"] = resolution
         if seed is not None:
             params["seed"] = seed
+        if objective != "modularity":
+            params["objective"] = objective
+        if theta != 0.01:
+            params["theta"] = theta
         args = ", ".join([f"{k}={v!r}" for k, v in params.items()] + [f"attr_name={attr_name!r}"])
         self._store_communities(
             "cmty_leiden", membership, attr_name, params, f"G.cmty_leiden({args})"
@@ -33937,6 +34862,196 @@ class Graph:
                 result=result,
                 narration=f"Bisection into {len(a)} and {len(b)} nodes.",
             )
+        return result
+
+    def _record_bipartition(self, method, code, a, b, result, narration):
+        if self._recording_depth == 0:
+            side = dict.fromkeys(a, 0) | dict.fromkeys(b, 1)
+            self._record_step(
+                KIND_QUERY,
+                method,
+                code,
+                delta=StepDelta(
+                    node_groups={self._node_label(n): s for n, s in side.items()},
+                    edges_selected=[
+                        (self._node_label(s), self._node_label(t))
+                        for _, s, t in self.get_edges_as_tuples()
+                        if side[s] != side[t]
+                    ],
+                ),
+                result=result,
+                narration=narration,
+            )
+
+    def spectral_modularity_bipartition(
+        self, weighted: bool | None = None
+    ) -> tuple[set[int], set[int]]:
+        r"""
+        Split the nodes into two communities by the leading eigenvector of the modularity matrix.
+
+        Newman's (2006) spectral method: the eigenvector of the largest eigenvalue of the
+        modularity matrix $B = A - k k^T / 2m$ points toward the split with the highest
+        modularity, so nodes are divided by the sign of their entry. It is fast,
+        deterministic and a common first cut for community detection, and the basis of
+        Newman's recursive leading-eigenvector method; apply it again to each side for more
+        communities.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights in the modularity matrix. If `None` (default), follows
+            the graph's `weighted` flag.
+
+        Returns
+        -------
+        tuple[set[int], set[int]]
+            The two communities as sets of node IDs: nodes with negative entries first, then
+            the rest. The eigenvector's sign is chosen so that the lowest-ID node with a nonzero
+            entry is in the first set. An edgeless graph gives an empty first set.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        The modularity matrix is formed densely and fully diagonalized, $O(V^3)$ time. Nodes
+        whose entry is zero (up to $10^{-12}$) go to the second set, as in NetworkX's
+        `spectral_modularity_bipartition`, which returns the same two sets but in an order that
+        depends on the eigensolver's arbitrary sign; NetworkX also ignores edge weights, so use
+        `weighted=False` to match it on weighted graphs. Parallel edges add up.
+
+        Examples
+        --------
+        Zachary's karate club splits almost exactly along the club's real fission:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.karate_club()
+        left, right = g.spectral_modularity_bipartition()
+        len(left), len(right), g.modularity([left, right])
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("spectral_modularity_bipartition() requires an undirected graph")
+        use_w = self._use_weights(weighted)
+        a, b, _ = rust.spectral_modularity_bipartition(self._graph, use_w)
+        result = (set(a), set(b))
+        self._record_bipartition(
+            "spectral_modularity_bipartition",
+            "G.spectral_modularity_bipartition()",
+            a,
+            b,
+            result,
+            f"Spectral modularity bipartition into {len(a)} and {len(b)} nodes.",
+        )
+        return result
+
+    def greedy_node_swap_bipartition(
+        self,
+        init_split: tuple[list, list] | None = None,
+        max_iter: int = 10,
+        weighted: bool | None = None,
+        seed: int | None = None,
+    ) -> tuple[set[int], set[int]]:
+        r"""
+        Split the nodes into two communities by greedily moving nodes to raise modularity.
+
+        Starting from a split, each pass moves every node to the other side once, always
+        choosing the move that raises modularity the most (or lowers it the least), and keeps
+        the best split seen during the pass. Passes repeat until one brings no improvement.
+        Allowing temporarily worse moves lets it escape some local optima, in the spirit of
+        Kernighan-Lin, but without balancing the sizes: the communities may have any size. It
+        is a simple way to refine a two-community split, such as one from
+        `spectral_modularity_bipartition()`.
+
+        Without `init_split=`, the start is a random half of the nodes; use `seed=` for
+        reproducible results.
+
+        Parameters
+        ----------
+        init_split
+            Optional starting split as two lists of nodes (IDs or labels) covering every node.
+        max_iter
+            Maximum number of passes (default 10).
+        weighted
+            Whether to use edge weights in the modularity. If `None` (default), follows the
+            graph's `weighted` flag.
+        seed
+            Random seed for the starting half.
+
+        Returns
+        -------
+        tuple[set[int], set[int]]
+            The two communities as sets of node IDs (the first evolves from `init_split[0]` when
+            a split is given).
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed, `init_split` is not a split of all nodes into two disjoint
+            sets, or `max_iter` is negative.
+
+        Technical Notes
+        ---------------
+        Moving node $u$ from side $s$ to side $o$ changes modularity by
+        $(k_{u,o} - k_{u,s}) / m + k_u (d_s - d_o - k_u) / 2m^2$, where $k_{u,X}$ is $u$'s edge
+        weight to side $X$ (its self-loops left out), $k_u$ its degree, $d_X$ the total degree
+        of side $X$ and $m$ the total edge weight. Gains are updated incrementally, so a pass
+        costs $O(V^2 + E)$. Ties go to the lowest node ID. Follows NetworkX's
+        `greedy_node_swap_bipartition` with these differences: NetworkX returns the split from
+        before its last pass (so `max_iter=1` returns the starting split unchanged), whereas
+        this returns the best split found; it accepts gains that are only rounding error (which
+        can swap the two sides); it uses unweighted modularity and Python's global
+        random state; it counts a self-loop's neighbor as being on its own side; and it accepts
+        directed graphs. An edgeless graph returns the starting split.
+
+        Examples
+        --------
+        Two triangles joined by an edge are separated:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_barbell_graph(3, 0, label=False)
+        g.greedy_node_swap_bipartition(seed=1)
+        ```
+
+        Refining a split of the karate club:
+
+        ```{python}
+        g = ec.karate_club()
+        left, right = g.greedy_node_swap_bipartition(init_split=g.spectral_modularity_bipartition())
+        len(left), len(right), round(g.modularity([left, right]), 4)
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("greedy_node_swap_bipartition() requires an undirected graph")
+        if isinstance(max_iter, bool) or not isinstance(max_iter, int) or max_iter < 0:
+            raise ValueError("max_iter must be a non-negative integer")
+        initial = None
+        if init_split is not None:
+            first, second = init_split
+            a = {self._resolve_node_id(n, auto_create=False) for n in first}
+            b = {self._resolve_node_id(n, auto_create=False) for n in second}
+            if a & b or (a | b) != set(self.get_node_ids(limit=None)):
+                raise ValueError("init_split must split every node into two disjoint sets")
+            initial = sorted(a)
+        a, b, q = rust.greedy_node_swap_bipartition(
+            self._graph, initial, max_iter, self._use_weights(weighted), seed
+        )
+        result = (set(a), set(b))
+        self._record_bipartition(
+            "greedy_node_swap_bipartition",
+            "G.greedy_node_swap_bipartition()",
+            a,
+            b,
+            result,
+            f"Greedy node-swap bipartition into {len(a)} and {len(b)} nodes "
+            f"(modularity {q:.4f}).",
+        )
         return result
 
     def lukes_partitioning(
@@ -37344,6 +38459,110 @@ class Graph:
                 "power",
                 f"G.power({k})",
                 narration=f"power({k}): {len(added)} edges added for pairs within distance {k}.",
+            )
+        return result
+
+    def random_k_lift(self, k: int, seed: Optional[int] = None) -> "Graph":
+        r"""
+        Build a random k-lift of the graph.
+
+        A k-lift replaces every node `v` with `k` copies `(v, 0), ..., (v, k - 1)` and every
+        edge `u - v` with a perfect matching between the copies of `u` and those of `v`: for a
+        permutation `σ` of `0, ..., k - 1`, copy `(u, i)` is joined to `(v, σ(i))`. A random
+        lift draws each edge's permutation independently and uniformly. Every node of the lift
+        has the degree of the node it copies, and the lift maps onto the original graph as a
+        `k`-fold covering, so local structure is preserved while cycles can unwind into longer
+        ones.
+
+        Random lifts are the standard way to grow expander graphs (Bilu and Linial, 2006): a
+        lift of a good expander keeps nearly the same spectral gap with high probability while
+        having `k` times as many nodes and the same degrees. They are used to design
+        datacenter networks (Xpander, Valadarsky et al., 2016) and as random models in
+        their own right. A lift can be disconnected, which is more likely when the original
+        graph is a poor expander; it is returned as drawn.
+
+        Parameters
+        ----------
+        k
+            Number of copies of each node. Must be at least `1` (`k=1` returns a copy).
+        seed
+            Random seed for reproducibility. If `None` (default), the permutations differ on
+            each call.
+
+        Returns
+        -------
+        Graph
+            A new graph with `k * n` nodes and `k * e` edges, directed if this graph is. Copy
+            `i` of the `j`-th node (in ID order) gets ID `j * k + i + 1`, the label `"(v, i)"`
+            built from the node's label (or its ID if it has none), and the node's attributes. Each edge copy keeps the
+            weight and attributes of the edge it comes from.
+
+        Raises
+        ------
+        ValueError
+            If `k=` is less than `1`.
+
+        Technical Notes
+        ---------------
+        One Fisher-Yates shuffle per edge, in edge ID order, so the lift takes $O(k(n + e))$
+        time. Parallel edges get independent permutations. A self-loop at `v` lifts to the
+        edges `(v, i) - (v, σ(i))`: a self-loop on each fixed point of `σ`, and in an
+        undirected graph a pair of parallel edges for each 2-cycle. Every edge thus has
+        exactly `k` copies, as in NetworkX's `random_k_lift()` on a multigraph (on a simple
+        `nx.Graph`, NetworkX merges those parallel copies). The permutations come from
+        EdgeCase's own generator, so a given seed draws a different lift than NetworkX does.
+
+        Examples
+        --------
+        A 4-lift of the complete graph $K_4$ is a 3-regular graph on 16 nodes:
+
+        ```{python}
+        import edgecase as ec
+
+        k4 = ec.Graph().add_full_graph(4)
+        lift = k4.random_k_lift(4, seed=1)
+
+        lift.count_nodes(), lift.count_edges(), lift.is_k_regular(3)
+        ```
+
+        Each node of the lift is a copy of a node of the original graph:
+
+        ```{python}
+        lift.get_node_df().select(["id", "label"]).head(6)
+        ```
+
+        Lifting a triangle twice either keeps two triangles or unwinds them into a hexagon:
+
+        ```{python}
+        triangle = ec.Graph().add_cycle_graph(3)
+        [triangle.random_k_lift(2, seed=s).count_weakly_connected_components() for s in range(6)]
+        ```
+        """
+        if k < 1:
+            raise ValueError(f"k must be a positive integer, got {k}")
+        result = Graph._from_rust(rust.random_k_lift(self._graph, k, seed))
+        if self._recording_depth == 0:
+            code = f"G.random_k_lift({k})" if seed is None else f"G.random_k_lift({k}, seed={seed})"
+            result._record_step(
+                KIND_BUILD_EDGES,
+                "random_k_lift",
+                code,
+                delta=StepDelta(
+                    nodes_added=[
+                        result._node_label(n) for n in sorted(result.get_node_ids(limit=None))
+                    ],
+                    edges_added=[
+                        (result._node_label(s), result._node_label(t))
+                        for _, s, t in result.get_edges_as_tuples()
+                    ],
+                ),
+            )
+            self._record_step(
+                KIND_TRANSFORM,
+                "random_k_lift",
+                code,
+                narration=f"random_k_lift({k}): {result.count_nodes()} nodes and "
+                f"{result.count_edges()} edges.",
             )
         return result
 
@@ -44070,9 +45289,12 @@ class Graph:
         return self
 
     def subgraph_centrality(
-        self, attr_name: str | None = None, return_dict: bool = False
+        self,
+        normalized: bool = False,
+        attr_name: str | None = None,
+        return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
-        """
+        r"""
         Calculate subgraph centrality scores for all nodes.
 
         ![Subgraph centrality](/assets/graphs/subgraph-centrality.light.svg){.lightbox fig-alt="The shared seven-node strip of triangles with a tail, shaded by subgraph centrality, which counts closed walks that start and end at each node. Hub C sits in three triangles and scores 6.17, ahead of D 4.74 and B 4.67, while the tail nodes F 2.32 and G 1.59, in no triangle, score least." width="100%"}
@@ -44088,8 +45310,17 @@ class Graph:
         apart nodes that a degree count would tie. Edges are treated as unweighted and parallel
         edges count once. Undirected graphs only.
 
+        Raw scores grow exponentially with the largest adjacency eigenvalue $\lambda_{max}$
+        (a node in a 100-clique scores about $e^{99}$), so `normalized=True` divides them by
+        $e^{\lambda_{max}}$. That keeps them in a readable range, typically below `1`, and
+        makes graphs of different density comparable; the ranking is unchanged.
+
         Parameters
         ----------
+        normalized
+            If `True`, divide every score by $e^{\lambda_{max}}$, as NetworkX's
+            `subgraph_centrality(normalized=True)` does. If `False` (default), return the raw
+            closed-walk counts.
         attr_name
             Name of the node attribute to store scores in. If `None` (default), uses
             `"subgraph_centrality"`.
@@ -44100,8 +45331,9 @@ class Graph:
         Returns
         -------
         Union[dict[int, float], Graph]
-            If `return_dict=` is `True`: a dictionary mapping node IDs to scores (each at least
-            `1`, from the empty walk). If `return_dict=` is `False` (default): returns self.
+            If `return_dict=` is `True`: a dictionary mapping node IDs to scores (raw scores are
+            each at least `1`, from the empty walk). If `return_dict=` is `False` (default):
+            returns self.
 
         Raises
         ------
@@ -44125,9 +45357,19 @@ class Graph:
         scores = graph.subgraph_centrality(return_dict=True)
         {graph.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
         ```
+
+        Normalized scores keep the same order on a smaller scale:
+
+        ```{python}
+        scores = graph.subgraph_centrality(normalized=True, return_dict=True)
+        {graph.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        ```
         """
-        scores = rust.subgraph_centrality(self._graph)
-        return self._node_metric_result("subgraph_centrality", scores, attr_name, return_dict, {})
+        scores = rust.subgraph_centrality(self._graph, bool(normalized))
+        params = {"normalized": True} if normalized else {}
+        return self._node_metric_result(
+            "subgraph_centrality", scores, attr_name, return_dict, params
+        )
 
     def current_flow_betweenness_centrality(
         self,
@@ -44616,6 +45858,7 @@ class Graph:
         epsilon: float = 0.5,
         kmax: int = 10000,
         seed: int | None = None,
+        sample_weight: float = 1.0,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -44646,11 +45889,15 @@ class Graph:
             `ceil((c / epsilon)^2 ln n)` random pairs, with `c = n / (n - 2)`, so halving
             `epsilon=` quadruples the work.
         kmax
-            Maximum number of pairs to sample (default `10000`). If `epsilon=` asks for more, a
-            `ValueError` is raised.
+            Maximum number of pairs to sample (default `10000`). If `epsilon=` and
+            `sample_weight=` ask for more, a `ValueError` is raised.
         seed
             Seed for the random pairs, for reproducible estimates. If `None` (default), the
             pairs differ on every call.
+        sample_weight
+            Multiplier on the number of pairs that `epsilon=` asks for (default `1.0`): `2.0`
+            samples twice as many, for a tighter estimate at twice the cost, and `0.5` half as
+            many. At least one pair is always sampled. Matches NetworkX's `sample_weight=`.
         attr_name
             Name of the node attribute to store scores in. If `None` (default), uses
             `"approximate_current_flow_betweenness_centrality"`.
@@ -44667,8 +45914,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is directed or disconnected, a weight is not positive, `epsilon=` is
-            not positive, or the required number of pairs exceeds `kmax=`.
+            If the graph is directed or disconnected, a weight is not positive, `epsilon=` or
+            `sample_weight=` is not positive, or the required number of pairs exceeds `kmax=`.
 
         Technical Notes
         ---------------
@@ -44699,6 +45946,7 @@ class Graph:
             float(epsilon),
             int(kmax),
             seed,
+            float(sample_weight),
         )
         params: dict = {} if normalized else {"normalized": False}
         if weighted is not None:
@@ -44707,6 +45955,8 @@ class Graph:
             params["epsilon"] = epsilon
         if seed is not None:
             params["seed"] = seed
+        if sample_weight != 1.0:
+            params["sample_weight"] = sample_weight
         return self._node_metric_result(
             "approximate_current_flow_betweenness_centrality",
             scores,
@@ -54818,6 +56068,77 @@ class Graph:
                 narration=f"{len(result)} antichains; the largest has {len(widest)} nodes.",
             )
         return result
+
+    def antichain_width(self) -> int:
+        """
+        Compute the width of a directed acyclic graph: the size of its largest antichain.
+
+        An antichain is a set of nodes none of which can reach another along directed paths
+        (see `antichains()`), and the width is the largest such set. In a task dependency
+        graph it is the most tasks that can ever run at once, so it bounds the parallelism
+        any schedule can use; in a version history, the most branches that are ever
+        simultaneously unmerged. By Dilworth's theorem it also equals the fewest chains (sets
+        of nodes all on one directed path) needed to cover every node.
+
+        Unlike `antichains()`, which lists every antichain and can take exponential time, this
+        runs in polynomial time. Parallel edges count once.
+
+        Returns
+        -------
+        int
+            The width (`0` for a graph without nodes).
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or has a cycle (including a self-loop).
+
+        Technical Notes
+        ---------------
+        Fulkerson's (1956) reduction of Dilworth's theorem to matching: build the transitive
+        closure (as bitsets, in reverse topological order), form the bipartite graph joining a
+        left copy of each node `u` to a right copy of every `v` reachable from `u`, and find a
+        maximum matching with Hopcroft-Karp. Each matched pair links two consecutive nodes of
+        a chain, so the fewest chains, and with them the width, is `n` minus the matching's
+        size. The closure takes `O(n e / 64)` time and the matching `O(sqrt(n) r)`, where `r`
+        is the number of reachable pairs. This is how NetworkX's `antichain_width()` computes
+        it, and the results match.
+
+        Examples
+        --------
+        In a diamond A -> B, A -> C, B -> D, C -> D, the largest antichain is {B, C}:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        g.antichain_width()
+        ```
+
+        The width of the divisibility order on 1 to 30 is 15, the numbers 16 to 30, none of
+        which divides another:
+
+        ```{python}
+        div = ec.Graph(directed=True).add_nodes([str(i) for i in range(1, 31)])
+        div.add_edges(
+            [(str(a), str(b)) for a in range(1, 31) for b in range(2 * a, 31, a)]
+        )
+
+        div.antichain_width()
+        ```
+        """
+        value = rust.antichain_width(self._graph)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "antichain_width",
+                "G.antichain_width()",
+                result=value,
+                narration=f"Width of the partial order: {value}.",
+            )
+        return value
 
     def is_aperiodic(self) -> bool:
         r"""
@@ -68165,6 +69486,82 @@ class Graph:
             )
         return matrix, ids
 
+    def magnetic_laplacian_matrix(
+        self,
+        q: float = 0.25,
+        normalized: bool = False,
+        weighted: bool | None = None,
+    ) -> tuple[list[list[complex]], list[int]]:
+        r"""
+        Get the magnetic Laplacian matrix of a directed graph.
+
+        The magnetic Laplacian (Fanuel et al., 2018) encodes edge direction as a complex phase,
+        like the potential of a magnetic field acting on a charged particle walking the graph.
+        A one-way edge $j \to k$ contributes $e^{2\pi i q}$ to entry $(j, k)$ and its conjugate
+        to $(k, j)$, so the matrix is Hermitian: its eigenvalues are real and its eigenvectors
+        give "magnetic eigenmaps", spectral embeddings of directed graphs that place nodes in
+        the order of the flow, revealing cycles and hierarchies that the symmetrized Laplacian
+        loses. The charge `q` sets how strongly direction counts; at `q = 0` this is the
+        Laplacian of the graph with directions ignored (and two-way edges counted once, with the
+        mean weight).
+
+        Parameters
+        ----------
+        q
+            The charge, between `0` and `0.5`. Default is `0.25`, where a one-way edge's phase is
+            a quarter turn, $i$.
+        normalized
+            Whether to return the normalized magnetic Laplacian
+            $I - D^{-1/2} H D^{-1/2}$ instead of $D - H$.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        tuple[list[list[complex]], list[int]]
+            `(matrix, node_ids)`: the Hermitian matrix as a list of rows of `complex` values,
+            and the node IDs labelling rows and columns, in increasing order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or `q` is not between `0` and `0.5`.
+
+        Technical Notes
+        ---------------
+        With $W$ the weighted adjacency matrix and $W' = (W + W^T) / 2$, the Hermitian
+        adjacency matrix is $H_{jk} = W'_{jk} e^{2\pi i q \delta_{jk}}$, where $\delta_{jk}$
+        is $+1$ if only $j \to k$ is an edge, $-1$ if only $k \to j$ is, and $0$ if both are.
+        $D$ is diagonal with the row sums of $|H|$, that is of $W'$. Self-loops are left out.
+        In the normalized form, isolated nodes get zero rows apart from the 1 on the diagonal.
+        Matches NetworkX's `magnetic_laplacian_matrix()`; NetworkX rejects multigraphs, while
+        parallel edges add their weights here.
+
+        Examples
+        --------
+        A directed triangle: each one-way edge gives the phase $\pm i$ at the default
+        `q = 0.25`:
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+
+        matrix, nodes = cycle.magnetic_laplacian_matrix()
+        [[complex(round(z.real, 3) + 0.0, round(z.imag, 3) + 0.0) for z in row] for row in matrix]
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("magnetic_laplacian_matrix() requires a directed graph")
+        matrix, ids = rust.magnetic_laplacian_matrix(
+            self._graph, float(q), bool(normalized), self._use_weights(weighted)
+        )
+        self._record_matrix_step(
+            "magnetic_laplacian_matrix", "G.magnetic_laplacian_matrix()", len(ids), len(ids)
+        )
+        return matrix, ids
+
     def modularity_matrix(
         self, weighted: bool | None = None
     ) -> tuple[list[list[float]], list[int]]:
@@ -68495,6 +69892,70 @@ class Graph:
         ```
         """
         return rust.bethe_hessian_spectrum(self._graph, r, self._use_weights(weighted))
+
+    def magnetic_spectrum(
+        self,
+        q: float = 0.25,
+        normalized: bool = False,
+        weighted: bool | None = None,
+    ) -> list[float]:
+        r"""
+        Get the eigenvalues of the magnetic Laplacian of a directed graph.
+
+        The eigenvalues of `magnetic_laplacian_matrix()`, in increasing order. They are real
+        because the matrix is Hermitian, and non-negative. The smallest is `0` when the phases
+        around every cycle cancel out, as on a graph whose undirected version is a forest or
+        whose edges are all two-way, so it measures how far the edge directions are from being
+        consistent: for example, a directed cycle of length `L` keeps it above `0` unless `qL`
+        is a whole number.
+
+        Parameters
+        ----------
+        q
+            The charge, between `0` and `0.5`. Default is `0.25`.
+        normalized
+            Whether to use the normalized magnetic Laplacian, whose eigenvalues lie in
+            $[0, 2]$.
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph.
+
+        Returns
+        -------
+        list[float]
+            The eigenvalues in increasing order.
+
+        Raises
+        ------
+        ValueError
+            If the graph is undirected or `q` is not between `0` and `0.5`.
+
+        Technical Notes
+        ---------------
+        The dense Hermitian matrix is fully diagonalized, $O(V^3)$ time. Matches NetworkX's
+        `magnetic_spectrum()`.
+
+        Examples
+        --------
+        On a directed triangle the phases at `q = 0.25` add up to three quarter turns, so `0`
+        is not an eigenvalue; at `q = 0` the spectrum is that of the undirected triangle (with
+        edge weights halved, as $W'$ averages the two directions):
+
+        ```{python}
+        import edgecase as ec
+
+        cycle = ec.Graph(directed=True).add_cycle_graph(3)
+
+        (
+            [round(v, 3) + 0.0 for v in cycle.magnetic_spectrum()],
+            [round(v, 3) + 0.0 for v in cycle.magnetic_spectrum(q=0)],
+        )
+        ```
+        """
+        if not self.is_directed():
+            raise ValueError("magnetic_spectrum() requires a directed graph")
+        return rust.magnetic_spectrum(
+            self._graph, float(q), bool(normalized), self._use_weights(weighted)
+        )
 
     def algebraic_connectivity(
         self, normalized: bool = False, weighted: bool | None = None
@@ -69073,6 +70534,73 @@ class Graph:
         from edgecase._core import wiener_index
 
         return wiener_index(self._graph, weight)
+
+    def get_hyper_wiener_index(self, weight: str | None = None) -> float:
+        r"""
+        Calculate the hyper-Wiener index of an undirected graph.
+
+        The hyper-Wiener index (Randić, 1993) refines the Wiener index by also summing squared
+        distances, so far-apart pairs weigh more heavily:
+
+        `WW(G) = ½ Σ_{u < v} (d(u, v) + d(u, v)²)`
+
+        Equivalently, `½ d (d + 1)` is the number of sub-paths of a shortest path of length
+        `d`, so the index counts, over all pairs, the paths contained in their shortest paths
+        (Klein, Lukovits and Gutman, 1995). Like `get_wiener_index()`, it is a topological
+        descriptor in chemistry, where it correlates with boiling points and other properties
+        of molecules; the square term makes it more sensitive to a molecule's elongation.
+
+        Parameters
+        ----------
+        weight
+            Edge attribute to use as weight. If `None`, uses unweighted distances (all edges have
+            distance `1`).
+
+        Returns
+        -------
+        float
+            The hyper-Wiener index. Returns `0.0` for graphs with fewer than two nodes and
+            infinity (`float('inf')`) for disconnected graphs.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        Technical Notes
+        ---------------
+        The sum runs over unordered pairs, as in Randić's and Klein et al.'s definition and in
+        `get_wiener_index()`, which gives the values tabulated in the chemistry literature
+        (15 for the 4-node path, butane's carbon skeleton). NetworkX's `hyper_wiener_index()`
+        sums over ordered pairs while keeping the factor of one half, so its values are
+        exactly twice these (30 for the 4-node path). Distances come from a breadth-first
+        search from every node, or Dijkstra's algorithm with `weight=`, in
+        $O(V(V + E))$ or $O(V(V + E) \log V)$ time.
+
+        Examples
+        --------
+        On a 4-node path the distances are 1 (three pairs), 2 (two pairs) and 3 (one pair), so
+        `WW = ½ (3 · 2 + 2 · 6 + 1 · 12) = 15`; the Wiener index is 10:
+
+        ```{python}
+        import edgecase as ec
+
+        path = ec.Graph().add_path_graph(4)
+        path.get_wiener_index(), path.get_hyper_wiener_index()
+        ```
+
+        Among trees on the same number of nodes, the star is the most compact and the path the
+        least:
+
+        ```{python}
+        star = ec.Graph().add_star_graph(6)
+        line = ec.Graph().add_path_graph(6)
+        star.get_hyper_wiener_index(), line.get_hyper_wiener_index()
+        ```
+        """
+        from edgecase._core import hyper_wiener_index
+
+        return hyper_wiener_index(self._graph, weight)
 
     def get_estrada_index(self) -> float:
         r"""
