@@ -44,9 +44,11 @@ fn check_nonnegative(graph: &Graph, weighted: bool) -> PyResult<()> {
 /// Subgraph centrality (Estrada & Rodríguez-Velázquez 2005): the diagonal of exp(A), i.e. a
 /// weighted count of closed walks through each node, with walks of length k weighted 1/k!.
 /// The adjacency matrix is binary (parallel edges count once; a self-loop puts 1 on the
-/// diagonal), as in NetworkX. Undirected graphs only.
+/// diagonal), as in NetworkX. Undirected graphs only. With `normalized`, every score is
+/// divided by exp(λ_max), computed as exp(λ - λ_max) so large graphs don't overflow.
 #[pyfunction]
-pub fn subgraph_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
+#[pyo3(signature = (graph, normalized=false))]
+pub fn subgraph_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMap<u64, f64>> {
     if graph.is_directed() {
         return Err(err("subgraph_centrality() requires an undirected graph"));
     }
@@ -62,7 +64,8 @@ pub fn subgraph_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         a[(t, s)] = 1.0;
     }
     let eig = na::SymmetricEigen::new(a);
-    let expw: Vec<f64> = eig.eigenvalues.iter().map(|w| w.exp()).collect();
+    let shift = if normalized { eig.eigenvalues.max() } else { 0.0 };
+    let expw: Vec<f64> = eig.eigenvalues.iter().map(|w| (w - shift).exp()).collect();
     Ok((0..n)
         .map(|i| {
             let sc: f64 = (0..n).map(|j| eig.eigenvectors[(i, j)].powi(2) * expw[j]).sum();
@@ -922,11 +925,12 @@ pub fn edge_current_flow_betweenness_centrality(
 }
 
 /// Approximate current-flow betweenness (Brandes & Fleischer 2005): the throughput of `k`
-/// random source-target pairs, with k = ceil((c/ε)² ln n) and c = n / (n - 2), scaled to
-/// estimate the normalized score (raw scores multiply by (n-1)(n-2)/2). Matches NetworkX's
-/// estimator; the pairs come from a seeded ChaCha8 generator.
+/// random source-target pairs, with k = floor(w ceil((c/ε)² ln n)) for the sample weight w
+/// (at least 1) and c = n / (n - 2), scaled to estimate the normalized score (raw scores
+/// multiply by (n-1)(n-2)/2). Matches NetworkX's estimator; the pairs come from a seeded
+/// ChaCha8 generator.
 #[pyfunction]
-#[pyo3(signature = (graph, normalized=true, weighted=false, epsilon=0.5, kmax=10000, seed=None))]
+#[pyo3(signature = (graph, normalized=true, weighted=false, epsilon=0.5, kmax=10000, seed=None, sample_weight=1.0))]
 pub fn approximate_current_flow_betweenness_centrality(
     graph: &Graph,
     normalized: bool,
@@ -934,6 +938,7 @@ pub fn approximate_current_flow_betweenness_centrality(
     epsilon: f64,
     kmax: usize,
     seed: Option<u64>,
+    sample_weight: f64,
 ) -> PyResult<FxHashMap<u64, f64>> {
     use rand::{Rng, SeedableRng};
     let (ids, edges) =
@@ -942,12 +947,15 @@ pub fn approximate_current_flow_betweenness_centrality(
     if epsilon.is_nan() || epsilon <= 0.0 {
         return Err(err("epsilon must be positive"));
     }
+    if !(sample_weight.is_finite() && sample_weight > 0.0) {
+        return Err(err("sample_weight must be a positive number"));
+    }
     if n < 3 {
         return Ok(ids.iter().map(|&id| (id, 0.0)).collect());
     }
     let nb = (n - 1) as f64 * (n - 2) as f64;
     let cstar = (n * (n - 1)) as f64 / nb;
-    let k = ((cstar / epsilon).powi(2) * (n as f64).ln()).ceil() as usize;
+    let k = ((sample_weight * ((cstar / epsilon).powi(2) * (n as f64).ln()).ceil()) as usize).max(1);
     if k > kmax {
         return Err(err(format!(
             "The approximation needs {} random pairs, more than kmax={}; increase kmax or epsilon",
