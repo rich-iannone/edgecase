@@ -879,6 +879,37 @@ pub fn planarity_counterexample(
     Ok(Some(kuratowski_edges(n, &edges)))
 }
 
+/// The faces of a planar embedding of the simple graph on `0..n` with `edges` (the embedding
+/// `planar_embedding` returns), or `None` if the graph is not planar. Each face is the walk of
+/// nodes around it, starting from the half-edge first met when visiting nodes in order and
+/// their neighbors clockwise; every half-edge lies on exactly one face. Walks repeat nodes
+/// around bridges and cut vertices; isolated nodes are on no face, and each connected component
+/// contributes its own outer face.
+#[pyfunction]
+pub fn planar_faces(n: usize, edges: Vec<(usize, usize)>) -> PyResult<Option<Vec<Vec<usize>>>> {
+    let adj = simple_adjacency(n, &edges)?;
+    let Some(emb) = lr_planarity(&adj) else {
+        return Ok(None);
+    };
+    let mut seen: HashSet<(usize, usize)> = HashSet::new();
+    let mut faces = Vec::new();
+    for v in 0..n {
+        for w in emb.neighbors_cw(v) {
+            if seen.contains(&(v, w)) {
+                continue;
+            }
+            let mut face = Vec::new();
+            let (mut a, mut b) = (v, w);
+            while seen.insert((a, b)) {
+                face.push(a);
+                (a, b) = emb.next_face_half_edge(a, b);
+            }
+            faces.push(face);
+        }
+    }
+    Ok(Some(faces))
+}
+
 /// Integer grid positions drawing the simple graph on `0..n` without edge crossings, or `None`
 /// if the graph is not planar.
 #[pyfunction]
