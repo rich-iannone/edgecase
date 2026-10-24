@@ -2,6 +2,7 @@
 //!
 //! This module provides:
 //! - `wiener_index`: Sum of all pairwise shortest path distances
+//! - `hyper_wiener_index`: Half the sum of d + d² over all node pairs
 //! - `estrada_index`: Sum of exponentials of adjacency matrix eigenvalues
 //! - `resistance_distance`: Effective resistance between node pairs
 //!
@@ -92,6 +93,44 @@ pub fn wiener_index(graph: &Graph, weight: Option<&str>) -> PyResult<f64> {
     }
 
     Ok(total_distance)
+}
+
+/// Compute the hyper-Wiener index of an undirected graph (Randić 1993; Klein, Lukovits &
+/// Gutman 1995): WW(G) = ½ Σ_{u < v} (d(u, v) + d(u, v)²).
+///
+/// Returns 0.0 for graphs with fewer than two nodes and infinity for disconnected graphs.
+/// `weight` switches to weighted distances on a weighted graph, as in `wiener_index`.
+#[pyfunction]
+#[pyo3(signature = (graph, weight=None))]
+pub fn hyper_wiener_index(graph: &Graph, weight: Option<&str>) -> PyResult<f64> {
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "the hyper-Wiener index is defined for undirected graphs",
+        ));
+    }
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+    if n <= 1 {
+        return Ok(0.0);
+    }
+    let node_to_idx: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(idx, &node_id)| (node_id, idx)).collect();
+    let use_weights = weight.is_some() && graph.is_weighted();
+    let mut total = 0.0;
+    for (i, &source) in node_ids.iter().enumerate() {
+        let distances = if use_weights {
+            single_source_dijkstra(graph, source, &node_ids, &node_to_idx)
+        } else {
+            single_source_bfs(graph, source, &node_ids, &node_to_idx)
+        };
+        for &d in &distances[i + 1..n] {
+            if d.is_infinite() {
+                return Ok(f64::INFINITY);
+            }
+            total += d + d * d;
+        }
+    }
+    Ok(total / 2.0)
 }
 
 /// Helper: BFS for unweighted single-source shortest paths
