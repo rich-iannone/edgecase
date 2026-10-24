@@ -1,6 +1,6 @@
-//! Clustering and degree-mixing extras (square clustering, generalized degree, average degree
-//! connectivity, degree pairs for mixing matrices) and the cut profile of a node set (cut size,
-//! volumes, boundaries) behind conductance, expansion and related measures.
+//! Clustering and degree-mixing extras (square clustering, butterflies, generalized degree,
+//! average degree connectivity, degree pairs for mixing matrices) and the cut profile of a node
+//! set (cut size, volumes, boundaries) behind conductance, expansion and related measures.
 //!
 //! Semantics follow NetworkX. Where weights matter, `weighted` selects each edge's `weight`
 //! (1.0 if missing) instead of counting edges.
@@ -86,6 +86,67 @@ pub fn square_clustering(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         out.insert(ids[v], if potential > 0 { squares as f64 / potential as f64 } else { 0.0 });
     }
     Ok(out)
+}
+
+/// Butterflies (4-cycles, `K_{2,2}` in a bipartite graph) through each node, counted with
+/// the vertex-priority wedge enumeration of BFC-VP (Wang et al. 2019): each 4-cycle is found
+/// once, from its highest-priority node `u` and the opposite node `w`, as a pair of wedges
+/// `u - v - w`. Matches NetworkX `bipartite.butterflies`. Undirected graphs only; self-loops
+/// and parallel edges are ignored.
+#[pyfunction]
+pub fn butterflies(graph: &Graph) -> PyResult<FxHashMap<u64, u64>> {
+    if graph.is_directed() {
+        return Err(err("butterflies() requires an undirected graph"));
+    }
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let nb = neighbor_sets(graph, &idx);
+    // Priority by (degree, index); neighbor lists sorted by ascending priority
+    let prio = |v: usize| (nb[v].len(), v);
+    let sorted_nb: Vec<Vec<usize>> = nb
+        .iter()
+        .map(|s| {
+            let mut v: Vec<usize> = s.iter().copied().collect();
+            v.sort_unstable_by_key(|&x| prio(x));
+            v
+        })
+        .collect();
+    let mut count = vec![0u64; n];
+    let mut wedges = vec![0u64; n];
+    let mut touched: Vec<usize> = Vec::new();
+    for u in 0..n {
+        let pu = prio(u);
+        let lower = |v: &&usize| prio(**v) < pu;
+        for v in sorted_nb[u].iter().take_while(lower) {
+            for w in sorted_nb[*v].iter().take_while(lower) {
+                if wedges[*w] == 0 {
+                    touched.push(*w);
+                }
+                wedges[*w] += 1;
+            }
+        }
+        for &w in &touched {
+            let k = wedges[w];
+            if k >= 2 {
+                let bf = k * (k - 1) / 2;
+                count[u] += bf;
+                count[w] += bf;
+            }
+        }
+        // Each middle node of a wedge pair (u, w) shares a butterfly with the other k - 1
+        for v in sorted_nb[u].iter().take_while(lower) {
+            for w in sorted_nb[*v].iter().take_while(lower) {
+                if wedges[*w] >= 2 {
+                    count[*v] += wedges[*w] - 1;
+                }
+            }
+        }
+        for &w in &touched {
+            wedges[w] = 0;
+        }
+        touched.clear();
+    }
+    Ok(ids.into_iter().zip(count).collect())
 }
 
 /// Generalized degree (Hoang et al.): for each node, how many of its edges lie in exactly k
