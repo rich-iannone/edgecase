@@ -77,6 +77,21 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
 
         if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
             .is_some_and(|neighbors| neighbors.contains(&start_node))) {
+            if let Some(bound) = length_bound {
+                // Johnson's blocking is unsound under a length bound: a node blocked
+                // after a search cut short by the bound may still close a cycle when
+                // reached by a shorter path. Search without blocking instead, pruning
+                // by each node's distance back to the start.
+                let dist = distances_to_node(start_node, &adj_list, &scc);
+                let mut path = vec![start_node];
+                let mut path_set = FxHashSet::default();
+                path_set.insert(start_node);
+                bounded_cycles_from_node(
+                    start_node, start_node, &adj_list, &scc, &dist, bound, &mut path,
+                    &mut path_set, &mut all_cycles,
+                );
+                continue;
+            }
             let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
             let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
             let mut path = Vec::with_capacity(scc.len());
@@ -100,6 +115,76 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
     }
 
     Ok(all_cycles)
+}
+
+/// Number of edges on a shortest path from each node of `scc` to `target`, within `scc`.
+fn distances_to_node(
+    target: u64,
+    adj_list: &FxHashMap<u64, Vec<u64>>,
+    scc: &FxHashSet<u64>,
+) -> FxHashMap<u64, usize> {
+    let mut preds: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
+    for &u in scc {
+        for &v in adj_list.get(&u).map(Vec::as_slice).unwrap_or(&[]) {
+            if scc.contains(&v) {
+                preds.entry(v).or_default().push(u);
+            }
+        }
+    }
+    let mut dist: FxHashMap<u64, usize> = FxHashMap::default();
+    dist.insert(target, 0);
+    let mut queue = VecDeque::from([target]);
+    while let Some(v) = queue.pop_front() {
+        let d = dist[&v];
+        for &u in preds.get(&v).map(Vec::as_slice).unwrap_or(&[]) {
+            if let std::collections::hash_map::Entry::Vacant(e) = dist.entry(u) {
+                e.insert(d + 1);
+                queue.push_back(u);
+            }
+        }
+    }
+    dist
+}
+
+/// Backtracking search for the cycles through `start` with at most `bound` nodes.
+///
+/// No node is ever blocked, so no cycle is missed; a neighbor is entered only if the
+/// shortest way back from it to `start` still fits within the bound.
+#[allow(clippy::too_many_arguments)]
+fn bounded_cycles_from_node(
+    current: u64,
+    start: u64,
+    adj_list: &FxHashMap<u64, Vec<u64>>,
+    scc: &FxHashSet<u64>,
+    dist: &FxHashMap<u64, usize>,
+    bound: usize,
+    path: &mut Vec<u64>,
+    path_set: &mut FxHashSet<u64>,
+    cycles: &mut Vec<Vec<u64>>,
+) {
+    let Some(neighbors) = adj_list.get(&current) else {
+        return;
+    };
+    for &neighbor in neighbors {
+        if !scc.contains(&neighbor) {
+            continue;
+        }
+        if neighbor == start {
+            if path.len() <= bound {
+                cycles.push(path.clone());
+            }
+        } else if !path_set.contains(&neighbor)
+            && dist.get(&neighbor).is_some_and(|&d| path.len() + d <= bound)
+        {
+            path.push(neighbor);
+            path_set.insert(neighbor);
+            bounded_cycles_from_node(
+                neighbor, start, adj_list, scc, dist, bound, path, path_set, cycles,
+            );
+            path.pop();
+            path_set.remove(&neighbor);
+        }
+    }
 }
 
 /// Recursive function to find cycles using backtracking (directed version)
