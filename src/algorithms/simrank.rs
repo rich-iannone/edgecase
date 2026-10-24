@@ -463,8 +463,9 @@ fn walk_table(
 }
 
 /// `sample_size` random walks of `path_length` steps (so `path_length + 1` nodes each), as
-/// node indices. Each starts at `start`, or at a uniformly random node, and steps to an
-/// out-neighbor with probability proportional to the edge weight.
+/// node indices. Each starts at `start`, or at a uniformly random node with out-edges of
+/// positive weight (as in NetworkX #8578), and steps to an out-neighbor with probability
+/// proportional to the edge weight.
 fn walks(
     ids: &[u64],
     out: &[Vec<(usize, f64)>],
@@ -473,10 +474,19 @@ fn walks(
     start: Option<usize>,
     rng: &mut ChaCha8Rng,
 ) -> PyResult<Vec<Vec<usize>>> {
-    let n = ids.len();
+    let starts: Vec<usize> = if start.is_some() {
+        Vec::new()
+    } else {
+        (0..ids.len()).filter(|&i| out[i].last().is_some_and(|a| a.1 > 0.0)).collect()
+    };
+    if start.is_none() && starts.is_empty() && sample_size > 0 {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "No node has out-edges of positive weight, so no random path can start",
+        ));
+    }
     let mut paths = Vec::with_capacity(sample_size);
     for _ in 0..sample_size {
-        let mut u = start.unwrap_or_else(|| rng.gen_range(0..n));
+        let mut u = start.unwrap_or_else(|| starts[rng.gen_range(0..starts.len())]);
         let mut path = Vec::with_capacity(path_length + 1);
         path.push(u);
         for _ in 0..path_length {
@@ -541,12 +551,11 @@ pub fn generate_random_paths(
 }
 
 /// The random paths shared by both Panther measures, on the graph without its isolated nodes
-/// (which no walk can reach anyway): node IDs, the source's index, the paths and `eps`.
+/// (which no walk can reach anyway): node IDs, the source's index and the paths.
 struct PantherSample {
     ids: Vec<u64>,
     src: usize,
     paths: Vec<Vec<usize>>,
-    eps: f64,
 }
 
 #[allow(clippy::too_many_arguments)]
@@ -602,9 +611,10 @@ fn panther_sample(
 
     let m = graph.get_edges_internal().len() as f64;
     let eps = eps.unwrap_or_else(|| (1.0 / m).sqrt());
-    let pairs = (path_length * (path_length - 1) / 2) as f64;
+    // C(T + 1, 2) pairs of positions on a path of T + 1 nodes (NetworkX #8578)
+    let pairs = ((path_length + 1) * path_length / 2) as f64;
     let size = (c / (eps * eps)) * (pairs.log2() + 1.0 + (1.0 / delta).ln());
-    let sample_size = size.floor().max(0.0) as usize;
+    let sample_size = size.ceil().max(0.0) as usize;
     if sample_size == 0 {
         return err("The sample size works out to 0 paths; lower eps or raise c".to_string());
     }
@@ -618,12 +628,12 @@ fn panther_sample(
         None,
         &mut rng,
     )?;
-    Ok(PantherSample { ids: kept_ids, src: new_index[s], paths, eps })
+    Ok(PantherSample { ids: kept_ids, src: new_index[s], paths })
 }
 
 /// Panther similarity (Zhang et al., KDD 2015) of every non-isolated node to `source`: the
 /// share of `R` random paths that contain both. Isolated nodes are dropped first, as in
-/// NetworkX. `R = floor((c / eps^2) (log2 C(T, 2) + 1 + ln(1 / delta)))` with `T` the path
+/// NetworkX. `R = ceil((c / eps^2) (log2 C(T + 1, 2) + 1 + ln(1 / delta)))` with `T` the path
 /// length and `eps` defaulting to `sqrt(1 / |E|)`. Returns `R` and `(node, score)` for every
 /// non-isolated node other than the source, in node ID order.
 #[pyfunction]
@@ -664,7 +674,8 @@ pub fn panther_similarity(
 /// Panther++ (Zhang et al., KDD 2015), as NetworkX's `panther_vector_similarity`: each
 /// non-isolated node gets a feature vector of its `dimensions` largest Panther scores
 /// (against every node, itself included, in descending order), and a node's similarity to
-/// the source is `min(1, eps / d)` for the Euclidean distance `d` between their vectors.
+/// the source is `1 / d` for the Euclidean distance `d` between their vectors, with `d`
+/// clamped to machine epsilon (NetworkX #8578).
 /// Returns `(node, score)` for every non-isolated node other than the source, nearest
 /// first (ties by node ID).
 #[pyfunction]
@@ -722,7 +733,7 @@ pub fn panther_vector_similarity(
         .filter(|&j| j != sample.src)
         .map(|j| {
             let d = theta[j].iter().zip(base).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt();
-            (sample.ids[j], d, (sample.eps / d.max(sample.eps)).min(1.0))
+            (sample.ids[j], d, 1.0 / d.max(f64::EPSILON))
         })
         .collect();
     out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
