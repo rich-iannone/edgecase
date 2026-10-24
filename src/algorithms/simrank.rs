@@ -540,15 +540,17 @@ pub fn generate_random_paths(
         .collect())
 }
 
-/// Panther similarity (Zhang et al., KDD 2015) of every non-isolated node to `source`: the
-/// share of `R` random paths that contain both. Isolated nodes are dropped first, as in
-/// NetworkX. `R = floor((c / eps^2) (log2 C(T, 2) + 1 + ln(1 / delta)))` with `T` the path
-/// length and `eps` defaulting to `sqrt(1 / |E|)`. Returns `R` and `(node, score)` for every
-/// non-isolated node other than the source, in node ID order.
-#[pyfunction]
-#[pyo3(signature = (graph, source, path_length=5, c=0.5, delta=0.1, eps=None, weighted=true, seed=None))]
+/// The random paths shared by both Panther measures, on the graph without its isolated nodes
+/// (which no walk can reach anyway): node IDs, the source's index, the paths and `eps`.
+struct PantherSample {
+    ids: Vec<u64>,
+    src: usize,
+    paths: Vec<Vec<usize>>,
+    eps: f64,
+}
+
 #[allow(clippy::too_many_arguments)]
-pub fn panther_similarity(
+fn panther_sample(
     graph: &Graph,
     source: u64,
     path_length: usize,
@@ -557,7 +559,7 @@ pub fn panther_similarity(
     eps: Option<f64>,
     weighted: bool,
     seed: Option<u64>,
-) -> PyResult<(usize, Vec<(u64, f64)>)> {
+) -> PyResult<PantherSample> {
     let err = |msg: String| Err(pyo3::exceptions::PyValueError::new_err(msg));
     if path_length < 2 {
         return err(format!("path_length must be at least 2, got {path_length}"));
@@ -587,7 +589,6 @@ pub fn panther_similarity(
         ));
     }
 
-    // Walk on the graph without its isolated nodes (which no walk can reach anyway)
     let kept: Vec<usize> = (0..n).filter(|&i| !isolated[i]).collect();
     let mut new_index = vec![usize::MAX; n];
     for (j, &i) in kept.iter().enumerate() {
@@ -617,10 +618,32 @@ pub fn panther_similarity(
         None,
         &mut rng,
     )?;
-    let src = new_index[s];
-    let mut common = vec![0usize; kept.len()];
-    let mut seen = vec![usize::MAX; kept.len()];
-    for (r, path) in paths.iter().enumerate() {
+    Ok(PantherSample { ids: kept_ids, src: new_index[s], paths, eps })
+}
+
+/// Panther similarity (Zhang et al., KDD 2015) of every non-isolated node to `source`: the
+/// share of `R` random paths that contain both. Isolated nodes are dropped first, as in
+/// NetworkX. `R = floor((c / eps^2) (log2 C(T, 2) + 1 + ln(1 / delta)))` with `T` the path
+/// length and `eps` defaulting to `sqrt(1 / |E|)`. Returns `R` and `(node, score)` for every
+/// non-isolated node other than the source, in node ID order.
+#[pyfunction]
+#[pyo3(signature = (graph, source, path_length=5, c=0.5, delta=0.1, eps=None, weighted=true, seed=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn panther_similarity(
+    graph: &Graph,
+    source: u64,
+    path_length: usize,
+    c: f64,
+    delta: f64,
+    eps: Option<f64>,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<(usize, Vec<(u64, f64)>)> {
+    let sample = panther_sample(graph, source, path_length, c, delta, eps, weighted, seed)?;
+    let (n, src, r_total) = (sample.ids.len(), sample.src, sample.paths.len());
+    let mut common = vec![0usize; n];
+    let mut seen = vec![usize::MAX; n];
+    for (r, path) in sample.paths.iter().enumerate() {
         if !path.contains(&src) {
             continue;
         }
@@ -631,11 +654,79 @@ pub fn panther_similarity(
             }
         }
     }
-    let scores = (0..kept.len())
+    let scores = (0..n)
         .filter(|&j| j != src)
-        .map(|j| (kept_ids[j], common[j] as f64 / sample_size as f64))
+        .map(|j| (sample.ids[j], common[j] as f64 / r_total as f64))
         .collect();
-    Ok((sample_size, scores))
+    Ok((r_total, scores))
+}
+
+/// Panther++ (Zhang et al., KDD 2015), as NetworkX's `panther_vector_similarity`: each
+/// non-isolated node gets a feature vector of its `dimensions` largest Panther scores
+/// (against every node, itself included, in descending order), and a node's similarity to
+/// the source is `min(1, eps / d)` for the Euclidean distance `d` between their vectors.
+/// Returns `(node, score)` for every non-isolated node other than the source, nearest
+/// first (ties by node ID).
+#[pyfunction]
+#[pyo3(signature = (graph, source, dimensions=10, path_length=5, c=0.5, delta=0.1, eps=None, weighted=true, seed=None))]
+#[allow(clippy::too_many_arguments)]
+pub fn panther_vector_similarity(
+    graph: &Graph,
+    source: u64,
+    dimensions: usize,
+    path_length: usize,
+    c: f64,
+    delta: f64,
+    eps: Option<f64>,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<Vec<(u64, f64)>> {
+    let err = |msg: String| Err(pyo3::exceptions::PyValueError::new_err(msg));
+    if dimensions == 0 {
+        return err("D must be a positive integer".to_string());
+    }
+    let sample = panther_sample(graph, source, path_length, c, delta, eps, weighted, seed)?;
+    let n = sample.ids.len();
+    if dimensions > n {
+        return err(format!(
+            "D={dimensions} asks for more similarity scores than the {n} non-isolated nodes"
+        ));
+    }
+    // Co-occurrence counts of every pair of nodes on a path (a node with itself counts the
+    // paths through it), kept sparse
+    let mut co: Vec<FxHashMap<usize, u32>> = vec![FxHashMap::default(); n];
+    let mut distinct: Vec<usize> = Vec::new();
+    for path in &sample.paths {
+        distinct.clear();
+        distinct.extend(path.iter().copied());
+        distinct.sort_unstable();
+        distinct.dedup();
+        for &a in &distinct {
+            for &b in &distinct {
+                *co[a].entry(b).or_insert(0) += 1;
+            }
+        }
+    }
+    let r_total = sample.paths.len() as f64;
+    let theta: Vec<Vec<f64>> = co
+        .iter()
+        .map(|row| {
+            let mut top: Vec<u32> = row.values().copied().collect();
+            top.sort_unstable_by(|a, b| b.cmp(a));
+            top.resize(dimensions, 0);
+            top.into_iter().map(|x| x as f64 / r_total).collect()
+        })
+        .collect();
+    let base = &theta[sample.src];
+    let mut out: Vec<(u64, f64, f64)> = (0..n)
+        .filter(|&j| j != sample.src)
+        .map(|j| {
+            let d = theta[j].iter().zip(base).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt();
+            (sample.ids[j], d, (sample.eps / d.max(sample.eps)).min(1.0))
+        })
+        .collect();
+    out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
+    Ok(out.into_iter().map(|(id, _, score)| (id, score)).collect())
 }
 
 #[cfg(test)]
