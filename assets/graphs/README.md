@@ -1068,6 +1068,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## traversal
 
+### `all_lowest_common_ancestors()` — All lowest common ancestors
+
+<img src="all-lowest-common-ancestors.light.svg" alt="A family drawn top down: grandma is mum&#x27;s parent, and mum and dad are both parents of ann and bob (outlined). ann and bob have two lowest common ancestors, mum and dad, in the accent color with the four edges down to the siblings. grandma is a common ancestor too, but not a lowest one, since her child mum is also common. The card lists mum and dad, beside lowest_common_ancestor, which returns only mum." width="570">
+
+```markdown
+![All lowest common ancestors](/assets/graphs/all-lowest-common-ancestors.light.svg){.lightbox fig-alt="A family drawn top down: grandma is mum's parent, and mum and dad are both parents of ann and bob (outlined). ann and bob have two lowest common ancestors, mum and dad, in the accent color with the four edges down to the siblings. grandma is a common ancestor too, but not a lowest one, since her child mum is also common. The card lists mum and dad, beside lowest_common_ancestor, which returns only mum." width="100%"}
+```
+
+### `all_pairs_all_lowest_common_ancestors()` — All-pairs all lowest common ancestors
+
+<img src="all-pairs-all-lowest-common-ancestors.light.svg" alt="Two parents, mum and dad, each with an edge down to both ann and bob, and eve standing alone. The queried nodes ann, bob and eve are outlined. For the pair ann, bob both parents are lowest common ancestors (accent color, with their four edges); ann and eve share no ancestor. The card maps (ann, bob) to mum and dad and keeps (ann, eve) with an empty list." width="570">
+
+```markdown
+![All-pairs all lowest common ancestors](/assets/graphs/all-pairs-all-lowest-common-ancestors.light.svg){.lightbox fig-alt="Two parents, mum and dad, each with an edge down to both ann and bob, and eve standing alone. The queried nodes ann, bob and eve are outlined. For the pair ann, bob both parents are lowest common ancestors (accent color, with their four edges); ann and eve share no ancestor. The card maps (ann, bob) to mum and dad and keeps (ann, eve) with an empty list." width="100%"}
+```
+
 ### `all_pairs_lowest_common_ancestor()` — All-pairs lowest common ancestor
 
 <img src="all-pairs-lowest-common-ancestor.light.svg" alt="A taxonomy drawn top down: Mammalia has the orders Carnivora and Rodentia; cat and dog are carnivores and mouse is a rodent. The queried species are outlined. For the pair cat, dog the lowest common ancestor is Carnivora (accent color, with its two edges); for cat, mouse it is Mammalia (teal, with the edges down to both). The card maps (cat, dog) to Carnivora and (cat, mouse) to Mammalia." width="570">
@@ -1276,6 +1292,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Find minimal d-separator](/assets/graphs/find-minimal-d-separator.light.svg){.lightbox fig-alt="A causal graph: age (teal) affects exercise, exercise affects weight, and both exercise and weight affect heart health (violet). Every path from age to heart starts with the edge into exercise, so conditioning on exercise alone, in the accent color, blocks them all. The card returns the minimal separator [exercise]." width="100%"}
 ```
 
+### `generic_edge_bfs()` — Generic edge BFS
+
+<img src="generic-edge-bfs.light.svg" alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) with a callback that leaves out the edge A-C, drawn dashed. The search still reaches C, through B, and the visited edges are numbered in the accent color: 1 A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that A-C is never visited." width="570">
+
+```markdown
+![Generic edge BFS](/assets/graphs/generic-edge-bfs.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) with a callback that leaves out the edge A-C, drawn dashed. The search still reaches C, through B, and the visited edges are numbered in the accent color: 1 A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that A-C is never visited." width="100%"}
+```
+
 ### `get_all_connected_nodes()` — All connected nodes
 
 <img src="get-all-connected-nodes.light.svg" alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="570">
@@ -1330,6 +1354,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is d-separator](/assets/graphs/is-d-separator.light.svg){.lightbox fig-alt="A causal graph: smoking (teal) causes tar, tar causes cancer (violet), and smoking also causes yellow fingers. Left: conditioning on tar (outlined) blocks the only path from smoking to cancer, so is_d_separator returns True. Right: with nothing conditioned on, the chain smoking, tar, cancer (accent) is open, so smoking and cancer are dependent and is_d_separator returns False." width="100%"}
+```
+
+### `is_lowest_common_ancestor()` — Is lowest common ancestor
+
+<img src="is-lowest-common-ancestor.light.svg" alt="The diamond DAG A to B and C, which both point to D. Left: for the pair B, C (outlined), the top A (accent) is a common ancestor and none of its children is one, so is_lowest_common_ancestor returns True. Right: for the pair B, D, A is again a common ancestor, but its child B (accent) is one too, as B reaches D, so A is not lowest and the call returns False." width="570">
+
+```markdown
+![Is lowest common ancestor](/assets/graphs/is-lowest-common-ancestor.light.svg){.lightbox fig-alt="The diamond DAG A to B and C, which both point to D. Left: for the pair B, C (outlined), the top A (accent) is a common ancestor and none of its children is one, so is_lowest_common_ancestor returns True. Right: for the pair B, D, A is again a common ancestor, but its child B (accent) is one too, as B reaches D, so A is not lowest and the call returns False." width="100%"}
 ```
 
 ### `is_minimal_d_separator()` — Is minimal d-separator
@@ -2998,18 +3030,18 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `panther_similarity()` — Panther similarity
 
-<img src="panther-similarity.light.svg" alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a&#x27;s own triangle, then x 0.391 across the bridge. The card ranks them." width="570">
+<img src="panther-similarity.light.svg" alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.577 and b 0.462 in a&#x27;s own triangle, then x 0.346 across the bridge. The card ranks them." width="570">
 
 ```markdown
-![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. The card ranks them." width="100%"}
+![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.577 and b 0.462 in a's own triangle, then x 0.346 across the bridge. The card ranks them." width="100%"}
 ```
 
 ### `panther_vector_similarity()` — Panther vector similarity
 
-<img src="panther-vector-similarity.light.svg" alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a&#x27;s neighbors." width="570">
+<img src="panther-vector-similarity.light.svg" alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b (349.7), y (39.1) and z (38.7): like a, each sits on a triangle away from the bridge, and b, a&#x27;s twin, scores far highest. panther_similarity instead ranks c, b and x, a&#x27;s neighbors." width="570">
 
 ```markdown
-![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
+![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b (349.7), y (39.1) and z (38.7): like a, each sits on a triangle away from the bridge, and b, a's twin, scores far highest. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
 ```
 
 ### `preferential_attachment()` — Preferential attachment
