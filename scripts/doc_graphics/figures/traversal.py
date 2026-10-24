@@ -55,6 +55,14 @@ by kind on the card.
 antichain_width
 draws its docstring DAG left to right with a largest antichain in accent; the
 card adds a cover by as many chains, which is why no antichain is larger.
+
+all_lowest_common_ancestors and all_pairs_all_lowest_common_ancestors draw
+their docstring families top down with names beside the nodes: the queried
+nodes `soft`, every lowest common ancestor and its edges down to the pair
+`accent`. is_lowest_common_ancestor contrasts two pairs on `DIAMOND`, the
+candidate (left) or the lower common ancestor that disqualifies it (right) in
+accent. generic_edge_bfs reuses the dfs_labeled_edges layout, numbering the
+visited edges like edge_bfs and dashing the edge its callback leaves out.
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, transform
@@ -1077,3 +1085,120 @@ def antichain_width(s: Scene) -> None:
             styles=dict.fromkeys("BCD", "accent"))
     s.card_centered(right, [("antichain  B, C, D", "accent"), "chains    A→B→E · C · D→F",
                             ("width     3", "accent")], title="largest antichain = fewest chains")
+
+
+# --- later additions: every lowest common ancestor and generic_edge_bfs ------------
+#
+# all_lowest_common_ancestors docstring: ann and bob share both parents, mum and dad,
+# and grandma is mum's parent. Top down, names beside the nodes.
+FAMILY = {"grandma": (0, 0), "mum": (0, 1), "dad": (1.6, 1), "ann": (0, 2), "bob": (1.6, 2)}
+FAMILY_EDGES = [("grandma", "mum"), ("mum", "ann"), ("mum", "bob"), ("dad", "ann"),
+                ("dad", "bob")]
+FAMILY_NAME_AT = {"dad": "e", "bob": "e"}  # the left column's names sit to the west
+
+
+@figure("all_lowest_common_ancestors", "traversal", "All lowest common ancestors",
+        "A family drawn top down: grandma is mum's parent, and mum and dad are both parents "
+        "of ann and bob (outlined). ann and bob have two lowest common ancestors, mum and "
+        "dad, in the accent color with the four edges down to the siblings. grandma is a "
+        "common ancestor too, but not a lowest one, since her child mum is also common. The "
+        "card lists mum and dad, beside lowest_common_ancestor, which returns only mum.")
+def all_lowest_common_ancestors(s: Scene) -> None:
+    g = _dag_graph(FAMILY, FAMILY_EDGES)
+    lab = g.get_label_from_id
+    found = [lab(n) for n in g.all_lowest_common_ancestors("ann", "bob")]
+    assert found == ["mum", "dad"]
+    assert lab(g.lowest_common_ancestor("ann", "bob")) == "mum"
+    left, right = compute(s, "g", "g.all_lowest_common_ancestors(a, b)")
+    edges = [(a, b, {"style": "accent"}) if a in found else (a, b) for a, b in FAMILY_EDGES]
+    styles = {"ann": "soft", "bob": "soft", "mum": "accent", "dad": "accent"}
+    s.graph(place(FAMILY, left, unit=UNIT), edges, directed=True, styles=styles, labels=False)
+    for k in FAMILY:
+        _name(s, k, k, FAMILY_NAME_AT.get(k, "w"),
+              "accent" if styles.get(k) == "accent" else "ink")
+    s.card_centered(right, [("all  mum, dad", "accent"), "lowest_common_ancestor  mum",
+                            "grandma: common, not lowest"], title="ann, bob → lowest ancestors")
+
+
+# all_pairs_all_lowest_common_ancestors docstring: the same parents without grandma,
+# plus eve, who shares no ancestor with anyone.
+PARENTS = {"mum": (0, 0), "dad": (1.4, 0), "ann": (0, 1.3), "bob": (1.4, 1.3), "eve": (2.6, 1.3)}
+PARENTS_EDGES = [("mum", "ann"), ("mum", "bob"), ("dad", "ann"), ("dad", "bob")]
+
+
+@figure("all_pairs_all_lowest_common_ancestors", "traversal",
+        "All-pairs all lowest common ancestors",
+        "Two parents, mum and dad, each with an edge down to both ann and bob, and eve "
+        "standing alone. The queried nodes ann, bob and eve are outlined. For the pair ann, "
+        "bob both parents are lowest common ancestors (accent color, with their four "
+        "edges); ann and eve share no ancestor. The card maps (ann, bob) to mum and dad and "
+        "keeps (ann, eve) with an empty list.")
+def all_pairs_all_lowest_common_ancestors(s: Scene) -> None:
+    g = _dag_graph(PARENTS, PARENTS_EDGES)
+    lab = g.get_label_from_id
+    found = {tuple(map(lab, p)): [lab(a) for a in lcas] for p, lcas in
+             g.all_pairs_all_lowest_common_ancestors([("ann", "bob"), ("ann", "eve")]).items()}
+    assert found == {("ann", "bob"): ["mum", "dad"], ("ann", "eve"): []}
+    left, right = compute(s, "g", "g.all_pairs_all_lowest_common_ancestors(p)")
+    gbox = Box(left.x0, left.y0 + 16, left.x1, left.y1 - 16)  # rows for the names
+    s.graph(place(PARENTS, gbox, unit=UNIT), [(a, b, {"style": "accent"}) for a, b in PARENTS_EDGES],
+            directed=True, styles={"ann": "soft", "bob": "soft", "eve": "soft", "mum": "accent",
+                                   "dad": "accent"}, labels=False)
+    for k in PARENTS:
+        _name(s, k, k, "n" if k in ("mum", "dad") else "s",
+              "accent" if k in ("mum", "dad") else "ink")
+    s.card_centered(right, [(f"({u}, {v})  " + (", ".join(a) or "[]"), "accent" if a else "ink")
+                            for (u, v), a in found.items()], title="pair → every lowest ancestor")
+
+
+@figure("is_lowest_common_ancestor", "traversal", "Is lowest common ancestor",
+        "The diamond DAG A to B and C, which both point to D. Left: for the pair B, C "
+        "(outlined), the top A (accent) is a common ancestor and none of its children is "
+        "one, so is_lowest_common_ancestor returns True. Right: for the pair B, D, A is "
+        "again a common ancestor, but its child B (accent) is one too, as B reaches D, so A "
+        "is not lowest and the call returns False.")
+def is_lowest_common_ancestor(s: Scene) -> None:
+    g = _dag_graph(DIAMOND, DIAMOND_EDGES)
+    assert g.is_lowest_common_ancestor("B", "C", "A") is True
+    assert g.is_lowest_common_ancestor("B", "D", "A") is False
+    assert g.is_lowest_common_ancestor("B", "D", "B") is True
+    left, right = contrast(s, 'g.is_lowest_common_ancestor("B", "C", "A")',
+                           'g.is_lowest_common_ancestor("B", "D", "A")')
+    for box, p, pair, lower in ((left, "l.", "BC", {("A", "B"), ("A", "C")}),
+                                (right, "r.", "BD", {("B", "D")})):
+        styles = dict.fromkeys(pair, "soft")
+        styles["A" if pair == "BC" else "B"] = "accent"
+        s.graph(place(DIAMOND, box, unit=UNIT * 1.2),
+                [(a, b, {"style": "accent"}) if (a, b) in lower else (a, b)
+                 for a, b in DIAMOND_EDGES], directed=True, styles=styles, prefix=p)
+
+
+# generic_edge_bfs docstring: the triangle A, B, C with a tail C-D, where a callback
+# closes the edge A-C. The open edges are numbered in visit order; A-C is dashed.
+OPEN_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")]
+
+
+@figure("generic_edge_bfs", "traversal", "Generic edge BFS",
+        "A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) "
+        "with a callback that leaves out the edge A-C, drawn dashed. The search still "
+        "reaches C, through B, and the visited edges are numbered in the accent color: 1 "
+        "A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that "
+        "A-C is never visited.")
+def generic_edge_bfs(s: Scene) -> None:
+    g, lab = _labelled(LABELED, OPEN_EDGES)
+    closed = set(g.find_edge_ids("A", "C"))
+
+    def open_edges(node):
+        return [(u, v, e) for e, u, v in g.get_edges_as_tuples()
+                if node in (u, v) and e not in closed]
+
+    order = [(lab(u), lab(v)) for u, v, _ in g.generic_edge_bfs("A", edges=open_edges)]
+    assert order == [("A", "B"), ("B", "C"), ("C", "D")]
+    left, right = compute(s, "g", 'g.generic_edge_bfs("A", edges=open_edges)')
+    rank = {e: i for i, e in enumerate(order, 1)}
+    s.graph(place(LABELED, left, unit=UNIT),
+            [(a, b, {"style": "accent", "weight": str(rank[(a, b)])}) if (a, b) in rank
+             else (a, b, {"style": "removed"}) for a, b in OPEN_EDGES],
+            styles={"A": "soft"})
+    s.card_centered(right, [(f"{i}  ({a}, {b})", "accent") for (a, b), i in rank.items()]
+                    + ["(A, C)  closed, never visited"], title="edges in visit order")

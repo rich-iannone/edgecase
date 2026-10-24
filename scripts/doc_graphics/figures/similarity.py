@@ -793,13 +793,13 @@ TWIN_EDGES = [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", 
         "Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples "
         "random paths and scores each node by how often it shares a path with the source a "
         "(outlined). The k = 3 most similar nodes are in the accent color with their scores "
-        "as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. "
+        "as badges: c 0.577 and b 0.462 in a's own triangle, then x 0.346 across the bridge. "
         "The card ranks them.")
 def panther_similarity(s: Scene) -> None:
     g = _link_graph(list(TWIN), TWIN_EDGES)
     got = {g.get_label_from_id(n): round(v, 3)
            for n, v in g.panther_similarity("a", k=3, seed=1).items()}
-    assert got == {"c": 0.609, "b": 0.478, "x": 0.391}
+    assert got == {"c": 0.577, "b": 0.462, "x": 0.346}
     left, right = compute(s, "g", 'g.panther_similarity("a", k=3, seed=1)')
     s.graph(place(TWIN, left, unit=UNIT), TWIN_EDGES,
             styles={"a": "soft"} | dict.fromkeys(got, "accent"))
@@ -815,20 +815,21 @@ def panther_similarity(s: Scene) -> None:
         "describes each node by its top random-path similarities, sorted, and compares those "
         "profiles, so it finds nodes in the same structural position rather than nearby "
         "ones. The k = 3 most similar nodes, in the accent color with their scores as "
-        "badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the "
-        "bridge. panther_similarity instead ranks c, b and x, a's neighbors.")
+        "badges, are b (349.7), y (39.1) and z (38.7): like a, each sits on a triangle away "
+        "from the bridge, and b, a's twin, scores far highest. panther_similarity instead "
+        "ranks c, b and x, a's neighbors.")
 def panther_vector_similarity(s: Scene) -> None:
     g = _link_graph(list(TWIN), TWIN_EDGES)
     got = {g.get_label_from_id(n): round(v, 3)
            for n, v in g.panther_vector_similarity("a", D=4, k=3, eps=0.05, seed=1).items()}
-    assert got == {"b": 1.0, "y": 1.0, "z": 1.0}
+    assert got == {"b": 349.736, "y": 39.073, "z": 38.719}
     left, right = compute(s, "g,  kw = dict(D=4, k=3, eps=0.05, seed=1)",
                           'g.panther_vector_similarity("a", **kw)')
     s.graph(place(TWIN, left, unit=UNIT), TWIN_EDGES,
             styles={"a": "soft"} | dict.fromkeys(got, "accent"))
     for k, v in got.items():
-        s.badge(k, f"{v:.2f}", where="auto", filled=True)
-    s.card_centered(right, [(f"{i}  {k}  {v:.2f}", "accent")
+        s.badge(k, f"{v:.1f}", where="auto", filled=True)
+    s.card_centered(right, [(f"{i}  {k}  {v:.1f}", "accent")
                             for i, (k, v) in enumerate(got.items(), 1)]
                     + ["like a: triangle corners", "away from the bridge"],
                     w=CARD_W, title="top k = 3 similar to a")
