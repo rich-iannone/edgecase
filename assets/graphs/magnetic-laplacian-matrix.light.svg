@@ -1,0 +1,50 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Magnetic Laplacian matrix</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="532.0" y="64.0" width="184.0" height="80.0" rx="4" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<rect x="613.0" y="85.0" width="50.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="665.0" y="85.0" width="50.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="561.0" y="105.0" width="50.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<rect x="665.0" y="105.0" width="50.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="561.0" y="125.0" width="50.0" height="18.0" rx="2" fill="#f3d9ce"/>
+<rect x="613.0" y="125.0" width="50.0" height="18.0" rx="2" fill="#cfe3e9"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="532.0" y1="84.0" x2="716.0" y2="84.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<line x1="532.0" y1="104.0" x2="716.0" y2="104.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="532.0" y1="124.0" x2="716.0" y2="124.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="560.0" y1="64.0" x2="560.0" y2="144.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="612.0" y1="64.0" x2="612.0" y2="144.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<line x1="664.0" y1="64.0" x2="664.0" y2="144.0" stroke="#1f2328" stroke-opacity="0.2" stroke-width="1" stroke-linecap="round"/>
+<path d="M 234.48 61.17 L 239.00 68.41 L 243.53 75.65 L 248.05 82.89 L 252.58 90.12 L 257.10 97.36 L 261.63 104.60 L 266.15 111.84 L 270.68 119.08 L 275.20 126.32 L 276.20 127.92" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="279.73,133.56 271.72,127.36 277.66,123.65" fill="#1f2328" fill-opacity="1"/>
+<path d="M 273.00 148.40 L 263.75 148.40 L 254.50 148.40 L 245.25 148.40 L 236.00 148.40 L 226.75 148.40 L 217.50 148.40 L 208.25 148.40 L 199.00 148.40 L 189.75 148.40 L 187.15 148.40" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="180.50,148.40 190.00,144.90 190.00,151.90" fill="#1f2328" fill-opacity="1"/>
+<path d="M 171.48 134.83 L 176.00 127.59 L 180.53 120.35 L 185.05 113.11 L 189.58 105.88 L 194.10 98.64 L 198.63 91.40 L 203.15 84.16 L 207.68 76.92 L 212.20 69.68 L 213.20 68.08" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="216.73,62.44 214.66,72.35 208.72,68.64" fill="#1f2328" fill-opacity="1"/>
+<circle cx="226.0" cy="47.6" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="47.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="289.0" cy="148.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="289.0" y="148.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="163.0" cy="148.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="163.0" y="148.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.magnetic_laplacian_matrix()</text>
+<text x="546.0" y="74.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7"></text>
+<text x="586.0" y="74.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">A</text>
+<text x="638.0" y="74.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">B</text>
+<text x="690.0" y="74.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#1f2328" fill-opacity="0.7">C</text>
+<text x="546.0" y="94.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">A</text>
+<text x="586.0" y="94.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">1</text>
+<text x="638.0" y="94.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">−0.5i</text>
+<text x="690.0" y="94.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">0.5i</text>
+<text x="546.0" y="114.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">B</text>
+<text x="586.0" y="114.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">0.5i</text>
+<text x="638.0" y="114.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">1</text>
+<text x="690.0" y="114.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">−0.5i</text>
+<text x="546.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">C</text>
+<text x="586.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">−0.5i</text>
+<text x="638.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#0e7490" fill-opacity="1">0.5i</text>
+<text x="690.0" y="134.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="1">1</text>
+<text x="624.0" y="52.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">q = 0.25: arc phase π/2</text>
+</svg>
