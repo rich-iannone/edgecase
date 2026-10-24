@@ -1,5 +1,6 @@
 //! Chordal graphs (maximum cardinality search, clique trees, minimal triangulation by MCS-M,
-//! induced nodes), all cliques enumeration and maximum-weight cliques.
+//! induced nodes), perfect graph recognition, all cliques enumeration and maximum-weight
+//! cliques.
 //!
 //! All functions work on the underlying simple undirected graph: parallel edges count once and
 //! self-loops are ignored. Ties are broken by node ID, which reproduces NetworkX's results for
@@ -117,6 +118,117 @@ pub fn is_chordal(graph: &Graph) -> PyResult<bool> {
     let all: Vec<usize> = (0..g.ids.len()).collect();
     // MCS restarted per component is equivalent to the NetworkX single search with zero counts
     Ok(chordality_breaker(&g.adj, &all, 0).is_none())
+}
+
+/// True if the graph on `0..n` with bitset adjacency `bits` has an odd hole: an induced cycle
+/// of odd length five or more. Grows induced paths from each node `s` through larger nodes only,
+/// so every hole is found from its smallest node; `block[x]` counts the path's interior nodes
+/// adjacent to `x`, which would be chords.
+fn has_odd_hole(bits: &[Vec<u64>]) -> bool {
+    let n = bits.len();
+    let adjacent = |u: usize, v: usize| bits[u][v / 64] >> (v % 64) & 1 == 1;
+    let nbrs: Vec<Vec<usize>> = (0..n).map(|u| (0..n).filter(|&v| adjacent(u, v)).collect()).collect();
+    let mut block = vec![0u32; n];
+    let mut on_path = vec![false; n];
+    for s in 0..n {
+        for &p1 in nbrs[s].iter().filter(|&&p| p > s) {
+            let mut path = vec![p1];
+            let mut it = vec![0usize];
+            on_path[p1] = true;
+            while let Some(&last) = path.last() {
+                let i = it[it.len() - 1];
+                if i == nbrs[last].len() {
+                    path.pop();
+                    it.pop();
+                    on_path[last] = false;
+                    if let Some(&prev) = path.last() {
+                        for &y in &nbrs[prev] {
+                            block[y] -= 1;
+                        }
+                    }
+                    continue;
+                }
+                *it.last_mut().unwrap() += 1;
+                let x = nbrs[last][i];
+                if x <= s || on_path[x] || block[x] > 0 {
+                    continue;
+                }
+                if adjacent(x, s) {
+                    // Closes the hole s, p1, ..., last, x (a triangle if the path is just p1)
+                    let len = path.len() + 2;
+                    if len >= 5 && len % 2 == 1 {
+                        return true;
+                    }
+                    continue;
+                }
+                for &y in &nbrs[last] {
+                    block[y] += 1;
+                }
+                path.push(x);
+                it.push(0);
+                on_path[x] = true;
+            }
+        }
+    }
+    false
+}
+
+fn is_bipartite_adj(adj: &[BTreeSet<usize>]) -> bool {
+    let mut side = vec![u8::MAX; adj.len()];
+    for s in 0..adj.len() {
+        if side[s] != u8::MAX {
+            continue;
+        }
+        side[s] = 0;
+        let mut queue = VecDeque::from([s]);
+        while let Some(u) = queue.pop_front() {
+            for &v in &adj[u] {
+                if side[v] == u8::MAX {
+                    side[v] = 1 - side[u];
+                    queue.push_back(v);
+                } else if side[v] == side[u] {
+                    return false;
+                }
+            }
+        }
+    }
+    true
+}
+
+/// True if the graph is perfect: by the Strong Perfect Graph Theorem (Chudnovsky, Robertson,
+/// Seymour & Thomas 2006), if neither it nor its complement has an odd hole. Chordal and
+/// bipartite graphs are accepted at once; otherwise holes are searched for directly, which takes
+/// exponential time in the worst case (as in NetworkX).
+#[pyfunction]
+pub fn is_perfect_graph(graph: &Graph) -> PyResult<bool> {
+    let g = Simple::new(graph)?;
+    let n = g.ids.len();
+    if n < 5 {
+        return Ok(true);
+    }
+    let all: Vec<usize> = (0..n).collect();
+    if chordality_breaker(&g.adj, &all, 0).is_none() || is_bipartite_adj(&g.adj) {
+        return Ok(true);
+    }
+    let words = n / 64 + 1;
+    let mut bits = vec![vec![0u64; words]; n];
+    for (u, nb) in g.adj.iter().enumerate() {
+        for &v in nb {
+            bits[u][v / 64] |= 1 << (v % 64);
+        }
+    }
+    if has_odd_hole(&bits) {
+        return Ok(false);
+    }
+    let mut co = vec![vec![0u64; words]; n];
+    for u in 0..n {
+        for v in 0..n {
+            if u != v && bits[u][v / 64] >> (v % 64) & 1 == 0 {
+                co[u][v / 64] |= 1 << (v % 64);
+            }
+        }
+    }
+    Ok(!has_odd_hole(&co))
 }
 
 /// Maximal cliques of a chordal graph, from its maximum cardinality search (as in NetworkX).
