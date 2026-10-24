@@ -1,5 +1,5 @@
-//! Graph products (Cartesian, tensor, strong, lexicographic, rooted, corona, modular) and the
-//! graph power.
+//! Graph products (Cartesian, tensor, strong, lexicographic, rooted, corona, modular), the
+//! graph power and random k-lifts.
 //!
 //! Product nodes are the pairs `(g, h)` of a node of the first graph and a node of the second,
 //! labeled `"(g_label, h_label)"` and numbered row by row (the pair of the i-th node of the first
@@ -11,6 +11,9 @@
 use crate::graph::{Edge, Graph, Node};
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
+use rand::seq::SliceRandom;
+use rand::SeedableRng;
+use rand_chacha::ChaCha8Rng;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
@@ -333,4 +336,39 @@ pub fn graph_power(py: Python, graph: &Graph, k: usize) -> PyResult<Graph> {
         }
     }
     Ok(result)
+}
+
+/// A random k-lift: `k` copies `(v, 0), ..., (v, k - 1)` of every node (the copy `i` of the j-th
+/// node in ID order gets ID `j * k + i + 1`, the label `"(v_label, i)"` and `v`'s attributes),
+/// and for every edge `u - v`, in edge ID order, a fresh uniform permutation `s` of `0..k` joining
+/// `(u, i)` to `(v, s(i))` with the edge's weight and attributes. Every base edge gives exactly
+/// `k` edges, so a self-loop lifts to the cycles of its permutation (as in NetworkX's multigraph
+/// lifts).
+#[pyfunction]
+#[pyo3(signature = (graph, k, seed=None))]
+pub fn random_k_lift(py: Python, graph: &Graph, k: usize, seed: Option<u64>) -> PyResult<Graph> {
+    if k == 0 {
+        return value_err("k must be a positive integer");
+    }
+    let g = Factor::new(graph);
+    let mut rng = match seed {
+        Some(s) => ChaCha8Rng::seed_from_u64(s),
+        None => ChaCha8Rng::from_entropy(),
+    };
+    let mut b = Builder::new(graph.is_directed(), graph.is_weighted(), false);
+    let lid = |j: usize, i: usize| (j * k + i + 1) as u64;
+    for j in 0..g.len() {
+        let name = g.nodes[j].label.clone().unwrap_or_else(|| g.ids[j].to_string());
+        for i in 0..k {
+            b.node(lid(j, i), Some(format!("({name}, {i})")), copy_attrs(py, &g.nodes[j].attributes)?)?;
+        }
+    }
+    let mut perm: Vec<usize> = (0..k).collect();
+    for &(u, v, e) in &g.edges {
+        perm.shuffle(&mut rng);
+        for (i, &p) in perm.iter().enumerate() {
+            b.copy_edge(py, lid(u, i), lid(v, p), e)?;
+        }
+    }
+    Ok(b.result)
 }
