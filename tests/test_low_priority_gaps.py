@@ -162,6 +162,21 @@ class TestGenerateRandomPaths:
         steps = [p[1] for p in g.generate_random_paths(200, path_length=1, seed=5, source="b")]
         assert steps.count(c) > 190
 
+    def test_random_starts_skip_nodes_without_out_edges(self):
+        # As in NetworkX #8578, walks without a source start only where a step is possible
+        g = ec.Graph().add_path_graph(2).add_nodes(["lonely"])
+        paths = g.generate_random_paths(20, path_length=2, seed=42)
+        assert len(paths) == 20 and all(len(p) == 3 for p in paths)
+        assert all(p[0] in (1, 2) for p in paths)
+        # In a directed graph a sink is not a start either, but a walk can still reach one
+        d = ec.Graph(directed=True).add_path_graph(3)
+        assert all(p[0] != 3 for p in d.generate_random_paths(30, path_length=1, seed=0))
+        with pytest.raises(ValueError, match="no out-edges"):
+            d.generate_random_paths(30, path_length=2, seed=0)
+        with pytest.raises(ValueError, match="no random path can start"):
+            ec.Graph().add_nodes(["a", "b"]).generate_random_paths(1, seed=0)
+        assert ec.Graph().add_nodes(["a"]).generate_random_paths(0) == []
+
     def test_dead_end_and_bad_weight_raise(self):
         g = ec.Graph(directed=True).add_path_graph(2)
         with pytest.raises(ValueError):
@@ -180,12 +195,13 @@ class TestPantherSimilarity:
         )
         scores = g.panther_similarity("a", k=3, seed=1)
         named = {g.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
-        assert named == {"c": 0.609, "b": 0.478, "x": 0.391}
+        assert named == {"c": 0.577, "b": 0.462, "x": 0.346}
 
     def test_matches_sampled_paths(self):
         # the scores count the sampled paths holding both nodes
         g = _two_triangles()
-        size = math.floor(0.5 * 7 * (math.log2(math.comb(5, 2)) + 1 + math.log(1 / 0.1)))
+        # R = ceil((c / eps^2)(log2 C(T + 1, 2) + 1 + ln(1 / delta))), as in NetworkX #8578
+        size = math.ceil(0.5 * 7 * (math.log2(math.comb(6, 2)) + 1 + math.log(1 / 0.1)))
         for seed in range(5):
             counts = {}
             for p in g.generate_random_paths(size, path_length=5, seed=seed):
