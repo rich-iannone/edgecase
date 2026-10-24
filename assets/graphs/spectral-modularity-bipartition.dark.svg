@@ -1,0 +1,45 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Spectral modularity bipartition</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<g opacity="0.13"><path d="M 106.0 65.0 L 186.0 65.0 L 186.0 153.0 L 106.0 153.0 Z" fill="#22d3ee" stroke="#22d3ee" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<g opacity="0.13"><path d="M 266.0 65.0 L 346.0 65.0 L 346.0 153.0 L 266.0 153.0 Z" fill="#a78bfa" stroke="#a78bfa" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<rect x="511.7" y="38.0" width="224.6" height="120.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 106.00 81.00 L 106.00 137.00" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 122.00 153.00 L 170.00 153.00" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 186.00 137.00 L 186.00 81.00" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 170.00 65.00 L 122.00 65.00" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 116.76 76.84 L 175.24 141.16" fill="none" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 266.00 81.00 L 266.00 137.00" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 282.00 153.00 L 330.00 153.00" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 346.00 137.00 L 346.00 81.00" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 330.00 65.00 L 282.00 65.00" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 276.76 76.84 L 335.24 141.16" fill="none" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 202.00 65.00 L 250.00 65.00" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 202.00 153.00 L 250.00 153.00" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<circle cx="106.0" cy="65.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="106.0" y="65.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">A</text>
+<circle cx="106.0" cy="153.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="106.0" y="153.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">B</text>
+<circle cx="186.0" cy="153.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="186.0" y="153.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">C</text>
+<circle cx="186.0" cy="65.0" r="16" fill="#102c35" stroke="#22d3ee" stroke-opacity="1" stroke-width="2.25"/>
+<text x="186.0" y="65.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1">D</text>
+<circle cx="266.0" cy="65.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="266.0" y="65.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">E</text>
+<circle cx="266.0" cy="153.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="266.0" y="153.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">F</text>
+<circle cx="346.0" cy="153.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="346.0" y="153.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">G</text>
+<circle cx="346.0" cy="65.0" r="16" fill="#232237" stroke="#a78bfa" stroke-opacity="1" stroke-width="2.25"/>
+<text x="346.0" y="65.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1">H</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="619.9" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.spectral_modularity_bipartition()</text>
+<text x="226.0" y="20.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="1.0">sign of the leading eigenvector</text>
+<text x="525.7" y="58.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">(negative, non-negative side)</text>
+<text x="525.7" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#22d3ee" fill-opacity="1.0">{1, 2, 3, 4}  A, B, C, D</text>
+<text x="525.7" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#a78bfa" fill-opacity="1.0">{5, 6, 7, 8}  E, F, G, H</text>
+<text x="525.7" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">cut  D–E, C–F</text>
+<text x="525.7" y="138.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">modularity  0.333</text>
+</svg>
