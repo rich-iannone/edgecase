@@ -21068,11 +21068,15 @@ class Graph:
         new = {}
         for n in ids:
             if directed:
+                # The direction prefix is kept with edge labels too, as in NetworkX #8946
+                # (earlier NetworkX dropped it, so an in-star and an out-star collided)
                 s = sorted(
-                    ("s_" if edge_attr is None else str(v)) + labels[w] for w, v in succ[n].items()
+                    "s_" + ("" if edge_attr is None else str(v)) + labels[w]
+                    for w, v in succ[n].items()
                 )
                 p = sorted(
-                    ("p_" if edge_attr is None else str(v)) + labels[w] for w, v in pred[n].items()
+                    "p_" + ("" if edge_attr is None else str(v)) + labels[w]
+                    for w, v in pred[n].items()
                 )
                 label = labels[n] + "".join(s) + "".join(p)
             else:
@@ -21110,7 +21114,10 @@ class Graph:
         of its neighbors (prefixed by the edge attribute named by `edge_attr=`, if given). The
         graph hash is a hash of the counts of labels across all rounds. The result is
         identical to NetworkX's `weisfeiler_lehman_graph_hash` for the same graph (NetworkX
-        3.5 or later).
+        3.5 or later), except for directed graphs hashed with `edge_attr=`. There, each
+        neighbor label keeps its successor or predecessor prefix, following the fix in
+        NetworkX pull request #8946. NetworkX releases without that fix drop the prefix, so
+        an in-star and an out-star get the same hash.
 
         Parallel edges count once and a self-loop makes a node its own neighbor, as in a
         NetworkX `Graph` or `DiGraph`.
@@ -21223,7 +21230,8 @@ class Graph:
         compare neighborhoods across different graphs (hashes are comparable between graphs
         hashed with the same settings), or as node features in machine learning, as in
         graph2vec. The values are identical to NetworkX's `weisfeiler_lehman_subgraph_hashes`
-        (NetworkX 3.5 or later).
+        (NetworkX 3.5 or later), except on directed graphs with `edge_attr=`, where neighbor
+        labels keep their direction prefix (see `weisfeiler_lehman_graph_hash()`).
 
         Parameters
         ----------
@@ -28099,7 +28107,7 @@ class Graph:
         r"""
         Find the nodes most similar to a source node by how often they share random paths.
 
-        ![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. The card ranks them." width="100%"}
+        ![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.577 and b 0.462 in a's own triangle, then x 0.346 across the bridge. The card ranks them." width="100%"}
 
         Panther (Zhang et al., 2015) calls two nodes similar when they often appear on the same
         paths. It samples many short random paths, each starting at a random node and stepping
@@ -28152,11 +28160,14 @@ class Graph:
         Technical Notes
         ---------------
         Isolated nodes are dropped first. The number of sampled paths is
-        $R = \lfloor (c / \varepsilon^2)(\log_2 \binom{T}{2} + 1 + \ln(1/\delta)) \rfloor$,
+        $R = \lceil (c / \varepsilon^2)(\log_2 \binom{T + 1}{2} + 1 + \ln(1/\delta)) \rceil$,
         which by the authors' sampling bound makes each score an $\varepsilon$-approximation of
         its expected value with probability at least $1 - \delta$. Each path of $T$ steps has
-        $T + 1$ nodes and starts at a uniformly random node, and a score is the number of paths
-        holding both nodes divided by $R$. This follows NetworkX's `panther_similarity`, except
+        $T + 1$ nodes (hence $\binom{T + 1}{2}$ pairs of positions) and starts at a uniformly
+        random node, and a score is the number of paths holding both nodes divided by $R$. The
+        sample size follows the fix in NetworkX pull request #8578; NetworkX releases without it
+        use $\lfloor \cdot \rfloor$ and $\binom{T}{2}$, so they sample slightly fewer paths.
+        This follows NetworkX's `panther_similarity`, except
         that NetworkX picks the top `k` nodes before dropping the source and so returns `k - 1`
         nodes, while this method returns `k` other nodes. The random paths come from a different
         generator, so the scores agree with NetworkX's only statistically.
@@ -28223,7 +28234,7 @@ class Graph:
         r"""
         Find the nodes most similar to a source node by comparing their Panther profiles.
 
-        ![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
+        ![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b (349.7), y (39.1) and z (38.7): like a, each sits on a triangle away from the bridge, and b, a's twin, scores far highest. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
 
         Panther++ (Zhang et al., 2015) extends `panther_similarity()`: instead of asking how
         often two nodes share random paths, it gives every node a feature vector of its `D`
@@ -28250,8 +28261,8 @@ class Graph:
             The probability, between 0 and 1, that the Panther scores miss the `eps=` error
             bound.
         eps
-            The error bound on the Panther scores, also the distance below which two vectors
-            count as identical. If `None` (default), $\sqrt{1 / |E|}$.
+            The error bound on the Panther scores, which sets how many paths are sampled. If
+            `None` (default), $\sqrt{1 / |E|}$.
         weighted
             Whether to use edge weights for the random steps. If `None` (default), follows the
             graph's `weighted` flag; edges without a weight count as `1.0`.
@@ -28262,9 +28273,9 @@ class Graph:
         -------
         dict[int, float]
             Up to `k` node IDs (never `source`) with their scores, from most to least similar
-            (ties in node ID order). A score is $\min(1, \varepsilon / d)$ for the Euclidean
-            distance $d$ between the two feature vectors, so nodes whose vectors are within
-            `eps` of the source's score 1.
+            (ties in node ID order). A score is $1 / d$ for the Euclidean distance $d$ between
+            the two feature vectors, so it has no upper bound; a node whose vector equals the
+            source's scores $1 / \epsilon_{\text{mach}} \approx 4.5 \times 10^{15}$.
 
         Raises
         ------
@@ -28285,17 +28296,19 @@ class Graph:
         nodes. Node $v$'s vector $\theta_v$ holds its `D` largest scores $s(v, u)$ (the share
         of paths holding both $v$ and $u$, with $s(v, v)$ the share holding $v$) in descending
         order, padded with zeros when $v$ shares paths with fewer than `D` nodes. The similarity
-        is $1 / \max(\lVert \theta_v - \theta_s \rVert, \varepsilon)$ scaled so the source
-        itself would score 1. Co-occurrences are counted sparsely, so the cost is about
-        $O(R T^2 + V \log V)$ for $R$ sampled paths. NetworkX's `panther_vector_similarity`
-        raises an error when the graph has isolated nodes and when `k` exceeds the number of
-        nodes, and finds the nearest vectors with a k-d tree (ties in arbitrary order); its
-        random paths come from a different generator, so the scores agree only statistically.
+        is the paper's $1 / \lVert \theta_v - \theta_s \rVert$, with the distance clamped to
+        machine epsilon so equal vectors don't divide by zero. Co-occurrences are counted
+        sparsely, so the cost is about $O(R T^2 + V \log V)$ for $R$ sampled paths. The
+        unnormalized scores follow the fix in NetworkX pull request #8578; NetworkX releases
+        without it clamp the distance to `eps` and rescale the scores to at most 1. NetworkX's
+        `panther_vector_similarity` also raises an error when `k` exceeds the number of nodes,
+        and finds the nearest vectors with a k-d tree (ties in arbitrary order); its random
+        paths come from a different generator, so the scores agree only statistically.
 
         Examples
         --------
-        In a star, the leaves all look alike, so every other leaf is as similar as possible to
-        a leaf, though no path joins two leaves without passing through the center:
+        In a star, the leaves all look alike, so the other leaves get equal, high scores
+        against a leaf, though no path joins two leaves without passing through the center:
 
         ```{python}
         import edgecase as ec
@@ -28304,9 +28317,9 @@ class Graph:
         star.panther_vector_similarity(2, k=3, seed=1)
         ```
 
-        Two triangles joined by a bridge. With a tight `eps=`, `a` matches its triangle twin `b`
-        and also `y` and `z`, which hold the same place in the other triangle, while the bridge
-        ends `c` and `x` score low:
+        Two triangles joined by a bridge. With a tight `eps=` (and so many sampled paths), `a`
+        matches its triangle twin `b` best, then `y` and `z`, which hold the same place in the
+        other triangle, while the bridge ends `c` and `x` score far lower:
 
         ```{python}
         graph = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
@@ -28363,8 +28376,8 @@ class Graph:
 
         ![Generate random paths](/assets/graphs/generate-random-paths.light.svg){.lightbox fig-alt="Three copies of a six-node cycle, one per sampled path of length 4 (five nodes, seed 2). Each path's edges and nodes are in its own color, accent, teal and violet, and filled badges give each node's positions along the path, 0 for the start. The first path, 6, 1, 6, 1, 2, steps back and forth before moving on; the third, 5, 6, 5, 6, 5, never leaves one edge." width="100%"}
 
-        Each path starts at a uniformly random node (or at `source`) and takes `path_length`
-        random steps, each to a neighbor (an out-neighbor in a directed graph) chosen with
+        Each path starts at `source` or, if none is given, at a uniformly random node with
+        out-edges of positive weight, and takes `path_length` random steps, each to a neighbor (an out-neighbor in a directed graph) chosen with
         probability proportional to the edge weight. Nodes may repeat, since a step can go back.
         These are the paths `panther_similarity()` samples, and they suit other walk-based
         estimates too, such as how often nodes co-occur or how far walks travel.
@@ -28391,14 +28404,17 @@ class Graph:
         Raises
         ------
         ValueError
-            If `source` doesn't exist, a weight is negative, or a path reaches a node with no
-            out-edges (an isolated node, or a sink in a directed graph).
+            If `source` doesn't exist, a weight is negative, no node has out-edges (when there
+            is no `source`), or a path reaches a node with no out-edges (an isolated `source`,
+            or a sink in a directed graph).
 
         Technical Notes
         ---------------
         A step from node $u$ moves to $v$ with probability $A_{uv} / \sum_x A_{ux}$, where $A$
         is the weighted adjacency matrix (parallel edges add up, as in NetworkX's
-        `to_numpy_array`). This matches NetworkX's `generate_random_paths`, which returns a
+        `to_numpy_array`). Skipping isolated nodes (and sinks) as random starts follows the
+        fix in NetworkX pull request #8578; NetworkX releases without it may start a walk at an
+        isolated node and fail. This matches NetworkX's `generate_random_paths`, which returns a
         generator and can also fill an `index_map` of node to path indices; here the paths come
         back as a list, from which such an index is a short loop.
 
@@ -29369,6 +29385,9 @@ class Graph:
         emitted exactly once regardless of which starting node discovered it. Cycles come
         back as sequences of node IDs with no repeat of the start node at the end. Pass
         `length_bound=` to cut off the search early when only short cycles are of interest.
+        On directed graphs a bounded search drops Johnson's blocking (which can miss short
+        cycles once the bound cuts a branch off) and instead prunes any branch whose
+        shortest way back to the start node would exceed the bound.
 
         Examples
         --------
@@ -53590,9 +53609,9 @@ class Graph:
             )
         return result
 
-    def _edge_traversal(self, source, orientation, depth_first: bool):
-        if orientation not in (None, "original", "reverse", "ignore"):
-            raise ValueError("orientation= must be None, 'original', 'reverse' or 'ignore'")
+    def _edge_tables(self):
+        """Each node's outgoing and incoming edges as `(u, v, edge_id)`, in NetworkX's order (an
+        undirected edge is outgoing from both ends, oriented away from the node)."""
         directed = self.is_directed()
         out: dict[int, list] = {n: [] for n in sorted(self.get_node_ids(limit=None))}
         inn: dict[int, list] = {n: [] for n in out}
@@ -53609,12 +53628,53 @@ class Graph:
                 for e in lst:
                     order.setdefault(key(e), len(order))
                 lst.sort(key=lambda e: order[key(e)])
+        return out, inn
+
+    def _traversal_starts(self, source, nodes):
         if source is None:
-            starts = list(out)
-        elif isinstance(source, (int, str)):
-            starts = [self._resolve_node_id(source, auto_create=False)]
-        else:
-            starts = [self._resolve_node_id(n, auto_create=False) for n in source]
+            return list(nodes)
+        if isinstance(source, (int, str)):
+            return [self._resolve_node_id(source, auto_create=False)]
+        return [self._resolve_node_id(n, auto_create=False) for n in source]
+
+    @staticmethod
+    def _bfs_over_edges(starts, edges, directed: bool) -> list[tuple]:
+        """Breadth-first search yielding every edge that `edges(node)` supplies, once each (by
+        the edge ID in position 2 or, for pairs, by the endpoints), as in NetworkX #8950."""
+        from collections import deque
+
+        result = []
+        visited = set(starts)
+        visited_edges = set()
+        queue = deque((n, iter(edges(n))) for n in starts)
+        while queue:
+            parent, children = queue.popleft()
+            for edge in children:
+                edge = tuple(edge)
+                if edge[0] == parent:
+                    child = edge[1]
+                elif edge[1] == parent:
+                    child = edge[0]
+                else:
+                    raise ValueError(f"edge {edge!r} is not incident to node {parent!r}")
+                if child not in visited:
+                    visited.add(child)
+                    queue.append((child, iter(edges(child))))
+                if len(edge) > 2:
+                    eid = edge[2]
+                else:
+                    eid = edge[:2] if directed else frozenset(edge[:2])
+                if eid not in visited_edges:
+                    visited_edges.add(eid)
+                    result.append(edge)
+        return result
+
+    def _edge_traversal(self, source, orientation, depth_first: bool):
+        if orientation not in (None, "original", "reverse", "ignore"):
+            raise ValueError("orientation= must be None, 'original', 'reverse' or 'ignore'")
+        directed = self.is_directed()
+        out, inn = self._edge_tables()
+        starts = self._traversal_starts(source, out)
         tag = orientation is not None
 
         def gen(node):
@@ -53631,40 +53691,26 @@ class Graph:
         def child_of(edge):
             return edge[0] if directed and edge[-1] == "reverse" and tag else edge[1]
 
+        if not depth_first:
+            return self._bfs_over_edges(starts, gen, directed)
         result = []
         visited_edges = set()
-        if not depth_first:
-            from collections import deque
-
-            visited = set(starts)
-            queue = deque((n, gen(n)) for n in starts)
-            while queue:
-                _, children = queue.popleft()
-                for edge in children:
-                    child = child_of(edge)
-                    if child not in visited:
-                        visited.add(child)
-                        queue.append((child, gen(child)))
-                    if edge[2] not in visited_edges:
-                        visited_edges.add(edge[2])
-                        result.append(edge)
-        else:
-            visited = set()
-            iters: dict = {}
-            for start in starts:
-                stack = [start]
-                while stack:
-                    node = stack[-1]
-                    if node not in visited:
-                        iters[node] = gen(node)
-                        visited.add(node)
-                    edge = next(iters[node], None)
-                    if edge is None:
-                        stack.pop()
-                    elif edge[2] not in visited_edges:
-                        visited_edges.add(edge[2])
-                        stack.append(child_of(edge))
-                        result.append(edge)
+        visited = set()
+        iters: dict = {}
+        for start in starts:
+            stack = [start]
+            while stack:
+                node = stack[-1]
+                if node not in visited:
+                    iters[node] = gen(node)
+                    visited.add(node)
+                edge = next(iters[node], None)
+                if edge is None:
+                    stack.pop()
+                elif edge[2] not in visited_edges:
+                    visited_edges.add(edge[2])
+                    stack.append(child_of(edge))
+                    result.append(edge)
         return result
 
     def edge_bfs(
@@ -53727,6 +53773,92 @@ class Graph:
         """
         result = self._edge_traversal(source, orientation, depth_first=False)
         self._record_edge_traversal("edge_bfs", result)
+        return result
+
+    def generic_edge_bfs(
+        self,
+        source: Union[int, str, list, None] = None,
+        edges: Callable[[int], Any] | None = None,
+    ) -> list[tuple]:
+        """
+        Traverse every edge a callback supplies, in breadth-first order.
+
+        ![Generic edge BFS](/assets/graphs/generic-edge-bfs.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) with a callback that leaves out the edge A-C, drawn dashed. The search still reaches C, through B, and the visited edges are numbered in the accent color: 1 A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that A-C is never visited." width="100%"}
+
+        The general form of `edge_bfs()`: instead of a fixed rule for which edges to follow, a
+        function `edges(node)` lists the edges to explore from each node, and every edge it
+        supplies is visited exactly once, including edges that lead back to a node already
+        reached. Use it to restrict a traversal to some edges (only those of one type or above a
+        weight, say, without building a subgraph), to follow edges in a custom order, or to
+        carry extra data along with each edge.
+
+        Parameters
+        ----------
+        source
+            A start node, a list of start nodes, or `None` (default) for all nodes, in ID order.
+        edges
+            A function taking a node ID and returning an iterable of edge tuples incident to it.
+            Each tuple has the two endpoint IDs first (either may be the node), then optionally
+            the edge ID, then anything else, which is passed through. Edges are told apart by
+            their edge ID or, for plain `(u, v)` pairs, by their endpoints (unordered on
+            undirected graphs). If `None` (default), each node's edges as `edge_bfs()` follows
+            them: `(u, v, edge_id)` with `u` the node.
+
+        Returns
+        -------
+        list[tuple]
+            The edges in visit order, as tuples like those `edges` supplies.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or `edges` supplies an edge not incident to its node.
+
+        Technical Notes
+        ---------------
+        A breadth-first search over nodes: each node, once reached, is queued and later asked
+        for its edges, and every edge not yet seen is emitted, $O(V + E)$ calls and steps when
+        `edges` supplies each node's edges. This follows `generic_edge_bfs` from NetworkX pull
+        request #8950, which also rebuilds `edge_bfs` on it, as here. Compare `bfs_edges()`,
+        which keeps only the edges that reach new nodes.
+
+        Examples
+        --------
+        By default every edge reachable from the source is visited, as in `edge_bfs()`:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
+        label = g.get_label_from_id
+
+        [(label(u), label(v)) for u, v, _ in g.generic_edge_bfs("A")]
+        ```
+
+        A callback that skips a closed edge, here the one between `A` and `C`, still reaches
+        `C` (through `B`) but never visits the closed edge:
+
+        ```{python}
+        closed = set(g.find_edge_ids("A", "C"))
+
+        def open_edges(node):
+            return [
+                (s, t, e) for e, s, t in g.get_edges_as_tuples()
+                if node in (s, t) and e not in closed
+            ]
+
+        [(label(u), label(v)) for u, v, _ in g.generic_edge_bfs("A", edges=open_edges)]
+        ```
+        """
+        if edges is None:
+            out, _ = self._edge_tables()
+            starts = self._traversal_starts(source, out)
+            result = self._bfs_over_edges(starts, lambda n: out[n], self.is_directed())
+        else:
+            starts = self._traversal_starts(source, sorted(self.get_node_ids(limit=None)))
+            result = self._bfs_over_edges(starts, edges, self.is_directed())
+        self._record_edge_traversal("generic_edge_bfs", result)
         return result
 
     def edge_dfs(
@@ -56523,7 +56655,7 @@ class Graph:
         return result
 
     def all_pairs_lowest_common_ancestor(
-        self, pairs: list[tuple] | None = None
+        self, pairs: list[tuple] | None = None, key: Callable[[int], Any] | None = None
     ) -> dict[tuple[int, int], int]:
         """
         Find a lowest common ancestor for many pairs of nodes in a directed acyclic graph.
@@ -56540,6 +56672,11 @@ class Graph:
         pairs
             Optional list of `(u, v)` pairs (IDs or labels). If `None` (default), every pair of
             nodes, including each node with itself.
+        key
+            Optional function of a node ID used to choose among several lowest common ancestors:
+            the one with the smallest `key` value is returned (ties go to the lowest node ID).
+            If `None` (default), the choice of `lowest_common_ancestor()` is used. To get every
+            lowest common ancestor, use `all_pairs_all_lowest_common_ancestors()`.
 
         Returns
         -------
@@ -56558,7 +56695,9 @@ class Graph:
         ancestors a lowest one is found by walking down while a successor stays common, as in
         NetworkX's `all_pairs_lowest_common_ancestor`. A pair can have several lowest common
         ancestors; this method returns the one `lowest_common_ancestor()` would, which may
-        differ from NetworkX's choice.
+        differ from NetworkX's choice. With `key=`, all lowest common ancestors of each pair are
+        found first (see `all_pairs_all_lowest_common_ancestors()`) and the smallest by `key` is
+        kept, as with the `key=` argument proposed in NetworkX pull request #7988.
 
         Examples
         --------
@@ -56591,16 +56730,23 @@ class Graph:
                 for u, v in pairs
             ]
         result = {}
-        with self._no_recording():
-            for u, v in todo:
-                found = self.lowest_common_ancestor(u, v)
-                if found is not None:
-                    result[(u, v)] = found
+        if key is not None:
+            for pair, lcas in self._all_lcas(todo).items():
+                if lcas:
+                    result[pair] = min(lcas, key=key)
+        else:
+            with self._no_recording():
+                for u, v in todo:
+                    found = self.lowest_common_ancestor(u, v)
+                    if found is not None:
+                        result[(u, v)] = found
         if self._recording_depth == 0:
             self._record_step(
                 KIND_QUERY,
                 "all_pairs_lowest_common_ancestor",
-                "G.all_pairs_lowest_common_ancestor()",
+                "G.all_pairs_lowest_common_ancestor()"
+                if key is None
+                else "G.all_pairs_lowest_common_ancestor(key=...)",
                 result=result,
                 narration=f"Lowest common ancestors for {len(result)} of {len(todo)} pairs.",
             )
@@ -56692,7 +56838,10 @@ class Graph:
         return result
 
     def lowest_common_ancestor(
-        self, node_1: Union[int, str], node_2: Union[int, str]
+        self,
+        node_1: Union[int, str],
+        node_2: Union[int, str],
+        key: Callable[[int], Any] | None = None,
     ) -> int | None:
         """
         Find the lowest common ancestor of two nodes in a DAG.
@@ -56708,7 +56857,8 @@ class Graph:
         As is usual for LCAs, a node counts as its own ancestor, so if one node is an ancestor
         of the other, it is the answer. A general DAG can have several lowest common ancestors
         (in a tree there is exactly one); in that case the deepest one, measured by its longest
-        path from a source, is returned, with ties going to the lowest node ID.
+        path from a source, is returned, with ties going to the lowest node ID. Pass `key=` to
+        choose differently, or use `all_lowest_common_ancestors()` to get them all.
 
         Parameters
         ----------
@@ -56716,6 +56866,11 @@ class Graph:
             The first node, as an integer ID or a string label.
         node_2
             The second node, as an integer ID or a string label.
+        key
+            Optional function of a node ID used to choose among several lowest common ancestors:
+            the one with the smallest `key` value is returned (ties go to the lowest node ID), as
+            with the `key=` argument proposed in NetworkX pull request #7988. If `None`
+            (default), the deepest one is returned.
 
         Returns
         -------
@@ -56753,14 +56908,20 @@ class Graph:
         """
         id_1 = self._resolve_node_id(node_1, auto_create=False)
         id_2 = self._resolve_node_id(node_2, auto_create=False)
-        lca = rust.lowest_common_ancestor(self._graph, id_1, id_2)
+        if key is None:
+            lca = rust.lowest_common_ancestor(self._graph, id_1, id_2)
+        else:
+            self._require_dag("lowest_common_ancestor")
+            lcas = self._all_lcas([(id_1, id_2)])[(id_1, id_2)]
+            lca = min(lcas, key=key) if lcas else None
 
         if self._recording_depth == 0:
             l1, l2 = self._node_label(id_1), self._node_label(id_2)
             self._record_step(
                 KIND_QUERY,
                 "lowest_common_ancestor",
-                f"G.lowest_common_ancestor({node_1!r}, {node_2!r})",
+                f"G.lowest_common_ancestor({node_1!r}, {node_2!r}"
+                + (")" if key is None else ", key=...)"),
                 delta=StepDelta(nodes_selected=[] if lca is None else [self._node_label(lca)]),
                 result=lca,
                 narration=(
@@ -56770,6 +56931,262 @@ class Graph:
                 ),
             )
         return lca
+
+    def _all_lcas(self, pairs) -> dict[tuple[int, int], list[int]]:
+        """Every lowest common ancestor of each `(u, v)` pair of node IDs, sorted by ID: the
+        common ancestors (each node counting as its own) with no successor that is also one."""
+        _, succ, pred = self._arc_sets()
+        cache: dict[int, set] = {}
+
+        def ancestors(n):
+            if n not in cache:
+                seen, stack = {n}, [n]
+                while stack:
+                    for p in pred[stack.pop()]:
+                        if p not in seen:
+                            seen.add(p)
+                            stack.append(p)
+                cache[n] = seen
+            return cache[n]
+
+        result = {}
+        for u, v in pairs:
+            common = ancestors(u) & ancestors(v)
+            result[(u, v)] = sorted(x for x in common if not any(c in common for c in succ[x]))
+        return result
+
+    def all_lowest_common_ancestors(
+        self, node_1: Union[int, str], node_2: Union[int, str]
+    ) -> list[int]:
+        """
+        Find every lowest common ancestor of two nodes in a DAG.
+
+        ![All lowest common ancestors](/assets/graphs/all-lowest-common-ancestors.light.svg){.lightbox fig-alt="A family drawn top down: grandma is mum's parent, and mum and dad are both parents of ann and bob (outlined). ann and bob have two lowest common ancestors, mum and dad, in the accent color with the four edges down to the siblings. grandma is a common ancestor too, but not a lowest one, since her child mum is also common. The card lists mum and dad, beside lowest_common_ancestor, which returns only mum." width="100%"}
+
+        In a tree two nodes have exactly one lowest common ancestor (LCA), but in a general
+        directed acyclic graph they can have several: common ancestors (nodes with a path to
+        both, each node counting as its own ancestor) of which none lies below another. Two
+        people can share both parents as their most recent common ancestors in a pedigree; two
+        commits can have several merge bases (a "criss-cross merge") in a version history; two
+        terms can have several most specific shared categories in an ontology with multiple
+        inheritance. `lowest_common_ancestor()` picks one of them; this method returns them all.
+
+        Parameters
+        ----------
+        node_1
+            The first node, as an integer ID or a string label.
+        node_2
+            The second node, as an integer ID or a string label.
+
+        Returns
+        -------
+        list[int]
+            The IDs of the lowest common ancestors, in ID order; empty if the two nodes have no
+            common ancestor.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or the graph is undirected or contains a cycle.
+
+        Technical Notes
+        ---------------
+        The ancestor sets of both nodes are found by searching backward along the edges and
+        intersected. A common ancestor is lowest exactly when none of its direct successors is
+        also common (any common descendant would be reached through one of them), so the check
+        costs $O(V + E)$ in all. This follows `all_lowest_common_ancestors` from NetworkX pull
+        request #7988.
+
+        Examples
+        --------
+        Two siblings, ann and bob, share both parents, so they have two lowest common
+        ancestors, while `lowest_common_ancestor()` returns only one of them:
+
+        ```{python}
+        import edgecase as ec
+
+        family = ec.Graph(directed=True).add_nodes(["mum", "dad", "ann", "bob", "grandma"])
+        family.add_edges(
+            [("grandma", "mum"), ("mum", "ann"), ("mum", "bob"), ("dad", "ann"), ("dad", "bob")]
+        )
+
+        label = family.get_label_from_id
+        (
+            [label(n) for n in family.all_lowest_common_ancestors("ann", "bob")],
+            label(family.lowest_common_ancestor("ann", "bob")),
+        )
+        ```
+        """
+        self._require_dag("all_lowest_common_ancestors")
+        id_1 = self._resolve_node_id(node_1, auto_create=False)
+        id_2 = self._resolve_node_id(node_2, auto_create=False)
+        lcas = self._all_lcas([(id_1, id_2)])[(id_1, id_2)]
+        if self._recording_depth == 0:
+            l1, l2 = self._node_label(id_1), self._node_label(id_2)
+            names = ", ".join(self._node_label(n) for n in lcas)
+            self._record_step(
+                KIND_QUERY,
+                "all_lowest_common_ancestors",
+                f"G.all_lowest_common_ancestors({node_1!r}, {node_2!r})",
+                delta=StepDelta(nodes_selected=[self._node_label(n) for n in lcas]),
+                result=lcas,
+                narration=(
+                    f"{l1} and {l2} share no ancestor."
+                    if not lcas
+                    else f"Lowest common ancestors of {l1} and {l2}: {names}."
+                ),
+            )
+        return lcas
+
+    def all_pairs_all_lowest_common_ancestors(
+        self, pairs: list[tuple] | None = None
+    ) -> dict[tuple[int, int], list[int]]:
+        """
+        Find every lowest common ancestor for many pairs of nodes in a DAG.
+
+        ![All-pairs all lowest common ancestors](/assets/graphs/all-pairs-all-lowest-common-ancestors.light.svg){.lightbox fig-alt="Two parents, mum and dad, each with an edge down to both ann and bob, and eve standing alone. The queried nodes ann, bob and eve are outlined. For the pair ann, bob both parents are lowest common ancestors (accent color, with their four edges); ann and eve share no ancestor. The card maps (ann, bob) to mum and dad and keeps (ann, eve) with an empty list." width="100%"}
+
+        Applies `all_lowest_common_ancestors()` to many pairs at once, sharing the ancestor
+        searches between pairs. Use it to find all the most specific shared categories of many
+        pairs of terms in an ontology with multiple inheritance, or every merge base of many
+        pairs of commits.
+
+        Parameters
+        ----------
+        pairs
+            Optional list of `(u, v)` pairs (IDs or labels). If `None` (default), every pair of
+            nodes, including each node with itself.
+
+        Returns
+        -------
+        dict[tuple[int, int], list[int]]
+            `(u, v)` to the IDs of its lowest common ancestors, in ID order, for every pair.
+            Unlike in `all_pairs_lowest_common_ancestor()`, a pair without a common ancestor is
+            kept, with an empty list.
+
+        Raises
+        ------
+        ValueError
+            If the graph is not a directed acyclic graph, is empty, or a node does not exist.
+
+        Technical Notes
+        ---------------
+        Each node's ancestor set is computed once and cached; each pair then costs an
+        intersection and a scan of the common ancestors' successors. This follows
+        `all_pairs_all_lowest_common_ancestors` from NetworkX pull request #7988.
+
+        Examples
+        --------
+        ```{python}
+        import edgecase as ec
+
+        family = ec.Graph(directed=True).add_nodes(["mum", "dad", "ann", "bob", "eve"])
+        family.add_edges([("mum", "ann"), ("mum", "bob"), ("dad", "ann"), ("dad", "bob")])
+
+        label = family.get_label_from_id
+        found = family.all_pairs_all_lowest_common_ancestors([("ann", "bob"), ("ann", "eve")])
+        {tuple(label(n) for n in pair): [label(a) for a in lcas] for pair, lcas in found.items()}
+        ```
+        """
+        self._require_dag("all_pairs_all_lowest_common_ancestors")
+        ids = sorted(self.get_node_ids(limit=None))
+        if not ids:
+            raise ValueError("the graph has no nodes")
+        if pairs is None:
+            todo = [(u, v) for i, u in enumerate(ids) for v in ids[i:]]
+        else:
+            todo = [
+                (
+                    self._resolve_node_id(u, auto_create=False),
+                    self._resolve_node_id(v, auto_create=False),
+                )
+                for u, v in pairs
+            ]
+        result = self._all_lcas(todo)
+        if self._recording_depth == 0:
+            found = sum(1 for lcas in result.values() if lcas)
+            self._record_step(
+                KIND_QUERY,
+                "all_pairs_all_lowest_common_ancestors",
+                "G.all_pairs_all_lowest_common_ancestors()",
+                result=result,
+                narration=f"Lowest common ancestors for {found} of {len(result)} pairs.",
+            )
+        return result
+
+    def is_lowest_common_ancestor(
+        self, node_1: Union[int, str], node_2: Union[int, str], candidate: Union[int, str]
+    ) -> bool:
+        """
+        Check whether a node is a lowest common ancestor of two nodes in a DAG.
+
+        ![Is lowest common ancestor](/assets/graphs/is-lowest-common-ancestor.light.svg){.lightbox fig-alt="The diamond DAG A to B and C, which both point to D. Left: for the pair B, C (outlined), the top A (accent) is a common ancestor and none of its children is one, so is_lowest_common_ancestor returns True. Right: for the pair B, D, A is again a common ancestor, but its child B (accent) is one too, as B reaches D, so A is not lowest and the call returns False." width="100%"}
+
+        A node is a lowest common ancestor of `node_1` and `node_2` when it is an ancestor of
+        both (each node counting as its own ancestor) and none of its descendants is. Use it to
+        verify a claimed merge base or shared category without listing all of them, for example
+        to test whether a given commit is one of the merge bases of two branches.
+
+        Parameters
+        ----------
+        node_1
+            The first node, as an integer ID or a string label.
+        node_2
+            The second node, as an integer ID or a string label.
+        candidate
+            The node to check, as an integer ID or a string label.
+
+        Returns
+        -------
+        bool
+            `True` if `candidate` is a lowest common ancestor of the two nodes.
+
+        Raises
+        ------
+        ValueError
+            If a node does not exist, or the graph is undirected or contains a cycle.
+
+        Technical Notes
+        ---------------
+        The two ancestor sets are found by backward search, then `candidate` must lie in both
+        while none of its direct successors does, $O(V + E)$. This follows
+        `is_lowest_common_ancestor` from NetworkX pull request #7988.
+
+        Examples
+        --------
+        In a diamond, the top is the lowest common ancestor of the two middle nodes, but not
+        of a middle node and the bottom, since that middle node is an ancestor of the bottom:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+
+        (
+            g.is_lowest_common_ancestor("B", "C", "A"),
+            g.is_lowest_common_ancestor("B", "D", "A"),
+            g.is_lowest_common_ancestor("B", "D", "B"),
+        )
+        ```
+        """
+        self._require_dag("is_lowest_common_ancestor")
+        id_1 = self._resolve_node_id(node_1, auto_create=False)
+        id_2 = self._resolve_node_id(node_2, auto_create=False)
+        x = self._resolve_node_id(candidate, auto_create=False)
+        result = x in self._all_lcas([(id_1, id_2)])[(id_1, id_2)]
+        if self._recording_depth == 0:
+            l1, l2, lx = self._node_label(id_1), self._node_label(id_2), self._node_label(x)
+            self._record_step(
+                KIND_QUERY,
+                "is_lowest_common_ancestor",
+                f"G.is_lowest_common_ancestor({node_1!r}, {node_2!r}, {candidate!r})",
+                delta=StepDelta(nodes_selected=[lx]),
+                result=result,
+                narration=f"{lx} is {'' if result else 'not '}a lowest common ancestor of "
+                f"{l1} and {l2}.",
+            )
+        return result
 
     def transitive_closure(self) -> "Graph":
         r"""
