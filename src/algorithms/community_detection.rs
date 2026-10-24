@@ -32,12 +32,19 @@ fn edge_weight(graph: &Graph, w: Option<f64>) -> f64 {
 /// `adj` holds merged neighbor weights without self-loops; `self_w[i]` is the total weight of
 /// self-loops (in aggregate graphs: the weight inside the aggregated community, each edge once);
 /// `deg[i]` is the strength, with self-loops counted twice; `m2 = Σ deg = 2m`.
+///
+/// `size` and `div` define the null model the optimizers use: moving node `v` into community
+/// `c` gains `w(v, c) - γ·size[v]·size(c)/div`. For modularity `size = deg` and `div = m2`; for
+/// the Constant Potts Model (`cpm`) every node has size 1 and `div = 1`.
 #[derive(Clone)]
 struct WGraph {
     adj: Vec<Vec<(usize, f64)>>,
     self_w: Vec<f64>,
     deg: Vec<f64>,
     m2: f64,
+    size: Vec<f64>,
+    div: f64,
+    cpm: bool,
 }
 
 impl WGraph {
@@ -76,7 +83,16 @@ impl WGraph {
             })
             .collect();
         let m2 = deg.iter().sum();
-        (WGraph { adj, self_w, deg, m2 }, ids)
+        let size = deg.clone();
+        (WGraph { adj, self_w, deg, m2, size, div: m2, cpm: false }, ids)
+    }
+
+    /// Switch the null model to the Constant Potts Model (unit node sizes).
+    fn into_cpm(mut self) -> Self {
+        self.size = vec![1.0; self.n()];
+        self.div = 1.0;
+        self.cpm = true;
+        self
     }
 
     /// Collapse each group of `assign` (values `0..k`) into one node.
@@ -84,9 +100,11 @@ impl WGraph {
         let mut maps: Vec<FxHashMap<usize, f64>> = vec![FxHashMap::default(); k];
         let mut self_w = vec![0.0; k];
         let mut deg = vec![0.0; k];
+        let mut size = vec![0.0; k];
         for v in 0..self.n() {
             let a = assign[v];
             deg[a] += self.deg[v];
+            size[a] += self.size[v];
             self_w[a] += self.self_w[v];
             for &(u, w) in &self.adj[v] {
                 let b = assign[u];
@@ -105,7 +123,29 @@ impl WGraph {
                 v
             })
             .collect();
-        WGraph { adj, self_w, deg, m2: self.m2 }
+        WGraph { adj, self_w, deg, m2: self.m2, size, div: self.div, cpm: self.cpm }
+    }
+
+    /// The quality being optimized: modularity, or the Constant Potts Model
+    /// `Σ_c E_c - γ·n_c²/2` (each internal edge counted once).
+    fn quality(&self, part: &[usize], gamma: f64) -> f64 {
+        if !self.cpm {
+            return self.modularity(part, gamma);
+        }
+        let k = part.iter().copied().max().map_or(0, |x| x + 1);
+        let mut inside = vec![0.0; k];
+        let mut tot = vec![0.0; k];
+        for v in 0..self.n() {
+            let c = part[v];
+            tot[c] += self.size[v];
+            inside[c] += self.self_w[v];
+            for &(u, w) in &self.adj[v] {
+                if part[u] == c {
+                    inside[c] += w / 2.0;
+                }
+            }
+        }
+        (0..k).map(|c| inside[c] - gamma * tot[c] * tot[c] / 2.0).sum()
     }
 
     /// Modularity of a partition of this graph's nodes.
@@ -213,11 +253,214 @@ pub fn modularity(
     Ok(q)
 }
 
+/// Constant Potts Model quality of a node → community partition (Traag, Van Dooren & Nesterov
+/// 2011): `Σ_c E_c - γ·n_c²/2` on undirected graphs and `Σ_c E_c - γ·n_c²` on directed ones,
+/// where `E_c` is the edge weight inside community `c` (each edge and self-loop once) and `n_c`
+/// its total node weight (`node_weights`, missing nodes count 1). Matches NetworkX
+/// `community.constant_potts_model`.
+#[pyfunction]
+#[pyo3(signature = (graph, membership, resolution=1.0, node_weights=None))]
+pub fn constant_potts_model(
+    graph: &Graph,
+    membership: FxHashMap<u64, usize>,
+    resolution: f64,
+    node_weights: Option<FxHashMap<u64, f64>>,
+) -> PyResult<f64> {
+    let comm = |id: u64| -> PyResult<usize> {
+        membership.get(&id).copied().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} is not assigned to a community",
+                id
+            ))
+        })
+    };
+    let mut inside: FxHashMap<usize, f64> = FxHashMap::default();
+    let mut size: FxHashMap<usize, f64> = FxHashMap::default();
+    for id in graph.get_node_ids() {
+        let w = node_weights.as_ref().and_then(|m| m.get(&id).copied()).unwrap_or(1.0);
+        *size.entry(comm(id)?).or_insert(0.0) += w;
+    }
+    for e in graph.get_edges_internal() {
+        let (a, b) = (comm(e.source)?, comm(e.target)?);
+        if a == b {
+            *inside.entry(a).or_insert(0.0) += edge_weight(graph, e.weight);
+        }
+    }
+    let factor = if graph.is_directed() { 1.0 } else { 0.5 };
+    Ok(size
+        .iter()
+        .map(|(c, &n_c)| inside.get(c).unwrap_or(&0.0) - resolution * factor * n_c * n_c)
+        .sum())
+}
+
+/// Shen et al.'s extended modularity of an overlapping cover of an undirected graph: each node
+/// `v` in `O_v` communities contributes `1/O_v` of its degree to each, and each internal edge
+/// `(u, v)` contributes `w/(O_u·O_v)`. Equals modularity when the cover is a partition. Matches
+/// NetworkX `community.overlapping_modularity`; every node must be in at least one community.
+#[pyfunction]
+#[pyo3(signature = (graph, cover, resolution=1.0))]
+pub fn overlapping_modularity(
+    graph: &Graph,
+    cover: Vec<Vec<u64>>,
+    resolution: f64,
+) -> PyResult<f64> {
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "overlapping modularity requires an undirected graph",
+        ));
+    }
+    let mut ids = graph.get_node_ids();
+    ids.sort_unstable();
+    let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let n = ids.len();
+    let groups: Vec<Vec<usize>> = cover
+        .iter()
+        .map(|c| {
+            let set: FxHashSet<usize> = c.iter().filter_map(|id| idx.get(id).copied()).collect();
+            let mut v: Vec<usize> = set.into_iter().collect();
+            v.sort_unstable();
+            v
+        })
+        .collect();
+    let mut count = vec![0usize; n];
+    for g in &groups {
+        for &v in g {
+            count[v] += 1;
+        }
+    }
+    if let Some(v) = count.iter().position(|&c| c == 0) {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Node {} is not in any community",
+            ids[v]
+        )));
+    }
+    // inc[v]: (other endpoint, weight) of each incident edge; a self-loop is listed once
+    let mut inc: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+    let mut deg = vec![0.0; n];
+    for e in graph.get_edges_internal() {
+        let (Some(&s), Some(&t)) = (idx.get(&e.source), idx.get(&e.target)) else {
+            continue;
+        };
+        let w = edge_weight(graph, e.weight);
+        deg[s] += w;
+        deg[t] += w;
+        inc[s].push((t, w));
+        if s != t {
+            inc[t].push((s, w));
+        }
+    }
+    let deg_sum: f64 = deg.iter().sum();
+    if deg_sum == 0.0 {
+        return Ok(0.0);
+    }
+    let mut in_group = vec![false; n];
+    let mut q = 0.0;
+    for g in &groups {
+        for &v in g {
+            in_group[v] = true;
+        }
+        let mut l = 0.0;
+        let mut k = 0.0;
+        for &u in g {
+            k += deg[u] / count[u] as f64;
+            for &(v, w) in &inc[u] {
+                if in_group[v] && v >= u {
+                    l += w / (count[u] * count[v]) as f64;
+                }
+            }
+        }
+        q += 2.0 * l / deg_sum - resolution * (k / deg_sum).powi(2);
+        for &v in g {
+            in_group[v] = false;
+        }
+    }
+    Ok(q)
+}
+
+/// Barber's bipartite modularity of a node → community partition of an undirected bipartite
+/// graph: `Σ_c [L_c/m - γ·k_c·d_c/m²]`, where `L_c` is the edge weight inside `c`, `k_c` and
+/// `d_c` are the degree totals of its top-side and bottom-side nodes, and `m` the total edge
+/// weight. The sides come from `top_nodes` or, if omitted, from a 2-coloring of each
+/// component. Matches NetworkX `bipartite.modularity`.
+#[pyfunction]
+#[pyo3(signature = (graph, membership, top_nodes=None, resolution=1.0))]
+pub fn bipartite_modularity(
+    graph: &Graph,
+    membership: FxHashMap<u64, usize>,
+    top_nodes: Option<Vec<u64>>,
+    resolution: f64,
+) -> PyResult<f64> {
+    if graph.is_directed() {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "bipartite modularity requires an undirected graph",
+        ));
+    }
+    let ids = graph.get_node_ids();
+    let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let n = ids.len();
+    let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n];
+    for e in graph.get_edges_internal() {
+        let (Some(&s), Some(&t)) = (idx.get(&e.source), idx.get(&e.target)) else {
+            continue;
+        };
+        if s == t {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "the graph is not bipartite (it has a self-loop)",
+            ));
+        }
+        adj[s].push((t, 0));
+        adj[t].push((s, 0));
+    }
+    let side = crate::algorithms::matching_cover::bipartition(n, &adj, &idx, top_nodes)?;
+    let comm = |id: u64| -> PyResult<usize> {
+        membership.get(&id).copied().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} is not assigned to a community",
+                id
+            ))
+        })
+    };
+    let mut inside: FxHashMap<usize, f64> = FxHashMap::default();
+    let mut top_deg: FxHashMap<usize, f64> = FxHashMap::default();
+    let mut bottom_deg: FxHashMap<usize, f64> = FxHashMap::default();
+    let mut m = 0.0;
+    for &id in &ids {
+        comm(id)?;
+    }
+    for e in graph.get_edges_internal() {
+        let w = edge_weight(graph, e.weight);
+        let (a, b) = (comm(e.source)?, comm(e.target)?);
+        let (top, bottom) = if side[idx[&e.source]] == 0 { (a, b) } else { (b, a) };
+        m += w;
+        *top_deg.entry(top).or_insert(0.0) += w;
+        *bottom_deg.entry(bottom).or_insert(0.0) += w;
+        if a == b {
+            *inside.entry(a).or_insert(0.0) += w;
+        }
+    }
+    if m == 0.0 {
+        return Ok(0.0);
+    }
+    Ok(top_deg
+        .keys()
+        .chain(bottom_deg.keys())
+        .collect::<FxHashSet<_>>()
+        .into_iter()
+        .map(|c| {
+            inside.get(c).unwrap_or(&0.0) / m
+                - resolution
+                    * top_deg.get(c).unwrap_or(&0.0)
+                    * bottom_deg.get(c).unwrap_or(&0.0)
+                    / (m * m)
+        })
+        .sum())
+}
+
 // ---------------------------------------------------------------------------------------------
 // Leiden
 // ---------------------------------------------------------------------------------------------
 
-/// Randomness for the refinement step (Traag et al. use θ = 0.01).
+/// Default randomness for the refinement step (Traag et al. use θ = 0.01).
 const THETA: f64 = 0.01;
 
 /// Local moving with a queue: visit nodes in random order, move each to the neighboring
@@ -228,7 +471,7 @@ fn move_nodes_fast(g: &WGraph, part: &mut [usize], gamma: f64, rng: &mut ChaCha8
     let mut tot = vec![0.0; n];
     let mut size = vec![0usize; n];
     for v in 0..n {
-        tot[part[v]] += g.deg[v];
+        tot[part[v]] += g.size[v];
         size[part[v]] += 1;
     }
     let mut empty: Vec<usize> = (0..n).filter(|&c| size[c] == 0).collect();
@@ -243,7 +486,7 @@ fn move_nodes_fast(g: &WGraph, part: &mut [usize], gamma: f64, rng: &mut ChaCha8
     while let Some(v) = queue.pop_front() {
         queued[v] = false;
         let cur = part[v];
-        let kv = g.deg[v];
+        let kv = g.size[v];
         for &(u, w) in &g.adj[v] {
             let c = part[u];
             if w_to[c] == 0.0 {
@@ -253,7 +496,7 @@ fn move_nodes_fast(g: &WGraph, part: &mut [usize], gamma: f64, rng: &mut ChaCha8
         }
         tot[cur] -= kv;
         size[cur] -= 1;
-        let gain = |c: usize, w: f64| w - gamma * kv * tot[c] / g.m2;
+        let gain = |c: usize, w: f64| w - gamma * kv * tot[c] / g.div;
         let mut best = cur;
         let mut best_gain = gain(cur, w_to[cur]);
         for &c in &touched {
@@ -293,10 +536,10 @@ fn move_nodes_fast(g: &WGraph, part: &mut [usize], gamma: f64, rng: &mut ChaCha8
 /// Refinement: within each community, start from singletons and merge well-connected nodes
 /// into well-connected subsets, chosen at random with probability ∝ exp(gain / θ). Every
 /// refined subset is connected, which is what gives Leiden its connectivity guarantee.
-fn refine(g: &WGraph, part: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -> Vec<usize> {
+fn refine(g: &WGraph, part: &[usize], gamma: f64, theta: f64, rng: &mut ChaCha8Rng) -> Vec<usize> {
     let n = g.n();
     let mut refined: Vec<usize> = (0..n).collect();
-    let mut tot_r: Vec<f64> = g.deg.clone();
+    let mut tot_r: Vec<f64> = g.size.clone();
     let mut size_r = vec![1usize; n];
     // ext[s]: weight between subset s and the rest of its community
     let mut ext = vec![0.0; n];
@@ -314,21 +557,21 @@ fn refine(g: &WGraph, part: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -> Vec<u
             continue;
         }
         let c = part[comm[0]];
-        let tot_c: f64 = comm.iter().map(|&v| g.deg[v]).sum();
+        let tot_c: f64 = comm.iter().map(|&v| g.size[v]).sum();
         for &v in comm {
             ext[v] = g.adj[v].iter().filter(|&&(u, _)| part[u] == c).map(|&(_, w)| w).sum();
         }
         let mut cand: Vec<usize> = comm
             .iter()
             .copied()
-            .filter(|&v| ext[v] >= gamma * g.deg[v] * (tot_c - g.deg[v]) / g.m2)
+            .filter(|&v| ext[v] >= gamma * g.size[v] * (tot_c - g.size[v]) / g.div)
             .collect();
         cand.shuffle(rng);
         for v in cand {
             if size_r[refined[v]] != 1 {
                 continue; // v already absorbed others
             }
-            let kv = g.deg[v];
+            let kv = g.size[v];
             let own = refined[v];
             for &(u, w) in &g.adj[v] {
                 if part[u] != c {
@@ -347,14 +590,14 @@ fn refine(g: &WGraph, part: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -> Vec<u
                 if s == own {
                     continue;
                 }
-                let well = ext[s] >= gamma * tot_r[s] * (tot_c - tot_r[s]) / g.m2;
-                let gain = w_to[s] - gamma * kv * tot_r[s] / g.m2;
+                let well = ext[s] >= gamma * tot_r[s] * (tot_c - tot_r[s]) / g.div;
+                let gain = w_to[s] - gamma * kv * tot_r[s] / g.div;
                 if well && gain >= 0.0 {
                     options.push((s, gain));
                 }
             }
             let max_gain = options.iter().map(|o| o.1).fold(f64::MIN, f64::max);
-            let weights: Vec<f64> = options.iter().map(|o| ((o.1 - max_gain) / THETA).exp()).collect();
+            let weights: Vec<f64> = options.iter().map(|o| ((o.1 - max_gain) / theta).exp()).collect();
             let total: f64 = weights.iter().sum();
             let mut r = rng.gen::<f64>() * total;
             let mut chosen = options[options.len() - 1].0;
@@ -383,7 +626,13 @@ fn refine(g: &WGraph, part: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -> Vec<u
 }
 
 /// One full Leiden run starting from `init` (a partition of the base graph's nodes).
-fn leiden_run(base: &WGraph, init: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -> Vec<usize> {
+fn leiden_run(
+    base: &WGraph,
+    init: &[usize],
+    gamma: f64,
+    theta: f64,
+    rng: &mut ChaCha8Rng,
+) -> Vec<usize> {
     let mut g = base.clone();
     let mut part = init.to_vec();
     renumber(&mut part);
@@ -395,7 +644,7 @@ fn leiden_run(base: &WGraph, init: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -
         if k == g.n() {
             break;
         }
-        let mut refined = refine(&g, &part, gamma, rng);
+        let mut refined = refine(&g, &part, gamma, theta, rng);
         let mut kr = renumber(&mut refined);
         if kr == g.n() {
             // Refinement found nothing to merge: aggregate the moved partition instead so the
@@ -419,34 +668,54 @@ fn leiden_run(base: &WGraph, init: &[usize], gamma: f64, rng: &mut ChaCha8Rng) -
     out
 }
 
-/// Leiden community detection (Traag, Waltman & van Eck 2019) maximizing modularity.
+/// Leiden community detection (Traag, Waltman & van Eck 2019) maximizing modularity
+/// (`objective="modularity"`) or the Constant Potts Model (`objective="cpm"`).
 ///
-/// Repeats full Leiden runs, each starting from the previous result, until modularity stops
-/// improving or `max_iter` runs have been made. Undirected graphs only.
+/// Repeats full Leiden runs, each starting from the previous result, until the quality stops
+/// improving or `max_iter` runs have been made. `theta` is the refinement randomness.
+/// Undirected graphs only.
 #[pyfunction]
-#[pyo3(signature = (graph, resolution=1.0, seed=None, max_iter=10))]
+#[pyo3(signature = (graph, resolution=1.0, seed=None, max_iter=10, objective="modularity", theta=0.01))]
 pub fn leiden(
     graph: &Graph,
     resolution: f64,
     seed: Option<u64>,
     max_iter: usize,
+    objective: &str,
+    theta: f64,
 ) -> PyResult<FxHashMap<u64, usize>> {
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Leiden algorithm requires an undirected graph",
         ));
     }
+    let cpm = match objective {
+        "modularity" => false,
+        "cpm" => true,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "objective must be 'modularity' or 'cpm', got '{}'",
+                objective
+            )))
+        }
+    };
+    if !(theta > 0.0 && theta.is_finite()) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "theta must be a positive number",
+        ));
+    }
     let (g, ids) = WGraph::from_graph(graph);
+    let g = if cpm { g.into_cpm() } else { g };
     let n = g.n();
     if n == 0 {
         return Ok(FxHashMap::default());
     }
     let mut rng = rng_from(seed);
     let mut part: Vec<usize> = (0..n).collect();
-    let mut q = g.modularity(&part, resolution);
+    let mut q = g.quality(&part, resolution);
     for _ in 0..max_iter.max(1) {
-        let next = leiden_run(&g, &part, resolution, &mut rng);
-        let nq = g.modularity(&next, resolution);
+        let next = leiden_run(&g, &part, resolution, theta, &mut rng);
+        let nq = g.quality(&next, resolution);
         let improved = nq > q + 1e-12;
         if nq >= q {
             part = next;
@@ -533,7 +802,7 @@ pub fn community_levels(
             break;
         }
         let (aggregate_by, kr) = if leiden {
-            let mut refined = refine(&g, &part, resolution, &mut rng);
+            let mut refined = refine(&g, &part, resolution, THETA, &mut rng);
             let kr = renumber(&mut refined);
             if kr == g.n() { (flat.clone(), k) } else { (refined, kr) }
         } else {
