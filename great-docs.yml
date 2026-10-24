@@ -144,6 +144,7 @@ reference:
         - Graph.add_binomial_tree
         - Graph.add_full_rary_tree
         - Graph.add_lcf_graph
+        - Graph.add_generalized_petersen_graph
         - Graph.add_named_graph
         - Graph.add_gnp_graph
         - Graph.add_gnm_graph
@@ -246,6 +247,7 @@ reference:
         - Graph.atlas_graphs
         - Graph.iter_nonisomorphic_trees
         - Graph.count_nonisomorphic_trees
+        - Graph.is_valid_tree_degree_sequence
 
     - title: Graph Information
       desc: Methods for getting information about the graph
@@ -317,6 +319,7 @@ reference:
         - Graph.is_branching
         - Graph.is_planar
         - Graph.check_planarity
+        - Graph.planar_faces
         - Graph.is_isomorphic
         - Graph.is_regular
         - Graph.is_k_regular
@@ -557,6 +560,7 @@ reference:
         - Graph.lowest_common_ancestor
         - Graph.all_pairs_lowest_common_ancestor
         - Graph.antichains
+        - Graph.antichain_width
         - Graph.lexicographical_topological_sort
         - Graph.dag_to_branching
         - Graph.colliders
@@ -634,6 +638,7 @@ reference:
         - Graph.number_of_cliques
         - Graph.make_max_clique_graph
         - Graph.is_chordal
+        - Graph.is_perfect_graph
         - Graph.chordal_graph_cliques
         - Graph.chordal_graph_treewidth
         - Graph.complete_to_chordal_graph
@@ -658,6 +663,8 @@ reference:
         - Graph.cmty_louvain_levels
         - Graph.cmty_leiden_levels
         - Graph.kernighan_lin_bisection
+        - Graph.spectral_modularity_bipartition
+        - Graph.greedy_node_swap_bipartition
         - Graph.lukes_partitioning
         - Graph.greedy_source_expansion
         - Graph.harmonic_function
@@ -665,6 +672,10 @@ reference:
         - Graph.cmty_stochastic_block_model
         - Graph.modularity
         - Graph.partition_quality
+        - Graph.constant_potts_model
+        - Graph.is_cover
+        - Graph.overlapping_modularity
+        - Graph.bipartite_modularity
 
     - title: Network Propagation
       desc: Methods for propagating scores through the network
@@ -683,6 +694,7 @@ reference:
         - Graph.maximal_extendability
         - Graph.latapy_clustering
         - Graph.robins_alexander_clustering
+        - Graph.butterflies
         - Graph.node_redundancy
         - Graph.spectral_bipartivity
         - Graph.birank
@@ -794,6 +806,7 @@ reference:
         - Graph.simrank_star_similarity
         - Graph.simrank_star_similarity_pair
         - Graph.panther_similarity
+        - Graph.panther_vector_similarity
         - Graph.generate_random_paths
 
     - title: Bridges and Connectivity
@@ -907,6 +920,7 @@ reference:
         - Graph.corona_product
         - Graph.modular_product
         - Graph.power
+        - Graph.random_k_lift
         - Graph.transform_with_spanner
         - Graph.transform_to_subgraph_ws
         - Graph.subgraph
@@ -1023,11 +1037,13 @@ reference:
         - Graph.laplacian_matrix
         - Graph.normalized_laplacian_matrix
         - Graph.directed_laplacian_matrix
+        - Graph.magnetic_laplacian_matrix
         - Graph.modularity_matrix
         - Graph.bethe_hessian_matrix
         - Graph.attr_matrix
         - Graph.modularity_spectrum
         - Graph.bethe_hessian_spectrum
+        - Graph.magnetic_spectrum
         - Graph.algebraic_connectivity
         - Graph.fiedler_vector
         - Graph.spectral_ordering
@@ -1044,6 +1060,7 @@ reference:
       desc: Methods for computing distance-based metrics
       contents:
         - Graph.get_wiener_index
+        - Graph.get_hyper_wiener_index
         - Graph.get_estrada_index
         - Graph.get_resistance_distance
         - Graph.resistance_distance_matrix
@@ -1121,6 +1138,7 @@ reference:
         - from_numpy_array
         - to_scipy_sparse_array
         - from_scipy_sparse_array
+        - from_biadjacency_matrix
         - to_pandas_adjacency
         - from_pandas_adjacency
         - to_pandas_edgelist
