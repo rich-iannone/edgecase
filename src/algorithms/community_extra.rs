@@ -255,6 +255,116 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
     Ok((a, b))
 }
 
+/// Greedy node-swap modularity bipartition (Newman 2011, as NetworkX's
+/// `greedy_node_swap_bipartition`). Each pass moves every node once, always making the move
+/// that raises modularity most (or lowers it least; ties by lowest ID), then keeps the best
+/// split seen along the way. Passes stop when one brings no improvement, or after `max_iter`.
+/// `initial` gives the first side (otherwise a random half of the nodes). Returns
+/// `(first side, second side, modularity)`.
+#[pyfunction]
+#[pyo3(signature = (graph, initial=None, max_iter=10, weighted=false, seed=None))]
+pub fn greedy_node_swap_bipartition(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, weighted: bool, seed: Option<u64>) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
+    if graph.is_directed() {
+        return value_err("greedy_node_swap_bipartition() requires an undirected graph");
+    }
+    let adj = Adj::new(graph, weighted, true);
+    let n = adj.n();
+    let mut side = vec![false; n]; // true: the first side
+    match initial {
+        Some(list) => {
+            for id in list {
+                match adj.idx.get(&id) {
+                    Some(&i) => side[i] = true,
+                    None => return value_err(format!("Node {id} does not exist")),
+                }
+            }
+        }
+        None => {
+            let mut order: Vec<usize> = (0..n).collect();
+            order.shuffle(&mut rng_from(seed));
+            for &v in &order[..n / 2] {
+                side[v] = true;
+            }
+        }
+    }
+    // deg counts a self-loop twice; link[u] holds u's weight to its neighbors, loops left out
+    let deg: Vec<f64> = (0..n).map(|u| adj.nbrs[u].iter().map(|&(v, w)| if v == u { 2.0 * w } else { w }).sum()).collect();
+    let m: f64 = deg.iter().sum::<f64>() / 2.0;
+    let modularity = |side: &[bool]| -> f64 {
+        if m == 0.0 {
+            return 0.0;
+        }
+        let (mut inner, mut d) = (0.0, [0.0f64; 2]);
+        for u in 0..n {
+            d[side[u] as usize] += deg[u];
+            for &(v, w) in &adj.nbrs[u] {
+                if side[v] == side[u] {
+                    inner += if v == u { 2.0 * w } else { w };
+                }
+            }
+        }
+        inner / (2.0 * m) - (d[0] * d[0] + d[1] * d[1]) / (4.0 * m * m)
+    };
+    if m == 0.0 {
+        let first: Vec<u64> = (0..n).filter(|&u| side[u]).map(|u| adj.ids[u]).collect();
+        let second: Vec<u64> = (0..n).filter(|&u| !side[u]).map(|u| adj.ids[u]).collect();
+        return Ok((first, second, 0.0));
+    }
+    for _ in 0..max_iter {
+        let mut cur = side.clone();
+        // link[u][s]: u's weight to side s; dsum[s]: total degree of side s
+        let mut link: Vec<[f64; 2]> = vec![[0.0; 2]; n];
+        let mut dsum = [0.0f64; 2];
+        for u in 0..n {
+            dsum[cur[u] as usize] += deg[u];
+            for &(v, w) in &adj.nbrs[u] {
+                if v != u {
+                    link[u][cur[v] as usize] += w;
+                }
+            }
+        }
+        let mut moved = vec![false; n];
+        let mut moves: Vec<usize> = Vec::with_capacity(n);
+        let (mut total, mut best) = (0.0f64, (0.0f64, 0usize));
+        for _ in 0..n {
+            let mut pick: Option<(usize, f64)> = None;
+            for u in (0..n).filter(|&u| !moved[u]) {
+                let (s, o) = (cur[u] as usize, 1 - cur[u] as usize);
+                let delta = (link[u][o] - link[u][s]) / m + deg[u] * (dsum[s] - dsum[o] - deg[u]) / (2.0 * m * m);
+                if pick.map_or(true, |(_, b)| delta > b) {
+                    pick = Some((u, delta));
+                }
+            }
+            let (u, delta) = pick.unwrap();
+            let (s, o) = (cur[u] as usize, 1 - cur[u] as usize);
+            moved[u] = true;
+            cur[u] = !cur[u];
+            dsum[s] -= deg[u];
+            dsum[o] += deg[u];
+            for &(v, w) in &adj.nbrs[u] {
+                if v != u {
+                    link[v][s] -= w;
+                    link[v][o] += w;
+                }
+            }
+            moves.push(u);
+            total += delta;
+            if total > best.0 + 1e-12 {
+                best = (total, moves.len());
+            }
+        }
+        if best.1 == 0 {
+            break;
+        }
+        for &u in &moves[..best.1] {
+            side[u] = !side[u];
+        }
+    }
+    let first: Vec<u64> = (0..n).filter(|&u| side[u]).map(|u| adj.ids[u]).collect();
+    let second: Vec<u64> = (0..n).filter(|&u| !side[u]).map(|u| adj.ids[u]).collect();
+    Ok((first, second, modularity(&side)))
+}
+
 /// Fast label propagation (Traag and Šubelj, 2023): a queue of nodes whose neighborhood
 /// changed; each takes the label with the most (weighted) neighbors, ties at random.
 #[pyfunction]
