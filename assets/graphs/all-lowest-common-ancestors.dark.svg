@@ -1,0 +1,33 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>All lowest common ancestors</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="501.9" y="48.0" width="244.1" height="100.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 174.80 50.00 L 174.80 53.05 L 174.80 56.10 L 174.80 59.15 L 174.80 62.20 L 174.80 65.25 L 174.80 68.30 L 174.80 71.35 L 174.80 73.85" fill="none" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="174.80,80.50 171.30,71.00 178.30,71.00" fill="#e6edf3" fill-opacity="1"/>
+<path d="M 174.80 114.00 L 174.80 117.05 L 174.80 120.10 L 174.80 123.15 L 174.80 126.20 L 174.80 129.25 L 174.80 132.30 L 174.80 135.35 L 174.80 137.32" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="174.80,144.50 170.93,134.25 178.68,134.25" fill="#f97316" fill-opacity="1"/>
+<path d="M 188.37 106.48 L 195.77 111.10 L 203.17 115.73 L 210.57 120.35 L 217.96 124.98 L 225.36 129.60 L 232.76 134.23 L 240.16 138.85 L 247.56 143.48 L 254.96 148.10 L 256.28 148.92" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="262.36,152.73 251.61,150.58 255.72,144.01" fill="#f97316" fill-opacity="1"/>
+<path d="M 263.63 106.48 L 256.23 111.10 L 248.83 115.73 L 241.43 120.35 L 234.04 124.98 L 226.64 129.60 L 219.24 134.23 L 211.84 138.85 L 204.44 143.48 L 197.04 148.10 L 195.72 148.92" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="189.64,152.73 196.28,144.01 200.39,150.58" fill="#f97316" fill-opacity="1"/>
+<path d="M 277.20 114.00 L 277.20 117.05 L 277.20 120.10 L 277.20 123.15 L 277.20 126.20 L 277.20 129.25 L 277.20 132.30 L 277.20 135.35 L 277.20 137.32" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="277.20,144.50 273.32,134.25 281.07,134.25" fill="#f97316" fill-opacity="1"/>
+<circle cx="174.8" cy="34.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<circle cx="174.8" cy="98.0" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="277.2" cy="98.0" r="16" fill="#2e1f17" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="174.8" cy="162.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="277.2" cy="162.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="619.9" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.all_lowest_common_ancestors(a, b)</text>
+<text x="153.8" y="34.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1.0">grandma</text>
+<text x="153.8" y="98.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">mum</text>
+<text x="298.2" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">dad</text>
+<text x="153.8" y="162.0" text-anchor="end" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1.0">ann</text>
+<text x="298.2" y="162.0" text-anchor="start" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1.0">bob</text>
+<text x="515.9" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">ann, bob → lowest ancestors</text>
+<text x="515.9" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">all  mum, dad</text>
+<text x="515.9" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">lowest_common_ancestor  mum</text>
+<text x="515.9" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#e6edf3" fill-opacity="1.0">grandma: common, not lowest</text>
+</svg>
