@@ -50,6 +50,7 @@ from edgecase.graph import (
 from edgecase.io import (
     from_adjacency_data,
     from_adjlist,
+    from_biadjacency_matrix,
     from_cytoscape,
     from_dict_of_dicts,
     from_dict_of_lists,
@@ -182,6 +183,7 @@ __all__ = [
     "from_numpy_array",
     "to_scipy_sparse_array",
     "from_scipy_sparse_array",
+    "from_biadjacency_matrix",
     "to_pandas_adjacency",
     "from_pandas_adjacency",
     "to_pandas_edgelist",
