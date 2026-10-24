@@ -111,6 +111,50 @@ pub fn topological_generations(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
         .collect())
 }
 
+/// Width of the partial order a DAG defines: the size of its largest antichain (a set of nodes
+/// none of which can reach another). By Dilworth's theorem this equals the fewest chains that
+/// cover the nodes, which is `n` minus a maximum matching between the two copies of the nodes
+/// in the transitive closure (Fulkerson 1956).
+#[pyfunction]
+pub fn antichain_width(graph: &Graph) -> PyResult<usize> {
+    require_directed(graph, "antichain_width()")?;
+    if has_self_loop(graph) {
+        return Err(not_a_dag("antichain_width()"));
+    }
+    let g = IndexedGraph::new(graph, false);
+    let n = g.len();
+    let gens = generations(&g).ok_or_else(|| not_a_dag("antichain_width()"))?;
+    // Transitive closure as bitsets, filled in reverse topological order
+    let words = n / 64 + 1;
+    let mut below: Vec<Vec<u64>> = vec![vec![0; words]; n];
+    for &v in gens.iter().flatten().rev() {
+        let mut row = vec![0u64; words];
+        for &(w, _) in &g.out[v] {
+            row[w / 64] |= 1 << (w % 64);
+            for (r, b) in row.iter_mut().zip(&below[w]) {
+                *r |= b;
+            }
+        }
+        below[v] = row;
+    }
+    // Bipartite graph: left copy 0..n, right copy n..2n, u -> v for every comparable pair
+    let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); 2 * n];
+    for (u, row) in below.iter().enumerate() {
+        for (k, &word) in row.iter().enumerate() {
+            let mut bits = word;
+            while bits != 0 {
+                let v = k * 64 + bits.trailing_zeros() as usize;
+                adj[u].push((n + v, 0));
+                bits &= bits - 1;
+            }
+        }
+    }
+    let side: Vec<u8> = (0..2 * n).map(|i| u8::from(i >= n)).collect();
+    let mate = crate::algorithms::matching_cover::hopcroft_karp(2 * n, &adj, &side);
+    let matched = mate[..n].iter().filter(|m| m.is_some()).count();
+    Ok(n - matched)
+}
+
 /// Longest path in a DAG and its length.
 ///
 /// Uses edge weights on weighted graphs (a missing weight counts as 1.0; for parallel edges
