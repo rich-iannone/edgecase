@@ -300,6 +300,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Quotient graph](/assets/graphs/quotient-graph.light.svg){.lightbox fig-alt="A six-node graph partitioned into three blocks, shown as tinted regions: A, B, C in the accent color, D, E in teal, and F in violet. The quotient has one node per block, labeled block_0, block_1 and block_2; edges inside a block vanish and the several edges between two blocks merge into one." width="100%"}
 ```
 
+### `random_k_lift()` — Random k-lift
+
+<img src="random-k-lift.light.svg" alt="Left: a triangle on A (accent color), B (teal) and C (violet). Right: a random 3-lift replaces each node with three copies, drawn in its color and labelled A0, A1, A2 and so on, and each edge with a random perfect matching between the copies of its ends, so every copy keeps one neighbor over each original edge. With seed 5 the lift is a single cycle through all nine copies: A0, B1, C1, A1, B2, C0, A2, B0, C2." width="570">
+
+```markdown
+![Random k-lift](/assets/graphs/random-k-lift.light.svg){.lightbox fig-alt="Left: a triangle on A (accent color), B (teal) and C (violet). Right: a random 3-lift replaces each node with three copies, drawn in its color and labelled A0, A1, A2 and so on, and each edge with a random perfect matching between the copies of its ends, so every copy keeps one neighbor over each original edge. With seed 5 the lift is a single cycle through all nine copies: A0, B1, C1, A1, B2, C0, A2, B0, C2." width="100%"}
+```
+
 ### `random_reference()` — Random reference graph
 
 <img src="random-reference.light.svg" alt="Left: an eight-node ring with four chords that close four triangles, average clustering 0.667. Right: random_reference(seed=8) rewires it with degree-preserving swaps: the four accent edges on the left are replaced by the four accent edges on the right, every node keeps its degree (4 or 2), and the triangles mostly disappear, leaving an average clustering of 0.229." width="570">
@@ -1082,6 +1090,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Ancestors](/assets/graphs/ancestors.light.svg){.lightbox fig-alt="A seven-node DAG flowing left to right, with the query node F outlined. Following arrows backward from F reaches its parent D and, through D, both A and B, shown in the accent color with the edges used. C and E cannot reach F. The card lists A, B, D." width="100%"}
+```
+
+### `antichain_width()` — Antichain width
+
+<img src="antichain-width.light.svg" alt="A DAG drawn left to right: A points to B, C and D; B and C both point to E, and D points to F. B, C and D, in the accent color, cannot reach one another, so they form an antichain of 3 nodes. No larger one exists, because three chains cover the graph, A to B to E, C alone, and D to F, and an antichain holds at most one node of each. The width is 3." width="570">
+
+```markdown
+![Antichain width](/assets/graphs/antichain-width.light.svg){.lightbox fig-alt="A DAG drawn left to right: A points to B, C and D; B and C both point to E, and D points to F. B, C and D, in the accent color, cannot reach one another, so they form an antichain of 3 nodes. No larger one exists, because three chains cover the graph, A to B to E, C alone, and D to F, and an antichain holds at most one node of each. The width is 3." width="100%"}
 ```
 
 ### `antichains()` — Antichains
@@ -1912,6 +1928,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Bridging centrality](/assets/graphs/bridging-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by bridging centrality, betweenness weighted by how much a node links otherwise separate parts. Bridge node E scores 1.00 after normalizing, the tail node F 0.76 and the hub C only 0.34, while A and G score 0." width="100%"}
 ```
 
+### `butterflies()` — Butterflies
+
+<img src="butterflies.light.svg" alt="Shoppers ann, bob and cy on top and the products tea, jam and oat below. A butterfly is a 4-cycle, two shoppers who both bought the same two products: ann and bob with tea and jam, and bob and cy with jam and oat. Nodes are shaded by how many butterflies they belong to; bob and jam, in the accent color, are in both and count 2, every other node counts 1." width="570">
+
+```markdown
+![Butterflies](/assets/graphs/butterflies.light.svg){.lightbox fig-alt="Shoppers ann, bob and cy on top and the products tea, jam and oat below. A butterfly is a 4-cycle, two shoppers who both bought the same two products: ann and bob with tea and jam, and bob and cy with jam and oat. Nodes are shaded by how many butterflies they belong to; bob and jam, in the accent color, are in both and count 2, every other node counts 1." width="100%"}
+```
+
 ### `closeness_centrality()` — Closeness centrality
 
 <img src="closeness-centrality.light.svg" alt="The shared seven-node graph shaded by closeness, the reciprocal of the mean distance to every other node. Hub C and bridge E are both an average of 1.5 hops from the rest and tie at 0.67, followed by D 0.60, B and F 0.50, A 0.46, and the pendant node G at 0.35." width="570">
@@ -2570,6 +2594,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Estrada index](/assets/graphs/get-estrada-index.light.svg){.lightbox fig-alt="A five-node graph and a card that exponentiates each of its five adjacency eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds them to the Estrada index 17.18." width="100%"}
 ```
 
+### `get_hyper_wiener_index()` — Hyper-Wiener index
+
+<img src="get-hyper-wiener-index.light.svg" alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="570">
+
+```markdown
+![Hyper-Wiener index](/assets/graphs/get-hyper-wiener-index.light.svg){.lightbox fig-alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="100%"}
+```
+
 ### `get_kirchhoff_index()` — Kirchhoff index
 
 <img src="get-kirchhoff-index.light.svg" alt="A six-node graph labeled with the resistance distance across each edge: 1 on the two tail edges, but 0.75 on the four cycle edges (accent), where a second route runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index 21.0." width="570">
@@ -2688,6 +2720,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Laplacian matrix](/assets/graphs/laplacian-matrix.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C plus a pendant E, each node badged with its degree, and the 5 by 5 Laplacian D minus A. The degrees 2, 3, 3, 3, 1 run down the diagonal (accent), each edge puts -1 in its two cells, and every row sums to 0." width="100%"}
+```
+
+### `magnetic_laplacian_matrix()` — Magnetic Laplacian matrix
+
+<img src="magnetic-laplacian-matrix.light.svg" alt="A directed triangle, A to B to C and back to A, and its 3 by 3 magnetic Laplacian at q = 0.25. Each arc gets a phase of a quarter turn, so the cell for A, B is -0.5i (accent) and its mirror B, A is the conjugate 0.5i (teal), and likewise around the cycle; the diagonal holds the degree 1. The matrix is Hermitian and records the direction of every arc." width="570">
+
+```markdown
+![Magnetic Laplacian matrix](/assets/graphs/magnetic-laplacian-matrix.light.svg){.lightbox fig-alt="A directed triangle, A to B to C and back to A, and its 3 by 3 magnetic Laplacian at q = 0.25. Each arc gets a phase of a quarter turn, so the cell for A, B is -0.5i (accent) and its mirror B, A is the conjugate 0.5i (teal), and likewise around the cycle; the diagonal holds the degree 1. The matrix is Hermitian and records the direction of every arc." width="100%"}
+```
+
+### `magnetic_spectrum()` — Magnetic spectrum
+
+<img src="magnetic-spectrum.light.svg" alt="A directed triangle, A to B to C and back to A, and a bar chart of the three eigenvalues of its magnetic Laplacian at q = 0.25 in increasing order: 0.134, 1.000 and 1.866. The smallest, in the accent color, stays above 0 because the cycle&#x27;s direction cannot be undone; ignoring direction (q = 0) gives 0, 1.5 and 1.5." width="570">
+
+```markdown
+![Magnetic spectrum](/assets/graphs/magnetic-spectrum.light.svg){.lightbox fig-alt="A directed triangle, A to B to C and back to A, and a bar chart of the three eigenvalues of its magnetic Laplacian at q = 0.25 in increasing order: 0.134, 1.000 and 1.866. The smallest, in the accent color, stays above 0 because the cycle's direction cannot be undone; ignoring direction (q = 0) gives 0, 1.5 and 1.5." width="100%"}
 ```
 
 ### `maximal_extendability()` — Maximal extendability
@@ -2954,6 +3002,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Panther similarity](/assets/graphs/panther-similarity.light.svg){.lightbox fig-alt="Two triangles, a, b, c and x, y, z, joined by the bridge c to x. Panther samples random paths and scores each node by how often it shares a path with the source a (outlined). The k = 3 most similar nodes are in the accent color with their scores as badges: c 0.609 and b 0.478 in a's own triangle, then x 0.391 across the bridge. The card ranks them." width="100%"}
+```
+
+### `panther_vector_similarity()` — Panther vector similarity
+
+<img src="panther-vector-similarity.light.svg" alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a&#x27;s neighbors." width="570">
+
+```markdown
+![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
 ```
 
 ### `preferential_attachment()` — Preferential attachment
@@ -3442,6 +3498,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Attracting components](/assets/graphs/attracting-components.light.svg){.lightbox fig-alt="A directed graph: A points to B and to D, and B and C point to each other. A random walk that leaves A never comes back: it ends up circling B and C or stuck at D. Those are the attracting components, D in the accent color and B, C in teal, listed on the card as {D} and {B, C}; A, in neither, is faded." width="100%"}
 ```
 
+### `bipartite_modularity()` — Bipartite modularity
+
+<img src="bipartite-modularity.light.svg" alt="Customers Ann, Bob, Cy and Dee on top and the products tea, jam, nails and glue below, split into the partition you pass: Ann, Bob, tea and jam (teal) and Cy, Dee, nails and glue (violet). Only Bob to glue crosses. The null model only joins customers to products: each community scores its share of the 8 edges minus its customer degrees times its product degrees over 8², 4/8 - 5 x 4/64 and 3/8 - 3 x 4/64, 0.1875 each, for a bipartite modularity of 0.375." width="570">
+
+```markdown
+![Bipartite modularity](/assets/graphs/bipartite-modularity.light.svg){.lightbox fig-alt="Customers Ann, Bob, Cy and Dee on top and the products tea, jam, nails and glue below, split into the partition you pass: Ann, Bob, tea and jam (teal) and Cy, Dee, nails and glue (violet). Only Bob to glue crosses. The null model only joins customers to products: each community scores its share of the 8 edges minus its customer degrees times its product degrees over 8², 4/8 - 5 x 4/64 and 3/8 - 3 x 4/64, 0.1875 each, for a bipartite modularity of 0.375." width="100%"}
+```
+
 ### `bipartite_sets()` — Bipartite sets
 
 <img src="bipartite-sets.light.svg" alt="A two-by-three ladder whose nodes alternate between two sides, A, C, E in the accent color and B, D, F in teal, with every edge joining the two sides. The card lists the two returned sets, 0 as A, C, E and 1 as B, D, F." width="570">
@@ -3570,6 +3634,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Walktrap communities](/assets/graphs/cmty-walktrap.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Short random walks stay trapped inside each cluster, so Walktrap returns the two clusters as communities, drawn as tinted regions in teal and the accent color. The card lists community 0 as D, E, F, G and community 1 as A, B, C." width="100%"}
 ```
 
+### `constant_potts_model()` — Constant Potts Model
+
+<img src="constant-potts-model.light.svg" alt="The two-cluster graph, split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). At resolution 0.5 each community scores its edges minus 0.5 for every pair of its nodes, counted as n squared over 2: 3 - 0.5 x 9/2 = 0.75 and 5 - 0.5 x 16/2 = 1.00. The card adds them to a CPM score of 1.75." width="570">
+
+```markdown
+![Constant Potts Model](/assets/graphs/constant-potts-model.light.svg){.lightbox fig-alt="The two-cluster graph, split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). At resolution 0.5 each community scores its edges minus 0.5 for every pair of its nodes, counted as n squared over 2: 3 - 0.5 x 9/2 = 0.75 and 5 - 0.5 x 16/2 = 1.00. The card adds them to a CPM score of 1.75." width="100%"}
+```
+
 ### `coreness()` — Coreness
 
 <img src="coreness.light.svg" alt="The eight-node graph with each node colored by its core number: the dense cluster A, B, C, D has coreness 3 (accent), the ring E, F, G coreness 2 (teal), and the pendant H coreness 1 (violet). The table lists the nodes at each coreness value." width="570">
@@ -3608,6 +3680,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Greedy coloring](/assets/graphs/greedy-color.light.svg){.lightbox fig-alt="A strip of four triangles on six nodes, each node filled with the color of its class: C and F in the accent color, A and D in teal, B and E in violet. No edge joins two nodes of the same color, and the card lists the three classes 0, 1, 2." width="100%"}
+```
+
+### `greedy_node_swap_bipartition()` — Greedy node-swap bipartition
+
+<img src="greedy-node-swap-bipartition.light.svg" alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color, and has modularity -0.167. Right, after moving the nodes that raise modularity most, the halves are A, B, C, D and E, F, G, H, with only D to E and C to F cut and a modularity of 0.333." width="570">
+
+```markdown
+![Greedy node-swap bipartition](/assets/graphs/greedy-node-swap-bipartition.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color, and has modularity -0.167. Right, after moving the nodes that raise modularity most, the halves are A, B, C, D and E, F, G, H, with only D to E and C to F cut and a modularity of 0.333." width="100%"}
 ```
 
 ### `greedy_source_expansion()` — Greedy source expansion
@@ -3730,12 +3810,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Connected component of a node](/assets/graphs/node-connected-component.light.svg){.lightbox fig-alt="Two separate pieces, the path A, B, C and the edge D to E. Starting from A (outlined), everything reachable lies in its component, the tinted region in the accent color holding A, B and C; D and E are faded. The card shows {A, B, C}." width="100%"}
 ```
 
+### `overlapping_modularity()` — Overlapping modularity
+
+<img src="overlapping-modularity.light.svg" alt="Two triangles, A, B, C and C, D, E, sharing node C, with the cover you pass: A, B, C (teal) and C, D, E (violet), overlapping at C. C is in two communities, so its edges and degree count one half in each: each community scores 2/6 - (6/12)² = 0.083, for an extended modularity of 0.167. Forcing C into one group gives a modularity of only 0.111." width="570">
+
+```markdown
+![Overlapping modularity](/assets/graphs/overlapping-modularity.light.svg){.lightbox fig-alt="Two triangles, A, B, C and C, D, E, sharing node C, with the cover you pass: A, B, C (teal) and C, D, E (violet), overlapping at C. C is in two communities, so its edges and degree count one half in each: each community scores 2/6 - (6/12)² = 0.083, for an extended modularity of 0.167. Forcing C into one group gives a modularity of only 0.111." width="100%"}
+```
+
 ### `partition_quality()` — Partition quality
 
 <img src="partition-quality.light.svg" alt="The two-cluster graph split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). 8 of the 9 edges lie inside a community, all but the bridge C to D, so coverage is 8/9 = 0.889. Of the 21 node pairs, 19 are classified correctly (8 joined pairs inside a community and 11 unjoined pairs across), so performance is 19/21 = 0.905." width="570">
 
 ```markdown
 ![Partition quality](/assets/graphs/partition-quality.light.svg){.lightbox fig-alt="The two-cluster graph split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). 8 of the 9 edges lie inside a community, all but the bridge C to D, so coverage is 8/9 = 0.889. Of the 21 node pairs, 19 are classified correctly (8 joined pairs inside a community and 11 unjoined pairs across), so performance is 19/21 = 0.905." width="100%"}
+```
+
+### `spectral_modularity_bipartition()` — Spectral modularity bipartition
+
+<img src="spectral-modularity-bipartition.light.svg" alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Splitting the nodes by the sign of their entries in the leading eigenvector of the modularity matrix gives A, B, C, D (teal) and E, F, G, H (violet), cutting only the two accent edges. The card lists both sides as id sets and the split&#x27;s modularity, 0.333." width="570">
+
+```markdown
+![Spectral modularity bipartition](/assets/graphs/spectral-modularity-bipartition.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Splitting the nodes by the sign of their entries in the leading eigenvector of the modularity matrix gives A, B, C, D (teal) and E, F, G, H (violet), cutting only the two accent edges. The card lists both sides as id sets and the split's modularity, 0.333." width="100%"}
 ```
 
 ### `strongly_connected_components()` — Strongly connected components
@@ -4124,6 +4220,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Number of spanning trees](/assets/graphs/number-of-spanning-trees.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A–C in the accent color. Right: its 8 spanning trees as miniatures in two rows. The top row holds the 4 trees of the plain square, each dropping one side; the bottom row holds the 4 trees that use the diagonal. The heading gives the count, 8, and a note under the rows the sum 4 + 4 = 8." width="100%"}
 ```
 
+### `planar_faces()` — Planar faces
+
+<img src="planar-faces.light.svg" alt="A square A, B, C, D split by the diagonal A to C, drawn in the plane without crossings. Its embedding has three faces: the triangle A, B, C (tinted in the accent color), the triangle A, C, D (tinted teal), and the outer face, the region around the whole drawing, bounded by A, D, C, B (the dashed violet outline). The card lists each face as the cycle of nodes around it." width="570">
+
+```markdown
+![Planar faces](/assets/graphs/planar-faces.light.svg){.lightbox fig-alt="A square A, B, C, D split by the diagonal A to C, drawn in the plane without crossings. Its embedding has three faces: the triangle A, B, C (tinted in the accent color), the triangle A, C, D (tinted teal), and the outer face, the region around the whole drawing, bounded by A, D, C, B (the dashed violet outline). The card lists each face as the cycle of nodes around it." width="100%"}
+```
+
 ### `prize_collecting_steiner_tree()` — Prize-collecting Steiner tree
 
 <img src="prize-collecting-steiner-tree.light.svg" alt="The weighted graph from the steiner_tree figure, with a prize p in a badge on nodes A (1), B (5), C (5), and E (4); edge weights are costs. The tree B–D, D–C, D–E (accent) collects B, C, and E through the prize-less node D, while A is left out and faded because its prize of 1 does not pay for any edge costing 3. The card lists the tree edges and its prize 14 against cost 5." width="570">
@@ -4376,6 +4480,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is connected](/assets/graphs/is-connected.light.svg){.lightbox fig-alt="Left: two triangles, A B C and D E F, joined by the edge between C and D, so every node can reach every other and is_connected() returns True. Right: the same graph without the C-D edge (drawn dashed in the accent color), which leaves two separate pieces, so is_connected() returns False." width="100%"}
 ```
 
+### `is_cover()` — Is cover
+
+<img src="is-cover.light.svg" alt="Two triangles, A, B, C and C, D, E, sharing node C. Left: the groups A, B, C (teal) and C, D, E (violet) overlap at C and between them contain every node, so is_cover() returns True. Right: the groups A, B, C and C, D leave E out (in the accent color), so is_cover() returns False." width="570">
+
+```markdown
+![Is cover](/assets/graphs/is-cover.light.svg){.lightbox fig-alt="Two triangles, A, B, C and C, D, E, sharing node C. Left: the groups A, B, C (teal) and C, D, E (violet) overlap at C and between them contain every node, so is_cover() returns True. Right: the groups A, B, C and C, D leave E out (in the accent color), so is_cover() returns False." width="100%"}
+```
+
 ### `is_dag()` — Is DAG
 
 <img src="is-dag.light.svg" alt="Left: a directed graph on five nodes where every edge leads rightward or downward, so no path returns to its start and is_dag() returns True. Right: the same graph with the edge between B and C reversed, which creates the cycle B, E, C, B (shown in the accent color), so is_dag() returns False." width="570">
@@ -4462,6 +4574,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is maximal matching](/assets/graphs/is-maximal-matching.light.svg){.lightbox fig-alt="The path A-B-C-D on both sides, with the candidate edges drawn as the input. Left: the middle edge B-C alone; both other edges touch B or C, so nothing can be added and is_maximal_matching() returns True. Right: A-B alone; the edge C-D (shown in the accent color with its free endpoints C and D) could still be added, so is_maximal_matching() returns False." width="100%"}
+```
+
+### `is_perfect_graph()` — Is perfect graph
+
+<img src="is-perfect-graph.light.svg" alt="Left: the house, a cycle of five nodes A, B, C, D, E with the chord B to E, which splits it into a triangle and a square; it has no odd hole and no odd antihole, so is_perfect_graph() returns True. Right: the five-cycle without the chord (the dashed edge) is itself an odd hole, a chordless cycle of length 5 (in the accent color), so is_perfect_graph() returns False." width="570">
+
+```markdown
+![Is perfect graph](/assets/graphs/is-perfect-graph.light.svg){.lightbox fig-alt="Left: the house, a cycle of five nodes A, B, C, D, E with the chord B to E, which splits it into a triangle and a square; it has no odd hole and no odd antihole, so is_perfect_graph() returns True. Right: the five-cycle without the chord (the dashed edge) is itself an odd hole, a chordless cycle of length 5 (in the accent color), so is_perfect_graph() returns False." width="100%"}
 ```
 
 ### `is_perfect_matching()` — Is perfect matching
@@ -4566,6 +4686,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is valid coloring](/assets/graphs/is-valid-coloring.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, each node filled with its color and badged with the color number. Left: no edge joins two nodes of the same color, so is_valid_coloring() returns True. Right: F is recolored to 2, the same color as its neighbor C, and that edge (shown in the accent color) makes is_valid_coloring() return False." width="100%"}
+```
+
+### `is_valid_tree_degree_sequence()` — Is valid tree degree sequence
+
+<img src="is-valid-tree-degree-sequence.light.svg" alt="Each side draws a graph with the degree sequence passed in, its degrees as badges. Left: [3, 1, 1, 1] has every degree positive and sums to 6 = 2(n - 1) for n = 4 nodes, so it is realized by a tree, the star, and the method returns True. Right: [2, 2, 2, 2] sums to 8, more than the 6 a tree on four nodes has; its graphs need an extra edge, closing a cycle (the edge in the accent color), so the method returns False." width="570">
+
+```markdown
+![Is valid tree degree sequence](/assets/graphs/is-valid-tree-degree-sequence.light.svg){.lightbox fig-alt="Each side draws a graph with the degree sequence passed in, its degrees as badges. Left: [3, 1, 1, 1] has every degree positive and sums to 6 = 2(n - 1) for n = 4 nodes, so it is realized by a tree, the star, and the method returns True. Right: [2, 2, 2, 2] sums to 8, more than the 6 a tree on four nodes has; its graphs need an extra edge, closing a cycle (the edge in the accent color), so the method returns False." width="100%"}
 ```
 
 ### `is_vertex_cover()` — Is vertex cover
@@ -4792,6 +4920,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Gaussian random partition graph](/assets/graphs/add-gaussian-random-partition-graph.light.svg){.lightbox fig-alt="Three Gaussian random partition graphs on twelve nodes with mean group size 3, 4, and 5, each group in its own color. Group sizes are drawn at random around the mean, here 4, 3, 3, and 2, then 5, 4, and 3, then 6, 5, and 1, so a larger mean gives fewer, bigger groups; edges are dense inside a group and sparse between groups." width="100%"}
+```
+
+### `add_generalized_petersen_graph()` — Generalized Petersen graph
+
+<img src="add-generalized-petersen-graph.light.svg" alt="Three generalized Petersen graphs GP(n, k), each an outer cycle of n nodes joined by spokes to n inner nodes, where inner node i links to inner node i + k (inner edges in the accent color). n=6, k=1 gives the hexagonal prism; n=5, k=2 the Petersen graph, its inner nodes a five-pointed star; n=8, k=3 the Moebius-Kantor graph. Every node has exactly three neighbors." width="570">
+
+```markdown
+![Generalized Petersen graph](/assets/graphs/add-generalized-petersen-graph.light.svg){.lightbox fig-alt="Three generalized Petersen graphs GP(n, k), each an outer cycle of n nodes joined by spokes to n inner nodes, where inner node i links to inner node i + k (inner edges in the accent color). n=6, k=1 gives the hexagonal prism; n=5, k=2 the Petersen graph, its inner nodes a five-pointed star; n=8, k=3 the Moebius-Kantor graph. Every node has exactly three neighbors." width="100%"}
 ```
 
 ### `add_geographical_threshold_graph()` — Geographical threshold graph
