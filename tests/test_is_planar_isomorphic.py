@@ -456,9 +456,28 @@ class TestSubgraphIsomorphism:
         assert not labeled.is_subgraph_isomorphic(pattern, node_attr="c")
 
 
+def _aggregate_directed_fixed(G, node, node_labels, edge_attr=None):
+    """NetworkX's directed WL aggregation with the fix of NetworkX PR #8946, which keeps the
+    s_/p_ direction prefixes when edge_attr is given."""
+    succ = [
+        "s_" + ("" if edge_attr is None else str(G[node][nbr][edge_attr])) + node_labels[nbr]
+        for nbr in G.successors(node)
+    ]
+    pred = [
+        "p_" + ("" if edge_attr is None else str(G[nbr][node][edge_attr])) + node_labels[nbr]
+        for nbr in G.predecessors(node)
+    ]
+    return node_labels[node] + "".join(sorted(succ)) + "".join(sorted(pred))
+
+
 class TestWeisfeilerLehman:
-    def test_hashes_match_networkx(self):
+    def test_hashes_match_networkx(self, monkeypatch):
+        from networkx.algorithms import graph_hashing
+
         warnings.simplefilter("ignore", UserWarning)
+        monkeypatch.setattr(
+            graph_hashing, "_neighborhood_aggregate_directed", _aggregate_directed_fixed
+        )
         for seed in range(120):
             rnd = random.Random(seed)
             directed = seed % 2 == 0
@@ -494,6 +513,30 @@ class TestWeisfeilerLehman:
                             include_initial_labels=iterations == 3,
                         )
                     )
+
+    @pytest.mark.parametrize("node_attr", [None, "c"])
+    def test_directed_edge_labels_keep_direction(self, node_attr):
+        # NetworkX #8945: with edge_attr=, an out-star and an in-star used to collide
+        stars = []
+        for edges in ([("0", "1"), ("0", "2")], [("1", "0"), ("2", "0")]):
+            g = ec.Graph(directed=True).add_nodes([(n, {"c": "x"}) for n in "012"])
+            g.add_edges([(u, v, {"k": "e"}) for u, v in edges])
+            stars.append(g)
+        out_star, in_star = stars
+        kw = {"node_attr": node_attr, "edge_attr": "k"}
+        assert out_star.weisfeiler_lehman_graph_hash(**kw) != in_star.weisfeiler_lehman_graph_hash(
+            **kw
+        )
+        center = out_star.get_id_from_label("0")
+        assert (
+            out_star.weisfeiler_lehman_subgraph_hashes(**kw)[center]
+            != in_star.weisfeiler_lehman_subgraph_hashes(**kw)[in_star.get_id_from_label("0")]
+        )
+        renamed = ec.Graph(directed=True).add_nodes([(n, {"c": "x"}) for n in "abc"])
+        renamed.add_edges([("c", "a", {"k": "e"}), ("c", "b", {"k": "e"})])
+        assert renamed.weisfeiler_lehman_graph_hash(**kw) == out_star.weisfeiler_lehman_graph_hash(
+            **kw
+        )
 
     def test_invariance_collisions_and_errors(self):
         a = (
