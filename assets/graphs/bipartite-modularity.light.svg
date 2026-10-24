@@ -1,0 +1,39 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Bipartite modularity</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<g opacity="0.13"><path d="M 64.7 50.0 L 172.2 50.0 L 172.2 146.0 L 64.7 146.0 Z" fill="#0e7490" stroke="#0e7490" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<g opacity="0.13"><path d="M 279.8 50.0 L 387.3 50.0 L 387.3 146.0 L 279.8 146.0 Z" fill="#7c3aed" stroke="#7c3aed" stroke-width="50.0" stroke-linejoin="round" stroke-linecap="round"/></g>
+<rect x="501.9" y="48.0" width="244.1" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 64.70 66.00 L 64.70 130.00" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 76.63 60.66 L 160.27 135.34" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 160.27 60.66 L 76.63 135.34" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 172.20 66.00 L 172.20 130.00" fill="none" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 279.80 66.00 L 279.80 130.00" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 291.73 60.66 L 375.37 135.34" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 387.30 66.00 L 387.30 130.00" fill="none" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<path d="M 186.81 56.52 L 372.69 139.48" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<circle cx="64.7" cy="50.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="172.2" cy="50.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="279.8" cy="50.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="387.3" cy="50.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="64.7" cy="146.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="172.2" cy="146.0" r="16" fill="#ddecef" stroke="#0e7490" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="279.8" cy="146.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="387.3" cy="146.0" r="16" fill="#ede3fc" stroke="#7c3aed" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g,  p (the two hulls),  c = customers</text>
+<text x="608.9" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.bipartite_modularity(p, top_nodes=c)</text>
+<text x="64.7" y="24.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">Ann</text>
+<text x="172.2" y="24.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">Bob</text>
+<text x="279.8" y="24.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">Cy</text>
+<text x="387.3" y="24.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">Dee</text>
+<text x="64.7" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">tea</text>
+<text x="172.2" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">jam</text>
+<text x="279.8" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">nails</text>
+<text x="387.3" y="172.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">glue</text>
+<text x="515.9" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">L/m − k d / m²,  m = 8</text>
+<text x="515.9" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#0e7490" fill-opacity="1.0">AB  4/8 − 5 · 4/64 = 0.1875</text>
+<text x="515.9" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#7c3aed" fill-opacity="1.0">CD  3/8 − 3 · 4/64 = 0.1875</text>
+<text x="515.9" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">Q_B  0.375</text>
+</svg>
