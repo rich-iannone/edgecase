@@ -1,0 +1,30 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>All-pairs all lowest common ancestors</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="515.1" y="58.0" width="217.9" height="80.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 142.80 72.40 L 142.80 77.37 L 142.80 82.34 L 142.80 87.31 L 142.80 92.28 L 142.80 97.25 L 142.80 102.22 L 142.80 107.19 L 142.80 112.16 L 142.80 114.92" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="142.80,122.10 138.93,111.85 146.68,111.85" fill="#c2410c" fill-opacity="1"/>
+<path d="M 154.52 67.29 L 161.03 73.33 L 167.53 79.37 L 174.04 85.41 L 180.55 91.45 L 187.05 97.49 L 193.56 103.53 L 200.06 109.57 L 206.57 115.61 L 213.07 121.65 L 214.32 122.81" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="219.58,127.69 209.43,123.56 214.70,117.88" fill="#c2410c" fill-opacity="1"/>
+<path d="M 220.68 67.29 L 214.17 73.33 L 207.67 79.37 L 201.16 85.41 L 194.65 91.45 L 188.15 97.49 L 181.64 103.53 L 175.14 109.57 L 168.63 115.61 L 162.13 121.65 L 160.88 122.81" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="155.62,127.69 160.50,117.88 165.77,123.56" fill="#c2410c" fill-opacity="1"/>
+<path d="M 232.40 72.40 L 232.40 77.37 L 232.40 82.34 L 232.40 87.31 L 232.40 92.28 L 232.40 97.25 L 232.40 102.22 L 232.40 107.19 L 232.40 112.16 L 232.40 114.92" fill="none" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="232.40,122.10 228.53,111.85 236.28,111.85" fill="#c2410c" fill-opacity="1"/>
+<circle cx="142.8" cy="56.4" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="232.4" cy="56.4" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="142.8" cy="139.6" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="232.4" cy="139.6" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<circle cx="309.2" cy="139.6" r="16" fill="#ffffff" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="594.3" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.all_pairs_all_lowest_common_ancestors(p)</text>
+<text x="142.8" y="30.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">mum</text>
+<text x="232.4" y="30.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">dad</text>
+<text x="142.8" y="165.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">ann</text>
+<text x="232.4" y="165.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">bob</text>
+<text x="309.2" y="165.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1.0">eve</text>
+<text x="529.1" y="78.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">pair → every lowest ancestor</text>
+<text x="529.1" y="98.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">(ann, bob)  mum, dad</text>
+<text x="529.1" y="118.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">(ann, eve)  []</text>
+</svg>
