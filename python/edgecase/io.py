@@ -1202,7 +1202,8 @@ def from_gexf(
     directed: Optional[bool] = None,
     weighted: Optional[bool] = None,
     graph_name: Optional[str] = None,
-) -> Graph:
+    return_meta: bool = False,
+) -> Union[Graph, tuple[Graph, dict[str, str]]]:
     """
     Create a graph from a GEXF file.
 
@@ -1227,11 +1228,18 @@ def from_gexf(
         Whether the graph has weights. If `None`, detected from the presence of `weight` on edges.
     graph_name
         Name for the graph. If `None`, uses the `name` attribute of the `<graph>` element.
+    return_meta
+        Whether to also return the file's `<meta>` block (see below).
 
     Returns
     -------
-    Graph
-        A graph constructed from the GEXF file, built as a single step.
+    Graph | tuple[Graph, dict[str, str]]
+        A graph constructed from the GEXF file, built as a single step. With
+        `return_meta=True`, a tuple `(graph, meta)`, where `meta` maps each of `creator`,
+        `description`, `keywords` and `lastmodifieddate` that the file's `<meta>` block holds
+        to its text (an empty dict if there's no `<meta>` block). NetworkX's `read_gexf()` keeps
+        the description and keywords as `G.graph["description"]` and `G.graph["keywords"]`;
+        EdgeCase graphs have no graph-level attributes, so they are returned here.
 
     Examples
     --------
@@ -1249,6 +1257,16 @@ def from_gexf(
 
     copy = ec.from_gexf(path)
     copy.plot(layout="pos")
+    ```
+
+    A description and keywords written by `to_gexf()` come back with `return_meta=True`:
+
+    ```python
+    ec.to_gexf(graph, path, description="Zachary's karate club", keywords="social, clubs")
+    copy, meta = ec.from_gexf(path, return_meta=True)
+
+    # Returns "Zachary's karate club"
+    meta["description"]
     ```
 
     """
@@ -1337,7 +1355,19 @@ def from_gexf(
     if graph_name is None:
         graph_name = graph_elem.get("name")
 
-    return _build_graph(nodes, edges, directed, weighted, graph_name, _code("from_gexf", filepath))
+    graph = _build_graph(nodes, edges, directed, weighted, graph_name, _code("from_gexf", filepath))
+    if not return_meta:
+        return graph
+    meta: dict[str, str] = {}
+    meta_elem = root.find(f"{ns}meta")
+    if meta_elem is not None:
+        if meta_elem.get("lastmodifieddate") is not None:
+            meta["lastmodifieddate"] = meta_elem.get("lastmodifieddate", "")
+        for name in ("creator", "description", "keywords"):
+            child = meta_elem.find(f"{ns}{name}")
+            if child is not None:
+                meta[name] = child.text or ""
+    return graph, meta
 
 
 def _gexf_hex(elem: "ET.Element") -> str:
@@ -1357,6 +1387,8 @@ def to_gexf(
     graph: Graph,
     filepath: Union[str, Path],
     version: str = "1.2draft",
+    description: Optional[str] = None,
+    keywords: Union[str, list[str], None] = None,
 ) -> None:
     """
     Write a graph to a GEXF file, for Gephi.
@@ -1376,6 +1408,30 @@ def to_gexf(
         Output file path.
     version
         The GEXF version: `"1.2draft"` (the default, which NetworkX can also read) or `"1.3"`.
+    description
+        Optional description of the graph, written to the file's `<meta>` block (where Gephi
+        shows it, and NetworkX's `read_gexf()` reads it into `G.graph["description"]`).
+    keywords
+        Optional keywords for the `<meta>` block: a string, or a list of strings joined with
+        `", "`.
+
+    Examples
+    --------
+    ```python
+    import tempfile
+    from pathlib import Path
+
+    import edgecase as ec
+
+    path = Path(tempfile.mkdtemp()) / "karate.gexf"
+    ec.to_gexf(
+        ec.karate_club(), path, description="Zachary's karate club", keywords=["social", "clubs"]
+    )
+
+    # Returns {'creator': 'EdgeCase', 'description': "Zachary's karate club",
+    #          'keywords': 'social, clubs'}
+    ec.from_gexf(path, return_meta=True)[1]
+    ```
     """
     if version not in _GEXF_VERSIONS:
         raise ValueError(f"version must be one of {sorted(_GEXF_VERSIONS)}, not {version!r}")
@@ -1384,8 +1440,21 @@ def to_gexf(
     nodes = _nodes_of(graph)
     edges = _edges_of(graph)
 
+    if not isinstance(keywords, (str, type(None))):
+        keywords = list(keywords)
+        if not all(isinstance(k, str) for k in keywords):
+            raise TypeError("keywords must be a string or a list of strings")
+        keywords = ", ".join(keywords)
+    if description is not None and not isinstance(description, str):
+        raise TypeError("description must be a string")
+
     root = ET.Element("gexf", {"xmlns": ns, "xmlns:viz": viz_ns, "version": number})
-    ET.SubElement(ET.SubElement(root, "meta"), "creator").text = "EdgeCase"
+    meta_elem = ET.SubElement(root, "meta")
+    ET.SubElement(meta_elem, "creator").text = "EdgeCase"
+    if description is not None:
+        ET.SubElement(meta_elem, "description").text = description
+    if keywords is not None:
+        ET.SubElement(meta_elem, "keywords").text = keywords
 
     graph_attrib = {
         "defaultedgetype": "directed" if graph.is_directed() else "undirected",
@@ -3439,6 +3508,151 @@ def from_scipy_sparse_array(
         node_labels,
         graph_name,
         _code("from_scipy_sparse_array", matrix),
+    )
+
+
+def from_biadjacency_matrix(
+    matrix: Any,
+    weighted: Optional[bool] = None,
+    parallel_edges: bool = False,
+    row_labels: Optional[Sequence[Union[int, str]]] = None,
+    column_labels: Optional[Sequence[Union[int, str]]] = None,
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a bipartite graph from a biadjacency matrix.
+
+    A biadjacency matrix has one row per node on one side of a bipartite graph and one column
+    per node on the other, and entry `[i, j]` is the weight of the edge between row node `i`
+    and column node `j` (`0` for no edge). It is how two-mode data usually arrives: a
+    people-by-events attendance table, a document-by-term matrix, a customer-by-product
+    purchase matrix. This is the inverse of `Graph.biadjacency_matrix()` (pass it the row nodes
+    as `row_nodes=` if the graph is disconnected, since it can't otherwise tell which side each
+    component's nodes belong to).
+
+    The graph is undirected, with the row nodes first and then the column nodes. Each node gets
+    a `bipartite` attribute, `0` for the rows and `1` for the columns, as in NetworkX's
+    `bipartite.from_biadjacency_matrix()`, which this matches.
+
+    Parameters
+    ----------
+    matrix
+        A 2-D array of real numbers: a list of rows, anything `numpy.asarray()` accepts, or a
+        SciPy sparse array or matrix (whose explicitly stored zeros aren't edges, and whose
+        duplicate entries are summed). It need not be square.
+    weighted
+        Whether the edges get the entries as weights. If `None`, they do when any edge's entry
+        isn't 1.
+    parallel_edges
+        If `True`, each entry is a count of parallel edges (it must be a whole number), so an
+        entry of 3 gives three edges.
+    row_labels
+        Labels for the row nodes, in order. If `None`, they are labeled `"0"` to `"r - 1"`.
+    column_labels
+        Labels for the column nodes, in order. If `None`, they are labeled `"r"` to
+        `"r + c - 1"`, continuing the row numbering as NetworkX does.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        An undirected graph with `r + c` nodes, built as a single step.
+
+    Raises
+    ------
+    ValueError
+        If the matrix is not 2-D or has non-finite entries, a list of labels has the wrong
+        length, or a label is used more than once.
+    TypeError
+        If the matrix does not hold real numbers.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    attendance = [[1, 1, 0], [0, 1, 1]]
+    graph = ec.from_biadjacency_matrix(
+        attendance, row_labels=["ann", "bob"], column_labels=["party", "talk", "game"]
+    )
+
+    # Returns ['ann--party', 'ann--talk', 'bob--talk', 'bob--game']
+    graph.get_edges_str_repr(use_labels=True)
+
+    # Returns [0, 0, 1, 1, 1]
+    graph.get_node_df()["bipartite"].to_list()
+
+    # Returns ([[1.0, 1.0, 0.0], [0.0, 1.0, 1.0]], [1, 2], [3, 4, 5])
+    graph.biadjacency_matrix()
+    ```
+
+    """
+    np = _require("numpy")
+    try:
+        import scipy.sparse as sparse
+    except ImportError:
+        sparse = None
+    if sparse is not None and sparse.issparse(matrix):
+        if matrix.ndim != 2:
+            raise ValueError(f"The matrix must be 2-D, not of shape {matrix.shape}")
+        if not np.issubdtype(matrix.dtype, np.number) or np.iscomplexobj(matrix.data[:0]):
+            raise TypeError(f"The matrix must hold real numbers, not {matrix.dtype}")
+        coo = sparse.coo_array(matrix, dtype=float)
+        coo.sum_duplicates()
+        coo.eliminate_zeros()
+        rows, cols, vals = coo.row.astype(np.int64), coo.col.astype(np.int64), coo.data
+        order = np.lexsort((cols, rows))
+        rows, cols, vals = rows[order], cols[order], vals[order]
+        n, m = matrix.shape
+    else:
+        dense = np.asarray(matrix)
+        if dense.ndim != 2:
+            raise ValueError(f"The matrix must be 2-D, not of shape {dense.shape}")
+        if not (np.issubdtype(dense.dtype, np.number) or dense.dtype == bool) or np.iscomplexobj(
+            dense
+        ):
+            raise TypeError(f"The matrix must hold real numbers, not {dense.dtype}")
+        dense = dense.astype(float)
+        rows, cols = np.nonzero(dense)
+        vals = dense[rows, cols]
+        n, m = dense.shape
+    if len(vals) and not np.all(np.isfinite(vals)):
+        raise ValueError("The matrix has non-finite entries")
+
+    def labels_for(given, count, start, name):
+        if given is None:
+            return [str(start + i) for i in range(count)]
+        out = [str(label) for label in given]
+        if len(out) != count:
+            raise ValueError(f"{name} has {len(out)} labels for {count} {name.split('_')[0]}s")
+        return out
+
+    labels = labels_for(row_labels, n, 0, "row_labels") + labels_for(
+        column_labels, m, n, "column_labels"
+    )
+    if len(set(labels)) < len(labels):
+        raise ValueError("row_labels and column_labels hold the same label more than once")
+
+    if parallel_edges:
+        if len(vals) and not (np.all(vals >= 0) and np.all(vals == np.floor(vals))):
+            raise ValueError("With parallel_edges=True, each entry must be a whole number of edges")
+        weighted = bool(weighted)
+        edges = [
+            (i, n + j, 1.0, {})
+            for i, j, count in zip(rows.tolist(), cols.tolist(), vals.tolist())
+            for _ in range(int(count))
+        ]
+    else:
+        if weighted is None:
+            weighted = bool(np.any(vals != 1))
+        edges = [
+            (i, n + j, value, {})
+            for i, j, value in zip(rows.tolist(), cols.tolist(), vals.tolist())
+        ]
+    nodes = [(i, label, {"bipartite": int(i >= n)}) for i, label in enumerate(labels)]
+    return _build_graph(
+        nodes, edges, False, weighted, graph_name, _code("from_biadjacency_matrix", matrix)
     )
 
 
