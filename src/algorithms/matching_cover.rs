@@ -614,7 +614,7 @@ pub fn blossom_max_weight_matching(
 // ---------------------------------------------------------------------------------------------
 
 /// Side of each node (0 = top, 1 = bottom), from `top` or by 2-coloring (direction ignored).
-fn bipartition(
+pub(crate) fn bipartition(
     n: usize,
     adj: &[Vec<(usize, usize)>],
     idx: &FxHashMap<u64, usize>,
@@ -670,7 +670,7 @@ fn adjacency(n: usize, simple: &[(usize, usize, f64, u64)]) -> Vec<Vec<(usize, u
 }
 
 /// Hopcroft-Karp maximum matching: `mate[u]` = (partner, simple edge index).
-fn hopcroft_karp(n: usize, adj: &[Vec<(usize, usize)>], side: &[u8]) -> Vec<Option<(usize, usize)>> {
+pub(crate) fn hopcroft_karp(n: usize, adj: &[Vec<(usize, usize)>], side: &[u8]) -> Vec<Option<(usize, usize)>> {
     let mut mate: Vec<Option<(usize, usize)>> = vec![None; n];
     let left: Vec<usize> = (0..n).filter(|&u| side[u] == 0).collect();
     let mut dist = vec![usize::MAX; n];
