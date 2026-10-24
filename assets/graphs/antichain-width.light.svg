@@ -1,0 +1,37 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Antichain width</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="500.0" y="48.0" width="248.0" height="100.0" rx="8" fill="#ffffff" stroke="#1f2328" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<path d="M 157.08 88.12 L 162.60 83.79 L 168.11 79.46 L 173.63 75.13 L 179.14 70.79 L 184.66 66.46 L 190.18 62.13 L 195.69 57.80 L 201.21 53.47 L 206.72 49.14 L 207.01 48.92" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="212.24,44.81 206.93,53.43 202.60,47.92" fill="#1f2328" fill-opacity="1"/>
+<path d="M 160.50 98.00 L 165.30 98.00 L 170.10 98.00 L 174.90 98.00 L 179.70 98.00 L 184.50 98.00 L 189.30 98.00 L 194.10 98.00 L 198.90 98.00 L 201.85 98.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="208.50,98.00 199.00,101.50 199.00,94.50" fill="#1f2328" fill-opacity="1"/>
+<path d="M 157.08 107.88 L 162.60 112.21 L 168.11 116.54 L 173.63 120.87 L 179.14 125.21 L 184.66 129.54 L 190.18 133.87 L 195.69 138.20 L 201.21 142.53 L 206.72 146.86 L 207.01 147.08" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="212.24,151.19 202.60,148.08 206.93,142.57" fill="#1f2328" fill-opacity="1"/>
+<path d="M 240.89 39.85 L 245.92 41.82 L 250.96 43.80 L 255.99 45.77 L 261.02 47.75 L 266.05 49.73 L 271.08 51.70 L 276.12 53.68 L 281.15 55.65 L 285.02 57.17" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="291.21,59.60 281.09,59.39 283.65,52.87" fill="#1f2328" fill-opacity="1"/>
+<path d="M 240.89 92.15 L 245.92 90.18 L 250.96 88.20 L 255.99 86.23 L 261.02 84.25 L 266.05 82.27 L 271.08 80.30 L 276.12 78.32 L 281.15 76.35 L 285.02 74.83" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="291.21,72.40 283.65,79.13 281.09,72.61" fill="#1f2328" fill-opacity="1"/>
+<path d="M 242.00 162.00 L 246.80 162.00 L 251.60 162.00 L 256.40 162.00 L 261.20 162.00 L 266.00 162.00 L 270.80 162.00 L 275.60 162.00 L 280.40 162.00 L 283.35 162.00" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="290.00,162.00 280.50,165.50 280.50,158.50" fill="#1f2328" fill-opacity="1"/>
+<circle cx="144.5" cy="98.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="144.5" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="226.0" cy="34.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="34.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">B</text>
+<circle cx="226.0" cy="98.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">C</text>
+<circle cx="226.0" cy="162.0" r="16" fill="#f6e4dd" stroke="#c2410c" stroke-opacity="1" stroke-width="2.25"/>
+<text x="226.0" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1">D</text>
+<circle cx="307.5" cy="66.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="307.5" y="66.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">E</text>
+<circle cx="307.5" cy="162.0" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="307.5" y="162.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">F</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.antichain_width()</text>
+<text x="514.0" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">largest antichain = fewest chains</text>
+<text x="514.0" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">antichain  B, C, D</text>
+<text x="514.0" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="400" fill="#1f2328" fill-opacity="1.0">chains    A→B→E · C · D→F</text>
+<text x="514.0" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#c2410c" fill-opacity="1.0">width     3</text>
+</svg>
