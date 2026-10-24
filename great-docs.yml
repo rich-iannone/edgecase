@@ -527,6 +527,7 @@ reference:
         - Graph.dfs_successors
         - Graph.descendants_at_distance
         - Graph.edge_bfs
+        - Graph.generic_edge_bfs
         - Graph.edge_dfs
         - Graph.dfs
         - Graph.dfs_edges
@@ -559,6 +560,9 @@ reference:
         - Graph.dag_longest_path_length
         - Graph.lowest_common_ancestor
         - Graph.all_pairs_lowest_common_ancestor
+        - Graph.all_lowest_common_ancestors
+        - Graph.all_pairs_all_lowest_common_ancestors
+        - Graph.is_lowest_common_ancestor
         - Graph.antichains
         - Graph.antichain_width
         - Graph.lexicographical_topological_sort
