@@ -1,0 +1,31 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Magnetic spectrum</title>
+<rect width="760" height="220" fill="#ffffff"/>
+<rect x="548.0" y="139.3" width="36.0" height="6.7" rx="2" fill="#c2410c"/>
+<rect x="606.0" y="96.0" width="36.0" height="50.0" rx="2" fill="#1f2328" fill-opacity="0.3"/>
+<rect x="664.0" y="52.7" width="36.0" height="93.3" rx="2" fill="#1f2328" fill-opacity="0.3"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#1f2328" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#1f2328" fill-opacity="1.0"/>
+<line x1="538.0" y1="146.0" x2="710.0" y2="146.0" stroke="#1f2328" stroke-opacity="0.5" stroke-width="1" stroke-linecap="round"/>
+<path d="M 234.48 61.17 L 239.00 68.41 L 243.53 75.65 L 248.05 82.89 L 252.58 90.12 L 257.10 97.36 L 261.63 104.60 L 266.15 111.84 L 270.68 119.08 L 275.20 126.32 L 276.20 127.92" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="279.73,133.56 271.72,127.36 277.66,123.65" fill="#1f2328" fill-opacity="1"/>
+<path d="M 273.00 148.40 L 263.75 148.40 L 254.50 148.40 L 245.25 148.40 L 236.00 148.40 L 226.75 148.40 L 217.50 148.40 L 208.25 148.40 L 199.00 148.40 L 189.75 148.40 L 187.15 148.40" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="180.50,148.40 190.00,144.90 190.00,151.90" fill="#1f2328" fill-opacity="1"/>
+<path d="M 171.48 134.83 L 176.00 127.59 L 180.53 120.35 L 185.05 113.11 L 189.58 105.88 L 194.10 98.64 L 198.63 91.40 L 203.15 84.16 L 207.68 76.92 L 212.20 69.68 L 213.20 68.08" fill="none" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round"/>
+<polygon points="216.73,62.44 214.66,72.35 208.72,68.64" fill="#1f2328" fill-opacity="1"/>
+<circle cx="226.0" cy="47.6" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="47.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">A</text>
+<circle cx="289.0" cy="148.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="289.0" y="148.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">B</text>
+<circle cx="163.0" cy="148.4" r="16" fill="#ffffff" stroke="#1f2328" stroke-opacity="1" stroke-width="1.5"/>
+<text x="163.0" y="148.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#1f2328" fill-opacity="1">C</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g</text>
+<text x="624.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#1f2328" fill-opacity="0.72">g.magnetic_spectrum()</text>
+<text x="566.0" y="130.3" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="600" fill="#c2410c" fill-opacity="1">0.134</text>
+<text x="566.0" y="157.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">λ1</text>
+<text x="624.0" y="87.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.75">1.000</text>
+<text x="624.0" y="157.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">λ2</text>
+<text x="682.0" y="43.7" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.75">1.866</text>
+<text x="682.0" y="157.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">λ3</text>
+<text x="624.0" y="24.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#1f2328" fill-opacity="0.6">q = 0.25   (q = 0: 0, 1.5, 1.5)</text>
+</svg>
