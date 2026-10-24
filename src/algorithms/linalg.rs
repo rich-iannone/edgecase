@@ -377,6 +377,125 @@ pub fn bethe_hessian_spectrum(graph: &Graph, r: Option<f64>, weighted: bool) -> 
     Ok(vals)
 }
 
+/// Leading-eigenvector modularity bipartition (Newman 2006), as NetworkX's
+/// `spectral_modularity_bipartition`: nodes split by the sign of their entry in the
+/// eigenvector of the modularity matrix's largest eigenvalue. The sign is fixed so the
+/// lowest-ID node with a nonzero entry is negative; negative entries form the first side and
+/// the rest (zeros included) the second. Returns `(first, second, largest eigenvalue)`.
+#[pyfunction]
+#[pyo3(signature = (graph, weighted=false))]
+pub fn spectral_modularity_bipartition(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
+    if graph.is_directed() {
+        return Err(err("spectral_modularity_bipartition() requires an undirected graph"));
+    }
+    let (ids, idx) = sorted_ids(graph);
+    if ids.is_empty() {
+        return Ok((Vec::new(), Vec::new(), 0.0));
+    }
+    let b = modularity_dense(graph, &idx, weighted);
+    if b.iter().all(|&x| x == 0.0) {
+        // No edges: every eigenvector is as good as any other, so nothing is split off
+        return Ok((Vec::new(), ids, 0.0));
+    }
+    let eig = na::SymmetricEigen::new(b);
+    let lead = (0..ids.len()).fold(0, |best, j| if eig.eigenvalues[j] > eig.eigenvalues[best] { j } else { best });
+    let v = eig.eigenvectors.column(lead);
+    let tol = 1e-12;
+    let sign = match v.iter().find(|x| x.abs() > tol) {
+        Some(&x) if x > 0.0 => -1.0,
+        _ => 1.0,
+    };
+    let (mut first, mut second) = (Vec::new(), Vec::new());
+    for (i, &id) in ids.iter().enumerate() {
+        if sign * v[i] < -tol {
+            first.push(id);
+        } else {
+            second.push(id);
+        }
+    }
+    Ok((first, second, eig.eigenvalues[lead]))
+}
+
+/// The magnetic Laplacian (Fanuel et al. 2018) as NetworkX builds it: with W' = (W + Wᵀ) / 2
+/// for the summed edge weights W (self-loops left out), H_jk = W'_jk e^{2πiqδ_jk}, where δ_jk
+/// is +1 if only j → k is an edge, -1 if only k → j is, and 0 if both are; then L = D - H
+/// for the row sums D of |H|, or I - D^{-1/2} H D^{-1/2} (zero rows for isolated nodes, with
+/// 1 on the diagonal) when normalized. Hermitian, so its eigenvalues are real.
+fn magnetic_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, q: f64, normalized: bool, weighted: bool) -> PyResult<na::DMatrix<na::Complex<f64>>> {
+    if !graph.is_directed() {
+        return Err(err("The magnetic Laplacian requires a directed graph"));
+    }
+    if !(0.0..=0.5).contains(&q) {
+        return Err(err(format!("q must be between 0 and 0.5, got {q}")));
+    }
+    let n = idx.len();
+    let mut w: FxHashMap<(usize, usize), f64> = FxHashMap::default();
+    for e in graph.get_edges_internal() {
+        let (s, t) = (idx[&e.source], idx[&e.target]);
+        if s != t {
+            *w.entry((s, t)).or_insert(0.0) += weight_of(e, weighted);
+        }
+    }
+    let phase = 2.0 * std::f64::consts::PI * q;
+    let mut h = na::DMatrix::<na::Complex<f64>>::zeros(n, n);
+    for (&(s, t), &wst) in &w {
+        let back = w.get(&(t, s));
+        let sym = 0.5 * (wst + back.copied().unwrap_or(0.0));
+        let delta = if back.is_some() { 0.0 } else { 1.0 };
+        h[(s, t)] = na::Complex::from_polar(sym, phase * delta);
+        if back.is_none() {
+            h[(t, s)] = na::Complex::from_polar(sym, -phase);
+        }
+    }
+    let deg: Vec<f64> = (0..n).map(|i| h.row(i).iter().map(|z| z.norm()).sum()).collect();
+    if normalized {
+        let inv: Vec<f64> = deg.iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }).collect();
+        for i in 0..n {
+            for j in 0..n {
+                h[(i, j)] *= -(inv[i] * inv[j]);
+            }
+            h[(i, i)] += 1.0;
+        }
+    } else {
+        for i in 0..n {
+            for j in 0..n {
+                h[(i, j)] = -h[(i, j)];
+            }
+            h[(i, i)] += deg[i];
+        }
+    }
+    Ok(h)
+}
+
+/// The magnetic Laplacian as rows of Python complex numbers, with the node IDs.
+#[pyfunction]
+#[pyo3(signature = (graph, q=0.25, normalized=false, weighted=false))]
+pub fn magnetic_laplacian_matrix(py: Python, graph: &Graph, q: f64, normalized: bool, weighted: bool) -> PyResult<(PyObject, Vec<u64>)> {
+    let (ids, idx) = sorted_ids(graph);
+    let l = magnetic_dense(graph, &idx, q, normalized, weighted)?;
+    let rows = pyo3::types::PyList::empty(py);
+    for i in 0..ids.len() {
+        let row = pyo3::types::PyList::empty(py);
+        for j in 0..ids.len() {
+            let z = l[(i, j)];
+            row.append(pyo3::types::PyComplex::from_doubles(py, z.re, z.im))?;
+        }
+        rows.append(row)?;
+    }
+    Ok((rows.into(), ids))
+}
+
+/// Eigenvalues of the magnetic Laplacian (real, as it is Hermitian), in increasing order.
+#[pyfunction]
+#[pyo3(signature = (graph, q=0.25, normalized=false, weighted=false))]
+pub fn magnetic_spectrum(graph: &Graph, q: f64, normalized: bool, weighted: bool) -> PyResult<Vec<f64>> {
+    let (_, idx) = sorted_ids(graph);
+    let l = magnetic_dense(graph, &idx, q, normalized, weighted)?;
+    let mut vals: Vec<f64> = na::SymmetricEigen::new(l).eigenvalues.iter().copied().collect();
+    vals.sort_by(|x, y| x.total_cmp(y));
+    Ok(vals)
+}
+
 /// Connected components of an undirected graph as index lists (in order of smallest member).
 fn components(graph: &Graph, idx: &FxHashMap<u64, usize>) -> Vec<Vec<usize>> {
     let n = idx.len();
