@@ -64,6 +64,16 @@ def _hoffman_singleton() -> list[tuple[int, int]]:
     return edges
 
 
+def _shrikhande() -> list[tuple[int, int]]:
+    # Cayley graph on Z4 x Z4 (node 4x + y is (x, y)) with generators ±(1, 0), ±(0, 1), ±(1, 1)
+    return [
+        (4 * x + y, 4 * ((x + dx) % 4) + (y + dy) % 4)
+        for x in range(4)
+        for y in range(4)
+        for dx, dy in ((1, 0), (0, 1), (1, 1))
+    ]
+
+
 def _entry(description: str, n: int, edges) -> NamedGraph:
     return NamedGraph(description, n, tuple(sorted((min(a, b), max(a, b)) for a, b in edges)))
 
@@ -129,6 +139,8 @@ NAMED_GRAPHS: dict[str, NamedGraph] = {
     "sedgewick_maze": _entry("Small maze from Sedgewick's Algorithms, a traversal test case", 8,
                              [(0, 2), (0, 5), (0, 7), (1, 7), (2, 6), (3, 4), (3, 5), (4, 5),
                               (4, 6), (4, 7)]),
+    "shrikhande": _entry("Strongly regular graph with the parameters of the 4 x 4 rook's graph "
+                         "but not isomorphic to it", 16, _shrikhande()),
     "tetrahedral": _entry("Skeleton of the tetrahedron, the complete graph K4", 4,
                           [(0, 1), (0, 2), (0, 3), (1, 2), (1, 3), (2, 3)]),
     "truncated_cube": _entry("Skeleton of the truncated cube", 24,
