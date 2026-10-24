@@ -233,6 +233,7 @@ class Path:
     dash: str = ""
     fill: str = "none"
     role: str = "path"
+    fill_opacity: float = 1.0  # tinted regions (planar faces): fill="color" at low opacity
 
 
 # --- text metrics ----------------------------------------------------------
@@ -729,7 +730,8 @@ def _render_path(p: Path, theme: Theme) -> str:
     c = _color(theme, p.color)
     dash = f' stroke-dasharray="{p.dash}"' if p.dash else ""
     fill = c if p.fill == "color" else ("none" if p.fill == "none" else p.fill)
-    return (f'<path d="{p.d}" fill="{fill}" stroke="{c}" stroke-opacity="{p.opacity}" '
+    fo = f' fill-opacity="{p.fill_opacity}"' if p.fill_opacity != 1 else ""
+    return (f'<path d="{p.d}" fill="{fill}"{fo} stroke="{c}" stroke-opacity="{p.opacity}" '
             f'stroke-width="{p.width}" stroke-linecap="round" stroke-linejoin="round"{dash}/>')
 
 

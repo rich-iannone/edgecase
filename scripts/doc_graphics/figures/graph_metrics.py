@@ -53,6 +53,14 @@ random_reference and lattice_reference on the same ring.
 `maximal_extendability` draws the six-node cycle as a ring with a matching
 that cannot be extended (accent) and the two nodes it strands (`g2`).
 
+`get_hyper_wiener_index` sits beside the Wiener index on DIST, its card
+grouping the pairs by distance with ½ d (d + 1) per pair. The magnetic
+Laplacian and its spectrum use a directed triangle: the matrix (complex
+entries, `−0.5i` on each arc's cell in accent and its conjugate `0.5i` in
+`g2`) and a bar chart whose smallest eigenvalue, accent, stays above 0
+because the cycle's direction cannot be undone; a note gives the q = 0
+spectrum for comparison.
+
 Every number on a card is what edgecase returns for the depicted graph.
 """
 
@@ -755,7 +763,7 @@ def _matrix(s: Scene, box: Box, labels: list[str], values: list[list[float]], no
     """Matrix as a labelled table with a note line above; `highlight` maps
     (row, col) of the matrix (0-based, headers excluded) to a color."""
     cols = cols or labels
-    rows = [[""] + cols] + [[lab] + [_num(v, digits) for v in row]
+    rows = [[""] + cols] + [[lab] + [v if isinstance(v, str) else _num(v, digits) for v in row]
                             for lab, row in zip(labels, values)]
     hl = {(i + 1, j + 1): c for (i, j), c in (highlight or {}).items()}
     th = row_h * len(rows)
@@ -1106,3 +1114,83 @@ def maximal_extendability(s: Scene) -> None:
             styles={**dict.fromkeys("1245", "accent"), "3": "g2", "6": "g2"})
     s.card_centered(right, ["k = 1  every edge extends", ("k = 2  1-2, 4-5 strand 3, 6", "g2"),
                             (f"extendability  {value}", "accent")], title="largest k")
+
+
+# --- later additions: hyper-Wiener index and the magnetic Laplacian -------------------
+#
+# Each figure computes its numbers with edgecase and asserts them.
+
+
+@figure("get_hyper_wiener_index", "graph-metrics", "Hyper-Wiener index",
+        "The six-node graph of the Wiener index figure and a card that groups its 15 node "
+        "pairs by shortest-path distance, each pair adding half of d times d plus one: 6 "
+        "pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The "
+        "sum is the hyper-Wiener index 46.0, against a Wiener index of 28.")
+def get_hyper_wiener_index(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(DIST))
+    g.add_edges(DIST_EDGES)
+    assert (g.get_hyper_wiener_index(), g.get_wiener_index()) == (46.0, 28.0)
+    left, right = compute(s, "g", "g.get_hyper_wiener_index()")
+    _undirected(s, DIST, DIST_EDGES, left)
+    s.card_centered(right, ["d=1  6 × 1     6", "d=2  6 × 3     18", "d=3  2 × 6     12",
+                            "d=4  1 × 10    10", ("Σ ½d(d+1)      46.0", "accent")])
+
+
+# A directed triangle: the smallest graph whose direction the magnetic Laplacian sees.
+DTRI = {"A": (0.75, 0), "B": (1.5, 1.2), "C": (0, 1.2)}
+DTRI_ARCS = [("A", "B"), ("B", "C"), ("C", "A")]
+
+
+def _dtri():
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(DTRI))
+    g.add_edges(DTRI_ARCS)
+    return g
+
+
+def _cplx(z: complex) -> str:
+    """A matrix entry with real or imaginary part only: 1, −0.5i, 0.5i."""
+    re, im = round(z.real, 6) + 0, round(z.imag, 6) + 0
+    assert re == 0 or im == 0
+    if im == 0:
+        return _num(re)
+    return ("−" if im < 0 else "") + f"{abs(im):g}i"
+
+
+@figure("magnetic_laplacian_matrix", "graph-metrics", "Magnetic Laplacian matrix",
+        "A directed triangle, A to B to C and back to A, and its 3 by 3 magnetic Laplacian at "
+        "q = 0.25. Each arc gets a phase of a quarter turn, so the cell for A, B is -0.5i "
+        "(accent) and its mirror B, A is the conjugate 0.5i (teal), and likewise around the "
+        "cycle; the diagonal holds the degree 1. The matrix is Hermitian and records the "
+        "direction of every arc.")
+def magnetic_laplacian_matrix(s: Scene) -> None:
+    m, ids = _dtri().magnetic_laplacian_matrix()
+    cells = [[_cplx(z) for z in row] for row in m]
+    assert ids == [1, 2, 3]
+    assert cells == [["1", "−0.5i", "0.5i"], ["0.5i", "1", "−0.5i"], ["−0.5i", "0.5i", "1"]]
+    left, right = compute(s, "g", "g.magnetic_laplacian_matrix()")
+    s.graph(place(DTRI, left, unit=UNIT), DTRI_ARCS, directed=True)
+    hl = {(i, j): "accent" if v.startswith("−") else "g2"
+          for i, row in enumerate(cells) for j, v in enumerate(row) if v.endswith("i")}
+    _matrix(s, right, list("ABC"), cells, "q = 0.25: arc phase π/2",
+            col_w=52, highlight=hl)
+
+
+@figure("magnetic_spectrum", "graph-metrics", "Magnetic spectrum",
+        "A directed triangle, A to B to C and back to A, and a bar chart of the three "
+        "eigenvalues of its magnetic Laplacian at q = 0.25 in increasing order: 0.134, 1.000 "
+        "and 1.866. The smallest, in the accent color, stays above 0 because the cycle's "
+        "direction cannot be undone; ignoring direction (q = 0) gives 0, 1.5 and 1.5.")
+def magnetic_spectrum(s: Scene) -> None:
+    g = _dtri()
+    vals = [round(v, 3) + 0 for v in g.magnetic_spectrum()]
+    flat = [round(v, 3) + 0 for v in g.magnetic_spectrum(q=0)]
+    assert (vals, flat) == ([0.134, 1.0, 1.866], [0.0, 1.5, 1.5])
+    left, right = compute(s, "g", "g.magnetic_spectrum()")
+    s.graph(place(DTRI, left, unit=UNIT), DTRI_ARCS, directed=True)
+    _bars(s, right, vals, [f"{v:.3f}" for v in vals], [f"λ{i}" for i in range(1, 4)],
+          accent={0}, bar_w=36, gap=22, scale=50, base_y=146)
+    s.text(right.cx, 24, "q = 0.25   (q = 0: 0, 1.5, 1.5)", size=SIZE_NOTE, opacity=0.6)

@@ -54,6 +54,9 @@ Shared layouts so siblings can be compared directly:
 - Enumerations (atlas slices, non-isomorphic trees) are galleries
   (`_gallery`): one small graph per grid cell at a smaller unit, atlas graphs
   on rings and trees by `_spine_layout`, their longest path as a row.
+- Generalized Petersen graphs draw the outer n-cycle on a ring and the inner
+  nodes on a smaller ring, spoke i to n + i, with the inner edges,
+  the ones the step k sets, in `accent`.
 """
 
 import itertools
@@ -861,6 +864,30 @@ def add_lcf_graph(s: Scene) -> None:
         _, edges = _built(f"add_lcf_graph({n}, {shifts}, {rep})")
         # fourteen nodes need a little more than UNIT to keep the ring spaced out
         _draw(s, box, _ring_xy(n), edges, prefix=f"l{n}.", unit=70, pad=2)
+
+
+def _gp_xy(n: int, inner_r: float = 0.5) -> dict[str, tuple[float, float]]:
+    """Outer ring 1..n, inner ring n+1..2n (spoke i to n + i) at `inner_r` of the radius."""
+    inner = {str(int(k) + n): (inner_r * x, inner_r * y) for k, (x, y) in _ring_xy(n).items()}
+    return {**_ring_xy(n), **inner}
+
+
+@figure("add_generalized_petersen_graph", "generators", "Generalized Petersen graph",
+        "Three generalized Petersen graphs GP(n, k), each an outer cycle of n nodes joined by "
+        "spokes to n inner nodes, where inner node i links to inner node i + k (inner edges "
+        "in the accent color). n=6, k=1 gives the hexagonal prism; n=5, k=2 the Petersen "
+        "graph, its inner nodes a five-pointed star; n=8, k=3 the Moebius-Kantor graph. "
+        "Every node has exactly three neighbors.")
+def add_generalized_petersen_graph(s: Scene) -> None:
+    params = ((6, 1), (5, 2), (8, 3))
+    boxes = multiples(s, tuple(f"n={n}, k={k}" for n, k in params))
+    for box, (n, k) in zip(boxes, params):
+        g, edges = _built(f"add_generalized_petersen_graph({n}, {k})")
+        assert g.is_k_regular(3) and g.count_edges() == 3 * n
+        inner = {frozenset((a, b)): "accent" for a, b in edges if min(int(a), int(b)) > n}
+        # a larger unit than UNIT keeps the eight inner nodes of GP(8, 3) apart
+        _draw(s, box, _gp_xy(n, 0.57), edges, prefix=f"gp{n}.", edge_style=inner, unit=72,
+              pad=2)
 
 
 NAMED_XY = {

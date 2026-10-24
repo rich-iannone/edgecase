@@ -52,6 +52,9 @@ bfs_beam_edges puts each node's score in an outline badge, the followed edges
 in accent and the unreached part muted. dfs_labeled_edges numbers its tree
 edges like dfs_edges, dashes the non-tree edge, and groups the labeled pairs
 by kind on the card.
+antichain_width
+draws its docstring DAG left to right with a largest antichain in accent; the
+card adds a cover by as many chains, which is why no antichain is larger.
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, contrast, figure, place, transform
@@ -1051,3 +1054,26 @@ def all_pairs_lowest_common_ancestor(s: Scene) -> None:
               {"g2": "g2", "default": "ink"}.get(st, "accent"))
     s.card_centered(right, [(f"({u}, {v})".ljust(13) + a, "accent" if a == "Carnivora" else "g2")
                             for (u, v), a in found.items()], title="pair → lowest common ancestor")
+
+
+# antichain_width docstring: A fans out to B, C, D; B and C merge into E; D leads to F.
+FAN = {"A": (0, 1.1), "B": (1.4, 0), "C": (1.4, 1.1), "D": (1.4, 2.2), "E": (2.8, 0.55),
+       "F": (2.8, 2.2)}
+FAN_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("C", "E"), ("D", "F")]
+
+
+@figure("antichain_width", "traversal", "Antichain width",
+        "A DAG drawn left to right: A points to B, C and D; B and C both point to E, and D "
+        "points to F. B, C and D, in the accent color, cannot reach one another, so they "
+        "form an antichain of 3 nodes. No larger one exists, because three chains cover the "
+        "graph, A to B to E, C alone, and D to F, and an antichain holds at most one node "
+        "of each. The width is 3.")
+def antichain_width(s: Scene) -> None:
+    g = _dag_graph(FAN, FAN_EDGES)
+    assert g.antichain_width() == 3
+    assert sorted(len(a) for a in g.antichains())[-1] == 3
+    left, right = compute(s, "g", "g.antichain_width()")
+    s.graph(place(FAN, left, unit=UNIT), FAN_EDGES, directed=True,
+            styles=dict.fromkeys("BCD", "accent"))
+    s.card_centered(right, [("antichain  B, C, D", "accent"), "chains    A→B→E · C · D→F",
+                            ("width     3", "accent")], title="largest antichain = fewest chains")

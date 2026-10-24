@@ -35,6 +35,8 @@ footprint, node letters inside and returned path labels beneath; the
 duplicated D is accent on both sides. moral_graph draws the sprinkler network
 in both panels with names beside the nodes; the married-parents edge
 rain–sprinkler is accent on the right, where every direction is dropped.
+random_k_lift colors the triangle's nodes accent / g2 / g3 and draws its
+3-lift, a 9-cycle, on an oval with each copy in the color of the node it covers.
 """
 
 from core import R_SMALL, SIZE_NOTE, STROKE, Box, Scene, figure, place, ring, shift, transform
@@ -654,3 +656,37 @@ def moral_graph(s: Scene) -> None:
     for p in ("l.", "r."):
         for k in SPRINKLER:
             _name(s, p + k, k, SPRINKLER_NAME_AT[k])
+
+
+# random_k_lift: a triangle and a seeded 3-lift. This seed's lift is connected, a
+# single 9-cycle, drawn on an oval in cycle order; copy (A, i) is labelled Ai.
+LIFT_BASE = {"A": (0.75, 0), "B": (1.5, 1.25), "C": (0, 1.25)}
+LIFT_BASE_EDGES = [("A", "B"), ("B", "C"), ("C", "A")]
+LIFT_COLORS = {"A": "accent", "B": "g2", "C": "g3"}
+
+
+@figure("random_k_lift", "transforms", "Random k-lift",
+        "Left: a triangle on A (accent color), B (teal) and C (violet). Right: a random 3-lift "
+        "replaces each node with three copies, drawn in its color and labelled A0, A1, A2 and "
+        "so on, and each edge with a random perfect matching between the copies of its ends, "
+        "so every copy keeps one neighbor over each original edge. With seed 5 the lift is a "
+        "single cycle through all nine copies: A0, B1, C1, A1, B2, C0, A2, B0, C2.")
+def random_k_lift(s: Scene) -> None:
+    import edgecase as ec
+
+    base = ec.Graph().add_nodes(list(LIFT_BASE)).add_edges(LIFT_BASE_EDGES)
+    lift = base.random_k_lift(3, seed=5)
+    short = {nid: lift.get_label_from_id(nid).strip("()").replace(", ", "")
+             for nid in lift.get_node_ids()}
+    edges = [(short[a], short[b]) for _, a, b in lift.get_edges_as_tuples()]
+    order = ["A0", "B1", "C1", "A1", "B2", "C0", "A2", "B0", "C2"]
+    assert {frozenset(e) for e in edges} == {
+        frozenset((order[i], order[(i + 1) % 9])) for i in range(9)}
+    left, right = transform(s, "g", "g.random_k_lift(3, seed=5)")
+    s.graph(place(LIFT_BASE, left, unit=UNIT), LIFT_BASE_EDGES, styles=LIFT_COLORS,
+            prefix="l.")
+    rb = Box(right.x0, right.y0 + 14, right.x1, right.y1)
+    s.text(right.cx, right.y0 + 4, "copy (A, i) drawn as Ai", size=SIZE_NOTE, opacity=0.6)
+    oval = {k: (1.7 * x, y) for k, (x, y) in ring(order).items()}  # the panel is wide
+    s.graph(place(oval, rb, unit=UNIT), edges,
+            styles={k: LIFT_COLORS[k[0]] for k in order}, prefix="r.")

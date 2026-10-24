@@ -34,6 +34,12 @@ is named in an accent note. is_regular_expander compares two 3-regular graphs
 on six nodes, the prism and K3,3, with each second eigenvalue against the
 Ramanujan bound in a note; K3,3's two sides are `accent` / `g2`, since being
 bipartite is what fails it. Both answers are asserted.
+is_valid_tree_degree_sequence draws a graph realizing each sequence, degrees as
+badges and the sum test in a note: a star for True, and for False a 4-cycle
+whose closing edge, the one a tree can't have, is `accent`. is_perfect_graph
+compares the house (a 5-cycle with one chord) with the bare 5-cycle, an odd
+hole in `accent` with the missing chord `ghost`. is_cover reuses the
+communities bowtie, its groups as g2 / g3 hulls; the uncovered node is `accent`.
 """
 
 
@@ -1005,3 +1011,83 @@ def is_triad(s: Scene) -> None:
     rb = _note(s, right, "Graph(directed=False)")
     s.texts[-1].color, s.texts[-1].opacity = "accent", 1.0  # the culprit: no directions
     s.graph(place(TRIO, rb), [], prefix="r.")
+
+
+# --- later additions: tree degree sequences, perfection and covers -------------
+
+STAR = {"A": (0, 0), "B": (0, -1.1), "C": (0.95, 0.55), "D": (-0.95, 0.55)}
+SQ4 = {"A": (0, 0), "B": (1.3, 0), "C": (1.3, 1.2), "D": (0, 1.2)}
+SQ4_OUT = dict(zip("ABCD", ("nw", "ne", "se", "sw")))
+
+
+@figure("is_valid_tree_degree_sequence", "predicates", "Is valid tree degree sequence",
+        "Each side draws a graph with the degree sequence passed in, its degrees as badges. "
+        "Left: [3, 1, 1, 1] has every degree positive and sums to 6 = 2(n - 1) for n = 4 "
+        "nodes, so it is realized by a tree, the star, and the method returns True. Right: "
+        "[2, 2, 2, 2] sums to 8, more than the 6 a tree on four nodes has; its graphs need an "
+        "extra edge, closing a cycle (the edge in the accent color), so the method returns "
+        "False.")
+def is_valid_tree_degree_sequence(s: Scene) -> None:
+    import edgecase as ec
+
+    assert ec.Graph.is_valid_tree_degree_sequence([3, 1, 1, 1]) is True
+    assert ec.Graph.is_valid_tree_degree_sequence([2, 2, 2, 2]) is False
+    left, right = contrast(s, "is_valid_tree_degree_sequence(seq)",
+                           "is_valid_tree_degree_sequence(seq)")
+    lb = _note(s, left, "seq = [3, 1, 1, 1]:  sum 6 = 2(n − 1)")
+    s.graph(place(STAR, lb), [("A", "B"), ("A", "C"), ("A", "D")], prefix="l.")
+    for k, where in zip("ABCD", ("e", "w", "e", "w")):
+        s.badge("l." + k, "3" if k == "A" else "1", where=where, color="ink")
+    rb = _note(s, right, "seq = [2, 2, 2, 2]:  sum 8 ≠ 2(n − 1)")
+    s.graph(place(SQ4, rb), [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A", {"style": "accent"})],
+            prefix="r.")
+    for k in "ABCD":
+        s.badge("r." + k, "2", where=SQ4_OUT[k], color="ink")
+
+
+# is_perfect_graph: the house (5-cycle A..E plus the chord B-E) against the 5-cycle,
+# an odd hole.
+PENTA = ring(list("ABCDE"), 1.0)
+PENTA_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")]
+
+
+@figure("is_perfect_graph", "predicates", "Is perfect graph",
+        "Left: the house, a cycle of five nodes A, B, C, D, E with the chord B to E, which "
+        "splits it into a triangle and a square; it has no odd hole and no odd antihole, so "
+        "is_perfect_graph() returns True. Right: the five-cycle without the chord (the dashed "
+        "edge) is itself an odd hole, a chordless cycle of length 5 (in the accent color), so "
+        "is_perfect_graph() returns False.")
+def is_perfect_graph(s: Scene) -> None:
+    g = _ec(list("ABCDE"), PENTA_EDGES)
+    assert g.is_perfect_graph() is False
+    g.add_edge("B", "E")
+    assert g.is_perfect_graph() is True
+    left, right = contrast(s, "g.is_perfect_graph()", "g.is_perfect_graph()")
+    lb = _note(s, left, "chord B–E: no odd hole")
+    s.graph(place(PENTA, lb), PENTA_EDGES + [("B", "E")], prefix="l.")
+    rb = _note(s, right, "odd hole A, B, C, D, E")
+    s.graph(place(PENTA, rb), [(a, b, {"style": "accent"}) for a, b in PENTA_EDGES]
+            + [("B", "E", {"style": "ghost"})], prefix="r.")
+
+
+@figure("is_cover", "predicates", "Is cover",
+        "Two triangles, A, B, C and C, D, E, sharing node C. Left: the groups A, B, C (teal) "
+        "and C, D, E (violet) overlap at C and between them contain every node, so "
+        "is_cover() returns True. Right: the groups A, B, C and C, D leave E out (in the "
+        "accent color), so is_cover() returns False.")
+def is_cover(s: Scene) -> None:
+    from figures.communities import BOWTIE, BOWTIE_EDGES
+
+    g = _ec(list(BOWTIE), BOWTIE_EDGES)
+    assert g.is_cover([list("ABC"), list("CDE")]) is True
+    assert g.is_cover([list("ABC"), list("CD")]) is False
+    left, right = contrast(s, 'g.is_cover([list("ABC"), list("CDE")])',
+                           'g.is_cover([list("ABC"), list("CD")])')
+    for box, second, p in ((left, "CDE", "l."), (right, "CD", "r.")):
+        styles = {**dict.fromkeys("AB", "g2"), **dict.fromkeys(second.replace("C", ""), "g3")}
+        if "E" not in second:
+            styles["E"] = "accent"
+        s.graph(place(BOWTIE, Box(box.x0, box.y0 + 8, box.x1, box.y1)), BOWTIE_EDGES,
+                styles=styles, prefix=p)
+        s.hull([p + k for k in "ABC"], "g2")
+        s.hull([p + k for k in second], "g3")

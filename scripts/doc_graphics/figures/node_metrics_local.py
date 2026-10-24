@@ -40,6 +40,9 @@ graph_metrics.py) reuses that labelled drawing.
 `square_clustering` needs squares, not triangles, so it uses a 2 x 3 grid
 (`GRID`) and adds a third table column with the triangle clustering
 coefficient, 0 for every node, to show what squares catch that triangles miss.
+
+`butterflies` draws its docstring shoppers and products with `two_rows`,
+heat-shaded by count, the two nodes in both butterflies `accent`.
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, figure, place
@@ -243,7 +246,7 @@ def two_rows(s: Scene, box: Box, top: list[str], bottom: list[str], edges: list,
     if not labels:
         for k in coords:
             st = styles.get(k, "default")
-            color = {"g2": "g2", "default": "ink", "muted": "ink"}.get(st, "accent")
+            color = {"g2": "g2", "g3": "g3", "g4": "g4", "default": "ink", "muted": "ink"}.get(st, "accent")
             _name(s, prefix + k, k, "n" if k in top else "s", color)
     if sides:
         x = min(p[0] for p in pos.values()) - 34
@@ -495,3 +498,30 @@ def square_clustering(s: Scene) -> None:
             styles={k: "accent" for k, v in scores.items() if v == 0.5})
     rows = [["node", "square", "C(v)"]] + [r + ["0"] for r in _rows(scores)]
     s.table_centered(right, rows, [84, 64, 52], highlight={(1, 0): "accent", (1, 1): "accent"})
+
+
+# butterflies docstring: shoppers and the products they buy. The two butterflies
+# (4-cycles) are ann, bob x tea, jam and bob, cy x jam, oat.
+SHOPPERS = ["ann", "bob", "cy"]
+GOODS = ["tea", "jam", "oat"]
+BASKETS = [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "jam"), ("bob", "oat"),
+           ("cy", "oat"), ("cy", "jam")]
+
+
+@figure("butterflies", "node-metrics", "Butterflies",
+        "Shoppers ann, bob and cy on top and the products tea, jam and oat below. A butterfly "
+        "is a 4-cycle, two shoppers who both bought the same two products: ann and bob with "
+        "tea and jam, and bob and cy with jam and oat. Nodes are shaded by how many "
+        "butterflies they belong to; bob and jam, in the accent color, are in both and count "
+        "2, every other node counts 1.")
+def butterflies(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(SHOPPERS + GOODS).add_edges(BASKETS)
+    counts = {g.get_label_from_id(n): c for n, c in g.butterflies().items()}
+    assert counts == {"ann": 1, "bob": 2, "cy": 1, "tea": 1, "jam": 2, "oat": 1}
+    left, right = compute(s, "g", "g.butterflies()")
+    two_rows(s, left, SHOPPERS, GOODS, BASKETS, styles={"bob": "accent", "jam": "accent"},
+             heat={k: v / 2 for k, v in counts.items()}, sides=("shoppers", "products"))
+    s.table_centered(right, [["node", "butterflies"]] + _rows(counts, digits=0), [120, 96],
+                     highlight={(1, 0): "accent", (1, 1): "accent"})

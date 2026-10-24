@@ -37,6 +37,17 @@ rest `muted`; `harmonic_function` and `local_and_global_consistency` follow
 ladder: level 0 on the left, level 1 on the right. `kernighan_lin_bisection`
 follows connectivity's cut recipe (sides g2 / g3, cut edges accent), from the
 starting split to the result; `lukes_partitioning` dashes its one cut edge.
+`greedy_node_swap_bipartition` repeats the Kernighan-Lin figure from the same
+starting split, with modularity in the note lines, and
+`spectral_modularity_bipartition` draws the result alone on the same two
+squares, sides as g2 / g3 hulls like `spectral_bisection`.
+
+The partition scores follow `modularity` (the partition you pass in g2 / g3,
+the score in accent): `constant_potts_model` on CMTY at resolution 0.5, its
+card giving E_c − γ n_c² / 2 per community; `overlapping_modularity` on the
+bowtie (two triangles sharing C), whose hulls overlap at C, which stays ink;
+and `bipartite_modularity` on its docstring's customers and products, drawn
+with node_metrics_local.two_rows, each term L_c / m − k_c d_c / m².
 """
 
 from core import SIZE_NOTE, Box, Scene, compute, figure, place, transform
@@ -834,3 +845,143 @@ def lukes_partitioning(s: Scene) -> None:
                edge_kw={("C", "D"): {"style": "removed"}})
     s.card_centered(right, [("{A, B, C}", "accent"), ("{D, E, F}", "g2"),
                             "kept  4 of 5 edges"], title="clusters, max_size 3")
+
+
+# --- later additions: modularity bipartitions -----------------------------------
+#
+# Both reuse SQUARES. greedy_node_swap_bipartition starts from KL_START, like
+# kernighan_lin_bisection, and reports modularity instead of the cut size.
+
+
+@figure("greedy_node_swap_bipartition", "communities", "Greedy node-swap bipartition",
+        "Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E "
+        "and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H "
+        "(violet), cuts 8 edges, in the accent color, and has modularity -0.167. Right, after "
+        "moving the nodes that raise modularity most, the halves are A, B, C, D and E, F, G, "
+        "H, with only D to E and C to F cut and a modularity of 0.333.")
+def greedy_node_swap_bipartition(s: Scene) -> None:
+    g = _ec_graph(SQUARES, SQUARES_EDGES)
+    start_q = g.modularity([list(p) for p in KL_START])
+    a, b = g.greedy_node_swap_bipartition(init_split=KL_START)
+    sides = [sorted(g.get_label_from_id(n) for n in part) for part in (a, b)]
+    q = g.modularity([list(a), list(b)])
+    assert sides == TWO_GROUPS and (round(start_q, 3), round(q, 3)) == (-0.167, 0.333)
+    left, right = transform(s, 'p = (list("ABEF"), list("CDGH"))',
+                            "g.greedy_node_swap_bipartition(p)")
+    _sides(s, left, KL_START, "start: modularity −0.167", "ink", hulls=False, prefix="l.")
+    _sides(s, right, sides, "result: modularity 0.333", "accent", hulls=True, prefix="r.")
+
+
+@figure("spectral_modularity_bipartition", "communities", "Spectral modularity bipartition",
+        "Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E "
+        "and C to F. Splitting the nodes by the sign of their entries in the leading "
+        "eigenvector of the modularity matrix gives A, B, C, D (teal) and E, F, G, H "
+        "(violet), cutting only the two accent edges. The card lists both sides as id sets "
+        "and the split's modularity, 0.333.")
+def spectral_modularity_bipartition(s: Scene) -> None:
+    g = _ec_graph(SQUARES, SQUARES_EDGES)
+    a, b = g.spectral_modularity_bipartition()
+    sides = [sorted(g.get_label_from_id(n) for n in part) for part in (a, b)]
+    q = g.modularity([list(a), list(b)])
+    assert sides == TWO_GROUPS and (sorted(a), sorted(b)) == ([1, 2, 3, 4], [5, 6, 7, 8])
+    assert round(q, 3) == 0.333
+    left, right = compute(s, "g", "g.spectral_modularity_bipartition()")
+    _sides(s, left, sides, "sign of the leading eigenvector", "ink", hulls=True, prefix="")
+    s.card_centered(right, [("{1, 2, 3, 4}  A, B, C, D", "g2"), ("{5, 6, 7, 8}  E, F, G, H", "g3"),
+                            ("cut  D–E, C–F", "accent"), "modularity  0.333"],
+                    title="(negative, non-negative side)")
+
+
+# --- later additions: more partition scores --------------------------------------
+
+
+@figure("constant_potts_model", "communities", "Constant Potts Model",
+        "The two-cluster graph, split into the partition you pass: A, B, C (teal) and D, E, "
+        "F, G (violet). At resolution 0.5 each community scores its edges minus 0.5 for "
+        "every pair of its nodes, counted as n squared over 2: 3 - 0.5 x 9/2 = 0.75 and "
+        "5 - 0.5 x 16/2 = 1.00. The card adds them to a CPM score of 1.75.")
+def constant_potts_model(s: Scene) -> None:
+    g = _ec_graph(CMTY, CMTY_EDGES)
+    p = [list("ABC"), list("DEFG")]
+    assert g.constant_potts_model(p, resolution=0.5) == 1.75
+    left, right = compute(s, 'g,  p = [list("ABC"), list("DEFG")]',
+                          "g.constant_potts_model(p, resolution=0.5)")
+    pos = place(CMTY, left, unit=UNIT)
+    grp = {**dict.fromkeys("ABC", "g2"), **dict.fromkeys("DEFG", "g3")}
+    s.graph(pos, [(a, b, {"style": grp[a]}) if grp[a] == grp[b] else (a, b)
+                  for a, b in CMTY_EDGES], styles=grp)
+    s.hull(list("ABC"), "g2")
+    s.hull(list("DEFG"), "g3")
+    s.card_centered(right, [("ABC   3 − 0.5 · 9/2  = 0.75", "g2"),
+                            ("DEFG  5 − 0.5 · 16/2 = 1.00", "g3"),
+                            ("CPM   1.75", "accent")], title="E − γ n² / 2,  γ = 0.5")
+
+
+# The is_cover / overlapping_modularity docstring bowtie: triangles A, B, C and C, D, E.
+BOWTIE = {"A": (0, 0), "B": (0, 1.2), "C": (1, 0.6), "D": (2, 0), "E": (2, 1.2)}
+BOWTIE_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "E"), ("C", "E")]
+
+
+@figure("overlapping_modularity", "communities", "Overlapping modularity",
+        "Two triangles, A, B, C and C, D, E, sharing node C, with the cover you pass: A, B, C "
+        "(teal) and C, D, E (violet), overlapping at C. C is in two communities, so its "
+        "edges and degree count one half in each: each community scores 2/6 - (6/12)² = "
+        "0.083, for an extended modularity of 0.167. Forcing C into one group gives a "
+        "modularity of only 0.111.")
+def overlapping_modularity(s: Scene) -> None:
+    g = _ec_graph(BOWTIE, BOWTIE_EDGES)
+    eq = g.overlapping_modularity([list("ABC"), list("CDE")])
+    q = g.modularity([list("ABC"), list("DE")])
+    assert (round(eq, 3), round(q, 3)) == (0.167, 0.111)
+    left, right = compute(s, 'g,  c = [list("ABC"), list("CDE")]',
+                          "g.overlapping_modularity(c)")
+    grp = {**dict.fromkeys("AB", "g2"), **dict.fromkeys("DE", "g3")}
+    side = {**grp, "C": "both"}
+
+    def style(a, b):
+        cols = {side[a], side[b]} - {"both"}
+        return {"style": cols.pop()} if len(cols) == 1 else {}
+
+    s.graph(place(BOWTIE, left, unit=UNIT), [(a, b, style(a, b)) for a, b in BOWTIE_EDGES],
+            styles=grp)
+    s.hull(list("ABC"), "g2")
+    s.hull(list("CDE"), "g3")
+    s.card_centered(right, [("ABC  2/6 − (6/12)² = 0.083", "g2"),
+                            ("CDE  2/6 − (6/12)² = 0.083", "g3"),
+                            ("EQ   0.167", "accent"), "C in one group: Q 0.111"],
+                    title="C counts ½ in each community")
+
+
+# bipartite_modularity docstring: customers and the products they buy.
+CUSTOMERS = ["Ann", "Bob", "Cy", "Dee"]
+PRODUCTS = ["tea", "jam", "nails", "glue"]
+BUYS = [("Ann", "tea"), ("Ann", "jam"), ("Bob", "tea"), ("Bob", "jam"), ("Cy", "nails"),
+        ("Cy", "glue"), ("Dee", "glue"), ("Bob", "glue")]
+SPLIT = [["Ann", "Bob", "tea", "jam"], ["Cy", "Dee", "nails", "glue"]]
+
+
+@figure("bipartite_modularity", "communities", "Bipartite modularity",
+        "Customers Ann, Bob, Cy and Dee on top and the products tea, jam, nails and glue below, "
+        "split into the partition you pass: Ann, Bob, tea and jam (teal) and Cy, Dee, nails "
+        "and glue (violet). Only Bob to glue crosses. The null model only joins customers to "
+        "products: each community scores its share of the 8 edges minus its customer "
+        "degrees times its product degrees over 8², 4/8 - 5 x 4/64 and 3/8 - 3 x 4/64, "
+        "0.1875 each, for a bipartite "
+        "modularity of 0.375.")
+def bipartite_modularity(s: Scene) -> None:
+    from figures.node_metrics_local import two_rows
+
+    g = _ec_graph(CUSTOMERS + PRODUCTS, BUYS)
+    q = g.bipartite_modularity(SPLIT, top_nodes=CUSTOMERS)
+    assert round(q, 4) == 0.375
+    left, right = compute(s, "g,  p (the two hulls),  c = customers",
+                          "g.bipartite_modularity(p, top_nodes=c)")
+    grp = {**dict.fromkeys(SPLIT[0], "g2"), **dict.fromkeys(SPLIT[1], "g3")}
+    two_rows(s, left, CUSTOMERS, PRODUCTS,
+             [(a, b, {"style": grp[a]}) if grp[a] == grp[b] else (a, b) for a, b in BUYS],
+             styles=grp)
+    s.hull(SPLIT[0], "g2")
+    s.hull(SPLIT[1], "g3")
+    s.card_centered(right, [("AB  4/8 − 5 · 4/64 = 0.1875", "g2"),
+                            ("CD  3/8 − 3 · 4/64 = 0.1875", "g3"),
+                            ("Q_B  0.375", "accent")], title="L/m − k d / m²,  m = 8")

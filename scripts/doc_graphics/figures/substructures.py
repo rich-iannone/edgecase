@@ -50,6 +50,8 @@ labels as badges.
 largest_common_subgraph splits the input panel like subgraph_isomorphisms
 (square and paw, each captioned) with the first match accent in both;
 automorphism_cosets colors node 1 and its coset accent, node 2's coset g2.
+planar_faces tints each inner face of its docstring square-with-diagonal in
+its card color (accent, g2) and traces the outer face as a dashed g3 outline.
 """
 
 from core import (
@@ -1751,3 +1753,37 @@ def automorphism_cosets(s: Scene) -> None:
     s.card_centered(right, [(f"{k}  [{', '.join(map(str, v))}]", colors.get(k, "ink"))
                             for k, v in cosets.items()]
                     + ["4 × 2 × 1 × 1 = 8"], title="node  coset")
+
+
+# planar_faces docstring: a square A, B, C, D with the diagonal A-C. Each inner face
+# is tinted with its card color; the outer face runs around the outside, dashed.
+FACE_SQ = {"A": (0, 0), "B": (1.5, 0), "C": (1.5, 1.5), "D": (0, 1.5)}
+FACE_SQ_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
+
+
+@figure("planar_faces", "substructures", "Planar faces",
+        "A square A, B, C, D split by the diagonal A to C, drawn in the plane without "
+        "crossings. Its embedding has three faces: the triangle A, B, C (tinted in the accent "
+        "color), the triangle A, C, D (tinted teal), and the outer face, the region around "
+        "the whole drawing, bounded by A, D, C, B (the dashed violet outline). The card lists "
+        "each face as the cycle of nodes around it.")
+def planar_faces(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(FACE_SQ)).add_edges(FACE_SQ_EDGES)
+    faces = [[g.get_label_from_id(n) for n in f] for f in g.planar_faces()]
+    assert faces == [["A", "B", "C"], ["A", "C", "D"], ["A", "D", "C", "B"]]
+    left, right = compute(s, "g", "g.planar_faces()")
+    pos = place(FACE_SQ, Box(left.x0, left.y0 + 6, left.x1, left.y1 - 6), unit=UNIT)
+    for face, color in zip(faces[:2], ("accent", "g2")):
+        d = "M" + " L".join(f"{pos[k][0]:.1f},{pos[k][1]:.1f}" for k in face) + " Z"
+        s.path(d, color=color, fill="color", fill_opacity=0.16, opacity=0)
+    (x0, y0), (x1, y1) = pos["A"], pos["C"]
+    m = 26
+    s.path(f"M{x0 - m:.1f},{y0 - m:.1f} H{x1 + m:.1f} V{y1 + m:.1f} H{x0 - m:.1f} Z",
+           color="g3", dash="5 4")
+    s.graph(pos, FACE_SQ_EDGES)
+    s.card_centered(right, [(f"[{', '.join(str(g.get_id_from_label(k)) for k in f)}]".ljust(14)
+                             + ", ".join(f), c)
+                            for f, c in zip(faces, ("accent", "g2", "g3"))],
+                    title="face  (node IDs, labels)")

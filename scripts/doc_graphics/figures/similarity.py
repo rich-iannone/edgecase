@@ -38,6 +38,8 @@ The random-path methods follow their docstrings too: panther_similarity draws
 two bridged triangles with the source `soft` and its top-k nodes accent with
 score badges; generate_random_paths uses `multiples`, one 6-cycle per sampled
 path in accent / g2 / g3 with filled badges for the path positions.
+panther_vector_similarity reuses the bridged triangles to show that it ranks
+by structural role instead: the accent top-k are the nodes placed like a.
 """
 
 from core import (
@@ -805,6 +807,30 @@ def panther_similarity(s: Scene) -> None:
         s.badge(k, f"{v:.3f}", where="auto" if k == "b" else "n", filled=True)
     s.card_centered(right, [(f"{i}  {k}  {v:.3f}", "accent")
                             for i, (k, v) in enumerate(got.items(), 1)],
+                    w=CARD_W, title="top k = 3 similar to a")
+
+
+@figure("panther_vector_similarity", "similarity", "Panther vector similarity",
+        "The same two triangles joined by the bridge c to x, with source a outlined. Panther++ "
+        "describes each node by its top random-path similarities, sorted, and compares those "
+        "profiles, so it finds nodes in the same structural position rather than nearby "
+        "ones. The k = 3 most similar nodes, in the accent color with their scores as "
+        "badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the "
+        "bridge. panther_similarity instead ranks c, b and x, a's neighbors.")
+def panther_vector_similarity(s: Scene) -> None:
+    g = _link_graph(list(TWIN), TWIN_EDGES)
+    got = {g.get_label_from_id(n): round(v, 3)
+           for n, v in g.panther_vector_similarity("a", D=4, k=3, eps=0.05, seed=1).items()}
+    assert got == {"b": 1.0, "y": 1.0, "z": 1.0}
+    left, right = compute(s, "g,  kw = dict(D=4, k=3, eps=0.05, seed=1)",
+                          'g.panther_vector_similarity("a", **kw)')
+    s.graph(place(TWIN, left, unit=UNIT), TWIN_EDGES,
+            styles={"a": "soft"} | dict.fromkeys(got, "accent"))
+    for k, v in got.items():
+        s.badge(k, f"{v:.2f}", where="auto", filled=True)
+    s.card_centered(right, [(f"{i}  {k}  {v:.2f}", "accent")
+                            for i, (k, v) in enumerate(got.items(), 1)]
+                    + ["like a: triangle corners", "away from the bridge"],
                     w=CARD_W, title="top k = 3 similar to a")
 
 
