@@ -8853,6 +8853,8 @@ class Graph:
         """
         Add a generalized Petersen graph GP(n, k) to the current graph.
 
+        ![Generalized Petersen graph](/assets/graphs/add-generalized-petersen-graph.light.svg){.lightbox fig-alt="Three generalized Petersen graphs GP(n, k), each an outer cycle of n nodes joined by spokes to n inner nodes, where inner node i links to inner node i + k (inner edges in the accent color). n=6, k=1 gives the hexagonal prism; n=5, k=2 the Petersen graph, its inner nodes a five-pointed star; n=8, k=3 the Moebius-Kantor graph. Every node has exactly three neighbors." width="100%"}
+
         The generalized Petersen graph GP(n, k) (Coxeter, 1950; named by Watkins, 1969) has an
         outer cycle `u_0, ..., u_{n-1}`, an inner "star polygon" in which each `v_i` is joined to
         `v_{(i + k) mod n}`, and a spoke from every `u_i` to `v_i`. The Petersen graph is
@@ -15759,6 +15761,8 @@ class Graph:
         """
         Check whether a degree sequence is the degree sequence of some tree.
 
+        ![Is valid tree degree sequence](/assets/graphs/is-valid-tree-degree-sequence.light.svg){.lightbox fig-alt="Each side draws a graph with the degree sequence passed in, its degrees as badges. Left: [3, 1, 1, 1] has every degree positive and sums to 6 = 2(n - 1) for n = 4 nodes, so it is realized by a tree, the star, and the method returns True. Right: [2, 2, 2, 2] sums to 8, more than the 6 a tree on four nodes has; its graphs need an extra edge, closing a cycle (the edge in the accent color), so the method returns False." width="100%"}
+
         A list of degrees belongs to a tree exactly when two conditions hold: the degrees sum
         to `2 * (n - 1)`, since a tree on `n` nodes has `n - 1` edges and each edge adds 2 to
         the sum, and every degree is positive, since a tree with more than one node has no
@@ -18733,6 +18737,8 @@ class Graph:
         r"""
         Count the butterflies each node of a bipartite graph belongs to.
 
+        ![Butterflies](/assets/graphs/butterflies.light.svg){.lightbox fig-alt="Shoppers ann, bob and cy on top and the products tea, jam and oat below. A butterfly is a 4-cycle, two shoppers who both bought the same two products: ann and bob with tea and jam, and bob and cy with jam and oat. Nodes are shaded by how many butterflies they belong to; bob and jam, in the accent color, are in both and count 2, every other node counts 1." width="100%"}
+
         A *butterfly* is a complete bipartite $K_{2,2}$: two nodes on each side with all four
         edges between them, which is a 4-cycle. It is the bipartite counterpart of a triangle
         (a bipartite graph has no triangles), so butterfly counts play the role that triangle
@@ -20200,6 +20206,8 @@ class Graph:
     def planar_faces(self) -> list[list[int]]:
         """
         List the faces of a planar embedding of the graph.
+
+        ![Planar faces](/assets/graphs/planar-faces.light.svg){.lightbox fig-alt="A square A, B, C, D split by the diagonal A to C, drawn in the plane without crossings. Its embedding has three faces: the triangle A, B, C (tinted in the accent color), the triangle A, C, D (tinted teal), and the outer face, the region around the whole drawing, bounded by A, D, C, B (the dashed violet outline). The card lists each face as the cycle of nodes around it." width="100%"}
 
         A crossing-free drawing of a planar graph cuts the plane into regions, its *faces*,
         one of them the unbounded outer face. Each face is described by the walk of nodes
@@ -28215,6 +28223,8 @@ class Graph:
         r"""
         Find the nodes most similar to a source node by comparing their Panther profiles.
 
+        ![Panther vector similarity](/assets/graphs/panther-vector-similarity.light.svg){.lightbox fig-alt="The same two triangles joined by the bridge c to x, with source a outlined. Panther++ describes each node by its top random-path similarities, sorted, and compares those profiles, so it finds nodes in the same structural position rather than nearby ones. The k = 3 most similar nodes, in the accent color with their scores as badges, are b, y and z, all 1.00: like a, each sits on a triangle away from the bridge. panther_similarity instead ranks c, b and x, a's neighbors." width="100%"}
+
         Panther++ (Zhang et al., 2015) extends `panther_similarity()`: instead of asking how
         often two nodes share random paths, it gives every node a feature vector of its `D`
         largest Panther scores (against any node, itself included) and compares those vectors.
@@ -29920,6 +29930,8 @@ class Graph:
     def is_perfect_graph(self) -> bool:
         r"""
         Check if an undirected graph is perfect.
+
+        ![Is perfect graph](/assets/graphs/is-perfect-graph.light.svg){.lightbox fig-alt="Left: the house, a cycle of five nodes A, B, C, D, E with the chord B to E, which splits it into a triangle and a square; it has no odd hole and no odd antihole, so is_perfect_graph() returns True. Right: the five-cycle without the chord (the dashed edge) is itself an odd hole, a chordless cycle of length 5 (in the accent color), so is_perfect_graph() returns False." width="100%"}
 
         A graph is *perfect* when, in it and in every induced subgraph, the chromatic number
         equals the size of the largest clique: the only thing forcing extra colors is a clique
@@ -33821,6 +33833,8 @@ class Graph:
         """
         Score a partition of the nodes by the Constant Potts Model.
 
+        ![Constant Potts Model](/assets/graphs/constant-potts-model.light.svg){.lightbox fig-alt="The two-cluster graph, split into the partition you pass: A, B, C (teal) and D, E, F, G (violet). At resolution 0.5 each community scores its edges minus 0.5 for every pair of its nodes, counted as n squared over 2: 3 - 0.5 x 9/2 = 0.75 and 5 - 0.5 x 16/2 = 1.00. The card adds them to a CPM score of 1.75." width="100%"}
+
         The Constant Potts Model (CPM; Traag, Van Dooren & Nesterov, 2011) rewards edges
         inside communities and charges a fixed price, the resolution `γ`, for every pair of
         nodes placed in the same community. For an undirected graph,
@@ -33934,6 +33948,8 @@ class Graph:
         """
         Check whether a collection of node groups covers every node.
 
+        ![Is cover](/assets/graphs/is-cover.light.svg){.lightbox fig-alt="Two triangles, A, B, C and C, D, E, sharing node C. Left: the groups A, B, C (teal) and C, D, E (violet) overlap at C and between them contain every node, so is_cover() returns True. Right: the groups A, B, C and C, D leave E out (in the accent color), so is_cover() returns False." width="100%"}
+
         A *cover* is a collection of node groups such that every node belongs to at least one
         group. Unlike a partition, the groups may overlap, as in the output of
         `cmty_k_clique()` or other overlapping community methods. Use this to check a
@@ -33985,6 +34001,8 @@ class Graph:
     def overlapping_modularity(self, communities, resolution: float = 1.0) -> float:
         """
         Score an overlapping cover of the nodes by Shen et al.'s extended modularity.
+
+        ![Overlapping modularity](/assets/graphs/overlapping-modularity.light.svg){.lightbox fig-alt="Two triangles, A, B, C and C, D, E, sharing node C, with the cover you pass: A, B, C (teal) and C, D, E (violet), overlapping at C. C is in two communities, so its edges and degree count one half in each: each community scores 2/6 - (6/12)² = 0.083, for an extended modularity of 0.167. Forcing C into one group gives a modularity of only 0.111." width="100%"}
 
         Modularity (see `modularity()`) needs each node in exactly one community. Extended
         modularity (Shen, Cheng, Cai & Hu, 2009) allows overlapping communities by sharing out
@@ -34069,6 +34087,8 @@ class Graph:
     ) -> float:
         """
         Score a partition of a bipartite graph by Barber's bipartite modularity.
+
+        ![Bipartite modularity](/assets/graphs/bipartite-modularity.light.svg){.lightbox fig-alt="Customers Ann, Bob, Cy and Dee on top and the products tea, jam, nails and glue below, split into the partition you pass: Ann, Bob, tea and jam (teal) and Cy, Dee, nails and glue (violet). Only Bob to glue crosses. The null model only joins customers to products: each community scores its share of the 8 edges minus its customer degrees times its product degrees over 8², 4/8 - 5 x 4/64 and 3/8 - 3 x 4/64, 0.1875 each, for a bipartite modularity of 0.375." width="100%"}
 
         Ordinary modularity (see `modularity()`) compares a partition against random graphs
         in which any two nodes may be joined, which misjudges bipartite networks such as
@@ -34889,6 +34909,8 @@ class Graph:
         r"""
         Split the nodes into two communities by the leading eigenvector of the modularity matrix.
 
+        ![Spectral modularity bipartition](/assets/graphs/spectral-modularity-bipartition.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Splitting the nodes by the sign of their entries in the leading eigenvector of the modularity matrix gives A, B, C, D (teal) and E, F, G, H (violet), cutting only the two accent edges. The card lists both sides as id sets and the split's modularity, 0.333." width="100%"}
+
         Newman's (2006) spectral method: the eigenvector of the largest eigenvalue of the
         modularity matrix $B = A - k k^T / 2m$ points toward the split with the highest
         modularity, so nodes are divided by the sign of their entry. It is fast,
@@ -34958,6 +34980,8 @@ class Graph:
     ) -> tuple[set[int], set[int]]:
         r"""
         Split the nodes into two communities by greedily moving nodes to raise modularity.
+
+        ![Greedy node-swap bipartition](/assets/graphs/greedy-node-swap-bipartition.light.svg){.lightbox fig-alt="Two squares with a diagonal, A, B, C, D and E, F, G, H, joined by the edges D to E and C to F. Left, the starting split you pass, A, B, E, F (teal) against C, D, G, H (violet), cuts 8 edges, in the accent color, and has modularity -0.167. Right, after moving the nodes that raise modularity most, the halves are A, B, C, D and E, F, G, H, with only D to E and C to F cut and a modularity of 0.333." width="100%"}
 
         Starting from a split, each pass moves every node to the other side once, always
         choosing the move that raises modularity the most (or lowers it the least), and keeps
@@ -38465,6 +38489,8 @@ class Graph:
     def random_k_lift(self, k: int, seed: Optional[int] = None) -> "Graph":
         r"""
         Build a random k-lift of the graph.
+
+        ![Random k-lift](/assets/graphs/random-k-lift.light.svg){.lightbox fig-alt="Left: a triangle on A (accent color), B (teal) and C (violet). Right: a random 3-lift replaces each node with three copies, drawn in its color and labelled A0, A1, A2 and so on, and each edge with a random perfect matching between the copies of its ends, so every copy keeps one neighbor over each original edge. With seed 5 the lift is a single cycle through all nine copies: A0, B1, C1, A1, B2, C0, A2, B0, C2." width="100%"}
 
         A k-lift replaces every node `v` with `k` copies `(v, 0), ..., (v, k - 1)` and every
         edge `u - v` with a perfect matching between the copies of `u` and those of `v`: for a
@@ -56073,6 +56099,8 @@ class Graph:
         """
         Compute the width of a directed acyclic graph: the size of its largest antichain.
 
+        ![Antichain width](/assets/graphs/antichain-width.light.svg){.lightbox fig-alt="A DAG drawn left to right: A points to B, C and D; B and C both point to E, and D points to F. B, C and D, in the accent color, cannot reach one another, so they form an antichain of 3 nodes. No larger one exists, because three chains cover the graph, A to B to E, C alone, and D to F, and an antichain holds at most one node of each. The width is 3." width="100%"}
+
         An antichain is a set of nodes none of which can reach another along directed paths
         (see `antichains()`), and the width is the largest such set. In a task dependency
         graph it is the most tasks that can ever run at once, so it bounds the parallelism
@@ -69495,6 +69523,8 @@ class Graph:
         r"""
         Get the magnetic Laplacian matrix of a directed graph.
 
+        ![Magnetic Laplacian matrix](/assets/graphs/magnetic-laplacian-matrix.light.svg){.lightbox fig-alt="A directed triangle, A to B to C and back to A, and its 3 by 3 magnetic Laplacian at q = 0.25. Each arc gets a phase of a quarter turn, so the cell for A, B is -0.5i (accent) and its mirror B, A is the conjugate 0.5i (teal), and likewise around the cycle; the diagonal holds the degree 1. The matrix is Hermitian and records the direction of every arc." width="100%"}
+
         The magnetic Laplacian (Fanuel et al., 2018) encodes edge direction as a complex phase,
         like the potential of a magnetic field acting on a charged particle walking the graph.
         A one-way edge $j \to k$ contributes $e^{2\pi i q}$ to entry $(j, k)$ and its conjugate
@@ -69901,6 +69931,8 @@ class Graph:
     ) -> list[float]:
         r"""
         Get the eigenvalues of the magnetic Laplacian of a directed graph.
+
+        ![Magnetic spectrum](/assets/graphs/magnetic-spectrum.light.svg){.lightbox fig-alt="A directed triangle, A to B to C and back to A, and a bar chart of the three eigenvalues of its magnetic Laplacian at q = 0.25 in increasing order: 0.134, 1.000 and 1.866. The smallest, in the accent color, stays above 0 because the cycle's direction cannot be undone; ignoring direction (q = 0) gives 0, 1.5 and 1.5." width="100%"}
 
         The eigenvalues of `magnetic_laplacian_matrix()`, in increasing order. They are real
         because the matrix is Hermitian, and non-negative. The smallest is `0` when the phases
@@ -70538,6 +70570,8 @@ class Graph:
     def get_hyper_wiener_index(self, weight: str | None = None) -> float:
         r"""
         Calculate the hyper-Wiener index of an undirected graph.
+
+        ![Hyper-Wiener index](/assets/graphs/get-hyper-wiener-index.light.svg){.lightbox fig-alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="100%"}
 
         The hyper-Wiener index (Randić, 1993) refines the Wiener index by also summing squared
         distances, so far-apart pairs weigh more heavily:
