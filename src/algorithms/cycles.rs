@@ -8,6 +8,7 @@
 //! - `find_cycles`: Legacy function for finding cycles in directed graphs (Johnson's algorithm)
 //! - `directed_cycle_basis`: Find a fundamental cycle basis of a directed graph
 //! - `has_cycle`: Check if a graph contains any cycle
+//! - `feedback_edge_set`: Find a minimum-weight set of edges whose removal breaks every cycle
 
 use crate::graph::Graph;
 use pyo3::prelude::*;
@@ -1696,4 +1697,150 @@ mod tests {
             }
         }
     }
+}
+
+/// Edge IDs of a minimum-weight feedback edge set: edges whose removal leaves no cycle.
+///
+/// Undirected graphs: the complement of a maximum spanning forest (Kruskal, heaviest first,
+/// ties by edge ID), which is exact. Directed graphs: the local-ratio algorithm of Demetrescu
+/// and Finocchi (2003) — find a cycle, lower every residual weight on it by the cycle's
+/// minimum, remove the edges that reach zero, repeat — followed by putting removed edges
+/// back, heaviest first, whenever that closes no cycle. Weights must be non-negative.
+#[pyfunction]
+#[pyo3(signature = (graph, weighted=true))]
+pub fn feedback_edge_set(graph: &Graph, weighted: bool) -> PyResult<Vec<u64>> {
+    let nodes = graph.get_node_ids();
+    let idx: FxHashMap<u64, usize> = nodes.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+    let mut edges: Vec<(u64, usize, usize, f64)> = Vec::new();
+    for e in graph.get_edges_internal() {
+        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        if w.is_nan() || w < 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "feedback_edge_set() requires non-negative edge weights",
+            ));
+        }
+        edges.push((e.id, idx[&e.source], idx[&e.target], w));
+    }
+    edges.sort_unstable_by_key(|e| e.0);
+    let n = nodes.len();
+    let mut out = if graph.is_directed() {
+        directed_feedback(n, &edges)
+    } else {
+        let mut order: Vec<usize> = (0..edges.len()).collect();
+        order.sort_by(|&a, &b| edges[b].3.total_cmp(&edges[a].3).then(a.cmp(&b)));
+        let mut parent: Vec<usize> = (0..n).collect();
+        fn find(p: &mut [usize], mut x: usize) -> usize {
+            while p[x] != x {
+                p[x] = p[p[x]];
+                x = p[x];
+            }
+            x
+        }
+        let mut cut = Vec::new();
+        for e in order {
+            let (a, b) = (find(&mut parent, edges[e].1), find(&mut parent, edges[e].2));
+            if a == b {
+                cut.push(edges[e].0);
+            } else {
+                parent[a] = b;
+            }
+        }
+        cut
+    };
+    out.sort_unstable();
+    Ok(out)
+}
+
+/// A directed cycle among the live edges, as edge indices, or `None` if there is none.
+fn live_cycle(n: usize, adj: &[Vec<usize>], edges: &[(u64, usize, usize, f64)], live: &[bool])
+    -> Option<Vec<usize>> {
+    // 0 = unvisited, 1 = on the DFS stack, 2 = finished
+    let mut state = vec![0u8; n];
+    let mut via = vec![usize::MAX; n];
+    for root in 0..n {
+        if state[root] != 0 {
+            continue;
+        }
+        state[root] = 1;
+        let mut stack = vec![(root, 0usize)];
+        while let Some(&mut (v, ref mut i)) = stack.last_mut() {
+            if *i == adj[v].len() {
+                state[v] = 2;
+                stack.pop();
+                continue;
+            }
+            let e = adj[v][*i];
+            *i += 1;
+            if !live[e] {
+                continue;
+            }
+            let w = edges[e].2;
+            match state[w] {
+                0 => {
+                    state[w] = 1;
+                    via[w] = e;
+                    stack.push((w, 0));
+                }
+                1 => {
+                    let mut cycle = vec![e];
+                    let mut x = v;
+                    while x != w {
+                        cycle.push(via[x]);
+                        x = edges[via[x]].1;
+                    }
+                    return Some(cycle);
+                }
+                _ => {}
+            }
+        }
+    }
+    None
+}
+
+fn directed_feedback(n: usize, edges: &[(u64, usize, usize, f64)]) -> Vec<u64> {
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); n];
+    for (i, e) in edges.iter().enumerate() {
+        adj[e.1].push(i);
+    }
+    let mut live = vec![true; edges.len()];
+    let mut residual: Vec<f64> = edges.iter().map(|e| e.3).collect();
+    let mut removed = Vec::new();
+    while let Some(cycle) = live_cycle(n, &adj, edges, &live) {
+        let low = cycle.iter().map(|&e| residual[e]).fold(f64::INFINITY, f64::min);
+        for &e in &cycle {
+            residual[e] -= low;
+            if residual[e] <= 0.0 {
+                live[e] = false;
+                removed.push(e);
+            }
+        }
+    }
+    // Put edges back, heaviest first, where the target can't already reach the source.
+    removed.sort_by(|&a, &b| edges[b].3.total_cmp(&edges[a].3).then(a.cmp(&b)));
+    let mut seen = vec![usize::MAX; n];
+    let mut kept = Vec::new();
+    let mut queue = VecDeque::new();
+    for (round, &e) in removed.iter().enumerate() {
+        let (s, t) = (edges[e].1, edges[e].2);
+        let mut closes = s == t;
+        queue.clear();
+        queue.push_back(t);
+        seen[t] = round;
+        while let (false, Some(v)) = (closes, queue.pop_front()) {
+            for &f in &adj[v] {
+                let w = edges[f].2;
+                if live[f] && seen[w] != round {
+                    seen[w] = round;
+                    closes |= w == s;
+                    queue.push_back(w);
+                }
+            }
+        }
+        if closes {
+            kept.push(edges[e].0);
+        } else {
+            live[e] = true;
+        }
+    }
+    kept
 }
