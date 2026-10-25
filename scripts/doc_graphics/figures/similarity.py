@@ -21,8 +21,10 @@ and optimize_edit_paths uses `contrast` on its docstring star, roots `soft`.
 The isomorphism and hashing methods follow their docstring examples and use
 node-group colors for classes: find_isomorphism gives each matched pair one
 color (accent / g2 / g3) in both graphs and the card, the Weisfeiler-Lehman
-figures color nodes by hash class, and simrank_similarity draws its
-students and courses as two columns with names beside the nodes.
+figures color nodes by hash class, canonical_labeling puts each node's number
+in a filled badge (ends g2, middle accent) on both drawings of its path, and
+simrank_similarity draws its students and courses as two columns with names
+beside the nodes.
 
 The later link-prediction scores follow their docstring examples, each
 asserted with edgecase. common_neighbor_centrality scores the pairs of the
@@ -564,6 +566,55 @@ def find_isomorphism(s: Scene) -> None:
             styles={got[k]: c for k, c in colors.items()}, prefix="b.")
     s.card_centered(right, [(f"{k:<5}  →  {v}", colors[k]) for k, v in got.items()],
                     w=CARD_W, title="node of a → node of b")
+
+
+# canonical_labeling docstring: one path, labeled and drawn two ways.
+CANON_G = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
+CANON_G_EDGES = [("A", "B"), ("B", "C"), ("C", "D")]
+CANON_H = {"y": (0, 0), "w": (1.5, 0), "x": (0, 1.5), "z": (1.5, 1.5)}
+CANON_H_EDGES = [("y", "w"), ("x", "z"), ("w", "x")]
+
+
+@figure("canonical_labeling", "similarity", "Canonical labeling",
+        "Two drawings of a four-node path: g is the straight path A, B, C, D, and h is the "
+        "path y, w, x, z drawn as a Z. Each node carries its canonical number in a badge. "
+        "The ends get 0 and 1 (A and D, y and z, teal) and the middle nodes get 2 and 3 (B "
+        "and C, w and x, accent). Rewritten with these numbers, both graphs have the edges "
+        "0–2, 1–3 and 2–3, so the card shows the same canonical form for each, and equal is "
+        "True.")
+def canonical_labeling(s: Scene) -> None:
+    import edgecase as ec
+
+    def build(pos, edges):
+        g = ec.Graph().add_nodes(list(pos))
+        g.add_edges(edges)
+        return g
+
+    def form(g, number):
+        return sorted(tuple(sorted((number[e.source], number[e.target])))
+                      for e in map(g.get_edge, g.get_edge_ids(limit=None)))
+
+    g, h = build(CANON_G, CANON_G_EDGES), build(CANON_H, CANON_H_EDGES)
+    num = {}
+    for graph in (g, h):
+        number = graph.canonical_labeling()
+        num.update({graph.get_label_from_id(n): k for n, k in number.items()})
+        assert form(graph, number) == [(0, 2), (1, 3), (2, 3)]
+    assert num == {"A": 0, "B": 2, "C": 3, "D": 1, "w": 2, "x": 3, "y": 0, "z": 1}
+    left, right = compute(s, "g", "g.canonical_labeling()")
+    gbox, hbox = _halves(s, left, "g", "h")
+    colors = {k: "g2" if v < 2 else "accent" for k, v in num.items()}
+    s.graph(place(CANON_G, gbox, unit=UNIT * 0.75), CANON_G_EDGES,
+            styles={k: colors[k] for k in CANON_G}, prefix="g.")
+    s.graph(place(CANON_H, hbox, unit=UNIT * 0.9), CANON_H_EDGES,
+            styles={k: colors[k] for k in CANON_H}, prefix="h.")
+    for k, v in num.items():
+        where = "n" if k in CANON_G else {"y": "n", "w": "n", "x": "s", "z": "s"}[k]
+        s.badge(("g." if k in CANON_G else "h.") + k, str(v), where=where, filled=True,
+                color=colors[k])
+    edges = "  ".join(f"{a}–{b}" for a, b in form(g, g.canonical_labeling()))
+    s.card_centered(right, [f"g  {edges}", f"h  {edges}", ("equal  True", "accent")],
+                    w=CARD_W, title="edges, renumbered")
 
 
 # weisfeiler_lehman_graph_hash docstring: a triangle with a tail, relabeled.
