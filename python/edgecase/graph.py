@@ -21008,6 +21008,169 @@ class Graph:
             )
         return cosets
 
+    def canonical_labeling(
+        self,
+        node_attr: str | list[str] | None = None,
+        edge_attr: str | list[str] | None = None,
+    ) -> dict[int, int]:
+        r"""
+        Number the nodes so that isomorphic graphs, renumbered, become identical.
+
+        ![Canonical labeling](/assets/graphs/canonical-labeling.light.svg){.lightbox fig-alt="Two drawings of a four-node path: g is the straight path A, B, C, D, and h is the path y, w, x, z drawn as a Z. Each node carries its canonical number in a badge. The ends get 0 and 1 (A and D, y and z, teal) and the middle nodes get 2 and 3 (B and C, w and x, accent). Rewritten with these numbers, both graphs have the edges 0–2, 1–3 and 2–3, so the card shows the same canonical form for each, and equal is True." width="100%"}
+
+        A canonical labeling gives every node a number from 0 to $n - 1$ in a way that depends
+        only on the graph's structure: rewrite two graphs with their canonical numbers in place
+        of their nodes, and the results are equal exactly when the graphs are isomorphic. The
+        numbers do not depend on labels, IDs or the order in which nodes and edges were added,
+        and nodes the graph cannot tell apart (symmetric ones) are numbered consistently.
+
+        Canonical labelings are used to:
+
+        - deduplicate a large collection of graphs (molecules, circuits, patterns) by hashing a
+          canonical form, instead of testing every pair with `is_isomorphic()`
+        - store graphs under a canonical key, or compare a graph to a catalog
+        - number the atoms of a molecule reproducibly, as in chemical registry systems
+
+        Parameters
+        ----------
+        node_attr
+            Optional node attribute name, or list of names, whose values the numbering must
+            respect: an isomorphism then has to map nodes onto nodes with equal values (a missing
+            attribute counts as `None`).
+        edge_attr
+            Optional edge attribute name, or list of names, to respect in the same way for edges.
+
+        Returns
+        -------
+        dict[int, int]
+            For every node ID, in ID order, its canonical number.
+
+        See Also
+        --------
+        is_isomorphic : Decide isomorphism of two graphs directly.
+        automorphism_cosets : The graph's symmetries.
+        weisfeiler_lehman_graph_hash : A fast hash that isomorphic graphs share (but some
+            non-isomorphic graphs share it too).
+
+        Technical Notes
+        ---------------
+        The labeling comes from an individualization-refinement search, as in nauty (McKay and
+        Piperno, 2014). Color refinement (the 1-dimensional Weisfeiler-Leman algorithm) first
+        splits the nodes into the coarsest equitable partition of the attribute colors. Each
+        node of the search tree then picks the first smallest non-singleton cell, gives each of
+        its members in turn a cell of its own, and refines again; the leaves are discrete
+        partitions, that is, numberings. Every tree node carries an invariant (a hash of the
+        refinement trace), and the canonical leaf is the one with the largest sequence of
+        invariants on its path, ties broken by the largest graph rewritten under the numbering.
+        Two leaves with the same path and the same rewritten graph differ by an automorphism;
+        each one found prunes the search (the subtrees of nodes in the same orbit are equivalent,
+        and the search jumps back to the leaves' common ancestor), and cells of twins (nodes with
+        the same neighbors) are not branched on at all. A tree node whose partition is uniform
+        (every permutation within cells is a symmetry) also counts as a leaf. Edge direction,
+        parallel edges (their number and attributes), and self-loops all count.
+
+        This follows NetworkX pull request #8953 (not yet merged), with some differences. That
+        version compares numberings by their sorted undirected endpoint pairs, so it ignores
+        edge direction (and, without an `edge_attr` option, edge attributes); here both count.
+        It also explores the search tree level by level, deduplicating with isomorphism tests,
+        which grows quickly with the graph's symmetries, where this search prunes with the
+        automorphisms it finds. The numbers themselves depend on the details of the search, so
+        they differ from that version's (and from nauty's): only the property that isomorphic
+        graphs get identical canonical forms is guaranteed, and the numbers are stable from
+        one call to the next.
+
+        Examples
+        --------
+        Two drawings of the same path, with different labels and edges added in a different
+        order, get canonical numberings that turn both into the same graph:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        h = ec.Graph().add_nodes(["w", "x", "y", "z"])
+        h.add_edges([("y", "w"), ("x", "z"), ("w", "x")])
+
+
+        def canonical_form(graph):
+            number = graph.canonical_labeling()
+            return sorted(
+                tuple(sorted((number[e.source], number[e.target])))
+                for e in map(graph.get_edge, graph.get_edge_ids(limit=None))
+            )
+
+
+        canonical_form(g), canonical_form(g) == canonical_form(h)
+        ```
+
+        The numbering, by label: the two ends of the path, and the two middle nodes, are
+        numbered alike in both graphs.
+
+        ```{python}
+        def by_label(graph):
+            return {graph.get_label_from_id(n): k for n, k in graph.canonical_labeling().items()}
+
+
+        by_label(g), by_label(h)
+        ```
+
+        A six-node cycle and two triangles have the same degrees, and color refinement cannot
+        separate them, but their canonical forms differ:
+
+        ```{python}
+        hexagon = ec.Graph().add_cycle_graph(6)
+        two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
+
+        canonical_form(hexagon) == canonical_form(two_triangles)
+        ```
+        """
+
+        def names(spec):
+            if spec is None:
+                return []
+            return [spec] if isinstance(spec, str) else list(spec)
+
+        def key(value):
+            try:
+                hash(value)
+                return value
+            except TypeError:
+                return repr(value)
+
+        def ranks(ids, columns):
+            # Rank the distinct values by their repr, so the colors do not depend on the order
+            # in which values first appear
+            if not columns:
+                return {}
+            values = {i: tuple(key(c.get(i)) for c in columns) for i in ids}
+            distinct = {v: repr(v) for v in values.values()}
+            rank = {v: r for r, v in enumerate(sorted(distinct, key=distinct.__getitem__))}
+            return {i: rank[v] for i, v in values.items()}
+
+        node_colors = ranks(
+            self.get_node_ids(limit=None), [self.get_node_attrs(n) for n in names(node_attr)]
+        )
+        edge_colors = ranks(
+            self.get_edge_ids(limit=None), [self.get_edge_attrs_by_id(n) for n in names(edge_attr)]
+        )
+        labeling = dict(rust.canonical_labeling(self._graph, node_colors, edge_colors))
+        if self._recording_depth == 0:
+            n = len(labeling)
+            self._record_step(
+                KIND_QUERY,
+                "canonical_labeling",
+                "G.canonical_labeling()",
+                result=labeling,
+                narration=(
+                    f"canonical_labeling(): numbered {n} node{'s' if n != 1 else ''}"
+                    f"{f' 0 to {n - 1}' if n > 1 else ''}."
+                    if n
+                    else "canonical_labeling(): the graph is empty."
+                ),
+            )
+        return labeling
+
     def _record_occurrence_step(self, method: str, pattern: "Graph", found, value) -> None:
         delta = StepDelta()
         if found:
