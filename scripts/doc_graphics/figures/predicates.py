@@ -40,6 +40,9 @@ whose closing edge, the one a tree can't have, is `accent`. is_perfect_graph
 compares the house (a 5-cycle with one chord) with the bare 5-cycle, an odd
 hole in `accent` with the missing chord `ghost`. is_cover reuses the
 communities bowtie, its groups as g2 / g3 hulls; the uncovered node is `accent`.
+is_cograph rebuilds its docstring example: K2,3 with its two sides as g2 / g3
+hulls, and the same graph without a-z, where the induced path z-b-x-a is
+`accent` and the dropped edge `removed`.
 """
 
 
@@ -1143,6 +1146,36 @@ def is_complete_split_graph(s: Scene) -> None:
                 styles={"X": "soft", "Y": "soft", **({"C": "accent"} if missing else {})},
                 prefix=p)
         s.hull([p + "X", p + "Y"], "g2")
+
+
+# is_cograph: K2,3 is the join of the edgeless sets {a, b} and {x, y, z}; dropping a-z
+# leaves the induced path z-b-x-a.
+COGRAPH = {"a": (0.5, 0), "b": (1.5, 0), "x": (0, 1.3), "y": (1, 1.3), "z": (2, 1.3)}
+COGRAPH_EDGES = [(u, v) for u in "ab" for v in "xyz"]
+COGRAPH_P4 = {("b", "z"), ("b", "x"), ("a", "x")}
+
+
+@figure("is_cograph", "predicates", "Is cograph",
+        "Left: every node of a, b (shaded violet) is joined to every node of x, y, z (shaded "
+        "teal), the join of two edgeless sets, so is_cograph() returns True. Right: without "
+        "the edge a-z, drawn dashed, the nodes z, b, x, a form an induced path on four "
+        "nodes, in the accent color, so is_cograph() returns False.")
+def is_cograph(s: Scene) -> None:
+    g = _ec(COGRAPH, COGRAPH_EDGES)
+    assert g.is_cograph() is True
+    g.delete_edge("a", "z")
+    assert g.is_cograph() is False
+    left, right = contrast(s, "g.is_cograph()", "g.is_cograph()")
+    gb = _note(s, left, "join of {a, b} and {x, y, z}")
+    s.graph(place(COGRAPH, gb), COGRAPH_EDGES, prefix="l.")
+    s.hull(["l.a", "l.b"], "g3")
+    s.hull(["l.x", "l.y", "l.z"], "g2")
+    gb = _note(s, right, "induced path z-b-x-a")
+    s.graph(place(COGRAPH, gb),
+            [(a, b, {"style": "removed"}) if (a, b) == ("a", "z") else
+             (a, b, {"style": "accent"}) if (a, b) in COGRAPH_P4 else (a, b)
+             for a, b in COGRAPH_EDGES],
+            styles={k: "accent" for k in "abxz"}, prefix="r.")
 
 
 # is_valid_edge_coloring: a triangle A, B, C with a tail C-D, edges colored by number.
