@@ -2892,6 +2892,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Adamic-Adar index](/assets/graphs/adamic-adar-index.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; badges give C degree 3 and D degree 2. The card sums 1 over the log of each degree, 0.910 + 1.443, for an Adamic-Adar index of 2.353." width="100%"}
 ```
 
+### `canonical_labeling()` — Canonical labeling
+
+<img src="canonical-labeling.light.svg" alt="Two drawings of a four-node path: g is the straight path A, B, C, D, and h is the path y, w, x, z drawn as a Z. Each node carries its canonical number in a badge. The ends get 0 and 1 (A and D, y and z, teal) and the middle nodes get 2 and 3 (B and C, w and x, accent). Rewritten with these numbers, both graphs have the edges 0–2, 1–3 and 2–3, so the card shows the same canonical form for each, and equal is True." width="570">
+
+```markdown
+![Canonical labeling](/assets/graphs/canonical-labeling.light.svg){.lightbox fig-alt="Two drawings of a four-node path: g is the straight path A, B, C, D, and h is the path y, w, x, z drawn as a Z. Each node carries its canonical number in a badge. The ends get 0 and 1 (A and D, y and z, teal) and the middle nodes get 2 and 3 (B and C, w and x, accent). Rewritten with these numbers, both graphs have the edges 0–2, 1–3 and 2–3, so the card shows the same canonical form for each, and equal is True." width="100%"}
+```
+
 ### `cn_soundarajan_hopcroft()` — Common neighbors with community bonus
 
 <img src="cn-soundarajan-hopcroft.light.svg" alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). The candidate link A–D (dashed) has two common neighbors, both in the accent color. B shares the pair&#x27;s community, so it counts twice; C does not, so it counts once. The card adds 2 + 1 for a score of 3.0." width="570">
