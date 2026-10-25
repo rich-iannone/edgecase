@@ -5023,6 +5023,505 @@ def from_dict_of_lists(
     return _build_graph(nodes, edges, directed, False, graph_name, _code("from_dict_of_lists", d))
 
 
+# =============================================================================
+# Cypher
+# =============================================================================
+
+
+_CYPHER_TOKEN = re.compile(
+    r"""
+      (?P<space>\s+|//[^\n]*|/\*.*?\*/)
+    | (?P<name>[^\W\d]\w*)
+    | (?P<quoted>`(?:[^`]|``)*`)
+    | (?P<string>'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")
+    | (?P<number>(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)
+    | (?P<punct>[()\[\]{}:,;<>\-])
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+
+_CYPHER_ESCAPES = {"t": "\t", "b": "\b", "n": "\n", "r": "\r", "f": "\f", "'": "'", '"': '"',
+                   "\\": "\\"}
+
+
+class _CypherParser:
+    """A parser for the `CREATE` clauses of a Cypher script (nodes, relationships, properties)."""
+
+    def __init__(self, text: str, directed: bool):
+        self.text = text
+        self.directed = directed
+        self.tokens: list[tuple[str, Any, int]] = []
+        pos = 0
+        while pos < len(text):
+            m = _CYPHER_TOKEN.match(text, pos)
+            if m is None:
+                if text.startswith("/*", pos):
+                    self._fail("a comment that never ends", pos)
+                if text[pos] in "'\"`":
+                    self._fail(f"the quote {text[pos]} is never closed", pos)
+                self._fail(f"unexpected character {text[pos]!r}", pos)
+            kind = m.lastgroup
+            if kind != "space":
+                self.tokens.append((kind, m.group(), pos))
+            pos = m.end()
+        self.i = 0
+        # nodes: [variable or None, labels, properties, position]; edges: (s, t, type, props)
+        self.nodes: list[list] = []
+        self.variables: dict[str, int] = {}
+        self.edges: list[tuple[int, int, Optional[str], dict]] = []
+
+    def _fail(self, message: str, pos: Optional[int] = None):
+        if pos is None:
+            pos = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
+        line = self.text.count("\n", 0, pos) + 1
+        column = pos - (self.text.rfind("\n", 0, pos) + 1) + 1
+        raise ValueError(f"Cypher: {message} (line {line}, column {column})")
+
+    def _peek(self) -> Optional[str]:
+        """The next token's text (`None` at the end)."""
+        return self.tokens[self.i][1] if self.i < len(self.tokens) else None
+
+    def _at_name(self) -> bool:
+        return self.i < len(self.tokens) and self.tokens[self.i][0] in ("name", "quoted")
+
+    def _next(self, what: str) -> tuple[str, Any, int]:
+        if self.i >= len(self.tokens):
+            self._fail(f"expected {what}, but the text ended")
+        tok = self.tokens[self.i]
+        self.i += 1
+        return tok
+
+    def _expect(self, punct: str, what: Optional[str] = None) -> None:
+        tok = self._next(what or repr(punct))
+        if tok[1] != punct:
+            self.i -= 1
+            self._fail(f"expected {what or repr(punct)}, found {tok[1]!r}")
+
+    def _name(self, what: str) -> str:
+        kind, value, _ = self._next(what)
+        if kind == "name":
+            return value
+        if kind == "quoted":
+            return value[1:-1].replace("``", "`")
+        self.i -= 1
+        self._fail(f"expected {what}, found {value!r}")
+
+    def parse(self) -> None:
+        while self.i < len(self.tokens):
+            if self._peek() == ";":
+                self.i += 1
+                continue
+            kind, word, _ = self._next("CREATE")
+            if kind != "name" or word.upper() != "CREATE":
+                self.i -= 1
+                self._fail(f"only CREATE clauses can build a graph, found {word!r}")
+            self._pattern()
+            while self._peek() == ",":
+                self.i += 1
+                self._pattern()
+
+    def _pattern(self) -> None:
+        left = self._node()
+        while self._peek() in ("-", "<"):
+            start = self.tokens[self.i][2]
+            back = self._peek() == "<"
+            if back:
+                self.i += 1
+            self._expect("-", "'-' in a relationship")
+            rel_type, props = None, {}
+            if self._peek() == "[":
+                self.i += 1
+                if self._at_name():
+                    self._name("a relationship variable")
+                if self._peek() == ":":
+                    self.i += 1
+                    rel_type = self._name("a relationship type")
+                if self._peek() == "{":
+                    props = self._map()
+                self._expect("]")
+            self._expect("-", "'-' in a relationship")
+            forward = self._peek() == ">"
+            if forward:
+                self.i += 1
+            if back and forward:
+                self._fail("a relationship can't point both ways", start)
+            right = self._node()
+            if not back and not forward and self.directed:
+                self._fail(
+                    "a relationship needs a direction (-> or <-) in a directed graph; pass "
+                    "directed=False to read relationships without one",
+                    start,
+                )
+            s, t = (right, left) if back else (left, right)
+            self.edges.append((s, t, rel_type, props))
+            left = right
+
+    def _node(self) -> int:
+        start = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
+        self._expect("(", "'(' to start a node")
+        variable = self._name("a variable") if self._at_name() else None
+        labels = []
+        while self._peek() == ":":
+            self.i += 1
+            labels.append(self._name("a node label"))
+        props = self._map() if self._peek() == "{" else {}
+        self._expect(")", "')' to end the node")
+        if variable is not None and variable in self.variables:
+            if labels or props:
+                self._fail(f"the variable `{variable}` is already declared", start)
+            return self.variables[variable]
+        self.nodes.append([variable, labels, props, start])
+        if variable is not None:
+            self.variables[variable] = len(self.nodes) - 1
+        return len(self.nodes) - 1
+
+    def _map(self) -> dict:
+        self._expect("{")
+        out: dict = {}
+        if self._peek() == "}":
+            self.i += 1
+            return out
+        while True:
+            pos = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
+            key = self._name("a property name")
+            self._expect(":", "':' after the property name")
+            if key in out:
+                self._fail(f"the property {key!r} is given twice", pos)
+            out[key] = self._value()
+            if self._peek() == ",":
+                self.i += 1
+                continue
+            self._expect("}", "',' or '}' in the properties")
+            # `null` means no property, as in Neo4j
+            return {k: v for k, v in out.items() if v is not None}
+
+    def _value(self) -> Any:
+        kind, value, pos = self._next("a value")
+        if kind == "string":
+            return self._unquote(value, pos)
+        if kind == "number":
+            return float(value) if any(c in value for c in ".eE") else int(value)
+        if value == "-" and self._peek() is not None and self.tokens[self.i][0] == "number":
+            return -self._value()
+        if kind == "name" and value.lower() in ("true", "false", "null"):
+            return {"true": True, "false": False, "null": None}[value.lower()]
+        if value == "[":
+            items = []
+            if self._peek() == "]":
+                self.i += 1
+                return items
+            while True:
+                items.append(self._value())
+                if self._peek() == ",":
+                    self.i += 1
+                    continue
+                self._expect("]", "',' or ']' in the list")
+                return items
+        if value == "{":
+            self._fail("a property value can't be a map", pos)
+        self._fail(f"expected a value, found {value!r}", pos)
+
+    def _unquote(self, token: str, pos: int) -> str:
+        body, out, k = token[1:-1], [], 0
+        while k < len(body):
+            c = body[k]
+            if c != "\\":
+                out.append(c)
+                k += 1
+                continue
+            e = body[k + 1]
+            if e in _CYPHER_ESCAPES:
+                out.append(_CYPHER_ESCAPES[e])
+                k += 2
+            elif e in "uU":
+                width = 4 if e == "u" else 8
+                digits = body[k + 2:k + 2 + width]
+                if not re.fullmatch(r"[0-9a-fA-F]{%d}" % width, digits):
+                    self._fail(f"a bad \\{e} escape in a string", pos + 1 + k)
+                out.append(chr(int(digits, 16)))
+                k += 2 + width
+            else:
+                self._fail(f"an unknown escape \\{e} in a string", pos + 1 + k)
+        return "".join(out)
+
+
+def from_cypher(
+    source: Union[str, Path],
+    directed: bool = True,
+    label_key: Optional[str] = "name",
+    graph_name: Optional[str] = None,
+) -> Graph:
+    """
+    Create a graph from Cypher `CREATE` patterns.
+
+    Cypher is the query language of Neo4j, Memgraph and other graph databases, and its `CREATE`
+    clauses are a compact way to write a graph:
+
+    ```
+    CREATE (alice:Person {name: 'Alice', age: 31})-[:KNOWS {since: 2020}]->(bob:Person),
+           (bob)-[:KNOWS]->(carol:Person {name: 'Carol'})
+    ```
+
+    Each node pattern `(variable:Label {properties})` creates a node, and naming the variable again
+    (`(bob)`) refers back to it; relationships (`-[:TYPE {properties}]->` or `<-[...]-`) join the
+    nodes on either side, and patterns can be chained and separated by commas. The text can hold
+    any number of `CREATE` clauses and `;`-separated statements, with `//` and `/* */` comments.
+    Other clauses (`MATCH`, `MERGE`, `RETURN`, ...) raise an error, since they don't describe a
+    graph by themselves.
+
+    Cypher's names are mapped onto EdgeCase's as follows:
+
+    - a node's label (its unique name in EdgeCase) is its `label_key` property (`name` by
+      default), or else its variable; nodes with neither are labeled `n1`, `n2`, ... in order
+    - the Cypher labels of a node (`:Person`) go into its `type` attribute: a string for one
+      label, a list for several
+    - a relationship's type (`:KNOWS`) goes into the edge's `rel` attribute
+    - a numeric `weight` property becomes the edge weight (and the graph is then weighted)
+    - all other properties become attributes, with their values as strings, ints, floats,
+      bools or lists; `null` values are left out, as in Neo4j
+
+    Parameters
+    ----------
+    source
+        The Cypher text, or a `Path` to a file holding it (a string is always read as the text
+        itself, since a `CREATE` clause often fits on one line).
+    directed
+        Whether to create a directed graph (the default, since Cypher relationships have a
+        direction). With `False`, the directions are ignored, and relationships written without
+        one (`-[:R]-` or `--`) are allowed.
+    label_key
+        The property that gives node labels, or `None` to label nodes by their variables only.
+    graph_name
+        Name for the graph.
+
+    Returns
+    -------
+    Graph
+        A graph built as a single step.
+
+    Raises
+    ------
+    ValueError
+        If the text isn't valid `CREATE` Cypher; the message gives the line and column. Also if
+        a node has both Cypher labels and a `type` property, or a relationship has both a type
+        and a `rel` property, since both would go into the same attribute.
+
+    Notes
+    -----
+    A variable names one node throughout the text, while Neo4j forgets variables at the end of
+    each `;`-separated statement. When two nodes end up with the same label (two people with the
+    same name, say), every node is labeled by its variable (or `n1`, `n2`, ...) instead and the
+    `label_key` values are kept in a `name` attribute, with a warning.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.from_cypher(
+        "CREATE (a:Person {name: 'Alice'})-[:KNOWS {since: 2020}]->(b:Person {name: 'Bob'}),"
+        "       (b)-[:LIKES {weight: 0.5}]->(:Food {name: 'Pizza'})"
+    )
+
+    # Returns ['Alice->Bob', 'Bob->Pizza']
+    graph.get_edges_str_repr(use_labels=True)
+
+    # Returns {'type': 'Person'}
+    graph.get_node(graph.get_id_from_label("Alice")).attributes
+    ```
+
+    """
+    if isinstance(source, Path):
+        text = source.read_text(encoding="utf-8")
+    elif isinstance(source, bytes):
+        text = source.decode("utf-8")
+    elif isinstance(source, str):
+        text = source
+    else:
+        raise TypeError(f"source must be Cypher text or a Path, not {type(source).__name__}")
+
+    parser = _CypherParser(text, directed)
+    parser.parse()
+
+    taken = set(parser.variables)
+    for _, _, props, _ in parser.nodes:
+        if label_key is not None and label_key in props:
+            taken.add(str(props[label_key]))
+    counter = 0
+    nodes = []
+    for variable, labels, props, pos in parser.nodes:
+        key = variable
+        if key is None:
+            counter += 1
+            while f"n{counter}" in taken:
+                counter += 1
+            key = f"n{counter}"
+        attrs = dict(props)
+        label = None
+        if label_key is not None and label_key in attrs:
+            label = str(attrs.pop(label_key))
+        if labels:
+            if "type" in attrs:
+                parser._fail("a node has both labels and a 'type' property", pos)
+            attrs["type"] = labels[0] if len(labels) == 1 else labels
+        nodes.append((key, label, attrs))
+
+    weighted = False
+    edges = []
+    for s, t, rel_type, props in parser.edges:
+        attrs = dict(props)
+        if rel_type is not None:
+            if "rel" in attrs:
+                raise ValueError(
+                    f"Cypher: a relationship of type {rel_type!r} also has a 'rel' property"
+                )
+            attrs["rel"] = rel_type
+        weight = attrs.get("weight")
+        if isinstance(weight, (int, float)) and not isinstance(weight, bool):
+            weighted = True
+            weight = float(attrs.pop("weight"))
+        else:
+            weight = None
+        edges.append((nodes[s][0], nodes[t][0], weight, attrs))
+
+    return _build_graph(nodes, edges, directed, weighted, graph_name, _code("from_cypher", source))
+
+
+_CYPHER_NAME = re.compile(r"[A-Za-z_][A-Za-z0-9_]*")
+
+
+def _cypher_name(name: str) -> str:
+    """A name as written in Cypher: bare if it's a simple identifier, else in backticks."""
+    return name if _CYPHER_NAME.fullmatch(name) else "`" + name.replace("`", "``") + "`"
+
+
+def _cypher_value(value: Any, where: str) -> str:
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{where} is {value}, which Cypher can't write")
+        return repr(value).replace("e+", "e")
+    if isinstance(value, str):
+        out = value.replace("\\", "\\\\").replace("'", "\\'")
+        out = out.replace("\n", "\\n").replace("\r", "\\r").replace("\t", "\\t")
+        return f"'{out}'"
+    if isinstance(value, (list, tuple)):
+        if any(v is None for v in value):
+            raise ValueError(f"{where} is a list holding None, which Cypher can't store")
+        return "[" + ", ".join(_cypher_value(v, where) for v in value) + "]"
+    raise ValueError(
+        f"{where} is a {type(value).__name__}, which can't be a Cypher property (properties are "
+        "strings, numbers, booleans or lists of them)"
+    )
+
+
+def _cypher_map(props: dict, where: str) -> str:
+    items = [
+        f"{_cypher_name(str(k))}: {_cypher_value(v, f'{where} property {k!r}')}"
+        for k, v in props.items()
+        if v is not None
+    ]
+    return " {" + ", ".join(items) + "}" if items else ""
+
+
+def to_cypher(
+    graph: Graph,
+    filepath: Union[str, Path, None] = None,
+    label_key: str = "name",
+    default_rel: str = "RELATED_TO",
+) -> str:
+    """
+    Encode a graph as a Cypher `CREATE` statement.
+
+    The statement creates every node, then every edge, so running it in Neo4j, Memgraph or any
+    other Cypher database loads the graph. It's the reverse of `from_cypher()`, so the mapping is
+    the same:
+
+    - each node becomes `(nK:Type {name: 'label', ...})`, with variables `n1`, `n2`, ... in node
+      ID order, its label in the `label_key` property, and its `type` attribute (a string or a
+      list of strings) as its Cypher labels
+    - each edge becomes `(nI)-[:REL {...}]->(nJ)`, with its `rel` attribute as the relationship
+      type (`default_rel` if it has none) and its weight, if the graph is weighted, in a
+      `weight` property
+    - other attributes become properties; `None` values are left out
+
+    Cypher relationships always have a direction, so the edges of an undirected graph are
+    written from source to target; read them back with `from_cypher(..., directed=False)`.
+
+    Parameters
+    ----------
+    graph
+        The graph to encode.
+    filepath
+        If given, the statement is also written to this file.
+    label_key
+        The property that holds node labels.
+    default_rel
+        The relationship type for edges without a `rel` attribute (Cypher needs one for every
+        relationship).
+
+    Returns
+    -------
+    str
+        The `CREATE` statement, ending in `;` (an empty string for an empty graph).
+
+    Raises
+    ------
+    ValueError
+        If an attribute value can't be a Cypher property (a dict, say, or NaN), or a labeled
+        node also has a `label_key` attribute.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(directed=True).add_nodes([("A", {"type": "Person"}), "B"])
+    graph.add_edges([("A", "B")])
+
+    # Returns "CREATE\\n  (n1:Person {name: 'A'}),\\n  (n2 {name: 'B'}),\\n
+    #   (n1)-[:RELATED_TO]->(n2);\\n"
+    ec.to_cypher(graph)
+    ```
+
+    """
+    nodes = _nodes_of(graph)
+    if not nodes:
+        return _write_text([], filepath)
+    variable = {nid: f"n{k}" for k, (nid, _, _) in enumerate(nodes, 1)}
+    parts = []
+    for nid, label, attrs in nodes:
+        where = f"node {label if label is not None else nid!r}"
+        if label is not None and label_key in attrs:
+            raise ValueError(
+                f"The {where} has a {label_key!r} attribute as well as a label, and both would "
+                "be written to the same property; choose another label_key"
+            )
+        types = attrs.get("type")
+        labels = ""
+        if isinstance(types, str) or (
+            isinstance(types, (list, tuple)) and types and all(isinstance(t, str) for t in types)
+        ):
+            del attrs["type"]
+            labels = "".join(":" + _cypher_name(t) for t in ([types] if isinstance(types, str)
+                                                             else types))
+        props = ({label_key: label} if label is not None else {}) | attrs
+        parts.append(f"({variable[nid]}{labels}{_cypher_map(props, where)})")
+    weighted = graph.is_weighted()
+    for k, (source, target, weight, attrs) in enumerate(_edges_of(graph), 1):
+        rel = attrs.pop("rel", None)
+        rel = default_rel if rel is None else str(rel)
+        if weighted and weight is not None:
+            attrs = {"weight": weight} | attrs
+        props = _cypher_map(attrs, f"edge {k}")
+        parts.append(f"({variable[source]})-[:{_cypher_name(rel)}{props}]->({variable[target]})")
+    lines = ["CREATE"] + [f"  {p}," for p in parts[:-1]] + [f"  {parts[-1]};"]
+    return _write_text(lines, filepath)
+
+
 __all__ = [
     "from_matrix_market",
     "from_graphml",
@@ -5069,4 +5568,6 @@ __all__ = [
     "from_dict_of_dicts",
     "to_dict_of_lists",
     "from_dict_of_lists",
+    "to_cypher",
+    "from_cypher",
 ]
