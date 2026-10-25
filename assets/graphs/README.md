@@ -4252,6 +4252,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Minimum spanning tree](/assets/graphs/minimum-spanning-tree.light.svg){.lightbox fig-alt="A five-node weighted graph with edge weights 1 to 7. The minimum spanning tree edges A–C (1), B–D (2), C–D (3), and B–E (6) are in the accent color and connect every node; the other edges are faded. The card lists the four tree edges and their total weight, 1 + 2 + 3 + 6 = 12." width="100%"}
 ```
 
+### `modular_decomposition()` — Modular decomposition
+
+<img src="modular-decomposition.light.svg" alt="Left: a graph where the clique A, B, C, D is joined to E, E is joined to F, G and H, and those three are joined to I. Its two strong modules with several nodes are tinted: A, B, C, D in the accent color and F, G, H in teal. Right: the decomposition tree. The prime root M1 has four children: the series module M2 (accent) over A, B, C, D, the leaf E, the parallel module M3 (teal) over F, G, H, and the leaf I." width="570">
+
+```markdown
+![Modular decomposition](/assets/graphs/modular-decomposition.light.svg){.lightbox fig-alt="Left: a graph where the clique A, B, C, D is joined to E, E is joined to F, G and H, and those three are joined to I. Its two strong modules with several nodes are tinted: A, B, C, D in the accent color and F, G, H in teal. Right: the decomposition tree. The prime root M1 has four children: the series module M2 (accent) over A, B, C, D, the leaf E, the parallel module M3 (teal) over F, G, H, and the leaf I." width="100%"}
+```
+
 ### `motif_census()` — Motif census
 
 <img src="motif-census.light.svg" alt="Left: the seven-node graph from the dominating set figures, a pendant 1, triangle 2, 3, 4, a bridge 4–5, and triangle 5, 6, 7. Right: the two connected three-node motifs with their counts: 2 triangles and 6 induced paths, where a path is a triangle with its third edge missing (dashed)." width="570">
@@ -4542,6 +4550,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is chordal](/assets/graphs/is-chordal.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A to C, which splits it into two triangles, so every cycle of four or more nodes has a chord and is_chordal() returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown in the accent color) has no chord, so is_chordal() returns False." width="100%"}
+```
+
+### `is_cograph()` — Is cograph
+
+<img src="is-cograph.light.svg" alt="Left: every node of a, b (shaded violet) is joined to every node of x, y, z (shaded teal), the join of two edgeless sets, so is_cograph() returns True. Right: without the edge a-z, drawn dashed, the nodes z, b, x, a form an induced path on four nodes, in the accent color, so is_cograph() returns False." width="570">
+
+```markdown
+![Is cograph](/assets/graphs/is-cograph.light.svg){.lightbox fig-alt="Left: every node of a, b (shaded violet) is joined to every node of x, y, z (shaded teal), the join of two edgeless sets, so is_cograph() returns True. Right: without the edge a-z, drawn dashed, the nodes z, b, x, a form an induced path on four nodes, in the accent color, so is_cograph() returns False." width="100%"}
 ```
 
 ### `is_complete_split_graph()` — Is complete split graph
