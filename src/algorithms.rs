@@ -4,6 +4,7 @@ pub mod approximation;
 pub mod bipartite;
 pub mod branchings;
 pub mod bridges;
+pub mod canonical;
 pub mod centrality;
 pub mod centrality_extra;
 pub mod chordal;
