@@ -316,6 +316,30 @@ def add_edges_by_id(s: Scene) -> None:
         _node_ids(s, p, "BCD")
 
 
+FROM_EDGES = [("A", "B", 2), ("A", "C", 1), ("B", "D", 3), ("C", "D", 4)]
+
+
+@figure("from_edges", "mutation", "Graph from edges",
+        "Left: a card with the edge list, four (source, target, weight) tuples: A to B 2, A to "
+        "C 1, B to D 3 and C to D 4, and below it nodes equal to the list with E, in the "
+        "accent color. Right: the new weighted graph, a four-cycle A, B, D, C with each "
+        "weight on its edge, every endpoint made a node, and the isolated node E, which only "
+        "nodes= names, in the accent color beside it.")
+def from_edges(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph.from_edges(FROM_EDGES, nodes=["E"])
+    got = sorted((g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
+                 for e in map(g.get_edge, g.get_edge_ids(limit=None)))
+    assert got == [(a, b, float(w)) for a, b, w in FROM_EDGES] and g.count_nodes() == 5
+    left, right = transform(s, "edges", 'Graph.from_edges(edges, nodes=["E"])')
+    s.card_centered(left, [f'("{a}", "{b}", {w})' for a, b, w in FROM_EDGES]
+                    + [('nodes=["E"]', "accent")], title="edges")
+    coords = {**SQUARE, "E": (2.4, 0.5)}
+    s.graph(_place(coords, right), [(a, b, {"weight": str(w)}) for a, b, w in FROM_EDGES],
+            styles={"E": "accent"})
+
+
 # --- attribute setters -----------------------------------------------------------
 #
 # H layout, structure fixed. Values sit in ink badges (nodes) or edge labels;
