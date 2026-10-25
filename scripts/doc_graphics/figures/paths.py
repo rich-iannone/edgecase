@@ -58,7 +58,8 @@ Shared layouts keep siblings comparable:
   distance badges, and a node / pred / dist table. alt_heuristic labels a 6 x 6
   grid with its bounds, landmarks in g2. reachability_index shades the cycle
   A, B, C as one g3 component and fills the first hub D in g2, with the query
-  A -> F through it in accent.
+  A -> F through it in accent. minimum_feedback_edge_set draws the DEPS
+  dependency graph with the one edge to remove, C -> A, in accent.
 """
 
 import math
@@ -1306,3 +1307,29 @@ def reachability_index(s: Scene) -> None:
     s.card_centered(right, [("A, B, C: one component", "g3"), ("hub D: out(A), in(F)", "g2"),
                             ("index(A, F) → True", "accent"), "index(F, A) → False"],
                     title="5 components")
+
+
+# minimum_feedback_edge_set docstring: three dependency cycles, all through C -> A.
+DEPS = {"A": (0, 0.55), "B": (1, 0), "D": (2.2, 0), "E": (3.2, 0.55), "C": (1.6, 1.15)}
+DEPS_EDGES = [("A", "B"), ("B", "C"), ("B", "D"), ("D", "C"), ("D", "E"), ("E", "C")]
+
+
+@figure("minimum_feedback_edge_set", "paths", "Minimum feedback edge set",
+        "A directed dependency graph on A, B, C, D and E with three cycles, A to B to C, A to "
+        "B to D to C, and A to B to D to E to C, each closed by the edge from C back to A. "
+        "That edge, in the accent color, is the whole feedback edge set: removing it breaks "
+        "all three cycles, and the card lists it with the topological order of what is left, "
+        "A, B, D, E, C.")
+def minimum_feedback_edge_set(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(DEPS))
+    g.add_edges(DEPS_EDGES + [("C", "A")])
+    assert len(g.simple_cycles()) == 3
+    found = g.minimum_feedback_edge_set()
+    pairs = [g.get_node_ids_by_edge_id(e) for e in found]
+    assert [(g.get_label_from_id(a), g.get_label_from_id(b)) for a, b in pairs] == [("C", "A")]
+    left, right = compute(s, "g", "g.minimum_feedback_edge_set()")
+    s.graph(place(DEPS, left), DEPS_EDGES + [("C", "A", {"style": "accent"})], directed=True)
+    s.card_centered(right, [("C → A", "accent"), "breaks 3 cycles",
+                            "then a DAG: A, B, D, E, C"], title="edges to remove")
