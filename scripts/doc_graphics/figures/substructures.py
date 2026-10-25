@@ -42,6 +42,9 @@ find_induced_nodes draws the hypothetical edge s–t as a `ghost` arc.
 junction_tree is a `transform` from the student Bayesian network (its moral
 edge `ghost`, its cliques as hulls) to the clique/separator row, the clique
 nodes in their hull colors and every node's members written above it.
+modular_decomposition is a `transform` from its docstring graph (the series and
+parallel modules as accent and g2 hulls) to the tree in three rows, the
+internal nodes in their hull colors and labeled with their types.
 The ranked iterators show yielded order: iter_spanning_trees as a 2 x 4 grid
 of unlabeled miniatures with weights, iter_spanning_arborescences as a card.
 to/from_nested_tuple give each child subtree one group color, shared with its
@@ -648,6 +651,51 @@ def junction_tree(s: Scene) -> None:
     for k, (x, y) in pos.items():
         s.text(x, y - 30, "{" + ",".join(members[k]) + "}", size=SIZE_NOTE,
                color=colors.get(k, "ink"), opacity=1 if k in colors else 0.7)
+
+
+# The modular_decomposition docstring graph: the clique A–D, all joined to E, which is
+# joined to F, G, H, which are all joined to I.
+MODULAR = {"A": (0, 0), "B": (1, 0), "C": (0, 1.5), "D": (1, 1.5), "E": (2, 0.75),
+           "F": (3, 0), "G": (3, 0.75), "H": (3, 1.5), "I": (4, 0.75)}
+MODULAR_EDGES = ([(a, b) for a in "ABCD" for b in "ABCDE" if a < b]
+                 + [("E", x) for x in "FGH"] + [(x, "I") for x in "FGH"])
+
+
+@figure("modular_decomposition", "substructures", "Modular decomposition",
+        "Left: a graph where the clique A, B, C, D is joined to E, E is joined to F, G and "
+        "H, and those three are joined to I. Its two strong modules with several nodes are "
+        "tinted: A, B, C, D in the accent color and F, G, H in teal. Right: the "
+        "decomposition tree. The prime root M1 has four children: the series module M2 "
+        "(accent) over A, B, C, D, the leaf E, the parallel module M3 (teal) over F, G, H, "
+        "and the leaf I.")
+def modular_decomposition(s: Scene) -> None:
+    g = _ec_graph(list(MODULAR), MODULAR_EDGES)
+    tree = g.modular_decomposition()
+    attrs = {tree.get_label_from_id(n): tree.get_node(n).attributes
+             for n in tree.get_node_ids(limit=None)}
+    assert {k: (a["type"], a["nodes"]) for k, a in attrs.items() if a["type"] != "leaf"} == {
+        "M1": ("prime", list("ABCDEFGHI")), "M2": ("series", list("ABCD")),
+        "M3": ("parallel", list("FGH"))}
+    arcs = [tuple(e.split("->")) for e in tree.get_edges_str_repr(use_labels=True)]
+    assert arcs == [("M1", "M2"), ("M2", "A"), ("M2", "B"), ("M2", "C"), ("M2", "D"),
+                    ("M1", "E"), ("M1", "M3"), ("M3", "F"), ("M3", "G"), ("M3", "H"),
+                    ("M1", "I")]
+    left, right = transform(s, "g", "g.modular_decomposition()")
+    s.graph(place(MODULAR, left, unit=UNIT * 0.8), MODULAR_EDGES, prefix="l.",
+            styles={k: "accent" for k in "ABCD"} | {k: "g2" for k in "FGH"})
+    s.hull(["l." + k for k in "ABCD"], "accent")
+    s.hull(["l." + k for k in "FGH"], "g2")
+    rows = {"M1": (3.5, 0), "M2": (1.5, 1), "E": (3.1, 1), "M3": (6, 1), "I": (7.5, 1)}
+    rows |= {k: (i, 2) for i, k in enumerate("ABCD")}
+    rows |= {k: (5 + i, 2) for i, k in enumerate("FGH")}
+    pos = place(rows, right, unit=40, r=R_SMALL)
+    s.graph(pos, arcs, directed=True, r=R_SMALL, prefix="r.",
+            styles={"M2": "accent", "M3": "g2"})
+    x, y = pos["M1"]
+    s.text(x, y - 20, "prime", size=SIZE_NOTE)
+    for k, kind, color in (("M2", "series", "accent"), ("M3", "parallel", "g2")):
+        x, y = pos[k]
+        s.text(x - R_SMALL - 6, y, kind, size=SIZE_NOTE, color=color, anchor="end")
 
 
 
