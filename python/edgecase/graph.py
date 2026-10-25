@@ -2127,6 +2127,182 @@ class Graph:
 
         return self
 
+    @classmethod
+    def from_edges(
+        cls,
+        edges: Any,
+        directed: bool = False,
+        weighted: Optional[bool] = None,
+        nodes: Union[list, dict, None] = None,
+        graph_name: Optional[str] = None,
+    ) -> "Graph":
+        """
+        Build a new graph from an edge list.
+
+        ![Graph from edges](/assets/graphs/from-edges.light.svg){.lightbox fig-alt="Left: a card with the edge list, four (source, target, weight) tuples: A to B 2, A to C 1, B to D 3 and C to D 4, and below it nodes equal to the list with E, in the accent color. Right: the new weighted graph, a four-cycle A, B, D, C with each weight on its edge, every endpoint made a node, and the isolated node E, which only nodes= names, in the accent color beside it." width="100%"}
+
+        The quickest way to turn a list of pairs into a graph: every endpoint becomes a node,
+        in order of first appearance, so there's no need to create the nodes first or to pass
+        `auto_create_nodes=True`. It's EdgeCase's version of NetworkX's `Graph(edge_list)` and
+        igraph's `Graph.TupleList()`.
+
+        The edge items have the same shapes as in `add_edges()`: `(source, target)`,
+        `(source, target, weight)`, `(source, target, attrs)` and
+        `(source, target, weight, attrs)`, where a dict's `"weight"` key also sets the weight
+        and its `"rel"` key the relationship type. The rows of a NumPy array work too (as an
+        array has one dtype, whole-number floats in its first two columns count as integers).
+
+        Every endpoint is a node *label*, not a node ID: values that aren't strings are
+        converted with `str()`, so `[(0, 1), (1, 2)]` gives nodes labeled `"0"`, `"1"` and
+        `"2"` (and `1` and `"1"` are the same node). Repeated pairs make parallel edges and
+        `(a, a)` makes a self-loop. The whole build is recorded as a single step (see `steps`).
+
+        Parameters
+        ----------
+        edges
+            The edges, as a list (or any iterable) of tuples or lists, or a NumPy array with
+            two or three columns.
+        directed
+            Whether the graph is directed. Default is `False`.
+        weighted
+            Whether the graph is weighted. If `None` (the default), it is when any edge has a
+            weight.
+        nodes
+            Optional nodes to create first, in the forms `add_nodes()` accepts: a list of labels
+            or `(label, attrs)` tuples, or a dict mapping each label to its attributes. Use it to
+            add isolated nodes, to give nodes attributes, or to fix the node order (and so the
+            node IDs). Endpoints not listed are added after these.
+        graph_name
+            Optional name for the graph.
+
+        Returns
+        -------
+        Graph
+            A new graph holding the nodes and edges.
+
+        Raises
+        ------
+        TypeError
+            If an edge isn't one of the accepted shapes or has a weight that isn't a number,
+            or a node's attributes aren't a dict.
+        ValueError
+            If an endpoint is `None`, an edge gives its weight twice, or `nodes=` lists a label
+            more than once.
+
+        Examples
+        --------
+        A list of pairs is all it takes:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph
+        ```
+
+        A number as the third element is the edge's weight, and the graph is weighted
+        because some edge has one:
+
+        ```{python}
+        roads = ec.Graph.from_edges(
+            [("Oslo", "Bergen", 463), ("Oslo", "Trondheim", 494), ("Bergen", "Trondheim", 633)]
+        )
+        roads.get_edges_str_repr(use_labels=True), roads.get_edge_df()["weight"].to_list()
+        ```
+
+        Integers become labels, and `nodes=` adds a node that no edge mentions:
+
+        ```{python}
+        g = ec.Graph.from_edges([(0, 1), (1, 2)], directed=True, nodes=[0, 1, 2, 3])
+        g.get_node_df().select(["id", "label"]), g.get_edges_str_repr(use_labels=True)
+        ```
+
+        Attribute dicts become edge attributes, and `nodes=` can give nodes theirs:
+
+        ```{python}
+        g = ec.Graph.from_edges(
+            [("ann", "bob", {"rel": "friend", "since": 2019}), ("bob", "cat", {"rel": "boss"})],
+            nodes={"ann": {"age": 31}, "cat": {"age": 45}},
+        )
+        g.get_node_df().select(["label", "age"]), g.get_edge_df().select(["rel", "since"])
+        ```
+        """
+        items = []
+        for item in edges:
+            if not isinstance(item, (tuple, list)) and hasattr(item, "tolist"):
+                # a NumPy row: its columns share one dtype, so a weighted array holds the
+                # endpoints as floats
+                item = [
+                    int(v) if k < 2 and isinstance(v, float) and v.is_integer() else v
+                    for k, v in enumerate(item.tolist())
+                ]
+            items.append(_parse_edge_item(item))
+
+        if nodes is None:
+            node_items = []
+        elif isinstance(nodes, dict):
+            node_items = [(label, _node_attrs(label, a)) for label, a in nodes.items()]
+        else:
+            node_items = [_parse_node_item(item) for item in nodes]
+        node_attrs: dict[str, dict] = {}
+        for label, attrs in node_items:
+            if label is None:
+                raise ValueError("a node label can't be None")
+            if str(label) in node_attrs:
+                raise ValueError(f"node {str(label)!r} is listed more than once in nodes=")
+            node_attrs[str(label)] = dict(attrs)
+
+        parsed = []
+        for source, target, weight, attrs in items:
+            if source is None or target is None:
+                raise ValueError(f"an edge endpoint can't be None; got {(source, target)!r}")
+            attrs = dict(attrs)
+            if "weight" in attrs:
+                weight = attrs.pop("weight")
+                if weight is not None and not _is_number(weight):
+                    raise TypeError(
+                        f"the weight of edge {(source, target)!r} must be a number; got {weight!r}"
+                    )
+            s, t = str(source), str(target)
+            node_attrs.setdefault(s, {})
+            node_attrs.setdefault(t, {})
+            parsed.append((s, t, None if weight is None else float(weight), attrs))
+        if weighted is None:
+            weighted = any(weight is not None for _, _, weight, _ in parsed)
+
+        def clean(attrs: dict) -> Optional[dict]:
+            return {k: v for k, v in attrs.items() if v is not None} or None
+
+        graph = cls(directed=directed, weighted=weighted, graph_name=graph_name)
+        ids = {
+            label: graph._graph.add_node(rust.Node(id=0, label=label, attributes=clean(attrs)))
+            for label, attrs in node_attrs.items()
+        }
+        for s, t, weight, attrs in parsed:
+            graph._graph.add_edge(
+                rust.Edge(id=0, source=ids[s], target=ids[t], weight=weight,
+                          attributes=clean(attrs))
+            )
+
+        def count(n: int, noun: str) -> str:
+            return f"<{n} {noun}{'' if n == 1 else 's'}>"
+
+        shown = repr(edges) if isinstance(edges, list) else ""
+        args = shown if 0 < len(shown) <= 60 else count(len(parsed), "edge")
+        if directed:
+            args += ", directed=True"
+        if nodes is not None:
+            args += f", nodes={count(len(node_items), 'node')}"
+        graph._record_step(
+            KIND_BUILD_NODES,
+            "from_edges",
+            f"Graph.from_edges({args})",
+            delta=StepDelta(
+                nodes_added=list(node_attrs), edges_added=[(s, t) for s, t, _, _ in parsed]
+            ),
+        )
+        return graph
+
     def _node_id_or_raise(self, node: Union[int, str]) -> int:
         """Resolve a node ID or label, raising `ValueError` if it isn't in the graph.
 
