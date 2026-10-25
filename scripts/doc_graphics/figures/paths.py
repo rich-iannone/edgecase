@@ -55,7 +55,10 @@ Shared layouts keep siblings comparable:
   (KITE, ranked routes in accent / g2 / g3) and all_simple_edge_paths (parallel
   A-B edges as bent arcs labeled with edge ids). goldberg_radzik extends NEG
   with a tail B -> D: the shortest-path tree in accent from the `soft` source,
-  distance badges, and a node / pred / dist table.
+  distance badges, and a node / pred / dist table. alt_heuristic labels a 6 x 6
+  grid with its bounds, landmarks in g2. reachability_index shades the cycle
+  A, B, C as one g3 component and fills the first hub D in g2, with the query
+  A -> F through it in accent.
 """
 
 import math
@@ -1269,3 +1272,37 @@ def alt_heuristic(s: Scene) -> None:
     s.card_centered(right, [("(4,0) (0,5) (5,4) (0,0)", "g2"), "labels: h(v, (5,5))",
                             ("h(s, t) = 10 = d(s, t)", "accent"), "A* path: 10 hops"],
                     title="landmarks")
+
+
+# reachability_index docstring: the cycle A, B, C is one component; D has the highest degree
+# score, so it is the first hub and every query through it is answered by D alone.
+HUBS = {"A": (0, 0), "B": (0, 1.3), "C": (0.95, 0.65), "D": (2.1, 0.65), "G": (2.1, -0.45),
+        "E": (3.2, 0.1), "F": (3.2, 1.2)}
+HUB_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("G", "D"), ("D", "E"), ("D", "F")]
+
+
+@figure("reachability_index", "paths", "Reachability index",
+        "Left: a seven-node directed graph in which the cycle A, B, C (shaded) collapses to "
+        "one component with an edge to D; G also points to D, and D points to E and F. D has "
+        "the most edges in and out, so it becomes the first hub (teal): it joins the out-list "
+        "of every component that reaches it and the in-list of every component it reaches. "
+        "Right: the query index(A, F) is True because A's out-list and F's in-list share the "
+        "hub D (the path through D in the accent color), and index(F, A) is False.")
+def reachability_index(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph(directed=True).add_nodes(list(HUBS))
+    g.add_edges(HUB_EDGES + [("C", "D")])
+    index = g.reachability_index()
+    assert index.n_components == 5
+    assert index("A", "F") is True and index("F", "A") is False and index("G", "E") is True
+    assert index("E", "F") is False
+    path = {("A", "B"), ("B", "C"), ("D", "F")}
+    left, right = compute(s, "g", "index = g.reachability_index()")
+    s.hull(["A", "B", "C"], color="g3")
+    s.graph(place(HUBS, left),
+            [(a, b, {"style": "accent"}) if (a, b) in path else (a, b) for a, b in HUB_EDGES] + [("C", "D", {"style": "accent"})],
+            directed=True, styles={"A": "soft", "F": "soft", "D": "g2"})
+    s.card_centered(right, [("A, B, C: one component", "g3"), ("hub D: out(A), in(F)", "g2"),
+                            ("index(A, F) → True", "accent"), "index(F, A) → False"],
+                    title="5 components")
