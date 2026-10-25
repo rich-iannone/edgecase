@@ -785,6 +785,7 @@ reference:
         - Graph.subgraph_isomorphisms
         - Graph.largest_common_subgraph
         - Graph.automorphism_cosets
+        - Graph.canonical_labeling
         - Graph.weisfeiler_lehman_graph_hash
         - Graph.weisfeiler_lehman_subgraph_hashes
 
