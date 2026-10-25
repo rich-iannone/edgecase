@@ -1,0 +1,43 @@
+<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 760 220" width="760" height="220" role="img" xml:space="preserve">
+<title>Generic BFS edges</title>
+<rect width="760" height="220" fill="#0d1117"/>
+<rect x="538.5" y="28.0" width="170.9" height="140.0" rx="8" fill="#0d1117" stroke="#e6edf3" stroke-opacity="0.35" stroke-width="1"/>
+<line x1="452.0" y1="98.0" x2="480.0" y2="98.0" stroke="#e6edf3" stroke-opacity="1.0" stroke-width="2.25" stroke-linecap="round"/>
+<polygon points="488.0,98.0 479.0,102.5 479.0,93.5" fill="#e6edf3" fill-opacity="1.0"/>
+<path d="M 155.96 88.89 L 212.84 49.51" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<rect x="178.05" y="61.20" width="12.71" height="16" rx="3" fill="#0d1117"/>
+<text x="184.40" y="69.20" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#f97316" fill-opacity="1">3</text>
+<path d="M 158.80 98.00 L 210.00 98.00" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<rect x="178.05" y="90.00" width="12.71" height="16" rx="3" fill="#0d1117"/>
+<text x="184.40" y="98.00" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#f97316" fill-opacity="1">2</text>
+<path d="M 155.96 107.11 L 212.84 146.49" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<rect x="178.05" y="118.80" width="12.71" height="16" rx="3" fill="#0d1117"/>
+<text x="184.40" y="126.80" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#f97316" fill-opacity="1">1</text>
+<path d="M 241.12 45.63 L 294.08 63.97" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="1.5" stroke-linecap="round" stroke-dasharray="4 3"/>
+<path d="M 241.12 92.77 L 294.08 74.43" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<rect x="261.25" y="75.60" width="12.71" height="16" rx="3" fill="#0d1117"/>
+<text x="267.60" y="83.60" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#f97316" fill-opacity="1">5</text>
+<path d="M 242.00 155.60 L 293.20 155.60" fill="none" stroke="#f97316" stroke-opacity="1" stroke-width="2.25" stroke-linecap="round"/>
+<rect x="261.25" y="147.60" width="12.71" height="16" rx="3" fill="#0d1117"/>
+<text x="267.60" y="155.60" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" fill="#f97316" fill-opacity="1">4</text>
+<circle cx="142.8" cy="98.0" r="16" fill="#0d1117" stroke="#f97316" stroke-opacity="1" stroke-width="2.25"/>
+<text x="142.8" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1">A</text>
+<circle cx="226.0" cy="40.4" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="40.4" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">B</text>
+<circle cx="226.0" cy="98.0" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="98.0" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">C</text>
+<circle cx="226.0" cy="155.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="226.0" y="155.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">D</text>
+<circle cx="309.2" cy="69.2" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="309.2" y="69.2" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">E</text>
+<circle cx="309.2" cy="155.6" r="16" fill="#0d1117" stroke="#e6edf3" stroke-opacity="1" stroke-width="1.5"/>
+<text x="309.2" y="155.6" text-anchor="middle" dominant-baseline="central" font-family="ui-sans-serif, system-ui, -apple-system, 'Segoe UI', sans-serif" font-size="13" font-weight="600" fill="#e6edf3" fill-opacity="1">F</text>
+<text x="226.0" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g</text>
+<text x="605.3" y="206.0" text-anchor="middle" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="12" font-weight="400" fill="#e6edf3" fill-opacity="0.72">g.generic_bfs_edges(&quot;A&quot;, neighbors=rev)</text>
+<text x="552.5" y="48.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="11" font-weight="400" fill="#e6edf3" fill-opacity="0.6">(parent, child) pairs</text>
+<text x="552.5" y="68.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">1  (A, D)</text>
+<text x="552.5" y="88.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">2  (A, C)</text>
+<text x="552.5" y="108.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">3  (A, B)</text>
+<text x="552.5" y="128.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">4  (D, F)</text>
+<text x="552.5" y="148.0" text-anchor="start" dominant-baseline="central" font-family="ui-monospace, SFMono-Regular, Menlo, Consolas, monospace" font-size="13" font-weight="600" fill="#f97316" fill-opacity="1.0">5  (C, E)</text>
+</svg>
