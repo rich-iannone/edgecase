@@ -600,6 +600,7 @@ reference:
         - Graph.cycle_basis
         - Graph.directed_cycle_basis
         - Graph.minimum_cycle_basis
+        - Graph.minimum_feedback_edge_set
 
     - title: Clustering
       desc: Methods for computing clustering coefficients
