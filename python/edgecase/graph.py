@@ -30016,6 +30016,151 @@ class Graph:
             )
         return value
 
+    def _simple_degrees(self) -> tuple[dict[int, set[int]], dict[int, int]]:
+        """Distinct neighbors (self-loops dropped) and the matching simple-graph degrees."""
+        if self.is_directed():
+            raise ValueError("this method requires an undirected graph")
+        nbrs = self._neighbor_sets()
+        for n, s in nbrs.items():
+            s.discard(n)
+        return nbrs, {n: len(s) for n, s in nbrs.items()}
+
+    def is_split_graph(self) -> bool:
+        r"""
+        Check if an undirected graph is a split graph.
+
+        ![Is split graph](/assets/graphs/is-split-graph.light.svg){.lightbox fig-alt="Left: a triangle A, B, C, shaded as the clique, with D joined to A and B and E joined to A; D and E share no edge, so they form an independent set and is_split_graph() returns True. Right: the four-cycle A, B, C, D (in the accent color) cannot be split that way, so is_split_graph() returns False." width="100%"}
+
+        A graph is *split* when its nodes can be divided into a clique (every pair joined) and
+        an independent set (no pair joined), with any edges at all between the two parts.
+        Stars, complete graphs and threshold graphs are split; the square and the five-cycle
+        are not. Split graphs are exactly the graphs that are chordal with a chordal
+        complement, and they model core-periphery structure in its purest form: a fully
+        connected core and a periphery whose members link only to the core.
+
+        Parallel edges count once and self-loops are ignored.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is split. The empty graph is.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        See Also
+        --------
+        is_complete_split_graph : Split, with every clique node joined to every other node.
+        is_chordal : Split graphs are the chordal graphs with a chordal complement.
+
+        Technical Notes
+        ---------------
+        Hammer and Simeone (1981) showed that being split depends only on the degree sequence.
+        With the degrees sorted in decreasing order $d_1 \ge \dots \ge d_n$ and $m$ the largest
+        $i$ with $d_i \ge i - 1$, the graph is split exactly when
+        $\sum_{i \le m} d_i = m(m - 1) + \sum_{i > m} d_i$, in which case the $m$ nodes of
+        highest degree form the clique. This takes $O(V \log V + E)$ time. Results match
+        NetworkX pull request #8126's `is_split_graph`, which tests that the graph and its
+        complement are both chordal.
+
+        Examples
+        --------
+        A triangle with a pendant node is split, with the triangle as the clique and the pendant
+        node as the independent set, while the square is not:
+
+        ```{python}
+        import edgecase as ec
+
+        kite = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        kite.add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+
+        kite.is_split_graph(), ec.Graph().add_cycle_graph(4).is_split_graph()
+        ```
+        """
+        _, deg = self._simple_degrees()
+        d = sorted(deg.values(), reverse=True)
+        m = max((i for i, di in enumerate(d, 1) if di >= i - 1), default=0)
+        value = sum(d[:m]) == m * (m - 1) + sum(d[m:])
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_split_graph",
+                "G.is_split_graph()",
+                result=value,
+                narration=f"is_split_graph(): {value}.",
+            )
+        return value
+
+    def is_complete_split_graph(self) -> bool:
+        r"""
+        Check if an undirected graph is a complete split graph.
+
+        ![Is complete split graph](/assets/graphs/is-complete-split-graph.light.svg){.lightbox fig-alt="Left: the clique X, Y (shaded) is joined to every node of the independent set A, B, C, so is_complete_split_graph() returns True. Right: without the edge X-C, drawn dashed in the accent color, C misses part of the clique; the graph is still split but is_complete_split_graph() returns False." width="100%"}
+
+        A *complete split graph* is a split graph with every possible edge between its two
+        parts: a clique whose nodes are joined to everything, and an independent set whose
+        nodes are joined to the whole clique and to nothing else. Stars (a one-node clique)
+        and complete graphs (an empty independent set) are the extremes. Its nodes therefore
+        take only two roles, a core that reaches everyone and a periphery that reaches only the
+        core, as in a hub-and-spoke network with fully connected hubs.
+
+        Parallel edges count once and self-loops are ignored.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is a complete split graph. The empty graph, a single node and
+            any graph with no edges (an empty clique) are.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        See Also
+        --------
+        is_split_graph : Split, with any edges between the clique and the independent set.
+
+        Technical Notes
+        ---------------
+        Every clique node is joined to all other nodes, and an independent-set node has a
+        non-neighbor unless it is the only one. So the graph is complete split exactly when the
+        nodes with fewer than $n - 1$ neighbors form an independent set, which is checked in
+        $O(V + E)$ time. Results match NetworkX pull request #8126's `is_complete_split_graph`.
+
+        Examples
+        --------
+        Two hubs joined to each other and to three spokes form a complete split graph. Dropping
+        one hub-spoke edge leaves a split graph that is no longer complete:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["hub1", "hub2", "a", "b", "c"])
+        g.add_edges([("hub1", "hub2")])
+        g.add_edges([(h, s) for h in ("hub1", "hub2") for s in ("a", "b", "c")])
+        before = g.is_complete_split_graph()
+        g.delete_edge("hub1", "c")
+
+        before, g.is_complete_split_graph(), g.is_split_graph()
+        ```
+        """
+        nbrs, deg = self._simple_degrees()
+        n = len(nbrs)
+        periphery = {v for v, k in deg.items() if k < n - 1}
+        value = not any(nbrs[v] & periphery for v in periphery)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_complete_split_graph",
+                "G.is_complete_split_graph()",
+                result=value,
+                narration=f"is_complete_split_graph(): {value}.",
+            )
+        return value
+
     def chordal_graph_cliques(self) -> list[list[int]]:
         r"""
         List the maximal cliques of a chordal graph.
@@ -51843,6 +51988,136 @@ class Graph:
         found = self._astar(source, target, heuristic, weighted)
         return None if found is None else found[0]
 
+    def alt_heuristic(
+        self,
+        k: int = 8,
+        method: str = "farthest",
+        landmarks: "list[int | str] | None" = None,
+        seed: int | None = None,
+        weighted: bool | None = None,
+    ) -> Callable[[Any, Any], "int | float"]:
+        r"""
+        Build an ALT landmark heuristic for A* search.
+
+        ![ALT heuristic](/assets/graphs/alt-heuristic.light.svg){.lightbox fig-alt="A six-by-six grid with the four landmarks chosen by farthest-point selection filled in teal: (4,0), (0,5), (5,4) and (0,0), the last also the source. Each node is labeled with the ALT bound h on its distance to the target (5,5), outlined; on this grid every bound is exact, from 10 down to 0. A* with the heuristic returns the shortest path in the accent color, 10 hops along the top row and down the right column." width="100%"}
+
+        A* is only as fast as its heuristic, and many graphs have no natural one (no
+        coordinates, no straight-line distance). ALT (*A\*, Landmarks, Triangle inequality*)
+        builds one from the graph itself: it picks a few *landmark* nodes, measures every node's
+        distance to and from each landmark once, and then bounds the distance between any two
+        nodes using the triangle inequality. The one-time preprocessing pays off when many
+        shortest-path queries are run on the same graph, as in route planning on road networks.
+
+        The returned function can be passed straight to `astar_path()` or
+        `astar_path_length()` as `heuristic=`. It never overestimates (it is *admissible*) and
+        is *consistent*, so A* still returns shortest paths.
+
+        Parameters
+        ----------
+        k
+            Number of landmarks to select (default `8`), capped at the number of nodes. More
+            landmarks give tighter bounds but cost one search each (two on a directed graph)
+            and `k` distances per node of memory. Ignored when `landmarks=` is given.
+        method
+            How landmarks are selected. `"farthest"` (default) picks the first landmark at
+            random and then repeatedly adds the node farthest from its nearest landmark
+            (unreachable nodes count as farthest, so every component gets a landmark).
+            `"random"` picks `k` nodes at random. Ignored when `landmarks=` is given.
+        landmarks
+            Optional explicit landmarks, as IDs or labels. Good landmarks are far apart, near
+            the "corners" of the graph; poor ones remain admissible but give looser bounds.
+        seed
+            Seed for the random choices (Python's `random.Random(seed)`).
+        weighted
+            Whether to use edge weights. If `None` (default), follows the graph's `weighted`
+            flag. Use the same setting for the A* queries: a heuristic built from different
+            weights may overestimate. Weights must be non-negative.
+
+        Returns
+        -------
+        Callable
+            A function `h(u, v)` returning a lower bound on the distance from `u` to `v`
+            (`int` when unweighted). It takes IDs or labels, and its `landmarks` attribute
+            lists the landmark IDs. Nodes added after it was built get the bound `0`.
+
+        Raises
+        ------
+        ValueError
+            If the graph is empty, `k` is less than `1`, `method` is unknown, `landmarks` is
+            empty or names a missing node, or a weight is negative.
+
+        Technical Notes
+        ---------------
+        The heuristic of Goldberg and Harrelson (2005). For a landmark $\ell$ the triangle
+        inequality gives $d(u, v) \ge d(u, \ell) - d(v, \ell)$ and
+        $d(u, v) \ge d(\ell, v) - d(\ell, u)$; `h(u, v)` is the largest such bound over all
+        landmarks, or `0` if none is finite (for example across components). Each bound is
+        consistent, and so is their maximum (on every edge whose head can reach the target,
+        which are the only edges A* can use on a path to it). Preprocessing runs one Dijkstra search (BFS when
+        unweighted) per landmark, plus one on the reversed graph per landmark when directed,
+        in $O(k (V + E) \log V)$; each call costs $O(k)$. The distances are a snapshot: rebuild
+        the heuristic after changing the graph. Landmark ties go to the smallest ID. This
+        follows NetworkX's proposed `alt_heuristic` (PR #8767, not yet merged).
+
+        Examples
+        --------
+        On a 6 x 6 grid, farthest-point selection puts the four landmarks at or next to the
+        corners. The bound between opposite corners is then the exact distance, 10 hops, and A*
+        with the heuristic finds a shortest path:
+
+        ```{python}
+        import edgecase as ec
+
+        grid = ec.Graph().add_grid_2d(6, 6)
+        ids = sorted(grid.get_node_ids(limit=None))
+
+        h = grid.alt_heuristic(k=4, seed=0)
+        h(ids[0], ids[-1]), len(grid.astar_path(ids[0], ids[-1], heuristic=h)) - 1
+        ```
+        """
+        n = self.count_nodes()
+        if n == 0:
+            raise ValueError("alt_heuristic() needs a non-empty graph")
+        if landmarks is not None:
+            start = list(dict.fromkeys(self._resolve_node_id(x) for x in landmarks))
+            if not start:
+                raise ValueError("landmarks= must contain at least one node")
+            k = len(start)
+        else:
+            if k < 1:
+                raise ValueError(f"k= must be at least 1, got {k}")
+            if method not in ("farthest", "random"):
+                raise ValueError(f"method= must be 'farthest' or 'random', got {method!r}")
+            import random as _random
+
+            nodes = sorted(self.get_node_ids(limit=None))
+            rng = _random.Random(seed)
+            if method == "farthest":
+                start = [rng.choice(nodes)]
+            else:
+                start = rng.sample(nodes, min(k, n))
+        use = self._use_weights(weighted)
+        table = rust.alt_heuristic(self._graph, start, k, use)
+        resolve = self._resolve_node_id
+
+        def heuristic(u, v):
+            u = u if type(u) is int else resolve(u)
+            v = v if type(v) is int else resolve(v)
+            return self._as_number(table(u, v), use)
+
+        heuristic.landmarks = table.landmarks
+        if self._recording_depth == 0:
+            names = [self._node_label(x) for x in heuristic.landmarks]
+            self._record_step(
+                KIND_QUERY,
+                "alt_heuristic",
+                f"G.alt_heuristic(k={k})",
+                delta=StepDelta(nodes_selected=names),
+                result=heuristic.landmarks,
+                narration=f"ALT heuristic with {len(names)} landmarks: {', '.join(names)}.",
+            )
+        return heuristic
+
     def _astar(self, source, target, heuristic, weighted):
         s = self._resolve_node_id(source, auto_create=False)
         t = self._resolve_node_id(target, auto_create=False)
@@ -53178,6 +53453,133 @@ class Graph:
             )
         return edges
 
+    def generic_bfs_edges(
+        self,
+        source: Union[int, str],
+        neighbors: Callable[[int], Any] | None = None,
+        depth_limit: int | None = None,
+    ) -> list[tuple[int, int]]:
+        """
+        Get the edges of a breadth-first search whose neighbors a callback supplies.
+
+        ![Generic BFS edges](/assets/graphs/generic-bfs-edges.light.svg){.lightbox fig-alt="A six-node graph searched breadth-first from A (outlined) with a callback that lists each node's neighbors in reverse alphabetical order. The tree edges are numbered in the accent color in discovery order: 1 A-D, 2 A-C, 3 A-B, 4 D-F and 5 C-E. E is reached from C before B, so the edge B-E, drawn dashed, is not in the tree. The card lists the five (parent, child) pairs." width="100%"}
+
+        The general form of `bfs_edges()`: instead of following a node's edges, the search
+        asks a function `neighbors(node)` which nodes to go to next, and in what order. Use it
+        to search along only some edges (only one edge type, or only edges above a weight, say,
+        without building a subgraph), to visit neighbors in a custom order, or to search over
+        links that are not edges of the graph at all. As in `bfs_edges()`, each newly reached
+        node is discovered along exactly one edge, so the result is a tree.
+
+        Parameters
+        ----------
+        source
+            The starting node, as an integer ID or a string label.
+        neighbors
+            A function taking a node ID and returning an iterable of the nodes to visit from it
+            (as IDs or labels), in the order to visit them. It is called once for every node
+            reached, when the node is reached. If `None` (default), each node's out-neighbors in
+            edge insertion order, as `bfs_edges()` follows them.
+        depth_limit
+            Stop expanding at this many hops from the source. If `None` (default), there is no
+            limit.
+
+        Returns
+        -------
+        list[tuple[int, int]]
+            `(parent, child)` node-ID pairs in the order the children were discovered.
+
+        Raises
+        ------
+        ValueError
+            If the source or a node `neighbors` supplies does not exist, or `depth_limit=` is
+            negative.
+
+        See Also
+        --------
+        bfs_edges : The same search over the graph's own edges.
+        generic_edge_bfs : The edge counterpart, which visits every edge a callback supplies.
+
+        Technical Notes
+        ---------------
+        A breadth-first search over the nodes `neighbors` supplies: each node is called for
+        once, when first reached, and its children are queued in the order given. Nodes the
+        callback names twice, or that were already reached, are skipped. The search stops as
+        soon as every node of the graph has been reached. Matches NetworkX's
+        `generic_bfs_edges`, the node counterpart of NetworkX pull request #8950's
+        `generic_edge_bfs`.
+
+        Examples
+        --------
+        By default the search follows the graph's edges, as `bfs_edges()` does:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(["hub", "a", "b", "c", "d", "e"])
+        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("b", "d"), ("c", "e")])
+        label = g.get_label_from_id
+
+        [(label(p), label(c)) for p, c in g.generic_bfs_edges("hub")]
+        ```
+
+        A `neighbors` function can change the order: here each node's neighbors are visited in
+        reverse alphabetical order, so `c` and its child `e` come first:
+
+        ```{python}
+        def reverse_alphabetical(node):
+            return sorted(g.neighbors(node), key=label, reverse=True)
+
+        [(label(p), label(c)) for p, c in g.generic_bfs_edges("hub", reverse_alphabetical)]
+        ```
+        """
+        self._check_traversal_args(depth_limit, "out")
+        source_id = self._resolve_node_id(source, auto_create=False)
+        if neighbors is None:
+            edges, _ = rust.bfs_search(self._graph, [source_id], depth_limit, "out")
+        else:
+            edges = self._generic_bfs(source_id, neighbors, depth_limit)
+
+        if self._recording_depth == 0:
+            args = [repr(source)]
+            if neighbors is not None:
+                args.append(f"neighbors={getattr(neighbors, '__name__', '...')}")
+            if depth_limit is not None:
+                args.append(f"depth_limit={depth_limit!r}")
+            self._record_traversal(
+                "bfs",
+                source,
+                [source_id] + [c for _, c in edges],
+                tree_edges=edges,
+                method="generic_bfs_edges",
+                code=f"G.generic_bfs_edges({', '.join(args)})",
+                narration=f"BFS tree from {self._node_label(source_id)}: {len(edges)} edges.",
+            )
+        return edges
+
+    def _generic_bfs(self, source_id: int, neighbors, depth_limit) -> list[tuple[int, int]]:
+        """Breadth-first tree edges, children from `neighbors(node)` (NetworkX's PADS loop)."""
+        seen = {source_id}
+        edges = []
+        with self._no_recording():
+            n = self.count_nodes()
+            limit = n if depth_limit is None else depth_limit
+            frontier = [(source_id, neighbors(source_id))]
+            depth = 0
+            while frontier and depth < limit:
+                current, frontier = frontier, []
+                for parent, children in current:
+                    for child in children:
+                        child = self._resolve_node_id(child, auto_create=False)
+                        if child not in seen:
+                            seen.add(child)
+                            frontier.append((child, neighbors(child)))
+                            edges.append((parent, child))
+                    if len(seen) == n:
+                        return edges
+                depth += 1
+        return edges
+
     def bfs_tree(
         self,
         source: Union[int, str],
@@ -53857,7 +54259,8 @@ class Graph:
             result = self._bfs_over_edges(starts, lambda n: out[n], self.is_directed())
         else:
             starts = self._traversal_starts(source, sorted(self.get_node_ids(limit=None)))
-            result = self._bfs_over_edges(starts, edges, self.is_directed())
+            with self._no_recording():  # the callback's own queries record no steps
+                result = self._bfs_over_edges(starts, edges, self.is_directed())
         self._record_edge_traversal("generic_edge_bfs", result)
         return result
 
@@ -63568,6 +63971,139 @@ class Graph:
         from edgecase._core import is_valid_coloring as rust_is_valid_coloring
 
         return rust_is_valid_coloring(self._graph, coloring)
+
+    def edge_coloring(self) -> dict[int, int]:
+        r"""
+        Color the edges so that no two edges sharing a node have the same color.
+
+        ![Edge coloring](/assets/graphs/edge-coloring.light.svg){.lightbox fig-alt="Four players A, B, C, D, every pair joined by an edge (a game), each edge drawn in the color of its round and labeled with the round number. No two edges of one color share a player: round 0 (accent) is A-B and C-D, round 1 (teal) A-C and B-D, and round 2 (violet) A-D and B-C. The card lists the three rounds." width="100%"}
+
+        An edge coloring gives each edge a color such that the edges meeting at any node all
+        differ. Each color class is then a matching, a set of edges with no node in common, so
+        a coloring with `k` colors splits the edges into `k` rounds that can each run at
+        once: the matches of a round-robin tournament (players are nodes, games are edges),
+        transfers between machines that can each handle one at a time, or wavelengths on the
+        links of an optical network.
+
+        A node with `d` edges needs `d` different colors around it, so at least $\Delta$ colors
+        are needed, $\Delta$ being the maximum degree. Vizing's theorem says $\Delta + 1$
+        always suffice, and this method always uses at most $\Delta + 1$ colors, though
+        sometimes one more than the fewest possible (telling which is NP-hard).
+
+        Edge direction is ignored.
+
+        Returns
+        -------
+        dict[int, int]
+            Each edge ID mapped to its color, numbered from 0 up to at most $\Delta$, in edge ID
+            order. A graph with no edges gives an empty dictionary.
+
+        Raises
+        ------
+        ValueError
+            If the graph has a self-loop or parallel edges (on a directed graph, also both
+            `u -> v` and `v -> u`), for which $\Delta + 1$ colors may not be enough.
+
+        See Also
+        --------
+        is_valid_edge_coloring : Check an edge coloring.
+        greedy_color : Color the nodes instead.
+
+        Technical Notes
+        ---------------
+        The Misra and Gries (1992) algorithm, a constructive proof of Vizing's theorem.
+        Edges are colored in ID order. An edge whose two ends share a free color takes the
+        lowest one; otherwise the algorithm builds a *fan* of neighbors around one end, swaps
+        two colors along an alternating path, and shifts colors around the fan to free one
+        for the new edge. $O(V E)$ time in the worst case, and close to linear in practice.
+        NetworkX pull request #7397 adds `edge_coloring` with the same $\Delta + 1$ guarantee
+        and an equivalent fan and alternating-path method. Its colorings can differ from these,
+        and it returns `{(u, v): color}` with both orders of every edge, where this returns
+        `{edge_id: color}`.
+
+        Examples
+        --------
+        A round-robin among four players: each of the six games is an edge, and each color a
+        round in which no player plays twice. Three rounds suffice, since each player has three
+        games:
+
+        ```{python}
+        import edgecase as ec
+
+        players = ["ann", "bob", "cy", "dee"]
+        g = ec.Graph().add_nodes(players)
+        g.add_edges([(a, b) for i, a in enumerate(players) for b in players[i + 1:]])
+        label = g.get_label_from_id
+        games = {e: f"{label(u)}-{label(v)}" for e, u, v in g.get_edges_as_tuples()}
+
+        rounds = {}
+        for edge, color in g.edge_coloring().items():
+            rounds.setdefault(color, []).append(games[edge])
+        rounds
+        ```
+        """
+        from edgecase._core import edge_coloring as rust_edge_coloring
+
+        return dict(rust_edge_coloring(self._graph))
+
+    def is_valid_edge_coloring(self, coloring: dict[int, int]) -> bool:
+        """
+        Check if an edge coloring is valid (no two edges sharing a node have the same color).
+
+        ![Is valid edge coloring](/assets/graphs/is-valid-edge-coloring.light.svg){.lightbox fig-alt="The same triangle A, B, C with a tail C-D on both sides, each edge drawn in its color and labeled with the color number. Left: the colors 0, 1, 2 on the triangle and 0 on C-D never meet twice at a node, so is_valid_edge_coloring() returns True. Right: C-D is recolored to 1, the color of B-C, and the two meet at C (in the accent color), so is_valid_edge_coloring() returns False." width="100%"}
+
+        The edge counterpart of `is_valid_coloring()`: it checks that, at every node, the
+        colored edges meeting there all have different colors. Use it to check an edge coloring
+        built by hand, loaded from a file or edited after `edge_coloring()`.
+
+        A few details of the check:
+
+        - edge direction is ignored, and parallel edges count as sharing both of their nodes
+        - a self-loop meets its node only once, so it conflicts with the node's other edges
+          but not with itself
+        - edges missing from `coloring=` are skipped, so a *partial* coloring is reported as
+          valid when none of its colored edges conflict
+        - keys that are not edge IDs in the graph are ignored
+
+        Parameters
+        ----------
+        coloring
+            A dictionary mapping edge IDs to colors, such as the output of `edge_coloring()`.
+            Only equality between colors matters.
+
+        Returns
+        -------
+        bool
+            `True` if no two colored edges that share a node have the same color.
+
+        See Also
+        --------
+        edge_coloring : Find an edge coloring with at most one more color than the maximum
+            degree.
+
+        Examples
+        --------
+        In a triangle, all three edges meet in pairs, so they need three different colors:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_cycle_graph(3)
+        ab, bc, ca = sorted(g.get_edge_ids())
+
+        g.is_valid_edge_coloring({ab: 0, bc: 1, ca: 2}), g.is_valid_edge_coloring({ab: 0, bc: 0})
+        ```
+        """
+        seen: set[tuple[int, Any]] = set()
+        for e, s, t in self.get_edges_as_tuples():
+            if e not in coloring:
+                continue
+            c = coloring[e]
+            for v in {s, t}:
+                if (v, c) in seen:
+                    return False
+                seen.add((v, c))
+        return True
 
     def chromatic_number_upper_bound(self, coloring: dict[int, int] | None = None) -> int:
         """
