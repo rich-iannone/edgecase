@@ -1742,6 +1742,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Minimum cycle basis](/assets/graphs/minimum-cycle-basis.light.svg){.lightbox fig-alt="The house-shaped graph again. Its minimum cycle basis is the triangle A, C, B (length 3, accent color) and the square B, C, E, D (length 4, teal), sharing edge B to C; the card totals 7, the smallest possible for two independent cycles." width="100%"}
 ```
 
+### `minimum_feedback_edge_set()` — Minimum feedback edge set
+
+<img src="minimum-feedback-edge-set.light.svg" alt="A directed dependency graph on A, B, C, D and E with three cycles, A to B to C, A to B to D to C, and A to B to D to E to C, each closed by the edge from C back to A. That edge, in the accent color, is the whole feedback edge set: removing it breaks all three cycles, and the card lists it with the topological order of what is left, A, B, D, E, C." width="570">
+
+```markdown
+![Minimum feedback edge set](/assets/graphs/minimum-feedback-edge-set.light.svg){.lightbox fig-alt="A directed dependency graph on A, B, C, D and E with three cycles, A to B to C, A to B to D to C, and A to B to D to E to C, each closed by the edge from C back to A. That edge, in the accent color, is the whole feedback edge set: removing it breaks all three cycles, and the card lists it with the topological order of what is left, A, B, D, E, C." width="100%"}
+```
+
 ### `multi_source_shortest_path()` — Multi-source shortest paths
 
 <img src="multi-source-shortest-path.light.svg" alt="A two-by-four ladder with sources A and G. Each node is reached from whichever source is nearer, which splits the graph into two catchment areas: A serves B and E (accent color), G serves C, D, F, and H (teal). The shortest-path tree edges take their catchment&#x27;s color, and each source has a halo. The card lists each catchment and the path to D, [G, C, D]." width="570">
