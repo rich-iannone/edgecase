@@ -151,6 +151,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::path_extras::simple_edge_paths, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::path_extras::shortest_simple_paths, m)?)?;
     m.add_class::<algorithms::path_extras::ShortestSimplePaths>()?;
+    m.add_function(wrap_pyfunction!(algorithms::path_extras::alt_heuristic, m)?)?;
+    m.add_class::<algorithms::path_extras::AltTable>()?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::is_chordal, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::is_perfect_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::chordal::chordal_graph_cliques, m)?)?;
@@ -230,6 +232,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::coloring::greedy_color, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::coloring::is_valid_coloring, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::coloring::chromatic_number_upper_bound, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::coloring::edge_coloring, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::line_graph::line_graph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::line_graph::line_graph_node_mapping, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::max_flow, m)?)?;
