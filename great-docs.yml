@@ -106,6 +106,7 @@ reference:
         - Graph.add_edges
         - Graph.add_edge_by_id
         - Graph.add_edges_by_id
+        - Graph.from_edges
         - Graph.delete_node
         - Graph.delete_edge
         - Graph.delete_edge_by_id
@@ -1172,6 +1173,8 @@ reference:
         - from_dict_of_lists
         - to_cypher
         - from_cypher
+        - to_dot
+        - from_dot
 
     - title: Multiplex Networks
       desc: Multi-layer network container and cross-layer algorithms
