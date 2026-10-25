@@ -43,6 +43,8 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::dag::topological_generations, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::dag_longest_path, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::condensation, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::dag::reachability_index, m)?)?;
+    m.add_class::<algorithms::dag::ReachIndex>()?;
     m.add_function(wrap_pyfunction!(algorithms::dag::lowest_common_ancestor, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::modularity, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::community_detection::constant_potts_model, m)?)?;
