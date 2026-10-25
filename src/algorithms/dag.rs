@@ -415,3 +415,111 @@ pub fn all_topological_sorts(graph: &Graph, max_sorts: Option<usize>) -> PyResul
     }
     Ok(out)
 }
+
+/// A reachability index from pruned landmark labeling: calling it with `(u, v)` node IDs
+/// says whether `v` can be reached from `u`.
+#[pyclass(module = "edgecase._core")]
+pub struct ReachIndex {
+    /// node ID -> component (strongly connected; connected when undirected)
+    comp: rustc_hash::FxHashMap<u64, usize>,
+    /// `lout[c]`: ranks of the hubs `c` reaches; `lin[c]`: ranks of the hubs reaching `c`
+    /// (both sorted, since hubs are added in rank order)
+    lout: Vec<Vec<u32>>,
+    lin: Vec<Vec<u32>>,
+}
+
+fn share_hub(a: &[u32], b: &[u32]) -> bool {
+    let (mut i, mut j) = (0, 0);
+    while i < a.len() && j < b.len() {
+        match a[i].cmp(&b[j]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+            std::cmp::Ordering::Equal => return true,
+        }
+    }
+    false
+}
+
+#[pymethods]
+impl ReachIndex {
+    fn __call__(&self, u: u64, v: u64) -> PyResult<bool> {
+        let find = |x: u64| {
+            self.comp.get(&x).copied().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node {x} is not in the reachability index (rebuild it after changing the graph)"
+                ))
+            })
+        };
+        let (a, b) = (find(u)?, find(v)?);
+        Ok(a == b || share_hub(&self.lout[a], &self.lin[b]))
+    }
+
+    /// Number of components the index was built on.
+    #[getter]
+    fn n_components(&self) -> usize {
+        self.lout.len()
+    }
+
+    /// Total number of hub entries over all labels.
+    #[getter]
+    fn n_labels(&self) -> usize {
+        self.lout.iter().chain(&self.lin).map(Vec::len).sum()
+    }
+}
+
+/// Build a reachability index by pruned landmark labeling (2-hop cover) on the condensation.
+/// Components are taken as hubs in decreasing `(in + 1) * (out + 1)` degree order, ties by
+/// Tarjan component index (reverse topological); each runs a forward and a backward BFS,
+/// pruned wherever an earlier hub already answers the query.
+#[pyfunction]
+pub fn reachability_index(graph: &Graph) -> ReachIndex {
+    let g = IndexedGraph::new(graph, false);
+    let (comp, k) = scc(&g);
+    let mut succ: Vec<Vec<usize>> = vec![Vec::new(); k];
+    let mut pred: Vec<Vec<usize>> = vec![Vec::new(); k];
+    if graph.is_directed() {
+        for v in 0..g.len() {
+            for &(w, _) in &g.out[v] {
+                if comp[v] != comp[w] {
+                    succ[comp[v]].push(comp[w]);
+                }
+            }
+        }
+        for (c, out) in succ.iter_mut().enumerate() {
+            out.sort_unstable();
+            out.dedup();
+            for &d in out.iter() {
+                pred[d].push(c);
+            }
+        }
+    }
+    let mut order: Vec<usize> = (0..k).collect();
+    order.sort_by_key(|&c| std::cmp::Reverse((pred[c].len() + 1) * (succ[c].len() + 1)));
+    let mut lout: Vec<Vec<u32>> = vec![Vec::new(); k];
+    let mut lin: Vec<Vec<u32>> = vec![Vec::new(); k];
+    let mut seen = vec![usize::MAX; k];
+    let mut queue = VecDeque::new();
+    for (rank, &h) in order.iter().enumerate() {
+        let r = rank as u32;
+        for forward in [true, false] {
+            let stamp = 2 * rank + forward as usize;
+            seen[h] = stamp;
+            queue.push_back(h);
+            while let Some(c) = queue.pop_front() {
+                let covered = if forward { share_hub(&lout[h], &lin[c]) } else { share_hub(&lout[c], &lin[h]) };
+                if covered {
+                    continue;
+                }
+                if forward { lin[c].push(r) } else { lout[c].push(r) }
+                for &d in if forward { &succ[c] } else { &pred[c] } {
+                    if seen[d] != stamp {
+                        seen[d] = stamp;
+                        queue.push_back(d);
+                    }
+                }
+            }
+        }
+    }
+    let comp = g.ids.iter().enumerate().map(|(v, &id)| (id, comp[v])).collect();
+    ReachIndex { comp, lout, lin }
+}
