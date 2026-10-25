@@ -129,6 +129,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::approximation::max_cut, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::match_graphs, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::automorphism_cosets, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::canonical::canonical_labeling, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::largest_common_subgraph, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::isomorphism::simrank, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity_extras::chain_decomposition, m)?)?;
