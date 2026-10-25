@@ -51271,6 +51271,93 @@ class Graph:
             )
         return found
 
+    def reachability_index(self) -> Callable[[Any, Any], bool]:
+        r"""
+        Build an index that answers reachability queries without searching the graph.
+
+        ![Reachability index](/assets/graphs/reachability-index.light.svg){.lightbox fig-alt="Left: a seven-node directed graph in which the cycle A, B, C (shaded) collapses to one component with an edge to D; G also points to D, and D points to E and F. D has the most edges in and out, so it becomes the first hub (teal): it joins the out-list of every component that reaches it and the in-list of every component it reaches. Right: the query index(A, F) is True because A's out-list and F's in-list share the hub D (the path through D in the accent color), and index(F, A) is False." width="100%"}
+
+        `has_path()` searches the graph on every call, which adds up when the same fixed graph
+        is asked "can `u` reach `v`?" thousands of times (dependency, provenance or citation
+        graphs, for instance). This method does the work once: it collapses each strongly
+        connected component to a single node and gives every component two short lists of
+        *hub* components, the hubs it reaches and the hubs that reach it. Then `u` reaches `v`
+        exactly when they share a component or a hub of `u`'s first list is in `v`'s second.
+
+        The returned function answers `index(u, v)` with the same result as
+        `has_path(u, v)`. On an undirected graph the components are the connected components,
+        so every query reduces to a component comparison.
+
+        Returns
+        -------
+        Callable
+            A function `index(u, v)` returning `True` if `v` is reachable from `u` (every node
+            reaches itself). It takes IDs or labels. Its `n_components` attribute is the number
+            of components and `label_size` the total number of hub entries over all lists.
+
+        Raises
+        ------
+        ValueError
+            When called with a node that does not exist, or one added after the index was built
+            (rebuild the index after changing the graph).
+
+        Technical Notes
+        ---------------
+        A 2-hop reachability cover built by pruned landmark labeling (Akiba, Iwata and
+        Yoshida, 2013; adapted to reachability by Yano et al., 2013), on the condensation.
+        Components are processed in decreasing order of $(\deg^- + 1)(\deg^+ + 1)$ in the
+        condensation (ties go to the lower Tarjan component index). Each one runs a forward
+        BFS that adds it to the in-list of every component it reaches, and a backward BFS that
+        adds it to the out-list of every component reaching it; a branch is pruned as soon as
+        the hubs already placed answer the query. On graphs with high-degree hubs this keeps
+        the lists short; on long chains, where nearly every component ties on the degree
+        score, the lists grow quadratically (about 20,000 entries for a 200-node path).
+        Building takes $O(V + E)$ for the condensation plus the pruned searches (at most
+        $O(C (C + E_C))$ for $C$ components and $E_C$ condensation edges); a query merges two
+        sorted lists. The index is a snapshot of the graph. This follows NetworkX's proposed
+        `pll_reachability_graph` (PR #8718, not yet merged); see Zhang, Bonifati and Özsu,
+        *Indexing Techniques for Graph Reachability Queries*, for a survey.
+
+        Examples
+        --------
+        A cycle A, B, C collapses to one component, which reaches D but is not reached from it:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        )
+
+        index = graph.reachability_index()
+        index("B", "A"), index("A", "D"), index("D", "A"), index("A", "E")
+        ```
+        """
+        table = rust.reachability_index(self._graph)
+        resolve = self._resolve_node_id
+
+        def index(u, v):
+            u = u if type(u) is int else resolve(u, auto_create=False)
+            v = v if type(v) is int else resolve(v, auto_create=False)
+            return table(u, v)
+
+        index.n_components = table.n_components
+        index.label_size = table.n_labels
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "reachability_index",
+                "G.reachability_index()",
+                result=table.n_components,
+                narration=(
+                    f"Reachability index over {table.n_components} components "
+                    f"with {table.n_labels} hub entries."
+                ),
+            )
+        return index
+
     def bidirectional_dijkstra(
         self, source: Union[int, str], target: Union[int, str]
     ) -> tuple[Union[int, float], list[int]] | None:
