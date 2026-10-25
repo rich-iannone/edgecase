@@ -5044,45 +5044,27 @@ _CYPHER_ESCAPES = {"t": "\t", "b": "\b", "n": "\n", "r": "\r", "f": "\f", "'": "
                    "\\": "\\"}
 
 
-class _CypherParser:
-    """A parser for the `CREATE` clauses of a Cypher script (nodes, relationships, properties)."""
+class _TokenParser:
+    """The token helpers shared by the text-format parsers (Cypher, DOT)."""
 
-    def __init__(self, text: str, directed: bool):
+    FORMAT = ""
+
+    def __init__(self, text: str):
         self.text = text
-        self.directed = directed
+        # (kind, text, position) for every token
         self.tokens: list[tuple[str, Any, int]] = []
-        pos = 0
-        while pos < len(text):
-            m = _CYPHER_TOKEN.match(text, pos)
-            if m is None:
-                if text.startswith("/*", pos):
-                    self._fail("a comment that never ends", pos)
-                if text[pos] in "'\"`":
-                    self._fail(f"the quote {text[pos]} is never closed", pos)
-                self._fail(f"unexpected character {text[pos]!r}", pos)
-            kind = m.lastgroup
-            if kind != "space":
-                self.tokens.append((kind, m.group(), pos))
-            pos = m.end()
         self.i = 0
-        # nodes: [variable or None, labels, properties, position]; edges: (s, t, type, props)
-        self.nodes: list[list] = []
-        self.variables: dict[str, int] = {}
-        self.edges: list[tuple[int, int, Optional[str], dict]] = []
 
     def _fail(self, message: str, pos: Optional[int] = None):
         if pos is None:
             pos = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
         line = self.text.count("\n", 0, pos) + 1
         column = pos - (self.text.rfind("\n", 0, pos) + 1) + 1
-        raise ValueError(f"Cypher: {message} (line {line}, column {column})")
+        raise ValueError(f"{self.FORMAT}: {message} (line {line}, column {column})")
 
     def _peek(self) -> Optional[str]:
         """The next token's text (`None` at the end)."""
         return self.tokens[self.i][1] if self.i < len(self.tokens) else None
-
-    def _at_name(self) -> bool:
-        return self.i < len(self.tokens) and self.tokens[self.i][0] in ("name", "quoted")
 
     def _next(self, what: str) -> tuple[str, Any, int]:
         if self.i >= len(self.tokens):
@@ -5096,6 +5078,36 @@ class _CypherParser:
         if tok[1] != punct:
             self.i -= 1
             self._fail(f"expected {what or repr(punct)}, found {tok[1]!r}")
+
+
+class _CypherParser(_TokenParser):
+    """A parser for the `CREATE` clauses of a Cypher script (nodes, relationships, properties)."""
+
+    FORMAT = "Cypher"
+
+    def __init__(self, text: str, directed: bool):
+        super().__init__(text)
+        self.directed = directed
+        pos = 0
+        while pos < len(text):
+            m = _CYPHER_TOKEN.match(text, pos)
+            if m is None:
+                if text.startswith("/*", pos):
+                    self._fail("a comment that never ends", pos)
+                if text[pos] in "'\"`":
+                    self._fail(f"the quote {text[pos]} is never closed", pos)
+                self._fail(f"unexpected character {text[pos]!r}", pos)
+            kind = m.lastgroup
+            if kind != "space":
+                self.tokens.append((kind, m.group(), pos))
+            pos = m.end()
+        # nodes: [variable or None, labels, properties, position]; edges: (s, t, type, props)
+        self.nodes: list[list] = []
+        self.variables: dict[str, int] = {}
+        self.edges: list[tuple[int, int, Optional[str], dict]] = []
+
+    def _at_name(self) -> bool:
+        return self.i < len(self.tokens) and self.tokens[self.i][0] in ("name", "quoted")
 
     def _name(self, what: str) -> str:
         kind, value, _ = self._next(what)
@@ -5522,6 +5534,480 @@ def to_cypher(
     return _write_text(lines, filepath)
 
 
+# =============================================================================
+# DOT (Graphviz)
+# =============================================================================
+
+
+# Graphviz counts every non-ASCII character as a letter
+_DOT_NAME = r"[A-Za-z_\x80-\U0010FFFF][A-Za-z_0-9\x80-\U0010FFFF]*"
+_DOT_NUMERAL = r"-?(?:\.[0-9]+|[0-9]+(?:\.[0-9]*)?)"
+_DOT_TOKEN = re.compile(
+    rf"""
+      (?P<space>\s+|//[^\n]*|/\*.*?\*/|(?<![^\n])\#[^\n]*)
+    | (?P<edgeop>->|--)
+    | (?P<id>{_DOT_NAME})
+    | (?P<numeral>{_DOT_NUMERAL})
+    | (?P<punct>[{{}}\[\];,:=+])
+    """,
+    re.VERBOSE | re.DOTALL,
+)
+_DOT_BARE = re.compile(f"{_DOT_NAME}|{_DOT_NUMERAL}")
+_DOT_KEYWORDS = frozenset({"strict", "graph", "digraph", "node", "edge", "subgraph"})
+_DOT_WEIGHT = re.compile(r"\s*[+-]?(?:[0-9]+\.?[0-9]*|\.[0-9]+)(?:[eE][+-]?[0-9]+)?\s*")
+
+
+def _html_end(text: str, pos: int) -> int:
+    """The end of the HTML string (`<...>`, with nested `<>`) starting at `pos`, or -1."""
+    depth = 0
+    for k in range(pos, len(text)):
+        if text[k] == "<":
+            depth += 1
+        elif text[k] == ">":
+            depth -= 1
+            if depth == 0:
+                return k + 1
+    return -1
+
+
+def _quoted_end(text: str, pos: int) -> int:
+    """The end of the quoted string starting at `pos` (only `\\"` is an escape), or -1."""
+    k = pos + 1
+    while k < len(text):
+        if text.startswith('\\"', k):
+            k += 2
+        elif text[k] == '"':
+            return k + 1
+        else:
+            k += 1
+    return -1
+
+
+class _DotParser(_TokenParser):
+    """A parser for DOT, Graphviz's graph language."""
+
+    FORMAT = "DOT"
+
+    def __init__(self, text: str):
+        super().__init__(text)
+        pos = 0
+        while pos < len(text):
+            if text[pos] in '"<':
+                end = (_quoted_end if text[pos] == '"' else _html_end)(text, pos)
+                if end < 0:
+                    what = "a quoted" if text[pos] == '"' else "an HTML"
+                    self._fail(f"{what} string that never ends", pos)
+                self.tokens.append(("string" if text[pos] == '"' else "html", text[pos:end], pos))
+                pos = end
+                continue
+            m = _DOT_TOKEN.match(text, pos)
+            if m is None:
+                if text.startswith("/*", pos):
+                    self._fail("a comment that never ends", pos)
+                self._fail(f"unexpected character {text[pos]!r}", pos)
+            if m.lastgroup != "space":
+                self.tokens.append((m.lastgroup, m.group(), pos))
+            pos = m.end()
+
+    def _keyword(self, word: str) -> bool:
+        """Whether the next token is the keyword `word` (keywords ignore case)."""
+        return (
+            self.i < len(self.tokens)
+            and self.tokens[self.i][0] == "id"
+            and self.tokens[self.i][1].lower() == word
+        )
+
+    def _id(self, what: str) -> str:
+        kind, value, _ = self._next(what)
+        if kind == "id" and value.lower() not in _DOT_KEYWORDS or kind in ("numeral", "html"):
+            return value
+        if kind == "string":
+            out = self._unquote(value)
+            while self._peek() == "+":
+                self.i += 1
+                kind, value, _ = self._next("a quoted string after '+'")
+                if kind != "string":
+                    self.i -= 1
+                    self._fail(f"only quoted strings can be joined with '+', found {value!r}")
+                out += self._unquote(value)
+            return out
+        self.i -= 1
+        found = f"the keyword {value!r}" if kind == "id" else repr(value)
+        self._fail(f"expected {what}, found {found}")
+
+    @staticmethod
+    def _unquote(token: str) -> str:
+        # As in Graphviz: \" is a quote, a backslash before a newline joins the lines, and any
+        # other backslash is kept (for Graphviz's own escapes, like \n in labels)
+        return re.sub(r'\\(?:"|\r?\n)', lambda m: '"' if m.group() == '\\"' else "", token[1:-1])
+
+    def parse(self) -> list[tuple[Optional[str], bool, dict, list]]:
+        graphs = []
+        while self.i < len(self.tokens):
+            graphs.append(self._graph())
+        if not graphs:
+            self._fail("the text holds no graph", 0)
+        return graphs
+
+    def _graph(self) -> tuple[Optional[str], bool, dict, list]:
+        self.strict = self._keyword("strict")
+        if self.strict:
+            self.i += 1
+        if not (self._keyword("graph") or self._keyword("digraph")):
+            found = self._peek()
+            what = "but the text ended" if found is None else f"found {found!r}"
+            self._fail(f"expected 'graph' or 'digraph', {what}")
+        self.directed = self._next("")[1].lower() == "digraph"
+        name = None if self._peek() == "{" else self._id("the graph's name or '{'")
+        # nodes: {id: attributes} in order of appearance; edges: [source, target, attributes]
+        self.nodes: dict[str, dict] = {}
+        self.edges: list[tuple[str, str, dict]] = []
+        self.edge_index: dict[Any, int] = {}
+        self._block({}, {})
+        return name, self.directed, self.nodes, self.edges
+
+    def _block(self, node_defaults: dict, edge_defaults: dict) -> list[str]:
+        """A `{ ... }` block; returns the nodes it names. Defaults set inside stay inside."""
+        self._expect("{", "'{'")
+        node_defaults, edge_defaults = dict(node_defaults), dict(edge_defaults)
+        members: dict[str, None] = {}
+        while self._peek() != "}":
+            if self._peek() is None:
+                self._expect("}", "'}'")
+            self._statement(node_defaults, edge_defaults, members)
+            if self._peek() == ";":
+                self.i += 1
+        self.i += 1
+        return list(members)
+
+    def _statement(self, node_defaults: dict, edge_defaults: dict, members: dict) -> None:
+        for word, defaults in (("graph", None), ("node", node_defaults), ("edge", edge_defaults)):
+            if self._keyword(word):
+                self.i += 1
+                if self._peek() != "[":
+                    self._expect("[", f"'[' after '{word}'")
+                attrs = self._attr_lists()
+                if defaults is not None:
+                    defaults.update(attrs)
+                return
+        if self._keyword("subgraph") or self._peek() == "{":
+            group = self._subgraph(node_defaults, edge_defaults, members)
+        else:
+            start = self.i
+            self._id("a statement")
+            if self._peek() == "=":
+                # a graph attribute, which has nowhere to go in an EdgeCase graph
+                self.i += 1
+                self._id("a value")
+                return
+            self.i = start
+            group = [self._node_id(node_defaults, members)]
+            if not (self.i < len(self.tokens) and self.tokens[self.i][0] == "edgeop"):
+                self.nodes[group[0]].update(self._attr_lists())
+                return
+        self._edge_chain(group, node_defaults, edge_defaults, members)
+
+    def _subgraph(self, node_defaults: dict, edge_defaults: dict, members: dict) -> list[str]:
+        if self._keyword("subgraph"):
+            self.i += 1
+            if self._peek() != "{":
+                self._id("the subgraph's name or '{'")
+        group = self._block(node_defaults, edge_defaults)
+        members.update(dict.fromkeys(group))
+        return group
+
+    def _node_id(self, node_defaults: dict, members: dict) -> str:
+        node = self._id("a node")
+        if self._peek() == ":":
+            # a port, and maybe a compass point; they only matter for drawing
+            self.i += 1
+            self._id("a port")
+            if self._peek() == ":":
+                self.i += 1
+                self._id("a compass point")
+        if node not in self.nodes:
+            self.nodes[node] = dict(node_defaults)
+        members[node] = None
+        return node
+
+    def _edge_chain(
+        self, group: list[str], node_defaults: dict, edge_defaults: dict, members: dict
+    ) -> None:
+        groups = [group]
+        want = "->" if self.directed else "--"
+        while self.i < len(self.tokens) and self.tokens[self.i][0] == "edgeop":
+            if self._peek() != want:
+                kind = "digraph" if self.directed else "graph"
+                self._fail(f"a {kind} joins nodes with {want}, not {self._peek()}")
+            self.i += 1
+            if self._keyword("subgraph") or self._peek() == "{":
+                groups.append(self._subgraph(node_defaults, edge_defaults, members))
+            else:
+                groups.append([self._node_id(node_defaults, members)])
+        attrs = self._attr_lists()
+        for tails, heads in zip(groups, groups[1:]):
+            for u in tails:
+                for v in heads:
+                    key = (u, v) if self.directed else frozenset((u, v))
+                    if self.strict and key in self.edge_index:
+                        # a strict graph merges repeated edges
+                        self.edges[self.edge_index[key]][2].update(attrs)
+                        continue
+                    self.edge_index[key] = len(self.edges)
+                    self.edges.append((u, v, edge_defaults | attrs))
+
+    def _attr_lists(self) -> dict:
+        """Any number of `[name=value, ...]` lists (a name alone means `name=true`)."""
+        attrs: dict[str, str] = {}
+        while self._peek() == "[":
+            self.i += 1
+            while self._peek() != "]":
+                key = self._id("an attribute name or ']'")
+                if self._peek() == "=":
+                    self.i += 1
+                    attrs[key] = self._id("an attribute value")
+                else:
+                    attrs[key] = "true"
+                if self._peek() in (",", ";"):
+                    self.i += 1
+            self.i += 1
+        return attrs
+
+
+def from_dot(
+    source: Union[str, bytes, Path],
+    weighted: Optional[bool] = None,
+    graph_name: Optional[str] = None,
+) -> Union[Graph, list[Graph]]:
+    """
+    Create a graph from DOT, the graph language of Graphviz.
+
+    DOT is the input format of Graphviz's `dot`, `neato` and other layout programs, and many
+    tools write it (Doxygen, compilers, build systems, Terraform):
+
+    ```
+    digraph G {
+        node [shape=box];
+        start -> {parse check} -> done [color=gray];
+        check [label="Type check"];
+    }
+    ```
+
+    Everything in the language can be read: `graph` and `digraph` (and `strict`, which merges
+    repeated edges), node and edge statements with attribute lists, chains (`a -> b -> c`),
+    subgraphs and clusters (an edge to `{b c}` goes to both nodes), `node [...]` and
+    `edge [...]` defaults (which apply to the nodes and edges made after them, within their
+    subgraph), quoted strings joined with `+`, HTML strings (`<<b>bold</b>>`), ports
+    (`a:out:n`, which are ignored) and `//`, `/* */` and `#` comments.
+
+    A node's DOT ID becomes its label, and its `label` attribute (if any) stays an attribute.
+    All attribute values are strings, as DOT has no other kind, except that an edge's `weight`
+    becomes its weight when it's a number. HTML strings keep their outer `<` and `>`, so
+    `to_dot()` writes them back as HTML. Graph attributes (`rankdir=LR`) and the grouping of
+    nodes into subgraphs are read but not kept.
+
+    Parameters
+    ----------
+    source
+        The DOT text, or a path to a file holding it. A string with no `{` is read as a path.
+    weighted
+        Whether the graph has weights. If `None`, it does when some edge has a numeric `weight`
+        attribute. With `False`, `weight` stays an ordinary (string) attribute.
+    graph_name
+        Name for the graph. If `None`, the graph's DOT ID is used (`G` above).
+
+    Returns
+    -------
+    Graph or list[Graph]
+        The graph, built as a single step, or a list of graphs if the text holds several.
+
+    Raises
+    ------
+    ValueError
+        If the text isn't valid DOT, or uses `--` in a digraph or `->` in a graph. The message
+        gives the line and column.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.from_dot('''
+        digraph build {
+            edge [weight=2];
+            parse -> {lint check} -> done;
+            check [label="Type check"];
+        }
+    ''')
+
+    # Returns ['parse->lint', 'parse->check', 'lint->done', 'check->done']
+    graph.get_edges_str_repr(use_labels=True)
+
+    # Returns {'label': 'Type check'}
+    graph.get_node(graph.get_id_from_label("check")).attributes
+
+    # Returns 'build'
+    graph.get_graph_name()
+    ```
+
+    """
+    if isinstance(source, Path) or (isinstance(source, str) and "{" not in source):
+        text = Path(source).read_text(encoding="utf-8")
+    elif isinstance(source, bytes):
+        text = source.decode("utf-8")
+    elif isinstance(source, str):
+        text = source
+    else:
+        raise TypeError(f"source must be DOT text or a path, not {type(source).__name__}")
+
+    graphs = []
+    for name, directed, nodes, edges in _DotParser(text).parse():
+        weights = [
+            float(attrs["weight"])
+            if isinstance(attrs.get("weight"), str) and _DOT_WEIGHT.fullmatch(attrs["weight"])
+            else None
+            for _, _, attrs in edges
+        ]
+        is_weighted = any(w is not None for w in weights) if weighted is None else weighted
+        edge_list = []
+        for (u, v, attrs), weight in zip(edges, weights):
+            if is_weighted and weight is not None:
+                attrs = {k: a for k, a in attrs.items() if k != "weight"}
+            else:
+                weight = None
+            edge_list.append((u, v, weight, attrs))
+        graphs.append(
+            _build_graph(
+                [(key, key, attrs) for key, attrs in nodes.items()],
+                edge_list,
+                directed,
+                is_weighted,
+                name if graph_name is None else graph_name,
+                _code("from_dot", source),
+            )
+        )
+    return graphs[0] if len(graphs) == 1 else graphs
+
+
+def _dot_id(value: Any, where: str) -> str:
+    """A value as a DOT ID: bare when that's allowed, else quoted (or as an HTML string)."""
+    if isinstance(value, bool):
+        return "true" if value else "false"
+    if isinstance(value, int):
+        return str(value)
+    if isinstance(value, float):
+        if not math.isfinite(value):
+            raise ValueError(f"{where} is {value}, which DOT can't write")
+        text = repr(value)
+        return text if _DOT_BARE.fullmatch(text) else f'"{text}"'
+    if not isinstance(value, str):
+        raise ValueError(
+            f"{where} is a {type(value).__name__}, but DOT values are strings or numbers"
+        )
+    if _DOT_BARE.fullmatch(value) and value.lower() not in _DOT_KEYWORDS:
+        return value
+    if value.startswith("<") and _html_end(value, 0) == len(value):
+        return value
+    if re.search(r"\\(?:\r?\n|$)", value):
+        raise ValueError(
+            f"{where} has a backslash at the end of a line, which a DOT string can't hold"
+        )
+    return '"' + value.replace('"', '\\"') + '"'
+
+
+def _dot_attrs(attrs: dict, where: str) -> str:
+    items = [
+        f"{_dot_id(str(k), f'{where} attribute name {k!r}')}="
+        f"{_dot_id(v, f'{where} attribute {k!r}')}"
+        for k, v in attrs.items()
+        if v is not None
+    ]
+    return " [" + ", ".join(items) + "]" if items else ""
+
+
+def to_dot(graph: Graph, filepath: Union[str, Path, None] = None) -> str:
+    """
+    Encode a graph as DOT, the graph language of Graphviz.
+
+    The text can be drawn with Graphviz (`dot -Tsvg graph.dot`) or read back with `from_dot()`.
+    It's a `digraph` or `graph` named after the graph (if it has a name), with one statement per
+    node, in node ID order, then one per edge:
+
+    ```
+    digraph G {
+      a [color=red];
+      b;
+      a -> b [weight=2.0];
+    }
+    ```
+
+    Node labels are the DOT IDs, attributes go in `[...]` lists and, in a weighted graph, the
+    weight is the `weight` attribute (which Graphviz uses to keep heavy edges short). IDs and
+    values are quoted only when DOT needs it; strings that look like `<...>` HTML are written as
+    HTML strings, and booleans as `true` and `false`.
+
+    Parameters
+    ----------
+    graph
+        The graph to encode.
+    filepath
+        If given, the text is also written to this file.
+
+    Returns
+    -------
+    str
+        The DOT text.
+
+    Raises
+    ------
+    ValueError
+        If an attribute value isn't a string, number or boolean (DOT has no lists or dicts), is
+        NaN or infinite, or is a string with a backslash at the end of a line. Also if a weighted
+        graph's edge has a `weight` attribute as well as its weight.
+
+    Notes
+    -----
+    DOT values are untyped, so `from_dot()` reads every attribute back as a string (`3` comes back
+    as `'3'`), except the edge weight.
+
+    Examples
+    --------
+    ```python
+    import edgecase as ec
+
+    graph = ec.Graph(directed=True).add_nodes([("a", {"color": "red"}), "b"])
+    graph.add_edges([("a", "b")])
+
+    # Returns 'digraph {\\n  a [color=red];\\n  b;\\n  a -> b;\\n}\\n'
+    ec.to_dot(graph)
+    ```
+
+    """
+    directed = graph.is_directed()
+    name = graph.get_graph_name()
+    head = "digraph" if directed else "graph"
+    if name:
+        head += " " + _dot_id(name, "the graph name")
+    nodes = _nodes_of(graph)
+    keys = {nid: _dot_id(key, f"node {key!r}") for nid, key in _node_keys(nodes).items()}
+    lines = [head + " {"]
+    for nid, _, attrs in nodes:
+        lines.append(f"  {keys[nid]}{_dot_attrs(attrs, f'node {keys[nid]}')};")
+    op = " -> " if directed else " -- "
+    weighted = graph.is_weighted()
+    for k, (source, target, weight, attrs) in enumerate(_edges_of(graph), 1):
+        if weighted and weight is not None:
+            if "weight" in attrs:
+                raise ValueError(
+                    f"Edge {k} has a 'weight' attribute as well as its weight, and DOT has one "
+                    "place for both"
+                )
+            attrs = {"weight": weight} | attrs
+        lines.append(f"  {keys[source]}{op}{keys[target]}{_dot_attrs(attrs, f'edge {k}')};")
+    lines.append("}")
+    return _write_text(lines, filepath)
+
+
 __all__ = [
     "from_matrix_market",
     "from_graphml",
@@ -5570,4 +6056,6 @@ __all__ = [
     "from_dict_of_lists",
     "to_cypher",
     "from_cypher",
+    "to_dot",
+    "from_dot",
 ]
