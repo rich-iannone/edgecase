@@ -573,3 +573,98 @@ pub fn shortest_simple_paths(graph: &Graph, source: u64, target: u64, weighted: 
         exhausted: false,
     })
 }
+
+// ---------------------------------------------------------------------------------------------
+// ALT (A*, landmarks, triangle inequality) heuristic
+// ---------------------------------------------------------------------------------------------
+
+/// Precomputed landmark distances: calling it with `(u, v)` node IDs gives a lower bound on
+/// the distance from `u` to `v` (`0` for nodes it does not know).
+#[pyclass(module = "edgecase._core")]
+pub struct AltTable {
+    idx: FxHashMap<u64, usize>,
+    n: usize,
+    landmarks: Vec<u64>,
+    /// `from[l * n + v]`: distance from landmark `l` to `v`
+    from: Vec<f64>,
+    /// `to[l * n + v]`: distance from `v` to landmark `l` (None when undirected: same as `from`)
+    to: Option<Vec<f64>>,
+}
+
+#[pymethods]
+impl AltTable {
+    fn __call__(&self, u: u64, v: u64) -> f64 {
+        let (Some(&a), Some(&b)) = (self.idx.get(&u), self.idx.get(&v)) else {
+            return 0.0;
+        };
+        let to = self.to.as_ref().unwrap_or(&self.from);
+        let mut best = 0.0f64;
+        for l in 0..self.landmarks.len() {
+            let (ua, vb) = (to[l * self.n + a], to[l * self.n + b]);
+            if ua.is_finite() && vb.is_finite() {
+                best = best.max(ua - vb);
+            }
+            let (ua, vb) = (self.from[l * self.n + a], self.from[l * self.n + b]);
+            if ua.is_finite() && vb.is_finite() {
+                best = best.max(vb - ua);
+            }
+        }
+        best
+    }
+
+    #[getter]
+    fn landmarks(&self) -> Vec<u64> {
+        self.landmarks.clone()
+    }
+}
+
+/// Build an ALT table. The landmarks are `start`, extended to `k` by greedy farthest-point
+/// selection (each new landmark is the node farthest from its nearest landmark, unreachable
+/// nodes first; ties go to the smallest ID).
+#[pyfunction]
+#[pyo3(signature = (graph, start, k, weighted=true))]
+pub fn alt_heuristic(graph: &Graph, start: Vec<u64>, k: usize, weighted: bool) -> PyResult<AltTable> {
+    let net = Net::new(graph, weighted)?;
+    if net.negative {
+        return value_err("alt_heuristic() requires non-negative edge weights");
+    }
+    let n = net.ids.len();
+    let sweep = |s: usize, reverse: bool| -> PyResult<Vec<f64>> { Ok(shortest_preds(&net, &[s], weighted, reverse, None)?.0) };
+    let mut chosen: Vec<usize> = start.iter().map(|&s| net.node(s)).collect::<PyResult<_>>()?;
+    let mut from = Vec::with_capacity(k.max(chosen.len()) * n);
+    let mut nearest = vec![f64::INFINITY; n];
+    let mut is_chosen = vec![false; n];
+    for &s in &chosen {
+        let d = sweep(s, false)?;
+        for v in 0..n {
+            nearest[v] = nearest[v].min(d[v]);
+        }
+        is_chosen[s] = true;
+        from.extend(d);
+    }
+    while chosen.len() < k.min(n) {
+        let mut pick = usize::MAX;
+        for v in (0..n).filter(|&v| !is_chosen[v]) {
+            if pick == usize::MAX || nearest[v] > nearest[pick] {
+                pick = v;
+            }
+        }
+        let d = sweep(pick, false)?;
+        for v in 0..n {
+            nearest[v] = nearest[v].min(d[v]);
+        }
+        is_chosen[pick] = true;
+        chosen.push(pick);
+        from.extend(d);
+    }
+    let to = if net.directed {
+        let mut to = Vec::with_capacity(chosen.len() * n);
+        for &s in &chosen {
+            to.extend(sweep(s, true)?);
+        }
+        Some(to)
+    } else {
+        None
+    };
+    Ok(AltTable { landmarks: chosen.iter().map(|&s| net.ids[s]).collect(), idx: net.idx, n, from, to })
+}
