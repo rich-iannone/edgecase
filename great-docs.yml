@@ -653,6 +653,8 @@ reference:
         - Graph.chordal_graph_treewidth
         - Graph.complete_to_chordal_graph
         - Graph.junction_tree
+        - Graph.modular_decomposition
+        - Graph.is_cograph
         - Graph.find_induced_nodes
 
     - title: Community Detection
