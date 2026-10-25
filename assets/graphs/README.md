@@ -1292,6 +1292,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Find minimal d-separator](/assets/graphs/find-minimal-d-separator.light.svg){.lightbox fig-alt="A causal graph: age (teal) affects exercise, exercise affects weight, and both exercise and weight affect heart health (violet). Every path from age to heart starts with the edge into exercise, so conditioning on exercise alone, in the accent color, blocks them all. The card returns the minimal separator [exercise]." width="100%"}
 ```
 
+### `generic_bfs_edges()` — Generic BFS edges
+
+<img src="generic-bfs-edges.light.svg" alt="A six-node graph searched breadth-first from A (outlined) with a callback that lists each node&#x27;s neighbors in reverse alphabetical order. The tree edges are numbered in the accent color in discovery order: 1 A-D, 2 A-C, 3 A-B, 4 D-F and 5 C-E. E is reached from C before B, so the edge B-E, drawn dashed, is not in the tree. The card lists the five (parent, child) pairs." width="570">
+
+```markdown
+![Generic BFS edges](/assets/graphs/generic-bfs-edges.light.svg){.lightbox fig-alt="A six-node graph searched breadth-first from A (outlined) with a callback that lists each node's neighbors in reverse alphabetical order. The tree edges are numbered in the accent color in discovery order: 1 A-D, 2 A-C, 3 A-B, 4 D-F and 5 C-E. E is reached from C before B, so the edge B-E, drawn dashed, is not in the tree. The card lists the five (parent, child) pairs." width="100%"}
+```
+
 ### `generic_edge_bfs()` — Generic edge BFS
 
 <img src="generic-edge-bfs.light.svg" alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) with a callback that leaves out the edge A-C, drawn dashed. The search still reaches C, through B, and the visited edges are numbered in the accent color: 1 A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that A-C is never visited." width="570">
@@ -1524,6 +1532,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![All simple edge paths](/assets/graphs/all-simple-edge-paths.light.svg){.lightbox fig-alt="Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one edge between B and C (id 3). Both routes visit the same nodes but use different edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in teal; both share edge 3." width="100%"}
+```
+
+### `alt_heuristic()` — ALT heuristic
+
+<img src="alt-heuristic.light.svg" alt="A six-by-six grid with the four landmarks chosen by farthest-point selection filled in teal: (4,0), (0,5), (5,4) and (0,0), the last also the source. Each node is labeled with the ALT bound h on its distance to the target (5,5), outlined; on this grid every bound is exact, from 10 down to 0. A* with the heuristic returns the shortest path in the accent color, 10 hops along the top row and down the right column." width="570">
+
+```markdown
+![ALT heuristic](/assets/graphs/alt-heuristic.light.svg){.lightbox fig-alt="A six-by-six grid with the four landmarks chosen by farthest-point selection filled in teal: (4,0), (0,5), (5,4) and (0,0), the last also the source. Each node is labeled with the ALT bound h on its distance to the target (5,5), outlined; on this grid every bound is exact, from 10 down to 0. A* with the heuristic returns the shortest path in the accent color, 10 hops along the top row and down the right column." width="100%"}
 ```
 
 ### `astar_path()` — A* path
@@ -3698,6 +3714,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Count weak components](/assets/graphs/count-weakly-connected-components.light.svg){.lightbox fig-alt="The same directed graph with arrow directions ignored: A to E form one weak component in the accent color and F, G another in teal. The card gives the component sizes 5 and 2 and the count 2." width="100%"}
 ```
 
+### `edge_coloring()` — Edge coloring
+
+<img src="edge-coloring.light.svg" alt="Four players A, B, C, D, every pair joined by an edge (a game), each edge drawn in the color of its round and labeled with the round number. No two edges of one color share a player: round 0 (accent) is A-B and C-D, round 1 (teal) A-C and B-D, and round 2 (violet) A-D and B-C. The card lists the three rounds." width="570">
+
+```markdown
+![Edge coloring](/assets/graphs/edge-coloring.light.svg){.lightbox fig-alt="Four players A, B, C, D, every pair joined by an edge (a game), each edge drawn in the color of its round and labeled with the round number. No two edges of one color share a player: round 0 (accent) is A-B and C-D, round 1 (teal) A-C and B-D, and round 2 (violet) A-D and B-C. The card lists the three rounds." width="100%"}
+```
+
 ### `find_cohesive_blocks()` — Cohesive blocks
 
 <img src="find-cohesive-blocks.light.svg" alt="The eight-node graph drawn with three nested regions. The whole graph is block 0 with cohesion 1, since removing G cuts off H; A to G is block 1 with cohesion 2 (teal); and the cluster A, B, C, D is block 2 with cohesion 3 (accent). The table lists each block&#x27;s cohesion, parent block and nodes." width="570">
@@ -4504,6 +4528,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is chordal](/assets/graphs/is-chordal.light.svg){.lightbox fig-alt="Left: a square A, B, C, D with the diagonal A to C, which splits it into two triangles, so every cycle of four or more nodes has a chord and is_chordal() returns True. Right: the square without the diagonal; the cycle A, B, C, D (shown in the accent color) has no chord, so is_chordal() returns False." width="100%"}
 ```
 
+### `is_complete_split_graph()` — Is complete split graph
+
+<img src="is-complete-split-graph.light.svg" alt="Left: the clique X, Y (shaded) is joined to every node of the independent set A, B, C, so is_complete_split_graph() returns True. Right: without the edge X-C, drawn dashed in the accent color, C misses part of the clique; the graph is still split but is_complete_split_graph() returns False." width="570">
+
+```markdown
+![Is complete split graph](/assets/graphs/is-complete-split-graph.light.svg){.lightbox fig-alt="Left: the clique X, Y (shaded) is joined to every node of the independent set A, B, C, so is_complete_split_graph() returns True. Right: without the edge X-C, drawn dashed in the accent color, C misses part of the clique; the graph is still split but is_complete_split_graph() returns False." width="100%"}
+```
+
 ### `is_connected()` — Is connected
 
 <img src="is-connected.light.svg" alt="Left: two triangles, A B C and D E F, joined by the edge between C and D, so every node can reach every other and is_connected() returns True. Right: the same graph without the C-D edge (drawn dashed in the accent color), which leaves two separate pieces, so is_connected() returns False." width="570">
@@ -4680,6 +4712,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Is simple path](/assets/graphs/is-simple-path.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, with the candidate path's nodes outlined and numbered in order. Left: A, B, C, F follows existing edges without repeating a node, so is_simple_path() returns True. Right: A, B, C, E needs a C-E edge that does not exist (drawn dashed in the accent color), so is_simple_path() returns False." width="100%"}
 ```
 
+### `is_split_graph()` — Is split graph
+
+<img src="is-split-graph.light.svg" alt="Left: a triangle A, B, C, shaded as the clique, with D joined to A and B and E joined to A; D and E share no edge, so they form an independent set and is_split_graph() returns True. Right: the four-cycle A, B, C, D (in the accent color) cannot be split that way, so is_split_graph() returns False." width="570">
+
+```markdown
+![Is split graph](/assets/graphs/is-split-graph.light.svg){.lightbox fig-alt="Left: a triangle A, B, C, shaded as the clique, with D joined to A and B and E joined to A; D and E share no edge, so they form an independent set and is_split_graph() returns True. Right: the four-cycle A, B, C, D (in the accent color) cannot be split that way, so is_split_graph() returns False." width="100%"}
+```
+
 ### `is_strongly_connected()` — Is strongly connected
 
 <img src="is-strongly-connected.light.svg" alt="Left: two directed triangles joined by edges in both directions between C and D, so every node can reach every other along the arrows and is_strongly_connected() returns True. Right: the same graph without the edge from D back to C (drawn dashed in the accent color); nothing in D, E, F can reach A, B, C, so is_strongly_connected() returns False." width="570">
@@ -4718,6 +4758,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Is valid coloring](/assets/graphs/is-valid-coloring.light.svg){.lightbox fig-alt="The same two-by-three ladder on both sides, each node filled with its color and badged with the color number. Left: no edge joins two nodes of the same color, so is_valid_coloring() returns True. Right: F is recolored to 2, the same color as its neighbor C, and that edge (shown in the accent color) makes is_valid_coloring() return False." width="100%"}
+```
+
+### `is_valid_edge_coloring()` — Is valid edge coloring
+
+<img src="is-valid-edge-coloring.light.svg" alt="The same triangle A, B, C with a tail C-D on both sides, each edge drawn in its color and labeled with the color number. Left: the colors 0, 1, 2 on the triangle and 0 on C-D never meet twice at a node, so is_valid_edge_coloring() returns True. Right: C-D is recolored to 1, the color of B-C, and the two meet at C (in the accent color), so is_valid_edge_coloring() returns False." width="570">
+
+```markdown
+![Is valid edge coloring](/assets/graphs/is-valid-edge-coloring.light.svg){.lightbox fig-alt="The same triangle A, B, C with a tail C-D on both sides, each edge drawn in its color and labeled with the color number. Left: the colors 0, 1, 2 on the triangle and 0 on C-D never meet twice at a node, so is_valid_edge_coloring() returns True. Right: C-D is recolored to 1, the color of B-C, and the two meet at C (in the accent color), so is_valid_edge_coloring() returns False." width="100%"}
 ```
 
 ### `is_valid_tree_degree_sequence()` — Is valid tree degree sequence
