@@ -195,9 +195,11 @@ class TestKnownAnswers:
         assert attrs["M3"] == {"type": "parallel", "nodes": list("FGH")}
 
     def test_cograph_docstring_example(self):
-        k23 = _graph([(u, v) for u in "ab" for v in "xyz"])
-        path = _graph([("A", "B"), ("B", "C"), ("C", "D")])
-        assert (k23.is_cograph(), path.is_cograph()) == (True, False)
+        g = _graph([(u, v) for u in "ab" for v in "xyz"])
+        assert g.is_cograph() is True
+        g.delete_edge("a", "z")
+        assert g.is_cograph() is False
+        assert _graph([("A", "B"), ("B", "C"), ("C", "D")]).is_cograph() is False
 
 
 # =============================================================================
