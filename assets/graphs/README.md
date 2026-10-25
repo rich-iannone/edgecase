@@ -1798,6 +1798,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Random walk](/assets/graphs/random-walk.light.svg){.lightbox fig-alt="A directed house-shaped graph walked from A for 6 steps with a fixed seed. Filled badges give each node's positions in the walk, 0 for the start; A and B are visited twice. The card lists the 7 visited nodes, A, B, C, A, B, D, E; edge E to C is unused." width="100%"}
 ```
 
+### `reachability_index()` — Reachability index
+
+<img src="reachability-index.light.svg" alt="Left: a seven-node directed graph in which the cycle A, B, C (shaded) collapses to one component with an edge to D; G also points to D, and D points to E and F. D has the most edges in and out, so it becomes the first hub (teal): it joins the out-list of every component that reaches it and the in-list of every component it reaches. Right: the query index(A, F) is True because A&#x27;s out-list and F&#x27;s in-list share the hub D (the path through D in the accent color), and index(F, A) is False." width="570">
+
+```markdown
+![Reachability index](/assets/graphs/reachability-index.light.svg){.lightbox fig-alt="Left: a seven-node directed graph in which the cycle A, B, C (shaded) collapses to one component with an edge to D; G also points to D, and D points to E and F. D has the most edges in and out, so it becomes the first hub (teal): it joins the out-list of every component that reaches it and the in-list of every component it reaches. Right: the query index(A, F) is True because A's out-list and F's in-list share the hub D (the path through D in the accent color), and index(F, A) is False." width="100%"}
+```
+
 ### `shortest_path()` — Shortest path (fewest hops)
 
 <img src="shortest-path.light.svg" alt="The same directed weighted graph with three routes from A to F. shortest_path runs a breadth-first search, so it ignores the weights and returns the two-hop path A, D, F in the accent color, with filled badges giving each node&#x27;s position 0, 1, 2." width="570">
