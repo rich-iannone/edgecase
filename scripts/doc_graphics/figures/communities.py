@@ -985,3 +985,32 @@ def bipartite_modularity(s: Scene) -> None:
     s.card_centered(right, [("AB  4/8 − 5 · 4/64 = 0.1875", "g2"),
                             ("CD  3/8 − 3 · 4/64 = 0.1875", "g3"),
                             ("Q_B  0.375", "accent")], title="L/m − k d / m²,  m = 8")
+
+
+# edge_coloring docstring: a round robin of four players, one color per round.
+K4 = {"A": (0, 0), "B": (1.6, 0), "C": (0, 1.6), "D": (1.6, 1.6)}
+K4_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D")]
+
+
+@figure("edge_coloring", "communities", "Edge coloring",
+        "Four players A, B, C, D, every pair joined by an edge (a game), each edge drawn in "
+        "the color of its round and labeled with the round number. No two edges of one color "
+        "share a player: round 0 (accent) is A-B and C-D, round 1 (teal) A-C and B-D, and "
+        "round 2 (violet) A-D and B-C. The card lists the three rounds.")
+def edge_coloring(s: Scene) -> None:
+    import edgecase as ec
+
+    g = ec.Graph().add_nodes(list(K4))
+    g.add_edges(K4_EDGES)
+    lab = g.get_label_from_id
+    colors = g.edge_coloring()
+    by_pair = {(lab(a), lab(b)): colors[e] for e, a, b in g.get_edges_as_tuples()}
+    rounds = {0: [("A", "B"), ("C", "D")], 1: [("A", "C"), ("B", "D")],
+              2: [("A", "D"), ("B", "C")]}
+    assert by_pair == {e: c for c, es in rounds.items() for e in es}
+    left, right = compute(s, "g", "g.edge_coloring()")
+    s.graph(place(K4, left, unit=UNIT),
+            [(a, b, {"style": GROUPS[by_pair[(a, b)]], "weight": str(by_pair[(a, b)]),
+                     "weight_t": 0.25 if (a, b) in rounds[2] else 0.5}) for a, b in K4_EDGES])
+    s.card_centered(right, [(f"{c} → " + ", ".join(f"{a}-{b}" for a, b in es), GROUPS[c])
+                            for c, es in rounds.items()], title="color (round)")

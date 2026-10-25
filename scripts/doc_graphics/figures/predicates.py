@@ -1091,3 +1091,82 @@ def is_cover(s: Scene) -> None:
                 styles=styles, prefix=p)
         s.hull([p + k for k in "ABC"], "g2")
         s.hull([p + k for k in second], "g3")
+
+
+# is_split_graph: a triangle A, B, C (the clique) with D and E hanging off it (the
+# independent set), against the four-cycle, which has no such split.
+SPLIT = {"A": (0.9, 0), "B": (0.2, 1.1), "C": (1.6, 1.1), "D": (0, 0.1), "E": (1.8, 0.1)}
+SPLIT_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("A", "D"), ("B", "D"), ("A", "E")]
+SQUARE4 = {"A": (0, 0), "B": (1.4, 0), "C": (1.4, 1.2), "D": (0, 1.2)}
+SQUARE4_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+
+
+@figure("is_split_graph", "predicates", "Is split graph",
+        "Left: a triangle A, B, C, shaded as the clique, with D joined to A and B and E "
+        "joined to A; D and E share no edge, so they form an independent set and "
+        "is_split_graph() returns True. Right: the four-cycle A, B, C, D (in the accent "
+        "color) cannot be split that way, so is_split_graph() returns False.")
+def is_split_graph(s: Scene) -> None:
+    g = _ec(SPLIT, SPLIT_EDGES)
+    assert g.is_split_graph() is True
+    assert _ec(SQUARE4, SQUARE4_EDGES).is_split_graph() is False
+    left, right = contrast(s, "g.is_split_graph()", "g.is_split_graph()")
+    lb = _note(s, left, "clique A, B, C + independent D, E")
+    s.graph(place(SPLIT, lb), SPLIT_EDGES, styles={k: "soft" for k in "ABC"}, prefix="l.")
+    s.hull(["l." + k for k in "ABC"], "g2")
+    rb = _note(s, right, "four-cycle: no split")
+    s.graph(place(SQUARE4, rb), _hi(SQUARE4_EDGES, set(SQUARE4_EDGES)), prefix="r.")
+
+
+# is_complete_split_graph: the clique X, Y joined to every one of A, B, C; removing
+# X-C breaks completeness (the graph is still split).
+CSPLIT = {"X": (0.4, 0), "Y": (1.6, 0), "A": (0, 1.3), "B": (1, 1.3), "C": (2, 1.3)}
+CSPLIT_EDGES = [("X", "Y")] + [(h, k) for h in "XY" for k in "ABC"]
+
+
+@figure("is_complete_split_graph", "predicates", "Is complete split graph",
+        "Left: the clique X, Y (shaded) is joined to every node of the independent set A, "
+        "B, C, so is_complete_split_graph() returns True. Right: without the edge X-C, drawn "
+        "dashed in the accent color, C misses part of the clique; the graph is still split "
+        "but is_complete_split_graph() returns False.")
+def is_complete_split_graph(s: Scene) -> None:
+    g = _ec(CSPLIT, CSPLIT_EDGES)
+    assert g.is_complete_split_graph() is True
+    g.delete_edge("X", "C")
+    assert g.is_complete_split_graph() is False and g.is_split_graph() is True
+    left, right = contrast(s, "g.is_complete_split_graph()", "g.is_complete_split_graph()")
+    for box, p, missing in ((left, "l.", None), (right, "r.", ("X", "C"))):
+        gb = _note(s, box, "clique joined to all" if missing is None else "X-C missing")
+        s.graph(place(CSPLIT, gb),
+                [(a, b, {"style": "removed"}) if (a, b) == missing else (a, b)
+                 for a, b in CSPLIT_EDGES],
+                styles={"X": "soft", "Y": "soft", **({"C": "accent"} if missing else {})},
+                prefix=p)
+        s.hull([p + "X", p + "Y"], "g2")
+
+
+# is_valid_edge_coloring: a triangle A, B, C with a tail C-D, edges colored by number.
+TAILED = {"A": (0, 1.2), "B": (0.7, 0), "C": (1.4, 1.2), "D": (2.6, 1.2)}
+TAILED_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")]
+EDGE_COLOR_STYLES = ("g2", "g3", "g4")
+
+
+@figure("is_valid_edge_coloring", "predicates", "Is valid edge coloring",
+        "The same triangle A, B, C with a tail C-D on both sides, each edge drawn in its "
+        "color and labeled with the color number. Left: the colors 0, 1, 2 on the "
+        "triangle and 0 on C-D never meet twice at a node, so is_valid_edge_coloring() "
+        "returns True. Right: C-D is recolored to 1, the color of B-C, and the two meet at "
+        "C (in the accent color), so is_valid_edge_coloring() returns False.")
+def is_valid_edge_coloring(s: Scene) -> None:
+    g = _ec(TAILED, TAILED_EDGES)
+    good = [0, 1, 2, 0]
+    bad = [0, 1, 2, 1]
+    assert g.is_valid_edge_coloring(dict(zip(_eids(g, TAILED_EDGES), good)))
+    assert not g.is_valid_edge_coloring(dict(zip(_eids(g, TAILED_EDGES), bad)))
+    left, right = contrast(s, "g.is_valid_edge_coloring(colors)",
+                           "g.is_valid_edge_coloring(colors)")
+    for box, p, colors in ((left, "l.", good), (right, "r.", bad)):
+        s.graph(place(TAILED, box),
+                [(a, b, {"style": EDGE_COLOR_STYLES[c], "weight": str(c)})
+                 for (a, b), c in zip(TAILED_EDGES, colors)],
+                styles={"C": "accent"} if colors is bad else {}, prefix=p)

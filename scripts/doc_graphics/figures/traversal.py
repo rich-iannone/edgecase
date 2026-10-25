@@ -1202,3 +1202,34 @@ def generic_edge_bfs(s: Scene) -> None:
             styles={"A": "soft"})
     s.card_centered(right, [(f"{i}  ({a}, {b})", "accent") for (a, b), i in rank.items()]
                     + ["(A, C)  closed, never visited"], title="edges in visit order")
+
+
+# generic_bfs_edges docstring: a callback visits neighbors in reverse alphabetical order.
+# A's children come D, C, B, so E is reached from C first and B-E is never a tree edge.
+REV = {"A": (0, 0.9), "B": (1.3, 0), "C": (1.3, 0.9), "D": (1.3, 1.8), "E": (2.6, 0.45),
+       "F": (2.6, 1.8)}
+REV_EDGES = [("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("C", "E"), ("D", "F")]
+
+
+@figure("generic_bfs_edges", "traversal", "Generic BFS edges",
+        "A six-node graph searched breadth-first from A (outlined) with a callback that "
+        "lists each node's neighbors in reverse alphabetical order. The tree edges are "
+        "numbered in the accent color in discovery order: 1 A-D, 2 A-C, 3 A-B, 4 D-F and "
+        "5 C-E. E is reached from C before B, so the edge B-E, drawn dashed, is not in the "
+        "tree. The card lists the five (parent, child) pairs.")
+def generic_bfs_edges(s: Scene) -> None:
+    g, lab = _labelled(REV, REV_EDGES)
+
+    def rev(node):
+        return sorted(g.neighbors(node), key=lab, reverse=True)
+
+    tree = [(lab(u), lab(v)) for u, v in g.generic_bfs_edges("A", neighbors=rev)]
+    assert tree == [("A", "D"), ("A", "C"), ("A", "B"), ("D", "F"), ("C", "E")]
+    left, right = compute(s, "g", 'g.generic_bfs_edges("A", neighbors=rev)')
+    rank = {frozenset(e): i for i, e in enumerate(tree, 1)}
+    s.graph(place(REV, left, unit=UNIT),
+            [(a, b, {"style": "accent", "weight": str(rank[frozenset((a, b))])})
+             if frozenset((a, b)) in rank else (a, b, {"style": "ghost"}) for a, b in REV_EDGES],
+            styles={"A": "soft"})
+    s.card_centered(right, [(f"{i}  ({a}, {b})", "accent") for i, (a, b) in enumerate(tree, 1)],
+                    title="(parent, child) pairs")

@@ -1238,3 +1238,34 @@ def all_simple_edge_paths(s: Scene) -> None:
     s.edge("B", "C", style="g2", bend=GAP, weight="3")
     s.card_centered(right, [("[1, 3]", "accent"), ("[2, 3]", "g2")],
                     title="edge ids per path")
+
+
+@figure("alt_heuristic", "paths", "ALT heuristic",
+        "A six-by-six grid with the four landmarks chosen by farthest-point selection "
+        "filled in teal: (4,0), (0,5), (5,4) and (0,0), the last also the source. Each node "
+        "is labeled with the ALT bound h on its distance to the target (5,5), outlined; on "
+        "this grid every bound is exact, from 10 down to 0. A* with the heuristic returns "
+        "the shortest path in the accent color, 10 hops along the top row and down the "
+        "right column.")
+def alt_heuristic(s: Scene) -> None:
+    g, ids, rc = _grid(6, 6)
+    h = g.alt_heuristic(k=4, seed=0)
+    marks = [_rc(*rc[n]) for n in h.landmarks]
+    assert marks == ["40", "05", "54", "00"]
+    bound = {_rc(*rc[n]): h(n, ids[-1]) for n in ids}
+    assert all(bound[_rc(r, c)] == 10 - r - c for r in range(6) for c in range(6))
+    path = [_rc(*rc[n]) for n in g.astar_path(ids[0], ids[-1], heuristic=h)]
+    assert path == [_rc(0, c) for c in range(6)] + [_rc(r, 5) for r in range(1, 6)]
+    left, right = compute(s, "grid", "h = grid.alt_heuristic(k=4)")
+    x0 = left.cx - 2.5 * 40
+    for r in range(6):
+        for c in range(6):
+            k = _rc(r, c)
+            style = ("g2" if k in marks else "soft" if k in (path[0], path[-1])
+                     else "accent" if k in path else "default")
+            s.node(k, x0 + 40 * c, 23 + 30 * r, str(bound[k]), style, r=R_SMALL)
+    for a, b in _grid_edges(6, 6):
+        s.edge(a, b, style="accent" if _on(path, a, b) else "muted")
+    s.card_centered(right, [("(4,0) (0,5) (5,4) (0,0)", "g2"), "labels: h(v, (5,5))",
+                            ("h(s, t) = 10 = d(s, t)", "accent"), "A* path: 10 hops"],
+                    title="landmarks")
