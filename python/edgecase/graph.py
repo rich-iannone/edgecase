@@ -30559,6 +30559,208 @@ class Graph:
             )
         return result
 
+    def modular_decomposition(self) -> "Graph":
+        r"""
+        Build the modular decomposition tree of an undirected graph.
+
+        ![Modular decomposition](/assets/graphs/modular-decomposition.light.svg){.lightbox fig-alt="Left: a graph where the clique A, B, C, D is joined to E, E is joined to F, G and H, and those three are joined to I. Its two strong modules with several nodes are tinted: A, B, C, D in the accent color and F, G, H in teal. Right: the decomposition tree. The prime root M1 has four children: the series module M2 (accent) over A, B, C, D, the leaf E, the parallel module M3 (teal) over F, G, H, and the leaf I." width="100%"}
+
+        A *module* is a set of nodes that every outside node treats alike: it is adjacent to
+        all of them or to none. Modules are the parts of a graph that can be collapsed to a
+        single node without losing information, much as a group of interchangeable members
+        acts as one unit to the rest of a network. The *strong* modules, those that overlap
+        no other module, nest into a single tree, the modular decomposition, which describes
+        every module of the graph.
+
+        Each tree node is a strong module. Its leaves are the single nodes of the graph, and
+        each internal node has one of three types, chosen by how its children connect:
+
+        - `"parallel"`: the module is disconnected, and its children are its components.
+        - `"series"`: the complement of the module is disconnected, so every child is joined
+          to every other, and its children are the complement's components.
+        - `"prime"`: neither, and its children are its maximal proper modules. Collapsing them
+          leaves a graph with no modules other than single nodes and the whole graph.
+
+        The result is a new directed graph with an edge from each module to each of its
+        children. Leaves keep the labels of the nodes they hold and internal nodes are
+        labeled `"M1"`, `"M2"`, ... in preorder, so `"M1"` is the root unless the graph has a
+        single node (then the tree is that one leaf). If some node of the graph is already
+        labeled like that, the prefix is doubled (`"MM1"`, ...) until the labels are distinct.
+        Every tree node has a `type` attribute (`"parallel"`, `"series"`, `"prime"` or
+        `"leaf"`) and a `nodes` attribute listing the labels of the original nodes in the
+        module. Children appear in the order of their smallest node ID.
+
+        Self-loops and parallel edges are ignored.
+
+        Returns
+        -------
+        Graph
+            A new directed, unweighted graph holding the decomposition tree. The empty graph
+            gives an empty tree.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        See Also
+        --------
+        is_cograph : Whether the tree has no prime nodes.
+
+        Technical Notes
+        ---------------
+        NetworkX pull request #7957 (not yet merged) ports an existing C++ implementation;
+        this one is written independently from the definitions. A module that is
+        disconnected, or whose complement is, splits into the components (found in
+        $O(V + E)$ time, or by a complement search over the unvisited nodes). Otherwise the
+        module is prime, and its children come from the vertex partitioning of Ehrenfeucht et
+        al. (1994): partition refinement from a pivot node $v$ splits the other nodes into
+        the maximal modules that avoid $v$, in time linear in their edges, and a forcing
+        digraph on those parts (part $X$ forces $Y$ when $Y$ tells $X$ apart from $v$) has a
+        unique source component made of the parts outside the largest proper module holding
+        $v$. The children are those parts plus that module. The tree is unique, so the result
+        is the same as NetworkX's (which reports the root separately and accepts a pivot
+        picker that cannot change the answer). Each level costs near-linear time for sparse
+        modules; deep trees on dense graphs, such as threshold graphs, approach $O(V^3)$.
+
+        Examples
+        --------
+        Four friends A to D all know one another, and E knows them all, along with F, G and
+        H, who don't know each other but all know I:
+
+        ```{python}
+        import edgecase as ec
+
+        g = ec.Graph().add_nodes(list("ABCDEFGHI"))
+        g.add_edges([(a, b) for a in "ABCD" for b in "ABCDE" if a < b])
+        g.add_edges([("E", x) for x in "FGH"] + [(x, "I") for x in "FGH"])
+
+        tree = g.modular_decomposition()
+        {
+            tree.get_label_from_id(n): (attrs["type"], attrs["nodes"])
+            for n in sorted(tree.get_node_ids(limit=None))
+            if (attrs := tree.get_node(n).attributes)["type"] != "leaf"
+        }
+        ```
+
+        The clique A to D is a series module and F, G, H a parallel one; with E and I they
+        are the children of the prime root:
+
+        ```{python}
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+        """
+        entries = rust.modular_decomposition(self._graph)
+        leaves = {self._node_label(ids[0]) for kind, _, ids in entries if kind == "leaf"}
+        n_internal = len(entries) - len(leaves)
+        prefix = "M"
+        while any(f"{prefix}{i}" in leaves for i in range(1, n_internal + 1)):
+            prefix += "M"
+
+        labels: list[str] = []
+        nodes = []
+        k = 0
+        for kind, _, ids in entries:
+            members = [self._node_label(n) for n in ids]
+            if kind == "leaf":
+                labels.append(members[0])
+            else:
+                k += 1
+                labels.append(f"{prefix}{k}")
+            nodes.append((labels[-1], {"type": kind, "nodes": members}))
+        result = Graph(directed=True)
+        if nodes:
+            result.add_nodes(nodes)
+        edges = [(labels[parent], labels[i]) for i, (_, parent, _) in enumerate(entries)
+                 if parent >= 0]
+        if edges:
+            result.add_edges(edges)
+        if self._recording_depth == 0:
+            if not entries:
+                narration = "modular_decomposition(): the graph is empty."
+            elif n_internal == 0:
+                narration = "modular_decomposition(): a single node, so the tree is one leaf."
+            else:
+                counts = {k: sum(e[0] == k for e in entries) for k in ("prime", "series", "parallel")}
+                parts = ", ".join(f"{c} {k}" for k, c in counts.items() if c)
+                narration = (
+                    f"modular_decomposition(): {n_internal} modules ({parts}) over "
+                    f"{len(leaves)} leaves; the root is {entries[0][0]}."
+                )
+            self._record_step(
+                KIND_QUERY,
+                "modular_decomposition",
+                "G.modular_decomposition()",
+                result=entries[0][0] if entries else None,
+                narration=narration,
+            )
+        return result
+
+    def is_cograph(self) -> bool:
+        r"""
+        Check if an undirected graph is a cograph.
+
+        A *cograph* (complement-reducible graph) can be built from single nodes by taking
+        disjoint unions and joins, where a join adds every edge between two graphs.
+        Equivalently, it has no induced path on four nodes (no $P_4$), and its modular
+        decomposition (see `modular_decomposition()`) has no prime nodes: every module with
+        more than one node is disconnected or has a disconnected complement. The tree then
+        describes the graph completely, which makes many hard problems (cliques, coloring,
+        independent sets, Hamiltonicity) easy on cographs.
+
+        Self-loops and parallel edges are ignored.
+
+        Returns
+        -------
+        bool
+            `True` if the graph is a cograph. The empty graph and a single node are.
+
+        Raises
+        ------
+        ValueError
+            If the graph is directed.
+
+        See Also
+        --------
+        modular_decomposition : The tree whose prime nodes this checks for.
+
+        Technical Notes
+        ---------------
+        The graph is a cograph exactly when its modular decomposition has no prime node
+        (Corneil, Lerchs and Stewart Burlingham, 1981), so this runs `modular_decomposition()`
+        and stops short of building the tree. Linear-time cograph recognizers exist; this
+        shares the decomposition's cost instead.
+
+        Examples
+        --------
+        A complete bipartite graph is the join of two edgeless graphs, so it is a cograph. A
+        path on four nodes is the smallest graph that is not:
+
+        ```{python}
+        import edgecase as ec
+
+        k23 = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
+        k23.add_edges([(u, v) for u in "ab" for v in "xyz"])
+        path = ec.Graph().add_nodes(["A", "B", "C", "D"])
+        path.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        k23.is_cograph(), path.is_cograph()
+        ```
+        """
+        if self.is_directed():
+            raise ValueError("is_cograph() requires an undirected graph")
+        entries = rust.modular_decomposition(self._graph)
+        value = all(kind != "prime" for kind, _, _ in entries)
+        if self._recording_depth == 0:
+            self._record_step(
+                KIND_QUERY,
+                "is_cograph",
+                "G.is_cograph()",
+                result=value,
+                narration=f"is_cograph(): {value}.",
+            )
+        return value
+
     def find_induced_nodes(self, s: Union[int, str], t: Union[int, str]) -> list[int]:
         """
         Find the nodes on induced paths between two nodes of a chordal graph.
