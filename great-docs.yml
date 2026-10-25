@@ -509,6 +509,7 @@ reference:
         - Graph.all_simple_edge_paths
         - Graph.astar_path
         - Graph.astar_path_length
+        - Graph.alt_heuristic
         - Graph.predecessor
         - Graph.single_target_shortest_path
         - Graph.single_target_shortest_path_length
@@ -519,6 +520,7 @@ reference:
         - Graph.bfs
         - Graph.bfs_edges
         - Graph.bfs_beam_edges
+        - Graph.generic_bfs_edges
         - Graph.bfs_tree
         - Graph.bfs_layers
         - Graph.bfs_predecessors
@@ -643,6 +645,8 @@ reference:
         - Graph.make_max_clique_graph
         - Graph.is_chordal
         - Graph.is_perfect_graph
+        - Graph.is_split_graph
+        - Graph.is_complete_split_graph
         - Graph.chordal_graph_cliques
         - Graph.chordal_graph_treewidth
         - Graph.complete_to_chordal_graph
@@ -939,6 +943,8 @@ reference:
       contents:
         - Graph.greedy_color
         - Graph.is_valid_coloring
+        - Graph.edge_coloring
+        - Graph.is_valid_edge_coloring
         - Graph.chromatic_number_upper_bound
 
     - title: Matching and Covering
