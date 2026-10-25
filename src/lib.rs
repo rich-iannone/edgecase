@@ -193,6 +193,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::cycles::simple_cycles, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::cycle_basis, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::minimum_cycle_basis, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::cycles::feedback_edge_set, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::cycles::directed_cycle_basis, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::connectivity::k_components, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::domirank::domirank, m)?)?;
