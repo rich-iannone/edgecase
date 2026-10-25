@@ -35,6 +35,7 @@ pub mod link_prediction;
 pub mod matching;
 pub mod matching_cover;
 pub mod mixing_cuts;
+pub mod modular;
 pub mod motifs;
 pub mod network_comparison;
 pub mod edit_distance;
