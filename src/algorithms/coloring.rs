@@ -535,6 +535,158 @@ pub fn chromatic_number_upper_bound(coloring: std::collections::HashMap<u64, i64
     Ok(colors.len())
 }
 
+/// Color the edges with at most Δ + 1 colors so that edges sharing an endpoint differ
+/// (Misra and Gries, 1992, a constructive proof of Vizing's theorem).
+///
+/// Edges are colored in ID order, direction ignored. Each edge (x, f) takes a color free at
+/// both ends if one exists; otherwise a maximal fan of x starting at f is built, a c/d
+/// alternating path from x is inverted (c free at x, d free at the fan's last node), and a
+/// prefix of the fan is rotated so the edge can take d. O(m · n) time.
+///
+/// Errors on self-loops and on parallel edges (including a directed pair u → v, v → u),
+/// for which Δ + 1 colors may not suffice.
+///
+/// Returns (edge ID, color) pairs in edge ID order, colors 0..=Δ.
+#[pyfunction]
+pub fn edge_coloring(graph: &Graph) -> PyResult<Vec<(u64, usize)>> {
+    const NONE: usize = usize::MAX;
+    let mut raw = graph.edges();
+    raw.sort_unstable();
+    let mut node_ids = graph.get_node_ids();
+    node_ids.sort_unstable();
+    let index: FxHashMap<u64, usize> =
+        node_ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+
+    let mut ends: Vec<(usize, usize)> = Vec::with_capacity(raw.len());
+    let mut pairs: FxHashSet<(usize, usize)> = FxHashSet::default();
+    let mut degree = vec![0usize; node_ids.len()];
+    for &(_, s, t) in &raw {
+        let (a, b) = (index[&s], index[&t]);
+        if a == b {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "edge_coloring() needs a graph without self-loops",
+            ));
+        }
+        if !pairs.insert((a.min(b), a.max(b))) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "edge_coloring() needs a graph without parallel edges (on a directed graph, \
+                 without both u -> v and v -> u)",
+            ));
+        }
+        degree[a] += 1;
+        degree[b] += 1;
+        ends.push((a, b));
+    }
+    let k = match degree.iter().max() {
+        Some(&d) if d > 0 => d + 1,
+        _ => return Ok(Vec::new()),
+    };
+
+    // at[v * k + c]: the edge of color c at node v, or NONE when c is free at v
+    let mut at = vec![NONE; node_ids.len() * k];
+    let mut color = vec![NONE; ends.len()];
+    let mut mark = vec![NONE; node_ids.len()];
+    let other = |e: usize, v: usize, ends: &[(usize, usize)]| {
+        if ends[e].0 == v {
+            ends[e].1
+        } else {
+            ends[e].0
+        }
+    };
+
+    fn paint(e: usize, c: usize, ends: &[(usize, usize)], at: &mut [usize], color: &mut [usize], k: usize) {
+        let (a, b) = ends[e];
+        at[a * k + c] = e;
+        at[b * k + c] = e;
+        color[e] = c;
+    }
+    fn unpaint(e: usize, ends: &[(usize, usize)], at: &mut [usize], color: &mut [usize], k: usize) {
+        let (a, b) = ends[e];
+        let c = color[e];
+        at[a * k + c] = usize::MAX;
+        at[b * k + c] = usize::MAX;
+        color[e] = usize::MAX;
+    }
+
+    for e in 0..ends.len() {
+        let (x, f) = ends[e];
+        if let Some(c) = (0..k).find(|&c| at[x * k + c] == NONE && at[f * k + c] == NONE) {
+            paint(e, c, &ends, &mut at, &mut color, k);
+            continue;
+        }
+
+        // Maximal fan of x from f: each next edge (x, y) has a color free at the previous node
+        let mut fan_v = vec![f];
+        let mut fan_e = vec![e];
+        mark[f] = e;
+        loop {
+            let last = *fan_v.last().unwrap();
+            let next = (0..k).find_map(|c| {
+                let ex = at[x * k + c];
+                if at[last * k + c] != NONE || ex == NONE {
+                    return None;
+                }
+                let y = other(ex, x, &ends);
+                (mark[y] != e).then_some((y, ex))
+            });
+            match next {
+                Some((y, ex)) => {
+                    mark[y] = e;
+                    fan_v.push(y);
+                    fan_e.push(ex);
+                }
+                None => break,
+            }
+        }
+
+        let last = *fan_v.last().unwrap();
+        let c = (0..k).find(|&c| at[x * k + c] == NONE).unwrap();
+        let d = (0..k).find(|&c| at[last * k + c] == NONE).unwrap();
+
+        // Invert the c/d path from x, so that d becomes free at x
+        if c != d {
+            let mut path = Vec::new();
+            let (mut cur, mut want) = (x, d);
+            while at[cur * k + want] != NONE {
+                let ed = at[cur * k + want];
+                path.push(ed);
+                cur = other(ed, cur, &ends);
+                want = if want == d { c } else { d };
+            }
+            let old: Vec<usize> = path.iter().map(|&ed| color[ed]).collect();
+            for &ed in &path {
+                unpaint(ed, &ends, &mut at, &mut color, k);
+            }
+            for (&ed, &was) in path.iter().zip(&old) {
+                paint(ed, if was == c { d } else { c }, &ends, &mut at, &mut color, k);
+            }
+        }
+
+        // The first node w with d free on a prefix of the fan that is still a fan
+        let mut w = None;
+        for i in 0..fan_v.len() {
+            if i > 0 && at[fan_v[i - 1] * k + color[fan_e[i]]] != NONE {
+                break;
+            }
+            if at[fan_v[i] * k + d] == NONE {
+                w = Some(i);
+                break;
+            }
+        }
+        let w = w.expect("Misra-Gries: the inverted path always leaves a usable fan prefix");
+
+        // Rotate the fan up to w, then color (x, w) with d
+        for i in 0..w {
+            let moved = color[fan_e[i + 1]];
+            unpaint(fan_e[i + 1], &ends, &mut at, &mut color, k);
+            paint(fan_e[i], moved, &ends, &mut at, &mut color, k);
+        }
+        paint(fan_e[w], d, &ends, &mut at, &mut color, k);
+    }
+
+    Ok(raw.iter().zip(&color).map(|(&(id, _, _), &c)| (id, c)).collect())
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
