@@ -29691,6 +29691,116 @@ class Graph:
 
         return rust_minimum_cycle_basis(self._graph, weight)
 
+    def minimum_feedback_edge_set(self, weighted: bool | None = None) -> list[int]:
+        r"""
+        Find a lightest set of edges whose removal leaves the graph without cycles.
+
+        ![Minimum feedback edge set](/assets/graphs/minimum-feedback-edge-set.light.svg){.lightbox fig-alt="A directed dependency graph on A, B, C, D and E with three cycles, A to B to C, A to B to D to C, and A to B to D to E to C, each closed by the edge from C back to A. That edge, in the accent color, is the whole feedback edge set: removing it breaks all three cycles, and the card lists it with the topological order of what is left, A, B, D, E, C." width="100%"}
+
+        A *feedback edge set* breaks every cycle: once its edges are removed, an undirected
+        graph becomes a forest and a directed graph becomes a DAG. The cheapest one answers
+        questions such as which dependencies to drop to make a build order possible, which
+        links to cut so a network has no loops, or which "back" edges to reverse before
+        drawing a directed graph in layers.
+
+        On an undirected graph the result is exact: it is every edge outside a maximum spanning
+        forest (self-loops and repeated parallel edges included), so the edges kept are the
+        heaviest forest. On a directed graph finding the lightest set is NP-hard, and the
+        result is an approximation (see the Technical Notes); it is always *minimal*, though:
+        putting any one of its edges back would close a cycle.
+
+        Parameters
+        ----------
+        weighted
+            Whether to use edge weights as the cost of removing each edge. If `None` (default),
+            follows the graph's `weighted` flag; otherwise every edge costs `1`, and the result
+            has as few edges as possible. Weights must be non-negative.
+
+        Returns
+        -------
+        list[int]
+            The IDs of the edges to remove, in ascending order. Empty if the graph has no
+            cycle.
+
+        Raises
+        ------
+        ValueError
+            If a weight used is negative or NaN.
+
+        Technical Notes
+        ---------------
+        Undirected: Kruskal's algorithm runs from the heaviest edge down (ties go to the lower
+        edge ID), and the edges it rejects form the set; since the kept forest has the largest
+        possible weight, the removed weight is the smallest, in $O(E \log E)$. Directed: the
+        local-ratio algorithm of Demetrescu and Finocchi (2003). It repeatedly finds a cycle by
+        DFS, lowers the residual weight of each of its edges by the cycle's smallest residual
+        weight, and removes the edges that reach zero. Removed edges are then put back,
+        heaviest first, whenever their target can no longer reach their source. The total
+        weight is at most the optimum times the length of the longest cycle; on small random
+        digraphs it was optimal about 95% of the time and never more than 5/3 of the optimum.
+        Each round removes at least one edge and costs $O(V + E)$, so the directed case is
+        $O(E (V + E))$. This follows NetworkX's proposed `minimum_feedback_edge_set`
+        (PR #8521, not yet merged).
+
+        Examples
+        --------
+        A weighted triangle has one cycle, so the lightest feedback edge set is its lightest
+        edge:
+
+        ```{python}
+        import edgecase as ec
+
+        triangle = (
+            ec.Graph(weighted=True)
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 3.0), ("B", "C", 1.0), ("C", "A", 2.0)])
+        )
+
+        drop = triangle.minimum_feedback_edge_set()
+        pairs = [triangle.get_node_ids_by_edge_id(e) for e in drop]
+        [(triangle.get_label_from_id(s), triangle.get_label_from_id(t)) for s, t in pairs]
+        ```
+
+        In this dependency graph, A, B and C depend on each other in a loop, as do B, D and C.
+        Dropping the single edge from C to A breaks both cycles, after which the graph has a
+        topological order:
+
+        ```{python}
+        deps = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C", "D", "E"])
+            .add_edges(
+                [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "C"), ("D", "E"), ("E", "C")]
+            )
+        )
+
+        drop = deps.minimum_feedback_edge_set()
+        pairs = [deps.get_node_ids_by_edge_id(e) for e in drop]
+        [(deps.get_label_from_id(s), deps.get_label_from_id(t)) for s, t in pairs]
+        ```
+        """
+        use = self._use_weights(weighted)
+        found = rust.feedback_edge_set(self._graph, use)
+        if self._recording_depth == 0:
+            removed = [self.get_edge(e) for e in found]
+            edges = [(self._node_label(e.source), self._node_label(e.target)) for e in removed]
+            weights = [e.weight if use and e.weight is not None else 1.0 for e in removed]
+            total = self._as_number(sum(weights), use)
+            self._record_step(
+                KIND_QUERY,
+                "minimum_feedback_edge_set",
+                "G.minimum_feedback_edge_set()",
+                delta=StepDelta(edges_selected=edges),
+                result=found,
+                narration=(
+                    f"Removing {len(found)} edge{'s' * (len(found) != 1)} "
+                    f"(total weight {total}) breaks every cycle."
+                    if found
+                    else "The graph has no cycle; nothing to remove."
+                ),
+            )
+        return found
+
     # ==============================================================================
     # Clique Operations
     # ==============================================================================
