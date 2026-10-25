@@ -30700,6 +30700,8 @@ class Graph:
         r"""
         Check if an undirected graph is a cograph.
 
+        ![Is cograph](/assets/graphs/is-cograph.light.svg){.lightbox fig-alt="Left: every node of a, b (shaded violet) is joined to every node of x, y, z (shaded teal), the join of two edgeless sets, so is_cograph() returns True. Right: without the edge a-z, drawn dashed, the nodes z, b, x, a form an induced path on four nodes, in the accent color, so is_cograph() returns False." width="100%"}
+
         A *cograph* (complement-reducible graph) can be built from single nodes by taking
         disjoint unions and joins, where a join adds every edge between two graphs.
         Equivalently, it has no induced path on four nodes (no $P_4$), and its modular
@@ -30733,18 +30735,19 @@ class Graph:
 
         Examples
         --------
-        A complete bipartite graph is the join of two edgeless graphs, so it is a cograph. A
-        path on four nodes is the smallest graph that is not:
+        A complete bipartite graph is the join of two edgeless graphs, so it is a cograph.
+        Dropping the edge a-z leaves z, b, x, a as an induced path on four nodes, and the
+        graph is no longer one:
 
         ```{python}
         import edgecase as ec
 
-        k23 = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
-        k23.add_edges([(u, v) for u in "ab" for v in "xyz"])
-        path = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        g = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
+        g.add_edges([(u, v) for u in "ab" for v in "xyz"])
+        before = g.is_cograph()
+        g.delete_edge("a", "z")
 
-        k23.is_cograph(), path.is_cograph()
+        before, g.is_cograph()
         ```
         """
         if self.is_directed():
