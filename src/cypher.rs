@@ -9,7 +9,9 @@
 //! native form here, and calls the Python function only for the other conditions and for values
 //! the native form can't decide (an attribute value of an unusual type, say). Either way the
 //! answer is the one the Python evaluator gives, and the matches come in the same order as from
-//! the Python search, which stays as the reference.
+//! the Python search, which stays as the reference. That includes the steps of `shortestPath()`
+//! and `allShortestPaths()`, whose search (a lazy breadth-first search from the far end, then
+//! the trails from the near end for each length in turn) runs the same way in both.
 
 use crate::graph::Graph;
 use pyo3::basic::CompareOp;
@@ -28,6 +30,8 @@ enum Val {
     Node(u64),
     Edge(u64),
     Path(Vec<u64>),
+    /// A path variable: its nodes, and the edges between them
+    Walk(Vec<u64>, Vec<u64>),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -35,6 +39,7 @@ enum Kind {
     Node,
     Rel,
     Path,
+    Walk,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -200,6 +205,8 @@ enum StepKind {
     Scan,
     Expand,
     Connect,
+    Shortest,
+    AllShortest,
 }
 
 struct Step {
@@ -214,6 +221,8 @@ struct Step {
     edge_conds: Vec<Cond>,
     reverse: bool,
     fixed: bool,
+    /// The path variables the step binds, each with the slots of its pattern
+    paths: Vec<(usize, Vec<usize>)>,
 }
 
 struct Stage {
@@ -222,6 +231,8 @@ struct Stage {
     new: Vec<usize>,
     joined: Vec<usize>,
     steps: Vec<Step>,
+    /// The path variables bound before `entry` is checked
+    paths: Vec<(usize, Vec<usize>)>,
 }
 
 struct Program {
@@ -282,9 +293,9 @@ impl Memo {
 
 /// A column of the table that `run()` gives with `table=` (see `Matcher.table()`)
 enum Column {
-    /// The value of a slot: an ID, a list of edge IDs or `None`
+    /// The value of a slot: an ID, a list of edge IDs, a path's dict of IDs or `None`
     Slot(usize),
-    /// The label of a node slot
+    /// The label of a node slot, or a path's dict with the labels of its nodes
     Label(usize),
     /// A property of a node or relationship slot (an `Operand::Prop`)
     Prop(Operand),
@@ -296,6 +307,8 @@ enum Cell {
     Null,
     Id(u64),
     Path(usize, usize),
+    /// A path variable: its nodes at `paths[i..j]` and its edges at `paths[j..k]`
+    Walk(usize, usize, usize),
 }
 
 /// The matches kept for the table: the values of `slots`, row after row
@@ -330,6 +343,7 @@ fn parse_program(program: &Bound<'_, PyAny>) -> PyResult<Program> {
             "node" => Ok(Kind::Node),
             "relationship" => Ok(Kind::Rel),
             "relationships" => Ok(Kind::Path),
+            "path" => Ok(Kind::Walk),
             _ => Err(bad_program(&format!("unknown slot kind {kind:?}"))),
         })
         .collect::<PyResult<Vec<Kind>>>()?;
@@ -378,9 +392,17 @@ impl Reader<'_> {
 
     fn stage(&self, stage: &Bound<'_, PyAny>) -> PyResult<Stage> {
         type Items<'py> = Vec<Bound<'py, PyAny>>;
-        type Fields<'py> = (bool, Items<'py>, Items<'py>, Items<'py>, Items<'py>);
-        let (optional, entry, new, joined, steps): Fields = stage.extract()?;
+        type Fields<'py> = (
+            bool,
+            Items<'py>,
+            Items<'py>,
+            Items<'py>,
+            Items<'py>,
+            Items<'py>,
+        );
+        let (optional, entry, new, joined, steps, paths): Fields = stage.extract()?;
         Ok(Stage {
+            paths: self.paths(&paths)?,
             optional,
             entry: self.conds(&entry)?,
             new: new.iter().map(|s| self.slot(s)).collect::<PyResult<_>>()?,
@@ -408,13 +430,16 @@ impl Reader<'_> {
             Vec<Bound<'py, PyAny>>,
             bool,
             bool,
+            Vec<Bound<'py, PyAny>>,
         );
-        let (kind, node, rel, start, dir, seed, conds, hops, edge_conds, reverse, fixed): Fields =
+        let (kind, node, rel, start, dir, seed, conds, hops, edge_conds, reverse, fixed, paths): Fields =
             step.extract()?;
         let kind = match kind.as_str() {
             "scan" => StepKind::Scan,
             "expand" => StepKind::Expand,
             "connect" => StepKind::Connect,
+            "shortest" => StepKind::Shortest,
+            "all_shortest" => StepKind::AllShortest,
             _ => return Err(bad_program(&format!("unknown step kind {kind:?}"))),
         };
         let dir = match dir.as_deref() {
@@ -427,11 +452,15 @@ impl Reader<'_> {
             match item {
                 Some(item) => self.slot(&item),
                 None if kind == StepKind::Scan => Ok(0),
-                None => Err(bad_program("an expand or connect step needs rel and start")),
+                None => Err(bad_program("only a scan step can do without rel and start")),
             }
         };
         let (rel, start) = (optional_slot(rel)?, optional_slot(start)?);
+        if matches!(kind, StepKind::Shortest | StepKind::AllShortest) && hops.is_none() {
+            return Err(bad_program("a shortest-path step needs hops"));
+        }
         Ok(Step {
+            paths: self.paths(&paths)?,
             node: self.slot(&node)?,
             rel,
             start,
@@ -444,6 +473,31 @@ impl Reader<'_> {
             fixed,
             kind,
         })
+    }
+
+    /// `[(path, walk)]`: a path slot, and its pattern's first node and relationships
+    fn paths(&self, paths: &[Bound<'_, PyAny>]) -> PyResult<Vec<(usize, Vec<usize>)>> {
+        paths
+            .iter()
+            .map(|item| {
+                let (path, walk): (Bound<'_, PyAny>, Vec<Bound<'_, PyAny>>) = item.extract()?;
+                let path = self.slot(&path)?;
+                let walk = walk
+                    .iter()
+                    .map(|s| self.slot(s))
+                    .collect::<PyResult<Vec<_>>>()?;
+                let kinds: Vec<Kind> = walk.iter().map(|&s| self.kinds[s]).collect();
+                if self.kinds[path] != Kind::Walk
+                    || kinds.first() != Some(&Kind::Node)
+                    || !kinds[1..]
+                        .iter()
+                        .all(|k| matches!(k, Kind::Rel | Kind::Path))
+                {
+                    return Err(bad_program("a path is a node, then relationships"));
+                }
+                Ok((path, walk))
+            })
+            .collect()
     }
 
     fn conds(&self, conds: &[Bound<'_, PyAny>]) -> PyResult<Vec<Cond>> {
@@ -553,9 +607,9 @@ impl Reader<'_> {
     /// A node or (single) relationship slot
     fn single(&self, item: &Bound<'_, PyAny>) -> PyResult<usize> {
         let slot = self.slot(item)?;
-        if self.kinds[slot] == Kind::Path {
+        if matches!(self.kinds[slot], Kind::Path | Kind::Walk) {
             return Err(bad_program(
-                "a variable-length relationship can't be tested natively",
+                "a variable-length relationship or path can't be tested natively",
             ));
         }
         Ok(slot)
@@ -575,9 +629,9 @@ impl Reader<'_> {
     }
 
     fn prop_key(&self, slot: usize, key: Bound<'_, PyString>) -> PyResult<(Py<PyString>, bool)> {
-        if self.kinds[slot] == Kind::Path {
+        if matches!(self.kinds[slot], Kind::Path | Kind::Walk) {
             return Err(bad_program(
-                "a variable-length relationship has no properties",
+                "a variable-length relationship or path has no properties",
             ));
         }
         let text = key.to_cow()?;
@@ -595,8 +649,8 @@ impl Reader<'_> {
             "slot" => Ok(Column::Slot(self.slot(&column.get_item(1)?)?)),
             "label" => {
                 let slot = self.slot(&column.get_item(1)?)?;
-                if self.kinds[slot] != Kind::Node {
-                    return Err(bad_program("only a node slot has a label"));
+                if !matches!(self.kinds[slot], Kind::Node | Kind::Walk) {
+                    return Err(bad_program("only a node or path slot has labels"));
                 }
                 Ok(Column::Label(slot))
             }
@@ -697,6 +751,12 @@ impl<'a, 'py> Search<'a, 'py> {
             Val::Unset | Val::Null => py.None().into_bound(py),
             Val::Node(id) | Val::Edge(id) => (*id).into_pyobject(py)?.into_any(),
             Val::Path(edges) => PyTuple::new(py, edges.iter().copied())?.into_any(),
+            Val::Walk(nodes, edges) => (
+                PyTuple::new(py, nodes.iter().copied())?,
+                PyTuple::new(py, edges.iter().copied())?,
+            )
+                .into_pyobject(py)?
+                .into_any(),
         })
     }
 
@@ -727,6 +787,13 @@ impl<'a, 'py> Search<'a, 'py> {
                         let start = table.paths.len();
                         table.paths.extend_from_slice(edges);
                         Cell::Path(start, table.paths.len())
+                    }
+                    Val::Walk(nodes, edges) => {
+                        let start = table.paths.len();
+                        table.paths.extend_from_slice(nodes);
+                        let middle = table.paths.len();
+                        table.paths.extend_from_slice(edges);
+                        Cell::Walk(start, middle, table.paths.len())
                     }
                     Val::Null | Val::Unset => Cell::Null,
                 };
@@ -977,6 +1044,7 @@ impl<'a, 'py> Search<'a, 'py> {
     fn enter(&mut self, s: usize) -> PyResult<bool> {
         let program = self.program;
         let stage = &program.stages[s];
+        self.bind_paths(&stage.paths)?;
         if !self.check_all(&stage.entry)? {
             return Ok(false);
         }
@@ -1047,6 +1115,7 @@ impl<'a, 'py> Search<'a, 'py> {
                     continue;
                 }
                 self.binding[step.node] = Val::Node(node);
+                self.bind_paths(&step.paths)?;
                 if self.check_all(&step.conds)? {
                     if distinct {
                         self.used_nodes[s].insert(node);
@@ -1060,6 +1129,9 @@ impl<'a, 'py> Search<'a, 'py> {
                 }
             }
             return Ok(false);
+        }
+        if matches!(step.kind, StepKind::Shortest | StepKind::AllShortest) {
+            return self.shortest(s, k);
         }
         if step.hops.is_some() {
             return self.paths(s, k);
@@ -1091,6 +1163,7 @@ impl<'a, 'py> Search<'a, 'py> {
                 None => self.binding[step.node] = Val::Node(other),
             }
             self.binding[step.rel] = Val::Edge(edge);
+            self.bind_paths(&step.paths)?;
             if !self.check_all(&step.conds)? {
                 continue;
             }
@@ -1218,10 +1291,240 @@ impl<'a, 'py> Search<'a, 'py> {
             edges.reverse();
         }
         self.binding[step.rel] = Val::Path(edges);
+        self.bind_paths(&step.paths)?;
         if self.check_all(&step.conds)? {
             return self.search(s, k + 1);
         }
         Ok(false)
+    }
+
+    /// Bind each path variable of `paths`, whose slots are all bound, as `_path_value()` does
+    fn bind_paths(&mut self, paths: &[(usize, Vec<usize>)]) -> PyResult<()> {
+        for (path, walk) in paths {
+            self.binding[*path] = self.walk_value(walk)?;
+        }
+        Ok(())
+    }
+
+    fn walk_value(&self, walk: &[usize]) -> PyResult<Val> {
+        let Val::Node(mut node) = self.binding[walk[0]] else {
+            return Ok(Val::Null);
+        };
+        let (mut nodes, mut edges) = (vec![node], Vec::new());
+        for &slot in &walk[1..] {
+            let found = match &self.binding[slot] {
+                Val::Edge(edge) => std::slice::from_ref(edge),
+                Val::Path(path) => &path[..],
+                _ => return Ok(Val::Null),
+            };
+            for &id in found {
+                let edge = self
+                    .graph
+                    .edge_by_id(id)
+                    .ok_or_else(|| bad_program("no such edge"))?;
+                node = if edge.source == node {
+                    edge.target
+                } else {
+                    edge.source
+                };
+                nodes.push(node);
+                edges.push(id);
+            }
+        }
+        Ok(Val::Walk(nodes, edges))
+    }
+
+    /// Whether the edge passes the conditions of step `k` of stage `s` on each edge of its
+    /// variable-length relationship
+    fn edge_passes(&mut self, s: usize, k: usize, edge: u64) -> PyResult<bool> {
+        let program = self.program;
+        self.binding[program.edge_slot] = Val::Edge(edge);
+        self.check_all(&program.stages[s].steps[k].edge_conds)
+    }
+
+    /// The paths of a shortest-path step, as `shortest()` in `Matcher._extend()` finds them:
+    /// those from `start` to `node` with the fewest edges among the ones that pass the step's
+    /// conditions. For each length from the least on, a depth-first walk tries the paths of
+    /// that length, cut short by each node's distance to the end, which a breadth-first search
+    /// backwards from the end finds one layer at a time, as far as the walk needs.
+    fn shortest(&mut self, s: usize, k: usize) -> PyResult<bool> {
+        let program = self.program;
+        let step = &program.stages[s].steps[k];
+        let (low, high) = step.hops.unwrap_or((1, None));
+        let (a, b) = (self.node_at(step.start)?, self.node_at(step.node)?);
+        let back = match step.dir {
+            Dir::Out => Dir::In,
+            Dir::In => Dir::Out,
+            Dir::Both => Dir::Both,
+        };
+        let distinct = program.distinct_nodes;
+        let mut dist: FxHashMap<u64, usize> = FxHashMap::default();
+        dist.insert(b, 0);
+        let (mut frontier, mut depth) = (vec![b], 0);
+        let mut length = low;
+        while high.map_or(true, |high| length <= high) {
+            while depth < length && !frontier.is_empty() {
+                let mut layer = Vec::new();
+                for &node in &frontier {
+                    let mut next = 0;
+                    while let Some((edge, other)) = next_pair(self.graph, node, back, &mut next) {
+                        if dist.contains_key(&other)
+                            || self.used_edges[s].contains(&edge)
+                            || (distinct && other != a && self.used_nodes[s].contains(&other))
+                            || !self.edge_passes(s, k, edge)?
+                        {
+                            continue;
+                        }
+                        dist.insert(other, depth + 1);
+                        layer.push(other);
+                    }
+                }
+                self.tick()?;
+                frontier = layer;
+                depth += 1;
+            }
+            if !dist.contains_key(&a) {
+                if frontier.is_empty() {
+                    return Ok(false); // the end can't be reached from the start
+                }
+                length += 1;
+                continue;
+            }
+            match self.shortest_walk(s, k, a, b, length, &dist, frontier.is_empty())? {
+                None => return Ok(true),
+                Some((found, cut)) if found || !cut => return Ok(false),
+                Some(_) => length += 1,
+            }
+        }
+        Ok(false)
+    }
+
+    /// The walk of `shortest()` over the paths of one `length`, on an explicit stack:
+    /// `Some((found, cut))`, whether a path passed the step's conditions and whether a longer
+    /// one might, or `None` when the limit is reached
+    #[allow(clippy::too_many_arguments)]
+    fn shortest_walk(
+        &mut self,
+        s: usize,
+        k: usize,
+        a: u64,
+        b: u64,
+        length: usize,
+        dist: &FxHashMap<u64, usize>,
+        exhausted: bool,
+    ) -> PyResult<Option<(bool, bool)>> {
+        let program = self.program;
+        let step = &program.stages[s].steps[k];
+        let one = step.kind == StepKind::Shortest;
+        let distinct = program.distinct_nodes;
+        let mut path: Vec<u64> = Vec::new();
+        if length == 0 {
+            if a != b {
+                return Ok(Some((false, true)));
+            }
+            return Ok(self.shortest_end(s, k, &path)?.map(|found| (found, true)));
+        }
+        let (mut found, mut cut) = (false, false);
+        let mut stack = vec![Frame {
+            node: a,
+            next: 0,
+            marked: false,
+        }];
+        while !stack.is_empty() {
+            let at = stack.len() - 1;
+            let top = &mut stack[at];
+            let Some((edge, other)) = next_pair(self.graph, top.node, step.dir, &mut top.next)
+            else {
+                let frame = stack.pop().expect("the stack isn't empty");
+                if !stack.is_empty() {
+                    if let Some(edge) = path.pop() {
+                        self.used_edges[s].remove(&edge);
+                    }
+                    if frame.marked {
+                        self.used_nodes[s].remove(&frame.node);
+                    }
+                }
+                continue;
+            };
+            if self.used_edges[s].contains(&edge) {
+                continue;
+            }
+            let left = length - at - 1; // the edges still to take after this one
+            let mark = distinct && !self.used_nodes[s].contains(&other);
+            if distinct && !mark && !(left == 0 && other == b) {
+                continue; // (the end itself is used, so a path ends there)
+            }
+            match dist.get(&other) {
+                Some(&d) if d <= left => {}
+                Some(_) => {
+                    cut = true;
+                    continue;
+                }
+                None => {
+                    cut |= !exhausted;
+                    continue;
+                }
+            }
+            if !self.edge_passes(s, k, edge)? {
+                continue;
+            }
+            self.used_edges[s].insert(edge);
+            path.push(edge);
+            if mark {
+                self.used_nodes[s].insert(other);
+            }
+            if left > 0 {
+                stack.push(Frame {
+                    node: other,
+                    next: 0,
+                    marked: mark,
+                });
+                self.tick()?;
+                continue;
+            }
+            cut = true;
+            if other == b {
+                match self.shortest_end(s, k, &path)? {
+                    None => return Ok(None),
+                    Some(passed) => found |= passed,
+                }
+            }
+            self.used_edges[s].remove(&edge);
+            path.pop();
+            if mark {
+                self.used_nodes[s].remove(&other);
+            }
+            if one && found {
+                // undo the rest of the walk
+                for &edge in &path {
+                    self.used_edges[s].remove(&edge);
+                }
+                for frame in &stack[1..] {
+                    if frame.marked {
+                        self.used_nodes[s].remove(&frame.node);
+                    }
+                }
+                break;
+            }
+        }
+        Ok(Some((found, cut)))
+    }
+
+    /// Try a path of `shortest()` that reaches the end: whether it passed the step's
+    /// conditions, or `None` when the limit is reached
+    fn shortest_end(&mut self, s: usize, k: usize, path: &[u64]) -> PyResult<Option<bool>> {
+        let program = self.program;
+        let step = &program.stages[s].steps[k];
+        self.binding[step.rel] = Val::Path(path.to_vec());
+        self.bind_paths(&step.paths)?;
+        if !self.check_all(&step.conds)? {
+            return Ok(Some(false));
+        }
+        Ok(if self.search(s, k + 1)? {
+            None
+        } else {
+            Some(true)
+        })
     }
 }
 
@@ -1296,8 +1599,9 @@ fn compare(
     }
 }
 
-/// The order of two table cells of one slot: by ID, a path as its list of edge IDs, and nulls
-/// last, as the keys of `Matcher.table()` sort
+/// The order of two table cells of one slot: by ID, a variable-length relationship as its list
+/// of edge IDs, a path as its node IDs and then its edge IDs, and nulls last, as the keys of
+/// `Matcher.table()` sort
 fn cmp_cells(a: Cell, b: Cell, paths: &[u64]) -> std::cmp::Ordering {
     use std::cmp::Ordering;
     match (a, b) {
@@ -1306,6 +1610,9 @@ fn cmp_cells(a: Cell, b: Cell, paths: &[u64]) -> std::cmp::Ordering {
         (_, Cell::Null) => Ordering::Less,
         (Cell::Id(x), Cell::Id(y)) => x.cmp(&y),
         (Cell::Path(i, j), Cell::Path(k, l)) => paths[i..j].cmp(&paths[k..l]),
+        (Cell::Walk(i, j, k), Cell::Walk(l, m, n)) => paths[i..j]
+            .cmp(&paths[l..m])
+            .then_with(|| paths[j..k].cmp(&paths[m..n])),
         _ => Ordering::Equal, // a slot holds one kind of value
     }
 }
@@ -1346,6 +1653,31 @@ fn table_result(
         });
     }
     let none = || py.None().into_bound(py);
+    let label = |id: u64| -> PyResult<Bound<'_, PyAny>> {
+        let node = graph
+            .node_by_id(id)
+            .ok_or_else(|| bad_program("no such node"))?;
+        Ok(match &node.label {
+            Some(label) => PyString::new(py, label).into_any(),
+            None => none(),
+        })
+    };
+    // a path as `{"nodes": [...], "relationships": [...]}`, its nodes as IDs or labels
+    let walk = |i: usize, j: usize, k: usize, labels: bool| -> PyResult<Bound<'_, PyAny>> {
+        let nodes = if labels {
+            let found = table.paths[i..j]
+                .iter()
+                .map(|&id| label(id))
+                .collect::<PyResult<Vec<_>>>()?;
+            PyList::new(py, found)?
+        } else {
+            PyList::new(py, &table.paths[i..j])?
+        };
+        let dict = PyDict::new(py);
+        dict.set_item("nodes", nodes)?;
+        dict.set_item("relationships", PyList::new(py, &table.paths[j..k])?)?;
+        Ok(dict.into_any())
+    };
     let mut out = Vec::with_capacity(columns.len());
     for column in columns {
         let mut values = Vec::with_capacity(count);
@@ -1355,17 +1687,11 @@ fn table_result(
                     Cell::Null => none(),
                     Cell::Id(id) => id.into_pyobject(py)?.into_any(),
                     Cell::Path(i, j) => PyList::new(py, &table.paths[i..j])?.into_any(),
+                    Cell::Walk(i, j, k) => walk(i, j, k, false)?,
                 },
                 Column::Label(slot) => match cell(row, *slot) {
-                    Cell::Id(id) => {
-                        let node = graph
-                            .node_by_id(id)
-                            .ok_or_else(|| bad_program("no such node"))?;
-                        match &node.label {
-                            Some(label) => PyString::new(py, label).into_any(),
-                            None => none(),
-                        }
-                    }
+                    Cell::Id(id) => label(id)?,
+                    Cell::Walk(i, j, k) => walk(i, j, k, true)?,
                     _ => none(),
                 },
                 Column::Prop(Operand::Prop { slot, key, special }) => {
