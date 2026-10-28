@@ -24912,6 +24912,8 @@ class Graph:
         """
         Find the matches of a Cypher `MATCH` pattern, as a table.
 
+        ![Match a pattern](/assets/graphs/match.light.svg){.lightbox fig-alt="A directed six-node grid A to F, each node tagged with its integer id 1 to 6, where B and C point at each other and so do D and E. The query MATCH (a)-->(b)-->(a) finds the 2-cycles, and the result is a table with columns a and b holding node ids, one row per match: 2 3, 3 2, 4 5, and 5 4. Each cycle matches twice, once from each end. The first row and its match, B and C with both edges, are in the accent color." width="100%"}
+
         Each match of the pattern is one row of a Polars DataFrame, and each named variable is a
         column holding the ID of the node or edge it matched. The ID columns join directly onto
         `get_node_df()` and `get_edge_df()`, and Polars takes over from there for grouping,
@@ -25129,6 +25131,8 @@ class Graph:
         """
         Select the nodes or edges that match a Cypher `MATCH` pattern.
 
+        ![Select the matches of a pattern](/assets/graphs/select-match.light.svg){.lightbox fig-alt="A directed six-node grid A to F with no selection, where B and C point at each other and so do D and E. After select_match with MATCH (a)-->(b)-->(a), every node in a 2-cycle is selected: B, C, D, and E, in the accent color. A and F are in no cycle and stay plain." width="100%"}
+
         Finds every match of the pattern, as `match()` does, and selects what the matches bound:
         every node of every match, or only the variables that `select=` names. The selection
         then feeds the `*_ws` methods, so a query can tag, recolor or extract the parts of the
@@ -25316,6 +25320,8 @@ class Graph:
     ) -> int:
         """
         Count the matches of a Cypher `MATCH` pattern.
+
+        ![Count the matches of a pattern](/assets/graphs/count-matches.light.svg){.lightbox fig-alt="A directed six-node grid A to F, where B and C point at each other and so do D and E; those four edges are in the accent color. The query MATCH (a)-->(b)-->(a) matches each 2-cycle once from each end, so the card lists B→C→B, C→B→C, D→E→D, and E→D→E, and the count is 4." width="100%"}
 
         This is the number of rows that `match()` would return for the same query, found
         without building the table. It's useful for motif counts, for checking that a pattern
