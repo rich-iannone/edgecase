@@ -5051,7 +5051,8 @@ def from_cypher(
     nodes on either side, and patterns can be chained and separated by commas. The text can hold
     any number of `CREATE` clauses and `;`-separated statements, with `//` and `/* */` comments.
     Other clauses (`MATCH`, `MERGE`, `RETURN`, ...) raise an error, since they don't describe a
-    graph by themselves.
+    graph by themselves. To run a `MATCH` query on a graph, use `Graph.match()`,
+    `Graph.select_match()` or `Graph.count_matches()`.
 
     Cypher's names are mapped onto EdgeCase's as follows:
 
