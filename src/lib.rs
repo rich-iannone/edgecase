@@ -6,6 +6,7 @@
 use pyo3::prelude::*;
 
 pub mod algorithms;
+pub mod cypher;
 pub mod graph;
 pub mod layout;
 pub mod temporal;
