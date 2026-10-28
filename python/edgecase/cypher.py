@@ -51,6 +51,9 @@ _COMPARISONS = ("=", "<>", "<", "<=", ">", ">=", "=~")
 # aggregating functions, which RETURN rejects with a pointer to Polars
 _AGGREGATES = frozenset({"avg", "collect", "count", "max", "min", "sum"})
 
+# the shortest-path functions of a pattern, lower-cased -> as documented
+_SHORTEST = {"shortestpath": "shortestPath", "allshortestpaths": "allShortestPaths"}
+
 
 def position_error(fmt: str, text: str, pos: int, message: str) -> ValueError:
     """A `ValueError` for a problem at `pos` in `text`, giving its line and column."""
@@ -212,10 +215,18 @@ class RelPattern:
 
 @dataclass
 class Pattern:
-    """A chain of nodes joined by relationships: `rels[k]` joins `nodes[k]` and `nodes[k + 1]`."""
+    """A chain of nodes joined by relationships: `rels[k]` joins `nodes[k]` and `nodes[k + 1]`.
+
+    `variable` names the whole path, as in `p = (a)-->(b)`. `shortest` is `"one"` for
+    `shortestPath(...)` and `"all"` for `allShortestPaths(...)`, whose pattern is one
+    variable-length relationship between two nodes.
+    """
 
     nodes: list[NodePattern]
     rels: list[RelPattern] = field(default_factory=list)
+    variable: Optional[str] = None
+    shortest: Optional[str] = None
+    pos: int = field(default=0, compare=False)
 
 
 @dataclass
@@ -249,7 +260,8 @@ class Query:
     """One or more `MATCH` clauses, then `[RETURN returns]`.
 
     `variables` maps each named variable to its kind, in the order they first appear: `"node"`,
-    `"relationship"`, or `"relationships"` for a variable-length relationship (a list of them).
+    `"relationship"`, `"relationships"` for a variable-length relationship (a list of them), or
+    `"path"` for a path variable.
     """
 
     clauses: list[Clause]
@@ -445,10 +457,19 @@ class _CypherParser(_TokenParser):
         kinds = query.variables
         # every pattern variable, to tell a WHERE that looks ahead from one that has a typo
         anywhere = {part.variable for pattern in query.patterns
-                    for part in [*pattern.nodes, *pattern.rels]}
+                    for part in [*pattern.nodes, *pattern.rels, pattern]}
         for clause in query.clauses:
             in_clause: set[str] = set()
             for pattern in clause.patterns:
+                name = pattern.variable
+                if name is not None:
+                    known = kinds.get(name)
+                    if known == "path":
+                        self._fail(f"the path variable `{name}` is defined twice", pattern.pos)
+                    if known is not None:
+                        what = "node" if known == "node" else "relationship"
+                        self._fail(f"`{name}` is used for both a path and a {what}", pattern.pos)
+                    kinds[name] = "path"
                 parts: list[Union[NodePattern, RelPattern]] = [pattern.nodes[0]]
                 for rel, node in zip(pattern.rels, pattern.nodes[1:]):
                     parts += [rel, node]
@@ -481,6 +502,9 @@ class _CypherParser(_TokenParser):
         known = kinds.get(name)
         if known is None:
             kinds[name] = kind
+        elif known == "path":
+            what = "node" if kind == "node" else "relationship"
+            self._fail(f"`{name}` is a path variable, so it can't also be a {what}", part.pos)
         elif (known == "node") != (kind == "node"):
             self._fail(f"`{name}` is used for both a node and a relationship", part.pos)
         elif kind != "node" and name in in_clause:
@@ -524,6 +548,40 @@ class _CypherParser(_TokenParser):
     # --- patterns -------------------------------------------------------------
 
     def _pattern(self, create: bool) -> Pattern:
+        """A chain of nodes and relationships, and in a query, `p = chain` or
+        `[p =] shortestPath(chain)` (or `allShortestPaths`)."""
+        start = self._pos()
+        variable = None
+        if (self._at_name() and self.i + 1 < len(self.tokens)
+                and self.tokens[self.i + 1][:2] == ("punct", "=")):
+            if create:
+                self._fail("a path variable (p = ...) can only be used in a query")
+            variable = self._name("a path variable")
+            self.i += 1  # the `=`
+        word = self._peek() if self._at_name() else None
+        if (not create and word is not None and word.lower() in _SHORTEST
+                and self.i + 1 < len(self.tokens) and self.tokens[self.i + 1][1] == "("):
+            name, pos = _SHORTEST[word.lower()], self._pos()
+            self.i += 2  # the name and `(`
+            pattern = self._chain(create)
+            self._expect(")", f"')' to close {name}()")
+            if len(pattern.rels) != 1:
+                self._fail(f"{name}() takes a pattern with one relationship, such as "
+                           "(a)-[*]-(b)", pos)
+            rel = pattern.rels[0]
+            if rel.length is None:
+                self._fail(f"{name}() needs a variable-length relationship, such as -[*]- or "
+                           "-[:KNOWS*..5]-", rel.pos)
+            if rel.length[0] > 1:
+                self._fail(f"{name}() finds paths of at least 0 or 1 relationships, not "
+                           f"{rel.length[0]}", rel.pos)
+            pattern.shortest = "all" if name == "allShortestPaths" else "one"
+        else:
+            pattern = self._chain(create)
+        pattern.variable, pattern.pos = variable, start
+        return pattern
+
+    def _chain(self, create: bool) -> Pattern:
         pattern = Pattern([self._node(create)])
         while self._peek() in ("-", "<"):
             pattern.rels.append(self._rel(create))
@@ -852,6 +910,15 @@ class RelRef:
     id: int
 
 
+@dataclass(frozen=True)
+class PathRef:
+    """A path as a value in an expression: its node IDs, and the IDs of the relationships
+    between them (one fewer)."""
+
+    nodes: tuple[int, ...]
+    rels: tuple[int, ...]
+
+
 class GraphView:
     """The node and edge data of a Rust graph as the query evaluator sees it.
 
@@ -934,12 +1001,14 @@ def _kind(value: Any) -> str:
         return "node"
     if isinstance(value, RelRef):
         return "relationship"
+    if isinstance(value, PathRef):
+        return "path"
     return "other"
 
 
 def _describe(value: Any) -> str:
     kind = _kind(value)
-    if kind in ("node", "relationship"):
+    if kind in ("node", "relationship", "path"):
         return f"a {kind}"
     if kind == "list" and value and all(isinstance(v, RelRef) for v in value):
         return "a list of relationships"
@@ -981,7 +1050,7 @@ def order(a: Any, b: Any) -> Optional[int]:
     """Negative, zero or positive as `a` sorts before, with or after `b`, or `None` when they
     can't be ordered (a `null`, different types, NaN, or types without an order)."""
     ka, kb = _kind(a), _kind(b)
-    if ka != kb or ka in ("null", "map", "node", "relationship", "other"):
+    if ka != kb or ka in ("null", "map", "node", "relationship", "path", "other"):
         return None
     if ka == "list":
         for x, y in zip(a, b):
@@ -1010,7 +1079,8 @@ class Evaluator:
     """Compiles the expressions of one query into Python functions of a binding.
 
     A binding maps variable names to node or edge IDs, a tuple of edge IDs for a variable-length
-    relationship, or `None` for an `OPTIONAL MATCH` that found nothing. `variables` gives the
+    relationship, a pair of tuples `(node IDs, edge IDs)` for a path, or `None` for an
+    `OPTIONAL MATCH` that found nothing. `variables` gives the
     kind of each variable (as in `Query.variables`), `params` the values of the
     `$name` parameters, and `view` reads the graph. Errors point at the query `text`.
     """
@@ -1067,6 +1137,8 @@ class Evaluator:
         if kind == "relationships":
             return lambda binding: (None if binding[name] is None
                                     else [RelRef(edge) for edge in binding[name]])
+        if kind == "path":
+            return lambda binding: None if binding[name] is None else PathRef(*binding[name])
         return lambda binding: None if binding[name] is None else RelRef(binding[name])
 
     def _listexpr(self, expr: ListExpr):
@@ -1083,6 +1155,9 @@ class Evaluator:
                                      "relationships, so it has no properties; to require a "
                                      "property of every relationship on the path, put it in "
                                      "the pattern, as in -[r*1..3 {key: value}]->")
+            if kind == "path":
+                self._fail(expr.pos, f"`{name}` is a path, so it has no properties; read them "
+                                     "from the nodes and relationships of its pattern")
             if kind == "node":
                 return lambda binding: (None if binding[name] is None
                                         else view.node_prop(binding[name], key))
@@ -1314,14 +1389,27 @@ def _fn_upper(value, view):
     return value.upper() if isinstance(value, str) else _WRONG_TYPE
 
 
+def _fn_length(value, view):
+    return len(value.rels) if isinstance(value, PathRef) else _WRONG_TYPE
+
+
+def _fn_nodes(value, view):
+    return [NodeRef(n) for n in value.nodes] if isinstance(value, PathRef) else _WRONG_TYPE
+
+
+def _fn_relationships(value, view):
+    return [RelRef(r) for r in value.rels] if isinstance(value, PathRef) else _WRONG_TYPE
+
+
 # lower-cased name -> implementation; `exists()` is handled by the evaluator itself
 _FUNCTIONS = {
     "id": _fn_id, "type": _fn_type, "labels": _fn_labels, "size": _fn_size,
-    "tolower": _fn_lower, "toupper": _fn_upper, "exists": None,
+    "tolower": _fn_lower, "toupper": _fn_upper, "length": _fn_length, "nodes": _fn_nodes,
+    "relationships": _fn_relationships, "exists": None,
 }
 # lower-cased name -> the name as documented
 _FUNCTION_NAMES = {f.lower(): f for f in ("id", "type", "labels", "size", "toLower", "toUpper",
-                                          "exists")}
+                                          "length", "nodes", "relationships", "exists")}
 
 
 def conjuncts(expr: Optional[Expr]) -> list[Expr]:
@@ -1372,7 +1460,11 @@ class Step:
     `edge_slot`). With `reverse`, the path runs from `node` to `start` in the pattern, so its
     edges are bound in the opposite order. A `fixed` relationship was bound by an earlier clause,
     so the step only checks that edge.
+    - `"shortest"` binds the variable-length `rel` of `shortestPath()` (with `shortest` `"one"`)
+      or `allShortestPaths()` (`"all"`) to the shortest paths from the bound node `start` to
+      the bound `node` (see `Matcher._extend()`).
 
+    `paths` lists the path variables the step completes, which are bound with its slots.
     `conditions` are checked as soon as the step has bound its slots.
     """
 
@@ -1387,6 +1479,8 @@ class Step:
     edge_conditions: list[Expr] = field(default_factory=list)
     reverse: bool = False
     fixed: bool = False
+    paths: list[str] = field(default_factory=list)
+    shortest: Optional[str] = None
 
     def __str__(self) -> str:
         if self.kind == "scan":
@@ -1396,7 +1490,8 @@ class Step:
             low, high = self.hops
             rel += f"*{low}" if low == high else f"*{low}..{'' if high is None else high}"
         arrow = {"out": "-[{}]->", "in": "<-[{}]-", "both": "-[{}]-"}[self.direction]
-        return f"{self.kind} ({self.start}){arrow.format(rel)}({self.node})"
+        kind = "all shortest" if self.shortest == "all" else self.kind
+        return f"{kind} ({self.start}){arrow.format(rel)}({self.node})"
 
 
 @dataclass
@@ -1405,7 +1500,8 @@ class Stage:
 
     `entry` holds the conditions that read only slots bound by earlier clauses (or none at all),
     checked before the clause's `steps`. `new` lists the slots the clause binds, and `joined`
-    the slots of earlier clauses that its patterns use again.
+    the slots of earlier clauses that its patterns use again. `paths` lists the path variables
+    whose patterns earlier clauses bound entirely, bound before `entry` is checked.
     """
 
     optional: bool
@@ -1413,6 +1509,7 @@ class Stage:
     entry: list[Expr]
     new: list[str]
     joined: list[str]
+    paths: list[str] = field(default_factory=list)
 
 
 def _id_seed(condition: Expr, slot: str) -> Optional[tuple[str, Expr]]:
@@ -1447,6 +1544,8 @@ def _selectivity(conditions: list[Expr], slot: str) -> int:
 
 
 _FLIP = {"out": "in", "in": "out", "either": "both"}
+# a step's direction, followed backwards
+_BACK = {"out": "in", "in": "out", "both": "both"}
 
 
 class Plan:
@@ -1457,12 +1556,21 @@ class Plan:
       that no variable clashes with it (`" 0"`, `" 1"`, ...). `slots` maps every slot to its
       kind (as in `Query.variables`), in the order they first appear. `paths` maps each
       variable-length relationship to its left and right node slots.
+    - **Path variables:** a path variable is a slot too, just before those of its pattern, and
+      `walks` maps it to the slots it's made of: the first node, then each relationship. It's
+      bound by the step that binds the last of those (or before the stage's entry conditions,
+      when earlier clauses bound them all).
+    - **Shortest paths:** the relationship of `shortestPath()` or `allShortestPaths()` is never
+      followed to reach a node. Its two nodes are bound first, like any others, and a
+      `"shortest"` step after the clause's other steps finds the paths between them.
     - **Stages:** each `MATCH` clause is a `Stage`, planned with the slots of the clauses before
       it already bound.
     - **Conditions:** the patterns' labels, types and properties (`element_conditions()`) and
       the parts of the clause's `WHERE` (`conjuncts()`). Each is checked at the first step that
       has bound every slot it reads. Those of a variable-length relationship are checked on
-      each of its edges instead, through the slot `edge_slot`.
+      each of its edges instead, through the slot `edge_slot`. Those that read a shortest
+      path's relationship (or its path variable) go to its `"shortest"` step, so they decide
+      which paths are the shortest.
     - **Order:** each connected group of patterns starts at its most constrained node (by
       `_selectivity()`, ties going to the first), or at a node bound by an earlier clause. It
       then grows along relationships, closing a cycle (`"connect"`) whenever it can, so that
@@ -1475,6 +1583,7 @@ class Plan:
     def __init__(self, query: Query, directed: bool = True):
         self.slots: dict[str, str] = {}
         self.paths: dict[str, tuple[str, str]] = {}
+        self.walks: dict[str, list[str]] = {}
         self.edge_slot = " edge"
         while self.edge_slot in query.variables:
             self.edge_slot += "_"
@@ -1500,30 +1609,52 @@ class Plan:
                 conditions.extend(element_conditions(name, element))
             return name
 
+        shortest = []  # the rels of shortestPath() patterns, as in `rels`, then the mode
         for pattern in clause.patterns:
+            if pattern.variable is not None:
+                self.slots[pattern.variable] = used[pattern.variable] = "path"
             left = slot(pattern.nodes[0], "node")
+            walk = [left]
             for rel, node in zip(pattern.rels, pattern.nodes[1:]):
                 rel_slot = slot(rel, "relationship" if rel.length is None else "relationships")
                 right = slot(node, "node")
-                rels.append((rel_slot, left, right, rel.direction, rel.length))
+                found = (rel_slot, left, right, rel.direction, rel.length)
+                if pattern.shortest is None:
+                    rels.append(found)
+                else:
+                    shortest.append((*found, pattern.shortest))
                 if rel.length is not None:
                     self.paths[rel_slot] = (left, right)
+                walk.append(rel_slot)
                 left = right
+            if pattern.variable is not None:
+                self.walks[pattern.variable] = walk
         conditions += conjuncts(clause.where)
+
+        # the path variables whose patterns earlier clauses bound entirely
+        pending = [p for p in used if used[p] == "path"]
+        early = [p for p in pending if set(self.walks[p]) <= before]
+        pending = [p for p in pending if p not in early]
+        ready = before | set(early)
 
         needs = [variables_in(c) for c in conditions]
         new = [s for s in used if s not in before]
-        entry = [c for c, n in zip(conditions, needs) if n <= before]
+        entry = [c for c, n in zip(conditions, needs) if n <= ready]
         alone = {s: [c for c, n in zip(conditions, needs) if n == {s}] for s in new}
         score = {s: _selectivity(alone[s], s) for s in new}
         score.update({s: 10**9 for s in used if s in before})
 
         steps: list[Step] = []
-        placed = [n <= before for n in needs]
-        bound = set(before)
+        placed = [n <= ready for n in needs]
+        bound = set(ready)
 
         def add(step: Step) -> None:
             bound.update(s for s in (step.node, step.rel) if s is not None)
+            for p in list(pending):
+                if set(self.walks[p]) <= bound:
+                    pending.remove(p)
+                    step.paths.append(p)
+                    bound.add(p)
             for i, n in enumerate(needs):
                 if not placed[i] and n <= bound:
                     placed[i] = True
@@ -1554,7 +1685,12 @@ class Plan:
                      direction if directed else "both", hops=hops,
                      edge_conditions=per_edge.get(rel_slot, []), reverse=start != left,
                      fixed=rel_slot in before))
-        return Stage(clause.optional, steps, entry, new, [s for s in used if s in before])
+        # a shortest path joins two nodes bound by now, and is never followed to reach one
+        for rel_slot, left, right, arrow, hops, mode in shortest:
+            direction = "both" if arrow == "either" or not directed else arrow
+            add(Step("shortest", right, rel_slot, left, direction, hops=hops,
+                     edge_conditions=per_edge[rel_slot], shortest=mode))
+        return Stage(clause.optional, steps, entry, new, [s for s in used if s in before], early)
 
     @property
     def steps(self) -> list[Step]:
@@ -1681,9 +1817,20 @@ class Matcher:
     - **Matches:** `rows()` gives each match as a tuple with a value for every slot of the plan,
       anonymous ones included, in the order of `plan.slots`; `binding()` turns one into a dict
       of slot → value, and `matches()` yields those dicts. A node or relationship slot holds an
-      ID, a variable-length relationship a tuple of edge IDs in pattern order, and a slot that an
-      `OPTIONAL MATCH` found nothing for holds `None`. Matches come in search order, which is
-      fixed for a given graph and query.
+      ID, a variable-length relationship a tuple of edge IDs in pattern order, a path variable a
+      tuple `(node IDs, edge IDs)` in pattern order, and a slot that an `OPTIONAL MATCH` found
+      nothing for holds `None`. Matches come in search order, which is fixed for a given graph
+      and query.
+    - **Shortest paths:** a `"shortest"` step first measures the distance of each node to the
+      far end by a breadth-first search (backwards from it, and only as far as needed), then
+      searches the trails from the near end for each length in turn, from the lower bound up,
+      following only edges that keep the far end within reach. The first length with a trail
+      that passes the step's conditions is the shortest: `allShortestPaths()` gives every such
+      trail, `shortestPath()` the first. The distances skip the edges (and, with
+      `distinct_nodes=True`, the nodes) that the rest of the clause uses, but not those of the
+      trail itself, so they're lower bounds that only prune the search; a longer length is tried
+      only while some branch was cut off by its length. When the two ends are the same node,
+      this finds the shortest cycle through it.
     - **Clauses:** each `MATCH` extends the matches of the clauses before it, and drops those it
       can't extend. An `OPTIONAL MATCH` keeps them instead, with its new slots `None`. A pattern
       that uses a `None` slot again matches nothing.
@@ -1726,8 +1873,12 @@ class Matcher:
         index = {name: i for i, name in enumerate(kinds)}
         self._node_slots = [index[s] for s, kind in plan.slots.items() if kind == "node"]
         self._edge_slots = [(index[s], kind == "relationships")
-                            for s, kind in plan.slots.items() if kind != "node"]
+                            for s, kind in plan.slots.items() if kind in ("relationship",
+                                                                          "relationships")]
         self._paths = [(index[rel], index[left]) for rel, (left, _) in plan.paths.items()]
+        # each path variable's first node, then its relationships (and whether each is a list)
+        self._walks = {p: (walk[0], [(s, plan.slots[s] == "relationships") for s in walk[1:]])
+                       for p, walk in plan.walks.items()}
         self._program = self._compile(kinds, index, label_key) if engine == "rust" else None
 
     def _compile(self, kinds: dict[str, str], index: dict[str, int],
@@ -1736,10 +1887,12 @@ class Matcher:
         their position in `kinds` (the plan's slots, then its `edge_slot`):
 
         - program: `(names, kinds, label_key, distinct_nodes, stages)`;
-        - stage: `(optional, entry, new, joined, steps)`;
+        - stage: `(optional, entry, new, joined, steps, paths)`;
         - step: `(kind, node, rel, start, direction, seed, conditions, hops, edge_conditions,
-          reverse, fixed)`, where `seed` is `None` or a function of no arguments that gives
-          the sorted IDs a scan tries;
+          reverse, fixed, paths)`, where `kind` is `"scan"`, `"expand"`, `"connect"`,
+          `"shortest"` or `"all_shortest"`, and `seed` is `None` or a function of no arguments
+          that gives the sorted IDs a scan tries;
+        - paths: a list of `(path, walk)`, a path variable's slot and those of `Plan.walks`;
         - condition: `(native, fallback)`, a form from `_native()` (or `None`) and the
           compiled function of a binding dict.
         """
@@ -1748,22 +1901,27 @@ class Matcher:
         def conds(exprs, fns):
             return [(_native(e, kinds, index, evaluator), fn) for e, fn in zip(exprs, fns)]
 
+        def paths(names):
+            return [(index[p], [index[s] for s in self.plan.walks[p]]) for p in names]
+
         stages = []
         for stage, entry, checks, edge_checks, seeds in self._stages:
             steps = []
             for step, tests, edge_tests, seed in zip(stage.steps, checks, edge_checks, seeds):
+                kind = "all_shortest" if step.shortest == "all" else step.kind
                 steps.append((
-                    step.kind, index[step.node],
+                    kind, index[step.node],
                     None if step.rel is None else index[step.rel],
                     None if step.start is None else index[step.start],
                     step.direction,
                     None if seed is None else (lambda seed=seed: self._candidates(seed)),
                     conds(step.conditions, tests), step.hops,
                     conds(step.edge_conditions, edge_tests), step.reverse, step.fixed,
+                    paths(step.paths),
                 ))
             stages.append((stage.optional, conds(stage.entry, entry),
                            [index[s] for s in stage.new], [index[s] for s in stage.joined],
-                           steps))
+                           steps, paths(stage.paths)))
         return (list(kinds), list(kinds.values()), label_key, self.distinct_nodes, stages)
 
     def _candidates(self, seed) -> list[int]:
@@ -1807,12 +1965,14 @@ class Matcher:
         where `first` is the first match in search order (as from `rows()`), or `None`.
 
         Each column is `("slot", name)`, the slot's values (a list of edge IDs for a
-        variable-length relationship), `("label", name)`, the labels of a node slot, or
-        `("prop", name, key)`, a property of a node or relationship slot as `GraphView` reads it.
-        With `sort`, the rows are sorted by the IDs of those slots (a path compares as its list
-        of edge IDs, and `None` sorts last), keeping search order for ties; without it, they
-        stay in search order. The Rust engine builds the columns without making a tuple per
-        match.
+        variable-length relationship, and a dict `{"nodes": [...], "relationships": [...]}` of
+        IDs for a path variable), `("label", name)`, the labels of a node slot (or a path's dict
+        with the labels of its nodes), or `("prop", name, key)`, a property of a node or
+        relationship slot as `GraphView` reads it. With `sort`, the rows are sorted by the IDs
+        of those slots (a variable-length relationship compares as its list of edge IDs, a path
+        as its node IDs and then its edge IDs, and `None` sorts last), keeping search order for
+        ties; without it, they stay in search order. The Rust engine builds the columns without
+        making a tuple per match.
         """
         index = {name: i for i, name in enumerate(self._names)}
         if self._program is not None:
@@ -1830,7 +1990,12 @@ class Matcher:
         for column in columns:
             i, kind = index[column[1]], slots[column[1]]
             values = [row[i] for row in rows]
-            if column[0] == "slot":
+            if kind == "path":
+                label = (lambda n: view.node(n)[0]) if column[0] == "label" else (lambda n: n)
+                cells.append([None if v is None else
+                              {"nodes": [label(n) for n in v[0]], "relationships": list(v[1])}
+                              for v in values])
+            elif column[0] == "slot":
                 cells.append([v if v is None or kind != "relationships" else list(v)
                               for v in values])
             elif column[0] == "label":
@@ -1875,6 +2040,7 @@ class Matcher:
     def _extend(self, compiled, binding: dict[str, Any]):
         """Bind the slots of one stage in every way that matches, yielding after each."""
         stage, entry, checks, edge_checks, seeds = compiled
+        self._bind_paths(stage.paths, binding)
         if not all(check(binding) for check in entry):
             return
         slots, distinct = self.plan.slots, self.distinct_nodes
@@ -1898,6 +2064,7 @@ class Matcher:
         candidates = [self._candidates(seed) if step.kind == "scan" else None
                       for step, seed in zip(steps, seeds)]
         last = len(steps)
+        bind_paths = self._bind_paths
 
         def search(k):
             if k == last:
@@ -1909,10 +2076,14 @@ class Matcher:
                     if distinct and node in used_nodes:
                         continue
                     binding[step.node] = node
+                    bind_paths(step.paths, binding)
                     if all(test(binding) for test in tests):
                         used_nodes.add(node)
                         yield from search(k + 1)
                         used_nodes.discard(node)
+                return
+            if step.kind == "shortest":
+                yield from shortest(k, step, tests)
                 return
             if step.hops is not None:
                 yield from paths(k, step, tests)
@@ -1934,6 +2105,7 @@ class Matcher:
                 else:
                     binding[step.node] = other
                 binding[step.rel] = edge
+                bind_paths(step.paths, binding)
                 if all(test(binding) for test in tests):
                     if fixed is None:
                         used_edges.add(edge)
@@ -1958,6 +2130,7 @@ class Matcher:
                 if not connect:
                     binding[step.node] = node
                 binding[step.rel] = tuple(reversed(path)) if step.reverse else tuple(path)
+                bind_paths(step.paths, binding)
                 if all(test(binding) for test in tests):
                     yield from search(k + 1)
 
@@ -1991,7 +2164,116 @@ class Matcher:
 
             yield from walk(binding[step.start], 0)
 
+        def shortest(k, step, tests):
+            # the paths from `a` to `b` with the fewest edges among those that pass the step's
+            # conditions: for each length from the least on, a depth-first walk over the
+            # paths of that length, cut short by each node's distance to `b`
+            low, high = step.hops
+            a, b = binding[step.start], binding[step.node]
+            edge_tests, probe, edge_slot = edge_checks[k], {}, self.plan.edge_slot
+            one = step.shortest == "one"
+
+            def passes(edge):
+                probe[edge_slot] = edge
+                return all(test(probe) for test in edge_tests)
+
+            # the distances to `b`, found by a breadth-first search backwards from it, one
+            # layer at a time, as far as the walk needs them
+            dist, frontier, depth = {b: 0}, [b], 0
+            back = _BACK[step.direction]
+
+            def grow():
+                nonlocal frontier, depth
+                layer = []
+                for node in frontier:
+                    for edge, other in graph._incident_edges(node, back):
+                        if (other in dist or edge in used_edges
+                                or (distinct and other in used_nodes and other != a)
+                                or not passes(edge)):
+                            continue
+                        dist[other] = depth + 1
+                        layer.append(other)
+                frontier, depth = layer, depth + 1
+
+            path: list[int] = []
+            state = {"found": False, "cut": False}  # a path passed; a longer one might
+
+            def walk(node, at, length):
+                if at == length:
+                    state["cut"] = True
+                    if node == b:
+                        binding[step.rel] = tuple(path)
+                        bind_paths(step.paths, binding)
+                        if all(test(binding) for test in tests):
+                            state["found"] = True
+                            yield from search(k + 1)
+                    return
+                left = length - at - 1  # the edges still to take after this one
+                for edge, other in graph._incident_edges(node, step.direction):
+                    if edge in used_edges:
+                        continue
+                    mark = distinct and other not in used_nodes
+                    if distinct and not mark and not (left == 0 and other == b):
+                        continue  # (`b` itself is used, so a path ends there)
+                    d = dist.get(other)
+                    if d is None or d > left:
+                        if d is not None or frontier:
+                            state["cut"] = True
+                        continue
+                    if not passes(edge):
+                        continue
+                    used_edges.add(edge)
+                    path.append(edge)
+                    if mark:
+                        used_nodes.add(other)
+                    yield from walk(other, at + 1, length)
+                    used_edges.discard(edge)
+                    path.pop()
+                    if mark:
+                        used_nodes.discard(other)
+                    if one and state["found"]:
+                        return
+
+            length = low
+            while high is None or length <= high:
+                while depth < length and frontier:
+                    grow()
+                if a not in dist:
+                    if not frontier:
+                        return  # `b` can't be reached from `a`
+                    length += 1
+                    continue
+                state["found"] = state["cut"] = False
+                yield from walk(a, 0, length)
+                if state["found"] or not state["cut"]:
+                    return
+                length += 1
+
         yield from search(0)
+
+    def _bind_paths(self, paths: list[str], binding: dict[str, Any]) -> None:
+        """Bind each of the path variables `paths`, whose slots are all bound."""
+        for p in paths:
+            binding[p] = self._path_value(p, binding)
+
+    def _path_value(self, p: str, binding: dict[str, Any]) -> Optional[tuple]:
+        """The value of path variable `p`: `(node IDs, edge IDs)`, or `None` if a slot of its
+        pattern is `None`. Each edge leads from the node before it to its other end."""
+        first, parts = self._walks[p]
+        node = binding[first]
+        if node is None:
+            return None
+        nodes, edges = [node], []
+        for slot, many in parts:
+            value = binding[slot]
+            if value is None:
+                return None
+            for edge in value if many else (value,):
+                source, target = self.view.edge(edge)[:2]
+                node = target if source == node else source
+                nodes.append(node)
+                edges.append(edge)
+        return tuple(nodes), tuple(edges)
 
     def nodes_of(self, row: tuple) -> list[int]:
         """The nodes of a match: its node slots, then the inner nodes of its variable-length
