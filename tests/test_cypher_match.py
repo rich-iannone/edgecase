@@ -43,13 +43,17 @@ def matches(g, text, params=None, distinct_nodes=False, label_key="name"):
 
 def rows(g, text, params=None, distinct_nodes=False, label_key="name"):
     """The named variables of each match, as tuples of labels (nodes), IDs (edges), tuples of
-    IDs (paths) and `None`s, in order."""
+    IDs (variable-length relationships), `(labels, IDs)` (path variables) and `None`s, in
+    order."""
     query = parse_query(text)
     names = list(query.variables)
     out = []
     for b in matches(g, text, params, distinct_nodes, label_key):
         out.append(tuple(
-            g.get_label_from_id(b[v]) if query.variables[v] == "node" and b[v] is not None
+            b[v] if b[v] is None
+            else g.get_label_from_id(b[v]) if query.variables[v] == "node"
+            else (tuple(g.get_label_from_id(n) for n in b[v][0]), b[v][1])
+            if query.variables[v] == "path"
             else b[v] for v in names
         ))
     return out
@@ -384,6 +388,128 @@ class TestOptional:
             ("d", None, None)]
 
 
+class TestPathVariables:
+    def test_a_path_is_its_nodes_and_edges(self, g):
+        e1, e2 = edge(g, 1), edge(g, 2)
+        assert rows(g, "MATCH p = (x {k: 1})-[r]->(y)") == [
+            ((("a", "b"), (e1,)), "a", e1, "b"), ((("a", "b"), (e2,)), "a", e2, "b")]
+        assert rows(g, "MATCH p = (x {name: 'd'})") == [((("d",), ()), "d")]
+
+    def test_a_path_runs_in_pattern_order(self, g):
+        # the planner starts at `z` and walks backwards, but the path still runs from x to z
+        e1, e3 = edge(g, 1), edge(g, 3)
+        assert plan("MATCH p = (x)-[:X]->(y)-[:X]->(z {name: 'c'})")[0] == "scan z"
+        assert rows(g, "MATCH p = (x)-[:X]->(y)-[:X]->(z {name: 'c'})") == [
+            ((("a", "b", "c"), (e1, e3)), "a", "b", "c")]
+        assert rows(g, "MATCH p = (x {name: 'c'})<-[:X]-(y {k: 2})") == [
+            ((("c", "b"), (e3,)), "c", "b")]
+
+    def test_self_loops_and_undirected_edges(self, g):
+        e5 = edge(g, 5)
+        assert rows(g, "MATCH p = (x)-[:LOOP]-(y)") == [((("c", "c"), (e5,)), "c", "c")]
+        u = ec.Graph(directed=False).add_nodes(["a", "b", "c"])
+        u.add_edge("a", "b").add_edge("c", "b").add_edge("c", "c")
+        f1, f2, f3 = edge(u, 1), edge(u, 2), edge(u, 3)
+        # each edge leads on from the node the path has reached, whichever way it was added
+        assert [p for p, *_ in rows(u, "MATCH p = (x {name: 'a'})-[*]->(y)")] == [
+            (("a", "b"), (f1,)), (("a", "b", "c"), (f1, f2)), (("a", "b", "c", "c"), (f1, f2, f3))]
+
+    def test_variable_length_parts(self, g):
+        e1, e2, e3, e5 = edge(g, 1), edge(g, 2), edge(g, 3), edge(g, 5)
+        assert [p for p, *_ in rows(g, "MATCH p = (x {k: 1})-[*2]->(y)-[:LOOP]->(z)")] == [
+            (("a", "b", "c", "c"), (e1, e3, e5)), (("a", "b", "c", "c"), (e2, e3, e5))]
+        # a zero-length part adds no node
+        assert rows(g, "MATCH p = (x {name: 'd'})-[*0..]-(y)") == [((("d",), ()), "d", "d")]
+
+    def test_functions(self, g):
+        assert len(rows(g, "MATCH p = (x {k: 1})-[*]->(y) WHERE length(p) = 2")) == 2
+        found = rows(g, "MATCH p = (x)-[*]->(y) WHERE size(relationships(p)) = 3")
+        assert found and all(len(p[1]) == 3 for p, *_ in found)
+        assert rows(g, "MATCH p = (x)-->(y) WHERE size(nodes(p)) <> 2") == []
+        text = "MATCH p = (x {{k: 1}})-[*]->(y), (z:Q) WHERE {}z IN nodes(p)"
+        on, off = rows(g, text.format("")), rows(g, text.format("NOT "))
+        assert on and off and len(on) + len(off) == len(rows(g, text.format("true OR ")))
+
+    def test_optional_paths_are_null(self, g):
+        assert rows(g, "MATCH (x {name: 'd'}) OPTIONAL MATCH p = (x)-->(y)") == [
+            ("d", None, None)]
+
+    def test_a_path_of_earlier_variables_is_bound_on_entry(self, g):
+        e5 = edge(g, 5)
+        assert rows(g, "MATCH (x)-[r:LOOP]->(y) MATCH p = (x)-[r]->(y) WHERE length(p) = 1") == [
+            ("c", e5, "c", (("c", "c"), (e5,)))]
+        assert rows(g, "MATCH (x {name: 'd'}) MATCH p = (x)") == [("d", (("d",), ()))]
+
+
+class TestShortestPaths:
+    def test_one_and_all(self, g):
+        e1, e2, e3 = edge(g, 1), edge(g, 2), edge(g, 3)
+        text = "MATCH p = {}((x {{k: 1}})-[*]->(y {{name: 'c'}}))"
+        assert rows(g, text.format("shortestPath")) == [((("a", "b", "c"), (e1, e3)), "a", "c")]
+        assert rows(g, text.format("allShortestPaths")) == [
+            ((("a", "b", "c"), (e1, e3)), "a", "c"), ((("a", "b", "c"), (e2, e3)), "a", "c")]
+
+    def test_for_every_pair(self, g):
+        found = rows(g, "MATCH p = shortestPath((x)-[*]->(y)) WHERE x <> y")
+        assert {(x, y): len(p[1]) for p, x, y in found} == {
+            ("a", "b"): 1, ("a", "c"): 2, ("b", "c"): 1, ("b", "a"): 2, ("c", "a"): 1,
+            ("c", "b"): 2}
+        assert len(found) == 6
+
+    def test_no_path(self, g):
+        assert rows(g, "MATCH p = shortestPath((x {name: 'd'})-[*]-(y {k: 1}))") == []
+        assert rows(g, "MATCH (x {name: 'd'}), (y {k: 1}) "
+                       "OPTIONAL MATCH p = shortestPath((x)-[*]-(y))") == [("d", "a", None)]
+
+    def test_the_relationship_types_and_length(self, g):
+        e3, e4 = edge(g, 3), edge(g, 4)
+        assert rows(g, "MATCH p = allShortestPaths((x {k: 1})-[r:X|Y*]-(y {name: 'c'}))") == [
+            ((("a", "c"), (e4,)), "a", (e4,), "c")]
+        assert rows(g, "MATCH shortestPath((x {k: 1})-[r*..1]->(y {name: 'c'}))") == []
+        assert len(rows(g, "MATCH shortestPath((x {k: 1})-[r*..2]->(y {name: 'c'}))")) == 1
+        assert rows(g, "MATCH (x {k: 1})-[:Y]->(y) MATCH allShortestPaths((y)-[r*]-(z:Q)) "
+                       "WHERE z <> y") == [("a", "b", (e3,), "c")]
+
+    def test_zero_length(self, g):
+        assert rows(g, "MATCH p = shortestPath((x {name: 'd'})-[*0..]-(x))") == [
+            ((("d",), ()), "d")]
+        assert rows(g, "MATCH p = shortestPath((x {name: 'd'})-[*]-(x))") == []
+
+    def test_from_a_node_to_itself_is_the_shortest_cycle(self, g):
+        # Neo4j raises an error for this
+        e1, e2, e3, e4 = edge(g, 1), edge(g, 2), edge(g, 3), edge(g, 4)
+        text = "MATCH p = allShortestPaths((x {name: 'b'})-[*]->(x))"
+        cycles = [((("b", "c", "a", "b"), (e3, e4, e1)), "b"),
+                  ((("b", "c", "a", "b"), (e3, e4, e2)), "b")]
+        assert rows(g, text) == cycles
+        assert rows(g, text, distinct_nodes=True) == cycles
+        assert rows(g, "MATCH p = shortestPath((x {name: 'b'})-[*..2]->(x))") == []
+
+    def test_conditions_are_part_of_the_definition(self, g):
+        # the shortest paths that pass, not the shortest paths if they pass
+        e1, e2, e3, e5 = edge(g, 1), edge(g, 2), edge(g, 3), edge(g, 5)
+        text = "MATCH p = allShortestPaths((x {k: 1})-[*]->(y {name: 'c'})) WHERE length(p) > 2"
+        assert rows(g, text) == [((("a", "b", "c", "c"), (e1, e3, e5)), "a", "c"),
+                                 ((("a", "b", "c", "c"), (e2, e3, e5)), "a", "c")]
+        # but with distinct nodes, the loop would visit c twice
+        assert rows(g, text, distinct_nodes=True) == []
+        assert rows(g, "MATCH p = allShortestPaths((x {k: 1})-[:Y*]->(y {name: 'c'}))") == []
+
+    def test_other_edges_of_the_clause_are_avoided(self, g):
+        e1, e2 = edge(g, 1), edge(g, 2)
+        assert rows(g, "MATCH (x {k: 1})-[s:X]->(y), p = allShortestPaths((x)-[*]->(y))") == [
+            ("a", e1, "b", (("a", "b"), (e2,)))]
+        # but not those of other clauses
+        assert len(rows(g, "MATCH (x {k: 1})-[s:X]->(y) MATCH p = allShortestPaths("
+                           "(x)-[*]->(y))")) == 2
+
+    def test_undirected(self):
+        u = ec.Graph(directed=False).add_nodes(["a", "b", "c"])
+        u.add_edge("a", "b").add_edge("c", "b")
+        assert rows(u, "MATCH p = shortestPath((x {name: 'a'})-[*]->(y {name: 'c'}))") == [
+            ((("a", "b", "c"), (edge(u, 1), edge(u, 2))), "a", "c")]
+
+
 # =============================================================================
 # Planning
 # =============================================================================
@@ -433,6 +559,28 @@ class TestPlan:
         assert len(later.entry) == 3 and later.new == [" 0", "b"] and later.joined == ["a"]
         assert len(later.steps[0].conditions) == 1
 
+    def test_path_variables(self):
+        p = Plan(parse_query("MATCH p = (a)-[r*]->(b {k: 1})-->(c)"))
+        assert p.slots == {"p": "path", "a": "node", "r": "relationships", "b": "node",
+                           " 0": "relationship", "c": "node"}
+        assert p.walks == {"p": ["a", "r", " 0"]}
+        # the path is bound by the step that binds the last of its slots
+        assert [step.paths for step in p.steps] == [[], [], ["p"]]
+        p = Plan(parse_query("MATCH (a)-[r]->(b) MATCH p = (a)-[r]->(b)"))
+        assert p.stages[1].paths == ["p"] and not any(step.paths for step in p.steps)
+
+    def test_shortest_paths(self):
+        assert plan("MATCH p = shortestPath((a)-[*]->(b))") == [
+            "scan a", "scan b", "shortest (a)-[ 0*1..]->(b)"]
+        assert plan("MATCH (b {k: 1})-->(c), allShortestPaths((a)-[r*..3]-(b))") == [
+            "scan b", "expand (b)-[ 0]->(c)", "scan a", "all shortest (a)-[r*1..3]-(b)"]
+        assert plan("MATCH shortestPath((a)-[r*]->(b))", directed=False)[-1] == (
+            "shortest (a)-[r*1..]-(b)")
+        # conditions that read the path are checked as it's found
+        p = Plan(parse_query("MATCH allShortestPaths((a)-[r*]->(b)) WHERE size(r) > 1 AND "
+                             "a.k = 1"))
+        assert [len(step.conditions) for step in p.steps] == [1, 0, 1]
+
     def test_groups_are_scanned_in_turn(self):
         # the most constrained group goes first
         assert plan("MATCH (a)-->(b), (c)-->(d:L)") == [
@@ -450,6 +598,9 @@ def oracle(g, text, params=None, distinct_nodes=False):
     Each clause tries every assignment of nodes and distinct edges to its new elements, and
     every sequence of distinct edges for its variable-length relationships, keeping those that
     fit the arrows and the conditions. An OPTIONAL MATCH that keeps none gives nulls instead.
+    A path variable is its first node, then each relationship's edges and the nodes after
+    them. Of the paths of `allShortestPaths()` (one per clause), it keeps those of the least
+    length among the ones that would otherwise match.
     """
     query = parse_query(text)
     directed = g.is_directed()
@@ -457,6 +608,7 @@ def oracle(g, text, params=None, distinct_nodes=False):
     for clause in query.clauses:
         before = set(kinds)
         used, rels, conditions, edge_conditions = {}, [], [], {}
+        walks, shortest = [], None  # (path, first node, [(rel, next node)]); the shortest rel
 
         def slot(element):
             nonlocal i
@@ -475,14 +627,24 @@ def oracle(g, text, params=None, distinct_nodes=False):
             return name
 
         for pattern in clause.patterns:
-            left = slot(pattern.nodes[0])
+            if pattern.variable is not None:
+                kinds[pattern.variable] = used[pattern.variable] = "path"
+            left = first = slot(pattern.nodes[0])
+            steps = []
             for rel, node in zip(pattern.rels, pattern.nodes[1:]):
                 r = slot(rel)
                 right = slot(node)
                 rels.append((r, left, right, rel.direction, rel.length))
+                steps.append((r, right))
                 left = right
+            if pattern.variable is not None:
+                walks.append((pattern.variable, first, steps))
+            if pattern.shortest is not None:
+                assert pattern.shortest == "all" and shortest is None
+                shortest = steps[0][0]
         conditions += conjuncts(clause.where)
-        clauses.append((clause.optional, before, used, rels, conditions, edge_conditions))
+        clauses.append((clause.optional, before, used, rels, conditions, edge_conditions, walks,
+                        shortest))
 
     evaluator = Evaluator(text, {**kinds, "anon_edge": "relationship"}, params,
                           GraphView(g._graph))
@@ -511,7 +673,7 @@ def oracle(g, text, params=None, distinct_nodes=False):
         return found
 
     out = [{}]
-    for optional, before, used, rels, conditions, edge_conditions in clauses:
+    for optional, before, used, rels, conditions, edge_conditions, walks, shortest in clauses:
         tests = [evaluator.condition(c) for c in conditions]
         paths = {r: chains(length, arrow, [evaluator.condition(c) for c in edge_conditions[r]])
                  for r, _, _, arrow, length in rels if length is not None}
@@ -531,12 +693,24 @@ def oracle(g, text, params=None, distinct_nodes=False):
                             continue
                         options = [paths[r].get((b[x], b[y]), [])
                                    for r, x, y, _, length in rels if length is not None]
+                        candidates = []
                         for picked in itertools.product(*options):
                             c = dict(b)
-                            inner = []
+                            inner, inner_of = [], {}
                             for r, (path, nodes_on) in zip(paths, picked):
                                 c[r] = path
                                 inner += nodes_on
+                                inner_of[r] = nodes_on
+                            for w, first, steps in walks:
+                                ids, path_edges = [c[first]], []
+                                for r, right in steps:
+                                    if r in paths:
+                                        ids += inner_of[r] + ([c[right]] if c[r] else [])
+                                        path_edges += c[r]
+                                    else:
+                                        ids.append(c[right])
+                                        path_edges.append(c[r])
+                                c[w] = (tuple(ids), tuple(path_edges))
                             used_edges = [c[r] for r in singles] + [
                                 e for r in paths for e in c[r]]
                             if len(set(used_edges)) < len(used_edges):
@@ -545,7 +719,11 @@ def oracle(g, text, params=None, distinct_nodes=False):
                             if distinct_nodes and len(set(node_values)) < len(node_values):
                                 continue
                             if all(t(c) for t in tests):
-                                extended.append(c)
+                                candidates.append(c)
+                        if shortest is not None and candidates:
+                            least = min(len(c[shortest]) for c in candidates)
+                            candidates = [c for c in candidates if len(c[shortest]) == least]
+                        extended += candidates
             if not extended and optional:
                 extended = [row | {s: None for s in new}]
             rows += extended
@@ -589,8 +767,10 @@ def graphs(draw):
 
 
 @st.composite
-def queries(draw):
-    node_names, rel_names, path_names = [], [], []
+def queries(draw, shortest_first=False):
+    """A random query. With `shortest_first`, it's one MATCH whose first pattern is a
+    `shortestPath()`."""
+    node_names, rel_names, path_names, walk_names = [], [], [], []
     count, has_path = 0, False
 
     def node(names):
@@ -602,12 +782,16 @@ def queries(draw):
         props = draw(st.sampled_from(["", "", "", "", " {k: 1}", " {k: $k}"]))
         return f"({name}{labels}{props})"
 
-    def rel(earlier, in_clause):
+    def rel(earlier, in_clause, shortest=False):
         nonlocal count, has_path
         count += 1
-        # at most one variable-length relationship, of at most two hops, keeps the oracle fast
-        length = "" if has_path else draw(st.sampled_from(
-            ["", "", "", "*0..1", "*1..2", "*2", "*..2", "*0..2"]))
+        # at most one variable-length relationship, of at most two hops (but for a shortest
+        # path), keeps the oracle fast
+        if shortest:
+            length = draw(st.sampled_from(["*", "*0..", "*..2", "*0..1", "*1..3"]))
+        else:
+            length = "" if has_path else draw(st.sampled_from(
+                ["", "", "", "*0..1", "*1..2", "*2", "*..2", "*0..2"]))
         has_path = has_path or bool(length)
         reuse = [r for r in earlier if r not in in_clause]
         if not length and reuse and draw(st.integers(0, 4)) == 0:
@@ -629,6 +813,9 @@ def queries(draw):
             templates += ["type({r}) = 'A'", "{r}.weight > 1"]
         if path_names:
             templates += ["size({p}) = 1", "size({p}) > 0 OR {n}.k = 2"]
+        if walk_names:
+            templates += ["length({w}) = 1", "length({w}) > 1 OR {n}.k = 1", "{n} IN nodes({w})",
+                          "size(relationships({w})) <> 2", "{w} IS NULL"]
         if not node_names or not draw(st.booleans()):
             return ""
         parts = []
@@ -636,19 +823,28 @@ def queries(draw):
             parts.append(draw(st.sampled_from(templates)).format(
                 n=draw(st.sampled_from(node_names)), m=draw(st.sampled_from(node_names)),
                 r=draw(st.sampled_from(rel_names or ["x"])),
-                p=draw(st.sampled_from(path_names or ["x"]))))
+                p=draw(st.sampled_from(path_names or ["x"])),
+                w=draw(st.sampled_from(walk_names or ["x"]))))
         return " WHERE " + draw(st.sampled_from([" AND ", " OR "])).join(parts)
 
     clauses = []
-    for i in range(draw(st.integers(1, 3))):
+    for i in range(1 if shortest_first else draw(st.integers(1, 3))):
         earlier, in_clause = list(rel_names), []
-        keyword = "MATCH" if i == 0 and draw(st.integers(0, 3)) else draw(
+        keyword = "MATCH" if shortest_first or i == 0 and draw(st.integers(0, 3)) else draw(
             st.sampled_from(["MATCH", "OPTIONAL MATCH"]))
         patterns = []
-        for _ in range(draw(st.integers(1, 2 if i == 0 else 1))):
-            text = node(node_names)
-            for _ in range(draw(st.integers(0, 2))):
-                text += rel(earlier, in_clause) + node(node_names)
+        for j in range(draw(st.integers(1, 2 if i == 0 else 1))):
+            if shortest_first and j == 0 or not has_path and draw(st.integers(0, 5)) == 0:
+                text = node(node_names) + rel(earlier, in_clause, shortest=True) + node(node_names)
+                function = "shortestPath" if shortest_first else "allShortestPaths"
+                text = f"{function}({text})"
+            else:
+                text = node(node_names)
+                for _ in range(draw(st.integers(0, 2))):
+                    text += rel(earlier, in_clause) + node(node_names)
+            if draw(st.integers(0, 2)) == 0:
+                walk_names.append(f"w{len(walk_names) + 1}")
+                text = f"{walk_names[-1]} = {text}"
             patterns.append(text)
         clauses.append(f"{keyword} " + ", ".join(patterns) + where())
     return " ".join(clauses)
@@ -693,6 +889,26 @@ FIXED_QUERIES = [
     "OPTIONAL MATCH (a:P)-->(b:Q)",
     "MATCH (a) OPTIONAL MATCH (a)-[r*1..2]->(b) WHERE id(b) = 1",
     "MATCH (a) OPTIONAL MATCH (a)-->(b) MATCH (b)-->(c)",
+    "MATCH p = (a)",
+    "MATCH p = (a)-->(b)",
+    "MATCH p = (a)-[r]-(b)",
+    "MATCH p = (a)-->(b)<--(c)",
+    "MATCH p = (a)-[*0..2]-(b)",
+    "MATCH p = (a)-[r*1..2]->(b)-[s]->(c), q = (c)--(d)",
+    "MATCH p = (a)-->(b) WHERE length(p) = 1 AND a IN nodes(p)",
+    "MATCH (a) MATCH p = (a)--(b)",
+    "MATCH (a)-->(b) MATCH p = (b)<--(a)",
+    "MATCH (a) OPTIONAL MATCH p = (a)-->(b:Q)",
+    "MATCH p = allShortestPaths((a)-[*]->(b))",
+    "MATCH p = allShortestPaths((a)-[*]-(b))",
+    "MATCH p = allShortestPaths((a)-[r*0..]->(b))",
+    "MATCH p = allShortestPaths((a)-[*..2]->(a))",
+    "MATCH p = allShortestPaths((a:P)-[:A*]->(b {k: 1}))",
+    "MATCH p = allShortestPaths((a)-[r*]->(b)) WHERE size(r) > 1",
+    "MATCH p = allShortestPaths((a)-[*]-(b)) WHERE length(p) <> 1 AND b:P",
+    "MATCH (a)-[s]->(b), p = allShortestPaths((a)-[*]->(b))",
+    "MATCH (a)-->(b) MATCH allShortestPaths((a)-[r*]-(b))",
+    "MATCH (a) OPTIONAL MATCH p = allShortestPaths((a)-[*1..2]->(b:P))",
 ]
 
 
@@ -724,6 +940,26 @@ def test_against_the_oracle(g, text, distinct_nodes):
     assert found == expected, text
 
 
+@given(g=graphs(), text=queries(shortest_first=True), distinct_nodes=st.booleans())
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_shortest_path_against_the_oracle(g, text, distinct_nodes):
+    # shortestPath() keeps one of the paths of allShortestPaths(), for each match of the rest
+    query = parse_query(text)
+    pattern = query.clauses[0].patterns[0]
+    params = {"k": 1}
+    every = oracle(g, text.replace("shortestPath(", "allShortestPaths(", 1), params,
+                   distinct_nodes)
+    found = Counter(
+        tuple(b[v] for v in query.variables)
+        for b in matches(g, text, params, distinct_nodes=distinct_nodes)
+    )
+    assert set(found) <= set(every), text
+    rest = [i for i, v in enumerate(query.variables)
+            if v not in (pattern.variable, pattern.rels[0].variable)]
+    assert ({tuple(row[i] for i in rest) for row in found}
+            == {tuple(row[i] for i in rest) for row in every}), text
+
+
 @given(g=graphs(), text=queries(), limit=st.sampled_from([None, 0, 1, 3]), sort=st.booleans())
 @settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
 def test_engines_agree_on_tables(g, text, limit, sort):
@@ -735,6 +971,8 @@ def test_engines_agree_on_tables(g, text, limit, sort):
             columns += [("label", name), ("prop", name, "k"), ("prop", name, "name")]
         elif kind == "relationship":
             columns += [("prop", name, "weight"), ("prop", name, "rel")]
+        elif kind == "path":
+            columns.append(("label", name))
     sort = list(query.variables) if sort else None
     tables = [
         Matcher(query, text, g._graph, {"k": 1}, engine=engine).table(columns, sort, limit)
@@ -984,8 +1222,8 @@ class TestNative:
             (optional, strip(entry), new, joined, [
                 (*step[:6], strip(step[6]), step[7], strip(step[8]), *step[9:])
                 for step in steps
-            ])
-            for optional, entry, new, joined, steps in stages
+            ], paths)
+            for optional, entry, new, joined, steps, paths in stages
         ])
         reference = Matcher(parse_query(text), text, g._graph, engine="python")
         assert matcher.rows() == reference.rows()
