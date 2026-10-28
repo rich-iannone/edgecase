@@ -97,7 +97,7 @@ class TestSelectNodesByPredicate:
         G.select_nodes(lambda n: n.attributes and n.attributes.get("priority", 0) > 2)
         first_count = G.count_selected_nodes()
 
-        G.select_nodes_by_id([1])  # Select node ID 1 (A)
+        G.select_nodes_by_id([1], set_op="union")  # Select node ID 1 (A)
 
         selected = G.get_selected_node_ids()
         assert len(selected) == 3
@@ -231,7 +231,7 @@ class TestSelectEdgesByPredicate:
         G.select_edges(lambda e: e.weight and e.weight > 0.5)
 
         # Then select additional edges by node (use integer ID)
-        G.select_edges_by_node([2])  # B = node ID 2
+        G.select_edges_by_node([2], set_op="union")  # B = node ID 2
 
         selected = G.get_selected_edge_ids()
         # Should have high-weight edges plus edges connected to B
