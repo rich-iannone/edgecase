@@ -1,4 +1,5 @@
 import math
+import operator
 from collections.abc import Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, Iterator, Optional, Union
@@ -24843,16 +24844,16 @@ class Graph:
                 parts.append(f", {key}={value!r}")
         return "".join(parts)
 
-    def _match_delta(self, matcher, binding: Optional[dict]) -> StepDelta:
+    def _match_delta(self, matcher, row: Optional[tuple]) -> StepDelta:
         """A StepDelta highlighting the nodes and edges of one match (nothing for `None`)."""
         delta = StepDelta()
-        if binding is None:
+        if row is None:
             return delta
-        for node in matcher.nodes_of(binding):
+        for node in matcher.nodes_of(row):
             label = self._node_label(node)
             if label not in delta.nodes_selected:
                 delta.nodes_selected.append(label)
-        for edge_id in matcher.edges_of(binding):
+        for edge_id in matcher.edges_of(row):
             edge = self._graph.get_edge(edge_id)
             pair = (self._node_label(edge.source), self._node_label(edge.target))
             if pair not in delta.edges_selected:
@@ -24863,33 +24864,39 @@ class Graph:
     def _match_columns(parsed, matcher) -> list:
         """The columns of `match()` as `(name, kind, value)`, where `kind` is `"node"`,
         `"relationship"`, `"relationships"` (a variable-length one) or `"property"` and `value`
-        reads the cell from a match."""
+        reads the cell from a match (a row of `matcher.rows()`)."""
         if parsed.returns is None:
             items = [(name, name) for name in parsed.variables]
         else:
             items = [(item.name, item.expr) for item in parsed.returns.items]
+        slots = list(matcher.plan.slots)
         columns = []
         for name, expr in items:
             if isinstance(expr, (str, Var)):
                 variable = expr if isinstance(expr, str) else expr.name
-                columns.append((name, parsed.variables[variable], lambda b, v=variable: b[v]))
+                columns.append((
+                    name, parsed.variables[variable], operator.itemgetter(slots.index(variable))
+                ))
             else:
-                columns.append((name, "property", matcher.evaluator.compile(expr)))
+                run, binding = matcher.evaluator.compile(expr), matcher.binding
+                columns.append((name, "property", lambda row, f=run: f(binding(row))))
         return columns
 
     def _match_rows(self, parsed, matcher, columns, limit):
         """The cells of each `match()` row, sorted, and the first match (or `None`)."""
-        names = list(parsed.variables)
+        slots = list(matcher.plan.slots)
+        named = [slots.index(v) for v in parsed.variables]
         distinct = parsed.returns is not None and parsed.returns.distinct
         rows, keys, index = [], [], {}
         first = None
         if limit != 0:
-            for binding in matcher.matches():
+            # with DISTINCT, the limit counts distinct rows, so the search can't stop at it
+            for match in matcher.rows(None if distinct else limit):
                 if first is None:
-                    first = binding
+                    first = match
                 # nulls sort last, and paths compare as tuples of edge IDs
-                key = tuple((1, 0) if binding[v] is None else (0, binding[v]) for v in names)
-                row = tuple(value(binding) for _, _, value in columns)
+                key = tuple((1, 0) if match[i] is None else (0, match[i]) for i in named)
+                row = tuple(value(match) for _, _, value in columns)
                 if distinct:
                     # a repeated row keeps the place of its first match in ID order
                     i = index.setdefault(_hashable(row), len(rows))
@@ -25336,15 +25343,13 @@ class Graph:
             kind = kinds.pop()
 
         ids: set = set()
-        first = None
-        for binding in matcher.matches():
-            if first is None:
-                first = binding
+        slots = list(matcher.plan.slots)
+        for row in matcher.rows():
             if names is None:
-                ids.update(matcher.nodes_of(binding))
+                ids.update(matcher.nodes_of(row))
                 continue
             for name in names:
-                value = binding[name]
+                value = row[slots.index(name)]
                 if value is None:  # an OPTIONAL MATCH that found nothing
                     continue
                 if parsed.variables[name] == "relationships":
@@ -25457,11 +25462,7 @@ class Graph:
             rows, first = self._match_rows(parsed, matcher, columns, None)
             n = len(rows)
         else:
-            n = 0
-            for binding in matcher.matches():
-                if first is None:
-                    first = binding
-                n += 1
+            n, first = matcher.count()
 
         if self._recording_depth == 0:
             extras = self._match_args(
