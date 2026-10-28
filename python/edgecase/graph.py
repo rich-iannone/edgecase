@@ -24861,9 +24861,8 @@ class Graph:
         column holding the ID of the node or edge it matched (or the list of edge IDs, for a
         variable-length relationship, and the nodes and edges of a path variable). The ID
         columns join directly onto
-        `get_node_df()` and `get_edge_df()`, and Polars takes over from there for grouping,
-        counting and sorting. To act on the matches instead, use `select_match()`, and to count
-        them, `count_matches()`.
+        `get_node_df()` and `get_edge_df()`, and Polars takes over from there. To act on the
+        matches instead, use `select_match()`, and to count them, `count_matches()`.
 
         The query is one or more `MATCH` clauses, each with an optional `WHERE`, and then an
         optional `RETURN`:
@@ -24899,14 +24898,21 @@ class Graph:
           named after it, a property's after the variable and key (`"p.name"`), and anything
           else after the expression as written. `RETURN *` returns every named variable, and
           can be followed by more columns (`RETURN *, p.name AS name`). `RETURN DISTINCT` drops
-          repeated rows. Aggregating functions such as `count()` and `collect()` aren't
-          supported; group the table with Polars, or count with `count_matches()`.
+          repeated rows.
+        - **Aggregation:** `count(*)` counts rows, and `count(x)`, `collect(x)`, `sum(x)`,
+          `avg(x)`, `min(x)` and `max(x)` fold the values of `x`, as in
+          `RETURN m.title, count(*) AS n`. The columns without an aggregating function are the
+          grouping keys: the rows that agree on all of them make one row of the table, and with
+          no keys, all the rows make one (even when nothing matches). `DISTINCT` inside the call
+          (`count(DISTINCT p)`) folds each different value once. An aggregation can sit inside
+          an expression (`size(collect(m))`), which may also use the grouping keys
+          (`[m.title, count(*)]`).
         - **`ORDER BY`, `SKIP` and `LIMIT`:** these follow `RETURN`, in that order.
           `ORDER BY p.born DESC, p.name` sorts the rows by one or more expressions (`ASC`, the
           default, or `DESC`), which may use the names of the `RETURN` columns; after
-          `RETURN DISTINCT`, it can only use the returned columns. `SKIP 2` drops the first two
-          rows and `LIMIT 5` keeps at most five; each takes a non-negative integer or a
-          parameter (`LIMIT $n`).
+          `RETURN DISTINCT` or an aggregation, it can only use the returned columns (and
+          expressions of them). `SKIP 2` drops the first two rows and `LIMIT 5` keeps at most
+          five; each takes a non-negative integer or a parameter (`LIMIT $n`).
 
         The query reads EdgeCase graphs the way `from_cypher()` writes them:
 
@@ -24956,11 +24962,19 @@ class Graph:
           type sort in their own order (nodes and relationships by ID), and values of different
           types in Cypher's order: maps, nodes, relationships, lists, paths, strings, booleans,
           then numbers, with `null` last (and so first with `DESC`).
+        - **Aggregation:** every aggregating function skips `null`s, so `count(x)` counts the
+          rows where `x` isn't `null`. `collect()` lists the values in row order, `sum()` adds
+          numbers (giving 0 when there are none, and an integer for integers), `avg()` gives a
+          float, and `min()` and `max()` take the smallest and largest values in `ORDER BY`'s
+          order, so they work on any values. `avg()`, `min()` and `max()` of no values are
+          `null`. Grouping keys and `DISTINCT` compare values as `RETURN DISTINCT` does, where
+          `1` and `1.0` are the same value and so are any two NaNs.
 
         Without `ORDER BY`, rows are sorted by the IDs of the named variables, in the order they
         first appear in the query (with `null` last), so the same query on the same graph always
-        gives the same table. `ORDER BY` keeps that order for rows that tie on every key, and
-        `RETURN DISTINCT` keeps each row at the place of its first match.
+        gives the same table. `ORDER BY` keeps that order for rows that tie on every key,
+        `RETURN DISTINCT` keeps each row at the place of its first match, and an aggregation
+        puts each group at the place of its first row.
 
         Parameters
         ----------
@@ -24976,9 +24990,10 @@ class Graph:
             The most matches to find, or `None` (the default) for all of them. The search stops
             once it has found this many, so the table holds the first rows found, sorted, rather
             than the rows with the smallest IDs. With `RETURN DISTINCT`, it counts distinct
-            rows. It applies before `ORDER BY`, `SKIP` and `LIMIT` in the query, which sort and
-            slice the rows it found; it's a cap on the work, while the query's own `LIMIT` gives
-            the top rows of the full result.
+            rows, and with aggregation, the groups are made from the matches it found. It
+            applies before `ORDER BY`, `SKIP` and `LIMIT` in the query, which sort and slice the
+            rows it found; it's a cap on the work, while the query's own `LIMIT` gives the top
+            rows of the full result.
         use_labels
             If `True`, nodes show as their labels instead of IDs, in node columns and inside
             values such as `nodes(p)` or `[a, b]`. Edges have no labels, so relationships always
@@ -24996,7 +25011,7 @@ class Graph:
         Returns
         -------
         pl.DataFrame
-            One row per match. Without `RETURN`, there is one column per named variable, holding
+            One row per match (or per group, with aggregation). Without `RETURN`, there is one column per named variable, holding
             node or edge IDs (`Int64`), node labels with `use_labels=True`, or lists of edge IDs
             (`List(Int64)`) for variable-length relationships. A path variable's column is a
             struct with the fields `nodes` (its node IDs, or labels with `use_labels=True`) and
@@ -25004,8 +25019,9 @@ class Graph:
             them apart. With `RETURN`, the columns are the ones it lists: variables as above,
             `id()`, `size()` and `length()` as `Int64`, `type()`, `toLower()` and `toUpper()` as
             `String`, `labels()` as `List(String)`, conditions as `Boolean`, `nodes()` and
-            `relationships()` as lists of IDs (or labels, for nodes with `use_labels=True`), and
-            properties and other expressions with the type of their values. Variables that
+            `relationships()` as lists of IDs (or labels, for nodes with `use_labels=True`),
+            `count()` as `Int64`, `avg()` as `Float64`, `collect()` as a list, and properties
+            and other expressions with the type of their values. Variables that
             `OPTIONAL MATCH` found nothing for are `null`. A query without matches gives an
             empty table with the same columns.
 
@@ -25014,11 +25030,13 @@ class Graph:
         ValueError
             If the query has a syntax error, uses something outside the supported subset, refers
             to an unknown variable or function, needs a parameter that `params=` doesn't give, or
-            meets a value of the wrong type (such as `WHERE n.name` on a string, or
-            `toLower(n.born)` on a number). Also if there is no `RETURN` and the query names no
-            variables (so there would be no columns), if `RETURN` uses an aggregating function
-            or gives two columns the same name, if `SKIP` or `LIMIT` isn't a non-negative
-            integer, or if `limit=` isn't one.
+            meets a value of the wrong type (such as `WHERE n.name` on a string,
+            `toLower(n.born)` on a number, or `sum()` of strings). Also if there is no `RETURN`
+            and the query names no variables (so there would be no columns), if `RETURN` gives
+            two columns the same name, if an aggregating function is outside `RETURN` and
+            `ORDER BY` or inside another, if a column beside an aggregation uses a variable that
+            isn't a grouping key, if `SKIP` or `LIMIT` isn't a non-negative integer, or if
+            `limit=` isn't one.
         TypeError
             If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
             `None`.
@@ -25132,14 +25150,22 @@ class Graph:
         )
         ```
 
-        The result is an ordinary Polars DataFrame, so counting and grouping happen there:
+        Aggregating functions group the rows by the other columns. Here, each person's movies,
+        most first:
 
         ```{python}
-        (
-            graph.match("MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN p.name")
-            .group_by("p.name")
-            .len()
-            .sort("len", descending=True)
+        graph.match(
+            "MATCH (p:Person)-[:ACTED_IN]->(m:Movie) "
+            "RETURN p.name AS name, count(*) AS movies, collect(m.title) AS titles "
+            "ORDER BY movies DESC, name"
+        )
+        ```
+
+        Without other columns, the whole match is one group:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person) RETURN count(*) AS people, min(p.born) AS oldest, avg(p.born)"
         )
         ```
 
@@ -25165,6 +25191,7 @@ class Graph:
             "path": pl.Struct({"nodes": pl.List(node), "relationships": pl.List(pl.Int64)}),
             "nodes": pl.List(node),
             "integer": pl.Int64,
+            "float": pl.Float64,
             "string": pl.String,
             "boolean": pl.Boolean,
             "strings": pl.List(pl.String),
@@ -25429,10 +25456,11 @@ class Graph:
         ----------
         query
             The Cypher text, such as `"MATCH (a)-->(b)-->(c)-->(a)"`. A `RETURN` clause is
-            allowed; `RETURN DISTINCT`, `SKIP` and `LIMIT` change the count, as they change the
-            rows of `match()`. Without `DISTINCT`, the columns aren't computed, so an
+            allowed; `RETURN DISTINCT`, aggregation (which gives one row per group), `SKIP` and
+            `LIMIT` change the count, as they change the rows of `match()`. Without `DISTINCT`,
+            the columns aren't computed, and with aggregation only the grouping keys are, so an
             expression that would raise an error in `match()` (such as `toLower()` of a
-            number) doesn't raise one here.
+            number, or `sum()` of strings) doesn't raise one here.
         params
             Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
         distinct_nodes
