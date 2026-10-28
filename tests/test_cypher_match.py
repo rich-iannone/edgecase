@@ -1095,6 +1095,130 @@ def test_engines_agree_on_projections(g, text, data, limit, use_labels):
             assert n == len(cells[0]), full
 
 
+def _aggregations(draw, variables):
+    """Random aggregations over the variables of a query, and expressions of them."""
+    pool = _projection_items(draw, variables)
+    numbers = ["1", "2.5"] + [e for v, kind in variables.items() for e in (
+        [f"{v}.k", f"id({v})"] if kind == "node" else
+        [f"{v}.weight", f"id({v})"] if kind == "relationship" else
+        [f"size({v})"] if kind == "relationships" else [f"length({v})"])]
+
+    @st.composite
+    def aggregation(draw):
+        name = draw(st.sampled_from(["count", "count", "collect", "min", "max", "sum", "avg"]))
+        if name == "count" and draw(st.booleans()):
+            return "count(*)"
+        # sum() and avg() mostly of numbers, and sometimes of anything (an error, or not)
+        arg = draw(st.sampled_from(numbers) if name in ("sum", "avg") and draw(
+            st.integers(0, 4)) else pool)
+        distinct = "DISTINCT " if draw(st.integers(0, 3)) == 0 else ""
+        call = f"{name}({distinct}{arg})"
+        return draw(st.sampled_from([call, call, call, f"[{call}, 1]", f"size(collect({arg}))",
+                                     f"toLower(max({arg}))", f"{call} IS NULL"]))
+    return pool, aggregation()
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data(),
+       limit=st.sampled_from([None, None, 0, 1, 3]), use_labels=st.booleans())
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_aggregations(g, text, data, limit, use_labels):
+    query = parse_query(text)
+    pool, aggregation = _aggregations(data.draw, query.variables)
+    keys = data.draw(st.lists(pool, max_size=2, unique=True))
+    aggregates = data.draw(st.lists(aggregation, min_size=1, max_size=3))
+    items = keys + aggregates
+    order = data.draw(st.lists(st.sampled_from([f"c{i}" for i in range(len(items))] + keys),
+                               max_size=2))
+    order = ", ".join(key + data.draw(st.sampled_from(["", " DESC"])) for key in order)
+    skip = data.draw(st.sampled_from([None, None, 0, 1, "$k"]))
+    cap = data.draw(st.sampled_from([None, None, 0, 2, "$k"]))
+    full = (f"{text} RETURN {'DISTINCT ' if data.draw(st.booleans()) else ''}"
+            + ", ".join(f"{item} AS c{i}" for i, item in enumerate(items))
+            + (f" ORDER BY {order}" if order else "")
+            + (f" SKIP {skip}" if skip is not None else "")
+            + (f" LIMIT {cap}" if cap is not None else ""))
+    parsed = parse_query(full)
+    results = []
+    for engine in ("rust", "python"):
+        try:
+            projection = Projection(parsed, Matcher(parsed, full, g._graph, {"k": 1},
+                                                    engine=engine))
+            results.append((projection.table(limit, use_labels), projection.count()))
+        except ValueError as e:
+            results.append(str(e))
+    assert results[0] == results[1], full
+    if not isinstance(results[0], str):
+        (cells, _), (n, _) = results[0]
+        assert all(len(column) == len(cells[0]) for column in cells)
+        if limit is None:
+            assert n == len(cells[0]), full
+        if not keys and skip is None and cap is None:
+            assert len(cells[0]) == 1, full
+
+
+def _fold(name, values, distinct):
+    """An aggregation over integers and nulls, the plain way."""
+    if name == "count(*)":
+        return len(values)
+    values = [v for v in values if v is not None]
+    if distinct:
+        values = list(dict.fromkeys(values))
+    if name == "count":
+        return len(values)
+    if name == "collect":
+        return values
+    if name == "sum":
+        return sum(values)
+    if name == "avg":
+        return sum(values) / len(values) if values else None
+    return (min if name == "min" else max)(values) if values else None
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data())
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_aggregation_against_a_group_by(g, text, data):
+    # the groups of an aggregation are the different key values of the plain table, in the
+    # order they first appear, and each aggregation folds the values of its group
+    query = parse_query(text)
+    nodes = [v for v, kind in query.variables.items() if kind == "node"]
+    assume(nodes)
+    rels = [v for v, kind in query.variables.items() if kind == "relationship"]
+    simple = [f"{v}.{what}" for v in nodes for what in ("k", "name")] + [
+        f"id({v})" for v in nodes] + [f"type({r})" for r in rels] + nodes + rels
+    keys = data.draw(st.lists(st.sampled_from(simple), max_size=2, unique=True))
+    arg = data.draw(st.sampled_from([f"{v}.k" for v in nodes] + [f"id({v})" for v in nodes]))
+    folds = data.draw(st.lists(st.tuples(
+        st.sampled_from(["count(*)", "count", "collect", "sum", "avg", "min", "max"]),
+        st.booleans()), min_size=1, max_size=4))
+    calls = [name if name == "count(*)" else f"{name}({'DISTINCT ' if distinct else ''}{arg})"
+             for name, distinct in folds]
+    descending = data.draw(st.sampled_from([None, False, True]))
+
+    plain = g.match(f"{text} RETURN " + ", ".join(
+        [f"{key} AS k{i}" for i, key in enumerate(keys)] + [f"{arg} AS v"]),
+        params={"k": 1}).rows()
+    groups: dict = {}
+    for row in plain:
+        groups.setdefault(row[:-1], []).append(row[-1])
+    if not keys:
+        groups = {(): [row[-1] for row in plain]}
+    expected = [key + tuple(_fold(name, values, distinct) for name, distinct in folds)
+                for key, values in groups.items()]
+    order = ""
+    if descending is not None:
+        # by the first aggregation, nulls last (first with DESC), ties in group order
+        column = len(keys)
+        order = f" ORDER BY a0{' DESC' if descending else ''}"
+        expected.sort(key=lambda row: (row[column] is None, row[column] if
+                                       row[column] is not None else 0), reverse=descending)
+        assume(not any(isinstance(row[column], list) for row in expected))
+    full = (f"{text} RETURN " + ", ".join([f"{key} AS k{i}" for i, key in enumerate(keys)]
+                                          + [f"{call} AS a{j}" for j, call in enumerate(calls)])
+            + order)
+    assert g.match(full, params={"k": 1}).rows() == expected, full
+    assert g.count_matches(full, params={"k": 1}) == len(expected), full
+
+
 _CELLS = st.one_of(
     st.lists(st.one_of(st.none(), st.integers(-3, 3)), max_size=10),
     st.lists(st.one_of(st.none(), st.integers(-3, 3), st.floats(allow_nan=True)), max_size=10),
@@ -1224,6 +1348,10 @@ _ODD_RETURNS = [
     "RETURN DISTINCT [a.v, b.name] AS x ORDER BY x", "RETURN r.v, b ORDER BY r.v DESC, b",
     "RETURN a.name AS n, a.v ORDER BY n, a.v LIMIT 2", "RETURN DISTINCT r.weight, a.type",
     "RETURN toLower(a.name) AS n ORDER BY n", "RETURN a.v = b.v AS same ORDER BY same",
+    "RETURN a.v AS x, count(*) AS n ORDER BY n DESC, x", "RETURN count(DISTINCT r.v), collect(a.v)",
+    "RETURN a.name, collect(DISTINCT b.v) AS vs, min(r.v), max(a.v)", "RETURN sum(a.v), avg(r.v)",
+    "RETURN [a.v, r.v] AS k, count(b) ORDER BY k", "RETURN r.weight, sum(DISTINCT r.weight)",
+    "RETURN DISTINCT a.type, max(b.v) AS m ORDER BY m",
 ]
 
 

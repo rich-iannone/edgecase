@@ -2,6 +2,7 @@
 
 import pytest
 from edgecase.cypher import (
+    Aggregate,
     BoolOp,
     Call,
     Compare,
@@ -16,6 +17,7 @@ from edgecase.cypher import (
     Prop,
     RelPattern,
     Var,
+    aggregates_in,
     parse_create,
     parse_query,
     substitute,
@@ -296,6 +298,48 @@ class TestReturn:
         assert q.returns.skip == Literal(1) and q.returns.limit == Literal(2)
 
 
+class TestAggregates:
+    def test_calls(self):
+        q = parse_query("MATCH (a)-[r]->(b) RETURN count(*), COUNT(DISTINCT b), collect(a.x), "
+                        "Sum(r.weight) AS w, avg(a.x), min(b), max(DISTINCT a.x)")
+        assert [item.expr for item in q.returns.items] == [
+            Aggregate("count", None), Aggregate("count", Var("b"), True),
+            Aggregate("collect", Prop(Var("a"), "x")), Aggregate("sum", Prop(Var("r"), "weight")),
+            Aggregate("avg", Prop(Var("a"), "x")), Aggregate("min", Var("b")),
+            Aggregate("max", Prop(Var("a"), "x"), True)]
+        # the name as written, for the column
+        assert [item.name for item in q.returns.items] == [
+            "count(*)", "COUNT(DISTINCT b)", "collect(a.x)", "w", "avg(a.x)", "min(b)",
+            "max(DISTINCT a.x)"]
+
+    def test_inside_expressions(self):
+        q = parse_query("MATCH (a) RETURN a.x, size(collect(a)) AS n, [a.x, count(*)]")
+        assert q.returns.items[1].expr == Call("size", [Aggregate("collect", Var("a"))])
+        assert aggregates_in(q.returns.items[2].expr) == [Aggregate("count", None)]
+        assert aggregates_in(q.returns.items[0].expr) == []
+
+    def test_grouping_keys(self):
+        # Beside an aggregation, a column may use the grouping keys, or expressions of them
+        for text in ("MATCH (a)-->(b) RETURN a, b.x, [a.y, b.x, count(*)]",
+                     "MATCH (a) RETURN a.x, toLower(a.x) = max(a.y)",
+                     "MATCH (a) RETURN count(*) AS n, [1, sum(a.x)]"):
+            parse_query(text)
+
+    def test_order_by(self):
+        # ORDER BY uses the returned columns, by name or by expression, and the aggregations
+        # that RETURN returns
+        q = parse_query("MATCH (a) RETURN a, count(*) AS n, max(a.x) ORDER BY n DESC, max(a.x), "
+                        "a.y, toLower(n)")
+        assert [key.expr for key in q.returns.order] == [
+            Aggregate("count", None), Aggregate("max", Prop(Var("a"), "x")),
+            Prop(Var("a"), "y"), Call("toLower", [Aggregate("count", None)])]
+
+    def test_substitute_inside(self):
+        expr = Aggregate("collect", Var("x"), True)
+        assert substitute(expr, {"x": Var("y")}) == Aggregate("collect", Var("y"), True)
+        assert substitute(Aggregate("count", None), {"x": Var("y")}) == Aggregate("count", None)
+
+
 class TestSubstitute:
     def test_replaces_variables(self):
         names = {"x": Prop(Var("a"), "x")}
@@ -347,9 +391,38 @@ class TestErrors:
              r"after RETURN DISTINCT, ORDER BY can only use the returned columns, and `a` isn't "
              r"one \(line 1, column 40\)"),
             ("MATCH (a)-->(b) RETURN DISTINCT a ORDER BY b", r"and `b` isn't one"),
-            ("MATCH (a) RETURN a ORDER BY count(a)", r"aggregation \(count\(\)\) isn't supported"),
-            ("MATCH (a) RETURN [max(a.x)]", r"aggregation \(max\(\)\) isn't supported; .* \(line 1, "
-                                           r"column 19\)"),
+            ("MATCH (a) RETURN a ORDER BY count(a)",
+             r"ORDER BY can only sort by an aggregation that RETURN returns; return count\(\) as "
+             r"a column, and sort by its name \(line 1, column 29\)"),
+            ("MATCH (a) RETURN a.x, count(*) ORDER BY max(a.y)", r"return max\(\) as a column"),
+            ("MATCH (a)-->(b) RETURN a.x, count(*) ORDER BY b.x",
+             r"after an aggregation, ORDER BY can only use the returned columns, and `b` isn't "
+             r"one \(line 1, column 47\)"),
+            ("MATCH (a) RETURN a.x, count(*) ORDER BY a.y", r"and `a` isn't one"),
+            ("MATCH (a)-->(b) RETURN a.x, [b.x, count(*)]",
+             r"`b` is used beside an aggregation, so it must be a grouping key: return `b` \(or "
+             r"the expression it's in\) as a column of its own \(line 1, column 30\)"),
+            ("MATCH (a) RETURN a.x, [a.y, count(*)]", r"`a` is used beside an aggregation"),
+            ("MATCH (a) RETURN count(*), a.x = max(a.x)", r"`a` is used beside an aggregation"),
+            ("MATCH (a) WHERE count(*) > 1", r"count\(\) is an aggregating function, which only "
+                                             r"RETURN and ORDER BY can use \(line 1, column 17\)"),
+            ("MATCH (a) RETURN a LIMIT count(*)", r"count\(\) is an aggregating function"),
+            ("MATCH (a {x: count(*)})", r"expected a value, found 'count'"),
+            ("MATCH (a) RETURN count(max(a.x))", r"aggregating functions can't be nested, as max\(\) "
+                                                r"is in count\(\) \(line 1, column 24\)"),
+            ("MATCH (a) RETURN collect([Sum(a.x)])", r"as Sum\(\) is in collect\(\)"),
+            ("MATCH (a) RETURN sum(*)", r"only count\(\) takes \*, as count\(\*\); sum\(\) takes an "
+                                        r"expression \(line 1, column 18\)"),
+            ("MATCH (a) RETURN count(DISTINCT *)", r"count\(\*\) counts rows, so it can't be "
+                                                   r"DISTINCT"),
+            ("MATCH (a) RETURN count()", r"count\(\) takes one argument, or \* to count the rows"),
+            ("MATCH (a) RETURN min()", r"min\(\) takes one argument \(line 1, column 18\)"),
+            ("MATCH (a) RETURN collect(a, a)", r"collect\(\) takes one argument \(line 1, column "
+                                               r"27\)"),
+            ("MATCH (a) RETURN count(*", r"expected '\)' to close count\(\*\), but the text "
+                                         r"ended"),
+            ("MATCH (a) RETURN avg(a.x", r"expected '\)' to close avg\(\)"),
+            ("MATCH (a) RETURN count(DISTINCT)", r"count\(\) takes one argument, or \*"),
             ("MATCH (a) RETURN a AS", r"expected a column name, but the text ended"),
             ("MATCH (a) RETURN a.x AS a, a", r"the column 'a' is returned twice"),
             ("MATCH (a) RETURN *, a", r"the column 'a' is returned twice \(line 1, column 21\)"),
@@ -394,10 +467,6 @@ class TestErrors:
             ("MATCH (a) WHERE a.x = {k: 1}", r"map values aren't supported"),
             ("MATCH (a) WHERE a.x & 1", r"unexpected character '&'"),
             ("MATCH (a) WHERE a.x = $", r"unexpected character '\$'"),
-            ("MATCH (a) RETURN count(*)", r"aggregation \(count\(\)\) isn't supported; use "
-                                          r"count_matches\(\), or group the match\(\) table with "
-                                          r"Polars \(line 1, column 18\)"),
-            ("MATCH (a) RETURN a, SUM(a.x)", r"aggregation \(SUM\(\)\) isn't supported"),
             ("MATCH (a) RETURN a, a", r"the column 'a' is returned twice \(line 1, column 21\)"),
             ("MATCH (a {x: 1, x: 2})", r"'x' is given twice"),
             ("MATCH (a {x: [$y]})", r"expected a value, found '\$y'"),

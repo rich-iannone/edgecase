@@ -242,11 +242,6 @@ class TestReturnExpressions:
         with pytest.raises(ValueError, match="LIMIT needs a non-negative integer"):
             ec.Graph().match("MATCH (a) RETURN a LIMIT -1")
 
-    def test_aggregates(self, g):
-        for text in ("RETURN count(p)", "RETURN [collect(p.name)]", "RETURN p ORDER BY max(p.born)"):
-            with pytest.raises(ValueError, match=r"aggregation \(\w+\(\)\) isn't supported"):
-                g.match(ACTED + " " + text)
-
 
 class TestOrderBy:
     def test_ascending_and_descending(self, g):
@@ -344,6 +339,154 @@ class TestSkipLimit:
         assert df["p.name"].to_list() == ["Keanu Reeves"]
 
 
+class TestAggregation:
+    def test_count_per_group(self, g):
+        df = g.match(ACTED + " RETURN m.title AS title, count(*) AS n ORDER BY n DESC")
+        assert df.rows() == [("The Matrix", 2), ("John Wick", 1)]
+        assert df.dtypes == [pl.String, pl.Int64]
+
+    def test_groups_keep_the_place_of_their_first_row(self, g):
+        # rows sort by (p, r, m), so Keanu's group comes first, and collect() keeps row order
+        df = g.match(ACTED + " RETURN p.name, collect(m.title) AS movies")
+        assert df.rows() == [("Keanu Reeves", ["The Matrix", "John Wick"]),
+                             ("Carrie-Anne Moss", ["The Matrix"])]
+        assert g.match(ACTED + " RETURN m.title, count(*)").rows() == [
+            ("The Matrix", 2), ("John Wick", 1)]
+
+    def test_without_grouping_keys(self, g):
+        df = g.match("MATCH (p:Person) RETURN count(*) AS n, min(p.born), max(p.born), "
+                     "sum(p.born), avg(p.born), collect(p.name)")
+        assert df.rows() == [(3, 1964, 1967, 5896, 5896 / 3,
+                              ["Keanu Reeves", "Carrie-Anne Moss", "Lana Wachowski"])]
+
+    def test_no_matches(self, g):
+        # Without grouping keys there's still one row; with them, there are no groups
+        df = g.match("MATCH (p:Robot) RETURN count(*), count(p), sum(p.born), avg(p.born), "
+                     "min(p.born), collect(p.name)")
+        assert df.rows() == [(0, 0, 0, None, None, [])]
+        assert df.dtypes[:4] == [pl.Int64, pl.Int64, pl.Int64, pl.Float64]
+        df = g.match("MATCH (p:Robot) RETURN p.name, count(*) AS n")
+        assert df.height == 0 and df.columns == ["p.name", "n"]
+        assert g.match("MATCH (p:Robot) RETURN count(*)", limit=0).rows() == [(0,)]
+
+    def test_nulls_are_skipped(self, g):
+        # only the people have `born`
+        df = g.match("MATCH (n) RETURN count(*), count(n.born), collect(n.born), min(n.born), "
+                     "avg(n.born)")
+        assert df.rows() == [(5, 3, [1964, 1967, 1965], 1964, 5896 / 3)]
+
+    def test_distinct(self, g):
+        df = g.match(ACTED + " RETURN count(DISTINCT p) AS people, count(p) AS credits, "
+                     "collect(DISTINCT p.name) AS names")
+        assert df.rows() == [(2, 3, ["Keanu Reeves", "Carrie-Anne Moss"])]
+        g2 = ec.Graph().add_nodes([("a", {"x": 1}), ("b", {"x": 1}), ("c", {"x": 2.0}),
+                                   ("d", {"x": 2})])
+        assert g2.match("MATCH (n) RETURN sum(DISTINCT n.x), count(DISTINCT n.x), "
+                        "collect(DISTINCT n.x)").rows() == [(3.0, 2, [1.0, 2.0])]
+
+    def test_group_by_nodes(self, g):
+        df = g.match(ACTED + " RETURN p, count(*) AS n, collect(m) AS movies, min(m) AS first")
+        assert df.rows() == [(1, 2, [4, 5], 4), (2, 1, [4], 4)]
+        assert df.dtypes == [pl.Int64, pl.Int64, pl.List(pl.Int64), pl.Int64]
+        df = g.match(ACTED + " RETURN p, count(*) AS n, collect(m) AS movies, min(m) AS first",
+                     use_labels=True)
+        assert df.rows() == [("Keanu Reeves", 2, ["matrix", "wick"], "matrix"),
+                             ("Carrie-Anne Moss", 1, ["matrix"], "matrix")]
+        assert df.dtypes == [pl.String, pl.Int64, pl.List(pl.String), pl.String]
+
+    def test_dtypes(self, g):
+        df = g.match(ACTED + " RETURN count(*), avg(p.born), collect(r), collect(m.title), "
+                     "collect(type(r)), sum(id(p)), max(m.title), min(m.released > 2000)")
+        assert df.dtypes == [pl.Int64, pl.Float64, pl.List(pl.Int64), pl.List(pl.String),
+                             pl.List(pl.String), pl.Int64, pl.String, pl.Boolean]
+        assert df.row(0) == (3, (1964 * 2 + 1967) / 3, [1, 3, 2],
+                             ["The Matrix", "John Wick", "The Matrix"],
+                             ["ACTED_IN"] * 3, 4, "The Matrix", False)
+
+    def test_expressions_of_aggregations_and_keys(self, g):
+        df = g.match(ACTED + " RETURN m.title, [m.title, count(*)] AS pair, "
+                     "size(collect(p)) AS n, toLower(max(p.name)) AS last")
+        assert df.rows() == [("The Matrix", ["The Matrix", 2], 2, "keanu reeves"),
+                             ("John Wick", ["John Wick", 1], 1, "keanu reeves")]
+
+    def test_order_skip_and_limit(self, g):
+        text = "MATCH (p:Person)-->(m) RETURN m.title AS t, count(*) AS n"
+        assert g.match(text + " ORDER BY n DESC, t").rows() == [
+            ("The Matrix", 3), ("John Wick", 1)]
+        assert g.match(text + " ORDER BY count(*), t DESC").rows() == [
+            ("John Wick", 1), ("The Matrix", 3)]
+        assert g.match(text + " ORDER BY n DESC SKIP 1").rows() == [("John Wick", 1)]
+        assert g.match(text + " ORDER BY n DESC LIMIT 1").rows() == [("The Matrix", 3)]
+        # by an expression of the grouping keys that isn't returned
+        assert g.match(ACTED + " RETURN m, count(*) AS n ORDER BY m.released DESC").rows() == [
+            (5, 1), (4, 2)]
+
+    def test_return_distinct(self, g):
+        df = g.match(ACTED + " RETURN DISTINCT m.title, count(*) AS n ORDER BY n")
+        assert df.rows() == [("John Wick", 1), ("The Matrix", 2)]
+
+    def test_min_and_max_follow_order_by(self):
+        g = ec.Graph().add_nodes([("a", {"v": 1}), ("b", {"v": "z"}), ("c", {"v": True}),
+                                  ("d", {"v": [1]}), ("e", {"v": 2.5}), ("f", {})])
+        # lists sort before strings, strings before booleans, and booleans before numbers
+        assert g.match("MATCH (n) RETURN min(n.v), max(n.v)").rows() == [([1], 2.5)]
+        df = g.match("MATCH (n) WHERE n.v IN ['z', 1, 2.5] RETURN min(n.v) AS lo, max(n.v) AS hi")
+        assert df.rows() == [("z", 2.5)]
+
+    def test_sum_and_avg(self):
+        g = ec.Graph().add_nodes([("a", {"v": 1}), ("b", {"v": 2}), ("c", {"v": 0.5}), ("d", {})])
+        assert g.match("MATCH (n) WHERE n.v <> 0.5 RETURN sum(n.v), avg(n.v)").rows() == [
+            (3, 1.5)]
+        assert g.match("MATCH (n) RETURN sum(n.v), avg(n.v)").rows() == [(3.5, 3.5 / 3)]
+
+    def test_sum_and_avg_of_other_number_types(self):
+        # numpy integers add as Python ints, so they don't wrap around or overflow
+        np = pytest.importorskip("numpy")
+        from fractions import Fraction
+
+        g = ec.Graph().add_nodes([("a", {"v": np.int64(2**62)}), ("b", {"v": np.int64(2**62)}),
+                                  ("c", {"v": 2**70})])
+        total = g.match("MATCH (n) RETURN sum(n.v) AS s").item()
+        assert total == 2**63 + 2**70 and type(total) is int
+        g = ec.Graph().add_nodes([("a", {"v": Fraction(1, 2)}), ("b", {"v": np.float32(0.5)})])
+        df = g.match("MATCH (n) RETURN sum(n.v) AS s, avg(n.v) AS a")
+        assert df.rows() == [(1.0, 0.5)] and df["a"].dtype == pl.Float64
+
+    def test_nan_values_group_together(self):
+        g = ec.Graph().add_nodes([("a", {"v": float("nan")}), ("b", {"v": float("nan")}),
+                                  ("c", {"v": 1})])
+        df = g.match("MATCH (n) RETURN n.v, count(*) AS k")
+        assert df["k"].to_list() == [2, 1]
+        assert g.match("MATCH (n) RETURN count(DISTINCT n.v)").item() == 2
+        assert g.match("MATCH (n) RETURN DISTINCT n.v").height == 2
+
+    def test_limit_argument_caps_the_matches_aggregated(self, g):
+        assert g.match("MATCH (p:Person) RETURN count(*)", limit=2).item() == 2
+
+    def test_star_and_aggregation(self, g):
+        df = g.match("MATCH (p)-[:ACTED_IN]->(m) RETURN *, count(*) AS n")
+        assert df.columns == ["p", "m", "n"] and df["n"].to_list() == [1, 1, 1]
+
+    def test_value_errors(self, g):
+        with pytest.raises(ValueError, match=r"^Cypher: sum\(\) needs numbers, not 'Keanu Reeves' "
+                                             r"\(line 1, column 33\)"):
+            g.match("MATCH (p:Person) RETURN p.born, sum(p.name)")
+        with pytest.raises(ValueError, match=r"avg\(\) needs numbers, not a node"):
+            g.match("MATCH (p:Person) RETURN avg(p)")
+        with pytest.raises(ValueError, match=r"avg\(\) needs numbers, not True"):
+            g.match("MATCH (p:Person) RETURN avg(p.born > 0)")
+
+    def test_query_errors(self, g):
+        with pytest.raises(ValueError, match=r"`m` is used beside an aggregation"):
+            g.match(ACTED + " RETURN p.name, [m.title, count(*)]")
+        with pytest.raises(ValueError, match=r"after an aggregation, ORDER BY can only use"):
+            g.match(ACTED + " RETURN p.name, count(*) ORDER BY m.title")
+        with pytest.raises(ValueError, match=r"count\(\) is an aggregating function, which only"):
+            g.match(ACTED + " WHERE count(*) > 1 RETURN p")
+        with pytest.raises(ValueError, match=r"select_match\(\) doesn't take RETURN"):
+            g.select_match(ACTED + " RETURN count(*)")
+
+
 class TestErrors:
     @pytest.mark.parametrize("method", ["match", "count_matches", "select_match"])
     def test_argument_types(self, g, method):
@@ -412,6 +555,21 @@ class TestCountMatches:
         assert g.count_matches("MATCH (p:Person) RETURN toLower(p.born)") == 3
         with pytest.raises(ValueError, match="toLower"):
             g.count_matches("MATCH (p:Person) RETURN DISTINCT toLower(p.born)")
+
+    def test_aggregation_counts_groups(self, g):
+        assert g.count_matches(ACTED + " RETURN m.title, count(*)") == 2
+        assert g.count_matches(ACTED + " RETURN p, m.title, collect(r)") == 3
+        assert g.count_matches(ACTED + " RETURN count(*)") == 1
+        assert g.count_matches("MATCH (p:Robot) RETURN count(*)") == 1
+        assert g.count_matches("MATCH (p:Robot) RETURN p.name, count(*)") == 0
+        assert g.count_matches(ACTED + " RETURN m.title, count(*) SKIP 1") == 1
+        assert g.count_matches(ACTED + " RETURN count(*) SKIP 1") == 0
+
+    def test_aggregations_arent_computed(self, g):
+        text = "MATCH (p:Person) RETURN p.born, sum(p.name)"
+        assert g.count_matches(text) == 3
+        with pytest.raises(ValueError, match="sum"):
+            g.match(text)
 
     def test_cycles(self):
         g = (
