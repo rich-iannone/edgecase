@@ -248,6 +248,12 @@ struct EdgeIndex {
     /// node -> number of edges stored with it as target (parallel edges and self-loops each
     /// count once), so a directed in-degree is O(1) instead of a scan of every edge
     in_degree: FxHashMap<u64, usize>,
+    /// node -> (edge ID, target) for every edge stored with the node as its source, in edge
+    /// creation order
+    out_edges: FxHashMap<u64, Vec<(u64, u64)>>,
+    /// node -> (edge ID, source) for every edge stored with the node as its target, in edge
+    /// creation order
+    in_edges: FxHashMap<u64, Vec<(u64, u64)>>,
 }
 
 impl EdgeIndex {
@@ -265,6 +271,8 @@ impl EdgeIndex {
             ),
             predecessors: FxHashMap::default(),
             in_degree: FxHashMap::default(),
+            out_edges: FxHashMap::default(),
+            in_edges: FxHashMap::default(),
         };
         for (position, edge) in edges.iter().enumerate() {
             index.add(edge, position, directed);
@@ -292,6 +300,8 @@ impl EdgeIndex {
             .or_default()
             .push(position);
         *self.in_degree.entry(edge.target).or_insert(0) += 1;
+        self.out_edges.entry(edge.source).or_default().push((edge.id, edge.target));
+        self.in_edges.entry(edge.target).or_default().push((edge.id, edge.source));
         Self::add_predecessor(&mut self.predecessors, edge.target, edge.source);
         if !directed {
             Self::add_predecessor(&mut self.predecessors, edge.source, edge.target);
@@ -311,6 +321,30 @@ impl Graph {
     /// The edge lookup index, built from `edges` on first use
     fn edge_index(&self) -> &EdgeIndex {
         self.edge_index.get_or_init(|| EdgeIndex::build(&self.edges, self.directed))
+    }
+
+    /// `(edge ID, other endpoint)` for the edges stored with `node_id` as source (`out`) and/or
+    /// target (`inward`), in edge creation order and each edge once (a self-loop is both)
+    fn incident_pairs(&self, node_id: u64, out: bool, inward: bool) -> Vec<(u64, u64)> {
+        let index = self.edge_index();
+        let mut pairs = Vec::new();
+        if out {
+            if let Some(edges) = index.out_edges.get(&node_id) {
+                pairs.extend_from_slice(edges);
+            }
+        }
+        if inward {
+            if let Some(edges) = index.in_edges.get(&node_id) {
+                // with `out` too, a self-loop is already listed
+                pairs.extend(edges.iter().filter(|&&(_, s)| !(out && s == node_id)).copied());
+            }
+        }
+        pairs
+    }
+
+    /// The IDs of the edges that `incident_pairs()` lists
+    fn incident_edge_ids(&self, node_id: u64, out: bool, inward: bool) -> Vec<u64> {
+        self.incident_pairs(node_id, out, inward).into_iter().map(|(id, _)| id).collect()
     }
 
     /// Drop the edge lookup index after edges are removed or edited
@@ -498,6 +532,33 @@ impl Graph {
     #[getter]
     pub fn next_node_id(&self) -> u64 {
         self.next_node_id
+    }
+
+    /// The edges at a node as `(edge ID, other endpoint)` pairs, in edge creation order, for the
+    /// Cypher matcher. `direction` follows the stored orientation, also in undirected graphs
+    /// (where it is the order the endpoints were given in): `"out"` lists the edges with the
+    /// node as source, `"in"` those with it as target, and `"both"` lists the `"out"` edges and
+    /// then the `"in"` ones, with each self-loop once.
+    #[pyo3(name = "_incident_edges")]
+    pub fn incident_edges(&self, node_id: u64, direction: &str) -> PyResult<Vec<(u64, u64)>> {
+        let (out, inward) = match direction {
+            "out" => (true, false),
+            "in" => (false, true),
+            "both" => (true, true),
+            _ => {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Invalid direction '{}'. Must be 'out', 'in', or 'both'",
+                    direction
+                )))
+            }
+        };
+        if !self.nodes.contains_key(&node_id) {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} does not exist",
+                node_id
+            )));
+        }
+        Ok(self.incident_pairs(node_id, out, inward))
     }
 
     /// A mark for `_discard_additions()`: the lengths of the node and edge creation logs and
@@ -1020,11 +1081,11 @@ impl Graph {
         node_set.extend(node_ids);
 
         self.selected_nodes.clear();
-        for edge in &self.edges {
-            if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
-                self.selected_edges.insert(edge.id);
-            }
+        let mut edge_ids = Vec::new();
+        for &node_id in &node_set {
+            edge_ids.extend(self.incident_edge_ids(node_id, true, true));
         }
+        self.selected_edges.extend(edge_ids);
         Ok(())
     }
 
@@ -5829,20 +5890,8 @@ impl Graph {
         let mut new_edge_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         for node_id in current_selection {
-            // Find edges where this node is the source
-            for edge in &self.edges {
-                if !self.directed {
-                    // For undirected, include edges in both directions
-                    if edge.source == node_id || edge.target == node_id {
-                        new_edge_selection.insert(edge.id);
-                    }
-                } else {
-                    // For directed, only outbound edges
-                    if edge.source == node_id {
-                        new_edge_selection.insert(edge.id);
-                    }
-                }
-            }
+            // Edges with this node as source; undirected edges count either way
+            new_edge_selection.extend(self.incident_edge_ids(node_id, true, !self.directed));
         }
 
         // Replace selection with edges
@@ -5868,20 +5917,8 @@ impl Graph {
         let mut new_edge_selection = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
         for node_id in current_selection {
-            // Find edges where this node is the target
-            for edge in &self.edges {
-                if !self.directed {
-                    // For undirected, include edges in both directions
-                    if edge.source == node_id || edge.target == node_id {
-                        new_edge_selection.insert(edge.id);
-                    }
-                } else {
-                    // For directed, only inbound edges
-                    if edge.target == node_id {
-                        new_edge_selection.insert(edge.id);
-                    }
-                }
-            }
+            // Edges with this node as target; undirected edges count either way
+            new_edge_selection.extend(self.incident_edge_ids(node_id, !self.directed, true));
         }
 
         // Replace selection with edges
@@ -5906,14 +5943,13 @@ impl Graph {
         // Find reverse edges
         let mut reverse_edges = FxHashSet::with_capacity_and_hasher(n, Default::default());
 
+        let index = self.edge_index();
         for edge_id in current_selection {
-            // Find the edge
-            if let Some(edge) = self.edges.iter().find(|e| e.id == edge_id) {
-                // Look for the reverse edge: B→A for edge A→B
-                for other_edge in &self.edges {
-                    if other_edge.source == edge.target && other_edge.target == edge.source {
-                        reverse_edges.insert(other_edge.id);
-                    }
+            // The reverse of A→B is every edge stored as B→A
+            if let Some(&position) = index.position_by_id.get(&edge_id) {
+                let edge = &self.edges[position];
+                if let Some(positions) = index.positions_by_pair.get(&(edge.target, edge.source)) {
+                    reverse_edges.extend(positions.iter().map(|&p| self.edges[p].id));
                 }
             }
         }
