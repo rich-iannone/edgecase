@@ -1584,10 +1584,12 @@ def _native(expr: Expr, kinds: dict[str, str], index: dict[str, int],
     `src/cypher.rs`), or `None` when it has none. Slots are given by position (`index`).
 
     The forms are label and type tests on a variable, comparisons of a property or an `id()`
-    with a constant scalar, `IN` a list of constant scalars, `IS NULL` and `exists()` on a
-    property or variable, and comparisons of two IDs (`id(a) < id(b)`, or `a = b` for two
-    variables of the same kind). A constant is a literal or parameter whose value is exactly
-    `None`, a `bool`, an `int`, a `float` or a `str`, so that Rust reads it as Python does.
+    with a constant scalar or with another property or `id()`, `IN` a list of constant scalars,
+    `IS NULL` and `exists()` on a property or variable, comparisons of two IDs (`id(a) <
+    id(b)`, or `a = b` for two variables of the same kind), `STARTS WITH`, `ENDS WITH` and
+    `CONTAINS` on properties, IDs and constants, and `AND` and `OR` of native forms. A constant
+    is a literal or parameter whose value is exactly `None`, a `bool`, an `int`, a `float` or a
+    `str`, so that Rust reads it as Python does.
     """
 
     def single(e: Expr) -> Optional[int]:
@@ -1623,6 +1625,9 @@ def _native(expr: Expr, kinds: dict[str, str], index: dict[str, int],
                 return list(value)
         return None
 
+    if isinstance(expr, BoolOp) and expr.op in ("AND", "OR"):
+        parts = [_native(e, kinds, index, evaluator) for e in expr.operands]
+        return None if any(p is None for p in parts) else (expr.op.lower(), parts)
     if isinstance(expr, HasLabels):
         slot = single(expr.subject)
         return None if slot is None else ("labels", slot, [list(g) for g in expr.labels])
@@ -1644,13 +1649,19 @@ def _native(expr: Expr, kinds: dict[str, str], index: dict[str, int],
     if op == "IN":
         lhs, items = operand(left), constants(right)
         return None if lhs is None or items is None else ("in", lhs, items)
+    if op in ("STARTS WITH", "ENDS WITH", "CONTAINS"):
+        terms = []
+        for e in (left, right):
+            ok, value = constant(e)
+            terms.append(("const", value) if ok else operand(e))
+        return None if None in terms else ("text", op, *terms)
     if op not in _MIRROR:
         return None
     lhs, rhs = operand(left), operand(right)
     if lhs is not None and rhs is not None:
         if lhs[0] == rhs[0] == "id":
             return ("ids", lhs[1], rhs[1], op)
-        return None
+        return ("cmp2", lhs, op, rhs)
     if lhs is not None or rhs is not None:
         ok, value = constant(right if lhs is not None else left)
         if not ok:
@@ -1789,6 +1800,45 @@ class Matcher:
                 first = row
             n += 1
         return n, first
+
+    def table(self, columns: list[tuple], sort: Optional[list[str]] = None,
+              limit: Optional[int] = None) -> tuple[int, list[list], Optional[tuple]]:
+        """The matches, or the first `limit` of them, as columns: `(count, columns, first)`,
+        where `first` is the first match in search order (as from `rows()`), or `None`.
+
+        Each column is `("slot", name)`, the slot's values (a list of edge IDs for a
+        variable-length relationship), `("label", name)`, the labels of a node slot, or
+        `("prop", name, key)`, a property of a node or relationship slot as `GraphView` reads it.
+        With `sort`, the rows are sorted by the IDs of those slots (a path compares as its list
+        of edge IDs, and `None` sorts last), keeping search order for ties; without it, they
+        stay in search order. The Rust engine builds the columns without making a tuple per
+        match.
+        """
+        index = {name: i for i, name in enumerate(self._names)}
+        if self._program is not None:
+            table = (None if sort is None else [index[name] for name in sort],
+                     [(c[0], index[c[1]], *c[2:]) for c in columns])
+            return self.graph._cypher_match(self._program, limit, False, table)
+        rows = self.rows(limit)
+        first = rows[0] if rows else None
+        if sort is not None:
+            keys = [index[name] for name in sort]
+            rows.sort(key=lambda row: tuple((1, 0) if row[i] is None else (0, row[i])
+                                            for i in keys))
+        slots, view = self.plan.slots, self.view
+        cells = []
+        for column in columns:
+            i, kind = index[column[1]], slots[column[1]]
+            values = [row[i] for row in rows]
+            if column[0] == "slot":
+                cells.append([v if v is None or kind != "relationships" else list(v)
+                              for v in values])
+            elif column[0] == "label":
+                cells.append([None if v is None else view.node(v)[0] for v in values])
+            else:
+                read = view.node_prop if kind == "node" else view.edge_prop
+                cells.append([None if v is None else read(v, column[2]) for v in values])
+        return len(rows), cells, first
 
     def binding(self, row: tuple) -> dict[str, Any]:
         """A match as a dict of slot → value."""
