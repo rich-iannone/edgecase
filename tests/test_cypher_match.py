@@ -20,14 +20,16 @@ from hypothesis import strategies as st
 
 
 def rows(g, text, params=None, distinct_nodes=False, label_key="name"):
-    """The named variables of each match, as label (nodes) or ID (edges) tuples, in order."""
+    """The named variables of each match, as tuples of labels (nodes), IDs (edges), tuples of
+    IDs (paths) and `None`s, in order."""
     query = parse_query(text)
     matcher = Matcher(query, text, g._graph, params, label_key, distinct_nodes)
     names = list(query.variables)
     out = []
     for b in matcher.matches():
         out.append(tuple(
-            g.get_label_from_id(b[v]) if query.variables[v] == "node" else b[v] for v in names
+            g.get_label_from_id(b[v]) if query.variables[v] == "node" and b[v] is not None
+            else b[v] for v in names
         ))
     return out
 
@@ -228,6 +230,117 @@ class TestErrorsAndEmpty:
         assert rows(g, text) == rows(g, text)
 
 
+class TestVariableLength:
+    def test_ranges(self, g):
+        e1, e2, e3 = edge(g, 1), edge(g, 2), edge(g, 3)
+        assert rows(g, "MATCH (x {k: 1})-[r*2]->(y)") == [("a", (e1, e3), "c"),
+                                                          ("a", (e2, e3), "c")]
+        assert sorted(rows(g, "MATCH (x {k: 1})-[r*0..1]->(y)")) == [
+            ("a", (), "a"), ("a", (e1,), "b"), ("a", (e2,), "b")]
+        assert rows(g, "MATCH (x {name: 'd'})-[r*]-(y)") == []
+        assert rows(g, "MATCH (x {name: 'd'})-[r*0..]-(y)") == [("d", (), "d")]
+        assert len(rows(g, "MATCH (x {k: 1})-[*..2]->(y)")) == 4
+        assert len(rows(g, "MATCH (x {k: 1})-[*2..]->(y)")) == len(
+            rows(g, "MATCH (x {k: 1})-[*]->(y)")) - 2
+
+    def test_zero_hops_bind_one_node(self, g):
+        assert rows(g, "MATCH (x:P)-[*0]->(y:Q)") == [("b", "b")]
+
+    def test_edges_come_in_pattern_order(self, g):
+        # the planner starts at `y` and walks backwards, but the path still runs from x to y
+        e1, e2, e3, e5 = edge(g, 1), edge(g, 2), edge(g, 3), edge(g, 5)
+        assert plan("MATCH (x)-[r*2]->(y {name: 'c'})") == ["scan y", "expand (y)<-[r*2]-(x)"]
+        assert sorted(rows(g, "MATCH (x)-[r*2]->(y {name: 'c'})")) == [
+            ("a", (e1, e3), "c"), ("a", (e2, e3), "c"), ("b", (e3, e5), "c")]
+
+    def test_types_and_properties_hold_for_every_edge(self, g):
+        assert sorted(rows(g, "MATCH (x)-[:X*2]->(y)")) == [("a", "c"), ("b", "a"), ("c", "b")]
+        with pytest.raises(ValueError, match=r"expected '\]', found '\*'"):
+            rows(g, "MATCH (x)-[r {weight: 3}*1..]->(y)")  # the length comes first
+        assert rows(g, "MATCH (x)-[r*1.. {weight: 3}]->(y)") == [("c", (edge(g, 4),), "a")]
+
+    def test_each_edge_is_used_once_per_clause(self, g):
+        cycles = rows(g, "MATCH (x)-[r*]->(x)")
+        assert cycles and all(len(set(r)) == len(r) for _, r in cycles)
+        e1, e2 = edge(g, 1), edge(g, 2)
+        assert rows(g, f"MATCH (x)-[s]->(y), (x)-[r*]->(y) WHERE id(s) = {e1}") == [
+            ("a", e1, "b", (e2,))]
+
+    def test_distinct_nodes_cover_the_inner_nodes(self, g):
+        # the two triangles from each start, and the loop at c
+        assert len(rows(g, "MATCH (x)-[r*]->(x)", distinct_nodes=True)) == 7
+        # a zero-length path would make y the same node as x
+        assert sorted(rows(g, "MATCH (x)-[*0..1]->(y)", distinct_nodes=True)) == [
+            ("a", "b"), ("a", "b"), ("b", "c"), ("c", "a")]
+
+    def test_undirected(self):
+        u = ec.Graph(directed=False).add_nodes(["a", "b", "c"])
+        u.add_edge("a", "b").add_edge("c", "b").add_edge("c", "c")
+        assert [len(r) for _, r, _ in rows(u, "MATCH (x {name: 'a'})-[r*]->(y)")] == [1, 2, 3]
+
+    def test_conditions_on_the_path(self, g):
+        found = rows(g, "MATCH (x {k: 1})-[r*0..]->(y) WHERE size(r) >= 3")
+        assert found and all(len(r) >= 3 for _, r, _ in found)
+
+
+class TestSeveralClauses:
+    def test_clauses_join_on_their_variables(self, g):
+        assert rows(g, "MATCH (x {k: 1}) MATCH (x)-[r]->(y)") == [
+            ("a", edge(g, 1), "b"), ("a", edge(g, 2), "b")]
+
+    def test_edges_may_repeat_across_clauses(self, g):
+        assert len(rows(g, "MATCH (x)-[r]->(y) MATCH (y)<-[s]-(x)")) == 7
+        assert len(rows(g, "MATCH (x)-[r]->(y), (y)<-[s]-(x)")) == 2
+
+    def test_distinct_nodes_hold_per_clause(self, g):
+        g.add_edge("b", "a")
+        found = rows(g, "MATCH (x)-->(y) MATCH (y)-->(z)", distinct_nodes=True)
+        assert ("a", "b", "a") in found
+        assert ("a", "b", "a") not in rows(g, "MATCH (x)-->(y)-->(z)", distinct_nodes=True)
+        # two nodes of an earlier clause must differ when a later one uses both
+        assert ("c", "c", edge(g, 5)) in rows(g, "MATCH (x), (y) MATCH (x)-[r]-(y)")
+        assert ("c", "c", edge(g, 5)) not in rows(g, "MATCH (x), (y) MATCH (x)-[r]-(y)",
+                                                  distinct_nodes=True)
+
+    def test_a_relationship_used_again_is_the_same_edge(self, g):
+        e3 = edge(g, 3)
+        assert rows(g, f"MATCH (x)-[r]->(y) WHERE id(r) = {e3} MATCH (u)-[r]-(v)") == [
+            ("b", e3, "c", "b", "c"), ("b", e3, "c", "c", "b")]
+
+    def test_each_where_belongs_to_its_clause(self, g):
+        assert rows(g, "MATCH (x) WHERE x.k = 1 MATCH (x)-->(y) WHERE y:Q") == [("a", "b"),
+                                                                                ("a", "b")]
+
+
+class TestOptional:
+    def test_missing_matches_are_null(self, g):
+        assert rows(g, "MATCH (x) OPTIONAL MATCH (x)-[r:LOOP]->(y)") == [
+            ("a", None, None), ("b", None, None), ("c", edge(g, 5), "c"), ("d", None, None)]
+
+    def test_where_is_part_of_the_optional_match(self, g):
+        assert rows(g, "MATCH (x) OPTIONAL MATCH (x)-->(y) WHERE y.k = 2") == [
+            ("a", "b"), ("a", "b"), ("b", None), ("c", None), ("d", None)]
+
+    def test_optional_first(self, g):
+        assert rows(g, "OPTIONAL MATCH (x:Nope)") == [(None,)]
+        assert rows(g, "OPTIONAL MATCH (x:Q)") == [("b",), ("c",)]
+        assert rows(g, "OPTIONAL MATCH (x) WHERE $go", {"go": False}) == [(None,)]
+
+    def test_a_null_variable_matches_nothing_later(self, g):
+        text = "MATCH (x) OPTIONAL MATCH (x)-[:LOOP]->(y) {} MATCH (y)-->(z)"
+        assert rows(g, text.format("")) == [("c", "c", "a"), ("c", "c", "c")]
+        assert rows(g, text.format("OPTIONAL")) == [
+            ("a", None, None), ("b", None, None), ("c", "c", "a"), ("c", "c", "c"),
+            ("d", None, None)]
+        # in WHERE, a null variable follows the usual null rules
+        assert rows(g, "MATCH (x) OPTIONAL MATCH (x)-[:LOOP]->(y) MATCH (z) WHERE y IS NULL "
+                       "AND z.k = 1") == [("a", None, "a"), ("b", None, "a"), ("d", None, "a")]
+
+    def test_optional_paths(self, g):
+        assert rows(g, "MATCH (x {name: 'd'}) OPTIONAL MATCH (x)-[r*]->(y)") == [
+            ("d", None, None)]
+
+
 # =============================================================================
 # Planning
 # =============================================================================
@@ -255,7 +368,27 @@ class TestPlan:
         p = Plan(parse_query("MATCH (a:L)-[r:T]->(b) WHERE a.k = 1 AND b.k = a.k AND r.w > 0 "
                              "AND $go"))
         assert [len(step.conditions) for step in p.steps] == [2, 3]
-        assert len(p.constant) == 1
+        assert len(p.stages[0].entry) == 1
+
+    def test_variable_length_steps(self):
+        assert plan("MATCH (a)-[r*1..3]->(b)") == ["scan a", "expand (a)-[r*1..3]->(b)"]
+        assert plan("MATCH (a)-[*]-(b)") == ["scan a", "expand (a)-[ 0*1..]-(b)"]
+        assert plan("MATCH (a)-[r]->(b), (a)<-[p*0..2]-(b)") == [
+            "scan a", "expand (a)-[r]->(b)", "connect (a)<-[p*0..2]-(b)"]
+        p = Plan(parse_query("MATCH (a)-[r:T*2 {w: 1}]->(b)"))
+        assert p.paths == {"r": ("a", "b")}
+        assert len(p.steps[1].edge_conditions) == 2 and p.steps[1].conditions == []
+
+    def test_clauses(self):
+        assert plan("MATCH (a) MATCH (a)-->(b), (c)") == [
+            "scan a", "match", "expand (a)-[ 0]->(b)", "scan c"]
+        assert plan("MATCH (a) OPTIONAL MATCH (a)-->(b)") == [
+            "scan a", "optional match", "expand (a)-[ 0]->(b)"]
+        assert plan("OPTIONAL MATCH (a)") == ["optional match", "scan a"]
+        p = Plan(parse_query("MATCH (a) MATCH (a:L)-->(b) WHERE a.k = 1 AND $go AND b.k = a.k"))
+        later = p.stages[1]
+        assert len(later.entry) == 3 and later.new == [" 0", "b"] and later.joined == ["a"]
+        assert len(later.steps[0].conditions) == 1
 
     def test_groups_are_scanned_in_turn(self):
         # the most constrained group goes first
@@ -269,42 +402,112 @@ class TestPlan:
 
 
 def oracle(g, text, params=None, distinct_nodes=False):
-    """Every assignment of nodes and distinct edges to the pattern elements that fits the arrows
-    and the conditions, by enumeration (the named variables of each, as a Counter)."""
+    """Every match of the query, by enumeration (the named variables of each, as a Counter).
+
+    Each clause tries every assignment of nodes and distinct edges to its new elements, and
+    every sequence of distinct edges for its variable-length relationships, keeping those that
+    fit the arrows and the conditions. An OPTIONAL MATCH that keeps none gives nulls instead.
+    """
     query = parse_query(text)
-    kinds, rels, conditions = {}, [], []
+    directed = g.is_directed()
+    kinds, clauses, i = {}, [], 0
+    for clause in query.clauses:
+        before = set(kinds)
+        used, rels, conditions, edge_conditions = {}, [], [], {}
 
-    def slot(element, i):
-        name = element.variable or f"anon{i}"
-        kinds.setdefault(name, "node" if isinstance(element, NodePattern) else "relationship")
-        conditions.extend(element_conditions(name, element))
-        return name
+        def slot(element):
+            nonlocal i
+            i += 1
+            name = element.variable or f"anon{i}"
+            if isinstance(element, NodePattern):
+                kind = "node"
+            else:
+                kind = "relationship" if element.length is None else "relationships"
+            kinds.setdefault(name, kind)
+            used.setdefault(name, kind)
+            if kind == "relationships":
+                edge_conditions[name] = element_conditions("anon_edge", element)
+            else:
+                conditions.extend(element_conditions(name, element))
+            return name
 
-    i = 0
-    for pattern in query.patterns:
-        left = slot(pattern.nodes[0], i := i + 1)
-        for rel, node in zip(pattern.rels, pattern.nodes[1:]):
-            r = slot(rel, i := i + 1)
-            right = slot(node, i := i + 1)
-            rels.append((r, left, right, rel.direction))
-            left = right
-    conditions += conjuncts(query.where)
-    evaluator = Evaluator(text, kinds, params, GraphView(g._graph))
-    tests = [evaluator.condition(c) for c in conditions]
+        for pattern in clause.patterns:
+            left = slot(pattern.nodes[0])
+            for rel, node in zip(pattern.rels, pattern.nodes[1:]):
+                r = slot(rel)
+                right = slot(node)
+                rels.append((r, left, right, rel.direction, rel.length))
+                left = right
+        conditions += conjuncts(clause.where)
+        clauses.append((clause.optional, before, used, rels, conditions, edge_conditions))
 
-    node_slots = [s for s, k in kinds.items() if k == "node"]
-    rel_slots = [s for s, k in kinds.items() if k == "relationship"]
+    evaluator = Evaluator(text, {**kinds, "anon_edge": "relationship"}, params,
+                          GraphView(g._graph))
     edges = {e: g.get_edge(e) for e in g.get_edge_ids(limit=None)}
-    found = Counter()
-    for nodes in itertools.product(sorted(g.get_node_ids(limit=None)), repeat=len(node_slots)):
-        if distinct_nodes and len(set(nodes)) < len(nodes):
-            continue
-        for chosen in itertools.permutations(sorted(edges), len(rel_slots)):
-            b = dict(zip(node_slots, nodes)) | dict(zip(rel_slots, chosen))
-            if all(_fits(edges[b[r]], b[x], b[y], arrow, g.is_directed())
-                   for r, x, y, arrow in rels) and all(t(b) for t in tests):
-                found[tuple(b[v] for v in query.variables)] += 1
-    return found
+    all_nodes = sorted(g.get_node_ids(limit=None))
+
+    def chains(length, arrow, tests):
+        """(start, end) -> [(edges, inner nodes)] for every sequence of distinct edges of the
+        right length that chains up along the arrow."""
+        low, high = length
+        high = len(edges) if high is None else min(high, len(edges))
+        found = {}
+        for n in range(low, high + 1):
+            for path in itertools.permutations(sorted(edges), n):
+                if not all(t({"anon_edge": e}) for e in path for t in tests):
+                    continue
+                for start in all_nodes:
+                    node, inner = start, []
+                    for e in path:
+                        node = _follow(edges[e], node, arrow, directed)
+                        if node is None:
+                            break
+                        inner.append(node)
+                    if node is not None:
+                        found.setdefault((start, node), []).append((path, inner[:-1]))
+        return found
+
+    out = [{}]
+    for optional, before, used, rels, conditions, edge_conditions in clauses:
+        tests = [evaluator.condition(c) for c in conditions]
+        paths = {r: chains(length, arrow, [evaluator.condition(c) for c in edge_conditions[r]])
+                 for r, _, _, arrow, length in rels if length is not None}
+        new = [s for s in used if s not in before]
+        new_nodes = [s for s in new if used[s] == "node"]
+        new_rels = [s for s in new if used[s] == "relationship"]
+        rows = []
+        for row in out:
+            extended = []
+            if all(row[s] is not None for s in used if s in before):
+                for nodes in itertools.product(all_nodes, repeat=len(new_nodes)):
+                    for chosen in itertools.permutations(sorted(edges), len(new_rels)):
+                        b = row | dict(zip(new_nodes, nodes)) | dict(zip(new_rels, chosen))
+                        singles = [r for r, *_, length in rels if length is None]
+                        if not all(_fits(edges[b[r]], b[x], b[y], arrow, directed)
+                                   for r, x, y, arrow, length in rels if length is None):
+                            continue
+                        options = [paths[r].get((b[x], b[y]), [])
+                                   for r, x, y, _, length in rels if length is not None]
+                        for picked in itertools.product(*options):
+                            c = dict(b)
+                            inner = []
+                            for r, (path, nodes_on) in zip(paths, picked):
+                                c[r] = path
+                                inner += nodes_on
+                            used_edges = [c[r] for r in singles] + [
+                                e for r in paths for e in c[r]]
+                            if len(set(used_edges)) < len(used_edges):
+                                continue
+                            node_values = [c[s] for s, k in used.items() if k == "node"] + inner
+                            if distinct_nodes and len(set(node_values)) < len(node_values):
+                                continue
+                            if all(t(c) for t in tests):
+                                extended.append(c)
+            if not extended and optional:
+                extended = [row | {s: None for s in new}]
+            rows += extended
+        out = rows
+    return Counter(tuple(b[v] for v in query.variables) for b in out)
 
 
 def _fits(e, x, y, arrow, directed):
@@ -312,6 +515,15 @@ def _fits(e, x, y, arrow, directed):
     if not directed or arrow == "either":
         return forward or backward
     return forward if arrow == "out" else backward
+
+
+def _follow(e, node, arrow, directed):
+    """The node an edge leads to from `node` along the arrow, or `None`."""
+    if e.source == node and (arrow != "in" or not directed):
+        return e.target
+    if e.target == node and (arrow != "out" or not directed):
+        return e.source
+    return None
 
 
 @st.composite
@@ -335,49 +547,68 @@ def graphs(draw):
 
 @st.composite
 def queries(draw):
-    node_names, rel_count = [], 0
+    node_names, rel_names, path_names = [], [], []
+    count, has_path = 0, False
 
-    def node():
-        name = draw(st.sampled_from(["a", "b", "c", ""]))
+    def node(names):
+        name = draw(st.sampled_from(["a", "b", "c", "d", ""]))
         if name:
-            node_names.append(name)
+            names.append(name)
         # mostly unconstrained, so that most queries have matches
         labels = draw(st.sampled_from(["", "", "", ":P", ":Q", ":P:Q", ":P|Q"]))
         props = draw(st.sampled_from(["", "", "", "", " {k: 1}", " {k: $k}"]))
         return f"({name}{labels}{props})"
 
-    def rel():
-        nonlocal rel_count
-        rel_count += 1
-        name = draw(st.sampled_from([f"r{rel_count}", ""]))
+    def rel(earlier, in_clause):
+        nonlocal count, has_path
+        count += 1
+        # at most one variable-length relationship, of at most two hops, keeps the oracle fast
+        length = "" if has_path else draw(st.sampled_from(
+            ["", "", "", "*0..1", "*1..2", "*2", "*..2", "*0..2"]))
+        has_path = has_path or bool(length)
+        reuse = [r for r in earlier if r not in in_clause]
+        if not length and reuse and draw(st.integers(0, 4)) == 0:
+            name = draw(st.sampled_from(reuse))
+        else:
+            name = draw(st.sampled_from([f"r{count}", ""]))
+        if name:
+            in_clause.append(name)
+            (path_names if length else rel_names).append(name)
         types = draw(st.sampled_from(["", "", ":A", ":A|B"]))
         props = draw(st.sampled_from(["", "", "", " {weight: 2}"]))
         arrow = draw(st.sampled_from(["-[{}]->", "<-[{}]-", "-[{}]-"]))
-        return arrow.format(name + types + props), name
+        return arrow.format(name + types + length + props)
 
-    patterns, rel_names = [], []
-    for _ in range(draw(st.integers(1, 2))):
-        text = node()
-        for _ in range(draw(st.integers(0, 2))):
-            r, name = rel()
-            if name:
-                rel_names.append(name)
-            text += r + node()
-        patterns.append(text)
-    text = "MATCH " + ", ".join(patterns)
-
-    templates = ["{n}.k = 1", "{n}.k IS NULL", "{n}:P OR {m}:Q", "NOT {n}:P", "{n} <> {m}",
-                 "id({n}) = 2", "id({n}) IN [1, 3]", "{n}.k < {m}.k"]
-    if rel_names:
-        templates += ["type({r}) = 'A'", "{r}.weight > 1"]
-    if node_names and draw(st.booleans()):
+    def where():
+        templates = ["{n}.k = 1", "{n}.k IS NULL", "{n}:P OR {m}:Q", "NOT {n}:P", "{n} <> {m}",
+                     "id({n}) = 2", "id({n}) IN [1, 3]", "{n}.k < {m}.k", "{n} IS NULL"]
+        if rel_names:
+            templates += ["type({r}) = 'A'", "{r}.weight > 1"]
+        if path_names:
+            templates += ["size({p}) = 1", "size({p}) > 0 OR {n}.k = 2"]
+        if not node_names or not draw(st.booleans()):
+            return ""
         parts = []
         for _ in range(draw(st.integers(1, 2))):
             parts.append(draw(st.sampled_from(templates)).format(
                 n=draw(st.sampled_from(node_names)), m=draw(st.sampled_from(node_names)),
-                r=draw(st.sampled_from(rel_names or ["x"]))))
-        text += " WHERE " + draw(st.sampled_from([" AND ", " OR "])).join(parts)
-    return text
+                r=draw(st.sampled_from(rel_names or ["x"])),
+                p=draw(st.sampled_from(path_names or ["x"]))))
+        return " WHERE " + draw(st.sampled_from([" AND ", " OR "])).join(parts)
+
+    clauses = []
+    for i in range(draw(st.integers(1, 3))):
+        earlier, in_clause = list(rel_names), []
+        keyword = "MATCH" if i == 0 and draw(st.integers(0, 3)) else draw(
+            st.sampled_from(["MATCH", "OPTIONAL MATCH"]))
+        patterns = []
+        for _ in range(draw(st.integers(1, 2 if i == 0 else 1))):
+            text = node(node_names)
+            for _ in range(draw(st.integers(0, 2))):
+                text += rel(earlier, in_clause) + node(node_names)
+            patterns.append(text)
+        clauses.append(f"{keyword} " + ", ".join(patterns) + where())
+    return " ".join(clauses)
 
 
 FIXED_QUERIES = [
@@ -403,6 +634,22 @@ FIXED_QUERIES = [
     "MATCH (a)-[r]->(b) WHERE r.weight > 1 OR a = b",
     "MATCH (a)-->(b)-->(c) WHERE a <> c",
     "MATCH (a)--(b) WHERE id(a) IN [1, 2] AND id(b) = 3",
+    "MATCH (a)-[r*]->(b)",
+    "MATCH (a)-[r*0..2]-(b)",
+    "MATCH (a)-[*2]->(a)",
+    "MATCH (a)<-[r:A*1..3]-(b)",
+    "MATCH (a)-[r*..2 {weight: 2}]->(b)-[s]->(c)",
+    "MATCH (a)-[r*0..]->(b) WHERE size(r) <> 1",
+    "MATCH (a)-[s]->(b), (a)-[r*1..2]-(b)",
+    "MATCH (a) MATCH (a)-->(b)",
+    "MATCH (a)-[r]->(b) MATCH (b)-[s]->(c)",
+    "MATCH (a)-[r]->(b) MATCH (c)-[r]-(d)",
+    "MATCH (a), (b) MATCH (a)-[r]-(b)",
+    "MATCH (a) OPTIONAL MATCH (a)-[r]->(b) WHERE b.k = 1",
+    "MATCH (a:P) OPTIONAL MATCH (a)-->(b:Q) OPTIONAL MATCH (b)-->(c)",
+    "OPTIONAL MATCH (a:P)-->(b:Q)",
+    "MATCH (a) OPTIONAL MATCH (a)-[r*1..2]->(b) WHERE id(b) = 1",
+    "MATCH (a) OPTIONAL MATCH (a)-->(b) MATCH (b)-->(c)",
 ]
 
 
@@ -424,7 +671,7 @@ def test_typical_queries_against_the_oracle(text, g, distinct_nodes):
 def test_against_the_oracle(g, text, distinct_nodes):
     query = parse_query(text)
     slots = Plan(query).slots
-    assume(sum(k == "node" for k in slots.values()) <= 4)
+    assume(sum(k == "node" for k in slots.values()) <= 5)
     params = {"k": 1}
     expected = oracle(g, text, params, distinct_nodes)
     found = Counter(
