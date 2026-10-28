@@ -724,6 +724,29 @@ def test_against_the_oracle(g, text, distinct_nodes):
     assert found == expected, text
 
 
+@given(g=graphs(), text=queries(), limit=st.sampled_from([None, 0, 1, 3]), sort=st.booleans())
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_tables(g, text, limit, sort):
+    query = parse_query(text)
+    slots = Plan(query).slots
+    columns = [("slot", name) for name in slots]
+    for name, kind in slots.items():
+        if kind == "node":
+            columns += [("label", name), ("prop", name, "k"), ("prop", name, "name")]
+        elif kind == "relationship":
+            columns += [("prop", name, "weight"), ("prop", name, "rel")]
+    sort = list(query.variables) if sort else None
+    tables = [
+        Matcher(query, text, g._graph, {"k": 1}, engine=engine).table(columns, sort, limit)
+        for engine in ("rust", "python")
+    ]
+    assert tables[0] == tables[1], text
+    n, cells, first = tables[0]
+    assert all(len(column) == n for column in cells)
+    if limit is not None:
+        assert n <= limit
+
+
 # =============================================================================
 # The Rust engine against the Python one
 # =============================================================================
@@ -744,6 +767,7 @@ class _NoEquals:
 
 _ODD_VALUES = [
     None, 0, 1, 2, -1, 1.0, 2.5, float("nan"), float("inf"), True, False, "1", "a", "b", "",
+    "ab", "ña", "\ud800a",
     [1], [1, 2], ("a",), {"x": 1}, np.int64(1), np.float64(2.5), np.bool_(True), np.str_("a"),
     Fraction(1, 2), Decimal("1"), 2**70, _NoEquals(),
 ]
@@ -789,6 +813,10 @@ _CONDITIONS = [
     "a:P:Q", "r:A", "r:A|B", "a.type = 'P'", "a.name {op} {c}", "a.name = 'n0'", "r.weight {op} {c}",
     "id(a) {op} id(b)", "id(a) {op} {c}", "{c} {op} id(r)", "id(r) IN $list", "a = b", "a <> b",
     "a {op} b", "a = r", "r <> r", "{s}.v", "{s}.v = {s}.v", "NOT {s}.v = {c}",
+    "{s}.v {op} a.v", "id(b) {op} {s}.v", "a.name {op} b.name", "{s}.v STARTS WITH {c}",
+    "a.name STARTS WITH {c}", "{c} ENDS WITH {s}.v", "{s}.v CONTAINS a.name",
+    "{s}.v {op} {c} OR a:P", "a.v IS NULL OR {s}.v {op} {c}",
+    "(a.name = {c} OR r:A) AND (b:Q OR {s}.v CONTAINS {c})",
 ]
 
 
@@ -862,6 +890,18 @@ class TestRustEngine:
         (row,) = Matcher(query, text, g._graph, params).rows()
         assert len(row[1]) == n - 1
 
+    def test_kept_results_with_sparse_ids(self):
+        # one-element conditions keep their results by ID, in a table, or in a map when the IDs
+        # are too far apart for one
+        g = ec.Graph(directed=True)
+        for i, node_id in enumerate([3, 10**12, 7, 2**40]):
+            g._graph.add_node(ec._core.Node(
+                id=node_id, label=f"n{i}", attributes={"type": "PQ"[i % 2], "k": i}))
+        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n2", "n3"), ("n3", "n0"), ("n0", "n2")])
+        for text in ["MATCH (a:P)-->(b)-->(c:P)", "MATCH (a)-->(b)-->(c) WHERE b.k > 0",
+                     "MATCH (a)-[r]->(b)<-[s]-(c) WHERE a.name STARTS WITH 'n'"]:
+            assert matches(g, text)
+
     def test_rows_are_tuples_in_slot_order(self, g):
         text = "MATCH (x)-[r*1..2]->(y)-->(z) WHERE id(x) = 1"
         matcher = Matcher(parse_query(text), text, g._graph)
@@ -898,14 +938,55 @@ class TestNative:
         ("a <> b", ("ids", 0, 2, "<>")),
         ("a = r", None),
         ("a < b", None),
-        ("a.k = b.k", None),
+        ("a.k = b.k", ("cmp2", ("prop", 0, "k"), "=", ("prop", 2, "k"))),
+        ("id(a) > r.k", ("cmp2", ("id", 0), ">", ("prop", 1, "k"))),
         ("a.k = [1]", None),
         ("a.k = $np", None),
         ("a.k IN $odd", None),
-        ("a.k STARTS WITH 'x'", None),
-        ("a:P OR b:Q", None),
+        ("a.k STARTS WITH 'x'", ("text", "STARTS WITH", ("prop", 0, "k"), ("const", "x"))),
+        ("$p CONTAINS r.k", ("text", "CONTAINS", ("const", 2.5), ("prop", 1, "k"))),
+        ("a.k ENDS WITH b.name", ("text", "ENDS WITH", ("prop", 0, "k"), ("prop", 2, "name"))),
+        ("a.k STARTS WITH $odd", None),
+        ("a:P OR b:Q", ("or", [("labels", 0, [["P"]]), ("labels", 2, [["Q"]])])),
+        ("a:P OR (b:Q AND id(a) < 3)",
+         ("or", [("labels", 0, [["P"]]),
+                 ("and", [("labels", 2, [["Q"]]), ("cmp", ("id", 0), "<", 3)])])),
+        ("a:P OR size(p) = 1", None),
+        ("a:P XOR b:Q", None),
         ("size(p) = 1", None),
     ])
     def test_forms(self, condition, expected):
         params = {"p": 2.5, "list": (1, 2), "np": np.int64(1), "odd": [1, [2]]}
         assert self.native(condition, params) == expected
+
+    @pytest.mark.parametrize("condition", [
+        "a.k < b.k", "a.k = b.k", "id(a) <> b.k", "a.name STARTS WITH 'n'",
+        "b.name ENDS WITH a.v OR b.name ENDS WITH '1'", "a.name CONTAINS '1' OR b:P",
+        "(a:P AND b.k = 2) OR id(a) > id(b)", "a.missing CONTAINS 'x' OR a.k = 1",
+    ])
+    def test_plain_values_never_call_python(self, condition):
+        g = ec.Graph(directed=True)
+        for i in range(4):
+            g.add_node(f"n{i}", k=i % 3, type="P" if i % 2 else "Q")
+        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n2", "n3"), ("n3", "n0"), ("n1", "n3")])
+        text = f"MATCH (a)-->(b) WHERE {condition}"
+        matcher = Matcher(parse_query(text), text, g._graph)
+
+        def python(binding):
+            raise AssertionError("the condition was left to Python")
+
+        def strip(conds):
+            assert all(native is not None for native, _ in conds)
+            return [(native, python) for native, _ in conds]
+
+        names, kinds, label_key, distinct, stages = matcher._program
+        matcher._program = (names, kinds, label_key, distinct, [
+            (optional, strip(entry), new, joined, [
+                (*step[:6], strip(step[6]), step[7], strip(step[8]), *step[9:])
+                for step in steps
+            ])
+            for optional, entry, new, joined, steps in stages
+        ])
+        reference = Matcher(parse_query(text), text, g._graph, engine="python")
+        assert matcher.rows() == reference.rows()
+        assert reference.rows()  # (the condition holds somewhere)
