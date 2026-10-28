@@ -7,9 +7,14 @@ other and work at companies) and a movie graph (people who act in and direct mov
 query is timed as `Matcher.count()` with both engines and as `Graph.match()` (the DataFrame,
 with the Rust engine), best of `--repeat` runs. The match counts of the engines must agree.
 
+A second table times queries with `RETURN` expressions, `ORDER BY`, `SKIP` and `LIMIT`: the
+plain `match()` table of the pattern, `match()` with the `RETURN`, and the same projection over
+the Python engine. The tables of the engines must agree.
+
 With `--neo4j URI`, the same graphs are loaded into Neo4j (with the `neo4j` driver, which must
 be installed) and each query is timed there too, as `<query> RETURN count(*)`, after one warm-up
-run. The loaded nodes carry the extra label `EdgecaseBench`, and are deleted before and after.
+run (and the `RETURN` queries as they are, reading every row). The loaded nodes carry the
+extra label `EdgecaseBench`, and are deleted before and after.
 The database must hold no other nodes, since the queries would match them too.
 
 Usage:
@@ -27,7 +32,7 @@ import time
 from typing import Any, Optional
 
 import edgecase as ec
-from edgecase.cypher import Matcher, parse_query
+from edgecase.cypher import Matcher, Projection, parse_query
 
 MARKER = "EdgecaseBench"
 
@@ -125,6 +130,26 @@ QUERIES = [
      "WHERE b.age > 89", {"a": "p7"}),
 ]
 
+# Queries with RETURN: (name, graph, pattern, RETURN clause, params)
+RETURN_QUERIES = [
+    ("sorted by properties", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN a, b ORDER BY a.age DESC, b.age", None),
+    ("top 10 by property", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN a.name, b.name ORDER BY b.age DESC, a.age LIMIT 10", None),
+    ("expressions", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN id(a) AS a, toUpper(b.name) AS name, a.age > b.age AS older", None),
+    ("expressions, SKIP/LIMIT", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN toUpper(b.name) AS name, a.age > b.age AS older SKIP 1000 LIMIT 10", None),
+    ("sorted by expression", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN a.name AS name ORDER BY toUpper(b.name) DESC LIMIT 10", None),
+    ("distinct, ordered", "movies",
+     "MATCH (a:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(b:Person)",
+     "RETURN DISTINCT m.title AS title, m.released AS year ORDER BY year DESC, title", None),
+    ("path functions", "social", "MATCH p = (a:Person {name: $name})-[:KNOWS*1..3]->(b)",
+     "RETURN b.name AS name, length(p) AS hops, nodes(p) AS route ORDER BY hops, name",
+     {"name": "p7"}),
+]
+
 
 def best(fn, repeat: int) -> tuple[float, Any]:
     """The shortest time of `repeat` calls of `fn`, and its result."""
@@ -186,6 +211,11 @@ class Neo4j:
     def count(self, query: str, params: Optional[dict]) -> int:
         return self.run(f"{query} RETURN count(*) AS n", params)
 
+    def rows(self, query: str, params: Optional[dict]) -> int:
+        """The number of rows of a query with `RETURN`, after reading them all."""
+        with self.driver.session() as session:
+            return len(list(session.run(query, params or {})))
+
 
 # ---------------------------------------------------------------------------
 
@@ -243,6 +273,40 @@ def main():
             neo.count(text, params)  # warm-up: query planning and caches
             neo_time, neo_n = best(lambda: neo.count(text, params), args.repeat)
             cells.append(f"{neo_time:>10.4f}" + ("" if neo_n == n else f"  ({neo_n:,} matches)"))
+        print("".join(cells), flush=True)
+
+    print()
+    header = f"{'RETURN query':<24}{'rows':>10}{'pattern':>10}{'match()':>10}{'python':>10}" \
+             + (f"{'neo4j':>10}" if neo else "")
+    print(header)
+    print("-" * len(header))
+    for name, graph_name, pattern, returns, params in RETURN_QUERIES:
+        g = graphs[graph_name]
+        text = f"{pattern} {returns}"
+        base_time, _ = best(lambda g=g: g.match(pattern, params=params), args.repeat)
+        match_time, df = best(lambda g=g: g.match(text, params=params), args.repeat)
+        cells = [f"{name:<24}{df.height:>10,}{base_time:>10.4f}{match_time:>10.4f}"]
+        if args.no_python:
+            cells.append(f"{'':>10}")
+        else:
+            query = parse_query(text)
+
+            def table(engine, g=g, query=query, text=text, params=params):
+                matcher = Matcher(query, text, g._graph, params, engine=engine)
+                return Projection(query, matcher).table()[0]
+
+            python_time, python_cells = best(lambda: table("python"), args.repeat)
+            if python_cells != table("rust"):
+                raise SystemExit(f"{name}: the engines give different tables")
+            cells.append(f"{python_time:>10.4f}")
+        if neo:
+            if loaded != graph_name:
+                neo.load(*data[graph_name])
+                loaded = graph_name
+            neo.rows(text, params)  # warm-up
+            neo_time, neo_n = best(lambda: neo.rows(text, params), args.repeat)
+            cells.append(f"{neo_time:>10.4f}" + ("" if neo_n == df.height else
+                                                  f"  ({neo_n:,} rows)"))
         print("".join(cells), flush=True)
     if neo:
         neo.clear()
