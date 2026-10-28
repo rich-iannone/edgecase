@@ -157,6 +157,25 @@ def _set_op_arg(set_op: str) -> str:
     return "" if set_op == "union" else f", set_op={set_op!r}"
 
 
+def _value_kind(value: Any) -> str:
+    """The kind of an attribute value, as far as building a DataFrame column is concerned."""
+    import numbers
+
+    if isinstance(value, bool):
+        return "bool"
+    if isinstance(value, numbers.Integral):
+        return "int"
+    if isinstance(value, numbers.Real):
+        return "float"
+    if isinstance(value, str):
+        return "str"
+    if isinstance(value, (list, tuple)):
+        return "list"
+    if isinstance(value, dict):
+        return "dict"
+    return "other"
+
+
 def _parse_edge_item(item: Any) -> tuple[Any, Any, Optional[float], dict]:
     """
     Split one `add_edges()` item into `(source, target, weight, attrs)`.
