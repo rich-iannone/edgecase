@@ -6,7 +6,7 @@ from typing import Any, Callable, Iterator, Optional, Union
 import polars as pl
 
 from edgecase import _core as rust
-from edgecase.cypher import Matcher, Var, cypher_error, parse_query
+from edgecase.cypher import Matcher, Projection, cypher_error, parse_query
 from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.steps import (
     KIND_ANNOTATE,
@@ -164,22 +164,6 @@ def _query_arg(query: str) -> str:
     characters (the step log is for reading, and `from_cypher()` shortens its text too)."""
     text = " ".join(query.split())
     return repr(text if len(text) <= 60 else text[:57] + "...")
-
-
-def _hashable(value: Any) -> Any:
-    """A hashable stand-in for a `match()` cell, for `RETURN DISTINCT`. Booleans are kept apart
-    from the numbers they would hash as, and lists and maps compare by their contents."""
-    if isinstance(value, bool):
-        return ("bool", value)
-    if isinstance(value, (list, tuple)):
-        return ("list", tuple(_hashable(v) for v in value))
-    if isinstance(value, dict):
-        return ("map", tuple(sorted((k, _hashable(v)) for k, v in value.items())))
-    try:
-        hash(value)
-    except TypeError:
-        return ("repr", repr(value))
-    return value
 
 
 def _value_kind(value: Any) -> str:
@@ -24859,79 +24843,6 @@ class Graph:
                 delta.edges_selected.append(pair)
         return delta
 
-    @staticmethod
-    def _match_columns(parsed, matcher) -> list:
-        """The columns of `match()` as `(name, kind, column)`, where `kind` is `"node"`,
-        `"relationship"`, `"relationships"` (a variable-length one), `"path"` or `"property"`
-        and `column` is the column for `Matcher.table()`."""
-        if parsed.returns is None:
-            items = [(name, Var(name)) for name in parsed.variables]
-        else:
-            items = [(item.name, item.expr) for item in parsed.returns.items]
-        columns = []
-        for name, expr in items:
-            if isinstance(expr, Var):
-                columns.append((name, parsed.variables[expr.name], ("slot", expr.name)))
-            else:
-                # RETURN gives a property of a variable, which this checks (a variable-length
-                # relationship has none)
-                matcher.evaluator.compile(expr)
-                columns.append((name, "property", ("prop", expr.subject.name, expr.key)))
-        return columns
-
-    def _match_table(self, parsed, matcher, columns, limit, use_labels=False):
-        """The cells of `match()`, as one list per column with the rows sorted, and the first
-        match (or `None`)."""
-        named = list(parsed.variables)
-        if parsed.returns is None or not parsed.returns.distinct:
-            specs = [("label", column[1]) if use_labels and kind in ("node", "path") else column
-                     for _, kind, column in columns]
-            _, cells, first = matcher.table(specs, named, limit)
-            return cells, first
-        # RETURN DISTINCT: the limit counts distinct rows, so the search can't stop at it
-        if limit == 0:
-            return [[] for _ in columns], None
-        width = len(columns)
-        _, cells, first = matcher.table(
-            [column for _, _, column in columns] + [("slot", v) for v in named]
-        )
-        rows, keys, index = [], [], {}
-        for match in zip(*cells):
-            row = match[:width]
-            # nulls sort last, variable-length relationships compare as lists of edge IDs, and
-            # paths as their node IDs and then their edge IDs
-            key = tuple(
-                (1, 0) if v is None
-                else (0, (tuple(v["nodes"]), tuple(v["relationships"]))) if isinstance(v, dict)
-                else (0, v)
-                for v in match[width:]
-            )
-            # a repeated row keeps the place of its first match in ID order
-            i = index.setdefault(_hashable(row), len(rows))
-            if i < len(rows):
-                keys[i] = min(keys[i], key)
-                continue
-            rows.append(row)
-            keys.append(key)
-            if limit is not None and len(rows) >= limit:
-                break
-        order = sorted(range(len(rows)), key=keys.__getitem__)
-        out = []
-        for j, (_, kind, _) in enumerate(columns):
-            values = [rows[i][j] for i in order]
-            if use_labels and kind == "node":
-                values = [None if v is None else self._graph.get_node(v).label for v in values]
-            elif use_labels and kind == "path":
-                values = [
-                    None if v is None else {
-                        "nodes": [self._graph.get_node(n).label for n in v["nodes"]],
-                        "relationships": v["relationships"],
-                    }
-                    for v in values
-                ]
-            out.append(values)
-        return out, first
-
     def match(
         self,
         query: str,
@@ -24981,9 +24892,21 @@ class Graph:
           `exists()`, and, for path variables, `length()` (the number of relationships),
           `nodes()` and `relationships()`. Each `WHERE` belongs to its clause, and sees that
           clause's variables and those of the clauses before it.
-        - **`RETURN`:** chooses and orders the columns. It can list variables (`RETURN p, m`)
-          and properties (`RETURN p.name`, a column named `"p.name"`), and `RETURN DISTINCT`
-          drops repeated rows.
+        - **`RETURN`:** chooses the columns, in order. Each is an expression, such as a
+          variable (`RETURN p, m`), a property (`p.name`), a function call (`length(path)`,
+          `toLower(p.name)`, `nodes(path)`), a comparison or a list (`[p.name, p.born]`), and
+          `AS` names it (`RETURN length(path) AS hops`). Without `AS`, a variable's column is
+          named after it, a property's after the variable and key (`"p.name"`), and anything
+          else after the expression as written. `RETURN *` returns every named variable, and
+          can be followed by more columns (`RETURN *, p.name AS name`). `RETURN DISTINCT` drops
+          repeated rows. Aggregating functions such as `count()` and `collect()` aren't
+          supported; group the table with Polars, or count with `count_matches()`.
+        - **`ORDER BY`, `SKIP` and `LIMIT`:** these follow `RETURN`, in that order.
+          `ORDER BY p.born DESC, p.name` sorts the rows by one or more expressions (`ASC`, the
+          default, or `DESC`), which may use the names of the `RETURN` columns; after
+          `RETURN DISTINCT`, it can only use the returned columns. `SKIP 2` drops the first two
+          rows and `LIMIT 5` keeps at most five; each takes a non-negative integer or a
+          parameter (`LIMIT $n`).
 
         The query reads EdgeCase graphs the way `from_cypher()` writes them:
 
@@ -25029,10 +24952,15 @@ class Graph:
           variable that `OPTIONAL MATCH` left `null` matches nothing. Values of different types
           compare as unequal, and can't be ordered, so `'3' < 4` is `null`. A pattern property
           such as `{age: null}` never matches.
+        - **`ORDER BY`:** unlike a comparison, `ORDER BY` can sort any values. Values of one
+          type sort in their own order (nodes and relationships by ID), and values of different
+          types in Cypher's order: maps, nodes, relationships, lists, paths, strings, booleans,
+          then numbers, with `null` last (and so first with `DESC`).
 
-        Rows are sorted by the IDs of the named variables, in the order they first appear in
-        the query (with `null` last), so the same query on the same graph always gives the same
-        table.
+        Without `ORDER BY`, rows are sorted by the IDs of the named variables, in the order they
+        first appear in the query (with `null` last), so the same query on the same graph always
+        gives the same table. `ORDER BY` keeps that order for rows that tie on every key, and
+        `RETURN DISTINCT` keeps each row at the place of its first match.
 
         Parameters
         ----------
@@ -25045,13 +24973,16 @@ class Graph:
             Parameters keep values (especially strings) out of the query text, so they need no
             quoting. `$0` reads the key `0` or `"0"`.
         limit
-            The most rows to return, or `None` (the default) for all of them. The search stops
+            The most matches to find, or `None` (the default) for all of them. The search stops
             once it has found this many, so the table holds the first rows found, sorted, rather
             than the rows with the smallest IDs. With `RETURN DISTINCT`, it counts distinct
-            rows.
+            rows. It applies before `ORDER BY`, `SKIP` and `LIMIT` in the query, which sort and
+            slice the rows it found; it's a cap on the work, while the query's own `LIMIT` gives
+            the top rows of the full result.
         use_labels
-            If `True`, node columns hold node labels instead of IDs. Edges have no labels, so
-            relationship columns always hold edge IDs.
+            If `True`, nodes show as their labels instead of IDs, in node columns and inside
+            values such as `nodes(p)` or `[a, b]`. Edges have no labels, so relationships always
+            show as edge IDs. `ORDER BY` still sorts nodes by ID.
         distinct_nodes
             If `True`, the nodes of each clause of a match must all be different, anonymous ones
             and the inner nodes of variable-length paths included, as in a subgraph isomorphism.
@@ -25070,18 +25001,24 @@ class Graph:
             (`List(Int64)`) for variable-length relationships. A path variable's column is a
             struct with the fields `nodes` (its node IDs, or labels with `use_labels=True`) and
             `relationships` (its edge IDs), both lists; `.struct.field()` or `unnest()` takes
-            them apart. With `RETURN`, the columns are
-            the ones it lists. Variables that `OPTIONAL MATCH` found nothing for are `null`. A
-            query without matches gives an empty table with the same columns.
+            them apart. With `RETURN`, the columns are the ones it lists: variables as above,
+            `id()`, `size()` and `length()` as `Int64`, `type()`, `toLower()` and `toUpper()` as
+            `String`, `labels()` as `List(String)`, conditions as `Boolean`, `nodes()` and
+            `relationships()` as lists of IDs (or labels, for nodes with `use_labels=True`), and
+            properties and other expressions with the type of their values. Variables that
+            `OPTIONAL MATCH` found nothing for are `null`. A query without matches gives an
+            empty table with the same columns.
 
         Raises
         ------
         ValueError
             If the query has a syntax error, uses something outside the supported subset, refers
             to an unknown variable or function, needs a parameter that `params=` doesn't give, or
-            meets a value of the wrong type (such as `WHERE n.name` on a string). Also if there
-            is no `RETURN` and the query names no variables (so there would be no columns), or
-            if `limit=` isn't a non-negative integer.
+            meets a value of the wrong type (such as `WHERE n.name` on a string, or
+            `toLower(n.born)` on a number). Also if there is no `RETURN` and the query names no
+            variables (so there would be no columns), if `RETURN` uses an aggregating function
+            or gives two columns the same name, if `SKIP` or `LIMIT` isn't a non-negative
+            integer, or if `limit=` isn't one.
         TypeError
             If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
             `None`.
@@ -25165,6 +25102,28 @@ class Graph:
         )
         ```
 
+        `RETURN` can compute columns and name them with `AS`, and `ORDER BY` and `LIMIT` give
+        the top rows. Here, the two youngest people:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person) RETURN p.name AS name, p.born AS born "
+            "ORDER BY born DESC LIMIT 2"
+        )
+        ```
+
+        Path functions work in `RETURN` too. The number of hops from Carrie-Anne Moss to
+        everyone else, closest first:
+
+        ```{python}
+        graph.match(
+            "MATCH p = shortestPath((:Person {name: 'Carrie-Anne Moss'})-[*]-(b)) "
+            "RETURN b.name AS name, length(p) AS hops, nodes(p) AS route "
+            "ORDER BY hops, name",
+            use_labels=True,
+        )
+        ```
+
         `OPTIONAL MATCH` keeps the rows it can't extend, with `null` for what it didn't find:
 
         ```{python}
@@ -25195,25 +25154,28 @@ class Graph:
                 "the query names no variables, so match() would have no columns; name the "
                 "parts to return, as in MATCH (a)-->(b), or use count_matches()"
             )
-        columns = self._match_columns(parsed, matcher)
-        cells, first = self._match_table(parsed, matcher, columns, limit, use_labels)
+        projection = Projection(parsed, matcher)
+        cells, first = projection.table(limit, use_labels)
 
+        node = pl.String if use_labels else pl.Int64
+        dtypes = {
+            "node": node,
+            "relationship": pl.Int64,
+            "relationships": pl.List(pl.Int64),
+            "path": pl.Struct({"nodes": pl.List(node), "relationships": pl.List(pl.Int64)}),
+            "nodes": pl.List(node),
+            "integer": pl.Int64,
+            "string": pl.String,
+            "boolean": pl.Boolean,
+            "strings": pl.List(pl.String),
+        }
         series = []
-        for (name, kind, _), values in zip(columns, cells):
-            if kind == "property":
-                series.append(_attr_column(name, values))
-            elif kind == "node" and use_labels:
-                series.append(pl.Series(name, values, dtype=pl.String))
-            elif kind == "relationships":
-                series.append(pl.Series(name, values, dtype=pl.List(pl.Int64)))
-            elif kind == "path":
-                dtype = pl.Struct({
-                    "nodes": pl.List(pl.String if use_labels else pl.Int64),
-                    "relationships": pl.List(pl.Int64),
-                })
-                series.append(pl.Series(name, values, dtype=dtype))
+        for (name, kind), values in zip(projection.columns, cells):
+            if kind in dtypes:
+                series.append(pl.Series(name, values, dtype=dtypes[kind]))
             else:
-                series.append(pl.Series(name, values, dtype=pl.Int64))
+                # a property, or an expression that can give any value
+                series.append(_attr_column(name, values))
         df = pl.DataFrame(series)
 
         if self._recording_depth == 0:
@@ -25467,7 +25429,10 @@ class Graph:
         ----------
         query
             The Cypher text, such as `"MATCH (a)-->(b)-->(c)-->(a)"`. A `RETURN` clause is
-            allowed; only `RETURN DISTINCT` changes the count.
+            allowed; `RETURN DISTINCT`, `SKIP` and `LIMIT` change the count, as they change the
+            rows of `match()`. Without `DISTINCT`, the columns aren't computed, so an
+            expression that would raise an error in `match()` (such as `toLower()` of a
+            number) doesn't raise one here.
         params
             Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
         distinct_nodes
@@ -25523,13 +25488,7 @@ class Graph:
 
         """
         parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
-        first = None
-        if parsed.returns is not None and parsed.returns.distinct:
-            columns = self._match_columns(parsed, matcher)
-            cells, first = self._match_table(parsed, matcher, columns, None)
-            n = len(cells[0])
-        else:
-            n, first = matcher.count()
+        n, first = Projection(parsed, matcher).count()
 
         if self._recording_depth == 0:
             extras = self._match_args(
