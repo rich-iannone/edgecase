@@ -198,17 +198,22 @@ class TestGenerators:
                 raise RuntimeError("boom")
         assert state(g) == before
 
-    def test_rollback_drops_selection_of_removed_items(self):
+    @pytest.mark.parametrize("kind", ["nodes", "edges"])
+    def test_rollback_drops_selection_of_removed_items(self, kind):
         g = base_graph()
         with pytest.raises(RuntimeError):
             with g._atomic():
                 g.add_nodes(["s1", "s2"]).add_edge("s1", "a")
-                g.select_nodes_by_id(g.get_node_ids(limit=None))
-                g._graph.select_edges_by_id([eid for eid, _, _ in g.get_edges_as_tuples()])
+                if kind == "nodes":
+                    g.select_nodes_by_id(g.get_node_ids(limit=None))
+                else:
+                    g._graph.select_edges_by_id([eid for eid, _, _ in g.get_edges_as_tuples()])
                 raise RuntimeError("boom")
-        assert set(g._graph.get_selected_node_ids()) == set(g.get_node_ids(limit=None))
-        live = {eid for eid, _, _ in g.get_edges_as_tuples()}
-        assert set(g._graph.get_selected_edge_ids()) == live
+        if kind == "nodes":
+            assert set(g._graph.get_selected_node_ids()) == set(g.get_node_ids(limit=None))
+        else:
+            live = {eid for eid, _, _ in g.get_edges_as_tuples()}
+            assert set(g._graph.get_selected_edge_ids()) == live
 
 
 class TestSuppressionRestored:
