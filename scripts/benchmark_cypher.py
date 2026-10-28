@@ -148,6 +148,15 @@ RETURN_QUERIES = [
     ("path functions", "social", "MATCH p = (a:Person {name: $name})-[:KNOWS*1..3]->(b)",
      "RETURN b.name AS name, length(p) AS hops, nodes(p) AS route ORDER BY hops, name",
      {"name": "p7"}),
+    ("count per node, top 5", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN b.name AS name, count(*) AS n ORDER BY n DESC, name LIMIT 5", None),
+    ("several aggregates", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN a, count(b) AS n, avg(b.age) AS age, max(b.name) AS last", None),
+    ("collect per node", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "RETURN a, collect(b.name) AS names", None),
+    ("count distinct, no keys", "movies",
+     "MATCH (a:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(b:Person)",
+     "RETURN count(*) AS pairs, count(DISTINCT m) AS movies", None),
 ]
 
 
