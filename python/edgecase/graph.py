@@ -1,10 +1,12 @@
 import math
+from collections.abc import Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, Iterator, Optional, Union
 
 import polars as pl
 
 from edgecase import _core as rust
+from edgecase.cypher import Matcher, Var, cypher_error, parse_query
 from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.steps import (
     KIND_ANNOTATE,
@@ -155,6 +157,29 @@ def _check_set_op(set_op: Any) -> None:
 def _set_op_arg(set_op: str) -> str:
     """The `set_op=` part of a step's code, empty for the default."""
     return "" if set_op == "union" else f", set_op={set_op!r}"
+
+
+def _query_arg(query: str) -> str:
+    """A Cypher query as it appears in a step's code: on one line, and shortened past 60
+    characters (the step log is for reading, and `from_cypher()` shortens its text too)."""
+    text = " ".join(query.split())
+    return repr(text if len(text) <= 60 else text[:57] + "...")
+
+
+def _hashable(value: Any) -> Any:
+    """A hashable stand-in for a `match()` cell, for `RETURN DISTINCT`. Booleans are kept apart
+    from the numbers they would hash as, and lists and maps compare by their contents."""
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, (list, tuple)):
+        return ("list", tuple(_hashable(v) for v in value))
+    if isinstance(value, dict):
+        return ("map", tuple(sorted((k, _hashable(v)) for k, v in value.items())))
+    try:
+        hash(value)
+    except TypeError:
+        return ("repr", repr(value))
+    return value
 
 
 def _value_kind(value: Any) -> str:
@@ -24773,6 +24798,620 @@ class Graph:
 
         """
         return self._graph.count_selected_edges()
+
+    # ==============================================================================
+    # Cypher Queries
+    # ==============================================================================
+
+    def _matcher(self, query: Any, params: Any, label_key: Any, distinct_nodes: bool):
+        """Parse `query` and make its `Matcher`, after checking the arguments the query methods
+        share."""
+        if not isinstance(query, str):
+            raise TypeError(f"query= must be a string of Cypher; got {type(query).__name__}")
+        if params is not None and not isinstance(params, Mapping):
+            raise TypeError(
+                f"params= must be a dict of parameter values; got {type(params).__name__}"
+            )
+        if label_key is not None and not isinstance(label_key, str):
+            raise TypeError(
+                f"label_key= must be an attribute name or None; got {type(label_key).__name__}"
+            )
+        parsed = parse_query(query)
+        matcher = Matcher(
+            parsed,
+            query,
+            self._graph,
+            None if params is None else dict(params),
+            label_key,
+            bool(distinct_nodes),
+        )
+        return parsed, matcher
+
+    @staticmethod
+    def _match_args(**args) -> str:
+        """The optional arguments of a query method that differ from their defaults, as they
+        appear in a step's code (in the order given). Parameter values are left out."""
+        parts = []
+        for key, value in args.items():
+            if key == "label_key":
+                if value != "name":
+                    parts.append(f", label_key={value!r}")
+            elif key == "params":
+                if value:
+                    parts.append(", params=...")
+            elif value is not None and value is not False:
+                parts.append(f", {key}={value!r}")
+        return "".join(parts)
+
+    def _match_delta(self, slots: dict, binding: Optional[dict]) -> StepDelta:
+        """A StepDelta highlighting the nodes and edges of one match (nothing for `None`)."""
+        delta = StepDelta()
+        for slot, kind in slots.items() if binding is not None else ():
+            if kind == "node":
+                label = self._node_label(binding[slot])
+                if label not in delta.nodes_selected:
+                    delta.nodes_selected.append(label)
+            else:
+                edge = self._graph.get_edge(binding[slot])
+                pair = (self._node_label(edge.source), self._node_label(edge.target))
+                if pair not in delta.edges_selected:
+                    delta.edges_selected.append(pair)
+        return delta
+
+    @staticmethod
+    def _match_columns(parsed, matcher) -> list:
+        """The columns of `match()` as `(name, kind, value)`, where `kind` is `"node"`,
+        `"relationship"` or `"property"` and `value` reads the cell from a match."""
+        if parsed.returns is None:
+            items = [(name, name) for name in parsed.variables]
+        else:
+            items = [(item.name, item.expr) for item in parsed.returns.items]
+        columns = []
+        for name, expr in items:
+            if isinstance(expr, (str, Var)):
+                variable = expr if isinstance(expr, str) else expr.name
+                columns.append((name, parsed.variables[variable], lambda b, v=variable: b[v]))
+            else:
+                columns.append((name, "property", matcher.evaluator.compile(expr)))
+        return columns
+
+    def _match_rows(self, parsed, matcher, columns, limit):
+        """The cells of each `match()` row, sorted, and the first match (or `None`)."""
+        names = list(parsed.variables)
+        distinct = parsed.returns is not None and parsed.returns.distinct
+        rows, keys, index = [], [], {}
+        first = None
+        if limit != 0:
+            for binding in matcher.matches():
+                if first is None:
+                    first = binding
+                key = tuple(binding[v] for v in names)
+                row = tuple(value(binding) for _, _, value in columns)
+                if distinct:
+                    # a repeated row keeps the place of its first match in ID order
+                    i = index.setdefault(_hashable(row), len(rows))
+                    if i < len(rows):
+                        keys[i] = min(keys[i], key)
+                        continue
+                rows.append(row)
+                keys.append(key)
+                if limit is not None and len(rows) >= limit:
+                    break
+        order = sorted(range(len(rows)), key=keys.__getitem__)
+        return [rows[i] for i in order], first
+
+    def match(
+        self,
+        query: str,
+        params: Optional[dict] = None,
+        limit: Optional[int] = None,
+        use_labels: bool = False,
+        distinct_nodes: bool = False,
+        label_key: Optional[str] = "name",
+    ) -> "pl.DataFrame":
+        """
+        Find the matches of a Cypher `MATCH` pattern, as a table.
+
+        Each match of the pattern is one row of a Polars DataFrame, and each named variable is a
+        column holding the ID of the node or edge it matched. The ID columns join directly onto
+        `get_node_df()` and `get_edge_df()`, and Polars takes over from there for grouping,
+        counting and sorting. To act on the matches instead, use `select_match()`, and to count
+        them, `count_matches()`.
+
+        The query is one `MATCH` clause, with optional `WHERE` and `RETURN` clauses:
+
+        - **Patterns:** nodes such as `(p:Person {born: 1964})` and relationships such as
+          `-[r:ACTED_IN]->`, `<-[:KNOWS]-` or `--`. Several patterns can be listed with commas,
+          and they share variables.
+        - **`WHERE`:** comparisons (`=`, `<>`, `<`, `<=`, `>`, `>=`), `AND`, `OR`, `XOR`, `NOT`,
+          `IS NULL`, `IN [...]`, `STARTS WITH`, `ENDS WITH`, `CONTAINS`, `=~` (a regular
+          expression that must match the whole string), label tests (`n:Person`), and the
+          functions `id()`, `type()`, `labels()`, `size()`, `toLower()`, `toUpper()` and
+          `exists()`.
+        - **`RETURN`:** chooses and orders the columns. It can list variables (`RETURN p, m`)
+          and properties (`RETURN p.name`, a column named `"p.name"`), and `RETURN DISTINCT`
+          drops repeated rows.
+
+        The query reads EdgeCase graphs the way `from_cypher()` writes them:
+
+        - a node's labels are its `type` attribute (a string, or a list for several labels);
+        - a relationship's type is its `rel` attribute;
+        - `n.name` reads the node's label when the node has no `name` attribute (see
+          `label_key=`);
+        - `r.weight` reads the edge weight;
+        - any other property is the attribute, and a missing attribute is `null`.
+
+        Matching follows Cypher's rules:
+
+        - **Edges:** within one match each edge is used at most once, but a node may appear
+          more than once. So `(a)-->(b)-->(a)` finds 2-cycles. `distinct_nodes=True` makes
+          the nodes distinct as well, as in `subgraph_isomorphisms()`.
+        - **Parallel edges and self-loops:** each parallel edge gives its own match, and a
+          self-loop matches `(a)-->(a)`.
+        - **Undirected graphs:** every relationship matches in either direction, so `-->`,
+          `<--` and `--` mean the same, and an edge between `a` and `b` matches `(x)--(y)`
+          twice: once with `x = a` and once with `x = b`.
+        - **`null`:** a comparison with a missing property is `null`, and `WHERE` keeps a row
+          only when its condition is `true`. Values of different types compare as unequal, and
+          can't be ordered, so `'3' < 4` is `null`. A pattern property such as `{age: null}`
+          never matches.
+
+        Rows are sorted by the IDs of the named variables, in the order they first appear in
+        the query, so the same query on the same graph always gives the same table.
+
+        Parameters
+        ----------
+        query
+            The Cypher text, such as `"MATCH (p:Person)-[:ACTED_IN]->(m) WHERE m.released >
+            2000"`. Keywords ignore case. Anything outside the supported subset raises a
+            `ValueError` that gives the line and column.
+        params
+            Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
+            Parameters keep values (especially strings) out of the query text, so they need no
+            quoting. `$0` reads the key `0` or `"0"`.
+        limit
+            The most rows to return, or `None` (the default) for all of them. The search stops
+            once it has found this many, so the table holds the first rows found, sorted, rather
+            than the rows with the smallest IDs. With `RETURN DISTINCT`, it counts distinct
+            rows.
+        use_labels
+            If `True`, node columns hold node labels instead of IDs. Edges have no labels, so
+            relationship columns always hold edge IDs.
+        distinct_nodes
+            If `True`, the nodes of a match must all be different, anonymous ones included, as in
+            a subgraph isomorphism. A variable that appears twice is still one node. The default
+            follows Cypher, where only the edges must differ.
+        label_key
+            The property that reads the node label when a node has no attribute of that name.
+            The default, `"name"`, matches `from_cypher()`, which turns `name` into the label.
+            Use `None` to read only attributes.
+
+        Returns
+        -------
+        pl.DataFrame
+            One row per match. Without `RETURN`, there is one column per named variable, holding
+            node or edge IDs (`Int64`), or node labels with `use_labels=True`. With `RETURN`,
+            the columns are the ones it lists. A query without matches gives an empty table with
+            the same columns.
+
+        Raises
+        ------
+        ValueError
+            If the query has a syntax error, uses something outside the supported subset, refers
+            to an unknown variable or function, needs a parameter that `params=` doesn't give, or
+            meets a value of the wrong type (such as `WHERE n.name` on a string). Also if there
+            is no `RETURN` and the query names no variables (so there would be no columns), or
+            if `limit=` isn't a non-negative integer.
+        TypeError
+            If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
+            `None`.
+
+        Examples
+        --------
+        A small movie graph, built from Cypher with `from_cypher()`:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.from_cypher(\"\"\"
+        CREATE (keanu:Person {name: 'Keanu Reeves', born: 1964}),
+               (carrie:Person {name: 'Carrie-Anne Moss', born: 1967}),
+               (lana:Person {name: 'Lana Wachowski', born: 1965}),
+               (matrix:Movie {title: 'The Matrix', released: 1999}),
+               (wick:Movie {title: 'John Wick', released: 2014}),
+               (keanu)-[:ACTED_IN {roles: ['Neo']}]->(matrix),
+               (carrie)-[:ACTED_IN {roles: ['Trinity']}]->(matrix),
+               (keanu)-[:ACTED_IN {roles: ['John Wick']}]->(wick),
+               (lana)-[:DIRECTED]->(matrix)
+        \"\"\")
+
+        graph.match("MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)")
+        ```
+
+        Each row is one acting credit, and the columns hold node and edge IDs. `use_labels=True`
+        shows the node labels instead (the movies have no `name`, so `from_cypher()` labeled
+        them with their variables):
+
+        ```{python}
+        graph.match("MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)", use_labels=True)
+        ```
+
+        `WHERE` filters the matches, and `RETURN` chooses the columns, including properties:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released < 2000 "
+            "RETURN p.name, r.roles, m.title"
+        )
+        ```
+
+        Values from outside the query go in through `params=`, which avoids quoting them:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person) WHERE p.born >= $year RETURN p.name, p.born",
+            params={"year": 1965},
+        )
+        ```
+
+        Patterns that share a variable must hold together. Here, two people who acted in the
+        same movie (`id(a) < id(b)` keeps one row per pair):
+
+        ```{python}
+        graph.match(
+            "MATCH (a:Person)-[:ACTED_IN]->(m)<-[:ACTED_IN]-(b:Person) WHERE id(a) < id(b) "
+            "RETURN a.name, b.name, m.title"
+        )
+        ```
+
+        The result is an ordinary Polars DataFrame, so counting and grouping happen there:
+
+        ```{python}
+        (
+            graph.match("MATCH (p:Person)-[:ACTED_IN]->(m:Movie) RETURN p.name")
+            .group_by("p.name")
+            .len()
+            .sort("len", descending=True)
+        )
+        ```
+
+        """
+        if limit is not None and (
+            isinstance(limit, bool) or not isinstance(limit, int) or limit < 0
+        ):
+            raise ValueError(f"limit= must be a non-negative integer or None; got {limit!r}")
+        parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
+        if parsed.returns is None and not parsed.variables:
+            raise ValueError(
+                "the query names no variables, so match() would have no columns; name the "
+                "parts to return, as in MATCH (a)-->(b), or use count_matches()"
+            )
+        columns = self._match_columns(parsed, matcher)
+        rows, first = self._match_rows(parsed, matcher, columns, limit)
+
+        series = []
+        for j, (name, kind, _) in enumerate(columns):
+            values = [row[j] for row in rows]
+            if kind == "property":
+                series.append(_attr_column(name, values))
+            elif kind == "node" and use_labels:
+                labels = [self._graph.get_node(v).label for v in values]
+                series.append(pl.Series(name, labels, dtype=pl.String))
+            else:
+                series.append(pl.Series(name, values, dtype=pl.Int64))
+        df = pl.DataFrame(series)
+
+        if self._recording_depth == 0:
+            n = df.height
+            extras = self._match_args(
+                params=params, limit=limit, use_labels=use_labels,
+                distinct_nodes=distinct_nodes, label_key=label_key,
+            )
+            self._record_step(
+                KIND_QUERY,
+                "match",
+                f"G.match({_query_arg(query)}{extras})  # {n} row{'s' if n != 1 else ''}",
+                delta=self._match_delta(matcher.plan.slots, first),
+                result=n,
+                narration=f"match(): {n} row{'s' if n != 1 else ''}.",
+            )
+        return df
+
+    def select_match(
+        self,
+        query: str,
+        select: Optional[Union[str, list[str]]] = None,
+        params: Optional[dict] = None,
+        set_op: str = "union",
+        distinct_nodes: bool = False,
+        label_key: Optional[str] = "name",
+    ) -> "Graph":
+        """
+        Select the nodes or edges that match a Cypher `MATCH` pattern.
+
+        Finds every match of the pattern, as `match()` does, and selects what the matches bound:
+        every node of every match, or only the variables that `select=` names. The selection
+        then feeds the `*_ws` methods, so a query can tag, recolor or extract the parts of the
+        graph that fit a pattern.
+
+        The query is the same as for `match()` (see there for the supported Cypher and how it
+        reads the graph), except that it can't have a `RETURN` clause, since `select=` chooses
+        what to keep.
+
+        A graph holds a selection of nodes or a selection of edges, never both, so `select=`
+        names one kind:
+
+        - `select=None` (the default) selects every node in any match, including the anonymous
+          ones in patterns such as `(p)-->()`. That highlights every occurrence of the pattern.
+        - `select="p"` or `select=["p", "q"]` selects only the nodes those variables matched.
+        - Relationship variables, as in `select="r"`, select edges instead.
+
+        A selection loses the pairing within each match: after selecting `a` and `b` from
+        `(a)-[:KNOWS]->(b)`, you can't tell who knows whom. `match()` keeps the pairs.
+
+        The selection combines with the current one according to `set_op=`, like the other
+        `select_*` methods. The graph is modified in place and returned for chaining.
+
+        Parameters
+        ----------
+        query
+            The Cypher text, such as `"MATCH (p:Person)-[:ACTED_IN]->(m:Movie)"`. Anything outside
+            the supported subset raises a `ValueError` that gives the line and column.
+        select
+            What to select: `None` (the default) for every node of every match, or the name of a
+            variable, or a list of names. The names must all be node variables or all be
+            relationship variables.
+        params
+            Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
+        set_op
+            How the matches combine with the current selection. `"union"` (default) adds them to
+            it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            elements among them, and `"difference"` removes them from it. Any selection of the
+            other kind (edges when selecting nodes, and nodes when selecting edges) is cleared.
+        distinct_nodes
+            If `True`, the nodes of a match must all be different, as in a subgraph isomorphism.
+            The default follows Cypher, where only the edges must differ.
+        label_key
+            The property that reads the node label when a node has no attribute of that name
+            (`"name"` by default, matching `from_cypher()`), or `None` to read only attributes.
+
+        Returns
+        -------
+        Graph
+            The same graph (modified in place) for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If the query is invalid (as for `match()`) or has a `RETURN` clause; if `select=`
+            names a variable that the query doesn't bind, or mixes node and relationship
+            variables; or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or
+            `"difference"`. The selection is left unchanged.
+        TypeError
+            If `query=` isn't a string, `select=` isn't a name or a list of names, `params=`
+            isn't a dict, or `label_key=` isn't a string or `None`.
+
+        Examples
+        --------
+        The movie graph from `match()`, with three people and two movies:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = ec.from_cypher(\"\"\"
+        CREATE (keanu:Person {name: 'Keanu Reeves', born: 1964}),
+               (carrie:Person {name: 'Carrie-Anne Moss', born: 1967}),
+               (lana:Person {name: 'Lana Wachowski', born: 1965}),
+               (matrix:Movie {title: 'The Matrix', released: 1999}),
+               (wick:Movie {title: 'John Wick', released: 2014}),
+               (keanu)-[:ACTED_IN {roles: ['Neo']}]->(matrix),
+               (carrie)-[:ACTED_IN {roles: ['Trinity']}]->(matrix),
+               (keanu)-[:ACTED_IN {roles: ['John Wick']}]->(wick),
+               (lana)-[:DIRECTED]->(matrix)
+        \"\"\")
+        ```
+
+        Selecting the people who acted in a movie, and tagging them:
+
+        ```{python}
+        (
+            graph
+            .select_match("MATCH (p:Person)-[:ACTED_IN]->(:Movie)", select="p")
+            .set_node_attrs_ws(actor=True)
+            .get_node_df()
+            .select("label", "actor")
+        )
+        ```
+
+        Without `select=`, every node of every match is selected, which for this pattern is
+        everyone connected to The Matrix, and the movie itself:
+
+        ```{python}
+        graph.select_match(
+            "MATCH (m:Movie {title: $title})--(p)", params={"title": "The Matrix"},
+            set_op="replace",
+        )
+        sorted(graph.get_label_from_id(i) for i in graph.get_selected_node_ids())
+        ```
+
+        A relationship variable selects edges. Here, the acting credits in movies released
+        after 2000:
+
+        ```{python}
+        graph.select_match(
+            "MATCH (:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000", select="r"
+        )
+        graph.get_edge_df_ws()
+        ```
+
+        """
+        _check_set_op(set_op)
+        if select is None:
+            names = None
+        elif isinstance(select, str):
+            names = [select]
+        elif isinstance(select, (list, tuple)) and select and all(
+            isinstance(s, str) for s in select
+        ):
+            names = list(select)
+        else:
+            raise TypeError(
+                f"select= must be None, a variable name or a list of names; got {select!r}"
+            )
+        parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
+        if parsed.returns is not None:
+            raise cypher_error(
+                query,
+                parsed.returns.pos,
+                "select_match() doesn't take RETURN; choose what to select with select=",
+            )
+        if names is None:
+            kind = "node"
+            slots = [s for s, k in matcher.plan.slots.items() if k == "node"]
+        else:
+            for name in names:
+                if name not in parsed.variables:
+                    known = ", ".join(map(repr, parsed.variables))
+                    raise ValueError(
+                        f"select= names {name!r}, which the query doesn't bind; "
+                        + (f"its variables are {known}" if known else "it names no variables")
+                    )
+            kinds = {parsed.variables[name] for name in names}
+            if len(kinds) > 1:
+                raise ValueError(
+                    "select= names both node and relationship variables, but a graph selects "
+                    "nodes or edges, not both; select each kind in its own call"
+                )
+            kind, slots = kinds.pop(), names
+
+        ids: set = set()
+        first = None
+        for binding in matcher.matches():
+            if first is None:
+                first = binding
+            ids.update(binding[s] for s in slots)
+        if kind == "node":
+            self._select("nodes", set_op, lambda: self._graph.select_nodes_by_id(sorted(ids)))
+        else:
+            self._select("edges", set_op, lambda: self._graph.select_edges_by_id(sorted(ids)))
+
+        if self._recording_depth == 0:
+            n = self.count_selected_nodes() if kind == "node" else self.count_selected_edges()
+            extras = self._match_args(
+                select=select, params=params, distinct_nodes=distinct_nodes, label_key=label_key
+            )
+            code = (
+                f"G.select_match({_query_arg(query)}{extras}{_set_op_arg(set_op)})"
+                f"  # {n} selected"
+            )
+            self._record_step(KIND_SELECT, "select_match", code)
+        return self
+
+    def count_matches(
+        self,
+        query: str,
+        params: Optional[dict] = None,
+        distinct_nodes: bool = False,
+        label_key: Optional[str] = "name",
+    ) -> int:
+        """
+        Count the matches of a Cypher `MATCH` pattern.
+
+        This is the number of rows that `match()` would return for the same query, found
+        without building the table. It's useful for motif counts, for checking that a pattern
+        occurs at all, and in tests. See `match()` for the supported Cypher, how it reads the
+        graph, and the matching rules.
+
+        Counts follow Cypher, which matters for symmetric patterns: `(a)--(b)` matches each edge
+        twice, once in each direction, and `(a)-->(b)<--(c)` counts each pair of edges into a
+        node twice, as `a, c` and as `c, a`. A condition such as `WHERE id(a) < id(c)` counts
+        each pair once.
+
+        Parameters
+        ----------
+        query
+            The Cypher text, such as `"MATCH (a)-->(b)-->(c)-->(a)"`. A `RETURN` clause is
+            allowed; only `RETURN DISTINCT` changes the count.
+        params
+            Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
+        distinct_nodes
+            If `True`, the nodes of a match must all be different, as in a subgraph isomorphism.
+            The default follows Cypher, where only the edges must differ.
+        label_key
+            The property that reads the node label when a node has no attribute of that name
+            (`"name"` by default, matching `from_cypher()`), or `None` to read only attributes.
+
+        Returns
+        -------
+        int
+            The number of matches.
+
+        Raises
+        ------
+        ValueError
+            If the query is invalid, as for `match()`.
+        TypeError
+            If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
+            `None`.
+
+        Examples
+        --------
+        In a directed graph, `(a)-->(b)-->(c)-->(a)` finds each directed triangle once per
+        starting node, so three times:
+
+        ```{python}
+        import edgecase as ec
+
+        graph = (
+            ec.Graph(directed=True)
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "C")])
+        )
+
+        graph.count_matches("MATCH (a)-->(b)-->(c)-->(a)")
+        ```
+
+        A pattern that returns to `a` still uses two different edges, so it finds the 2-cycle
+        between C and D, once from each end:
+
+        ```{python}
+        graph.count_matches("MATCH (a)-->(b)-->(a)")
+        ```
+
+        Conditions in `WHERE` narrow the count. Here, the pairs of edges that leave the same
+        node (only C has two):
+
+        ```{python}
+        graph.count_matches("MATCH (a)-[r]->(), (a)-[s]->() WHERE id(r) < id(s)")
+        ```
+
+        """
+        parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
+        first = None
+        if parsed.returns is not None and parsed.returns.distinct:
+            columns = self._match_columns(parsed, matcher)
+            rows, first = self._match_rows(parsed, matcher, columns, None)
+            n = len(rows)
+        else:
+            n = 0
+            for binding in matcher.matches():
+                if first is None:
+                    first = binding
+                n += 1
+
+        if self._recording_depth == 0:
+            extras = self._match_args(
+                params=params, distinct_nodes=distinct_nodes, label_key=label_key
+            )
+            self._record_step(
+                KIND_QUERY,
+                "count_matches",
+                f"G.count_matches({_query_arg(query)}{extras})",
+                delta=self._match_delta(matcher.plan.slots, first),
+                result=n,
+                narration=f"count_matches(): {n} match{'es' if n != 1 else ''}.",
+            )
+        return n
 
     # ========================================
     # Graph Traversal System
