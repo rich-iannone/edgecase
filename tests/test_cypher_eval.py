@@ -49,14 +49,14 @@ def run(g, binding, expr, params=None, label_key="name"):
     text = f"MATCH (a)-[r]->(b) WHERE {expr}"
     query = parse_query(text)
     evaluator = Evaluator(text, query.variables, params, GraphView(g._graph, label_key))
-    return evaluator.compile(query.where)(binding)
+    return evaluator.compile(query.clauses[0].where)(binding)
 
 
 def keeps(g, binding, expr, params=None):
     text = f"MATCH (a)-[r]->(b) WHERE {expr}"
     query = parse_query(text)
     evaluator = Evaluator(text, query.variables, params, GraphView(g._graph))
-    return evaluator.condition(query.where)(binding)
+    return evaluator.condition(query.clauses[0].where)(binding)
 
 
 # =============================================================================
@@ -335,6 +335,52 @@ class TestErrors:
         assert run(g, binding, "$m.j", {"m": {"k": 1}}) is None
 
 
+class TestNullsAndPaths:
+    """Variables bound to null (by OPTIONAL MATCH) and to paths (variable-length
+    relationships)."""
+
+    def run(self, g, text, binding, params=None):
+        query = parse_query(text)
+        evaluator = Evaluator(text, query.variables, params, GraphView(g._graph))
+        return evaluator.compile(query.clauses[-1].where)(binding)
+
+    @pytest.mark.parametrize("expr, expected", [
+        ("a IS NULL", True), ("r IS NULL", True), ("a.name", None), ("r.weight", None),
+        ("id(a)", None), ("type(r)", None), ("labels(a)", None), ("a:Person", None),
+        ("a = a", None), ("exists(a.name)", False), ("a.name IS NULL", True),
+    ])
+    def test_null_variables(self, g, expr, expected):
+        text = f"MATCH (b) OPTIONAL MATCH (a)-[r]->(b) WHERE {expr}"
+        assert self.run(g, text, {"a": None, "r": None, "b": 1}) == expected
+
+    def test_path_values(self, g, binding):
+        path = {"a": binding["a"], "r": (binding["r"],), "b": binding["b"]}
+        text = "MATCH (a)-[r*]->(b) WHERE {}"
+        assert self.run(g, text.format("size(r)"), path) == 1
+        assert self.run(g, text.format("size(r)"), {**path, "r": ()}) == 0
+        assert self.run(g, text.format("r IS NULL"), {**path, "r": None}) is True
+        assert self.run(g, text.format("size(r)"), {**path, "r": None}) is None
+
+    @pytest.mark.parametrize("expr, message", [
+        ("id(r) = 1", r"id\(\) can't take a list of relationships"),
+        ("type(r) = 'R'", r"type\(\) can't take a list of relationships"),
+        ("r:R", r"only nodes and relationships have labels, not a list of relationships"),
+    ])
+    def test_path_errors(self, g, binding, expr, message):
+        path = {"a": binding["a"], "r": (binding["r"],), "b": binding["b"]}
+        with pytest.raises(ValueError, match=message):
+            self.run(g, f"MATCH (a)-[r*]->(b) WHERE {expr}", path)
+
+    def test_path_property_is_an_error_at_once(self, g):
+        text = "MATCH (a)-[r*]->(b) WHERE r.weight > 1"
+        query = parse_query(text)
+        evaluator = Evaluator(text, query.variables, None, GraphView(g._graph))
+        with pytest.raises(ValueError, match=r"`r` is a variable-length relationship, a list of "
+                                             r"relationships, so it has no properties.*"
+                                             r"\(line 1, column 27\)"):
+            evaluator.compile(query.clauses[0].where)
+
+
 # =============================================================================
 # Planner helpers
 # =============================================================================
@@ -343,13 +389,13 @@ class TestErrors:
 class TestHelpers:
     def test_conjuncts(self):
         q = parse_query("MATCH (a), (b) WHERE a.x = 1 AND (b.y = 2 AND a = b) AND 1 < a.z < 3")
-        parts = conjuncts(q.where)
+        parts = conjuncts(q.clauses[0].where)
         assert len(parts) == 5
         assert [sorted(variables_in(p)) for p in parts] == [
             ["a"], ["b"], ["a", "b"], ["a"], ["a"],
         ]
         assert conjuncts(None) == []
-        assert conjuncts(parse_query("MATCH (a) WHERE a.x OR a.y").where)[0].op == "OR"
+        assert conjuncts(parse_query("MATCH (a) WHERE a.x OR a.y").clauses[0].where)[0].op == "OR"
 
     def test_element_conditions(self):
         q = parse_query("MATCH (n:A:B|C {k: 1, p: $p})-[:R|S {w: null}]->()")
