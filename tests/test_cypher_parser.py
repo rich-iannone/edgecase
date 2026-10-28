@@ -24,7 +24,7 @@ from edgecase.cypher import (
 
 def _where(condition):
     """The WHERE expression of a query over `(a)-[r]->(b)`."""
-    return parse_query(f"MATCH (a)-[r]->(b) WHERE {condition}").where
+    return parse_query(f"MATCH (a)-[r]->(b) WHERE {condition}").clauses[0].where
 
 
 # =============================================================================
@@ -73,6 +73,20 @@ class TestPatterns:
         (pattern,) = parse_create("CREATE (a:P {k: null})-[r:R]->(b)")
         assert pattern.nodes[0] == NodePattern("a", [("P",)], {"k": Literal(None)})
         assert pattern.rels[0] == RelPattern("r", ["R"], {}, "out")
+
+    @pytest.mark.parametrize(
+        "text, length",
+        [("*", (1, None)), ("*2", (2, 2)), ("*0", (0, 0)), ("*1..3", (1, 3)), ("*2..", (2, None)),
+         ("*..3", (1, 3)), ("*..", (1, None)), ("* 0 .. 2", (0, 2)), ("", None)],
+    )
+    def test_variable_length(self, text, length):
+        q = parse_query(f"MATCH (a)-[r:R{text} {{k: 1}}]->(b)")
+        assert q.patterns[0].rels[0] == RelPattern("r", ["R"], {"k": Literal(1)}, "out", length)
+        assert q.variables["r"] == ("relationship" if length is None else "relationships")
+
+    def test_anonymous_variable_length(self):
+        assert parse_query("MATCH (a)<-[*2]-(b)").patterns[0].rels[0] == RelPattern(
+            None, [], {}, "in", (2, 2))
 
     def test_positions(self):
         q = parse_query("MATCH (a)\n  -[r]->(b)")
@@ -148,7 +162,7 @@ class TestExpressions:
 
     def test_backticked_variable(self):
         q = parse_query("MATCH (`my var`) WHERE `my var`.`a key` = 1 RETURN `my var`")
-        assert q.where == Compare("=", Prop(Var("my var"), "a key"), Literal(1))
+        assert q.clauses[0].where == Compare("=", Prop(Var("my var"), "a key"), Literal(1))
         assert q.returns.items[0].name == "my var"
 
     def test_walk(self):
@@ -160,6 +174,31 @@ class TestExpressions:
 # =============================================================================
 # RETURN
 # =============================================================================
+
+
+class TestClauses:
+    def test_several_clauses(self):
+        q = parse_query("MATCH (a)-[r]->(b) WHERE a.x = 1 OPTIONAL MATCH (b)-->(c), (d) "
+                        "match (c)-[r]->(e) WHERE e.y = d.y RETURN a, e")
+        assert [c.optional for c in q.clauses] == [False, True, False]
+        assert [len(c.patterns) for c in q.clauses] == [1, 2, 1]
+        assert q.clauses[0].where == Compare("=", Prop(Var("a"), "x"), Literal(1))
+        assert q.clauses[1].where is None
+        assert q.clauses[2].where.right == Prop(Var("d"), "y")
+        assert list(q.variables) == ["a", "r", "b", "c", "d", "e"]
+        assert len(q.patterns) == 4
+
+    def test_optional_first(self):
+        q = parse_query("OPTIONAL MATCH (a) RETURN a")
+        assert q.clauses[0].optional and q.clauses[0].pos == 0
+
+    def test_where_sees_earlier_clauses(self):
+        q = parse_query("MATCH (a) MATCH (b) WHERE b.x = a.x")
+        assert q.clauses[0].where is None
+
+    def test_relationship_reused_in_a_later_clause(self):
+        assert parse_query("MATCH ()-[r]->() MATCH ()-[r]-()").variables == {
+            "r": "relationship"}
 
 
 class TestReturn:
@@ -174,7 +213,7 @@ class TestReturn:
 
     def test_no_where_or_return(self):
         q = parse_query("match (p)")
-        assert q.where is None and q.returns is None
+        assert q.clauses[0].where is None and q.returns is None
 
 
 # =============================================================================
@@ -189,24 +228,36 @@ class TestErrors:
             ("", r"starts with MATCH, but the text is empty"),
             ("RETURN 1", r"starts with MATCH, found 'RETURN' \(line 1, column 1\)"),
             ("CREATE (a)", r"CREATE isn't supported: a query only reads the graph"),
-            ("OPTIONAL MATCH (a)", r"OPTIONAL MATCH isn't supported"),
-            ("MATCH (a) MATCH (b)", r"only one MATCH clause .* \(line 1, column 11\)"),
+            ("OPTIONAL (a)", r"expected MATCH, found '\(' \(line 1, column 10\)"),
+            ("MATCH (a) OPTIONAL RETURN a", r"expected MATCH, found 'RETURN'"),
+            ("MATCH (a) RETURN a MATCH (b)", r"expected the end of the query, found 'MATCH'"),
             ("MATCH (a) RETURN a ORDER BY a.x", r"ORDER isn't supported"),
             ("MATCH (a) RETURN a LIMIT 3", r"LIMIT isn't supported"),
             ("MATCH (a) WITH a", r"WITH isn't supported"),
-            ("MATCH (a) b", r"expected WHERE, RETURN or the end of the query, found 'b'"),
+            ("MATCH (a) b", r"expected WHERE, MATCH, RETURN or the end of the query, found 'b'"),
             ("MATCH (a) WHERE a.x = 1 (b)",
-             r"expected RETURN or the end of the query, found '\('"),
+             r"expected MATCH, RETURN or the end of the query, found '\('"),
             ("MATCH (a) RETURN a a", r"expected the end of the query, found 'a'"),
-            ("MATCH (a)-[*]->(b)", r"variable-length .* select_nodes_in_neighborhood\(\) .*"
-                                   r"\(line 1, column 12\)"),
-            ("MATCH (a)-[r:R*1..3]->(b)", r"variable-length"),
+            ("MATCH (a)-[*3..1]->(b)", r"can't have more than 1 hops and at least 3; write "
+                                       r"\*1..3 \(line 1, column 12\)"),
+            ("MATCH (a)-[*1.5]->(b)", r"a number of hops is a whole number, not '1.5'"),
+            ("MATCH (a)-[*$n]->(b)", r"expected '\]', found '\$n'"),
             ("MATCH (a)-[:A:B]->(b)", r"a single type; write :A\|B"),
             ("MATCH (a)<-[r]->(b)", r"can't point both ways \(line 1, column 10\)"),
             ("MATCH (a)-[r]->(r)", r"`r` is used for both a node and a relationship"
                                    r" \(line 1, column 16\)"),
             ("MATCH (a)-[r]->(b), (b)-[r]->(c)",
-             r"relationship variable `r` is used more than once \(line 1, column 24\)"),
+             r"relationship variable `r` is used more than once in one MATCH \(line 1, column "
+             r"24\)"),
+            ("MATCH (a)-[r*]->(b), (b)-[r]->(c)", r"`r` is used more than once in one MATCH"),
+            ("MATCH (a)-[r*]->(b) MATCH (b)-[r]->(c)",
+             r"the variable-length relationship `r` can't be used again in a later MATCH "
+             r"\(line 1, column 30\)"),
+            ("MATCH (a)-[r]->(b) MATCH (b)-[r*]->(c)", r"`r` can't be used again"),
+            ("MATCH (a)-[r]->(b) MATCH (r)", r"`r` is used for both a node and a relationship"),
+            ("MATCH (a) WHERE b.x = 1 MATCH (b)",
+             r"`b` is only defined in a later MATCH; a WHERE sees its own MATCH and the ones "
+             r"before it \(line 1, column 17\)"),
             ("MATCH (a) WHERE b.x = 1", r"`b` isn't defined in MATCH \(line 1, column 17\)"),
             ("MATCH (a) RETURN c", r"`c` isn't defined in MATCH \(line 1, column 18\)"),
             ("MATCH (a) WHERE a.x =", r"expected an expression, but the text ended"),
