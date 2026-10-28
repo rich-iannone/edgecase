@@ -114,6 +114,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Delete node](/assets/graphs/delete-node.light.svg){.lightbox fig-alt="Before: in a four-node cycle, node D is highlighted in the accent color along with its two incident edges. After: D and both of its edges are gone, shown as dashed outlines, leaving the path C, A, B." width="100%"}
 ```
 
+### `from_edges()` — Graph from edges
+
+<img src="from-edges.light.svg" alt="Left: a card with the edge list, four (source, target, weight) tuples: A to B 2, A to C 1, B to D 3 and C to D 4, and below it nodes equal to the list with E, in the accent color. Right: the new weighted graph, a four-cycle A, B, D, C with each weight on its edge, every endpoint made a node, and the isolated node E, which only nodes= names, in the accent color beside it." width="570">
+
+```markdown
+![Graph from edges](/assets/graphs/from-edges.light.svg){.lightbox fig-alt="Left: a card with the edge list, four (source, target, weight) tuples: A to B 2, A to C 1, B to D 3 and C to D 4, and below it nodes equal to the list with E, in the accent color. Right: the new weighted graph, a four-cycle A, B, D, C with each weight on its edge, every endpoint made a node, and the isolated node E, which only nodes= names, in the accent color beside it." width="100%"}
+```
+
 ### `relabel_nodes()` — Relabel nodes
 
 <img src="relabel-nodes.light.svg" alt="Before: a six-node graph with each node&#x27;s id in a pill, 1 to 6. The call renames B to X and E to Y; after it those two nodes carry their new labels in the accent color, while their ids 2 and 5, the edges, and the other labels are unchanged." width="570">
@@ -538,10 +546,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `clear_selection()` — Clear selection
 
-<img src="clear-selection.light.svg" alt="Before: nodes B and E and the edge between them are selected in the accent color. After clear_selection, nothing is selected: every node and edge is plain." width="570">
+<img src="clear-selection.light.svg" alt="Before: nodes B and E are selected in the accent color. After clear_selection, nothing is selected: every node is plain." width="570">
 
 ```markdown
-![Clear selection](/assets/graphs/clear-selection.light.svg){.lightbox fig-alt="Before: nodes B and E and the edge between them are selected in the accent color. After clear_selection, nothing is selected: every node and edge is plain." width="100%"}
+![Clear selection](/assets/graphs/clear-selection.light.svg){.lightbox fig-alt="Before: nodes B and E are selected in the accent color. After clear_selection, nothing is selected: every node is plain." width="100%"}
 ```
 
 ### `count_selected_edges()` — Count selected edges
