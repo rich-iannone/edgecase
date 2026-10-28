@@ -59,16 +59,19 @@ class TestNoPartialWork:
             g.select_edges_by_id([edge, 999])
         assert g.get_selected_edge_ids() == []
 
-    @pytest.mark.parametrize("ws", [False, True])
-    def test_delete_drops_incident_edges_from_selection(self, ws):
-        """delete_node / delete_nodes_ws left stale edge IDs in the selection."""
+    def test_delete_drops_incident_edges_from_selection(self):
+        """delete_node left stale edge IDs in the selection."""
         g = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
         g.select_edges_by_id(g.get_edge_ids())
-        if ws:
-            g.select_nodes_by_id([g.get_id_from_label("A")]).delete_nodes_ws()
-        else:
-            g.delete_node("A")
+        g.delete_node("A")
         assert g.get_selected_edge_ids() == g.find_edge_ids("B", "C")
+
+    def test_delete_nodes_ws_leaves_no_selection(self):
+        """Selecting nodes clears the edge selection, and deleting them empties the selection."""
+        g = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
+        g.select_edges_by_id(g.get_edge_ids())
+        g.select_nodes_by_id([g.get_id_from_label("A")]).delete_nodes_ws()
+        assert g.get_selected_edge_ids() == [] and g.get_selected_node_ids() == []
 
 
 def test_successors_have_no_duplicates():
