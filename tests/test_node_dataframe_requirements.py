@@ -408,3 +408,128 @@ class TestBackwardCompatibility:
         types = df["type"].to_list()
         assert types[0] is None  # Old style
         assert types[1] == "admin"  # New style
+
+
+class TestMixedAttributeTypes:
+    """Attributes whose values differ in type from node to node (or edge to edge)."""
+
+    @staticmethod
+    def _column(values, key="v"):
+        g = ec.Graph().add_nodes(
+            [(f"n{i}", {} if v is None else {key: v}) for i, v in enumerate(values)]
+        )
+        return g.get_node_df()[key]
+
+    def test_single_labels_beside_several_become_lists(self):
+        """A Cypher node with several labels beside one with a single label."""
+        g = ec.from_cypher("CREATE (a:P {name: 'A'}), (b:P:Q {name: 'B'}), (c {name: 'C'})")
+        col = g.get_node_df()["type"]
+        assert col.dtype == pl.List(pl.String)
+        assert col.to_list() == [["P"], ["P", "Q"], None]
+        assert g.get_node_df().filter(pl.col("type").list.contains("P")).height == 2
+
+    @pytest.mark.parametrize(
+        "values, dtype, expected",
+        [
+            ([1, 2.5, None], pl.Float64, [1.0, 2.5, None]),
+            (["x", ["y", "z"]], pl.List(pl.String), [["x"], ["y", "z"]]),
+            ([[], "x"], pl.List(pl.String), [[], ["x"]]),
+            ([[1], [2.5]], pl.List(pl.Float64), [[1.0], [2.5]]),
+            ([[[1]], [[2, 3]]], pl.List(pl.List(pl.Int64)), [[[1]], [[2, 3]]]),
+            ([[1, None], [2]], pl.List(pl.Int64), [[1, None], [2]]),
+        ],
+    )
+    def test_reconciled(self, values, dtype, expected):
+        """Mixes that convert without losing anything get a proper dtype."""
+        col = self._column(values)
+        assert col.dtype == dtype
+        assert col.to_list() == expected
+
+    @pytest.mark.parametrize(
+        "values",
+        [
+            [1, "x"],
+            [True, 2],
+            [2**60 + 1, 0.5],
+            [{"a": 1}, "x"],
+            [{"a": 1}, {"a": "x"}],
+            [[1], ["a"]],
+            [[[1]], [["a"]]],
+            [[2**60 + 1], [0.5]],
+            [(1, 2), "x"],
+            [2**200, 1],
+        ],
+    )
+    def test_other_mixes_keep_their_values(self, values):
+        """Mixes that would fail or convert lossily give an Object column."""
+        col = self._column(values)
+        assert col.dtype == pl.Object
+        assert col.to_list() == values
+
+    def test_uniform_columns_unchanged(self):
+        """Columns of one type keep the dtypes they always had."""
+        g = ec.Graph().add_nodes(
+            [("a", {"s": "x", "i": 1, "f": 0.5, "b": True, "l": [1]}), ("b", {"i": 2})]
+        )
+        df = g.get_node_df()
+        assert [df[c].dtype for c in ("s", "i", "f", "b", "l")] == [
+            pl.String, pl.Int64, pl.Float64, pl.Boolean, pl.List(pl.Int64),
+        ]
+        assert df["type"].dtype == pl.Null
+
+    def test_selected_nodes(self):
+        """`get_node_df_ws()` reconciles the selected nodes' values."""
+        g = ec.Graph().add_nodes([("a", {"v": 1}), ("b", {"v": "x"}), ("c", {"v": 2.5})])
+        g.select_nodes_by_id([g.get_id_from_label("a"), g.get_id_from_label("c")])
+        col = g.get_node_df_ws()["v"]
+        assert col.dtype == pl.Float64 and col.to_list() == [1.0, 2.5]
+
+    def test_edges(self):
+        """`get_edge_df()` and `get_edge_df_ws()` reconcile edge attributes the same way."""
+        g = ec.Graph(directed=True).add_nodes(["a", "b"])
+        g.add_edge("a", "b", rel="R", tag=1)
+        g.add_edge("a", "b", rel=["R", "S"], tag="x")
+        g.add_edge("b", "a", tag=2.5)
+        df = g.get_edge_df()
+        assert df.columns[:4] == ["id", "source", "target", "rel"]
+        assert df["rel"].to_list() == [["R"], ["R", "S"], None]
+        assert df["tag"].dtype == pl.Object and df["tag"].to_list() == [1, "x", 2.5]
+        first, _, third = sorted(g.get_edge_ids(limit=None))
+        g.select_edges_by_id([first, third])
+        assert g.get_edge_df_ws()["tag"].to_list() == [1.0, 2.5]
+
+
+class TestAttributesNamedLikeColumns:
+    """Built-in columns always hold the built-in values."""
+
+    def test_node_columns_win(self):
+        """`id`, `label` and `degree` attributes don't replace those columns."""
+        g = ec.from_dot('graph { a [label="Alice"]; a -- b }')
+        g.set_node_attrs("id", {g.get_id_from_label("a"): 99})
+        g.degrees(return_dict=False)
+        df = g.get_node_df()
+        assert df.columns == ["id", "label", "type", "degree"]
+        assert df.rows() == [(1, "a", None, 1), (2, "b", None, 1)]
+        assert g.get_node(1).attributes["label"] == "Alice"
+
+    def test_edge_columns_win(self):
+        """`id`, `source` and `target` attributes don't replace those columns."""
+        g = ec.io._build_graph(
+            [], [("a", "b", None, {"id": 9, "source": "s", "target": "t", "k": 1})],
+            True, False, None, "t()",
+        )
+        df = g.get_edge_df()
+        assert df.columns == ["id", "source", "target", "rel", "k"]
+        assert df.row(0) == (1, 1, 2, None, 1)
+
+    def test_weight_attribute_without_weights(self):
+        """A `weight` attribute shows when no edge has a weight."""
+        g = ec.from_dot("digraph { a -> b [weight=2]; b -> a }", weighted=False)
+        assert g.get_edge_df()["weight"].to_list() == ["2", None]
+
+    def test_edge_weight_beats_weight_attribute(self):
+        """With real weights, the column holds them, not the attribute."""
+        g = ec.io._build_graph(
+            [], [("a", "b", 1.5, {}), ("b", "a", None, {"weight": "x"})], True, True, None, "t()"
+        )
+        assert g.get_edge_df()["weight"].to_list() == [1.5, None]
