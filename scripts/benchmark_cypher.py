@@ -102,8 +102,10 @@ QUERIES = [
     ("optional match", "social",
      "MATCH (p:Person) WHERE p.age > 85 OPTIONAL MATCH (p)-[:KNOWS]->(q:Person) "
      "WHERE q.age < 20", None),
-    ("Python condition", "social",
+    ("string condition", "social",
      "MATCH (a:Person)-[:KNOWS]->(b) WHERE a.name STARTS WITH 'p1'", None),
+    ("Python condition", "social",
+     "MATCH (a:Person)-[:KNOWS]->(b) WHERE toLower(a.name) STARTS WITH 'p1'", None),
     ("co-actors", "movies",
      "MATCH (a:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(b:Person) WHERE id(a) < id(b)",
      None),
