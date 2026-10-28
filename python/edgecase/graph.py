@@ -24862,8 +24862,8 @@ class Graph:
     @staticmethod
     def _match_columns(parsed, matcher) -> list:
         """The columns of `match()` as `(name, kind, column)`, where `kind` is `"node"`,
-        `"relationship"`, `"relationships"` (a variable-length one) or `"property"` and
-        `column` is the column for `Matcher.table()`."""
+        `"relationship"`, `"relationships"` (a variable-length one), `"path"` or `"property"`
+        and `column` is the column for `Matcher.table()`."""
         if parsed.returns is None:
             items = [(name, Var(name)) for name in parsed.variables]
         else:
@@ -24884,7 +24884,7 @@ class Graph:
         match (or `None`)."""
         named = list(parsed.variables)
         if parsed.returns is None or not parsed.returns.distinct:
-            specs = [("label", column[1]) if use_labels and kind == "node" else column
+            specs = [("label", column[1]) if use_labels and kind in ("node", "path") else column
                      for _, kind, column in columns]
             _, cells, first = matcher.table(specs, named, limit)
             return cells, first
@@ -24898,8 +24898,14 @@ class Graph:
         rows, keys, index = [], [], {}
         for match in zip(*cells):
             row = match[:width]
-            # nulls sort last, and paths compare as lists of edge IDs
-            key = tuple((1, 0) if v is None else (0, v) for v in match[width:])
+            # nulls sort last, variable-length relationships compare as lists of edge IDs, and
+            # paths as their node IDs and then their edge IDs
+            key = tuple(
+                (1, 0) if v is None
+                else (0, (tuple(v["nodes"]), tuple(v["relationships"]))) if isinstance(v, dict)
+                else (0, v)
+                for v in match[width:]
+            )
             # a repeated row keeps the place of its first match in ID order
             i = index.setdefault(_hashable(row), len(rows))
             if i < len(rows):
@@ -24915,6 +24921,14 @@ class Graph:
             values = [rows[i][j] for i in order]
             if use_labels and kind == "node":
                 values = [None if v is None else self._graph.get_node(v).label for v in values]
+            elif use_labels and kind == "path":
+                values = [
+                    None if v is None else {
+                        "nodes": [self._graph.get_node(n).label for n in v["nodes"]],
+                        "relationships": v["relationships"],
+                    }
+                    for v in values
+                ]
             out.append(values)
         return out, first
 
@@ -24934,7 +24948,8 @@ class Graph:
 
         Each match of the pattern is one row of a Polars DataFrame, and each named variable is a
         column holding the ID of the node or edge it matched (or the list of edge IDs, for a
-        variable-length relationship). The ID columns join directly onto
+        variable-length relationship, and the nodes and edges of a path variable). The ID
+        columns join directly onto
         `get_node_df()` and `get_edge_df()`, and Polars takes over from there for grouping,
         counting and sorting. To act on the matches instead, use `select_match()`, and to count
         them, `count_matches()`.
@@ -24948,6 +24963,13 @@ class Graph:
         - **Variable-length relationships:** `-[:KNOWS*1..3]->` follows one to three `KNOWS`
           relationships in a row. `*2` means exactly two, `*` one or more, `*..3` up to three,
           and `*0..` allows zero, which makes both ends the same node.
+        - **Path variables:** `p = (a)-[:KNOWS*]->(b)-->(c)` names the whole path a pattern
+          matched, from its first node to its last.
+        - **Shortest paths:** `shortestPath((a)-[*]-(b))` matches one shortest path between
+          each pair of nodes `a` and `b`, and `allShortestPaths((a)-[*]-(b))` every path of
+          that least length. The pattern is one variable-length relationship, which may have
+          types, properties and an upper bound (and a lower bound of 0 or 1), and it can be
+          named, as in `p = shortestPath(...)`.
         - **Several clauses:** `MATCH (p:Person) MATCH (p)-->(m)` extends each match of the
           first clause with the matches of the second, which share its variables.
           `OPTIONAL MATCH` does the same, but keeps a row that it can't extend, with its new
@@ -24955,9 +24977,10 @@ class Graph:
         - **`WHERE`:** comparisons (`=`, `<>`, `<`, `<=`, `>`, `>=`), `AND`, `OR`, `XOR`, `NOT`,
           `IS NULL`, `IN [...]`, `STARTS WITH`, `ENDS WITH`, `CONTAINS`, `=~` (a regular
           expression that must match the whole string), label tests (`n:Person`), and the
-          functions `id()`, `type()`, `labels()`, `size()`, `toLower()`, `toUpper()` and
-          `exists()`. Each `WHERE` belongs to its clause, and sees that clause's variables and
-          those of the clauses before it.
+          functions `id()`, `type()`, `labels()`, `size()`, `toLower()`, `toUpper()`,
+          `exists()`, and, for path variables, `length()` (the number of relationships),
+          `nodes()` and `relationships()`. Each `WHERE` belongs to its clause, and sees that
+          clause's variables and those of the clauses before it.
         - **`RETURN`:** chooses and orders the columns. It can list variables (`RETURN p, m`)
           and properties (`RETURN p.name`, a column named `"p.name"`), and `RETURN DISTINCT`
           drops repeated rows.
@@ -24983,6 +25006,19 @@ class Graph:
           pattern runs, and the relationship's types and properties apply to every edge on it.
           In `WHERE`, `size(r)` is the number of edges, but a path has no properties of its
           own. Without an upper bound, the number of paths can grow very fast on dense graphs.
+        - **Path variables:** a path lists its nodes and its edges in the order the pattern
+          runs, and a node appears again each time the path comes back to it. In `WHERE`, a
+          path has no properties; use `length(p)`, `nodes(p)` and `relationships(p)`.
+        - **Shortest paths:** the edges of a shortest path follow the same rules as a
+          variable-length relationship: each is used once, it avoids the other edges of its
+          clause, and with `distinct_nodes=True` it visits no node twice. A `WHERE` condition
+          on the path (or its relationship variable) is part of what "shortest" means, so
+          `WHERE length(p) > 2` finds the shortest paths longer than 2, rather than dropping
+          the shortest paths if they're too short. When `a` and `b` are the same node, the
+          shortest path is the shortest cycle through it (of length 0 with `*0..`), where Neo4j
+          raises an error. A breadth-first search guides the search for shortest paths, so they
+          don't need an upper bound the way a variable-length relationship does, and
+          `shortestPath()` keeps the first one it finds.
         - **Parallel edges and self-loops:** each parallel edge gives its own match, and a
           self-loop matches `(a)-->(a)`.
         - **Undirected graphs:** every relationship matches in either direction, so `-->`,
@@ -25031,7 +25067,10 @@ class Graph:
         pl.DataFrame
             One row per match. Without `RETURN`, there is one column per named variable, holding
             node or edge IDs (`Int64`), node labels with `use_labels=True`, or lists of edge IDs
-            (`List(Int64)`) for variable-length relationships. With `RETURN`, the columns are
+            (`List(Int64)`) for variable-length relationships. A path variable's column is a
+            struct with the fields `nodes` (its node IDs, or labels with `use_labels=True`) and
+            `relationships` (its edge IDs), both lists; `.struct.field()` or `unnest()` takes
+            them apart. With `RETURN`, the columns are
             the ones it lists. Variables that `OPTIONAL MATCH` found nothing for are `null`. A
             query without matches gives an empty table with the same columns.
 
@@ -25114,6 +25153,18 @@ class Graph:
         )
         ```
 
+        A path variable holds the whole path, as a struct of its nodes and its edges. Here, the
+        shortest path from Carrie-Anne Moss to Lana Wachowski, with `use_labels=True` to show
+        the nodes as labels:
+
+        ```{python}
+        graph.match(
+            "MATCH p = shortestPath("
+            "(:Person {name: 'Carrie-Anne Moss'})-[*]-(:Person {name: 'Lana Wachowski'}))",
+            use_labels=True,
+        )
+        ```
+
         `OPTIONAL MATCH` keeps the rows it can't extend, with `null` for what it didn't find:
 
         ```{python}
@@ -25155,6 +25206,12 @@ class Graph:
                 series.append(pl.Series(name, values, dtype=pl.String))
             elif kind == "relationships":
                 series.append(pl.Series(name, values, dtype=pl.List(pl.Int64)))
+            elif kind == "path":
+                dtype = pl.Struct({
+                    "nodes": pl.List(pl.String if use_labels else pl.Int64),
+                    "relationships": pl.List(pl.Int64),
+                })
+                series.append(pl.Series(name, values, dtype=dtype))
             else:
                 series.append(pl.Series(name, values, dtype=pl.Int64))
         df = pl.DataFrame(series)
@@ -25205,6 +25262,7 @@ class Graph:
           ones in patterns such as `(p)-->()` and the nodes along variable-length paths. That
           highlights every occurrence of the pattern.
         - `select="p"` or `select=["p", "q"]` selects only the nodes those variables matched.
+        - A path variable counts as a node variable, and selects every node on its paths.
         - Relationship variables, as in `select="r"`, select edges instead. A variable-length
           one selects every edge on its paths.
 
@@ -25223,8 +25281,8 @@ class Graph:
             the supported subset raises a `ValueError` that gives the line and column.
         select
             What to select: `None` (the default) for every node of every match, or the name of a
-            variable, or a list of names. The names must all be node variables or all be
-            relationship variables.
+            variable, or a list of names. The names must all be node (or path) variables or all
+            be relationship variables.
         params
             Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
         set_op
@@ -25339,7 +25397,9 @@ class Graph:
                         f"select= names {name!r}, which the query doesn't bind; "
                         + (f"its variables are {known}" if known else "it names no variables")
                     )
-            kinds = {"node" if parsed.variables[name] == "node" else "edge" for name in names}
+            kinds = {
+                "node" if parsed.variables[name] in ("node", "path") else "edge" for name in names
+            }
             if len(kinds) > 1:
                 raise ValueError(
                     "select= names both node and relationship variables, but a graph selects "
@@ -25359,6 +25419,8 @@ class Graph:
                     continue
                 if parsed.variables[name] == "relationships":
                     ids.update(value)
+                elif parsed.variables[name] == "path":
+                    ids.update(value[0])
                 else:
                     ids.add(value)
         if kind == "node":
