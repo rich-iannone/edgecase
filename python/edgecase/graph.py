@@ -1,5 +1,4 @@
 import math
-import operator
 from collections.abc import Mapping
 from contextlib import contextmanager, nullcontext
 from typing import Any, Callable, Iterator, Optional, Union
@@ -24862,53 +24861,62 @@ class Graph:
 
     @staticmethod
     def _match_columns(parsed, matcher) -> list:
-        """The columns of `match()` as `(name, kind, value)`, where `kind` is `"node"`,
-        `"relationship"`, `"relationships"` (a variable-length one) or `"property"` and `value`
-        reads the cell from a match (a row of `matcher.rows()`)."""
+        """The columns of `match()` as `(name, kind, column)`, where `kind` is `"node"`,
+        `"relationship"`, `"relationships"` (a variable-length one) or `"property"` and
+        `column` is the column for `Matcher.table()`."""
         if parsed.returns is None:
-            items = [(name, name) for name in parsed.variables]
+            items = [(name, Var(name)) for name in parsed.variables]
         else:
             items = [(item.name, item.expr) for item in parsed.returns.items]
-        slots = list(matcher.plan.slots)
         columns = []
         for name, expr in items:
-            if isinstance(expr, (str, Var)):
-                variable = expr if isinstance(expr, str) else expr.name
-                columns.append((
-                    name, parsed.variables[variable], operator.itemgetter(slots.index(variable))
-                ))
+            if isinstance(expr, Var):
+                columns.append((name, parsed.variables[expr.name], ("slot", expr.name)))
             else:
-                run, binding = matcher.evaluator.compile(expr), matcher.binding
-                columns.append((name, "property", lambda row, f=run: f(binding(row))))
+                # RETURN gives a property of a variable, which this checks (a variable-length
+                # relationship has none)
+                matcher.evaluator.compile(expr)
+                columns.append((name, "property", ("prop", expr.subject.name, expr.key)))
         return columns
 
-    def _match_rows(self, parsed, matcher, columns, limit):
-        """The cells of each `match()` row, sorted, and the first match (or `None`)."""
-        slots = list(matcher.plan.slots)
-        named = [slots.index(v) for v in parsed.variables]
-        distinct = parsed.returns is not None and parsed.returns.distinct
+    def _match_table(self, parsed, matcher, columns, limit, use_labels=False):
+        """The cells of `match()`, as one list per column with the rows sorted, and the first
+        match (or `None`)."""
+        named = list(parsed.variables)
+        if parsed.returns is None or not parsed.returns.distinct:
+            specs = [("label", column[1]) if use_labels and kind == "node" else column
+                     for _, kind, column in columns]
+            _, cells, first = matcher.table(specs, named, limit)
+            return cells, first
+        # RETURN DISTINCT: the limit counts distinct rows, so the search can't stop at it
+        if limit == 0:
+            return [[] for _ in columns], None
+        width = len(columns)
+        _, cells, first = matcher.table(
+            [column for _, _, column in columns] + [("slot", v) for v in named]
+        )
         rows, keys, index = [], [], {}
-        first = None
-        if limit != 0:
-            # with DISTINCT, the limit counts distinct rows, so the search can't stop at it
-            for match in matcher.rows(None if distinct else limit):
-                if first is None:
-                    first = match
-                # nulls sort last, and paths compare as tuples of edge IDs
-                key = tuple((1, 0) if match[i] is None else (0, match[i]) for i in named)
-                row = tuple(value(match) for _, _, value in columns)
-                if distinct:
-                    # a repeated row keeps the place of its first match in ID order
-                    i = index.setdefault(_hashable(row), len(rows))
-                    if i < len(rows):
-                        keys[i] = min(keys[i], key)
-                        continue
-                rows.append(row)
-                keys.append(key)
-                if limit is not None and len(rows) >= limit:
-                    break
+        for match in zip(*cells):
+            row = match[:width]
+            # nulls sort last, and paths compare as lists of edge IDs
+            key = tuple((1, 0) if v is None else (0, v) for v in match[width:])
+            # a repeated row keeps the place of its first match in ID order
+            i = index.setdefault(_hashable(row), len(rows))
+            if i < len(rows):
+                keys[i] = min(keys[i], key)
+                continue
+            rows.append(row)
+            keys.append(key)
+            if limit is not None and len(rows) >= limit:
+                break
         order = sorted(range(len(rows)), key=keys.__getitem__)
-        return [rows[i] for i in order], first
+        out = []
+        for j, (_, kind, _) in enumerate(columns):
+            values = [rows[i][j] for i in order]
+            if use_labels and kind == "node":
+                values = [None if v is None else self._graph.get_node(v).label for v in values]
+            out.append(values)
+        return out, first
 
     def match(
         self,
@@ -25137,19 +25145,16 @@ class Graph:
                 "parts to return, as in MATCH (a)-->(b), or use count_matches()"
             )
         columns = self._match_columns(parsed, matcher)
-        rows, first = self._match_rows(parsed, matcher, columns, limit)
+        cells, first = self._match_table(parsed, matcher, columns, limit, use_labels)
 
         series = []
-        for j, (name, kind, _) in enumerate(columns):
-            values = [row[j] for row in rows]
+        for (name, kind, _), values in zip(columns, cells):
             if kind == "property":
                 series.append(_attr_column(name, values))
             elif kind == "node" and use_labels:
-                labels = [None if v is None else self._graph.get_node(v).label for v in values]
-                series.append(pl.Series(name, labels, dtype=pl.String))
+                series.append(pl.Series(name, values, dtype=pl.String))
             elif kind == "relationships":
-                paths = [None if v is None else list(v) for v in values]
-                series.append(pl.Series(name, paths, dtype=pl.List(pl.Int64)))
+                series.append(pl.Series(name, values, dtype=pl.List(pl.Int64)))
             else:
                 series.append(pl.Series(name, values, dtype=pl.Int64))
         df = pl.DataFrame(series)
@@ -25459,8 +25464,8 @@ class Graph:
         first = None
         if parsed.returns is not None and parsed.returns.distinct:
             columns = self._match_columns(parsed, matcher)
-            rows, first = self._match_rows(parsed, matcher, columns, None)
-            n = len(rows)
+            cells, first = self._match_table(parsed, matcher, columns, None)
+            n = len(cells[0])
         else:
             n, first = matcher.count()
 
