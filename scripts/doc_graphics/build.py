@@ -25,7 +25,7 @@ ROOT = HERE.parent.parent
 OUT = ROOT / "assets" / "graphs"
 
 FAMILY_ORDER = [
-    "mutation", "transforms", "set-ops", "selection", "data", "traversal", "paths",
+    "mutation", "transforms", "set-ops", "selection", "querying", "data", "traversal", "paths",
     "node-metrics", "graph-metrics", "similarity", "diffusion", "connectivity", "communities",
     "substructures", "enrichment", "predicates", "generators", "layout",
 ]
