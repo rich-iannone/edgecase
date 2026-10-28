@@ -12,7 +12,7 @@ from typing import Any, Optional, Sequence, Union
 import polars as pl
 
 from edgecase import _core as rust
-from edgecase.cypher import _TokenParser, cypher_error, parse_create
+from edgecase.cypher import _TokenParser, cypher_error, labels_of, parse_create
 from edgecase.graph import Graph
 from edgecase.steps import KIND_BUILD_NODES, StepDelta
 
@@ -5312,14 +5312,11 @@ def to_cypher(
                 f"The {where} has a {label_key!r} attribute as well as a label, and both would "
                 "be written to the same property; choose another label_key"
             )
-        types = attrs.get("type")
+        types = labels_of(attrs.get("type"))
         labels = ""
-        if isinstance(types, str) or (
-            isinstance(types, (list, tuple)) and types and all(isinstance(t, str) for t in types)
-        ):
+        if types is not None:
             del attrs["type"]
-            labels = "".join(":" + _cypher_name(t) for t in ([types] if isinstance(types, str)
-                                                             else types))
+            labels = "".join(":" + _cypher_name(t) for t in types)
         props = ({label_key: label} if label is not None else {}) | attrs
         parts.append(f"({variable[nid]}{labels}{_cypher_map(props, where)})")
     weighted = graph.is_weighted()
