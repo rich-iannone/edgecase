@@ -24843,25 +24843,27 @@ class Graph:
                 parts.append(f", {key}={value!r}")
         return "".join(parts)
 
-    def _match_delta(self, slots: dict, binding: Optional[dict]) -> StepDelta:
+    def _match_delta(self, matcher, binding: Optional[dict]) -> StepDelta:
         """A StepDelta highlighting the nodes and edges of one match (nothing for `None`)."""
         delta = StepDelta()
-        for slot, kind in slots.items() if binding is not None else ():
-            if kind == "node":
-                label = self._node_label(binding[slot])
-                if label not in delta.nodes_selected:
-                    delta.nodes_selected.append(label)
-            else:
-                edge = self._graph.get_edge(binding[slot])
-                pair = (self._node_label(edge.source), self._node_label(edge.target))
-                if pair not in delta.edges_selected:
-                    delta.edges_selected.append(pair)
+        if binding is None:
+            return delta
+        for node in matcher.nodes_of(binding):
+            label = self._node_label(node)
+            if label not in delta.nodes_selected:
+                delta.nodes_selected.append(label)
+        for edge_id in matcher.edges_of(binding):
+            edge = self._graph.get_edge(edge_id)
+            pair = (self._node_label(edge.source), self._node_label(edge.target))
+            if pair not in delta.edges_selected:
+                delta.edges_selected.append(pair)
         return delta
 
     @staticmethod
     def _match_columns(parsed, matcher) -> list:
         """The columns of `match()` as `(name, kind, value)`, where `kind` is `"node"`,
-        `"relationship"` or `"property"` and `value` reads the cell from a match."""
+        `"relationship"`, `"relationships"` (a variable-length one) or `"property"` and `value`
+        reads the cell from a match."""
         if parsed.returns is None:
             items = [(name, name) for name in parsed.variables]
         else:
@@ -24885,7 +24887,8 @@ class Graph:
             for binding in matcher.matches():
                 if first is None:
                     first = binding
-                key = tuple(binding[v] for v in names)
+                # nulls sort last, and paths compare as tuples of edge IDs
+                key = tuple((1, 0) if binding[v] is None else (0, binding[v]) for v in names)
                 row = tuple(value(binding) for _, _, value in columns)
                 if distinct:
                     # a repeated row keeps the place of its first match in ID order
@@ -24915,21 +24918,31 @@ class Graph:
         ![Match a pattern](/assets/graphs/match.light.svg){.lightbox fig-alt="A directed six-node grid A to F, each node tagged with its integer id 1 to 6, where B and C point at each other and so do D and E. The query MATCH (a)-->(b)-->(a) finds the 2-cycles, and the result is a table with columns a and b holding node ids, one row per match: 2 3, 3 2, 4 5, and 5 4. Each cycle matches twice, once from each end. The first row and its match, B and C with both edges, are in the accent color." width="100%"}
 
         Each match of the pattern is one row of a Polars DataFrame, and each named variable is a
-        column holding the ID of the node or edge it matched. The ID columns join directly onto
+        column holding the ID of the node or edge it matched (or the list of edge IDs, for a
+        variable-length relationship). The ID columns join directly onto
         `get_node_df()` and `get_edge_df()`, and Polars takes over from there for grouping,
         counting and sorting. To act on the matches instead, use `select_match()`, and to count
         them, `count_matches()`.
 
-        The query is one `MATCH` clause, with optional `WHERE` and `RETURN` clauses:
+        The query is one or more `MATCH` clauses, each with an optional `WHERE`, and then an
+        optional `RETURN`:
 
         - **Patterns:** nodes such as `(p:Person {born: 1964})` and relationships such as
           `-[r:ACTED_IN]->`, `<-[:KNOWS]-` or `--`. Several patterns can be listed with commas,
           and they share variables.
+        - **Variable-length relationships:** `-[:KNOWS*1..3]->` follows one to three `KNOWS`
+          relationships in a row. `*2` means exactly two, `*` one or more, `*..3` up to three,
+          and `*0..` allows zero, which makes both ends the same node.
+        - **Several clauses:** `MATCH (p:Person) MATCH (p)-->(m)` extends each match of the
+          first clause with the matches of the second, which share its variables.
+          `OPTIONAL MATCH` does the same, but keeps a row that it can't extend, with its new
+          variables `null`.
         - **`WHERE`:** comparisons (`=`, `<>`, `<`, `<=`, `>`, `>=`), `AND`, `OR`, `XOR`, `NOT`,
           `IS NULL`, `IN [...]`, `STARTS WITH`, `ENDS WITH`, `CONTAINS`, `=~` (a regular
           expression that must match the whole string), label tests (`n:Person`), and the
           functions `id()`, `type()`, `labels()`, `size()`, `toLower()`, `toUpper()` and
-          `exists()`.
+          `exists()`. Each `WHERE` belongs to its clause, and sees that clause's variables and
+          those of the clauses before it.
         - **`RETURN`:** chooses and orders the columns. It can list variables (`RETURN p, m`)
           and properties (`RETURN p.name`, a column named `"p.name"`), and `RETURN DISTINCT`
           drops repeated rows.
@@ -24945,21 +24958,30 @@ class Graph:
 
         Matching follows Cypher's rules:
 
-        - **Edges:** within one match each edge is used at most once, but a node may appear
-          more than once. So `(a)-->(b)-->(a)` finds 2-cycles. `distinct_nodes=True` makes
-          the nodes distinct as well, as in `subgraph_isomorphisms()`.
+        - **Edges:** within one clause of a match each edge is used at most once, but a node
+          may appear more than once. So `(a)-->(b)-->(a)` finds 2-cycles. `distinct_nodes=True`
+          makes the nodes distinct as well, as in `subgraph_isomorphisms()`. Separate clauses
+          may reuse edges and nodes, and a relationship variable that appears in a later clause
+          is the same edge there.
+        - **Variable-length relationships:** each path is its own match, so two routes between
+          the same nodes give two rows. The column lists the path's edges in the order the
+          pattern runs, and the relationship's types and properties apply to every edge on it.
+          In `WHERE`, `size(r)` is the number of edges, but a path has no properties of its
+          own. Without an upper bound, the number of paths can grow very fast on dense graphs.
         - **Parallel edges and self-loops:** each parallel edge gives its own match, and a
           self-loop matches `(a)-->(a)`.
         - **Undirected graphs:** every relationship matches in either direction, so `-->`,
           `<--` and `--` mean the same, and an edge between `a` and `b` matches `(x)--(y)`
           twice: once with `x = a` and once with `x = b`.
-        - **`null`:** a comparison with a missing property is `null`, and `WHERE` keeps a row
-          only when its condition is `true`. Values of different types compare as unequal, and
-          can't be ordered, so `'3' < 4` is `null`. A pattern property such as `{age: null}`
-          never matches.
+        - **`null`:** a comparison with a missing property or a `null` variable is `null`, and
+          `WHERE` keeps a row only when its condition is `true`. A later pattern that uses a
+          variable that `OPTIONAL MATCH` left `null` matches nothing. Values of different types
+          compare as unequal, and can't be ordered, so `'3' < 4` is `null`. A pattern property
+          such as `{age: null}` never matches.
 
         Rows are sorted by the IDs of the named variables, in the order they first appear in
-        the query, so the same query on the same graph always gives the same table.
+        the query (with `null` last), so the same query on the same graph always gives the same
+        table.
 
         Parameters
         ----------
@@ -24980,9 +25002,10 @@ class Graph:
             If `True`, node columns hold node labels instead of IDs. Edges have no labels, so
             relationship columns always hold edge IDs.
         distinct_nodes
-            If `True`, the nodes of a match must all be different, anonymous ones included, as in
-            a subgraph isomorphism. A variable that appears twice is still one node. The default
-            follows Cypher, where only the edges must differ.
+            If `True`, the nodes of each clause of a match must all be different, anonymous ones
+            and the inner nodes of variable-length paths included, as in a subgraph isomorphism.
+            A variable that appears twice is still one node. The default follows Cypher, where
+            only the edges must differ.
         label_key
             The property that reads the node label when a node has no attribute of that name.
             The default, `"name"`, matches `from_cypher()`, which turns `name` into the label.
@@ -24992,9 +25015,10 @@ class Graph:
         -------
         pl.DataFrame
             One row per match. Without `RETURN`, there is one column per named variable, holding
-            node or edge IDs (`Int64`), or node labels with `use_labels=True`. With `RETURN`,
-            the columns are the ones it lists. A query without matches gives an empty table with
-            the same columns.
+            node or edge IDs (`Int64`), node labels with `use_labels=True`, or lists of edge IDs
+            (`List(Int64)`) for variable-length relationships. With `RETURN`, the columns are
+            the ones it lists. Variables that `OPTIONAL MATCH` found nothing for are `null`. A
+            query without matches gives an empty table with the same columns.
 
         Raises
         ------
@@ -25066,6 +25090,23 @@ class Graph:
         )
         ```
 
+        A variable-length relationship follows several hops. The people two steps from Lana
+        Wachowski are the ones who worked on one of her movies:
+
+        ```{python}
+        graph.match(
+            "MATCH (:Person {name: 'Lana Wachowski'})-[r*2]-(b:Person) RETURN b.name, r"
+        )
+        ```
+
+        `OPTIONAL MATCH` keeps the rows it can't extend, with `null` for what it didn't find:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person) OPTIONAL MATCH (p)-[:DIRECTED]->(m) RETURN p.name, m.title"
+        )
+        ```
+
         The result is an ordinary Polars DataFrame, so counting and grouping happen there:
 
         ```{python}
@@ -25097,8 +25138,11 @@ class Graph:
             if kind == "property":
                 series.append(_attr_column(name, values))
             elif kind == "node" and use_labels:
-                labels = [self._graph.get_node(v).label for v in values]
+                labels = [None if v is None else self._graph.get_node(v).label for v in values]
                 series.append(pl.Series(name, labels, dtype=pl.String))
+            elif kind == "relationships":
+                paths = [None if v is None else list(v) for v in values]
+                series.append(pl.Series(name, paths, dtype=pl.List(pl.Int64)))
             else:
                 series.append(pl.Series(name, values, dtype=pl.Int64))
         df = pl.DataFrame(series)
@@ -25113,7 +25157,7 @@ class Graph:
                 KIND_QUERY,
                 "match",
                 f"G.match({_query_arg(query)}{extras})  # {n} row{'s' if n != 1 else ''}",
-                delta=self._match_delta(matcher.plan.slots, first),
+                delta=self._match_delta(matcher, first),
                 result=n,
                 narration=f"match(): {n} row{'s' if n != 1 else ''}.",
             )
@@ -25146,9 +25190,13 @@ class Graph:
         names one kind:
 
         - `select=None` (the default) selects every node in any match, including the anonymous
-          ones in patterns such as `(p)-->()`. That highlights every occurrence of the pattern.
+          ones in patterns such as `(p)-->()` and the nodes along variable-length paths. That
+          highlights every occurrence of the pattern.
         - `select="p"` or `select=["p", "q"]` selects only the nodes those variables matched.
-        - Relationship variables, as in `select="r"`, select edges instead.
+        - Relationship variables, as in `select="r"`, select edges instead. A variable-length
+          one selects every edge on its paths.
+
+        A variable that an `OPTIONAL MATCH` left `null` selects nothing.
 
         A selection loses the pairing within each match: after selecting `a` and `b` from
         `(a)-[:KNOWS]->(b)`, you can't tell who knows whom. `match()` keeps the pairs.
@@ -25271,7 +25319,6 @@ class Graph:
             )
         if names is None:
             kind = "node"
-            slots = [s for s, k in matcher.plan.slots.items() if k == "node"]
         else:
             for name in names:
                 if name not in parsed.variables:
@@ -25280,20 +25327,30 @@ class Graph:
                         f"select= names {name!r}, which the query doesn't bind; "
                         + (f"its variables are {known}" if known else "it names no variables")
                     )
-            kinds = {parsed.variables[name] for name in names}
+            kinds = {"node" if parsed.variables[name] == "node" else "edge" for name in names}
             if len(kinds) > 1:
                 raise ValueError(
                     "select= names both node and relationship variables, but a graph selects "
                     "nodes or edges, not both; select each kind in its own call"
                 )
-            kind, slots = kinds.pop(), names
+            kind = kinds.pop()
 
         ids: set = set()
         first = None
         for binding in matcher.matches():
             if first is None:
                 first = binding
-            ids.update(binding[s] for s in slots)
+            if names is None:
+                ids.update(matcher.nodes_of(binding))
+                continue
+            for name in names:
+                value = binding[name]
+                if value is None:  # an OPTIONAL MATCH that found nothing
+                    continue
+                if parsed.variables[name] == "relationships":
+                    ids.update(value)
+                else:
+                    ids.add(value)
         if kind == "node":
             self._select("nodes", set_op, lambda: self._graph.select_nodes_by_id(sorted(ids)))
         else:
@@ -25331,7 +25388,8 @@ class Graph:
         Counts follow Cypher, which matters for symmetric patterns: `(a)--(b)` matches each edge
         twice, once in each direction, and `(a)-->(b)<--(c)` counts each pair of edges into a
         node twice, as `a, c` and as `c, a`. A condition such as `WHERE id(a) < id(c)` counts
-        each pair once.
+        each pair once. Each path of a variable-length relationship counts on its own, and a
+        row that `OPTIONAL MATCH` filled with `null` counts as one match.
 
         Parameters
         ----------
@@ -25413,7 +25471,7 @@ class Graph:
                 KIND_QUERY,
                 "count_matches",
                 f"G.count_matches({_query_arg(query)}{extras})",
-                delta=self._match_delta(matcher.plan.slots, first),
+                delta=self._match_delta(matcher, first),
                 result=n,
                 narration=f"count_matches(): {n} match{'es' if n != 1 else ''}.",
             )
