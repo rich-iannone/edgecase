@@ -88,6 +88,24 @@ class TestPatterns:
         assert parse_query("MATCH (a)<-[*2]-(b)").patterns[0].rels[0] == RelPattern(
             None, [], {}, "in", (2, 2))
 
+    def test_path_variables(self):
+        q = parse_query("MATCH p = (a)-[r*]->(b), (c), q=(d)--(e)")
+        assert [pattern.variable for pattern in q.patterns] == ["p", None, "q"]
+        assert [pattern.pos for pattern in q.patterns] == [6, 25, 30]
+        assert q.variables == {"p": "path", "a": "node", "r": "relationships", "b": "node",
+                               "c": "node", "q": "path", "d": "node", "e": "node"}
+        assert all(pattern.shortest is None for pattern in q.patterns)
+
+    def test_shortest_paths(self):
+        q = parse_query("MATCH p = shortestPath((a)-[*]->(b)), ALLSHORTESTPATHS((c)-[r:R*0..3]-(d))")
+        one, every = q.patterns
+        assert (one.variable, one.shortest, one.pos) == ("p", "one", 6)
+        assert (every.variable, every.shortest) == (None, "all")
+        assert every.rels[0] == RelPattern("r", ["R"], {}, "either", (0, 3))
+        assert list(q.variables) == ["p", "a", "b", "c", "r", "d"]
+        # the function names are only special before `(`
+        assert parse_query("MATCH (shortestPath)").variables == {"shortestPath": "node"}
+
     def test_positions(self):
         q = parse_query("MATCH (a)\n  -[r]->(b)")
         assert q.patterns[0].nodes[0].pos == 6
@@ -280,6 +298,28 @@ class TestErrors:
             ("MATCH (a) RETURN a, a", r"the column 'a' is returned twice \(line 1, column 21\)"),
             ("MATCH (a {x: 1, x: 2})", r"'x' is given twice"),
             ("MATCH (a {x: [$y]})", r"expected a value, found '\$y'"),
+            ("MATCH p = (a), p = (b)", r"the path variable `p` is defined twice \(line 1, column "
+                                       r"16\)"),
+            ("MATCH p = (a) MATCH p = (b)", r"the path variable `p` is defined twice"),
+            ("MATCH a = (a)", r"`a` is a path variable, so it can't also be a node \(line 1, "
+                              r"column 11\)"),
+            ("MATCH p = (a) MATCH (b)-[p]-()", r"`p` is a path variable, so it can't also be a "
+                                               r"relationship"),
+            ("MATCH (a) MATCH a = (b)", r"`a` is used for both a path and a node \(line 1, "
+                                        r"column 17\)"),
+            ("MATCH ()-[r]->() MATCH r = ()", r"`r` is used for both a path and a relationship"),
+            ("MATCH p = q = (a)", r"expected '\(' to start a node, found 'q'"),
+            ("MATCH shortestPath((a))", r"shortestPath\(\) takes a pattern with one relationship, "
+                                        r"such as \(a\)-\[\*\]-\(b\) \(line 1, column 7\)"),
+            ("MATCH allShortestPaths((a)-[*]->(b)-->(c))",
+             r"allShortestPaths\(\) takes a pattern with one relationship"),
+            ("MATCH shortestPath((a)-->(b))", r"shortestPath\(\) needs a variable-length "
+                                              r"relationship, such as -\[\*\]- or "
+                                              r"-\[:KNOWS\*..5\]- \(line 1, column 23\)"),
+            ("MATCH shortestPath((a)-[*2..]->(b))", r"shortestPath\(\) finds paths of at least 0 "
+                                                    r"or 1 relationships, not 2"),
+            ("MATCH shortestPath((a)-[*]->(b)", r"expected '\)' to close shortestPath\(\), but "
+                                                r"the text ended"),
         ],
     )
     def test_query_errors(self, text, message):
@@ -299,6 +339,8 @@ class TestErrors:
                                r" \(line 1, column 12\)"),
             ("CREATE (a)-[:A|B]->(b)", r"exactly one type \(line 1, column 15\)"),
             ("CREATE (a)-[*]->(b)", r"expected '\]', found '\*'"),
+            ("CREATE p = (a)", r"a path variable \(p = \.\.\.\) can only be used in a query "
+                               r"\(line 1, column 8\)"),
         ],
     )
     def test_create_errors(self, text, message):
