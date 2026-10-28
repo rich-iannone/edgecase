@@ -1,14 +1,16 @@
-"""The Cypher tokenizer, parser and syntax tree.
+"""Cypher: the tokenizer, parser and syntax tree, and the evaluator for query expressions.
 
 `from_cypher()` builds graphs from the `CREATE` clauses parsed here, and the query methods run the
-`MATCH` queries. Parsing checks the syntax and how variables are used; what a query means (which
-functions exist, how values compare) is left to the code that runs it.
+`MATCH` queries. Parsing checks the syntax and how variables are used. The `Evaluator` gives the
+expressions their meaning (which functions exist, how values compare, Cypher's `null` logic),
+reading the graph through a `GraphView`.
 
 This module imports nothing from the rest of EdgeCase, so that both `io` and `graph` can use it.
 """
 
 from __future__ import annotations
 
+import numbers
 import re
 from dataclasses import dataclass, field
 from typing import Any, Optional, Union
@@ -732,3 +734,518 @@ def parse_create(text: str) -> list[Pattern]:
 def parse_query(text: str) -> Query:
     """Parse a `MATCH ... [WHERE ...] [RETURN ...]` query."""
     return _CypherParser(text).parse_query()
+
+
+# =============================================================================
+# The data model
+# =============================================================================
+
+
+def labels_of(type_value: Any) -> Optional[list[str]]:
+    """The Cypher labels a node's `type` attribute holds: a string is one label and a non-empty
+    list of strings is several. Any other value (a number, an empty list) isn't labels, and
+    gives `None`: the node has no labels, and `type` is an ordinary property."""
+    if isinstance(type_value, str):
+        return [type_value]
+    if (isinstance(type_value, (list, tuple)) and type_value
+            and all(isinstance(t, str) for t in type_value)):
+        return list(type_value)
+    return None
+
+
+@dataclass(frozen=True)
+class NodeRef:
+    """A node as a value in an expression (what a node variable evaluates to)."""
+
+    id: int
+
+
+@dataclass(frozen=True)
+class RelRef:
+    """A relationship as a value in an expression."""
+
+    id: int
+
+
+class GraphView:
+    """The node and edge data of a Rust graph as the query evaluator sees it.
+
+    - `n.key` is the attribute, or the node's label when `key` is `label_key` and there is no
+      such attribute (`from_cypher()` moves `name` into the label).
+    - `r.weight` is the edge weight, or a `weight` attribute when the edge has no weight.
+    - Missing attributes are `None` (Cypher's `null`).
+    - The labels of a node come from its `type` attribute (see `labels_of()`), and the type of
+      a relationship is its `rel` attribute when that's a string.
+
+    Nodes and edges are read once and cached, so a view belongs to one query run.
+    """
+
+    def __init__(self, graph: Any, label_key: Optional[str] = "name"):
+        self._graph = graph
+        self.label_key = label_key
+        self._nodes: dict[int, tuple[Optional[str], dict]] = {}
+        self._edges: dict[int, tuple[int, int, Optional[float], dict]] = {}
+
+    def node(self, node_id: int) -> tuple[Optional[str], dict]:
+        """`(label, attributes)`."""
+        found = self._nodes.get(node_id)
+        if found is None:
+            node = self._graph.get_node(node_id)
+            found = self._nodes[node_id] = (node.label, dict(node.attributes or {}))
+        return found
+
+    def edge(self, edge_id: int) -> tuple[int, int, Optional[float], dict]:
+        """`(source, target, weight, attributes)`."""
+        found = self._edges.get(edge_id)
+        if found is None:
+            edge = self._graph.get_edge(edge_id)
+            found = self._edges[edge_id] = (edge.source, edge.target, edge.weight,
+                                            dict(edge.attributes or {}))
+        return found
+
+    def node_prop(self, node_id: int, key: str) -> Any:
+        label, attrs = self.node(node_id)
+        if key in attrs:
+            return attrs[key]
+        return label if key == self.label_key else None
+
+    def edge_prop(self, edge_id: int, key: str) -> Any:
+        _, _, weight, attrs = self.edge(edge_id)
+        if key == "weight" and weight is not None:
+            return weight
+        return attrs.get(key)
+
+    def node_labels(self, node_id: int) -> list[str]:
+        return labels_of(self.node(node_id)[1].get("type")) or []
+
+    def edge_type(self, edge_id: int) -> Optional[str]:
+        rel = self.edge(edge_id)[3].get("rel")
+        return rel if isinstance(rel, str) else None
+
+
+# =============================================================================
+# Evaluation
+# =============================================================================
+
+# Values follow Cypher's rules: `None` is `null`, and anything that meets a `null` (a missing
+# property, say) is `null` too, apart from `IS NULL`, `OR` with a true side and `AND` with a
+# false side. `WHERE` keeps a row only when its condition is `true`.
+
+
+def _kind(value: Any) -> str:
+    if value is None:
+        return "null"
+    if isinstance(value, bool):
+        return "boolean"
+    if isinstance(value, numbers.Real):
+        return "number"
+    if isinstance(value, str):
+        return "string"
+    if isinstance(value, (list, tuple)):
+        return "list"
+    if isinstance(value, dict):
+        return "map"
+    if isinstance(value, NodeRef):
+        return "node"
+    if isinstance(value, RelRef):
+        return "relationship"
+    return "other"
+
+
+def _describe(value: Any) -> str:
+    kind = _kind(value)
+    if kind in ("node", "relationship"):
+        return f"a {kind}"
+    text = repr(value)
+    return text if len(text) <= 40 else text[:37] + "..."
+
+
+def _all_equal(pairs) -> Optional[bool]:
+    """`true` if every pair is equal, `false` if any isn't, else `null`."""
+    result: Optional[bool] = True
+    for a, b in pairs:
+        same = equals(a, b)
+        if same is False:
+            return False
+        if same is None:
+            result = None
+    return result
+
+
+def equals(a: Any, b: Any) -> Optional[bool]:
+    """Cypher's `a = b`: `null` if either side is `null`, `false` for different types, and
+    numbers compare by value (so `1 = 1.0`). Lists and maps compare item by item."""
+    ka, kb = _kind(a), _kind(b)
+    if ka == "null" or kb == "null":
+        return None
+    if ka != kb:
+        return False
+    if ka == "list":
+        return False if len(a) != len(b) else _all_equal(zip(a, b))
+    if ka == "map":
+        return False if a.keys() != b.keys() else _all_equal((a[k], b[k]) for k in a)
+    try:
+        return bool(a == b)
+    except Exception:  # an odd attribute value that can't be compared
+        return False
+
+
+def order(a: Any, b: Any) -> Optional[int]:
+    """Negative, zero or positive as `a` sorts before, with or after `b`, or `None` when they
+    can't be ordered (a `null`, different types, NaN, or types without an order)."""
+    ka, kb = _kind(a), _kind(b)
+    if ka != kb or ka in ("null", "map", "node", "relationship", "other"):
+        return None
+    if ka == "list":
+        for x, y in zip(a, b):
+            c = order(x, y)
+            if c is None or c != 0:
+                return c
+        return len(a) - len(b)
+    if ka == "number" and (a != a or b != b):
+        return None
+    return (a > b) - (a < b)
+
+
+_ORDERINGS = {
+    "<": lambda c: c < 0, "<=": lambda c: c <= 0, ">": lambda c: c > 0, ">=": lambda c: c >= 0,
+}
+
+
+def _is_nan(value: Any) -> bool:
+    return _kind(value) == "number" and value != value
+
+
+class Evaluator:
+    """Compiles the expressions of one query into Python functions of a binding.
+
+    A binding maps variable names to node or edge IDs. `variables` gives the kind of each
+    variable (`"node"` or `"relationship"`, as in `Query.variables`), `params` the values of the
+    `$name` parameters, and `view` reads the graph. Errors point at the query `text`.
+    """
+
+    def __init__(self, text: str, variables: dict[str, str], params: Optional[dict],
+                 view: GraphView):
+        self.text = text
+        self.variables = variables
+        self.params = {} if params is None else params
+        self.view = view
+
+    def _fail(self, pos: int, message: str):
+        raise cypher_error(self.text, pos, message)
+
+    def condition(self, expr: Expr):
+        """A function of a binding that is `True` when `expr` is `true` (`false` and `null` both
+        reject the row). A value that isn't a boolean or `null` is an error."""
+        run = self.compile(expr)
+
+        def test(binding):
+            value = run(binding)
+            if value is True:
+                return True
+            if value is None or value is False:
+                return False
+            self._fail(expr.pos, f"WHERE needs true, false or null, not {_describe(value)}")
+        return test
+
+    def compile(self, expr: Expr):
+        """A function of a binding that returns the value of `expr`."""
+        method = getattr(self, "_" + type(expr).__name__.lower())
+        return method(expr)
+
+    # --- operands -------------------------------------------------------------
+
+    def _literal(self, expr: Literal):
+        value = expr.value
+        return lambda binding: value
+
+    def _param(self, expr: Param):
+        params = self.params
+        if expr.name in params:
+            value = params[expr.name]
+        elif expr.name.isdigit() and int(expr.name) in params:
+            value = params[int(expr.name)]
+        else:
+            self._fail(expr.pos, f"the parameter ${expr.name} isn't given in params=")
+        return lambda binding: value
+
+    def _var(self, expr: Var):
+        name = expr.name
+        if self.variables[name] == "node":
+            return lambda binding: NodeRef(binding[name])
+        return lambda binding: RelRef(binding[name])
+
+    def _listexpr(self, expr: ListExpr):
+        items = [self.compile(item) for item in expr.items]
+        return lambda binding: [item(binding) for item in items]
+
+    def _prop(self, expr: Prop):
+        key, view = expr.key, self.view
+        if isinstance(expr.subject, Var):
+            # the usual case, without making a NodeRef or RelRef first
+            name = expr.subject.name
+            if self.variables[name] == "node":
+                return lambda binding: view.node_prop(binding[name], key)
+            return lambda binding: view.edge_prop(binding[name], key)
+        subject = self.compile(expr.subject)
+
+        def run(binding):
+            value = subject(binding)
+            if isinstance(value, NodeRef):
+                return view.node_prop(value.id, key)
+            if isinstance(value, RelRef):
+                return view.edge_prop(value.id, key)
+            if isinstance(value, dict):
+                return value.get(key)
+            if value is None:
+                return None
+            self._fail(expr.pos, f"can't read the property {key!r} of {_describe(value)}")
+        return run
+
+    def _haslabels(self, expr: HasLabels):
+        subject, groups, view = self.compile(expr.subject), expr.labels, self.view
+
+        def run(binding):
+            value = subject(binding)
+            if isinstance(value, NodeRef):
+                have = view.node_labels(value.id)
+            elif isinstance(value, RelRef):
+                # a relationship has one type, so `r:A|B` asks whether it is either
+                rel_type = view.edge_type(value.id)
+                have = [] if rel_type is None else [rel_type]
+            elif value is None:
+                return None
+            else:
+                self._fail(expr.pos, f"only nodes and relationships have labels, not "
+                                     f"{_describe(value)}")
+            return all(any(label in have for label in group) for group in groups)
+        return run
+
+    # --- functions ------------------------------------------------------------
+
+    def _call(self, expr: Call):
+        name = expr.name.lower()
+        if name not in _FUNCTIONS:
+            known = ", ".join(f"{f}()" for f in _FUNCTION_NAMES.values())
+            self._fail(expr.pos, f"the function {expr.name}() isn't supported (the supported "
+                                 f"ones are {known})")
+        if len(expr.args) != 1:
+            self._fail(expr.pos, f"{_FUNCTION_NAMES[name]}() takes one argument, not "
+                                 f"{len(expr.args)}")
+        if name == "exists":
+            if not isinstance(expr.args[0], Prop):
+                self._fail(expr.args[0].pos, "exists() takes a property, such as "
+                                             "exists(n.age)")
+            prop = self.compile(expr.args[0])
+            return lambda binding: prop(binding) is not None
+        arg, apply, view = self.compile(expr.args[0]), _FUNCTIONS[name], self.view
+
+        def run(binding):
+            value = arg(binding)
+            if value is None:
+                return None
+            result = apply(value, view)
+            if result is _WRONG_TYPE:
+                self._fail(expr.pos, f"{expr.name}() can't take {_describe(value)}")
+            return result
+        return run
+
+    # --- operators ------------------------------------------------------------
+
+    def _boolean(self, value: Any, pos: int) -> Optional[bool]:
+        if value is None or isinstance(value, bool):
+            return value
+        self._fail(pos, f"expected true, false or null, not {_describe(value)}")
+
+    def _not(self, expr: Not):
+        operand = self.compile(expr.operand)
+
+        def run(binding):
+            value = self._boolean(operand(binding), expr.operand.pos)
+            return None if value is None else not value
+        return run
+
+    def _neg(self, expr: Neg):
+        operand = self.compile(expr.operand)
+
+        def run(binding):
+            value = operand(binding)
+            if value is None:
+                return None
+            if _kind(value) != "number":
+                self._fail(expr.pos, f"can't negate {_describe(value)}")
+            return -value
+        return run
+
+    def _boolop(self, expr: BoolOp):
+        parts = [(self.compile(e), e.pos) for e in expr.operands]
+        boolean = self._boolean
+
+        if expr.op == "AND":
+            def run(binding):
+                result: Optional[bool] = True
+                for part, pos in parts:
+                    value = boolean(part(binding), pos)
+                    if value is False:
+                        return False
+                    if value is None:
+                        result = None
+                return result
+        elif expr.op == "OR":
+            def run(binding):
+                result: Optional[bool] = False
+                for part, pos in parts:
+                    value = boolean(part(binding), pos)
+                    if value is True:
+                        return True
+                    if value is None:
+                        result = None
+                return result
+        else:
+            def run(binding):
+                result: Optional[bool] = False
+                for part, pos in parts:
+                    value = boolean(part(binding), pos)
+                    if value is None:
+                        return None
+                    result = result != value
+                return result
+        return run
+
+    def _isnull(self, expr: IsNull):
+        operand, negated = self.compile(expr.operand), expr.negated
+        return lambda binding: (operand(binding) is None) != negated
+
+    def _compare(self, expr: Compare):
+        left, right, op = self.compile(expr.left), self.compile(expr.right), expr.op
+        if op in ("=", "<>"):
+            negate = op == "<>"
+
+            def run(binding):
+                same = equals(left(binding), right(binding))
+                return None if same is None else same != negate
+        elif op in _ORDERINGS:
+            test = _ORDERINGS[op]
+
+            def run(binding):
+                a, b = left(binding), right(binding)
+                if _is_nan(a) and _kind(b) == "number" or _is_nan(b) and _kind(a) == "number":
+                    return False
+                c = order(a, b)
+                return None if c is None else test(c)
+        elif op == "IN":
+            def run(binding):
+                value, items = left(binding), right(binding)
+                if items is None:
+                    return None
+                if _kind(items) != "list":
+                    self._fail(expr.pos, f"IN needs a list, not {_describe(items)}")
+                result: Optional[bool] = False
+                for item in items:
+                    same = equals(value, item)
+                    if same is True:
+                        return True
+                    if same is None:
+                        result = None
+                return result
+        elif op == "=~":
+            if isinstance(expr.right, Literal) and isinstance(expr.right.value, str):
+                pattern = self._regex(expr.right.value, expr.right.pos)
+                patterns = None
+            else:
+                pattern, patterns = None, {}
+
+            def run(binding):
+                value = left(binding)
+                regex = pattern
+                if regex is None:
+                    source = right(binding)
+                    if not isinstance(source, str):
+                        return None
+                    regex = patterns.get(source)
+                    if regex is None:
+                        regex = patterns[source] = self._regex(source, expr.right.pos)
+                if not isinstance(value, str):
+                    return None
+                return regex.fullmatch(value) is not None
+        else:
+            test = {"STARTS WITH": str.startswith, "ENDS WITH": str.endswith,
+                    "CONTAINS": str.__contains__}[op]
+
+            def run(binding):
+                a, b = left(binding), right(binding)
+                if not isinstance(a, str) or not isinstance(b, str):
+                    return None
+                return test(a, b)
+        return run
+
+    def _regex(self, source: str, pos: int):
+        try:
+            return re.compile(source)
+        except re.error as e:
+            self._fail(pos, f"the regular expression {source!r} is invalid: {e}")
+
+
+_WRONG_TYPE = object()
+
+
+def _fn_id(value, view):
+    return value.id if isinstance(value, (NodeRef, RelRef)) else _WRONG_TYPE
+
+
+def _fn_type(value, view):
+    return view.edge_type(value.id) if isinstance(value, RelRef) else _WRONG_TYPE
+
+
+def _fn_labels(value, view):
+    return view.node_labels(value.id) if isinstance(value, NodeRef) else _WRONG_TYPE
+
+
+def _fn_size(value, view):
+    return len(value) if isinstance(value, (str, list, tuple)) else _WRONG_TYPE
+
+
+def _fn_lower(value, view):
+    return value.lower() if isinstance(value, str) else _WRONG_TYPE
+
+
+def _fn_upper(value, view):
+    return value.upper() if isinstance(value, str) else _WRONG_TYPE
+
+
+# lower-cased name -> implementation; `exists()` is handled by the evaluator itself
+_FUNCTIONS = {
+    "id": _fn_id, "type": _fn_type, "labels": _fn_labels, "size": _fn_size,
+    "tolower": _fn_lower, "toupper": _fn_upper, "exists": None,
+}
+# lower-cased name -> the name as documented
+_FUNCTION_NAMES = {f.lower(): f for f in ("id", "type", "labels", "size", "toLower", "toUpper",
+                                          "exists")}
+
+
+def conjuncts(expr: Optional[Expr]) -> list[Expr]:
+    """The parts of a top-level `AND` (the whole expression if it isn't one, none for `None`)."""
+    if expr is None:
+        return []
+    if isinstance(expr, BoolOp) and expr.op == "AND":
+        return [part for operand in expr.operands for part in conjuncts(operand)]
+    return [expr]
+
+
+def variables_in(expr: Expr) -> set[str]:
+    """The variables an expression reads."""
+    return {sub.name for sub in walk(expr) if isinstance(sub, Var)}
+
+
+def element_conditions(variable: str, element: Union[NodePattern, RelPattern]) -> list[Expr]:
+    """The conditions a pattern element puts on its variable, as `WHERE` expressions: `(n:A:B)`
+    is `n:A AND n:B`, `-[r:A|B]-` is `r:A|B`, and `{k: v}` is `n.k = v`."""
+    var = Var(variable, element.pos)
+    conditions: list[Expr] = []
+    if isinstance(element, NodePattern):
+        conditions += [HasLabels(var, [group], element.pos) for group in element.labels]
+    elif element.types:
+        conditions.append(HasLabels(var, [tuple(element.types)], element.pos))
+    for key, value in element.props.items():
+        conditions.append(Compare("=", Prop(var, key, value.pos), value, value.pos))
+    return conditions
