@@ -300,7 +300,8 @@ class TestCondition:
 class TestErrors:
     @pytest.mark.parametrize("expr, message", [
         ("nope(a)", r"the function nope\(\) isn't supported \(the supported ones are id\(\), "
-                    r"type\(\), labels\(\), size\(\), toLower\(\), toUpper\(\), exists\(\)\) "
+                    r"type\(\), labels\(\), size\(\), toLower\(\), toUpper\(\), length\(\), nodes\(\), "
+                    r"relationships\(\), exists\(\)\) "
                     r"\(line 1, column 26\)"),
         ("tolower(a.x, 1)", r"toLower\(\) takes one argument, not 2"),
         ("id()", r"id\(\) takes one argument, not 0"),
@@ -336,8 +337,8 @@ class TestErrors:
 
 
 class TestNullsAndPaths:
-    """Variables bound to null (by OPTIONAL MATCH) and to paths (variable-length
-    relationships)."""
+    """Variables bound to null (by OPTIONAL MATCH), to lists of relationships (variable-length
+    relationships) and to paths (path variables)."""
 
     def run(self, g, text, binding, params=None):
         query = parse_query(text)
@@ -370,6 +371,51 @@ class TestNullsAndPaths:
         path = {"a": binding["a"], "r": (binding["r"],), "b": binding["b"]}
         with pytest.raises(ValueError, match=message):
             self.run(g, f"MATCH (a)-[r*]->(b) WHERE {expr}", path)
+
+    @pytest.fixture
+    def walk(self, binding):
+        """`p` is the path (a)-[r]->(b)-[loop]->(b)."""
+        loop = binding["r"] + 1
+        return {**binding, "p": ((binding["a"], binding["b"], binding["b"]), (binding["r"], loop))}
+
+    @pytest.mark.parametrize("expr, expected", [
+        ("length(p)", 2), ("size(nodes(p))", 3), ("size(relationships(p))", 2),
+        ("nodes(p) = [a, b, b]", True), ("relationships(p) = [r]", False), ("b IN nodes(p)", True),
+        ("r IN relationships(p)", True), ("p = p", True), ("p IS NULL", False),
+    ])
+    def test_path_variables(self, g, walk, expr, expected):
+        text = f"MATCH p = (a)-[r]->(b)-[*]->(b) WHERE {expr}"
+        assert self.run(g, text, walk) == expected
+
+    def test_null_path_variables(self, g):
+        text = "MATCH (b) OPTIONAL MATCH p = (a)-[r]->(b) WHERE {}"
+        nulls = {"p": None, "a": None, "r": None, "b": 1}
+        for expr in ("length(p)", "nodes(p)", "relationships(p)"):
+            assert self.run(g, text.format(expr), nulls) is None
+        assert self.run(g, text.format("p IS NULL"), nulls) is True
+
+    @pytest.mark.parametrize("expr, message", [
+        ("size(p) = 1", r"size\(\) can't take a path \(line 1, column 39\)"),
+        ("id(p) = 1", r"id\(\) can't take a path"),
+        ("labels(p) = []", r"labels\(\) can't take a path"),
+        ("p:L", r"only nodes and relationships have labels, not a path"),
+        ("length(a) = 1", r"length\(\) can't take a node"),
+        ("length('abc') = 3", r"length\(\) can't take 'abc'"),
+        ("nodes(r) = []", r"nodes\(\) can't take a relationship"),
+        ("relationships([1]) = []", r"relationships\(\) can't take \[1\]"),
+    ])
+    def test_path_variable_errors(self, g, walk, expr, message):
+        with pytest.raises(ValueError, match=r"^Cypher: " + message):
+            self.run(g, f"MATCH p = (a)-[r]->(b)-[*]->(b) WHERE {expr}", walk)
+
+    def test_path_variable_property_is_an_error_at_once(self, g):
+        text = "MATCH p = (a)-->(b) WHERE p.weight > 1"
+        query = parse_query(text)
+        evaluator = Evaluator(text, query.variables, None, GraphView(g._graph))
+        with pytest.raises(ValueError, match=r"`p` is a path, so it has no properties; read them "
+                                             r"from the nodes and relationships of its pattern "
+                                             r"\(line 1, column 27\)"):
+            evaluator.compile(query.clauses[0].where)
 
     def test_path_property_is_an_error_at_once(self, g):
         text = "MATCH (a)-[r*]->(b) WHERE r.weight > 1"
