@@ -3,7 +3,9 @@
 //! Python parses and plans the query and compiles every condition into a Python function. It
 //! hands the plan over as a *program* (see `Matcher._compile()`), where each condition may also
 //! carry a *native* form: a label or type test, a comparison of a property or an ID with a
-//! constant, `IN` a constant list, `IS NULL`, or a comparison of two IDs. The search checks a
+//! constant or another property, `IN` a constant list, `IS NULL`, a comparison of two IDs, a
+//! string test (`STARTS WITH`, `ENDS WITH`, `CONTAINS`), or an `AND` or `OR` of native forms. With
+//! `table=`, it also builds the sorted columns of `match()`. The search checks a
 //! native form here, and calls the Python function only for the other conditions and for values
 //! the native form can't decide (an attribute value of an unusual type, say). Either way the
 //! answer is the one the Python evaluator gives, and the matches come in the same order as from
@@ -14,7 +16,8 @@ use pyo3::basic::CompareOp;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use pyo3::types::{PyBool, PyDict, PyFloat, PyInt, PyList, PyString, PyTuple};
-use rustc_hash::FxHashSet;
+use rustc_hash::{FxHashMap, FxHashSet};
+use std::cell::RefCell;
 use std::rc::Rc;
 
 /// The value of a slot during the search
@@ -131,6 +134,19 @@ enum Operand {
     Id(usize),
 }
 
+/// An operand of a string test, or a constant
+enum Term {
+    Operand(Operand),
+    Const(Py<PyAny>),
+}
+
+#[derive(Clone, Copy)]
+enum TextTest {
+    StartsWith,
+    EndsWith,
+    Contains,
+}
+
 /// A condition the search can check without Python
 enum Native {
     /// `x:A:B|C` for a node, or `r:A|B` for a relationship: every group must hold one label
@@ -141,10 +157,37 @@ enum Native {
     In(Operand, Vec<(Py<PyAny>, Class)>),
     /// `slot IS NULL` (no key) or `slot.key IS NULL`, or with `negated`, `IS NOT NULL`
     IsNull(usize, Option<(Py<PyString>, bool)>, bool),
+    /// `operand op operand`, such as `a.x < b.y`, when neither is an ID
+    Compare2(Operand, Op, Operand),
+    /// `term STARTS WITH term`, `ENDS WITH` or `CONTAINS`, true when both are strings
+    Text(TextTest, Term, Term),
     /// `id(a) op id(b)`, also for `a = b` and `a <> b`
     Ids(usize, usize, Op),
+    /// `x AND y AND ...`, which a native form decides only when it decides every part
+    All(Vec<Native>),
+    /// `x OR y OR ...`, likewise
+    Any(Vec<Native>),
     /// A condition that is never true, such as `{k: null}`
     Never,
+    /// A condition that reads one node or relationship slot only, whose results are kept by
+    /// ID in `Search::cache[index]`, since it's often met again for the same node or edge
+    Cached(Box<Native>, usize, usize),
+}
+
+impl Native {
+    /// The one slot this reads, when its result depends only on the node or edge there
+    fn single_slot(&self) -> Option<usize> {
+        match self {
+            Native::Labels(slot, _) | Native::IsNull(slot, Some(_), _) => Some(*slot),
+            Native::Compare(Operand::Prop { slot, .. }, ..)
+            | Native::In(Operand::Prop { slot, .. }, _) => Some(*slot),
+            Native::Text(_, Term::Operand(Operand::Prop { slot, .. }), Term::Const(_))
+            | Native::Text(_, Term::Const(_), Term::Operand(Operand::Prop { slot, .. })) => {
+                Some(*slot)
+            }
+            _ => None,
+        }
+    }
 }
 
 struct Cond {
@@ -184,10 +227,83 @@ struct Stage {
 struct Program {
     names: Vec<Py<PyString>>,
     kinds: Vec<Kind>,
+    label_key: Option<String>,
     /// The slot the conditions on each edge of a variable-length relationship read
     edge_slot: usize,
     distinct_nodes: bool,
     stages: Vec<Stage>,
+    /// The number of `Native::Cached` conditions
+    caches: usize,
+}
+
+/// The kept results of one `Native::Cached` condition: a byte per ID (0 for unknown, 1 for
+/// false, 2 for true) when the IDs are dense enough, else a hash map
+enum Memo {
+    Empty,
+    Dense(Vec<u8>),
+    Sparse(FxHashMap<u64, bool>),
+}
+
+impl Memo {
+    fn get(&self, id: u64) -> Option<bool> {
+        match self {
+            Memo::Empty => None,
+            Memo::Dense(bytes) => match bytes.get(id as usize) {
+                Some(1) => Some(false),
+                Some(2) => Some(true),
+                _ => None,
+            },
+            Memo::Sparse(map) => map.get(&id).copied(),
+        }
+    }
+
+    fn set(&mut self, graph: &Graph, nodes: bool, id: u64, result: bool) {
+        if let Memo::Empty = self {
+            let bound = graph.id_bound(nodes);
+            *self = if bound <= 4 * graph.element_count(nodes) as u64 + 4096 {
+                Memo::Dense(vec![0; bound as usize])
+            } else {
+                Memo::Sparse(FxHashMap::default())
+            };
+        }
+        match self {
+            Memo::Dense(bytes) => {
+                if let Some(byte) = bytes.get_mut(id as usize) {
+                    *byte = 1 + result as u8;
+                }
+            }
+            Memo::Sparse(map) => {
+                map.insert(id, result);
+            }
+            Memo::Empty => {}
+        }
+    }
+}
+
+/// A column of the table that `run()` gives with `table=` (see `Matcher.table()`)
+enum Column {
+    /// The value of a slot: an ID, a list of edge IDs or `None`
+    Slot(usize),
+    /// The label of a node slot
+    Label(usize),
+    /// A property of a node or relationship slot (an `Operand::Prop`)
+    Prop(Operand),
+}
+
+/// A slot value kept for the table, with a path as a range of `Table::paths`
+#[derive(Clone, Copy)]
+enum Cell {
+    Null,
+    Id(u64),
+    Path(usize, usize),
+}
+
+/// The matches kept for the table: the values of `slots`, row after row
+struct Table {
+    slots: Vec<usize>,
+    rows: usize,
+    cells: Vec<Cell>,
+    paths: Vec<u64>,
 }
 
 fn bad_program(message: &str) -> PyErr {
@@ -223,11 +339,13 @@ fn parse_program(program: &Bound<'_, PyAny>) -> PyResult<Program> {
     let reader = Reader {
         kinds: &kinds,
         label_key: label_key.as_deref(),
+        caches: Default::default(),
     };
     let stages = stages
         .iter()
         .map(|stage| reader.stage(stage))
         .collect::<PyResult<_>>()?;
+    let caches = reader.caches.get();
     Ok(Program {
         edge_slot: names.len() - 1,
         names: names
@@ -235,14 +353,18 @@ fn parse_program(program: &Bound<'_, PyAny>) -> PyResult<Program> {
             .map(|name| PyString::new(py, name).unbind())
             .collect(),
         kinds,
+        label_key,
         distinct_nodes,
         stages,
+        caches,
     })
 }
 
 struct Reader<'k> {
     kinds: &'k [Kind],
     label_key: Option<&'k str>,
+    /// The number of `Native::Cached` conditions so far
+    caches: std::cell::Cell<usize>,
 }
 
 impl Reader<'_> {
@@ -330,6 +452,13 @@ impl Reader<'_> {
             .map(|cond| {
                 let (native, fallback): (Option<Bound<'_, PyAny>>, Py<PyAny>) = cond.extract()?;
                 let native = native.map(|n| self.native(&n)).transpose()?;
+                let native = native.map(|n| match n.single_slot() {
+                    Some(slot) => {
+                        let index = self.caches.replace(self.caches.get() + 1);
+                        Native::Cached(Box::new(n), slot, index)
+                    }
+                    None => n,
+                });
                 Ok(Cond { native, fallback })
             })
             .collect()
@@ -383,9 +512,42 @@ impl Reader<'_> {
                 let op = Op::parse(&item(3)?.extract::<String>()?)?;
                 Native::Ids(self.single(&item(1)?)?, self.single(&item(2)?)?, op)
             }
+            "cmp2" => {
+                let op = Op::parse(&item(2)?.extract::<String>()?)?;
+                Native::Compare2(self.operand(&item(1)?)?, op, self.operand(&item(3)?)?)
+            }
+            "text" => {
+                let test = match item(1)?.extract::<String>()?.as_str() {
+                    "STARTS WITH" => TextTest::StartsWith,
+                    "ENDS WITH" => TextTest::EndsWith,
+                    "CONTAINS" => TextTest::Contains,
+                    other => return Err(bad_program(&format!("unknown string test {other:?}"))),
+                };
+                Native::Text(test, self.term(&item(2)?)?, self.term(&item(3)?)?)
+            }
+            "and" | "or" => {
+                let parts: Vec<Bound<'_, PyAny>> = item(1)?.extract()?;
+                let parts = parts
+                    .iter()
+                    .map(|part| self.native(part))
+                    .collect::<PyResult<_>>()?;
+                if tag == "and" {
+                    Native::All(parts)
+                } else {
+                    Native::Any(parts)
+                }
+            }
             "never" => Native::Never,
             _ => return Err(bad_program(&format!("unknown native condition {tag:?}"))),
         })
+    }
+
+    /// `("const", value)`, or an operand
+    fn term(&self, term: &Bound<'_, PyAny>) -> PyResult<Term> {
+        if term.get_item(0)?.extract::<String>()? == "const" {
+            return Ok(Term::Const(term.get_item(1)?.unbind()));
+        }
+        Ok(Term::Operand(self.operand(term)?))
     }
 
     /// A node or (single) relationship slot
@@ -424,6 +586,23 @@ impl Reader<'_> {
             _ => text == "weight",
         };
         Ok((key.unbind(), special))
+    }
+
+    /// A table column: `("slot", slot)`, `("label", slot)` or `("prop", slot, key)`
+    fn column(&self, column: &Bound<'_, PyAny>) -> PyResult<Column> {
+        let tag: String = column.get_item(0)?.extract()?;
+        match tag.as_str() {
+            "slot" => Ok(Column::Slot(self.slot(&column.get_item(1)?)?)),
+            "label" => {
+                let slot = self.slot(&column.get_item(1)?)?;
+                if self.kinds[slot] != Kind::Node {
+                    return Err(bad_program("only a node slot has a label"));
+                }
+                Ok(Column::Label(slot))
+            }
+            "prop" => Ok(Column::Prop(self.operand(column)?)),
+            _ => Err(bad_program(&format!("unknown column {tag:?}"))),
+        }
     }
 
     /// The class of a constant, which must be `null`, a boolean, a number or a string
@@ -468,6 +647,10 @@ struct Search<'a, 'py> {
     count: usize,
     rows: Vec<Py<PyTuple>>,
     first: Option<Py<PyTuple>>,
+    /// With `table=`, the matches kept for the table, in place of `rows`
+    table: Option<Table>,
+    /// The results of each `Native::Cached` condition, by node or edge ID
+    cache: RefCell<Vec<Memo>>,
     ticks: u32,
 }
 
@@ -529,11 +712,26 @@ impl<'a, 'py> Search<'a, 'py> {
     /// Record a match; `true` means the limit is reached
     fn emit(&mut self) -> PyResult<bool> {
         self.count += 1;
-        if !self.count_only {
+        if !self.count_only && self.table.is_none() {
             let row = self.row()?;
             self.rows.push(row);
         } else if self.first.is_none() {
             self.first = Some(self.row()?);
+        }
+        if let Some(table) = &mut self.table {
+            table.rows += 1;
+            for &slot in &table.slots {
+                let cell = match &self.binding[slot] {
+                    Val::Node(id) | Val::Edge(id) => Cell::Id(*id),
+                    Val::Path(edges) => {
+                        let start = table.paths.len();
+                        table.paths.extend_from_slice(edges);
+                        Cell::Path(start, table.paths.len())
+                    }
+                    Val::Null | Val::Unset => Cell::Null,
+                };
+                table.cells.push(cell);
+            }
         }
         Ok(self.limit.is_some_and(|limit| self.count >= limit))
     }
@@ -608,11 +806,71 @@ impl<'a, 'py> Search<'a, 'py> {
                 };
                 Some(null != *negated)
             }
+            Native::Compare2(a, op, b) => {
+                let (a, b) = (self.operand(a).ok()?, self.operand(b).ok()?);
+                // `compare()` takes a scalar on the right, so lists and maps are left to Python
+                match classify(&b) {
+                    Class::Null => Some(false),
+                    class @ (Class::Bool | Class::Number | Class::Str) => {
+                        compare(&a, *op, &b, class)
+                    }
+                    _ => None,
+                }
+            }
+            Native::Text(test, a, b) => {
+                let (a, b) = (self.term(a).ok()?, self.term(b).ok()?);
+                // as `str.startswith()` and the others, which `null` and non-strings fail
+                let (Ok(a), Ok(b)) = (a.downcast::<PyString>(), b.downcast::<PyString>()) else {
+                    return Some(false);
+                };
+                let (a, b) = (a.to_cow().ok()?, b.to_cow().ok()?);
+                Some(match test {
+                    TextTest::StartsWith => a.starts_with(b.as_ref()),
+                    TextTest::EndsWith => a.ends_with(b.as_ref()),
+                    TextTest::Contains => a.contains(b.as_ref()),
+                })
+            }
+            // only "is it true" matters, so `false` and `null` parts count alike; every part
+            // must be decided, since Python would raise any error one of them meets
+            Native::All(parts) => {
+                let mut all = true;
+                for part in parts {
+                    all &= self.native(part)?;
+                }
+                Some(all)
+            }
+            Native::Any(parts) => {
+                let mut any = false;
+                for part in parts {
+                    any |= self.native(part)?;
+                }
+                Some(any)
+            }
             Native::Ids(a, b, op) => match (&self.binding[*a], &self.binding[*b]) {
                 (Val::Node(x) | Val::Edge(x), Val::Node(y) | Val::Edge(y)) => Some(op.holds(x, y)),
                 _ => Some(false),
             },
             Native::Never => Some(false),
+            Native::Cached(inner, slot, index) => {
+                let (Val::Node(id) | Val::Edge(id)) = self.binding[*slot] else {
+                    return self.native(inner);
+                };
+                if let Some(result) = self.cache.borrow()[*index].get(id) {
+                    return Some(result);
+                }
+                // (undecided results aren't kept, so Python sees each of those)
+                let result = self.native(inner)?;
+                let nodes = self.program.kinds[*slot] == Kind::Node;
+                self.cache.borrow_mut()[*index].set(self.graph, nodes, id, result);
+                Some(result)
+            }
+        }
+    }
+
+    fn term(&self, term: &Term) -> PyResult<Bound<'py, PyAny>> {
+        match term {
+            Term::Operand(operand) => self.operand(operand),
+            Term::Const(value) => Ok(value.bind(self.py).clone()),
         }
     }
 
@@ -626,43 +884,8 @@ impl<'a, 'py> Search<'a, 'py> {
         }
     }
 
-    /// A property, as `GraphView.node_prop()` and `edge_prop()` read it
     fn prop(&self, slot: usize, key: &Py<PyString>, special: bool) -> PyResult<Bound<'py, PyAny>> {
-        let py = self.py;
-        let none = || py.None().into_bound(py);
-        match self.binding[slot] {
-            Val::Node(id) => {
-                let node = self
-                    .graph
-                    .node_by_id(id)
-                    .ok_or_else(|| bad_program("no such node"))?;
-                if let Some(attrs) = &node.attributes {
-                    if let Some(value) = attrs.bind(py).get_item(key.bind(py))? {
-                        return Ok(value);
-                    }
-                }
-                Ok(match (&node.label, special) {
-                    (Some(label), true) => PyString::new(py, label).into_any(),
-                    _ => none(),
-                })
-            }
-            Val::Edge(id) => {
-                let edge = self
-                    .graph
-                    .edge_by_id(id)
-                    .ok_or_else(|| bad_program("no such edge"))?;
-                if let (Some(weight), true) = (edge.weight, special) {
-                    return Ok(PyFloat::new(py, weight).into_any());
-                }
-                if let Some(attrs) = &edge.attributes {
-                    if let Some(value) = attrs.bind(py).get_item(key.bind(py))? {
-                        return Ok(value);
-                    }
-                }
-                Ok(none())
-            }
-            _ => Ok(none()),
-        }
+        read_prop(self.graph, self.py, &self.binding[slot], key, special)
     }
 
     fn has_labels(&self, slot: usize, groups: &[Vec<Py<PyString>>]) -> PyResult<bool> {
@@ -1002,6 +1225,49 @@ impl<'a, 'py> Search<'a, 'py> {
     }
 }
 
+/// A property of a node or edge, as `GraphView.node_prop()` and `edge_prop()` read it, with
+/// `special` for `key == label_key` (nodes) or `key == "weight"` (edges)
+fn read_prop<'py>(
+    graph: &Graph,
+    py: Python<'py>,
+    val: &Val,
+    key: &Py<PyString>,
+    special: bool,
+) -> PyResult<Bound<'py, PyAny>> {
+    let none = || py.None().into_bound(py);
+    match *val {
+        Val::Node(id) => {
+            let node = graph
+                .node_by_id(id)
+                .ok_or_else(|| bad_program("no such node"))?;
+            if let Some(attrs) = &node.attributes {
+                if let Some(value) = attrs.bind(py).get_item(key.bind(py))? {
+                    return Ok(value);
+                }
+            }
+            Ok(match (&node.label, special) {
+                (Some(label), true) => PyString::new(py, label).into_any(),
+                _ => none(),
+            })
+        }
+        Val::Edge(id) => {
+            let edge = graph
+                .edge_by_id(id)
+                .ok_or_else(|| bad_program("no such edge"))?;
+            if let (Some(weight), true) = (edge.weight, special) {
+                return Ok(PyFloat::new(py, weight).into_any());
+            }
+            if let Some(attrs) = &edge.attributes {
+                if let Some(value) = attrs.bind(py).get_item(key.bind(py))? {
+                    return Ok(value);
+                }
+            }
+            Ok(none())
+        }
+        _ => Ok(none()),
+    }
+}
+
 /// `value op constant` by Cypher's rules, or `None` when the value is for Python to judge.
 /// `null` is never true, values of different kinds are unequal and unordered, and values of
 /// the same kind compare as Python compares them, as `equals()` and `order()` do.
@@ -1030,14 +1296,142 @@ fn compare(
     }
 }
 
+/// The order of two table cells of one slot: by ID, a path as its list of edge IDs, and nulls
+/// last, as the keys of `Matcher.table()` sort
+fn cmp_cells(a: Cell, b: Cell, paths: &[u64]) -> std::cmp::Ordering {
+    use std::cmp::Ordering;
+    match (a, b) {
+        (Cell::Null, Cell::Null) => Ordering::Equal,
+        (Cell::Null, _) => Ordering::Greater,
+        (_, Cell::Null) => Ordering::Less,
+        (Cell::Id(x), Cell::Id(y)) => x.cmp(&y),
+        (Cell::Path(i, j), Cell::Path(k, l)) => paths[i..j].cmp(&paths[k..l]),
+        _ => Ordering::Equal, // a slot holds one kind of value
+    }
+}
+
+/// The table of `run()` with `table=`: `(count, columns, first)`, each column a list in the
+/// order of the `sort` slots (or in search order, without `sort`)
+fn table_result(
+    graph: &Graph,
+    py: Python,
+    program: &Program,
+    table: Table,
+    sort: Option<Vec<usize>>,
+    columns: &[Column],
+    first: Option<Py<PyTuple>>,
+) -> PyResult<PyObject> {
+    let (width, count) = (table.slots.len(), table.rows);
+    // where each slot is in a row of cells
+    let mut at = vec![0; program.kinds.len()];
+    for (i, &slot) in table.slots.iter().enumerate() {
+        at[slot] = i;
+    }
+    let cell = |row: usize, slot: usize| table.cells[row * width + at[slot]];
+    let mut order: Vec<usize> = (0..count).collect();
+    if let Some(sort) = sort {
+        let keys: Vec<usize> = sort.iter().map(|&slot| at[slot]).collect();
+        order.sort_by(|&a, &b| {
+            for &k in &keys {
+                let c = cmp_cells(
+                    table.cells[a * width + k],
+                    table.cells[b * width + k],
+                    &table.paths,
+                );
+                if c.is_ne() {
+                    return c;
+                }
+            }
+            std::cmp::Ordering::Equal
+        });
+    }
+    let none = || py.None().into_bound(py);
+    let mut out = Vec::with_capacity(columns.len());
+    for column in columns {
+        let mut values = Vec::with_capacity(count);
+        for &row in &order {
+            let value = match column {
+                Column::Slot(slot) => match cell(row, *slot) {
+                    Cell::Null => none(),
+                    Cell::Id(id) => id.into_pyobject(py)?.into_any(),
+                    Cell::Path(i, j) => PyList::new(py, &table.paths[i..j])?.into_any(),
+                },
+                Column::Label(slot) => match cell(row, *slot) {
+                    Cell::Id(id) => {
+                        let node = graph
+                            .node_by_id(id)
+                            .ok_or_else(|| bad_program("no such node"))?;
+                        match &node.label {
+                            Some(label) => PyString::new(py, label).into_any(),
+                            None => none(),
+                        }
+                    }
+                    _ => none(),
+                },
+                Column::Prop(Operand::Prop { slot, key, special }) => {
+                    let val = match (cell(row, *slot), program.kinds[*slot]) {
+                        (Cell::Id(id), Kind::Node) => Val::Node(id),
+                        (Cell::Id(id), _) => Val::Edge(id),
+                        _ => Val::Null,
+                    };
+                    read_prop(graph, py, &val, key, *special)?
+                }
+                Column::Prop(Operand::Id(_)) => return Err(bad_program("an ID isn't a column")),
+            };
+            values.push(value);
+        }
+        out.push(PyList::new(py, values)?);
+    }
+    let first = first.map_or_else(|| py.None(), |row| row.into_any());
+    Ok((count, PyList::new(py, out)?, first)
+        .into_pyobject(py)?
+        .into_any()
+        .unbind())
+}
+
 pub(crate) fn run(
     graph: &Graph,
     py: Python,
     program: &Bound<'_, PyAny>,
     limit: Option<usize>,
     count_only: bool,
+    table: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyObject> {
     let program = parse_program(program)?;
+    // with `table=`, `(sort, columns)`: the slots to sort by (or `None`) and the columns
+    let mut spec = None;
+    if let Some(table) = table {
+        let (sort, columns): (Option<Vec<Bound<'_, PyAny>>>, Vec<Bound<'_, PyAny>>) =
+            table.extract()?;
+        let reader = Reader {
+            kinds: &program.kinds,
+            label_key: program.label_key.as_deref(),
+            caches: Default::default(),
+        };
+        let sort = sort
+            .map(|slots| {
+                slots
+                    .iter()
+                    .map(|slot| reader.slot(slot))
+                    .collect::<PyResult<Vec<_>>>()
+            })
+            .transpose()?;
+        let columns = columns
+            .iter()
+            .map(|column| reader.column(column))
+            .collect::<PyResult<Vec<_>>>()?;
+        let mut slots: Vec<usize> = sort.iter().flatten().copied().collect();
+        for column in &columns {
+            let slot = match column {
+                Column::Slot(slot) | Column::Label(slot) => *slot,
+                Column::Prop(Operand::Prop { slot, .. }) | Column::Prop(Operand::Id(slot)) => *slot,
+            };
+            slots.push(slot);
+        }
+        slots.sort_unstable();
+        slots.dedup();
+        spec = Some((sort, columns, slots));
+    }
     let mut search = Search {
         py,
         graph,
@@ -1057,10 +1451,20 @@ pub(crate) fn run(
         count: 0,
         rows: Vec::new(),
         first: None,
+        table: spec.as_ref().map(|(_, _, slots)| Table {
+            slots: slots.clone(),
+            rows: 0,
+            cells: Vec::new(),
+            paths: Vec::new(),
+        }),
+        cache: RefCell::new((0..program.caches).map(|_| Memo::Empty).collect()),
         ticks: 0,
     };
     if limit != Some(0) {
         search.stage(0)?;
+    }
+    if let (Some((sort, columns, _)), Some(table)) = (spec, search.table.take()) {
+        return table_result(graph, py, &program, table, sort, &columns, search.first);
     }
     if count_only {
         let first = search.first.map_or_else(|| py.None(), |row| row.into_any());
