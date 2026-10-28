@@ -34,7 +34,7 @@ class TestNodeSelection:
         G.add_edge("C", "D")
 
         # Chain selections (use integer IDs)
-        G.select_nodes_by_id([1, 2]).select_nodes_by_id([3, 4])  # A=1, B=2, C=3, D=4
+        G.select_nodes_by_id([1, 2]).select_nodes_by_id([3, 4], set_op="union")  # A=1, B=2, ...
 
         selected = G.get_selected_node_ids()
         assert len(selected) == 4
@@ -282,7 +282,7 @@ class TestEdgeSelection:
         edge_ids = G.get_edge_ids()
 
         # Chain selections
-        G.select_edges_by_id([edge_ids[0]]).select_edges_by_id([edge_ids[1]])
+        G.select_edges_by_id([edge_ids[0]]).select_edges_by_id([edge_ids[1]], set_op="union")
 
         selected = G.get_selected_edge_ids()
         assert len(selected) == 2
@@ -450,10 +450,10 @@ class TestEdgeSelection:
 
 
 class TestCombinedSelection:
-    """Test combined node and edge selections."""
+    """Test switching between node and edge selections."""
 
-    def test_select_nodes_and_edges(self):
-        """Select both nodes and edges."""
+    def test_selecting_edges_clears_the_node_selection(self):
+        """A graph holds a selection of nodes or of edges, never both."""
         G = Graph()
         for label in ["A", "B", "C", "D"]:
             G.add_node(label)
@@ -465,35 +465,31 @@ class TestCombinedSelection:
         G.select_nodes_by_id([1, 2])  # A=1, B=2
         assert G.count_selected_nodes() == 2
 
-        # Select some edges
+        # Selecting edges replaces the node selection
         edge_ids = G.get_edge_ids()
         G.select_edges_by_id([edge_ids[0]])
         assert G.count_selected_edges() == 1
+        assert G.count_selected_nodes() == 0
 
-        # Both selections should be independent
-        assert G.count_selected_nodes() == 2
-        assert G.count_selected_edges() == 1
+        # And selecting nodes replaces the edge selection
+        G.select_nodes_by_id([3])
+        assert G.count_selected_nodes() == 1
+        assert G.count_selected_edges() == 0
 
-    def test_clear_selection_clears_both(self):
-        """Clear selection clears both nodes and edges."""
+    def test_clear_selection_clears_either_kind(self):
+        """Clear selection clears a node selection and an edge selection."""
         G = Graph()
         for label in ["A", "B", "C"]:
             G.add_node(label)
         G.add_edge("A", "B")
         G.add_edge("B", "C")
 
-        # Select nodes and edges (use integer IDs)
         G.select_nodes_by_id([1, 2])  # A=1, B=2
-        edge_ids = G.get_edge_ids()
-        G.select_edges_by_id([edge_ids[0]])
-
-        assert G.count_selected_nodes() == 2
-        assert G.count_selected_edges() == 1
-
-        # Clear all
         G.clear_selection()
-
         assert G.count_selected_nodes() == 0
+
+        G.select_edges_by_id([G.get_edge_ids()[0]])
+        G.clear_selection()
         assert G.count_selected_edges() == 0
 
     def test_complex_selection_workflow(self):
