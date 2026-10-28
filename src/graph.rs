@@ -992,6 +992,7 @@ impl Graph {
                 missing
             )));
         }
+        self.selected_edges.clear();
         self.selected_nodes.extend(node_ids);
         Ok(())
     }
@@ -1007,6 +1008,7 @@ impl Graph {
                 missing
             )));
         }
+        self.selected_nodes.clear();
         self.selected_edges.extend(edge_ids);
         Ok(())
     }
@@ -1017,6 +1019,7 @@ impl Graph {
         let mut node_set = FxHashSet::with_capacity_and_hasher(node_ids.len(), Default::default());
         node_set.extend(node_ids);
 
+        self.selected_nodes.clear();
         for edge in &self.edges {
             if node_set.contains(&edge.source) || node_set.contains(&edge.target) {
                 self.selected_edges.insert(edge.id);
@@ -1042,6 +1045,7 @@ impl Graph {
         }
         let degrees = self.degrees_by_type(degree_type);
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        self.selected_edges.clear();
         for node_id in node_ids {
             let degree = degrees.get(&node_id).copied().unwrap_or(0);
 
@@ -1117,6 +1121,9 @@ impl Graph {
     }
 
     /// Clear all selections
+    ///
+    /// The graph holds one kind of selection at a time: every method that adds nodes to the
+    /// selection first clears the edge selection, and vice versa.
     #[inline]
     pub fn clear_selection(&mut self) -> PyResult<()> {
         self.selected_nodes.clear();
@@ -1134,6 +1141,7 @@ impl Graph {
             .difference(&self.selected_nodes)
             .copied()
             .collect();
+        self.selected_edges.clear();
         Ok(())
     }
 
@@ -1147,6 +1155,7 @@ impl Graph {
             .difference(&self.selected_edges)
             .cloned()
             .collect();
+        self.selected_nodes.clear();
         Ok(())
     }
 
@@ -1178,6 +1187,7 @@ impl Graph {
     /// The predicate receives a Node object and should return True/False
     #[inline]
     pub fn select_nodes(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
+        self.selected_edges.clear();
         for (&node_id, node) in &self.nodes {
             // Call the predicate with the node
             let result = predicate.call1(py, (node.clone(),))?;
@@ -1194,6 +1204,7 @@ impl Graph {
     /// The predicate receives an Edge object and should return True/False
     #[inline]
     pub fn select_edges(&mut self, py: Python, predicate: PyObject) -> PyResult<()> {
+        self.selected_nodes.clear();
         for edge in &self.edges {
             // Call the predicate with the edge
             let result = predicate.call1(py, (edge.clone(),))?;
@@ -1224,6 +1235,7 @@ impl Graph {
         let order = self.live_node_creation_order();
         let start_idx = order.len().saturating_sub(n);
 
+        self.selected_edges.clear();
         for &node_id in &order[start_idx..] {
             self.selected_nodes.insert(node_id);
         }
@@ -1236,6 +1248,7 @@ impl Graph {
         let order = self.live_edge_creation_order();
         let start_idx = order.len().saturating_sub(n);
 
+        self.selected_nodes.clear();
         for &edge_id in &order[start_idx..] {
             self.selected_edges.insert(edge_id);
         }
@@ -1337,6 +1350,7 @@ impl Graph {
         }
 
         // Add all visited nodes to selection (including the final level)
+        self.selected_edges.clear();
         for node_id in visited {
             self.selected_nodes.insert(node_id);
         }
@@ -1356,6 +1370,7 @@ impl Graph {
         k: usize,
         include_ties: bool,
     ) -> PyResult<()> {
+        self.selected_edges.clear();
         if scores.is_empty() {
             return Ok(());
         }
