@@ -213,11 +213,11 @@ def deselect_edges(s: Scene) -> None:
 
 
 @figure("clear_selection", "selection", "Clear selection",
-        "Before: nodes B and E and the edge between them are selected in the accent color. "
-        "After clear_selection, nothing is selected: every node and edge is plain.")
+        "Before: nodes B and E are selected in the accent color. After clear_selection, "
+        "nothing is selected: every node is plain.")
 def clear_selection(s: Scene) -> None:
     left, right = transform(s, "g", "g.clear_selection()")
-    _panel(s, left, "l.", nodes=["B", "E"], edges=[("B", "E")])
+    _panel(s, left, "l.", nodes=["B", "E"])
     _panel(s, right, "r.")
 
 
