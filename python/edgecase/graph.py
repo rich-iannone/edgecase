@@ -737,6 +737,45 @@ class Graph:
                 tgt_lbl = str(tgt_obj.label) if tgt_obj and tgt_obj.label else str(edge.target)
                 delta.edges_selected.append((src_lbl, tgt_lbl))
 
+    def _select(self, kind: str, set_op: str, run) -> None:
+        """
+        Run a selector and combine what it selects with the current selection.
+
+        `run()` adds to an empty selection of `kind` (`"nodes"` or `"edges"`), and `set_op`
+        decides how that combines with the selection before the call. If `run()` raises, the
+        earlier selection is restored.
+        """
+        _check_set_op(set_op)
+        nodes = kind == "nodes"
+        before = (self._graph.get_selected_node_ids(), self._graph.get_selected_edge_ids())
+        self._graph.clear_selection()
+        try:
+            run()
+        except BaseException:
+            self._set_selection(*before)
+            raise
+        if set_op == "replace":
+            return
+        previous = set(before[0] if nodes else before[1])
+        new = set(
+            self._graph.get_selected_node_ids() if nodes else self._graph.get_selected_edge_ids()
+        )
+        if set_op == "union":
+            result = previous | new
+        elif set_op == "intersect":
+            result = previous & new
+        else:
+            result = previous - new
+        self._set_selection(result, ()) if nodes else self._set_selection((), result)
+
+    def _set_selection(self, node_ids=(), edge_ids=()) -> None:
+        """Make the selection exactly these nodes or these edges, without recording a step."""
+        self._graph.clear_selection()
+        if node_ids:
+            self._graph.select_nodes_by_id(list(node_ids))
+        elif edge_ids:
+            self._graph.select_edges_by_id(list(edge_ids))
+
     def _use_weights(self, weighted: bool | None) -> bool:
         """Resolve a `weighted=` argument: `None` follows the graph's own `weighted` flag."""
         return self.is_weighted() if weighted is None else bool(weighted)
