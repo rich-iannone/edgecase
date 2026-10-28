@@ -1,15 +1,18 @@
-"""Cypher: the tokenizer, parser and syntax tree, and the evaluator for query expressions.
+"""Cypher: the tokenizer, parser and syntax tree, the evaluator for query expressions, and the
+query planner and matcher.
 
 `from_cypher()` builds graphs from the `CREATE` clauses parsed here, and the query methods run the
 `MATCH` queries. Parsing checks the syntax and how variables are used. The `Evaluator` gives the
 expressions their meaning (which functions exist, how values compare, Cypher's `null` logic),
-reading the graph through a `GraphView`.
+reading the graph through a `GraphView`. A `Plan` orders the search for a query's matches, and
+the `Matcher` carries it out.
 
 This module imports nothing from the rest of EdgeCase, so that both `io` and `graph` can use it.
 """
 
 from __future__ import annotations
 
+import math
 import numbers
 import re
 from dataclasses import dataclass, field
@@ -1249,3 +1252,259 @@ def element_conditions(variable: str, element: Union[NodePattern, RelPattern]) -
     for key, value in element.props.items():
         conditions.append(Compare("=", Prop(var, key, value.pos), value, value.pos))
     return conditions
+
+
+# =============================================================================
+# Planning
+# =============================================================================
+
+
+@dataclass
+class Step:
+    """One step of a `Plan`. It binds one node, or one relationship and the node at its far end.
+
+    - `"scan"` binds `node` to each node of the graph. With a `seed` (the operator and value
+      side of an `id(node) = value` or `id(node) IN value` condition), it binds only those IDs.
+    - `"expand"` binds `rel` to each edge at the bound node `start`, as
+      `_incident_edges(start, direction)` lists them, and `node` to the edge's other end.
+    - `"connect"` is the same, for edges whose other end is the already bound `node`.
+
+    `conditions` are checked as soon as the step has bound its slots.
+    """
+
+    kind: str
+    node: str
+    rel: Optional[str] = None
+    start: Optional[str] = None
+    direction: Optional[str] = None
+    seed: Optional[tuple[str, Expr]] = None
+    conditions: list[Expr] = field(default_factory=list)
+
+    def __str__(self) -> str:
+        if self.kind == "scan":
+            return f"scan {self.node}" + (" by id" if self.seed else "")
+        arrow = {"out": "-[{}]->", "in": "<-[{}]-", "both": "-[{}]-"}[self.direction]
+        return f"{self.kind} ({self.start}){arrow.format(self.rel)}({self.node})"
+
+
+def _id_seed(condition: Expr, slot: str) -> Optional[tuple[str, Expr]]:
+    """`("=", value)` or `("IN", value)` when `condition` is `id(slot) = value` (either way round)
+    or `id(slot) IN value`, and `value` reads no variable."""
+    if not isinstance(condition, Compare) or condition.op not in ("=", "IN"):
+        return None
+    sides = [(condition.left, condition.right)]
+    if condition.op == "=":
+        sides.append((condition.right, condition.left))
+    for call, value in sides:
+        if (isinstance(call, Call) and call.name.lower() == "id" and call.args == [Var(slot)]
+                and not variables_in(value)):
+            return condition.op, value
+    return None
+
+
+def _selectivity(conditions: list[Expr], slot: str) -> int:
+    """A rough measure of how few nodes the conditions on `slot` alone let through: an ID
+    beats a property value, which beats a label, which beats any other test."""
+    score = 0
+    for condition in conditions:
+        if _id_seed(condition, slot):
+            score += 100
+        elif isinstance(condition, Compare) and condition.op == "=":
+            score += 4
+        elif isinstance(condition, HasLabels):
+            score += 2
+        else:
+            score += 1
+    return score
+
+
+_FLIP = {"out": "in", "in": "out", "either": "both"}
+
+
+class Plan:
+    """The order in which to bind the slots of a `MATCH`, and where each condition is checked.
+
+    - **Slots:** a slot is a node or relationship of the patterns. Each named variable is one
+      slot, however often it appears. Each anonymous element gets a slot of its own, named so
+      that no variable clashes with it (`" 0"`, `" 1"`, ...). `slots` maps every slot to
+      `"node"` or `"relationship"`, in the order they first appear.
+    - **Conditions:** the patterns' labels, types and properties (`element_conditions()`) and
+      the parts of the `WHERE` (`conjuncts()`). Each is checked at the first step that has bound
+      every slot it reads. Those that read no slot are `constant`.
+    - **Order:** each connected group of patterns starts at its most constrained node (by
+      `_selectivity()`, ties going to the first). It then grows along relationships, closing a
+      cycle (`"connect"`) whenever it can, so that every later node is reached through an edge
+      rather than by a scan. Groups that share no variable are scanned one after another, which
+      gives their cross product.
+    - **Directions:** on an undirected graph every relationship is followed with `"both"`, so
+      `-->`, `<--` and `--` mean the same.
+    """
+
+    def __init__(self, query: Query, directed: bool = True):
+        self.slots: dict[str, str] = {}
+        rels: list[tuple[str, str, str, str]] = []  # (slot, left node, right node, arrow)
+        conditions: list[Expr] = []
+        counter = 0
+
+        def slot(element: Union[NodePattern, RelPattern], kind: str) -> str:
+            nonlocal counter
+            name = element.variable
+            while name is None or (element.variable is None and name in query.variables):
+                name, counter = f" {counter}", counter + 1
+            self.slots.setdefault(name, kind)
+            conditions.extend(element_conditions(name, element))
+            return name
+
+        for pattern in query.patterns:
+            left = slot(pattern.nodes[0], "node")
+            for rel, node in zip(pattern.rels, pattern.nodes[1:]):
+                rel_slot = slot(rel, "relationship")
+                right = slot(node, "node")
+                rels.append((rel_slot, left, right, rel.direction))
+                left = right
+        conditions += conjuncts(query.where)
+
+        needs = [variables_in(c) for c in conditions]
+        self.constant = [c for c, n in zip(conditions, needs) if not n]
+        alone = {s: [c for c, n in zip(conditions, needs) if n == {s}] for s in self.slots}
+        score = {s: _selectivity(alone[s], s) for s in self.slots}
+
+        self.steps: list[Step] = []
+        placed = [not n for n in needs]
+        bound: set[str] = set()
+
+        def add(step: Step) -> None:
+            bound.update(s for s in (step.node, step.rel) if s is not None)
+            for i, n in enumerate(needs):
+                if not placed[i] and n <= bound:
+                    placed[i] = True
+                    step.conditions.append(conditions[i])
+            self.steps.append(step)
+
+        nodes = [s for s, kind in self.slots.items() if kind == "node"]
+        todo = list(rels)
+        while todo or len(bound & set(nodes)) < len(nodes):
+            ready = [r for r in todo if r[1] in bound or r[2] in bound]
+            if not ready:
+                start = max((s for s in nodes if s not in bound), key=score.__getitem__)
+                seed = next(filter(None, (_id_seed(c, start) for c in alone[start])), None)
+                add(Step("scan", start, seed=seed))
+                continue
+            closing = [r for r in ready if r[1] in bound and r[2] in bound]
+            if closing:
+                rel = closing[0]
+            else:
+                rel = max(ready, key=lambda r: score[r[2] if r[1] in bound else r[1]])
+            todo.remove(rel)
+            rel_slot, left, right, arrow = rel
+            if left in bound:
+                start, node, direction = left, right, "both" if arrow == "either" else arrow
+            else:
+                start, node, direction = right, left, _FLIP[arrow]
+            add(Step("connect" if closing else "expand", node, rel_slot, start,
+                     direction if directed else "both"))
+
+    def __str__(self) -> str:
+        return "\n".join(str(step) for step in self.steps)
+
+
+# =============================================================================
+# Matching
+# =============================================================================
+
+
+class Matcher:
+    """Finds the matches of a parsed query in a Rust graph, by a backtracking search over its
+    `Plan`.
+
+    - **Matches:** `matches()` yields each match as a dict of slot → node or edge ID, covering
+      every slot, anonymous ones included. They come in search order, which is fixed for a
+      given graph and query.
+    - **Distinctness:** the relationships of one match are distinct edges, which is Cypher's
+      rule, while nodes may repeat. With `distinct_nodes=True`, the node slots must be distinct
+      nodes too, as in a subgraph isomorphism.
+    - **When errors are raised:** conditions are compiled when the matcher is made, so a missing
+      parameter or an unknown function raises then, even on an empty graph. Errors in values
+      (`WHERE n.name`, say) raise when a row meets them.
+    """
+
+    def __init__(self, query: Query, text: str, graph: Any, params: Optional[dict] = None,
+                 label_key: Optional[str] = "name", distinct_nodes: bool = False):
+        self.plan = Plan(query, graph.is_directed)
+        self.graph = graph
+        self.distinct_nodes = distinct_nodes
+        evaluator = Evaluator(text, self.plan.slots, params, GraphView(graph, label_key))
+        self._constant = [evaluator.condition(c) for c in self.plan.constant]
+        self._checks = [[evaluator.condition(c) for c in step.conditions]
+                        for step in self.plan.steps]
+        self._seeds = [step.seed and (step.seed[0], evaluator.compile(step.seed[1]))
+                       for step in self.plan.steps]
+        self._all_nodes: Optional[list[int]] = None
+
+    def _candidates(self, seed) -> list[int]:
+        """The nodes a scan tries: all of them, or those an `id()` condition names."""
+        if seed is not None:
+            op, value = seed[0], seed[1]({})
+            if op == "=" or _kind(value) == "list":
+                # anything else is left to the condition itself, which knows how to fail
+                ids = {int(v) for v in ([value] if op == "=" else value)
+                       if _kind(v) == "number" and math.isfinite(v) and v == int(v)
+                       and 0 <= v < 2**64}
+                return sorted(i for i in ids if self.graph.has_node_id(i))
+            if value is None:
+                return []
+        if self._all_nodes is None:
+            self._all_nodes = sorted(self.graph.get_node_ids())
+        return self._all_nodes
+
+    def matches(self):
+        if not all(check({}) for check in self._constant):
+            return
+        steps, checks, graph = self.plan.steps, self._checks, self.graph
+        candidates = [self._candidates(seed) if step.kind == "scan" else None
+                      for step, seed in zip(steps, self._seeds)]
+        distinct = self.distinct_nodes
+        binding: dict[str, int] = {}
+        used_edges: set[int] = set()
+        used_nodes: set[int] = set()
+        last = len(steps)
+
+        def search(k):
+            if k == last:
+                yield dict(binding)
+                return
+            step, tests = steps[k], checks[k]
+            if step.kind == "scan":
+                for node in candidates[k]:
+                    if distinct and node in used_nodes:
+                        continue
+                    binding[step.node] = node
+                    if all(test(binding) for test in tests):
+                        used_nodes.add(node)
+                        yield from search(k + 1)
+                        used_nodes.discard(node)
+                return
+            connect = step.kind == "connect"
+            target = binding[step.node] if connect else None
+            for edge, other in graph._incident_edges(binding[step.start], step.direction):
+                if edge in used_edges:
+                    continue
+                if connect:
+                    if other != target:
+                        continue
+                elif distinct and other in used_nodes:
+                    continue
+                else:
+                    binding[step.node] = other
+                binding[step.rel] = edge
+                if all(test(binding) for test in tests):
+                    used_edges.add(edge)
+                    fresh = distinct and not connect
+                    if fresh:
+                        used_nodes.add(other)
+                    yield from search(k + 1)
+                    used_edges.discard(edge)
+                    if fresh:
+                        used_nodes.discard(other)
+
+        yield from search(0)
