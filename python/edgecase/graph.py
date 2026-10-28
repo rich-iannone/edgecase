@@ -23009,16 +23009,15 @@ class Graph:
     # Graph Selection System
     # ==============================================================================
 
-    def select_nodes(self, predicate) -> "Graph":
+    def select_nodes(self, predicate, set_op: str = "union") -> "Graph":
         """
         Select nodes using a predicate function.
 
         ![Select nodes by predicate](/assets/graphs/select-nodes.light.svg){.lightbox fig-alt="Six nodes A to F, each with a badge giving its w attribute (3, 8, 6, 2, 9, 4). After selecting with the predicate w greater than 5, nodes B, C, and E, whose values are 8, 6, and 9, are selected and drawn in the accent color." width="100%"}
 
-        Calls a user-supplied function once for every node and adds the nodes for which it
-        returns `True` to the current node selection. This is the most flexible way to build a
-        selection: any rule that can be expressed in Python over a node's ID, label, or
-        attributes can be used.
+        Calls a user-supplied function once for every node and selects the nodes for which it
+        returns `True`. This is the most flexible way to build a selection: any rule that can be
+        expressed in Python over a node's ID, label, or attributes can be used.
 
         A node selection is the input to the graph's "with selection" (`*_ws`) methods, so a
         typical workflow is select -> act:
@@ -23030,11 +23029,11 @@ class Graph:
           `transform_to_subgraph_ws()`
         - use the nodes as a starting point for `trav_out()`, `trav_in()`, or `trav_both()`
 
-        Selection is cumulative: matching nodes are added to whatever is already selected, and
-        nothing is deselected. Call `clear_selection()` first to start fresh, or combine
-        predicates in one function for AND/OR logic. The predicate runs in Python for every node,
-        so on very large graphs the specialized selectors (e.g., `select_nodes_by_degree()`) are
-        faster. The graph is modified in place and returned for chaining.
+        The matching nodes are added to the current selection, unless `set_op=` says otherwise
+        (`"replace"`, `"intersect"`, or `"difference"`). AND/OR logic can also go in the
+        predicate itself. The predicate runs in Python for every node, so on very large graphs the
+        specialized selectors (e.g., `select_nodes_by_degree()`) are faster. The graph is
+        modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -23045,8 +23044,13 @@ class Graph:
             which the callable returns `True` are selected. The return value must be an actual
             `bool`: returning `None`, an integer, or another truthy object raises `TypeError`.
             Guard attribute access accordingly, e.g., `n.attributes is not None and ...` or
-            `bool(...)`. Any exception raised by the predicate propagates, and nodes already
-            visited at that point may remain selected.
+            `bool(...)`. Any exception raised by the predicate propagates, and the selection is
+            left as it was.
+        set_op
+            How the matching nodes combine with the current node selection. `"union"` (default) adds
+            them to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            nodes that also match, and `"difference"` removes them from it. The graph holds a
+            selection of nodes or of edges, never both, so any edge selection is cleared.
 
         Returns
         -------
@@ -23057,6 +23061,8 @@ class Graph:
         ------
         TypeError
             If the predicate returns something other than a `bool`.
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23079,14 +23085,22 @@ class Graph:
         ```
 
         Filtering on `n.id` instead selects by internal node ID -- useful when IDs carry
-        meaning, such as being assigned in a known order. Clearing first ensures the earlier
-        selection doesn't carry over:
+        meaning, such as being assigned in a known order. With `set_op="replace"`, the new
+        selection replaces the earlier one, so node `1` is no longer selected:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_nodes(lambda n: n.id >= 2)
+        graph.select_nodes(lambda n: n.id >= 2, set_op="replace")
 
         sorted(graph.get_selected_node_ids())
+        ```
+
+        With `set_op="intersect"`, a second rule narrows the selection instead. Of the nodes
+        with IDs `2` and `3`, only "C" also has a score above `6`:
+
+        ```{python}
+        graph.select_nodes(lambda n: n.attributes["score"] > 6, set_op="intersect")
+
+        [graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids()]
         ```
 
         When some nodes have no attributes, `n.attributes` is `None`, so guard the lookup.
@@ -23105,24 +23119,24 @@ class Graph:
         ```
 
         """
-        self._graph.select_nodes(predicate)
+        self._select("nodes", set_op, lambda: self._graph.select_nodes(predicate))
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
-            code = f"G.select_nodes(predicate)  # {n} selected"
+            code = f"G.select_nodes(predicate{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_nodes", code)
 
         return self
 
-    def select_edges(self, predicate) -> "Graph":
+    def select_edges(self, predicate, set_op: str = "union") -> "Graph":
         """
         Select edges using a predicate function.
 
         ![Select edges by predicate](/assets/graphs/select-edges.light.svg){.lightbox fig-alt="A six-node grid whose seven edges are labeled with weights. After selecting with the predicate weight greater than 0.5, the four edges weighing 0.8, 0.6, 0.9, and 0.7 are selected and drawn in the accent color; the rest stay plain." width="100%"}
 
-        Calls a user-supplied function once for every edge and adds the edges for which it
-        returns `True` to the current edge selection. Any rule over an edge's ID, endpoints,
-        weight, or custom attributes can be expressed this way.
+        Calls a user-supplied function once for every edge and selects the edges for which it
+        returns `True`. Any rule over an edge's ID, endpoints, weight, or custom attributes can be
+        expressed this way.
 
         An edge selection is the input to the edge-oriented "with selection" methods, such as:
 
@@ -23131,11 +23145,11 @@ class Graph:
         - `delete_edges_ws()` to prune them, e.g., removing weak ties below a weight threshold
         - `rev_edge_dir_ws()` to flip their direction in a directed graph
 
-        Selection is cumulative: matching edges are added to whatever is already selected and
-        nothing is deselected; call `clear_selection()` first to start fresh. Edge and node
-        selections are independent, so this does not affect the node selection. The predicate
-        runs in Python for every edge, which can be slow on very large graphs. The graph is
-        modified in place and returned for chaining.
+        The matching edges are added to the current selection, unless `set_op=` says otherwise
+        (`"replace"`, `"intersect"`, or `"difference"`). Any node selection is cleared, since the
+        graph holds a selection of nodes or of edges but not both. The predicate runs in Python
+        for every edge, which can be slow on very large graphs. The graph is modified in place
+        and returned for chaining.
 
         Parameters
         ----------
@@ -23148,7 +23162,11 @@ class Graph:
             returning `None` or another non-bool raises `TypeError`, which makes idioms like
             `e.weight and e.weight > 0.5` unsafe when some edges are unweighted. Write
             `e.weight is not None and e.weight > 0.5` instead. Any exception raised by the
-            predicate propagates, and edges visited before it may remain selected.
+            predicate propagates, and the selection is left as it was.
+        set_op
+            How the matching edges combine with the current edge selection. `"union"` (default) adds
+            them to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            edges that also match, and `"difference"` removes them from it.
 
         Returns
         -------
@@ -23159,6 +23177,8 @@ class Graph:
         ------
         TypeError
             If the predicate returns something other than a `bool`.
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23210,23 +23230,22 @@ class Graph:
         ```
 
         """
-        self._graph.select_edges(predicate)
+        self._select("edges", set_op, lambda: self._graph.select_edges(predicate))
 
         if self._recording_depth == 0:
             n = self.count_selected_edges()
-            code = f"G.select_edges(predicate)  # {n} selected"
+            code = f"G.select_edges(predicate{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_edges", code)
 
         return self
 
-    def select_nodes_by_id(self, node_ids: list[int]) -> "Graph":
+    def select_nodes_by_id(self, node_ids: list[int], set_op: str = "union") -> "Graph":
         """
         Select nodes by their IDs.
 
         ![Select nodes by id](/assets/graphs/select-nodes-by-id.light.svg){.lightbox fig-alt="Six nodes labeled by their integer ids 1 to 6. After select_nodes_by_id with ids 1, 3, and 5, those three nodes are selected and drawn in the accent color." width="100%"}
 
-        Adds the given nodes to the current node selection. This is the most direct way to build
-        a selection when you already know which nodes you want, for example from the output of
+        Selects the given nodes. This is the most direct way to build a selection when you already know which nodes you want, for example from the output of
         an analysis method (`get_non_neighbors()`, a community, a shortest path) or from a
         filtered node DataFrame.
 
@@ -23237,19 +23256,23 @@ class Graph:
         - seeding a traversal with `trav_out()`, `trav_in()`, or `trav_both()`
         - re-applying a selection that was saved earlier with `get_selected_node_ids()`
 
-        Selection is cumulative: the IDs are added to whatever is already selected, and
-        duplicates are ignored. Call `clear_selection()` first to replace the selection. Only
-        integer IDs are accepted; to select by label, convert with `get_id_from_label()` or use
+        The nodes are added to the current selection, unless `set_op=` says otherwise, and
+        duplicate IDs are ignored. Only integer IDs are accepted; to select by label, convert with `get_id_from_label()` or use
         `select_nodes(lambda n: n.label in {...})`. The graph is modified in place and returned
         for chaining.
 
         Parameters
         ----------
         node_ids
-            A list of integer node IDs to add to the selection. Every ID must belong to an existing
-            node; a missing ID raises `KeyError` and nothing is selected. Strings (labels) are
-            rejected with a `TypeError`. An empty list is allowed and leaves the selection
-            unchanged.
+            A list of integer node IDs to select. Every ID must belong to an existing node; a
+            missing ID raises `KeyError` and leaves the selection unchanged. Strings (labels) are
+            rejected with a `TypeError`. An empty list is allowed (with `set_op="replace"`, it
+            clears the selection).
+        set_op
+            How these nodes combine with the current node selection. `"union"` (default) adds them
+            to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected nodes
+            among them, and `"difference"` removes them from it. Any edge selection is cleared,
+            since the graph holds a selection of nodes or of edges but not both.
 
         Returns
         -------
@@ -23263,6 +23286,8 @@ class Graph:
             `ValueError`).
         TypeError
             If `node_ids=` contains a non-integer such as a label.
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23285,7 +23310,7 @@ class Graph:
         sorted(graph.get_selected_node_ids())
         ```
 
-        Calls accumulate, so selecting "C" afterwards grows the selection to all three nodes.
+        Selecting "C" afterwards adds it to the selection, which grows to all three nodes.
         `transform_to_subgraph_ws()` could then keep exactly these nodes:
 
         ```{python}
@@ -23315,23 +23340,24 @@ class Graph:
 
         """
         try:
-            self._graph.select_nodes_by_id(node_ids)
-        except KeyError as e:  # Rust checks every ID first, so nothing was selected
+            self._select("nodes", set_op, lambda: self._graph.select_nodes_by_id(node_ids))
+        except KeyError as e:  # the earlier selection was restored
             raise NodeNotFoundError(e.args[0]) from None
 
         if self._recording_depth == 0:
-            code = f"G.select_nodes_by_id(...)  # {len(node_ids)} selected"
+            n = self.count_selected_nodes()
+            code = f"G.select_nodes_by_id(...{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_nodes_by_id", code)
 
         return self
 
-    def select_edges_by_id(self, edge_ids: list[int]) -> "Graph":
+    def select_edges_by_id(self, edge_ids: list[int], set_op: str = "union") -> "Graph":
         """
         Select edges by their IDs.
 
         ![Select edges by id](/assets/graphs/select-edges-by-id.light.svg){.lightbox fig-alt="A six-node grid whose seven edges are labeled with their integer ids 1 to 7. After select_edges_by_id with ids 2 and 5, the edges B–C and C–F are selected and drawn in the accent color." width="100%"}
 
-        Adds the given edges to the current edge selection. Edge IDs are internal integer
+        Selects the given edges. Edge IDs are internal integer
         identifiers assigned when edges are created; they can be listed with `get_edge_ids()`,
         read from the `id` column of `get_edge_df()`, or obtained from methods that return edge
         IDs.
@@ -23342,17 +23368,21 @@ class Graph:
           `set_edge_attrs_ws()`, `delete_edges_ws()`, or `rev_edge_dir_ws()`
         - re-apply a selection saved earlier with `get_selected_edge_ids()`
 
-        Selection is cumulative: the IDs are added to whatever is already selected and
-        duplicates are ignored; call `clear_selection()` first to replace the selection. Edge
-        and node selections are independent, so the node selection is untouched. The graph is
-        modified in place and returned for chaining.
+        The edges are added to the current selection, unless `set_op=` says otherwise, and
+        duplicate IDs are ignored. Any node selection is cleared, since the graph holds a
+        selection of nodes or of edges but not both. The graph is modified in place and returned
+        for chaining.
 
         Parameters
         ----------
         edge_ids
-            A list of integer edge IDs to add to the selection. Every ID must belong to an existing
-            edge; a missing ID raises `KeyError` and nothing is selected. An empty list is allowed
-            and leaves the selection unchanged.
+            A list of integer edge IDs to select. Every ID must belong to an existing edge; a
+            missing ID raises `KeyError` and leaves the selection unchanged. An empty list is
+            allowed (with `set_op="replace"`, it clears the selection).
+        set_op
+            How these edges combine with the current edge selection. `"union"` (default) adds them
+            to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected edges
+            among them, and `"difference"` removes them from it.
 
         Returns
         -------
@@ -23364,6 +23394,8 @@ class Graph:
         EdgeNotFoundError
             If any edge ID doesn't exist in the graph (a subclass of both `KeyError` and
             `ValueError`).
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23406,24 +23438,24 @@ class Graph:
 
         """
         try:
-            self._graph.select_edges_by_id(edge_ids)
-        except KeyError as e:  # Rust checks every ID first, so nothing was selected
+            self._select("edges", set_op, lambda: self._graph.select_edges_by_id(edge_ids))
+        except KeyError as e:  # the earlier selection was restored
             raise EdgeNotFoundError(e.args[0]) from None
 
         if self._recording_depth == 0:
-            code = f"G.select_edges_by_id(...)  # {len(edge_ids)} selected"
+            n = self.count_selected_edges()
+            code = f"G.select_edges_by_id(...{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_edges_by_id", code)
 
         return self
 
-    def select_edges_by_node(self, nodes: list[int | str]) -> "Graph":
+    def select_edges_by_node(self, nodes: list[int | str], set_op: str = "union") -> "Graph":
         """
         Select all edges connected to specified nodes.
 
         ![Select edges by node](/assets/graphs/select-edges-by-node.light.svg){.lightbox fig-alt="A six-node grid with no selection. After select_edges_by_node on B, the three edges touching B (A–B, B–C, and B–E) are selected in the accent color; B itself is outlined as the named node but is not selected." width="100%"}
 
-        Adds every edge with at least one endpoint in the given node list to the current edge
-        selection. In directed graphs both incoming and outgoing edges are included; direction is
+        Selects every edge with at least one endpoint in the given node list. In directed graphs both incoming and outgoing edges are included; direction is
         not considered. Edges *between* two listed nodes are selected once, like any other
         incident edge.
 
@@ -23435,10 +23467,10 @@ class Graph:
           `delete_edges_ws()`
         - restyle or tag the edges around a node of interest with `set_edge_attrs_ws()`
 
-        Only edges are selected; the listed nodes themselves are not added to the node selection.
-        To select only edges in one direction, use `select_edges()` with a predicate on
-        `e.source` or `e.target`. Selection is cumulative, so call `clear_selection()` first to
-        start fresh. The graph is modified in place and returned for chaining.
+        Only edges are selected; the listed nodes themselves are not, and any node selection is
+        cleared. To select only edges in one direction, use `select_edges()` with a predicate on
+        `e.source` or `e.target`. The edges are added to the current selection, unless
+        `set_op=` says otherwise. The graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -23447,6 +23479,10 @@ class Graph:
             node ID or a string label, and the two forms can be mixed. All of them are resolved
             first, so an unknown ID or label raises `ValueError` without changing the selection.
             An empty list selects nothing.
+        set_op
+            How these edges combine with the current edge selection. `"union"` (default) adds them
+            to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected edges
+            among them, and `"difference"` removes them from it.
 
         Returns
         -------
@@ -23456,7 +23492,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If an ID or label in `nodes=` is not found in the graph.
+            If an ID or label in `nodes=` is not found in the graph, or if `set_op=` is not
+            `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23505,23 +23542,24 @@ class Graph:
 
         """
         # Resolve labels to IDs; unknown IDs or labels raise before anything changes
+        _check_set_op(set_op)
         resolved_ids = [self._node_id_or_raise(nid) for nid in nodes]
-        self._graph.select_edges_by_node_id(resolved_ids)
+        self._select("edges", set_op, lambda: self._graph.select_edges_by_node_id(resolved_ids))
 
         if self._recording_depth == 0:
             n = self.count_selected_edges()
-            code = f"G.select_edges_by_node(...)  # {n} selected"
+            code = f"G.select_edges_by_node(...{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_edges_by_node", code)
 
         return self
 
-    def select_last_nodes_created(self, n: int) -> "Graph":
+    def select_last_nodes_created(self, n: int, set_op: str = "union") -> "Graph":
         """
         Select the last N nodes that were created.
 
         ![Select last nodes created](/assets/graphs/select-last-nodes-created.light.svg){.lightbox fig-alt="Six nodes A to F with filled badges 1 to 6 giving the order in which they were created. select_last_nodes_created(2) selects the two most recent, E and F, drawn in the accent color." width="100%"}
 
-        Adds the `n` most recently created nodes to the current node selection. The graph keeps
+        Selects the `n` most recently created nodes. The graph keeps
         track of the order in which nodes were added (see `get_node_creation_order()`), and this
         method takes the tail of that order. Nodes that have since been deleted are skipped, so
         the selection always refers to nodes that still exist.
@@ -23533,9 +23571,9 @@ class Graph:
         - connect a freshly added batch of nodes to each other with `fully_connect_nodes_ws()`
         - undo the last few additions with `delete_nodes_ws()`
 
-        Selection is based on creation order, not on node IDs or labels. It is cumulative, so
-        call `clear_selection()` first if earlier selections should not carry over. The graph is
-        modified in place and returned for chaining.
+        Selection is based on creation order, not on node IDs or labels. The nodes are added to
+        the current selection, unless `set_op=` says otherwise. The graph is modified in place
+        and returned for chaining.
 
         Parameters
         ----------
@@ -23543,11 +23581,21 @@ class Graph:
             Number of most recently created nodes to select. Must be a non-negative integer (a
             negative value raises `OverflowError`). If `n` is larger than the number of nodes,
             every node is selected; `n=0` selects nothing.
+        set_op
+            How these nodes combine with the current node selection. `"union"` (default) adds them
+            to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected nodes
+            among them, and `"difference"` removes them from it. Any edge selection is cleared,
+            since the graph holds a selection of nodes or of edges but not both.
 
         Returns
         -------
         Graph
             The same graph (modified in place) for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23584,21 +23632,21 @@ class Graph:
         ```
 
         """
-        self._graph.select_last_nodes_created(n)
+        self._select("nodes", set_op, lambda: self._graph.select_last_nodes_created(n))
 
         if self._recording_depth == 0:
-            code = f"G.select_last_nodes_created({n})"
+            code = f"G.select_last_nodes_created({n}{_set_op_arg(set_op)})"
             self._record_step(KIND_SELECT, "select_last_nodes_created", code)
 
         return self
 
-    def select_last_edges_created(self, n: int) -> "Graph":
+    def select_last_edges_created(self, n: int, set_op: str = "union") -> "Graph":
         """
         Select the last N edges that were created.
 
         ![Select last edges created](/assets/graphs/select-last-edges-created.light.svg){.lightbox fig-alt="A six-node grid whose seven edges are labeled 1 to 7 in the order they were created. select_last_edges_created(2) selects the two most recent, D–E and E–F, drawn in the accent color." width="100%"}
 
-        Adds the `n` most recently created edges to the current edge selection. The graph keeps
+        Selects the `n` most recently created edges. The graph keeps
         track of the order in which edges were added (see `get_edge_creation_order()`), and this
         method takes the tail of that order. Edges that have since been deleted are skipped.
 
@@ -23611,9 +23659,9 @@ class Graph:
         - inspect what a generator or a `fully_connect_nodes_ws()` call produced with
           `get_edge_df_ws()`
 
-        Selection is based on creation order, not on edge IDs. It is cumulative and independent
-        of the node selection; call `clear_selection()` first to start fresh. The graph is
-        modified in place and returned for chaining.
+        Selection is based on creation order, not on edge IDs. The edges are added to the current
+        selection, unless `set_op=` says otherwise, and any node selection is cleared. The
+        graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -23621,11 +23669,20 @@ class Graph:
             Number of most recently created edges to select. Must be a non-negative integer (a
             negative value raises `OverflowError`). If `n` is larger than the number of edges,
             every edge is selected; `n=0` selects nothing.
+        set_op
+            How these edges combine with the current edge selection. `"union"` (default) adds them
+            to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected edges
+            among them, and `"difference"` removes them from it.
 
         Returns
         -------
         Graph
             The same graph (modified in place) for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23666,24 +23723,28 @@ class Graph:
         ```
 
         """
-        self._graph.select_last_edges_created(n)
+        self._select("edges", set_op, lambda: self._graph.select_last_edges_created(n))
 
         if self._recording_depth == 0:
-            code = f"G.select_last_edges_created({n})"
+            code = f"G.select_last_edges_created({n}{_set_op_arg(set_op)})"
             self._record_step(KIND_SELECT, "select_last_edges_created", code)
 
         return self
 
     def select_nodes_in_neighborhood(
-        self, nodes: list[Union[int, str]] | int | str, k: int = 1, mode: str = "out"
+        self,
+        nodes: list[Union[int, str]] | int | str,
+        k: int = 1,
+        mode: str = "out",
+        set_op: str = "union",
     ) -> "Graph":
         """
         Select all nodes within K hops of specified seed nodes.
 
         ![Select nodes in neighborhood](/assets/graphs/select-nodes-in-neighborhood.light.svg){.lightbox fig-alt="A six-node grid with no selection. After select_nodes_in_neighborhood from seed A with k=2, badges give each node's hop distance from A, and every node within two hops is selected in the accent color: A itself, B and D at one hop, and C and E at two. F, three hops away, is not selected." width="100%"}
 
-        Runs a breadth-first search from the seed nodes and adds every node at distance at most
-        `k` to the current node selection. The seed nodes themselves (distance 0) are always
+        Runs a breadth-first search from the seed nodes and selects every node at distance at
+        most `k`. The seed nodes themselves (distance 0) are always
         included. With several seeds, the result is the union of their neighborhoods.
 
         K-hop neighborhoods (often called ego networks) are useful for:
@@ -23697,9 +23758,9 @@ class Graph:
         Distances count edges, not weights. In a directed graph, `mode=` decides which edges
         can be followed; in an undirected graph every edge can be followed regardless of
         `mode=`. The neighborhood grows quickly with `k` in well-connected graphs (the whole
-        graph is often reached within a handful of hops). Selection is cumulative, so call
-        `clear_selection()` first to start fresh. The graph is modified in place and returned
-        for chaining.
+        graph is often reached within a handful of hops). The neighborhood is added to the current
+        selection, unless `set_op=` says otherwise. The graph is modified in place and
+        returned for chaining.
 
         Parameters
         ----------
@@ -23715,6 +23776,11 @@ class Graph:
             (predecessors, upstream), and `"all"` ignores direction. Any other value raises
             `ValueError`. For undirected graphs the value is still validated but the traversal
             always behaves like `"all"`.
+        set_op
+            How the selected nodes combine with the current node selection. `"union"` (default) adds
+            them to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            nodes among them, and `"difference"` removes them from it. Any edge selection is
+            cleared, since the graph holds a selection of nodes or of edges but not both.
 
         Returns
         -------
@@ -23724,8 +23790,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `mode=` is not one of `"out"`, `"in"`, or `"all"`, or if a seed node does not
-            exist.
+            If `mode=` is not one of `"out"`, `"in"`, or `"all"`, if a seed node does not exist,
+            or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23762,7 +23828,6 @@ class Graph:
         never reaches "D":
 
         ```{python}
-        graph.clear_selection()
         graph.select_nodes_in_neighborhood(nodes="C", k=2, mode="in")
         sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
         ```
@@ -23788,13 +23853,19 @@ class Graph:
             nodes = [nodes]
 
         # Resolve labels to IDs
+        _check_set_op(set_op)
         resolved_ids = [self._resolve_node_id(nid) for nid in nodes]
 
-        self._graph.select_nodes_in_neighborhood(resolved_ids, k, mode)
+        self._select(
+            "nodes",
+            set_op,
+            lambda: self._graph.select_nodes_in_neighborhood(resolved_ids, k, mode),
+        )
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
-            code = f"G.select_nodes_in_neighborhood(..., k={k})  # {n} selected"
+            op = _set_op_arg(set_op)
+            code = f"G.select_nodes_in_neighborhood(..., k={k}{op})  # {n} selected"
             self._record_step(KIND_SELECT, "select_nodes_in_neighborhood", code)
 
         return self
@@ -23804,14 +23875,15 @@ class Graph:
         min_degree: int | None = None,
         max_degree: int | None = None,
         degree_type: str = "total",
+        set_op: str = "union",
     ) -> "Graph":
         """
         Select nodes by degree criteria.
 
         ![Select nodes by degree](/assets/graphs/select-nodes-by-degree.light.svg){.lightbox fig-alt="Six nodes, each with a badge giving its degree: B and E have degree 3, the others 2. After select_nodes_by_degree with min_degree 3, only B and E are selected and drawn in the accent color." width="100%"}
 
-        Adds every node whose degree lies within `[min_degree, max_degree]` (both bounds
-        inclusive) to the current node selection. The degree computation runs in Rust over all
+        Selects every node whose degree lies within `[min_degree, max_degree]` (both bounds
+        inclusive). The degree computation runs in Rust over all
         nodes, so this is much faster than an equivalent `select_nodes()` predicate on large
         graphs.
 
@@ -23823,8 +23895,8 @@ class Graph:
           `max_degree=0`) in a directed graph
         - trimming low-degree noise before an analysis, together with `delete_nodes_ws()`
 
-        Selection is cumulative, so call `clear_selection()` first to start fresh. The graph is
-        modified in place and returned for chaining.
+        The nodes are added to the current selection, unless `set_op=` says otherwise. The
+        graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -23839,6 +23911,11 @@ class Graph:
             outgoing edges), or `"total"` (default). Any other value raises `ValueError`. In an
             undirected graph all three give the same value, the number of incident edges. In a
             directed graph, `"total"` is in-degree plus out-degree, matching `get_degree()`.
+        set_op
+            How the selected nodes combine with the current node selection. `"union"` (default) adds
+            them to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            nodes among them, and `"difference"` removes them from it. Any edge selection is
+            cleared, since the graph holds a selection of nodes or of edges but not both.
 
         Returns
         -------
@@ -23848,7 +23925,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `degree_type=` is not `"in"`, `"out"`, or `"total"`.
+            If `degree_type=` is not `"in"`, `"out"`, or `"total"`, or if `set_op=` is not
+            `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
         Examples
         --------
@@ -23867,11 +23945,11 @@ class Graph:
         len(graph.get_selected_node_ids())
         ```
 
-        Using only `max_degree=` targets the low-degree end instead -- after clearing, it
-        selects the 9 spokes, each of which has degree `1`:
+        Using only `max_degree=` targets the low-degree end instead. Replacing the selection
+        with `set_op="replace"` leaves just the 9 spokes, each of which has degree `1`:
 
         ```{python}
-        graph.clear_selection().select_nodes_by_degree(max_degree=1)
+        graph.select_nodes_by_degree(max_degree=1, set_op="replace")
 
         graph.count_selected_nodes()
         ```
@@ -23905,19 +23983,28 @@ class Graph:
         ```
 
         """
-        self._graph.select_nodes_by_degree(
-            min_degree=min_degree, max_degree=max_degree, degree_type=degree_type
+        self._select(
+            "nodes",
+            set_op,
+            lambda: self._graph.select_nodes_by_degree(
+                min_degree=min_degree, max_degree=max_degree, degree_type=degree_type
+            ),
         )
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
-            code = f"G.select_nodes_by_degree(...)  # {n} selected"
+            code = f"G.select_nodes_by_degree(...{_set_op_arg(set_op)})  # {n} selected"
             self._record_step(KIND_SELECT, "select_nodes_by_degree", code)
 
         return self
 
     def select_nodes_by_centrality(
-        self, measure: str = "degree", k: int = 10, include_ties: bool = False, **kwargs
+        self,
+        measure: str = "degree",
+        k: int = 10,
+        include_ties: bool = False,
+        set_op: str = "union",
+        **kwargs,
     ) -> "Graph":
         """
         Select top-K nodes by centrality measure.
@@ -23925,7 +24012,7 @@ class Graph:
         ![Select nodes by centrality](/assets/graphs/select-nodes-by-centrality.light.svg){.lightbox fig-alt="The six-node grid with an extra diagonal edge B–D, each node badged with its PageRank score. B scores highest at 0.24, ahead of D and E at 0.18, so selecting the top one node by PageRank selects B, drawn in the accent color." width="100%"}
 
         Computes a centrality score for every node, ranks the nodes from highest to lowest
-        score, and adds the top `k` to the current node selection. It combines a centrality
+        score, and selects the top `k`. It combines a centrality
         computation and a selection step in one call, so the most important nodes can be acted
         on directly with the `*_ws` methods.
 
@@ -23940,8 +24027,8 @@ class Graph:
         rewards links from other important nodes, and betweenness rewards nodes that sit on many
         shortest paths. Degree-based measures are cheap; betweenness computes all-pairs shortest
         paths and can be slow on large graphs. The scores are only used for ranking; no node
-        attribute is written. Selection is cumulative, so call `clear_selection()` first to start
-        fresh. The graph is modified in place and returned for chaining.
+        attribute is written. The nodes are added to the current selection, unless `set_op=`
+        says otherwise. The graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -23960,6 +24047,11 @@ class Graph:
             arbitrarily, so which of the tied nodes is chosen is not guaranteed. If `True`, every
             node whose score is at least the `k`-th highest score is selected, so the result can
             contain more than `k` nodes.
+        set_op
+            How the selected nodes combine with the current node selection. `"union"` (default) adds
+            them to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected
+            nodes among them, and `"difference"` removes them from it. Any edge selection is
+            cleared, since the graph holds a selection of nodes or of edges but not both.
         **kwargs
             Extra keyword arguments forwarded to `pagerank()` (e.g., `damping=`, `max_iter=`,
             `tol=`) or `betweenness_centrality()` (`weighted=`). An argument the chosen measure
@@ -23974,8 +24066,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If `measure=` is unknown, or if `"in_degree"` or `"out_degree"` is used on an
-            undirected graph.
+            If `measure=` is unknown, if `"in_degree"` or `"out_degree"` is used on an
+            undirected graph, or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or
+            `"difference"`.
 
         Examples
         --------
@@ -24000,7 +24093,6 @@ class Graph:
         the cut-off, so the selection grows to three nodes and is deterministic:
 
         ```{python}
-        graph.clear_selection()
         graph.select_nodes_by_centrality("degree", k=2, include_ties=True)
 
         sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
@@ -24028,6 +24120,7 @@ class Graph:
         ```
 
         """
+        _check_set_op(set_op)
         for name in ("attr_name", "return_dict"):
             if name in kwargs:
                 raise TypeError(
@@ -24066,11 +24159,14 @@ class Graph:
             )
 
         # Use the Rust helper to select top-k
-        self._graph.select_nodes_by_scores(scores, k, include_ties)
+        self._select(
+            "nodes", set_op, lambda: self._graph.select_nodes_by_scores(scores, k, include_ties)
+        )
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
-            code = f"G.select_nodes_by_centrality({measure!r}, k={k})  # {n} selected"
+            args = f"{measure!r}, k={k}{_set_op_arg(set_op)}"
+            code = f"G.select_nodes_by_centrality({args})  # {n} selected"
             self._record_step(KIND_SELECT, "select_nodes_by_centrality", code)
 
         return self
@@ -24085,8 +24181,8 @@ class Graph:
         selection intact. The nodes themselves are not touched; only their selected state
         changes. Nodes in the list that are not currently selected are ignored.
 
-        Since all `select_*` methods add to the selection, deselection is how you subtract from
-        it. Typical uses:
+        It's the same as `select_nodes_by_id(node_ids, set_op="difference")`, but it also takes
+        labels and ignores nodes that aren't selected. Typical uses:
 
         - carving exceptions out of a broad selection, e.g., select all high-degree nodes and
           then deselect a few that should be protected before `delete_nodes_ws()`
@@ -24094,8 +24190,8 @@ class Graph:
           surrounding nodes remain
         - implementing set differences between two selection rules
 
-        To drop the whole selection, use `clear_selection()` instead. The edge selection is not
-        affected. The graph is modified in place and returned for chaining.
+        To drop the whole selection, use `clear_selection()` instead. An edge selection is left
+        as it is. The graph is modified in place and returned for chaining.
 
         Parameters
         ----------
@@ -24173,11 +24269,11 @@ class Graph:
         selection intact. The edges themselves are not touched; only their selected state
         changes. Edges in the list that are not currently selected are ignored.
 
-        Because every edge `select_*` method adds to the selection, this is the way to subtract
-        from it -- for example, selecting all edges around a node with `select_edges_by_node()`
-        and then deselecting one that should survive a following `delete_edges_ws()`. To drop
-        the whole selection, use `clear_selection()` instead. The node selection is not
-        affected. The graph is modified in place and returned for chaining.
+        This is a quick way to carve exceptions out of a selection -- for example, selecting all
+        edges around a node with `select_edges_by_node()` and then deselecting one that should
+        survive a following `delete_edges_ws()`. To drop the whole selection, use
+        `clear_selection()` instead. A node selection is left as it is. The graph is modified in
+        place and returned for chaining.
 
         Parameters
         ----------
@@ -24238,20 +24334,21 @@ class Graph:
 
     def clear_selection(self) -> "Graph":
         """
-        Clear all node and edge selections.
+        Clear the node or edge selection.
 
-        ![Clear selection](/assets/graphs/clear-selection.light.svg){.lightbox fig-alt="Before: nodes B and E and the edge between them are selected in the accent color. After clear_selection, nothing is selected: every node and edge is plain." width="100%"}
+        ![Clear selection](/assets/graphs/clear-selection.light.svg){.lightbox fig-alt="Before: nodes B and E are selected in the accent color. After clear_selection, nothing is selected: every node is plain." width="100%"}
 
-        Empties both the node selection and the edge selection in one step. The nodes and
-        edges themselves, and their attributes, are untouched; only the selection state is
-        reset.
+        Empties the selection, whether it holds nodes or edges (a graph never holds both). The
+        nodes and edges themselves, and their attributes, are untouched; only the selection
+        state is reset.
 
-        All `select_*` methods add to the existing selection rather than replacing it, so
-        calling `clear_selection()` before building a new selection is the usual way to make
-        sure nothing left over from an earlier step leaks into the next `*_ws` operation. It is
-        also safe to call when nothing is selected. To remove only some nodes or edges from the
-        selection, use `deselect_nodes()` or `deselect_edges()`. The graph is modified in place
-        and returned for chaining.
+        `select_*` methods add to the existing selection by default, so calling
+        `clear_selection()` before building a new selection is the usual way to make sure
+        nothing left over from an earlier step leaks into the next `*_ws` operation (passing
+        `set_op="replace"` to the `select_*` method does the same). It is also safe to call when
+        nothing is selected. To remove only some nodes or edges from the selection, use
+        `deselect_nodes()` or `deselect_edges()`. The graph is modified in place and returned
+        for chaining.
 
         Returns
         -------
@@ -24292,14 +24389,14 @@ class Graph:
         (accumulated, fresh)
         ```
 
-        Node and edge selections are reset together. Here the two nodes from the last step
-        are still selected and all four spoke edges are added; one call clears both:
+        An edge selection is cleared the same way. Here all four spoke edges are selected,
+        which also drops the node selection, and then cleared:
 
         ```{python}
         hub = graph.get_node_creation_order()[0]
         graph.select_edges_by_node([hub]).clear_selection()
 
-        (graph.count_selected_nodes(), graph.count_selected_edges())
+        graph.count_selected_edges()
         ```
 
         """
@@ -24318,7 +24415,7 @@ class Graph:
         ![Invert node selection](/assets/graphs/invert-node-selection.light.svg){.lightbox fig-alt="Before: nodes B and E are selected in the accent color. After invert_node_selection the selection flips: A, C, D, and F are selected and B and E are plain." width="100%"}
 
         Replaces the node selection with its complement: every currently selected node becomes
-        unselected and every unselected node becomes selected. With nothing selected, the result
+        unselected and every unselected node becomes selected. With no nodes selected, the result
         is that all nodes are selected.
 
         Inverting turns any selection rule into its negation without having to write a second
@@ -24329,8 +24426,9 @@ class Graph:
         - selecting "everything except" a neighborhood, community, or set of hubs
         - selecting all nodes (invert an empty selection) as input to a `*_ws` method
 
-        Only the node selection is inverted; the edge selection is left as is (see
-        `invert_edge_selection()`). The graph is modified in place and returned for chaining.
+        Any edge selection is cleared, since the graph holds a selection of nodes or of edges but
+        not both; to invert an edge selection, use `invert_edge_selection()`. The graph is
+        modified in place and returned for chaining.
 
         Returns
         -------
@@ -24389,14 +24487,14 @@ class Graph:
         ![Invert edge selection](/assets/graphs/invert-edge-selection.light.svg){.lightbox fig-alt="Before: edges A–B, B–E, and E–F are selected in the accent color. After invert_edge_selection the selection flips: the other four edges are selected and those three are plain." width="100%"}
 
         Replaces the edge selection with its complement: every currently selected edge becomes
-        unselected and every unselected edge becomes selected. With nothing selected, the result
+        unselected and every unselected edge becomes selected. With no edges selected, the result
         is that all edges are selected.
 
         This is the edge counterpart of `invert_node_selection()` and is handy for "keep only"
         operations -- select the edges to keep, invert, then `delete_edges_ws()` -- or for
         applying an attribute to every edge *except* a chosen few with `set_edge_attrs_ws()`.
-        Only the edge selection is inverted; the node selection is left as is. The graph is
-        modified in place and returned for chaining.
+        Any node selection is cleared, since the graph holds a selection of nodes or of edges but
+        not both. The graph is modified in place and returned for chaining.
 
         Returns
         -------
@@ -24794,10 +24892,10 @@ class Graph:
         Because the selection is replaced, the starting nodes are only kept if they are
         themselves adjacent to another selected node (or have a self-loop). To keep the
         starting nodes as well, use `select_nodes_in_neighborhood(mode="all")` instead, which
-        adds the k-hop neighborhood to the existing selection. In an undirected graph this
+        selects the seeds together with their k-hop neighborhood. In an undirected graph this
         behaves exactly like `trav_out()` and `trav_in()`. If no nodes are selected, nothing
-        happens. The edge selection is not affected. The graph is modified in place and
-        returned for chaining.
+        happens (an edge selection stays as it is). The graph is modified in place and returned
+        for chaining.
 
         Returns
         -------
@@ -25199,19 +25297,15 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection: replace it, or with add_to_selection=True keep it and add to it
+        if add_to_selection:
+            nodes_to_select = all_visited
+            if exclude_unmatched:
+                nodes_to_select = {n for n in all_visited if conditions(n)}
+        else:
+            nodes_to_select = final_nodes
         with self._no_recording():
-            if not add_to_selection:
-                self.clear_selection()
-
-            if add_to_selection:
-                nodes_to_select = all_visited
-                if exclude_unmatched:
-                    nodes_to_select = {n for n in all_visited if conditions(n)}
-            else:
-                nodes_to_select = final_nodes
-
-            if nodes_to_select:
-                self.select_nodes_by_id(list(nodes_to_select))
+            set_op = "union" if add_to_selection else "replace"
+            self.select_nodes_by_id(list(nodes_to_select), set_op=set_op)
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
@@ -25399,19 +25493,15 @@ class Graph:
                         final_nodes.add(node_id)
 
         # Update selection: replace it, or with add_to_selection=True keep it and add to it
+        if add_to_selection:
+            nodes_to_select = all_visited
+            if exclude_unmatched:
+                nodes_to_select = {n for n in all_visited if conditions(n)}
+        else:
+            nodes_to_select = final_nodes
         with self._no_recording():
-            if not add_to_selection:
-                self.clear_selection()
-
-            if add_to_selection:
-                nodes_to_select = all_visited
-                if exclude_unmatched:
-                    nodes_to_select = {n for n in all_visited if conditions(n)}
-            else:
-                nodes_to_select = final_nodes
-
-            if nodes_to_select:
-                self.select_nodes_by_id(list(nodes_to_select))
+            set_op = "union" if add_to_selection else "replace"
+            self.select_nodes_by_id(list(nodes_to_select), set_op=set_op)
 
         if self._recording_depth == 0:
             n = self.count_selected_nodes()
@@ -26302,6 +26392,18 @@ class Graph:
         nodes but not others, are represented as `None`, so Polars operations that respect
         nulls behave as expected.
 
+        A Polars column has one data type, so an attribute whose values differ in type from
+        node to node is reconciled: integers beside floats become floats, and single values
+        beside lists become one-item lists (a node read from Cypher's `(:Person:Actor)` has the
+        `type` `["Person", "Actor"]`, so a plain `"Person"` beside it reads `["Person"]`). Any
+        other mix, such as a string beside a number, gives an `Object` column that holds the
+        values unchanged.
+
+        The `id`, `label` and `degree` columns always hold the node IDs, labels and degrees: an
+        attribute with one of those names (such as the `degree` that `degrees()` stores, or a
+        Graphviz `label` read by `from_dot()`) is left out of the table. Read it with
+        `get_node_attrs()` instead.
+
         Examples
         --------
         Every node DataFrame starts with `id`, `label`, and `type`, followed by any custom
@@ -26349,44 +26451,29 @@ class Graph:
         df.filter(pl.col("degree") > 5)
         ```
         """
-        import polars as pl
+        return self._node_df(self.get_node_ids(limit=None))
 
-        node_ids = self.get_node_ids(limit=None)
+    def _node_df(self, node_ids: list[int]) -> pl.DataFrame:
+        """The `get_node_df()` table for the given nodes."""
         if not node_ids:
             return pl.DataFrame()
 
-        # Build data dictionary with mandatory columns first
         nodes = [self.get_node(nid) for nid in node_ids]
+        attrs = [(node.attributes or {}) if node else {} for node in nodes]
 
-        data = {
-            "id": node_ids,
-            "label": [node.label if node else None for node in nodes],
-            "type": [
-                node.attributes.get("type") if node and node.attributes else None for node in nodes
-            ],
-        }
+        # mandatory columns first, then the other attributes (alphabetically), then degree
+        columns = [
+            pl.Series("id", node_ids),
+            pl.Series("label", [node.label if node else None for node in nodes]),
+            _attr_column("type", [a.get("type") for a in attrs]),
+        ]
+        # attributes named like the built-in columns (a `degree` stored by `degrees()`, or a
+        # `label` read from DOT) give way to them
+        keys = set().union(*attrs) - {"id", "label", "type", "degree"}
+        columns += [_attr_column(key, [a.get(key) for a in attrs]) for key in sorted(keys)]
+        columns.append(pl.Series("degree", [self.get_degree(nid) for nid in node_ids]))
 
-        # Get all unique attribute keys (excluding 'type' since it's already handled)
-        attr_keys = set()
-        for node in nodes:
-            if node and node.attributes:
-                attr_keys.update(node.attributes.keys())
-
-        # Remove 'type' from attr_keys since it's a first-class column
-        attr_keys.discard("type")
-
-        # Extract other attributes (sorted alphabetically)
-        for key in sorted(attr_keys):
-            data[key] = [
-                node.attributes.get(key) if node and node.attributes else None for node in nodes
-            ]
-
-        # Add degree column last
-        data["degree"] = [self.get_degree(nid) for nid in node_ids]
-
-        # Create DataFrame and sort by id
-        df = pl.DataFrame(data)
-        return df.sort("id")
+        return pl.DataFrame(columns).sort("id")
 
     def get_node_df_ws(self) -> "pl.DataFrame":
         """
@@ -26473,44 +26560,7 @@ class Graph:
         graph.clear_selection().get_node_df_ws().shape
         ```
         """
-        import polars as pl
-
-        node_ids = self.get_selected_node_ids()
-        if not node_ids:
-            return pl.DataFrame()
-
-        # Build data dictionary with mandatory columns first
-        nodes = [self.get_node(nid) for nid in node_ids]
-
-        data = {
-            "id": node_ids,
-            "label": [node.label if node else None for node in nodes],
-            "type": [
-                node.attributes.get("type") if node and node.attributes else None for node in nodes
-            ],
-        }
-
-        # Get all unique attribute keys (excluding 'type' since it's already handled)
-        attr_keys = set()
-        for node in nodes:
-            if node and node.attributes:
-                attr_keys.update(node.attributes.keys())
-
-        # Remove 'type' from attr_keys since it's a first-class column
-        attr_keys.discard("type")
-
-        # Extract other attributes (sorted alphabetically)
-        for key in sorted(attr_keys):
-            data[key] = [
-                node.attributes.get(key) if node and node.attributes else None for node in nodes
-            ]
-
-        # Add degree column last
-        data["degree"] = [self.get_degree(nid) for nid in node_ids]
-
-        # Create DataFrame and sort by id
-        df = pl.DataFrame(data)
-        return df.sort("id")
+        return self._node_df(self.get_selected_node_ids())
 
     def get_edge_df(self) -> "pl.DataFrame":
         """
@@ -26542,7 +26592,10 @@ class Graph:
         attributes in alphabetical order, with rows sorted by `id` ascending. `weight` is
         treated as a first-class attribute column rather than a bare number so it can be
         filtered and aggregated with the rest of the schema. Missing `rel` values appear as
-        `None`.
+        `None`. Attributes whose values differ in type from edge to edge are reconciled as in
+        `get_node_df()`. The `id`, `source` and `target` columns always hold the edge IDs and
+        endpoints, so an attribute with one of those names is left out of the table, and so
+        is a `weight` attribute when any edge has a weight (`get_edge_attrs()` reads them).
 
         Examples
         --------
@@ -26592,54 +26645,38 @@ class Graph:
         df.group_by("rel").agg(pl.col("weight").mean())
         ```
         """
-        import polars as pl
+        return self._edge_df(self.get_edge_ids(limit=None))
 
-        edge_ids = self.get_edge_ids(limit=None)
+    def _edge_df(self, edge_ids: list[int]) -> pl.DataFrame:
+        """The `get_edge_df()` table for the given edges."""
         if not edge_ids:
             return pl.DataFrame()
 
-        # Get edge objects (avoid repeated get_edge calls)
-        edges_list = [self.get_edge(eid) for eid in edge_ids]
-
-        # Get source and target for each edge
+        edges = [self.get_edge(eid) for eid in edge_ids]
         endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+        attrs = [(e.attributes or {}) if e else {} for e in edges]
 
-        # Build ordered dictionary for consistent column order
-        data = {}
-        data["id"] = edge_ids
-        data["source"] = [e[0] if e else None for e in endpoints]
-        data["target"] = [e[1] if e else None for e in endpoints]
-
-        # Always include rel column (even if all null)
-        data["rel"] = [e.attributes.get("rel") if e and e.attributes else None for e in edges_list]
-
-        # Collect all attribute keys (excluding rel since it's first-class)
-        attr_keys = set()
-
-        # Check for weight
-        if any(e and e.weight is not None for e in edges_list):
-            attr_keys.add("weight")
-
-        # Add other attributes from dict
-        for edge in edges_list:
-            if edge and edge.attributes:
-                attr_keys.update(edge.attributes.keys())
-
-        # Remove rel from generic attributes (already handled as first-class)
-        attr_keys.discard("rel")
-
-        # Sort remaining attributes alphabetically
-        for key in sorted(attr_keys):
-            if key == "weight":
-                data[key] = [e.weight if e else None for e in edges_list]
+        # mandatory columns first (`rel` even if all null), then the other attributes
+        # alphabetically, with the weight among them if any edge has one
+        columns = [
+            pl.Series("id", edge_ids),
+            pl.Series("source", [e[0] if e else None for e in endpoints]),
+            pl.Series("target", [e[1] if e else None for e in endpoints]),
+            _attr_column("rel", [a.get("rel") for a in attrs]),
+        ]
+        # attributes named like the built-in columns give way to them, and a `weight`
+        # attribute to the edge weights, if any edge has one
+        keys = set().union(*attrs) - {"id", "source", "target", "rel"}
+        weighted = any(e and e.weight is not None for e in edges)
+        if weighted:
+            keys.add("weight")
+        for key in sorted(keys):
+            if key == "weight" and weighted:
+                columns.append(pl.Series("weight", [e.weight if e else None for e in edges]))
             else:
-                data[key] = [
-                    e.attributes.get(key) if e and e.attributes else None for e in edges_list
-                ]
+                columns.append(_attr_column(key, [a.get(key) for a in attrs]))
 
-        # Create DataFrame and sort by id
-        df = pl.DataFrame(data)
-        return df.sort("id")
+        return pl.DataFrame(columns).sort("id")
 
     def get_edge_df_ws(self) -> "pl.DataFrame":
         """
@@ -26727,54 +26764,7 @@ class Graph:
         graph.get_edge_df_ws()
         ```
         """
-        import polars as pl
-
-        edge_ids = self.get_selected_edge_ids()
-        if not edge_ids:
-            return pl.DataFrame()
-
-        # Get edge objects (avoid repeated get_edge calls)
-        edges_list = [self.get_edge(eid) for eid in edge_ids]
-
-        # Get source and target for each edge
-        endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
-
-        # Build ordered dictionary for consistent column order
-        data = {}
-        data["id"] = edge_ids
-        data["source"] = [e[0] if e else None for e in endpoints]
-        data["target"] = [e[1] if e else None for e in endpoints]
-
-        # Always include rel column (even if all null)
-        data["rel"] = [e.attributes.get("rel") if e and e.attributes else None for e in edges_list]
-
-        # Collect all attribute keys (excluding rel since it's first-class)
-        attr_keys = set()
-
-        # Check for weight
-        if any(e and e.weight is not None for e in edges_list):
-            attr_keys.add("weight")
-
-        # Add other attributes from dict
-        for edge in edges_list:
-            if edge and edge.attributes:
-                attr_keys.update(edge.attributes.keys())
-
-        # Remove rel from generic attributes (already handled as first-class)
-        attr_keys.discard("rel")
-
-        # Sort remaining attributes alphabetically
-        for key in sorted(attr_keys):
-            if key == "weight":
-                data[key] = [e.weight if e else None for e in edges_list]
-            else:
-                data[key] = [
-                    e.attributes.get(key) if e and e.attributes else None for e in edges_list
-                ]
-
-        # Create DataFrame and sort by id
-        df = pl.DataFrame(data)
-        return df.sort("id")
+        return self._edge_df(self.get_selected_edge_ids())
 
     def mutate_node_attrs_ws(self, node_attr: str, func: Callable) -> "Graph":
         """
@@ -41634,12 +41624,11 @@ class Graph:
 
         ![Subgraph from the selection](/assets/graphs/transform-to-subgraph-ws.light.svg){.lightbox fig-alt="Left: nodes A, B, C, and E are selected in the accent color. Right: the new graph keeps just those four nodes and the three edges among them, A–B, B–C, and B–E; nodes D and F and every edge touching them are dropped, shown dashed." width="100%"}
 
-        Extracts the currently selected nodes and/or edges into a new Graph object. The behavior
+        Extracts the currently selected nodes or edges into a new Graph object. The behavior
         depends on what's selected:
 
         - nodes selected: include those nodes plus all edges between them
         - edges selected: include those edges plus their endpoint nodes
-        - both selected: uses node selection (ignores edge selection)
 
         Nodes and edges keep their IDs, labels, weights and attributes, so results can be
         matched back to the original graph by ID.
