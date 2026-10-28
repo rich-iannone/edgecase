@@ -12,6 +12,7 @@ This module imports nothing from the rest of EdgeCase, so that both `io` and `gr
 
 from __future__ import annotations
 
+import itertools
 import math
 import numbers
 import re
@@ -990,7 +991,10 @@ def order(a: Any, b: Any) -> Optional[int]:
         return len(a) - len(b)
     if ka == "number" and (a != a or b != b):
         return None
-    return (a > b) - (a < b)
+    try:
+        return bool(a > b) - bool(a < b)
+    except Exception:  # an odd attribute value that can't be ordered
+        return None
 
 
 _ORDERINGS = {
@@ -1570,16 +1574,105 @@ class Plan:
 # Matching
 # =============================================================================
 
+_SCALARS = (bool, int, float, str)
+_MIRROR = {"=": "=", "<>": "<>", "<": ">", "<=": ">=", ">": "<", ">=": "<="}
+
+
+def _native(expr: Expr, kinds: dict[str, str], index: dict[str, int],
+            evaluator: Evaluator) -> Optional[tuple]:
+    """The native form of a condition, which the Rust search checks without calling Python (see
+    `src/cypher.rs`), or `None` when it has none. Slots are given by position (`index`).
+
+    The forms are label and type tests on a variable, comparisons of a property or an `id()`
+    with a constant scalar, `IN` a list of constant scalars, `IS NULL` and `exists()` on a
+    property or variable, and comparisons of two IDs (`id(a) < id(b)`, or `a = b` for two
+    variables of the same kind). A constant is a literal or parameter whose value is exactly
+    `None`, a `bool`, an `int`, a `float` or a `str`, so that Rust reads it as Python does.
+    """
+
+    def single(e: Expr) -> Optional[int]:
+        # a node or relationship variable (not a variable-length one)
+        if isinstance(e, Var) and kinds[e.name] in ("node", "relationship"):
+            return index[e.name]
+        return None
+
+    def operand(e: Expr) -> Optional[tuple]:
+        if isinstance(e, Prop) and single(e.subject) is not None:
+            return ("prop", single(e.subject), e.key)
+        if (isinstance(e, Call) and e.name.lower() == "id" and len(e.args) == 1
+                and single(e.args[0]) is not None):
+            return ("id", single(e.args[0]))
+        return None
+
+    def constant(e: Expr) -> tuple[bool, Any]:
+        # `(True, value)` for a literal or parameter scalar
+        if isinstance(e, (Literal, Param)):
+            value = evaluator.compile(e)({})
+            if value is None or type(value) in _SCALARS:
+                return True, value
+        return False, None
+
+    def constants(e: Expr) -> Optional[list]:
+        if isinstance(e, ListExpr):
+            found = [constant(item) for item in e.items]
+            return [v for _, v in found] if all(ok for ok, _ in found) else None
+        if isinstance(e, (Literal, Param)):
+            value = evaluator.compile(e)({})
+            if (type(value) in (list, tuple)
+                    and all(v is None or type(v) in _SCALARS for v in value)):
+                return list(value)
+        return None
+
+    if isinstance(expr, HasLabels):
+        slot = single(expr.subject)
+        return None if slot is None else ("labels", slot, [list(g) for g in expr.labels])
+    if isinstance(expr, IsNull):
+        if isinstance(expr.operand, Var):
+            return ("null", index[expr.operand.name], None, expr.negated)
+        found = operand(expr.operand)
+        if found is not None and found[0] == "prop":
+            return ("null", found[1], found[2], expr.negated)
+        return None
+    if isinstance(expr, Call) and expr.name.lower() == "exists" and len(expr.args) == 1:
+        found = operand(expr.args[0])
+        if found is not None and found[0] == "prop":
+            return ("null", found[1], found[2], True)
+        return None
+    if not isinstance(expr, Compare):
+        return None
+    op, left, right = expr.op, expr.left, expr.right
+    if op == "IN":
+        lhs, items = operand(left), constants(right)
+        return None if lhs is None or items is None else ("in", lhs, items)
+    if op not in _MIRROR:
+        return None
+    lhs, rhs = operand(left), operand(right)
+    if lhs is not None and rhs is not None:
+        if lhs[0] == rhs[0] == "id":
+            return ("ids", lhs[1], rhs[1], op)
+        return None
+    if lhs is not None or rhs is not None:
+        ok, value = constant(right if lhs is not None else left)
+        if not ok:
+            return None
+        return ("cmp", lhs, op, value) if lhs is not None else ("cmp", rhs, _MIRROR[op], value)
+    a, b = single(left), single(right)
+    if (op in ("=", "<>") and a is not None and b is not None
+            and kinds[left.name] == kinds[right.name]):
+        return ("ids", a, b, op)
+    return None
+
 
 class Matcher:
     """Finds the matches of a parsed query in a Rust graph, by a backtracking search over its
     `Plan`.
 
-    - **Matches:** `matches()` yields each match as a dict of slot → value, covering every slot,
-      anonymous ones included. A node or relationship slot holds an ID, a variable-length
-      relationship a tuple of edge IDs in pattern order, and a slot that an `OPTIONAL MATCH`
-      found nothing for holds `None`. Matches come in search order, which is fixed for a given
-      graph and query.
+    - **Matches:** `rows()` gives each match as a tuple with a value for every slot of the plan,
+      anonymous ones included, in the order of `plan.slots`; `binding()` turns one into a dict
+      of slot → value, and `matches()` yields those dicts. A node or relationship slot holds an
+      ID, a variable-length relationship a tuple of edge IDs in pattern order, and a slot that an
+      `OPTIONAL MATCH` found nothing for holds `None`. Matches come in search order, which is
+      fixed for a given graph and query.
     - **Clauses:** each `MATCH` extends the matches of the clauses before it, and drops those it
       can't extend. An `OPTIONAL MATCH` keeps them instead, with its new slots `None`. A pattern
       that uses a `None` slot again matches nothing.
@@ -1590,16 +1683,25 @@ class Matcher:
     - **When errors are raised:** conditions are compiled when the matcher is made, so a missing
       parameter or an unknown function raises then, even on an empty graph. Errors in values
       (`WHERE n.name`, say) raise when a row meets them.
+    - **Engines:** with `engine="rust"`, the search runs in Rust (`src/cypher.rs`), which checks
+      the conditions that have a native form (`_native()`) itself and calls the compiled Python
+      function for the rest. With `engine="python"`, it runs here, as the reference: both give
+      the same matches in the same order, and raise the same errors. The Rust search finds all
+      the matches (or the first `limit`) before giving any, while the Python one is lazy.
     """
 
     def __init__(self, query: Query, text: str, graph: Any, params: Optional[dict] = None,
-                 label_key: Optional[str] = "name", distinct_nodes: bool = False):
+                 label_key: Optional[str] = "name", distinct_nodes: bool = False,
+                 engine: str = "rust"):
+        if engine not in ("rust", "python"):
+            raise ValueError(f"engine must be 'rust' or 'python', not {engine!r}")
         self.plan = plan = Plan(query, graph.is_directed)
         self.graph = graph
         self.distinct_nodes = distinct_nodes
+        self.engine = engine
         self.view = GraphView(graph, label_key)
-        self.evaluator = evaluator = Evaluator(
-            text, {**plan.slots, plan.edge_slot: "relationship"}, params, self.view)
+        kinds = {**plan.slots, plan.edge_slot: "relationship"}
+        self.evaluator = evaluator = Evaluator(text, kinds, params, self.view)
         self._stages = [(
             stage,
             [evaluator.condition(c) for c in stage.entry],
@@ -1609,6 +1711,49 @@ class Matcher:
              for step in stage.steps],
         ) for stage in plan.stages]
         self._all_nodes: Optional[list[int]] = None
+        self._names = list(plan.slots)
+        index = {name: i for i, name in enumerate(kinds)}
+        self._node_slots = [index[s] for s, kind in plan.slots.items() if kind == "node"]
+        self._edge_slots = [(index[s], kind == "relationships")
+                            for s, kind in plan.slots.items() if kind != "node"]
+        self._paths = [(index[rel], index[left]) for rel, (left, _) in plan.paths.items()]
+        self._program = self._compile(kinds, index, label_key) if engine == "rust" else None
+
+    def _compile(self, kinds: dict[str, str], index: dict[str, int],
+                 label_key: Optional[str]) -> tuple:
+        """The plan as a program for the Rust search (`src/cypher.rs`), with slots given by
+        their position in `kinds` (the plan's slots, then its `edge_slot`):
+
+        - program: `(names, kinds, label_key, distinct_nodes, stages)`;
+        - stage: `(optional, entry, new, joined, steps)`;
+        - step: `(kind, node, rel, start, direction, seed, conditions, hops, edge_conditions,
+          reverse, fixed)`, where `seed` is `None` or a function of no arguments that gives
+          the sorted IDs a scan tries;
+        - condition: `(native, fallback)`, a form from `_native()` (or `None`) and the
+          compiled function of a binding dict.
+        """
+        evaluator = self.evaluator
+
+        def conds(exprs, fns):
+            return [(_native(e, kinds, index, evaluator), fn) for e, fn in zip(exprs, fns)]
+
+        stages = []
+        for stage, entry, checks, edge_checks, seeds in self._stages:
+            steps = []
+            for step, tests, edge_tests, seed in zip(stage.steps, checks, edge_checks, seeds):
+                steps.append((
+                    step.kind, index[step.node],
+                    None if step.rel is None else index[step.rel],
+                    None if step.start is None else index[step.start],
+                    step.direction,
+                    None if seed is None else (lambda seed=seed: self._candidates(seed)),
+                    conds(step.conditions, tests), step.hops,
+                    conds(step.edge_conditions, edge_tests), step.reverse, step.fixed,
+                ))
+            stages.append((stage.optional, conds(stage.entry, entry),
+                           [index[s] for s in stage.new], [index[s] for s in stage.joined],
+                           steps))
+        return (list(kinds), list(kinds.values()), label_key, self.distinct_nodes, stages)
 
     def _candidates(self, seed) -> list[int]:
         """The nodes a scan tries: all of them, or those an `id()` condition names."""
@@ -1626,14 +1771,44 @@ class Matcher:
             self._all_nodes = sorted(self.graph.get_node_ids())
         return self._all_nodes
 
+    def rows(self, limit: Optional[int] = None) -> list[tuple]:
+        """The matches, or the first `limit` of them, as tuples."""
+        if limit == 0:
+            return []
+        if self._program is not None:
+            return self.graph._cypher_match(self._program, limit)
+        return list(itertools.islice(self._search(), limit))
+
+    def count(self) -> tuple[int, Optional[tuple]]:
+        """The number of matches, and the first one (or `None`)."""
+        if self._program is not None:
+            return self.graph._cypher_match(self._program, None, True)
+        n, first = 0, None
+        for row in self._search():
+            if first is None:
+                first = row
+            n += 1
+        return n, first
+
+    def binding(self, row: tuple) -> dict[str, Any]:
+        """A match as a dict of slot → value."""
+        return dict(zip(self._names, row))
+
     def matches(self):
+        """The matches as dicts (see `binding()`), lazily with the Python engine."""
+        rows = self._search() if self._program is None else self.rows()
+        for row in rows:
+            yield self.binding(row)
+
+    def _search(self):
+        """The Python search, yielding each match as a tuple."""
         binding: dict[str, Any] = {}
-        stages = self._stages
+        stages, names = self._stages, self._names
         last = len(stages)
 
         def run(s):
             if s == last:
-                yield dict(binding)
+                yield tuple([binding[name] for name in names])
                 return
             stage = stages[s][0]
             found = False
@@ -1768,13 +1943,12 @@ class Matcher:
 
         yield from search(0)
 
-    def nodes_of(self, binding: dict[str, Any]) -> list[int]:
+    def nodes_of(self, row: tuple) -> list[int]:
         """The nodes of a match: its node slots, then the inner nodes of its variable-length
         paths, skipping `None` slots."""
-        nodes = [binding[s] for s, kind in self.plan.slots.items()
-                 if kind == "node" and binding.get(s) is not None]
-        for rel_slot, (left, _) in self.plan.paths.items():
-            edges, node = binding.get(rel_slot), binding.get(left)
+        nodes = [row[i] for i in self._node_slots if row[i] is not None]
+        for rel, left in self._paths:
+            edges, node = row[rel], row[left]
             if not edges:
                 continue
             for edge in edges[:-1]:
@@ -1783,12 +1957,12 @@ class Matcher:
                 nodes.append(node)
         return nodes
 
-    def edges_of(self, binding: dict[str, Any]) -> list[int]:
+    def edges_of(self, row: tuple) -> list[int]:
         """The edges of a match, those of its variable-length paths included, skipping `None`
         slots."""
         edges = []
-        for s, kind in self.plan.slots.items():
-            value = binding.get(s)
-            if value is not None and kind != "node":
-                edges.extend(value if kind == "relationships" else [value])
+        for i, path in self._edge_slots:
+            value = row[i]
+            if value is not None:
+                edges.extend(value if path else [value])
         return edges
