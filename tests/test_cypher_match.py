@@ -2,8 +2,11 @@
 
 import itertools
 from collections import Counter
+from decimal import Decimal
+from fractions import Fraction
 
 import edgecase as ec
+import numpy as np
 import pytest
 from edgecase.cypher import (
     Evaluator,
@@ -19,14 +22,32 @@ from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
 
 
+def matches(g, text, params=None, distinct_nodes=False, label_key="name"):
+    """The matches, as dicts, from both engines, which must give the same ones in the same
+    order, or raise the same error."""
+    query = parse_query(text)
+    found = {}
+    for engine in ("python", "rust"):
+        try:
+            matcher = Matcher(query, text, g._graph, params, label_key, distinct_nodes, engine)
+            found[engine] = list(matcher.matches())
+        except Exception as e:
+            found[engine] = e
+    python, rust = found["python"], found["rust"]
+    if isinstance(python, Exception) or isinstance(rust, Exception):
+        assert type(python) is type(rust) and str(python) == str(rust), (python, rust)
+        raise rust
+    assert python == rust
+    return rust
+
+
 def rows(g, text, params=None, distinct_nodes=False, label_key="name"):
     """The named variables of each match, as tuples of labels (nodes), IDs (edges), tuples of
     IDs (paths) and `None`s, in order."""
     query = parse_query(text)
-    matcher = Matcher(query, text, g._graph, params, label_key, distinct_nodes)
     names = list(query.variables)
     out = []
-    for b in matcher.matches():
+    for b in matches(g, text, params, distinct_nodes, label_key):
         out.append(tuple(
             g.get_label_from_id(b[v]) if query.variables[v] == "node" and b[v] is not None
             else b[v] for v in names
@@ -220,10 +241,32 @@ class TestErrorsAndEmpty:
         with pytest.raises(ValueError, match="WHERE needs true, false or null, not 1"):
             rows(g, "MATCH (x) WHERE x.k")
 
-    def test_matches_is_lazy(self, g):
+    def test_the_python_engine_is_lazy(self, g):
         text = "MATCH (x), (y), (z)"
-        matches = Matcher(parse_query(text), text, g._graph).matches()
-        assert len(list(itertools.islice(matches, 3))) == 3
+        found = Matcher(parse_query(text), text, g._graph, engine="python").matches()
+        assert len(list(itertools.islice(found, 3))) == 3
+
+    @pytest.mark.parametrize("limit", [0, 1, 5, 64, 65, None])
+    def test_limit_gives_the_first_rows(self, g, limit):
+        text = "MATCH (x), (y), (z)"
+        query = parse_query(text)
+        python = Matcher(query, text, g._graph, engine="python").rows(limit)
+        rust = Matcher(query, text, g._graph).rows(limit)
+        assert rust == python
+        assert len(python) == (64 if limit is None else min(64, limit))
+
+    def test_count_gives_the_number_and_the_first_row(self, g):
+        text = "MATCH (x)-->(y)"
+        query = parse_query(text)
+        for engine in ("python", "rust"):
+            matcher = Matcher(query, text, g._graph, engine=engine)
+            assert matcher.count() == (5, matcher.rows()[0])
+        text = "MATCH (x {k: 5})"
+        assert Matcher(parse_query(text), text, g._graph).count() == (0, None)
+
+    def test_unknown_engine(self, g):
+        with pytest.raises(ValueError, match="engine must be 'rust' or 'python'"):
+            Matcher(parse_query("MATCH (x)"), "MATCH (x)", g._graph, engine="java")
 
     def test_search_order_is_fixed(self, g):
         text = "MATCH (x)--(y)--(z)"
@@ -661,7 +704,7 @@ def test_typical_queries_against_the_oracle(text, g, distinct_nodes):
     expected = oracle(g, text, None, distinct_nodes)
     found = Counter(
         tuple(b[v] for v in query.variables)
-        for b in Matcher(query, text, g._graph, distinct_nodes=distinct_nodes).matches()
+        for b in matches(g, text, distinct_nodes=distinct_nodes)
     )
     assert found == expected
 
@@ -676,6 +719,193 @@ def test_against_the_oracle(g, text, distinct_nodes):
     expected = oracle(g, text, params, distinct_nodes)
     found = Counter(
         tuple(b[v] for v in query.variables)
-        for b in Matcher(query, text, g._graph, params, distinct_nodes=distinct_nodes).matches()
+        for b in matches(g, text, params, distinct_nodes=distinct_nodes)
     )
     assert found == expected, text
+
+
+# =============================================================================
+# The Rust engine against the Python one
+# =============================================================================
+# `matches()` runs both engines and checks that they agree, so the tests above check the Rust
+# engine too. These aim at the conditions it checks natively, with values it must leave to
+# Python.
+
+
+class _NoEquals:
+    """An attribute value whose comparisons raise."""
+
+    def __eq__(self, other):
+        raise RuntimeError("can't compare")
+
+    __lt__ = __gt__ = __le__ = __ge__ = __eq__
+    __hash__ = object.__hash__
+
+
+_ODD_VALUES = [
+    None, 0, 1, 2, -1, 1.0, 2.5, float("nan"), float("inf"), True, False, "1", "a", "b", "",
+    [1], [1, 2], ("a",), {"x": 1}, np.int64(1), np.float64(2.5), np.bool_(True), np.str_("a"),
+    Fraction(1, 2), Decimal("1"), 2**70, _NoEquals(),
+]
+_ODD_TYPES = ["P", "Q", ["P", "Q"], ("Q",), [], ["P", 1], 5, None, np.str_("P"), [np.str_("Q")]]
+
+
+@st.composite
+def odd_graphs(draw):
+    g = ec.Graph(directed=draw(st.booleans()))
+    n = draw(st.integers(1, 4))
+    for i in range(n):
+        attrs = {}
+        for key, pool in (("v", _ODD_VALUES), ("type", _ODD_TYPES),
+                          ("name", [None, "n0", "x", 1])):
+            value = draw(st.sampled_from(pool))
+            if value is not None or draw(st.booleans()):
+                attrs[key] = value
+        g.add_node(f"n{i}", **attrs)
+    for _ in range(draw(st.integers(0, 5))):
+        attrs = {}
+        rel = draw(st.sampled_from(["A", "B", 1, None, np.str_("A")]))
+        if rel is not None:
+            attrs["rel"] = rel
+        value = draw(st.sampled_from(_ODD_VALUES))
+        if value is not None or draw(st.booleans()):
+            attrs["v"] = value
+        weight = draw(st.sampled_from([None, 1, 2.5, "heavy", 2]))
+        if weight in ("heavy", 2):  # a `weight` attribute, on an edge with no weight
+            attrs["weight"], weight = weight, None
+        ids = sorted(g.get_node_ids(limit=None))
+        g._graph.add_edge(ec._core.Edge(
+            id=0, source=ids[draw(st.integers(0, n - 1))], target=ids[draw(st.integers(0, n - 1))],
+            weight=weight, attributes=attrs or None,
+        ))
+    return g
+
+
+_CONSTANTS = ["1", "2", "2.5", "1.0", "-1", "'a'", "'1'", "true", "false", "null", "$p", "$q",
+              "[1]", "{x: 1}"]
+_CONDITIONS = [
+    "{s}.v {op} {c}", "{c} {op} {s}.v", "{s}.v IN [{c}, {c}]", "{s}.v IN $list", "{s}.v IN {c}",
+    "{s}.v IS NULL", "{s}.v IS NOT NULL", "exists({s}.v)", "{s} IS NULL", "a:P", "a:P|Q",
+    "a:P:Q", "r:A", "r:A|B", "a.type = 'P'", "a.name {op} {c}", "a.name = 'n0'", "r.weight {op} {c}",
+    "id(a) {op} id(b)", "id(a) {op} {c}", "{c} {op} id(r)", "id(r) IN $list", "a = b", "a <> b",
+    "a {op} b", "a = r", "r <> r", "{s}.v", "{s}.v = {s}.v", "NOT {s}.v = {c}",
+]
+
+
+@st.composite
+def odd_queries(draw):
+    conditions = []
+    for _ in range(draw(st.integers(1, 2))):
+        conditions.append(draw(st.sampled_from(_CONDITIONS)).format(
+            s=draw(st.sampled_from(["a", "b", "r"])),
+            op=draw(st.sampled_from(["=", "<>", "<", "<=", ">", ">="])),
+            c=draw(st.sampled_from(_CONSTANTS)),
+        ))
+    pattern = draw(st.sampled_from([
+        "MATCH (a)-[r]-(b)", "MATCH (a)-[r]->(b)", "MATCH (a), (b)-[r]->()",
+        "MATCH (a) OPTIONAL MATCH (a)-[r]->(b)",
+    ]))
+    return f"{pattern} WHERE " + " AND ".join(conditions)
+
+
+@given(g=odd_graphs(), text=odd_queries(), p=st.sampled_from(_ODD_VALUES),
+       q=st.sampled_from(_ODD_VALUES), items=st.lists(st.sampled_from(_ODD_VALUES), max_size=3),
+       label_key=st.sampled_from(["name", "v", None]), distinct_nodes=st.booleans())
+@settings(max_examples=500, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_odd_values(g, text, p, q, items, label_key, distinct_nodes):
+    params = {"p": p, "q": q, "list": tuple(items) if len(items) == 2 else items}
+    try:
+        matches(g, text, params, distinct_nodes, label_key)
+    except (ValueError, RuntimeError):
+        pass  # `matches()` has checked that both engines raise it
+
+
+@pytest.mark.parametrize("text", [
+    "MATCH (a) WHERE a.v = 1", "MATCH (a) WHERE a.v < 2", "MATCH (a) WHERE a.v IN [1, 'a']",
+    "MATCH (a) WHERE a.v = $p", "MATCH (a) WHERE a.v <> 1", "MATCH (a) WHERE a.v >= 1",
+])
+def test_engines_agree_on_values_rust_cant_read(text):
+    g = ec.Graph()
+    for i, value in enumerate(_ODD_VALUES):
+        g.add_node(f"n{i}", v=value)
+    assert matches(g, text, {"p": np.int64(1)})  # (some match, and both engines agree on which)
+
+
+class TestRustEngine:
+    def test_a_python_error_in_a_fallback_propagates(self):
+        g = ec.Graph().add_node("a", v=1)
+        with pytest.raises(ValueError, match="WHERE needs true, false or null, not 1"):
+            matches(g, "MATCH (a) WHERE a.v")
+        with pytest.raises(ValueError, match="toLower\\(\\) can't take 1"):
+            matches(g, "MATCH (a) WHERE toLower(a.v) = 'x'")
+
+    def test_seed_errors_raise_on_entering_the_clause(self):
+        # the scan of `a` finds nothing, but the seed of `b` is worked out first all the same
+        g = ec.Graph(directed=True).add_node("x", type="Q")
+        with pytest.raises(ValueError, match="toLower\\(\\) can't take 5"):
+            matches(g, "MATCH (a:P), (b) WHERE id(b) = toLower(5)")
+        assert matches(g, "MATCH (a:P) MATCH (b) WHERE id(b) = toLower(5)") == []
+
+    def test_nulls_from_optional_match(self):
+        g = ec.Graph(directed=True).add_nodes(["a", "b"]).add_edge("a", "b")
+        found = rows(g, "MATCH (x) OPTIONAL MATCH (x)-[r]->(y) WHERE y.k IS NULL AND id(r) > -1")
+        assert found == [("a", edge(g, 1), "b"), ("b", None, None)]
+
+    def test_a_long_path_does_not_overflow_the_stack(self):
+        n = 20_000
+        g = ec.Graph(directed=True).add_nodes([f"n{i}" for i in range(n)])
+        g.add_edges([(f"n{i}", f"n{i + 1}") for i in range(n - 1)])
+        text = "MATCH (a)-[r*]->(b) WHERE id(a) = $start AND id(b) = $end"
+        query = parse_query(text)
+        ids = sorted(g.get_node_ids(limit=None))
+        params = {"start": ids[0], "end": ids[-1]}
+        (row,) = Matcher(query, text, g._graph, params).rows()
+        assert len(row[1]) == n - 1
+
+    def test_rows_are_tuples_in_slot_order(self, g):
+        text = "MATCH (x)-[r*1..2]->(y)-->(z) WHERE id(x) = 1"
+        matcher = Matcher(parse_query(text), text, g._graph)
+        assert list(matcher.plan.slots) == ["x", "r", "y", " 0", "z"]
+        for row in matcher.rows():
+            assert isinstance(row, tuple) and isinstance(row[1], tuple) and len(row) == 5
+            assert matcher.binding(row) == dict(zip(matcher.plan.slots, row))
+
+
+class TestNative:
+    """Which conditions the Rust search checks itself."""
+
+    def native(self, condition, params=None, g=None):
+        text = f"MATCH (a)-[r]->(b)-[p*]->(c) WHERE {condition}"
+        g = g or ec.Graph(directed=True)
+        matcher = Matcher(parse_query(text), text, g._graph, params)
+        (cond,) = [c for s in matcher._program[4] for step in s[4] for c in step[6]]
+        return cond[0]
+
+    @pytest.mark.parametrize("condition, expected", [
+        ("a:P:Q|R", ("labels", 0, [["P"], ["Q", "R"]])),
+        ("r:A", ("labels", 1, [["A"]])),
+        ("a.k = 1", ("cmp", ("prop", 0, "k"), "=", 1)),
+        ("1 < a.k", ("cmp", ("prop", 0, "k"), ">", 1)),
+        ("a.k >= 'x'", ("cmp", ("prop", 0, "k"), ">=", "x")),
+        ("id(r) <= $p", ("cmp", ("id", 1), "<=", 2.5)),
+        ("a.k = null", ("cmp", ("prop", 0, "k"), "=", None)),
+        ("a.k IN [1, $p, null]", ("in", ("prop", 0, "k"), [1, 2.5, None])),
+        ("id(a) IN $list", ("in", ("id", 0), [1, 2])),
+        ("a.k IS NULL", ("null", 0, "k", False)),
+        ("p IS NOT NULL", ("null", 3, None, True)),
+        ("exists(r.w)", ("null", 1, "w", True)),
+        ("id(a) < id(b)", ("ids", 0, 2, "<")),
+        ("a <> b", ("ids", 0, 2, "<>")),
+        ("a = r", None),
+        ("a < b", None),
+        ("a.k = b.k", None),
+        ("a.k = [1]", None),
+        ("a.k = $np", None),
+        ("a.k IN $odd", None),
+        ("a.k STARTS WITH 'x'", None),
+        ("a:P OR b:Q", None),
+        ("size(p) = 1", None),
+    ])
+    def test_forms(self, condition, expected):
+        params = {"p": 2.5, "list": (1, 2), "np": np.int64(1), "odd": [1, [2]]}
+        assert self.native(condition, params) == expected
