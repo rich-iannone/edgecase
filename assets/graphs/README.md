@@ -784,6 +784,32 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Subgraph from the selection](/assets/graphs/transform-to-subgraph-ws.light.svg){.lightbox fig-alt="Left: nodes A, B, C, and E are selected in the accent color. Right: the new graph keeps just those four nodes and the three edges among them, A–B, B–C, and B–E; nodes D and F and every edge touching them are dropped, shown dashed." width="100%"}
 ```
 
+## querying
+
+### `count_matches()` — Count the matches of a pattern
+
+<img src="count-matches.light.svg" alt="A directed six-node grid A to F, where B and C point at each other and so do D and E; those four edges are in the accent color. The query MATCH (a)--&gt;(b)--&gt;(a) matches each 2-cycle once from each end, so the card lists B→C→B, C→B→C, D→E→D, and E→D→E, and the count is 4." width="570">
+
+```markdown
+![Count the matches of a pattern](/assets/graphs/count-matches.light.svg){.lightbox fig-alt="A directed six-node grid A to F, where B and C point at each other and so do D and E; those four edges are in the accent color. The query MATCH (a)-->(b)-->(a) matches each 2-cycle once from each end, so the card lists B→C→B, C→B→C, D→E→D, and E→D→E, and the count is 4." width="100%"}
+```
+
+### `match()` — Match a pattern
+
+<img src="match.light.svg" alt="A directed six-node grid A to F, each node tagged with its integer id 1 to 6, where B and C point at each other and so do D and E. The query MATCH (a)--&gt;(b)--&gt;(a) finds the 2-cycles, and the result is a table with columns a and b holding node ids, one row per match: 2 3, 3 2, 4 5, and 5 4. Each cycle matches twice, once from each end. The first row and its match, B and C with both edges, are in the accent color." width="570">
+
+```markdown
+![Match a pattern](/assets/graphs/match.light.svg){.lightbox fig-alt="A directed six-node grid A to F, each node tagged with its integer id 1 to 6, where B and C point at each other and so do D and E. The query MATCH (a)-->(b)-->(a) finds the 2-cycles, and the result is a table with columns a and b holding node ids, one row per match: 2 3, 3 2, 4 5, and 5 4. Each cycle matches twice, once from each end. The first row and its match, B and C with both edges, are in the accent color." width="100%"}
+```
+
+### `select_match()` — Select the matches of a pattern
+
+<img src="select-match.light.svg" alt="A directed six-node grid A to F with no selection, where B and C point at each other and so do D and E. After select_match with MATCH (a)--&gt;(b)--&gt;(a), every node in a 2-cycle is selected: B, C, D, and E, in the accent color. A and F are in no cycle and stay plain." width="570">
+
+```markdown
+![Select the matches of a pattern](/assets/graphs/select-match.light.svg){.lightbox fig-alt="A directed six-node grid A to F with no selection, where B and C point at each other and so do D and E. After select_match with MATCH (a)-->(b)-->(a), every node in a 2-cycle is selected: B, C, D, and E, in the accent color. A and F are in no cycle and stay plain." width="100%"}
+```
+
 ## data
 
 ### `adjacency_matrix()` — Adjacency matrix
