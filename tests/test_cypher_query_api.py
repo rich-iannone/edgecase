@@ -324,6 +324,104 @@ class TestSelectMatch:
 
 
 # =============================================================================
+# Variable-length relationships and several clauses
+# =============================================================================
+
+
+@pytest.fixture
+def chain():
+    return ec.Graph(directed=True).add_nodes(list("ABCD")).add_edges(
+        [("A", "B"), ("B", "C"), ("C", "D")])
+
+
+def edge_ids(g):
+    return sorted(g.get_edge_ids(limit=None))
+
+
+class TestPaths:
+    def test_a_path_is_a_list_column(self, chain):
+        e1, e2, e3 = edge_ids(chain)
+        df = chain.match("MATCH (a {name: 'A'})-[r*1..3]->(b)")
+        assert df.schema == {"a": pl.Int64, "r": pl.List(pl.Int64), "b": pl.Int64}
+        assert df["r"].to_list() == [[e1], [e1, e2], [e1, e2, e3]]
+        assert labels(chain, df["b"]) == ["B", "C", "D"]
+
+    def test_paths_in_return_and_distinct(self, chain):
+        df = chain.match("MATCH (a)-[r*0..1]->(b) WHERE size(r) = 0 RETURN DISTINCT r")
+        assert df.schema == {"r": pl.List(pl.Int64)} and df["r"].to_list() == [[]]
+        assert chain.count_matches("MATCH (a)-[r*0..1]->(b) RETURN DISTINCT r") == 4
+
+    def test_count(self, chain):
+        assert chain.count_matches("MATCH (a)-[*]->(b)") == 6
+        assert chain.count_matches("MATCH (a)-[*]-(b)") == 12
+        assert chain.count_matches("MATCH (a)-[*0..]-(b)") == 16
+
+    def test_select_the_edges_of_each_path(self, chain):
+        chain.select_match("MATCH (a {name: 'A'})-[r*2]->(b)", select="r")
+        assert chain.count_selected_edges() == 2
+        chain.select_match("MATCH (a {name: 'B'})-[r*]->(b), (b)-[s]->()", select=["r", "s"],
+                           set_op="replace")
+        assert sorted(chain.get_selected_edge_ids()) == edge_ids(chain)[1:]
+
+    def test_selecting_nodes_takes_the_inner_ones_too(self, chain):
+        chain.select_match("MATCH (a {name: 'A'})-[*3]->(b)")
+        assert labels(chain, chain.get_selected_node_ids()) == ["A", "B", "C", "D"]
+        chain.select_match("MATCH (a {name: 'A'})-[*3]->(b)", select="b", set_op="replace")
+        assert labels(chain, chain.get_selected_node_ids()) == ["D"]
+
+    def test_kinds_still_dont_mix(self, chain):
+        with pytest.raises(ValueError, match="both node and relationship variables"):
+            chain.select_match("MATCH (a)-[r*]->(b)", select=["a", "r"])
+
+    def test_step_highlights_the_whole_path(self, chain):
+        chain.count_matches("MATCH (a {name: 'A'})-[*3]->(b)")
+        delta = chain.steps[-1].delta
+        assert delta.nodes_selected == ["A", "D", "B", "C"]
+        assert delta.edges_selected == [("A", "B"), ("B", "C"), ("C", "D")]
+
+
+DIRECTORS = "MATCH (p:Person) OPTIONAL MATCH (p)-[r:DIRECTED]->(m)"
+
+
+class TestClauses:
+    def test_optional_columns_hold_nulls(self, g):
+        df = g.match(DIRECTORS + " RETURN p.name, r, m.title")
+        assert df.dtypes == [pl.String, pl.Int64, pl.String]
+        directed = g.match("MATCH ()-[r:DIRECTED]->()")["r"][0]
+        assert df.rows() == [("Keanu Reeves", None, None), ("Carrie-Anne Moss", None, None),
+                             ("Lana Wachowski", directed, "The Matrix")]
+
+    def test_use_labels_keeps_nulls(self, g):
+        df = g.match(DIRECTORS, use_labels=True)
+        assert df.dtypes == [pl.String, pl.Int64, pl.String]
+        assert df["m"].to_list() == [None, None, "matrix"]
+
+    def test_null_rows_sort_on_the_other_columns(self, g):
+        df = g.match("OPTIONAL MATCH (x:Nope) MATCH (p:Person)", use_labels=True)
+        assert df.rows() == [(None, "Keanu Reeves"), (None, "Carrie-Anne Moss"),
+                             (None, "Lana Wachowski")]
+
+    def test_count_includes_null_rows(self, g):
+        assert g.count_matches(DIRECTORS) == 3
+        assert g.count_matches("MATCH (p:Person) MATCH (p)-[:DIRECTED]->(m)") == 1
+        assert g.count_matches("OPTIONAL MATCH (x:Nope)") == 1
+
+    def test_select_skips_nulls(self, g):
+        g.select_match(DIRECTORS, select="m")
+        assert labels(g, g.get_selected_node_ids()) == ["matrix"]
+        g.select_match(DIRECTORS, set_op="replace")
+        assert labels(g, g.get_selected_node_ids()) == [
+            "Carrie-Anne Moss", "Keanu Reeves", "Lana Wachowski", "matrix"]
+        g.select_match("OPTIONAL MATCH (x:Nope)", set_op="replace")
+        assert g.count_selected_nodes() == 0
+
+    def test_later_clauses_see_earlier_variables(self, g):
+        df = g.match("MATCH (m:Movie {title: 'The Matrix'}) MATCH (p)-[:ACTED_IN]->(m) "
+                     "WHERE p.born > 1965 RETURN p.name")
+        assert df["p.name"].to_list() == ["Carrie-Anne Moss"]
+
+
+# =============================================================================
 # Steps
 # =============================================================================
 
