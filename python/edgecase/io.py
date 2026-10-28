@@ -12,6 +12,7 @@ from typing import Any, Optional, Sequence, Union
 import polars as pl
 
 from edgecase import _core as rust
+from edgecase.cypher import _TokenParser, cypher_error, parse_create
 from edgecase.graph import Graph
 from edgecase.steps import KIND_BUILD_NODES, StepDelta
 
@@ -5028,235 +5029,6 @@ def from_dict_of_lists(
 # =============================================================================
 
 
-_CYPHER_TOKEN = re.compile(
-    r"""
-      (?P<space>\s+|//[^\n]*|/\*.*?\*/)
-    | (?P<name>[^\W\d]\w*)
-    | (?P<quoted>`(?:[^`]|``)*`)
-    | (?P<string>'(?:[^'\\]|\\.)*'|"(?:[^"\\]|\\.)*")
-    | (?P<number>(?:\d+(?:\.\d+)?|\.\d+)(?:[eE][+-]?\d+)?)
-    | (?P<punct>[()\[\]{}:,;<>\-])
-    """,
-    re.VERBOSE | re.DOTALL,
-)
-
-_CYPHER_ESCAPES = {"t": "\t", "b": "\b", "n": "\n", "r": "\r", "f": "\f", "'": "'", '"': '"',
-                   "\\": "\\"}
-
-
-class _TokenParser:
-    """The token helpers shared by the text-format parsers (Cypher, DOT)."""
-
-    FORMAT = ""
-
-    def __init__(self, text: str):
-        self.text = text
-        # (kind, text, position) for every token
-        self.tokens: list[tuple[str, Any, int]] = []
-        self.i = 0
-
-    def _fail(self, message: str, pos: Optional[int] = None):
-        if pos is None:
-            pos = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
-        line = self.text.count("\n", 0, pos) + 1
-        column = pos - (self.text.rfind("\n", 0, pos) + 1) + 1
-        raise ValueError(f"{self.FORMAT}: {message} (line {line}, column {column})")
-
-    def _peek(self) -> Optional[str]:
-        """The next token's text (`None` at the end)."""
-        return self.tokens[self.i][1] if self.i < len(self.tokens) else None
-
-    def _next(self, what: str) -> tuple[str, Any, int]:
-        if self.i >= len(self.tokens):
-            self._fail(f"expected {what}, but the text ended")
-        tok = self.tokens[self.i]
-        self.i += 1
-        return tok
-
-    def _expect(self, punct: str, what: Optional[str] = None) -> None:
-        tok = self._next(what or repr(punct))
-        if tok[1] != punct:
-            self.i -= 1
-            self._fail(f"expected {what or repr(punct)}, found {tok[1]!r}")
-
-
-class _CypherParser(_TokenParser):
-    """A parser for the `CREATE` clauses of a Cypher script (nodes, relationships, properties)."""
-
-    FORMAT = "Cypher"
-
-    def __init__(self, text: str, directed: bool):
-        super().__init__(text)
-        self.directed = directed
-        pos = 0
-        while pos < len(text):
-            m = _CYPHER_TOKEN.match(text, pos)
-            if m is None:
-                if text.startswith("/*", pos):
-                    self._fail("a comment that never ends", pos)
-                if text[pos] in "'\"`":
-                    self._fail(f"the quote {text[pos]} is never closed", pos)
-                self._fail(f"unexpected character {text[pos]!r}", pos)
-            kind = m.lastgroup
-            if kind != "space":
-                self.tokens.append((kind, m.group(), pos))
-            pos = m.end()
-        # nodes: [variable or None, labels, properties, position]; edges: (s, t, type, props)
-        self.nodes: list[list] = []
-        self.variables: dict[str, int] = {}
-        self.edges: list[tuple[int, int, Optional[str], dict]] = []
-
-    def _at_name(self) -> bool:
-        return self.i < len(self.tokens) and self.tokens[self.i][0] in ("name", "quoted")
-
-    def _name(self, what: str) -> str:
-        kind, value, _ = self._next(what)
-        if kind == "name":
-            return value
-        if kind == "quoted":
-            return value[1:-1].replace("``", "`")
-        self.i -= 1
-        self._fail(f"expected {what}, found {value!r}")
-
-    def parse(self) -> None:
-        while self.i < len(self.tokens):
-            if self._peek() == ";":
-                self.i += 1
-                continue
-            kind, word, _ = self._next("CREATE")
-            if kind != "name" or word.upper() != "CREATE":
-                self.i -= 1
-                self._fail(f"only CREATE clauses can build a graph, found {word!r}")
-            self._pattern()
-            while self._peek() == ",":
-                self.i += 1
-                self._pattern()
-
-    def _pattern(self) -> None:
-        left = self._node()
-        while self._peek() in ("-", "<"):
-            start = self.tokens[self.i][2]
-            back = self._peek() == "<"
-            if back:
-                self.i += 1
-            self._expect("-", "'-' in a relationship")
-            rel_type, props = None, {}
-            if self._peek() == "[":
-                self.i += 1
-                if self._at_name():
-                    self._name("a relationship variable")
-                if self._peek() == ":":
-                    self.i += 1
-                    rel_type = self._name("a relationship type")
-                if self._peek() == "{":
-                    props = self._map()
-                self._expect("]")
-            self._expect("-", "'-' in a relationship")
-            forward = self._peek() == ">"
-            if forward:
-                self.i += 1
-            if back and forward:
-                self._fail("a relationship can't point both ways", start)
-            right = self._node()
-            if not back and not forward and self.directed:
-                self._fail(
-                    "a relationship needs a direction (-> or <-) in a directed graph; pass "
-                    "directed=False to read relationships without one",
-                    start,
-                )
-            s, t = (right, left) if back else (left, right)
-            self.edges.append((s, t, rel_type, props))
-            left = right
-
-    def _node(self) -> int:
-        start = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
-        self._expect("(", "'(' to start a node")
-        variable = self._name("a variable") if self._at_name() else None
-        labels = []
-        while self._peek() == ":":
-            self.i += 1
-            labels.append(self._name("a node label"))
-        props = self._map() if self._peek() == "{" else {}
-        self._expect(")", "')' to end the node")
-        if variable is not None and variable in self.variables:
-            if labels or props:
-                self._fail(f"the variable `{variable}` is already declared", start)
-            return self.variables[variable]
-        self.nodes.append([variable, labels, props, start])
-        if variable is not None:
-            self.variables[variable] = len(self.nodes) - 1
-        return len(self.nodes) - 1
-
-    def _map(self) -> dict:
-        self._expect("{")
-        out: dict = {}
-        if self._peek() == "}":
-            self.i += 1
-            return out
-        while True:
-            pos = self.tokens[self.i][2] if self.i < len(self.tokens) else len(self.text)
-            key = self._name("a property name")
-            self._expect(":", "':' after the property name")
-            if key in out:
-                self._fail(f"the property {key!r} is given twice", pos)
-            out[key] = self._value()
-            if self._peek() == ",":
-                self.i += 1
-                continue
-            self._expect("}", "',' or '}' in the properties")
-            # `null` means no property, as in Neo4j
-            return {k: v for k, v in out.items() if v is not None}
-
-    def _value(self) -> Any:
-        kind, value, pos = self._next("a value")
-        if kind == "string":
-            return self._unquote(value, pos)
-        if kind == "number":
-            return float(value) if any(c in value for c in ".eE") else int(value)
-        if value == "-" and self._peek() is not None and self.tokens[self.i][0] == "number":
-            return -self._value()
-        if kind == "name" and value.lower() in ("true", "false", "null"):
-            return {"true": True, "false": False, "null": None}[value.lower()]
-        if value == "[":
-            items = []
-            if self._peek() == "]":
-                self.i += 1
-                return items
-            while True:
-                items.append(self._value())
-                if self._peek() == ",":
-                    self.i += 1
-                    continue
-                self._expect("]", "',' or ']' in the list")
-                return items
-        if value == "{":
-            self._fail("a property value can't be a map", pos)
-        self._fail(f"expected a value, found {value!r}", pos)
-
-    def _unquote(self, token: str, pos: int) -> str:
-        body, out, k = token[1:-1], [], 0
-        while k < len(body):
-            c = body[k]
-            if c != "\\":
-                out.append(c)
-                k += 1
-                continue
-            e = body[k + 1]
-            if e in _CYPHER_ESCAPES:
-                out.append(_CYPHER_ESCAPES[e])
-                k += 2
-            elif e in "uU":
-                width = 4 if e == "u" else 8
-                digits = body[k + 2:k + 2 + width]
-                if not re.fullmatch(r"[0-9a-fA-F]{%d}" % width, digits):
-                    self._fail(f"a bad \\{e} escape in a string", pos + 1 + k)
-                out.append(chr(int(digits, 16)))
-                k += 2 + width
-            else:
-                self._fail(f"an unknown escape \\{e} in a string", pos + 1 + k)
-        return "".join(out)
-
-
 def from_cypher(
     source: Union[str, Path],
     directed: bool = True,
@@ -5352,16 +5124,44 @@ def from_cypher(
     else:
         raise TypeError(f"source must be Cypher text or a Path, not {type(source).__name__}")
 
-    parser = _CypherParser(text, directed)
-    parser.parse()
+    # nodes: [variable or None, labels, properties, position]; edges: (s, t, type, props)
+    parsed: list[list] = []
+    variables: dict[str, int] = {}
+    parsed_edges: list[tuple[int, int, Optional[str], dict]] = []
 
-    taken = set(parser.variables)
-    for _, _, props, _ in parser.nodes:
+    def node_index(node) -> int:
+        # `null` means no property, as in Neo4j
+        props = {k: v.value for k, v in node.props.items() if v.value is not None}
+        if node.variable is not None and node.variable in variables:
+            if node.labels or props:
+                raise cypher_error(text, node.pos, f"the variable `{node.variable}` is already "
+                                   "declared")
+            return variables[node.variable]
+        parsed.append([node.variable, [group[0] for group in node.labels], props, node.pos])
+        if node.variable is not None:
+            variables[node.variable] = len(parsed) - 1
+        return len(parsed) - 1
+
+    for pattern in parse_create(text):
+        ends = [node_index(node) for node in pattern.nodes]
+        for k, rel in enumerate(pattern.rels):
+            if rel.direction == "either" and directed:
+                raise cypher_error(
+                    text, rel.pos,
+                    "a relationship needs a direction (-> or <-) in a directed graph; pass "
+                    "directed=False to read relationships without one",
+                )
+            s, t = (ends[k + 1], ends[k]) if rel.direction == "in" else (ends[k], ends[k + 1])
+            props = {key: v.value for key, v in rel.props.items() if v.value is not None}
+            parsed_edges.append((s, t, rel.types[0] if rel.types else None, props))
+
+    taken = set(variables)
+    for _, _, props, _ in parsed:
         if label_key is not None and label_key in props:
             taken.add(str(props[label_key]))
     counter = 0
     nodes = []
-    for variable, labels, props, pos in parser.nodes:
+    for variable, labels, props, pos in parsed:
         key = variable
         if key is None:
             counter += 1
@@ -5374,13 +5174,13 @@ def from_cypher(
             label = str(attrs.pop(label_key))
         if labels:
             if "type" in attrs:
-                parser._fail("a node has both labels and a 'type' property", pos)
+                raise cypher_error(text, pos, "a node has both labels and a 'type' property")
             attrs["type"] = labels[0] if len(labels) == 1 else labels
         nodes.append((key, label, attrs))
 
     weighted = False
     edges = []
-    for s, t, rel_type, props in parser.edges:
+    for s, t, rel_type, props in parsed_edges:
         attrs = dict(props)
         if rel_type is not None:
             if "rel" in attrs:
