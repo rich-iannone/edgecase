@@ -14,9 +14,15 @@ from edgecase.cypher import (
     Matcher,
     NodePattern,
     Plan,
+    Projection,
+    _distinct_column,
+    _sort_column,
     conjuncts,
     element_conditions,
+    hashable,
     parse_query,
+    plain,
+    sort_key,
 )
 from hypothesis import HealthCheck, assume, given, settings
 from hypothesis import strategies as st
@@ -985,6 +991,132 @@ def test_engines_agree_on_tables(g, text, limit, sort):
         assert n <= limit
 
 
+# queries that match much of a small graph, so that the projections have rows to work on
+BROAD_QUERIES = st.sampled_from([
+    "MATCH (a)",
+    "MATCH (a)-[r]->(b)",
+    "MATCH (a)-[r]-(b)",
+    "MATCH (a)--(b)--(c)",
+    "MATCH (a)-[r*0..2]-(b)",
+    "MATCH p = (a)-[*0..2]-(b)",
+    "MATCH (a) OPTIONAL MATCH (a)-[r]->(b)",
+    "MATCH (a) OPTIONAL MATCH p = (a)-->(b:Q)",
+    "MATCH p = allShortestPaths((a)-[*]-(b))",
+    "MATCH (a:P|Q), (b) WHERE a.k IS NULL OR a.k <= b.k",
+])
+
+
+def _ascending(value):
+    # nulls last, then by value (the keys here are integers or null)
+    return (value is None, value if value is not None else 0)
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data())
+@settings(max_examples=200, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_order_skip_limit_sort_the_default_table(g, text, data):
+    # ORDER BY is a stable sort of the table without it (nulls last, reversed for DESC), and
+    # SKIP and LIMIT a slice of the result
+    query = parse_query(text)
+    nodes = [v for v, kind in query.variables.items() if kind == "node"]
+    assume(nodes)
+    picked = data.draw(st.lists(st.tuples(st.sampled_from(nodes), st.sampled_from(["k", "id"]),
+                                          st.booleans(), st.booleans()),
+                                min_size=1, max_size=3, unique_by=lambda t: t[:2]))
+    keys = [f"{v}.k" if what == "k" else f"id({v})" for v, what, _, _ in picked]
+    returned = ", ".join(f"{key} AS key{i}" for i, key in enumerate(keys))
+    order = ", ".join((f"key{i}" if by_name else key) + (" DESC" if descending else "")
+                      for i, (key, (_, _, descending, by_name)) in enumerate(zip(keys, picked)))
+    skip = data.draw(st.sampled_from([None, 0, 1, 3]))
+    limit = data.draw(st.sampled_from([None, 0, 1, 2, 5]))
+    tail = (f" SKIP {skip}" if skip is not None else "") + (
+        f" LIMIT {limit}" if limit is not None else "")
+
+    default = g.match(f"{text} RETURN *, {returned}", params={"k": 1}).rows()
+    expected = list(default)
+    for i, (_, _, descending, _) in reversed(list(enumerate(picked))):
+        column = len(query.variables) + i
+        expected.sort(key=lambda row: _ascending(row[column]), reverse=descending)
+    start = skip or 0
+    expected = expected[start:None if limit is None else start + limit]
+    full = f"{text} RETURN *, {returned} ORDER BY {order}{tail}"
+    assert g.match(full, params={"k": 1}).rows() == expected, full
+    assert g.count_matches(full, params={"k": 1}) == len(expected), full
+
+
+def _projection_items(draw, variables):
+    """Random expressions over the variables of a query, for RETURN and ORDER BY."""
+    pool = ["1", "null", "[1, 'x']"]
+    for v, kind in variables.items():
+        if kind == "node":
+            pool += [v, f"{v}.k", f"id({v})", f"labels({v})", f"{v}.name", f"{v}:P",
+                     f"toUpper({v}.name)", f"{v}.k IS NULL", f"[{v}, {v}.k]", f"toLower({v}.k)"]
+        elif kind == "relationship":
+            pool += [v, f"type({v})", f"{v}.weight", f"id({v})", f"{v}.weight > 1"]
+        elif kind == "relationships":
+            pool += [v, f"size({v})"]
+        else:
+            pool += [v, f"length({v})", f"nodes({v})", f"relationships({v})"]
+    return st.sampled_from(pool)
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data(),
+       limit=st.sampled_from([None, None, 0, 1, 3]), use_labels=st.booleans())
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_projections(g, text, data, limit, use_labels):
+    query = parse_query(text)
+    pool = _projection_items(data.draw, query.variables)
+    items = data.draw(st.lists(pool, min_size=1, max_size=4))
+    distinct = data.draw(st.booleans())
+    keys = data.draw(st.lists(st.one_of(
+        st.sampled_from([f"c{i}" for i in range(len(items))]),
+        st.nothing() if distinct else pool), max_size=2))
+    order = ", ".join(key + data.draw(st.sampled_from(["", " DESC"])) for key in keys)
+    skip = data.draw(st.sampled_from([None, None, 0, 1, "$k"]))
+    cap = data.draw(st.sampled_from([None, None, 0, 2, "$k"]))
+    full = (f"{text} RETURN {'DISTINCT ' if distinct else ''}"
+            + ", ".join(f"{item} AS c{i}" for i, item in enumerate(items))
+            + (f" ORDER BY {order}" if order else "")
+            + (f" SKIP {skip}" if skip is not None else "")
+            + (f" LIMIT {cap}" if cap is not None else ""))
+    parsed = parse_query(full)
+    results = []
+    for engine in ("rust", "python"):
+        try:
+            projection = Projection(parsed, Matcher(parsed, full, g._graph, {"k": 1},
+                                                    engine=engine))
+            results.append((projection.table(limit, use_labels), projection.count()))
+        except ValueError as e:
+            results.append(str(e))
+    assert results[0] == results[1], full
+    if not isinstance(results[0], str):
+        (cells, _), (n, _) = results[0]
+        assert all(len(column) == len(cells[0]) for column in cells)
+        if limit is None:
+            assert n == len(cells[0]), full
+
+
+_CELLS = st.one_of(
+    st.lists(st.one_of(st.none(), st.integers(-3, 3)), max_size=10),
+    st.lists(st.one_of(st.none(), st.integers(-3, 3), st.floats(allow_nan=True)), max_size=10),
+    st.lists(st.one_of(st.none(), st.text("ab", max_size=2)), max_size=10),
+    st.lists(st.one_of(st.none(), st.integers(-2, 2), st.text("ab", max_size=1), st.booleans(),
+                       st.lists(st.integers(0, 2), max_size=2)), max_size=10),
+)
+
+
+@given(values=_CELLS)
+def test_fast_column_keys_match_sort_key_and_hashable(values):
+    # `_sort_column()` and `_distinct_column()` shortcut `sort_key()` and `hashable(plain())`
+    fast, slow = _sort_column(values), [sort_key(v) for v in values]
+    indices = range(len(values))
+    assert sorted(indices, key=fast.__getitem__) == sorted(indices, key=slow.__getitem__)
+    assert (sorted(indices, key=fast.__getitem__, reverse=True)
+            == sorted(indices, key=slow.__getitem__, reverse=True))
+    fast, slow = _distinct_column(values), [hashable(plain(v)) for v in values]
+    assert [[a == b for b in fast] for a in fast] == [[a == b for b in slow] for a in slow]
+    assert len(set(fast)) == len(set(slow))
+
+
 # =============================================================================
 # The Rust engine against the Python one
 # =============================================================================
@@ -1084,6 +1216,34 @@ def test_engines_agree_on_odd_values(g, text, p, q, items, label_key, distinct_n
         matches(g, text, params, distinct_nodes, label_key)
     except (ValueError, RuntimeError):
         pass  # `matches()` has checked that both engines raise it
+
+
+_ODD_RETURNS = [
+    "RETURN a.v AS x ORDER BY x", "RETURN a.v AS x ORDER BY x DESC", "RETURN DISTINCT a.v",
+    "RETURN DISTINCT a.v AS x ORDER BY x DESC SKIP 1", "RETURN [a.v, r.v] AS x ORDER BY x",
+    "RETURN DISTINCT [a.v, b.name] AS x ORDER BY x", "RETURN r.v, b ORDER BY r.v DESC, b",
+    "RETURN a.name AS n, a.v ORDER BY n, a.v LIMIT 2", "RETURN DISTINCT r.weight, a.type",
+    "RETURN toLower(a.name) AS n ORDER BY n", "RETURN a.v = b.v AS same ORDER BY same",
+]
+
+
+@given(g=odd_graphs(), text=odd_queries(), returns=st.sampled_from(_ODD_RETURNS),
+       p=st.sampled_from(_ODD_VALUES), q=st.sampled_from(_ODD_VALUES),
+       label_key=st.sampled_from(["name", "v", None]), use_labels=st.booleans())
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_odd_projections(g, text, returns, p, q, label_key, use_labels):
+    full = f"{text} {returns}"
+    results = []
+    for engine in ("rust", "python"):
+        try:
+            query = parse_query(full)
+            matcher = Matcher(query, full, g._graph, {"p": p, "q": q, "list": []}, label_key,
+                              engine=engine)
+            projection = Projection(query, matcher)
+            results.append((repr(projection.table(None, use_labels)), projection.count()[0]))
+        except (ValueError, RuntimeError) as e:
+            results.append(type(e).__name__ + str(e))
+    assert results[0] == results[1], full
 
 
 @pytest.mark.parametrize("text", [

@@ -109,6 +109,17 @@ class TestMatchReturn:
         assert g.match(ACTED + " RETURN DISTINCT m", use_labels=True)["m"].to_list() == [
             "matrix", "wick"]
 
+    def test_distinct_odd_values(self):
+        # a Decimal is no Cypher number, and comparing it with a NumPy integer raises
+        from decimal import Decimal
+
+        import numpy as np
+        g = ec.Graph().add_nodes([
+            ("a", {"v": Decimal(1)}), ("b", {"v": np.int64(1)}), ("c", {"v": 1}),
+            ("d", {"v": Decimal("1.0")}), ("e", {"v": {1, 2}}), ("f", {"v": {1, 2}}),
+        ])
+        assert g.match("MATCH (n) RETURN DISTINCT n.v").height == 3
+
     def test_distinct_lists_and_maps(self):
         g = ec.Graph().add_nodes([
             ("a", {"v": [1, 2]}), ("b", {"v": [1, 2]}), ("c", {"v": [True]}), ("d", {"v": [1]}),
@@ -173,6 +184,166 @@ class TestMatchOptions:
         assert df.columns == ["a", "r", "b"] and df.height == 0
 
 
+class TestReturnExpressions:
+    def test_aliases_and_names(self, g):
+        df = g.match(ACTED + " RETURN p.name AS name, toUpper(m.title), m AS movie")
+        assert df.columns == ["name", "toUpper(m.title)", "movie"]
+        assert df.dtypes == [pl.String, pl.String, pl.Int64]
+        assert sorted(df.rows()[i][:2] for i in range(3)) == [
+            ("Carrie-Anne Moss", "THE MATRIX"), ("Keanu Reeves", "JOHN WICK"),
+            ("Keanu Reeves", "THE MATRIX")]
+
+    def test_dtypes(self, g):
+        df = g.match(ACTED + " RETURN id(p), type(r), labels(m), m.released > 2000 AS new, "
+                     "size(r.roles), p.born IS NULL, [p.name, m.title] AS names")
+        assert df.dtypes == [pl.Int64, pl.String, pl.List(pl.String), pl.Boolean, pl.Int64,
+                             pl.Boolean, pl.List(pl.String)]
+        assert set(df["type(r)"]) == {"ACTED_IN"}
+        assert df["labels(m)"].to_list() == [["Movie"]] * 3
+
+    def test_no_matches_keeps_the_dtypes(self, g):
+        df = g.match(ACTED + " WHERE false RETURN id(p) AS i, type(r) AS t, p.name")
+        assert df.height == 0 and df.dtypes == [pl.Int64, pl.String, pl.Null]
+
+    def test_path_functions(self, g):
+        df = g.match("MATCH p = shortestPath((a {name: 'Carrie-Anne Moss'})-[*]-(b {name: "
+                     "'wick'})) RETURN length(p) AS hops, nodes(p), relationships(p)")
+        assert df.columns == ["hops", "nodes(p)", "relationships(p)"]
+        assert df.dtypes == [pl.Int64, pl.List(pl.Int64), pl.List(pl.Int64)]
+        assert df.row(0) == (3, [2, 4, 1, 5], [2, 1, 3])
+        df = g.match("MATCH p = shortestPath((a {name: 'Carrie-Anne Moss'})-[*]-(b {name: "
+                     "'wick'})) RETURN nodes(p) AS ns", use_labels=True)
+        assert df.dtypes == [pl.List(pl.String)]
+        assert df["ns"].to_list() == [["Carrie-Anne Moss", "matrix", "Keanu Reeves", "wick"]]
+
+    def test_use_labels_inside_values(self, g):
+        df = g.match(ACTED + " RETURN [p, m] AS pair, id(p) AS i ORDER BY i, m",
+                     use_labels=True)
+        assert df.rows() == [
+            (["Keanu Reeves", "matrix"], 1), (["Keanu Reeves", "wick"], 1),
+            (["Carrie-Anne Moss", "matrix"], 2)]
+
+    def test_star(self, g):
+        df = g.match(ACTED + " RETURN *, p.name AS name")
+        assert df.columns == ["p", "r", "m", "name"]
+        assert df.drop("name").equals(g.match(ACTED))
+
+    def test_value_errors(self, g):
+        with pytest.raises(ValueError, match=r"^Cypher: toLower\(\) .*line 1, column"):
+            g.match("MATCH (p:Person) RETURN toLower(p.born)")
+        # A column that's never computed raises nothing
+        assert g.match("MATCH (p:Person) RETURN toLower(p.born) LIMIT 0").height == 0
+
+    def test_errors_are_raised_on_an_empty_graph(self):
+        with pytest.raises(ValueError, match="the variable `b` isn't defined"):
+            ec.Graph().match("MATCH (a) RETURN a ORDER BY b")
+        with pytest.raises(ValueError, match="toLower"):
+            ec.Graph().match("MATCH (a) RETURN toLower()")
+        with pytest.raises(ValueError, match="LIMIT needs a non-negative integer"):
+            ec.Graph().match("MATCH (a) RETURN a LIMIT -1")
+
+    def test_aggregates(self, g):
+        for text in ("RETURN count(p)", "RETURN [collect(p.name)]", "RETURN p ORDER BY max(p.born)"):
+            with pytest.raises(ValueError, match=r"aggregation \(\w+\(\)\) isn't supported"):
+                g.match(ACTED + " " + text)
+
+
+class TestOrderBy:
+    def test_ascending_and_descending(self, g):
+        df = g.match("MATCH (p:Person) RETURN p.name ORDER BY p.born")
+        assert df["p.name"].to_list() == ["Keanu Reeves", "Lana Wachowski", "Carrie-Anne Moss"]
+        df = g.match("MATCH (p:Person) RETURN p.name ORDER BY p.born DESC")
+        assert df["p.name"].to_list() == ["Carrie-Anne Moss", "Lana Wachowski", "Keanu Reeves"]
+
+    def test_by_a_column_name(self, g):
+        df = g.match("MATCH (p:Person) RETURN p.born AS name ORDER BY name DESC")
+        assert df["name"].to_list() == [1967, 1965, 1964]
+
+    def test_by_an_expression_that_isnt_returned(self, g):
+        df = g.match("MATCH (p:Person) RETURN p ORDER BY size(p.name), p.name", use_labels=True)
+        assert df["p"].to_list() == ["Keanu Reeves", "Lana Wachowski", "Carrie-Anne Moss"]
+
+    def test_several_keys_and_ties(self, g):
+        df = g.match(ACTED + " RETURN p.name, m.title ORDER BY p.name DESC, m.released DESC")
+        assert df.rows() == [("Keanu Reeves", "John Wick"), ("Keanu Reeves", "The Matrix"),
+                             ("Carrie-Anne Moss", "The Matrix")]
+        # Ties keep the order of the rows without ORDER BY
+        df = g.match(ACTED + " RETURN r ORDER BY m.title")
+        assert df["r"].to_list() == [3, 1, 2]
+
+    def test_nulls_last_ascending_and_first_descending(self, g):
+        df = g.match("MATCH (n) RETURN n ORDER BY n.born", use_labels=True)
+        assert df["n"].to_list() == [
+            "Keanu Reeves", "Lana Wachowski", "Carrie-Anne Moss", "matrix", "wick"]
+        df = g.match("MATCH (n) RETURN n ORDER BY n.born DESC", use_labels=True)
+        assert df["n"].to_list() == [
+            "matrix", "wick", "Carrie-Anne Moss", "Lana Wachowski", "Keanu Reeves"]
+
+    def test_mixed_types(self):
+        values = [3, "b", None, [1], True, 1.5, "a", False, float("nan"), [0, 2]]
+        g = ec.Graph().add_nodes([(f"n{i}", {"v": v}) for i, v in enumerate(values)])
+        df = g.match("MATCH (n) RETURN n ORDER BY n.v", use_labels=True)
+        # lists < strings < booleans < numbers (NaN last) < null
+        assert df["n"].to_list() == [
+            "n9", "n3", "n6", "n1", "n7", "n4", "n5", "n0", "n8", "n2"]
+
+    def test_numbers_compare_across_int_and_float(self):
+        g = ec.Graph().add_nodes([("a", {"v": 2}), ("b", {"v": 1.5}), ("c", {"v": -1})])
+        assert g.match("MATCH (n) RETURN n ORDER BY n.v", use_labels=True)["n"].to_list() == [
+            "c", "b", "a"]
+
+    def test_after_distinct(self, g):
+        df = g.match(ACTED + " RETURN DISTINCT m.title AS t ORDER BY t")
+        assert df["t"].to_list() == ["John Wick", "The Matrix"]
+        df = g.match(ACTED + " RETURN DISTINCT m ORDER BY m.released DESC", use_labels=True)
+        assert df["m"].to_list() == ["wick", "matrix"]
+
+    def test_by_nodes_and_relationships(self, g):
+        df = g.match(ACTED + " RETURN m.title ORDER BY r DESC")
+        assert df["m.title"].to_list() == ["John Wick", "The Matrix", "The Matrix"]
+
+
+class TestSkipLimit:
+    def test_skip_and_limit(self, g):
+        text = "MATCH (p:Person) RETURN p.name ORDER BY p.born"
+        assert g.match(text + " SKIP 1")["p.name"].to_list() == [
+            "Lana Wachowski", "Carrie-Anne Moss"]
+        assert g.match(text + " LIMIT 2")["p.name"].to_list() == [
+            "Keanu Reeves", "Lana Wachowski"]
+        assert g.match(text + " SKIP 1 LIMIT 1")["p.name"].to_list() == ["Lana Wachowski"]
+        assert g.match(text + " SKIP 5").height == 0
+        assert g.match(text + " LIMIT 0").height == 0
+
+    def test_without_order_by(self, g):
+        assert g.match(ACTED + " RETURN r SKIP 1")["r"].to_list() == [3, 2]
+        assert g.match(ACTED + " RETURN r LIMIT 2")["r"].to_list() == [1, 3]
+
+    def test_params(self, g):
+        df = g.match("MATCH (p:Person) RETURN p.name ORDER BY p.born SKIP $s LIMIT $n",
+                     params={"s": 1, "n": 1})
+        assert df["p.name"].to_list() == ["Lana Wachowski"]
+
+    @pytest.mark.parametrize("value", ["-1", "1.5", "true", "'2'", "null", "[1]", "$v"])
+    def test_bad_values(self, g, value):
+        for clause in ("SKIP", "LIMIT"):
+            with pytest.raises(ValueError, match=rf"^Cypher: {clause} needs a non-negative "
+                                                 r"integer, not .*line 1, column"):
+                g.match(f"{ACTED} RETURN p {clause} {value}", params={"v": -2})
+            with pytest.raises(ValueError, match=rf"{clause} needs a non-negative integer"):
+                g.count_matches(f"{ACTED} RETURN p {clause} {value}", params={"v": -2})
+
+    def test_with_the_limit_argument(self, g):
+        # `limit=` caps the matches before ORDER BY, SKIP and LIMIT
+        text = "MATCH (p:Person) RETURN p.name ORDER BY p.born DESC"
+        assert g.match(text, limit=2)["p.name"].to_list() == ["Carrie-Anne Moss", "Keanu Reeves"]
+        assert g.match(text + " SKIP 1", limit=2)["p.name"].to_list() == ["Keanu Reeves"]
+        assert g.match(text + " LIMIT 5", limit=1).height == 1
+
+    def test_distinct(self, g):
+        df = g.match(ACTED + " RETURN DISTINCT p.name ORDER BY p.name SKIP 1")
+        assert df["p.name"].to_list() == ["Keanu Reeves"]
+
+
 class TestErrors:
     @pytest.mark.parametrize("method", ["match", "count_matches", "select_match"])
     def test_argument_types(self, g, method):
@@ -222,6 +393,25 @@ class TestCountMatches:
         assert g.count_matches(ACTED + " RETURN p") == 3
         assert g.count_matches(ACTED + " RETURN DISTINCT p") == 2
         assert g.count_matches(ACTED + " RETURN DISTINCT m.title") == 2
+
+    def test_skip_and_limit(self, g):
+        assert g.count_matches(ACTED + " RETURN p SKIP 1") == 2
+        assert g.count_matches(ACTED + " RETURN p SKIP 5") == 0
+        assert g.count_matches(ACTED + " RETURN p LIMIT 2") == 2
+        assert g.count_matches(ACTED + " RETURN p ORDER BY p.name SKIP 1 LIMIT 5") == 2
+        assert g.count_matches(ACTED + " RETURN DISTINCT p SKIP 1") == 1
+        assert g.count_matches(ACTED + " RETURN p LIMIT $n", {"n": 1}) == 1
+
+    def test_counts_rows_of_match_with_expressions(self, g):
+        for text in ("RETURN toUpper(p.name) AS n ORDER BY n", "RETURN DISTINCT size(r.roles)",
+                     "RETURN DISTINCT p.born > 1965 ORDER BY p.born > 1965 SKIP 1",
+                     "RETURN * LIMIT 1"):
+            assert g.count_matches(ACTED + " " + text) == g.match(ACTED + " " + text).height
+
+    def test_columns_are_only_computed_for_distinct(self, g):
+        assert g.count_matches("MATCH (p:Person) RETURN toLower(p.born)") == 3
+        with pytest.raises(ValueError, match="toLower"):
+            g.count_matches("MATCH (p:Person) RETURN DISTINCT toLower(p.born)")
 
     def test_cycles(self):
         g = (

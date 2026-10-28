@@ -18,6 +18,7 @@ from edgecase.cypher import (
     Var,
     parse_create,
     parse_query,
+    substitute,
     walk,
 )
 
@@ -233,6 +234,81 @@ class TestReturn:
         q = parse_query("match (p)")
         assert q.clauses[0].where is None and q.returns is None
 
+    def test_names(self):
+        # The alias, else `v` or `v.key`, else the expression as written (spacing and case kept)
+        q = parse_query("MATCH p = (a)-[r]->(b) RETURN a.x AS ax, length( p ), toLower(a.name), "
+                        "[a,  b], -a.x AS n, id(r)")
+        assert [item.name for item in q.returns.items] == [
+            "ax", "length( p )", "toLower(a.name)", "[a,  b]", "n", "id(r)"]
+        assert q.returns.items[1].expr == Call("length", [Var("p")])
+
+    def test_alias_of_a_variable(self):
+        q = parse_query("MATCH (a) RETURN a AS node, a.x as x")
+        assert [(item.expr, item.name) for item in q.returns.items] == [
+            (Var("a"), "node"), (Prop(Var("a"), "x"), "x")]
+
+    def test_star(self):
+        q = parse_query("MATCH p = (a)-[r]->(b) RETURN *, a.x")
+        assert q.returns.star
+        assert [item.name for item in q.returns.items] == ["p", "a", "r", "b", "a.x"]
+        # Anonymous parts of the pattern aren't columns
+        q = parse_query("MATCH (a)-->() RETURN *")
+        assert [item.name for item in q.returns.items] == ["a"]
+
+    def test_distinct_star(self):
+        q = parse_query("MATCH (a)-->(b) RETURN DISTINCT *")
+        assert q.returns.distinct and [item.name for item in q.returns.items] == ["a", "b"]
+
+    def test_order_by(self):
+        q = parse_query("MATCH (a) RETURN a ORDER BY a.x, a.y DESC, a.z ASC, a.w DESCENDING, "
+                        "a.v ascending")
+        assert [(key.expr, key.descending) for key in q.returns.order] == [
+            (Prop(Var("a"), "x"), False), (Prop(Var("a"), "y"), True),
+            (Prop(Var("a"), "z"), False), (Prop(Var("a"), "w"), True),
+            (Prop(Var("a"), "v"), False)]
+        assert q.returns.skip is None and q.returns.limit is None
+
+    def test_order_by_a_column(self):
+        # A column name stands for the column's expression
+        q = parse_query("MATCH (a) RETURN a.x AS x, a.y AS a ORDER BY x DESC, a, toLower(x)")
+        assert [key.expr for key in q.returns.order] == [
+            Prop(Var("a"), "x"), Prop(Var("a"), "y"), Call("toLower", [Prop(Var("a"), "x")])]
+
+    def test_order_by_column_not_substituted_twice(self):
+        # `a` is replaced by `a.y`, and the `a` inside `a.y` stays the variable
+        q = parse_query("MATCH (a) RETURN a.y AS a ORDER BY a.z")
+        assert q.returns.order[0].expr == Prop(Prop(Var("a"), "y"), "z")
+
+    def test_order_by_after_distinct(self):
+        q = parse_query("MATCH (a) RETURN DISTINCT a.x AS x, a.y ORDER BY x, a.y DESC")
+        assert [key.expr for key in q.returns.order] == [Prop(Var("a"), "x"), Prop(Var("a"), "y")]
+
+    def test_skip_and_limit(self):
+        q = parse_query("MATCH (a) RETURN a SKIP 2 LIMIT $n")
+        assert q.returns.skip == Literal(2) and q.returns.limit == Param("n")
+        q = parse_query("MATCH (a) RETURN a ORDER BY a.x LIMIT size([1, 2])")
+        assert q.returns.skip is None and q.returns.limit.name == "size"
+
+    def test_keywords_case_insensitive(self):
+        q = parse_query("match (a) return distinct a.x as x order by x desc skip 1 limit 2")
+        assert q.returns.distinct and q.returns.items[0].name == "x"
+        assert q.returns.order[0].descending
+        assert q.returns.skip == Literal(1) and q.returns.limit == Literal(2)
+
+
+class TestSubstitute:
+    def test_replaces_variables(self):
+        names = {"x": Prop(Var("a"), "x")}
+        expr = parse_query("MATCH (x) WHERE x > 1 AND NOT x IN [x, 2] AND f(x) IS NULL "
+                           "RETURN x").clauses[0].where
+        result = substitute(expr, names)
+        assert not any(isinstance(e, Var) and e.name == "x" for e in walk(result))
+        assert sum(e == Prop(Var("a"), "x") for e in walk(result)) == 4
+
+    def test_leaves_others(self):
+        expr = Compare("=", Var("b"), Literal(1))
+        assert substitute(expr, {"a": Literal(2)}) == expr
+
 
 # =============================================================================
 # Errors
@@ -248,14 +324,44 @@ class TestErrors:
             ("CREATE (a)", r"CREATE isn't supported: a query only reads the graph"),
             ("OPTIONAL (a)", r"expected MATCH, found '\(' \(line 1, column 10\)"),
             ("MATCH (a) OPTIONAL RETURN a", r"expected MATCH, found 'RETURN'"),
-            ("MATCH (a) RETURN a MATCH (b)", r"expected the end of the query, found 'MATCH'"),
-            ("MATCH (a) RETURN a ORDER BY a.x", r"ORDER isn't supported"),
-            ("MATCH (a) RETURN a LIMIT 3", r"LIMIT isn't supported"),
+            ("MATCH (a) RETURN a MATCH (b)",
+             r"expected ORDER BY, SKIP, LIMIT or the end of the query, found 'MATCH'"),
+            ("MATCH (a) ORDER BY a.x", r"ORDER BY needs a RETURN before it \(RETURN \* returns "
+                                       r"every variable\) \(line 1, column 11\)"),
+            ("MATCH (a) LIMIT 3", r"LIMIT needs a RETURN before it"),
+            ("MATCH (a) RETURN a LIMIT 3 SKIP 1", r"ORDER BY, SKIP and LIMIT come after RETURN, "
+                                                 r"in that order \(line 1, column 28\)"),
+            ("MATCH (a) RETURN a SKIP 1 ORDER BY a", r"ORDER BY, SKIP and LIMIT come after"),
+            ("MATCH (a) RETURN a ORDER a", r"expected BY, found 'a'"),
+            ("MATCH (a) RETURN a ORDER BY a a", r"expected SKIP, LIMIT or the end of the query, "
+                                               r"found 'a'"),
+            ("MATCH (a) RETURN a SKIP 1 1", r"expected LIMIT or the end of the query, found '1'"),
+            ("MATCH (a) RETURN a LIMIT 1 1", r"expected the end of the query, found '1'"),
+            ("MATCH (a) RETURN a SKIP", r"expected an expression, but the text ended"),
+            ("MATCH (a) RETURN a LIMIT a.k", r"LIMIT can't use the variable `a`; it takes a "
+                                            r"number or a parameter \(line 1, column 26\)"),
+            ("MATCH (a) RETURN a SKIP size([a])", r"SKIP can't use the variable `a`"),
+            ("MATCH (a) RETURN a ORDER BY b", r"the variable `b` isn't defined in MATCH, or as a "
+                                             r"column of RETURN \(line 1, column 29\)"),
+            ("MATCH (a) RETURN DISTINCT a.x ORDER BY a.y",
+             r"after RETURN DISTINCT, ORDER BY can only use the returned columns, and `a` isn't "
+             r"one \(line 1, column 40\)"),
+            ("MATCH (a)-->(b) RETURN DISTINCT a ORDER BY b", r"and `b` isn't one"),
+            ("MATCH (a) RETURN a ORDER BY count(a)", r"aggregation \(count\(\)\) isn't supported"),
+            ("MATCH (a) RETURN [max(a.x)]", r"aggregation \(max\(\)\) isn't supported; .* \(line 1, "
+                                           r"column 19\)"),
+            ("MATCH (a) RETURN a AS", r"expected a column name, but the text ended"),
+            ("MATCH (a) RETURN a.x AS a, a", r"the column 'a' is returned twice"),
+            ("MATCH (a) RETURN *, a", r"the column 'a' is returned twice \(line 1, column 21\)"),
+            ("MATCH () RETURN *", r"RETURN \* returns every named variable, but the query names "
+                                  r"none \(line 1, column 10\)"),
+            ("MATCH (a) RETURN a, *", r"expected an expression, found '\*'"),
             ("MATCH (a) WITH a", r"WITH isn't supported"),
             ("MATCH (a) b", r"expected WHERE, MATCH, RETURN or the end of the query, found 'b'"),
             ("MATCH (a) WHERE a.x = 1 (b)",
              r"expected MATCH, RETURN or the end of the query, found '\('"),
-            ("MATCH (a) RETURN a a", r"expected the end of the query, found 'a'"),
+            ("MATCH (a) RETURN a a", r"expected ORDER BY, SKIP, LIMIT or the end of the query, "
+                                     r"found 'a'"),
             ("MATCH (a)-[*3..1]->(b)", r"can't have more than 1 hops and at least 3; write "
                                        r"\*1..3 \(line 1, column 12\)"),
             ("MATCH (a)-[*1.5]->(b)", r"a number of hops is a whole number, not '1.5'"),
@@ -288,9 +394,6 @@ class TestErrors:
             ("MATCH (a) WHERE a.x = {k: 1}", r"map values aren't supported"),
             ("MATCH (a) WHERE a.x & 1", r"unexpected character '&'"),
             ("MATCH (a) WHERE a.x = $", r"unexpected character '\$'"),
-            ("MATCH (a) RETURN a.x AS y", r"aliases \(AS\) aren't supported"),
-            ("MATCH (a) RETURN id(a)", r"only list variables and their properties"),
-            ("MATCH (a) RETURN *", r"RETURN \* isn't supported"),
             ("MATCH (a) RETURN count(*)", r"aggregation \(count\(\)\) isn't supported; use "
                                           r"count_matches\(\), or group the match\(\) table with "
                                           r"Polars \(line 1, column 18\)"),
