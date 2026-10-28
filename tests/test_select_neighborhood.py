@@ -414,7 +414,7 @@ class TestSelectNodesByCentrality:
         G.select_nodes_by_centrality("degree", k=3)
         initial_count = len(G.get_selected_node_ids())
 
-        G.select_nodes_by_id([10])  # Select node ID 10
+        G.select_nodes_by_id([10], set_op="union")  # Select node ID 10
         final_count = len(G.get_selected_node_ids())
 
         assert final_count >= initial_count
