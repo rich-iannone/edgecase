@@ -189,8 +189,10 @@ class TestFromCypherErrors:
     @pytest.mark.parametrize(
         "text, message",
         [
-            ("MATCH (a) RETURN a", r"only CREATE clauses can build a graph, found 'MATCH' "
-                                   r"\(line 1, column 1\)"),
+            ("MATCH (a) RETURN a", r"only CREATE clauses can build a graph, found 'MATCH'; to "
+                                   r"query a graph, use Graph.match\(\), select_match\(\) or "
+                                   r"count_matches\(\) \(line 1, column 1\)"),
+            ("CREATE (a) match (b)", r"found 'match'; to query a graph, use Graph.match\(\)"),
             ("CREATE (a)\nRETURN a", r"found 'RETURN' \(line 2, column 1\)"),
             ("CREATE (a)--(b)", r"needs a direction .* \(line 1, column 11\)"),
             ("CREATE\n  (a)<-->(b)", r"can't point both ways \(line 2, column 6\)"),
