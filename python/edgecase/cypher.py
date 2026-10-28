@@ -48,7 +48,7 @@ _RESERVED = frozenset({
 
 _COMPARISONS = ("=", "<>", "<", "<=", ">", ">=", "=~")
 
-# aggregating functions, which RETURN rejects with a pointer to Polars
+# the aggregating functions, which only RETURN and ORDER BY can use
 _AGGREGATES = frozenset({"avg", "collect", "count", "max", "min", "sum"})
 
 # the shortest-path functions of a pattern, lower-cased -> as documented
@@ -127,6 +127,17 @@ class Call:
 
 
 @dataclass
+class Aggregate:
+    """An aggregating function, `name([DISTINCT] arg)`, with the name lower-cased; `arg` is
+    `None` for `count(*)`."""
+
+    name: str
+    arg: Optional[Expr]
+    distinct: bool = False
+    pos: int = field(default=0, compare=False)
+
+
+@dataclass
 class ListExpr:
     """A list of expressions, `[a, b]`."""
 
@@ -177,8 +188,8 @@ class IsNull:
     pos: int = field(default=0, compare=False)
 
 
-Expr = Union[Literal, Param, Var, Prop, HasLabels, Call, ListExpr, Not, Neg, BoolOp, Compare,
-             IsNull]
+Expr = Union[Literal, Param, Var, Prop, HasLabels, Call, Aggregate, ListExpr, Not, Neg, BoolOp,
+             Compare, IsNull]
 
 
 @dataclass
@@ -303,6 +314,8 @@ def _children(expr: Expr) -> list[Expr]:
         return [expr.left, expr.right]
     if isinstance(expr, Call):
         return expr.args
+    if isinstance(expr, Aggregate):
+        return [] if expr.arg is None else [expr.arg]
     if isinstance(expr, ListExpr):
         return expr.items
     if isinstance(expr, BoolOp):
@@ -315,6 +328,20 @@ def walk(expr: Expr):
     yield expr
     for sub in _children(expr):
         yield from walk(sub)
+
+
+def aggregates_in(expr: Expr) -> list[Aggregate]:
+    """The aggregating function calls in `expr`, in order."""
+    return [sub for sub in walk(expr) if isinstance(sub, Aggregate)]
+
+
+def _outside(expr: Expr) -> set[str]:
+    """The variables `expr` reads outside its aggregating function calls."""
+    if isinstance(expr, Var):
+        return {expr.name}
+    if isinstance(expr, Aggregate):
+        return set()
+    return set().union(*map(_outside, _children(expr)))
 
 
 def substitute(expr: Expr, names: dict[str, Expr]) -> Expr:
@@ -331,6 +358,8 @@ def substitute(expr: Expr, names: dict[str, Expr]) -> Expr:
                        right=substitute(expr.right, names))
     if isinstance(expr, Call):
         return replace(expr, args=[substitute(e, names) for e in expr.args])
+    if isinstance(expr, Aggregate) and expr.arg is not None:
+        return replace(expr, arg=substitute(expr.arg, names))
     if isinstance(expr, ListExpr):
         return replace(expr, items=[substitute(e, names) for e in expr.items])
     if isinstance(expr, BoolOp):
@@ -396,6 +425,8 @@ class _CypherParser(_TokenParser):
     def __init__(self, text: str):
         super().__init__(text)
         self._projecting = False
+        # the aggregating function being parsed, as written, to reject another inside it
+        self._aggregating: Optional[str] = None
         pos = 0
         while pos < len(text):
             m = _TOKEN.match(text, pos)
@@ -564,14 +595,35 @@ class _CypherParser(_TokenParser):
                 self._fail(f"the column {item.name!r} is returned twice", item.pos)
             columns[item.name] = item.expr
         returned = list(columns.values())
+        grouping = [expr for expr in returned if not aggregates_in(expr)]
+        aggregating = len(grouping) < len(returned)
 
-        def check(expr: Expr) -> None:
-            # after DISTINCT, a key can only be made of returned columns
-            if expr in returned or isinstance(expr, Var) and expr.name in columns:
+        def grouped(expr: Expr) -> None:
+            # beside an aggregation, a column can only use the grouping keys
+            if expr in grouping or isinstance(expr, Aggregate):
                 return
             if isinstance(expr, Var):
-                self._fail(f"after RETURN DISTINCT, ORDER BY can only use the returned columns, "
-                           f"and `{expr.name}` isn't one", expr.pos)
+                self._fail(f"`{expr.name}` is used beside an aggregation, so it must be a grouping "
+                           f"key: return `{expr.name}` (or the expression it's in) as a column "
+                           "of its own", expr.pos)
+            for sub in _children(expr):
+                grouped(sub)
+
+        if aggregating:
+            for expr in returned:
+                grouped(expr)
+        after = "RETURN DISTINCT" if returns.distinct else "an aggregation"
+
+        def check(expr: Expr) -> None:
+            # after DISTINCT or an aggregation, a key can only be made of returned columns
+            if expr in returned or isinstance(expr, Var) and expr.name in columns:
+                return
+            if isinstance(expr, Aggregate):
+                self._fail(f"ORDER BY can only sort by an aggregation that RETURN returns; return "
+                           f"{expr.name}() as a column, and sort by its name", expr.pos)
+            if isinstance(expr, Var) and (returns.distinct or aggregating):
+                self._fail(f"after {after}, ORDER BY can only use the returned columns, and "
+                           f"`{expr.name}` isn't one", expr.pos)
             for sub in _children(expr):
                 check(sub)
 
@@ -580,8 +632,7 @@ class _CypherParser(_TokenParser):
                 if isinstance(sub, Var) and sub.name not in kinds and sub.name not in columns:
                     self._fail(f"the variable `{sub.name}` isn't defined in MATCH, or as a "
                                "column of RETURN", sub.pos)
-            if returns.distinct:
-                check(key.expr)
+            check(key.expr)
             key.expr = substitute(key.expr, columns)
         for what, expr in (("SKIP", returns.skip), ("LIMIT", returns.limit)):
             for sub in walk(expr) if expr is not None else ():
@@ -952,9 +1003,8 @@ class _CypherParser(_TokenParser):
             if upper in ("TRUE", "FALSE", "NULL"):
                 return Literal({"TRUE": True, "FALSE": False, "NULL": None}[upper], pos)
             if self._accept("("):
-                if self._projecting and value.lower() in _AGGREGATES:
-                    self._fail(f"aggregation ({value}()) isn't supported; use count_matches(), or "
-                               "group the match() table with Polars", pos)
+                if value.lower() in _AGGREGATES:
+                    return self._aggregate(value, pos)
                 args: list[Expr] = []
                 if not self._accept(")"):
                     args.append(self._expr())
@@ -980,6 +1030,36 @@ class _CypherParser(_TokenParser):
         if value == "{":
             self._fail("map values aren't supported in expressions", pos)
         self._fail(f"expected an expression, found {value!r}", pos)
+
+    def _aggregate(self, written: str, pos: int) -> Aggregate:
+        """The rest of an aggregating function call, after its `(`."""
+        name = written.lower()
+        if not self._projecting:
+            self._fail(f"{written}() is an aggregating function, which only RETURN and ORDER BY "
+                       "can use", pos)
+        if self._aggregating is not None:
+            self._fail(f"aggregating functions can't be nested, as {written}() is in "
+                       f"{self._aggregating}()", pos)
+        distinct = self._accept_keyword("DISTINCT")
+        if self._accept("*"):
+            if name != "count":
+                self._fail(f"only count() takes *, as count(*); {written}() takes an expression",
+                           pos)
+            if distinct:
+                self._fail("count(*) counts rows, so it can't be DISTINCT; count(DISTINCT x) "
+                           "counts the different values of x", pos)
+            self._expect(")", "')' to close count(*)")
+            return Aggregate(name, None, False, pos)
+        if self._peek() == ")":
+            self._fail(f"{written}() takes one argument" +
+                       (", or * to count the rows" if name == "count" else ""), pos)
+        self._aggregating = written
+        arg = self._expr()
+        self._aggregating = None
+        if self._peek() == ",":
+            self._fail(f"{written}() takes one argument")
+        self._expect(")", f"')' to close {written}()")
+        return Aggregate(name, arg, distinct, pos)
 
 
 def _number(text: str) -> Union[int, float]:
@@ -1201,6 +1281,9 @@ class Evaluator:
     `OPTIONAL MATCH` that found nothing. `variables` gives the
     kind of each variable (as in `Query.variables`), `params` the values of the
     `$name` parameters, and `view` reads the graph. Errors point at the query `text`.
+
+    An aggregating function call reads its value from the binding, under the key
+    `("aggregate", k)` for the call that equals `aggregates[k]` (see `Projection`).
     """
 
     def __init__(self, text: str, variables: dict[str, str], params: Optional[dict],
@@ -1209,6 +1292,7 @@ class Evaluator:
         self.variables = variables
         self.params = {} if params is None else params
         self.view = view
+        self.aggregates: list[Aggregate] = []
 
     def _fail(self, pos: int, message: str):
         raise cypher_error(self.text, pos, message)
@@ -1258,6 +1342,13 @@ class Evaluator:
         if kind == "path":
             return lambda binding: None if binding[name] is None else PathRef(*binding[name])
         return lambda binding: None if binding[name] is None else RelRef(binding[name])
+
+    def _aggregate(self, expr: Aggregate):
+        if expr not in self.aggregates:
+            self._fail(expr.pos, f"{expr.name}() is an aggregating function, which only RETURN "
+                                 "and ORDER BY can use")
+        key = ("aggregate", self.aggregates.index(expr))
+        return lambda binding: binding[key]
 
     def _listexpr(self, expr: ListExpr):
         items = [self.compile(item) for item in expr.items]
@@ -2432,9 +2523,10 @@ _CALL_KINDS = {
 
 def _column_kind(expr: Expr, variables: dict[str, str]) -> str:
     """What a `RETURN` column holds: a kind of `Query.variables` for a variable, `"property"`
-    for `v.key`, `"nodes"` for a list of nodes, `"integer"`, `"string"`, `"boolean"` or
-    `"strings"` (a list of strings) when the expression can only give those (or `null`), and
-    `"value"` for anything else."""
+    for `v.key`, `"nodes"` for a list of nodes, `"integer"`, `"float"`, `"string"`,
+    `"boolean"` or `"strings"` (a list of strings) when the expression can only give those (or
+    `null`), and `"value"` for anything else. (`"relationships"`, the kind of a
+    variable-length relationship, is any list of relationships, as from `collect(r)`.)"""
     if isinstance(expr, Var):
         return variables[expr.name]
     if isinstance(expr, Prop) and isinstance(expr.subject, Var):
@@ -2443,6 +2535,17 @@ def _column_kind(expr: Expr, variables: dict[str, str]) -> str:
         return "boolean"
     if isinstance(expr, Call):
         return _CALL_KINDS.get(expr.name.lower(), "value")
+    if isinstance(expr, Aggregate):
+        if expr.name in ("count", "avg"):
+            return "integer" if expr.name == "count" else "float"
+        inner = _column_kind(expr.arg, variables)
+        if expr.name == "collect":
+            return {"node": "nodes", "relationship": "relationships",
+                    "string": "strings"}.get(inner, "value")
+        if expr.name == "sum":
+            return "integer" if inner == "integer" else "value"
+        return inner if inner in ("node", "relationship", "integer", "string", "boolean") else (
+            "value")
     return "value"
 
 
@@ -2515,11 +2618,14 @@ class _Other:
 
 
 def hashable(value: Any) -> Any:
-    """A hashable stand-in for a cell, for `RETURN DISTINCT`. Booleans are kept apart from the
-    numbers they would hash as, lists and maps compare by their contents, and values of no
-    Cypher type (such as a `Decimal`) equal no number, string or boolean."""
+    """A hashable stand-in for a cell, for `RETURN DISTINCT` and grouping. Booleans are kept
+    apart from the numbers they would hash as, every NaN is the same (as Cypher's grouping has
+    it, though `NaN = NaN` is false), lists and maps compare by their contents, and values of
+    no Cypher type (such as a `Decimal`) equal no number, string or boolean."""
     if isinstance(value, bool):
         return ("bool", value)
+    if isinstance(value, numbers.Real) and value != value:
+        return ("nan",)
     if isinstance(value, (list, tuple)):
         return ("list", tuple(hashable(v) for v in value))
     if isinstance(value, dict):
@@ -2566,8 +2672,9 @@ _SIMPLE = frozenset({int, float, str, type(None)})
 
 def _distinct_column(values: list) -> list:
     """Hashable stand-ins for the cells of a column, which compare as `hashable(plain(v))`
-    does (numbers, strings and `null` stand for themselves)."""
-    if set(map(type, values)) <= _SIMPLE:
+    does (numbers but NaN, strings and `null` stand for themselves)."""
+    types = set(map(type, values))
+    if types <= _SIMPLE and (float not in types or all(v == v for v in values)):
         return values
     return [hashable(plain(v)) for v in values]
 
@@ -2601,10 +2708,17 @@ class Projection:
       `ORDER BY` key is evaluated for every row (every distinct one, with `DISTINCT`). Rows
       are evaluated in their order before `ORDER BY`, a column at a time, so both engines meet
       a value error at the same row.
+    - **Aggregation:** when a column uses an aggregating function, the other columns are the
+      grouping keys, and the rows that agree on all of them (as `DISTINCT` compares rows) make
+      one row of the table, or all the rows make one when there are no keys (even if there are
+      no matches). Every aggregation is computed for every group (see `_fold()`), and then the
+      aggregating columns and the `ORDER BY` keys are evaluated once per group, reading
+      variables from the group's first row.
     - **Order:** rows are sorted by the IDs of the named variables (see `Matcher.table()`).
       `DISTINCT` keeps the first of each set of equal rows, at the place of the one that sorts
-      first. `ORDER BY` then sorts them by its keys (see `sort_key()`), keeping that order for
-      ties, and `SKIP` and `LIMIT` take a slice of the result.
+      first, and a group takes the place of its first row. `ORDER BY` then sorts them by its
+      keys (see `sort_key()`), keeping that order for ties, and `SKIP` and `LIMIT` take a
+      slice of the result.
     - **Errors:** the expressions are compiled, and the `SKIP` and `LIMIT` counts checked, when
       the projection is made, so those errors don't depend on the matches.
     """
@@ -2615,12 +2729,23 @@ class Projection:
         returns = query.returns
         items = ([ReturnItem(Var(name), name) for name in query.variables] if returns is None
                  else returns.items)
+        order = [] if returns is None else returns.order
         self.columns = [(item.name, _column_kind(item.expr, query.variables)) for item in items]
-        self._specs = [self._spec(item.expr) for item in items]
+        # every different aggregation of the columns and the ORDER BY keys
+        self.aggregates: list[Aggregate] = []
+        for expr in [*(item.expr for item in items), *(key.expr for key in order)]:
+            self.aggregates += [a for a in aggregates_in(expr) if a not in self.aggregates]
+        self.grouping = any(aggregates_in(item.expr) for item in items)
+        if self.grouping:
+            matcher.evaluator.aggregates = self.aggregates
+            self._args = [None if a.arg is None else self._spec(a.arg) for a in self.aggregates]
+            self._specs = [self._group_spec(item.expr) if aggregates_in(item.expr)
+                           else self._spec(item.expr) for item in items]
+            self._order = [(self._group_spec(key.expr), key.descending) for key in order]
+        else:
+            self._specs = [self._spec(item.expr) for item in items]
+            self._order = [(self._spec(key.expr), key.descending) for key in order]
         self.distinct = returns is not None and returns.distinct
-        self._order = [] if returns is None else [
-            (self._spec(key.expr), key.descending) for key in returns.order
-        ]
         self.skip = None if returns is None else self._count("SKIP", returns.skip)
         self.limit = None if returns is None else self._count("LIMIT", returns.limit)
 
@@ -2637,6 +2762,11 @@ class Projection:
             return ("prop", expr.subject.name, expr.key)
         return ("expr", run, sorted(variables_in(expr)))
 
+    def _group_spec(self, expr: Expr) -> tuple:
+        """`("group", run, names)`: an expression evaluated once per group, from a binding of
+        the variables `names` it reads outside its aggregations and of the aggregations."""
+        return ("group", self.matcher.evaluator.compile(expr), sorted(_outside(expr)))
+
     def _count(self, what: str, expr: Optional[Expr]) -> Optional[int]:
         if expr is None:
             return None
@@ -2650,21 +2780,23 @@ class Projection:
               use_labels: bool = False) -> tuple[list[list], Optional[tuple]]:
         """The cells, as one list per column, and the first match in search order (or `None`).
         `limit` stops the search after that many matches (or distinct rows, with `DISTINCT`),
-        before `ORDER BY`, `SKIP` and `LIMIT`."""
+        before `ORDER BY`, `SKIP` and `LIMIT`; with aggregation, the groups are made from the
+        matches it found."""
         matcher, specs = self.matcher, self._specs
-        if (not self.distinct and not self._order and self.skip is None and self.limit is None
-                and all(spec[0] != "expr" for spec in specs)):
+        if (not self.distinct and not self.grouping and not self._order and self.skip is None
+                and self.limit is None and all(spec[0] != "expr" for spec in specs)):
             # the common case, which `Matcher.table()` builds whole
             columns = [("label", spec[1]) if use_labels and kind in ("node", "path") else spec
                        for (_, kind), spec in zip(self.columns, specs)]
             _, cells, first = matcher.table(columns, self.named, limit)
             return cells, first
-        _, values, first = self._rows(limit, True)
+        _, values, first = (self._groups(limit, True) if self.grouping
+                            else self._rows(limit, True))
         view = matcher.view
         label = (lambda n: view.node(n)[0]) if use_labels else None
         cells = []
         for (_, kind), spec, column in zip(self.columns, specs, values):
-            if spec[0] == "expr":
+            if spec[0] in ("expr", "group"):
                 cells.append([plain(v, label) for v in column])
             elif use_labels and kind == "node":
                 cells.append([None if v is None else label(v) for v in column])
@@ -2678,7 +2810,10 @@ class Projection:
 
     def count(self) -> tuple[int, Optional[tuple]]:
         """The number of rows of the table, and the first match in search order (or `None`).
-        Only `DISTINCT` evaluates the columns."""
+        Only `DISTINCT` evaluates the columns, and aggregation only the grouping keys."""
+        if self.grouping:
+            n, _, first = self._groups(None, False)
+            return n, first
         if self.distinct:
             n, _, first = self._rows(None, False)
             return n, first
@@ -2686,29 +2821,22 @@ class Projection:
         n = max(0, n - (self.skip or 0))
         return (n if self.limit is None else min(n, self.limit)), first
 
-    def _rows(self, limit: Optional[int], ordered: bool) -> tuple[int, list[list], Any]:
-        """The rows of the table: `(count, values, first)`, with `values` one list per column
-        of the cells of table columns (as `Matcher.table()` gives them) and the values of
-        expressions. Without `ordered`, `ORDER BY` is left out."""
-        matcher, named, slots = self.matcher, self.named, self.matcher.plan.slots
-        fetch: dict[tuple, int] = {}  # the columns of `Matcher.table()`, by position
-        for spec in [*self._specs, *(spec for spec, _ in self._order)]:
-            for column in ([("slot", name) for name in spec[2]] if spec[0] == "expr"
+    def _fetch(self, specs: list) -> dict[tuple, int]:
+        """The columns of `Matcher.table()` that `specs` read, by position."""
+        fetch: dict[tuple, int] = {}
+        for spec in specs:
+            for column in ([("slot", name) for name in spec[2]] if spec[0] in ("expr", "group")
                            else [spec]):
                 fetch.setdefault(column, len(fetch))
-        if self.distinct:
-            for name in named:
-                fetch.setdefault(("slot", name), len(fetch))
-        if limit == 0:
-            n, cells, first = 0, [[] for _ in fetch], None
-        elif self.distinct and limit is not None:
-            # the limit counts distinct rows in search order, so the search can't stop at it
-            n, cells, first = matcher.table(list(fetch))
-        else:
-            n, cells, first = matcher.table(list(fetch), named, limit)
+        return fetch
+
+    def _reader(self, fetch: dict[tuple, int], cells: list[list]):
+        """A function `read(spec, rows, value=False)` that gives the cells of `spec` for `rows`
+        of `cells` (the table of `fetch`): table cells as `Matcher.table()` gives them, or with
+        `value`, as an expression's values, and the values of an expression."""
+        slots = self.matcher.plan.slots
 
         def read(spec, rows, value=False):
-            # the cells of `spec` for `rows`; with `value`, as an expression's values
             if spec[0] == "expr":
                 run = spec[1]
                 parts = [(name, slots[name], cells[fetch[("slot", name)]]) for name in spec[2]]
@@ -2719,6 +2847,34 @@ class Projection:
                 kind = slots[spec[1]]
                 return [_cypher_value(kind, column[r]) for r in rows]
             return [column[r] for r in rows]
+        return read
+
+    def _sorted(self, keys: list[list]) -> list[int]:
+        """The places of the rows, sorted by the `ORDER BY` keys (one list of values per key),
+        keeping their order for ties."""
+        places = list(range(len(keys[0]) if keys else 0))
+        for key, (_, descending) in reversed(list(zip(keys, self._order))):
+            column = _sort_column(key)
+            places.sort(key=column.__getitem__, reverse=descending)
+        return places
+
+    def _rows(self, limit: Optional[int], ordered: bool) -> tuple[int, list[list], Any]:
+        """The rows of the table: `(count, values, first)`, with `values` one list per column
+        of the cells of table columns (as `Matcher.table()` gives them) and the values of
+        expressions. Without `ordered`, `ORDER BY` is left out."""
+        matcher, named, slots = self.matcher, self.named, self.matcher.plan.slots
+        fetch = self._fetch([*self._specs, *(spec for spec, _ in self._order)])
+        if self.distinct:
+            for name in named:
+                fetch.setdefault(("slot", name), len(fetch))
+        if limit == 0:
+            n, cells, first = 0, [[] for _ in fetch], None
+        elif self.distinct and limit is not None:
+            # the limit counts distinct rows in search order, so the search can't stop at it
+            n, cells, first = matcher.table(list(fetch))
+        else:
+            n, cells, first = matcher.table(list(fetch), named, limit)
+        read = self._reader(fetch, cells)
 
         rows = range(n)
         values = None
@@ -2752,12 +2908,9 @@ class Projection:
                 rows = [kept[i] for i in sorted(range(len(kept)), key=keys.__getitem__)]
         if ordered and self._order:
             # node and relationship IDs sort as the nodes and relationships do
-            keys = [_sort_column(read(spec, rows, spec[0] != "slot" or
-                                      slots[spec[1]] not in ("node", "relationship")))
-                    for spec, _ in self._order]
-            places = list(range(len(rows)))
-            for key, (_, descending) in reversed(list(zip(keys, self._order))):
-                places.sort(key=key.__getitem__, reverse=descending)
+            places = self._sorted([read(spec, rows, spec[0] != "slot" or
+                                        slots[spec[1]] not in ("node", "relationship"))
+                                   for spec, _ in self._order])
             rows = [rows[i] for i in places]
         start = self.skip or 0
         rows = rows[start:None if self.limit is None else start + self.limit]
@@ -2766,3 +2919,102 @@ class Projection:
         else:
             values = [[column[r] for r in rows] for column in values]
         return len(rows), values, first
+
+    def _groups(self, limit: Optional[int], evaluate: bool) -> tuple[int, Optional[list], Any]:
+        """The rows of an aggregating table, as `_rows()` gives them, one per group. Without
+        `evaluate`, only the grouping keys are evaluated, `ORDER BY` is left out, and `values`
+        is `None`."""
+        matcher, named, slots = self.matcher, self.named, self.matcher.plan.slots
+        keys = [(i, spec) for i, spec in enumerate(self._specs) if spec[0] != "group"]
+        groups = [spec for spec in [*self._specs, *(spec for spec, _ in self._order)]
+                  if spec[0] == "group"]
+        fetch = self._fetch([spec for _, spec in keys] + (
+            [spec for spec in self._args if spec is not None] + groups if evaluate else []))
+        if limit == 0:
+            n, cells, first = 0, [[] for _ in fetch], None
+        elif not fetch and limit is None:
+            (n, first), cells = matcher.count(), []
+        else:
+            n, cells, first = matcher.table(list(fetch), named, limit)
+        read = self._reader(fetch, cells)
+
+        # the rows of each group, in the order of their first rows
+        key_values = {i: read(spec, range(n)) for i, spec in keys}
+        if keys:
+            members: dict = {}
+            row_keys = zip(*[_distinct_column(column) for column in key_values.values()])
+            for r, key in enumerate(row_keys):
+                members.setdefault(key, []).append(r)
+            rows = list(members.values())
+        else:
+            rows = [range(n)]
+        if not evaluate:
+            n = max(0, len(rows) - (self.skip or 0))
+            return (n if self.limit is None else min(n, self.limit)), None, first
+
+        folded = []
+        for aggregate, spec in zip(self.aggregates, self._args):
+            # count() only tells values apart, so it can count the cells of the table (IDs for
+            # nodes and relationships), where the other aggregations need the values
+            args = None if spec is None else read(spec, range(n), aggregate.name != "count")
+            folded.append([self._fold(aggregate, group if args is None else
+                                      [args[r] for r in group]) for group in rows])
+        names = sorted({name for spec in groups for name in spec[2]})
+        bindings = []
+        for g, group in enumerate(rows):
+            binding = {name: _bound(slots[name], cells[fetch[("slot", name)]][group[0]])
+                       for name in names}
+            binding.update({("aggregate", k): column[g] for k, column in enumerate(folded)})
+            bindings.append(binding)
+
+        places = list(range(len(rows)))
+        if self._order:
+            places = self._sorted([[spec[1](b) for b in bindings] for spec, _ in self._order])
+        start = self.skip or 0
+        places = places[start:None if self.limit is None else start + self.limit]
+        values = []
+        for i, spec in enumerate(self._specs):
+            if spec[0] == "group":
+                values.append([spec[1](bindings[g]) for g in places])
+            else:
+                values.append([key_values[i][rows[g][0]] for g in places])
+        return len(places), values, first
+
+    def _fold(self, aggregate: Aggregate, values: Any) -> Any:
+        """The value of `aggregate` over a group: `values` holds the group's rows for `count(*)`
+        and the values of the argument for any other (its cells of `Matcher.table()` for
+        `count()`).
+
+        `null`s are skipped, and `DISTINCT` keeps the first of each set of equal values (as
+        `RETURN DISTINCT` compares them). `count()` counts the values, `collect()` lists them
+        in row order, `sum()` adds numbers (giving 0 for none, and an integer for integers),
+        `avg()` is their mean as a float, and `min()` and `max()` take the first of the
+        smallest or largest values in `ORDER BY`'s order (see `sort_key()`). Without values,
+        `avg()`, `min()` and `max()` are `null`."""
+        name = aggregate.name
+        if aggregate.arg is None:
+            return len(values)
+        values = [v for v in values if v is not None]
+        if aggregate.distinct:
+            seen: set = set()
+            values = [v for v, key in zip(values, _distinct_column(values))
+                      if not (key in seen or seen.add(key))]
+        if name == "count":
+            return len(values)
+        if name == "collect":
+            return values
+        if name in ("min", "max"):
+            if not values:
+                return None
+            keys = [sort_key(v) for v in values]
+            best = (min if name == "min" else max)(range(len(values)), key=keys.__getitem__)
+            return values[best]
+        for value in values:
+            if _kind(value) != "number":
+                self.matcher.evaluator._fail(aggregate.pos, f"{name}() needs numbers, not "
+                                                            f"{_describe(value)}")
+        # as Python numbers, so that numpy integers neither wrap around nor overflow
+        values = [int(v) if isinstance(v, numbers.Integral) else float(v) for v in values]
+        if name == "sum":
+            return sum(values)
+        return sum(values) / len(values) if values else None
