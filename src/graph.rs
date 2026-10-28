@@ -342,6 +342,33 @@ impl Graph {
         pairs
     }
 
+    /// `(edge ID, target)` for the edges stored with `node_id` as source, in edge creation order
+    pub(crate) fn out_pairs(&self, node_id: u64) -> &[(u64, u64)] {
+        self.edge_index().out_edges.get(&node_id).map_or(&[], |edges| edges.as_slice())
+    }
+
+    /// `(edge ID, source)` for the edges stored with `node_id` as target, in edge creation order
+    pub(crate) fn in_pairs(&self, node_id: u64) -> &[(u64, u64)] {
+        self.edge_index().in_edges.get(&node_id).map_or(&[], |edges| edges.as_slice())
+    }
+
+    /// The node with this ID
+    pub(crate) fn node_by_id(&self, node_id: u64) -> Option<&Node> {
+        self.nodes.get(&node_id)
+    }
+
+    /// The edge with this ID
+    pub(crate) fn edge_by_id(&self, edge_id: u64) -> Option<&Edge> {
+        self.edge_index().position_by_id.get(&edge_id).map(|&position| &self.edges[position])
+    }
+
+    /// Every node ID, in increasing order
+    pub(crate) fn sorted_node_ids(&self) -> Vec<u64> {
+        let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
+        ids.sort_unstable();
+        ids
+    }
+
     /// The IDs of the edges that `incident_pairs()` lists
     fn incident_edge_ids(&self, node_id: u64, out: bool, inward: bool) -> Vec<u64> {
         self.incident_pairs(node_id, out, inward).into_iter().map(|(id, _)| id).collect()
@@ -559,6 +586,20 @@ impl Graph {
             )));
         }
         Ok(self.incident_pairs(node_id, out, inward))
+    }
+
+    /// Run a Cypher match program (see `crate::cypher` and `Matcher` in `cypher.py`). Gives the
+    /// list of matches as tuples, at most `limit` of them, or with `count_only`, the number of
+    /// matches and the first one (or `None`).
+    #[pyo3(name = "_cypher_match", signature = (program, limit=None, count_only=false))]
+    pub fn cypher_match(
+        &self,
+        py: Python,
+        program: &Bound<'_, PyAny>,
+        limit: Option<usize>,
+        count_only: bool,
+    ) -> PyResult<PyObject> {
+        crate::cypher::run(self, py, program, limit, count_only)
     }
 
     /// A mark for `_discard_additions()`: the lengths of the node and edge creation logs and
