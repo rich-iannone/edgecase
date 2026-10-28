@@ -362,6 +362,24 @@ impl Graph {
         self.edge_index().position_by_id.get(&edge_id).map(|&position| &self.edges[position])
     }
 
+    /// One more than the largest node or edge ID that may be in use (the next ID to give out)
+    pub(crate) fn id_bound(&self, nodes: bool) -> u64 {
+        if nodes {
+            self.next_node_id
+        } else {
+            self.next_edge_id
+        }
+    }
+
+    /// The number of nodes or edges
+    pub(crate) fn element_count(&self, nodes: bool) -> usize {
+        if nodes {
+            self.nodes.len()
+        } else {
+            self.edges.len()
+        }
+    }
+
     /// Every node ID, in increasing order
     pub(crate) fn sorted_node_ids(&self) -> Vec<u64> {
         let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
@@ -590,16 +608,18 @@ impl Graph {
 
     /// Run a Cypher match program (see `crate::cypher` and `Matcher` in `cypher.py`). Gives the
     /// list of matches as tuples, at most `limit` of them, or with `count_only`, the number of
-    /// matches and the first one (or `None`).
-    #[pyo3(name = "_cypher_match", signature = (program, limit=None, count_only=false))]
+    /// matches and the first one (or `None`). With `table=(sort, columns)`, gives the matches
+    /// as columns instead, sorted (see `Matcher.table()`).
+    #[pyo3(name = "_cypher_match", signature = (program, limit=None, count_only=false, table=None))]
     pub fn cypher_match(
         &self,
         py: Python,
         program: &Bound<'_, PyAny>,
         limit: Option<usize>,
         count_only: bool,
+        table: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
-        crate::cypher::run(self, py, program, limit, count_only)
+        crate::cypher::run(self, py, program, limit, count_only, table)
     }
 
     /// A mark for `_discard_additions()`: the lengths of the node and edge creation logs and
