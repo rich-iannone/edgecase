@@ -176,6 +176,22 @@ def _value_kind(value: Any) -> str:
     return "other"
 
 
+def _exact_as_floats(values: list) -> bool:
+    """Whether every int among `values` converts to a float exactly."""
+    return all(abs(v) <= 2**53 for v in values if _value_kind(v) == "int")
+
+
+def _mixed_items(lists: list) -> bool:
+    """Whether the items of these lists (at any depth) mix kinds Polars can't hold together."""
+    items = [x for v in lists if v is not None for x in v]
+    kinds = {_value_kind(x) for x in items if x is not None}
+    if kinds == {"int", "float"}:
+        return not _exact_as_floats(items)
+    if kinds == {"list"}:
+        return _mixed_items(items)
+    return len(kinds) > 1
+
+
 def _parse_edge_item(item: Any) -> tuple[Any, Any, Optional[float], dict]:
     """
     Split one `add_edges()` item into `(source, target, weight, attrs)`.
