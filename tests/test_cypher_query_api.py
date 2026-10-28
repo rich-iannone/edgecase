@@ -380,6 +380,76 @@ class TestPaths:
         assert delta.edges_selected == [("A", "B"), ("B", "C"), ("C", "D")]
 
 
+class TestPathVariables:
+    def test_a_path_is_a_struct_column(self, chain):
+        e1, e2, _ = edge_ids(chain)
+        a, b, c = (node(chain, x) for x in "ABC")
+        df = chain.match("MATCH p = (x {name: 'A'})-[*1..2]->(y)")
+        assert df.schema == {
+            "p": pl.Struct({"nodes": pl.List(pl.Int64), "relationships": pl.List(pl.Int64)}),
+            "x": pl.Int64, "y": pl.Int64}
+        assert df["p"].to_list() == [{"nodes": [a, b], "relationships": [e1]},
+                                     {"nodes": [a, b, c], "relationships": [e1, e2]}]
+        # the nodes and relationships unnest into list columns
+        assert df.select(pl.col("p").struct.field("nodes"))["nodes"].to_list() == [
+            [a, b], [a, b, c]]
+
+    def test_use_labels(self, chain):
+        df = chain.match("MATCH p = (x {name: 'A'})-[*1..2]->(y) RETURN p", use_labels=True)
+        assert df.schema["p"] == pl.Struct({"nodes": pl.List(pl.String),
+                                            "relationships": pl.List(pl.Int64)})
+        assert [row["nodes"] for row in df["p"]] == [["A", "B"], ["A", "B", "C"]]
+
+    def test_distinct_and_order(self, chain):
+        df = chain.match("MATCH p = (x)-[*0..1]->(y) RETURN DISTINCT p", use_labels=True)
+        assert [row["nodes"] for row in df["p"]] == [
+            ["A"], ["A", "B"], ["B"], ["B", "C"], ["C"], ["C", "D"], ["D"]]
+        assert chain.count_matches("MATCH p = (x)-[*0..1]-(y) RETURN DISTINCT p") == 10
+        assert chain.count_matches("MATCH p = (x)-[*0..1]-(y) RETURN DISTINCT x") == 4
+
+    def test_null_paths(self, chain):
+        df = chain.match("MATCH (x {name: 'D'}) OPTIONAL MATCH p = (x)-->(y) RETURN x, p",
+                         use_labels=True)
+        assert df.rows() == [("D", None)]
+        assert df.schema["p"] == pl.Struct({"nodes": pl.List(pl.String),
+                                            "relationships": pl.List(pl.Int64)})
+
+    def test_no_matches_keeps_the_type(self, chain):
+        df = chain.match("MATCH p = (x)-->(x)")
+        assert df.height == 0 and isinstance(df.schema["p"], pl.Struct)
+
+    def test_shortest_paths(self):
+        g = ec.Graph(directed=True).add_nodes(list("ABCD")).add_edges(
+            [("A", "B"), ("B", "D"), ("A", "C"), ("C", "D"), ("A", "D"), ("D", "A")])
+        df = g.match("MATCH p = allShortestPaths((x {name: 'A'})-[*]->(y {name: 'D'})) "
+                     "WHERE length(p) > 1",
+                     use_labels=True)
+        assert [row["nodes"] for row in df["p"]] == [["A", "B", "D"], ["A", "C", "D"]]
+        df = g.match("MATCH p = shortestPath((x {name: 'B'})-[*]->(y {name: 'C'})) RETURN p",
+                     use_labels=True)
+        assert [row["nodes"] for row in df["p"]] == [["B", "D", "A", "C"]]
+        assert g.count_matches("MATCH shortestPath((x)-[*]->(y)) WHERE x <> y") == 12
+
+    def test_select_the_nodes_of_each_path(self, chain):
+        chain.select_match("MATCH p = (x {name: 'B'})-[*]->(y {name: 'D'})", select="p")
+        assert labels(chain, chain.get_selected_node_ids()) == ["B", "C", "D"]
+        assert chain.count_selected_edges() == 0
+        chain.select_match("MATCH p = (x {name: 'A'})-->(y)", select=["p", "x"],
+                           set_op="replace")
+        assert labels(chain, chain.get_selected_node_ids()) == ["A", "B"]
+        chain.select_match("MATCH (x {name: 'D'}) OPTIONAL MATCH p = (x)-->()", select="p",
+                           set_op="replace")
+        assert chain.count_selected_nodes() == 0
+
+    def test_a_path_is_a_node_variable_for_select(self, chain):
+        with pytest.raises(ValueError, match="both node and relationship variables"):
+            chain.select_match("MATCH p = (a)-[r]->(b)", select=["p", "r"])
+
+    def test_path_properties_are_an_error(self, chain):
+        with pytest.raises(ValueError, match=r"`p` is a path, so it has no properties"):
+            chain.match("MATCH p = (a)-->(b) RETURN p.name")
+
+
 DIRECTORS = "MATCH (p:Person) OPTIONAL MATCH (p)-[r:DIRECTED]->(m)"
 
 
