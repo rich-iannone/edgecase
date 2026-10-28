@@ -47,6 +47,9 @@ _RESERVED = frozenset({
 
 _COMPARISONS = ("=", "<>", "<", "<=", ">", ">=", "=~")
 
+# aggregating functions, which RETURN rejects with a pointer to Polars
+_AGGREGATES = frozenset({"avg", "collect", "count", "max", "min", "sum"})
+
 
 def position_error(fmt: str, text: str, pos: int, message: str) -> ValueError:
     """A `ValueError` for a problem at `pos` in `text`, giving its line and column."""
@@ -378,7 +381,10 @@ class _CypherParser(_TokenParser):
             kind, word, _ = self._next("CREATE")
             if kind != "name" or word.upper() != "CREATE":
                 self.i -= 1
-                self._fail(f"only CREATE clauses can build a graph, found {word!r}")
+                hint = ""
+                if kind == "name" and word.upper() == "MATCH":
+                    hint = "; to query a graph, use Graph.match(), select_match() or count_matches()"
+                self._fail(f"only CREATE clauses can build a graph, found {word!r}{hint}")
             patterns.append(self._pattern(create=True))
             while self._accept(","):
                 patterns.append(self._pattern(create=True))
@@ -448,6 +454,11 @@ class _CypherParser(_TokenParser):
             pos = self._pos()
             if self._accept("*"):
                 self._fail("RETURN * isn't supported; name the variables to return", pos)
+            word = self._peek()
+            if (self._at_name() and word.lower() in _AGGREGATES and self.i + 1 < len(self.tokens)
+                    and self.tokens[self.i + 1][1] == "("):
+                self._fail(f"aggregation ({word}()) isn't supported; use count_matches(), or group "
+                           "the match() table with Polars", pos)
             expr = self._expr()
             if isinstance(expr, Var):
                 name = expr.name
