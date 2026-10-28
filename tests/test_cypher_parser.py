@@ -222,6 +222,10 @@ class TestErrors:
             ("MATCH (a) RETURN a.x AS y", r"aliases \(AS\) aren't supported"),
             ("MATCH (a) RETURN id(a)", r"only list variables and their properties"),
             ("MATCH (a) RETURN *", r"RETURN \* isn't supported"),
+            ("MATCH (a) RETURN count(*)", r"aggregation \(count\(\)\) isn't supported; use "
+                                          r"count_matches\(\), or group the match\(\) table with "
+                                          r"Polars \(line 1, column 18\)"),
+            ("MATCH (a) RETURN a, SUM(a.x)", r"aggregation \(SUM\(\)\) isn't supported"),
             ("MATCH (a) RETURN a, a", r"the column 'a' is returned twice \(line 1, column 21\)"),
             ("MATCH (a {x: 1, x: 2})", r"'x' is given twice"),
             ("MATCH (a {x: [$y]})", r"expected a value, found '\$y'"),
@@ -230,6 +234,10 @@ class TestErrors:
     def test_query_errors(self, text, message):
         with pytest.raises(ValueError, match=r"^Cypher: .*" + message):
             parse_query(text)
+
+    def test_aggregate_names_are_still_variables(self):
+        returns = parse_query("MATCH (count) RETURN count, count.x").returns
+        assert [item.name for item in returns.items] == ["count", "count.x"]
 
     @pytest.mark.parametrize(
         "text, message",
