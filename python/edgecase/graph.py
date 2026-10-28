@@ -142,6 +142,21 @@ def _is_number(value: Any) -> bool:
     return isinstance(value, numbers.Real) and not isinstance(value, bool)
 
 
+_SET_OPS = ("union", "intersect", "difference", "replace")
+
+
+def _check_set_op(set_op: Any) -> None:
+    if set_op not in _SET_OPS:
+        raise ValueError(
+            f"set_op= must be one of {', '.join(map(repr, _SET_OPS))}; got {set_op!r}"
+        )
+
+
+def _set_op_arg(set_op: str) -> str:
+    """The `set_op=` part of a step's code, empty for the default."""
+    return "" if set_op == "union" else f", set_op={set_op!r}"
+
+
 def _parse_edge_item(item: Any) -> tuple[Any, Any, Optional[float], dict]:
     """
     Split one `add_edges()` item into `(source, target, weight, attrs)`.
