@@ -193,13 +193,19 @@ class NodePattern:
 
 @dataclass
 class RelPattern:
-    """`-[variable:TYPE|OTHER {key: value}]->`, with `direction` `"out"` (`->`), `"in"` (`<-`) or
-    `"either"` (no arrow). `types` holds the alternatives (empty for any type)."""
+    """`-[variable:TYPE|OTHER *min..max {key: value}]->`, with `direction` `"out"` (`->`), `"in"`
+    (`<-`) or `"either"` (no arrow). `types` holds the alternatives (empty for any type).
+
+    `length` is `None` for a single relationship, and `(min, max)` for a variable-length one,
+    with `max` `None` when there is no upper bound: `*` is `(1, None)`, `*2` is `(2, 2)` and
+    `*0..3` is `(0, 3)`. The types and properties then hold for every relationship on the path.
+    """
 
     variable: Optional[str] = None
     types: list[str] = field(default_factory=list)
     props: dict[str, Expr] = field(default_factory=dict)
     direction: str = "out"
+    length: Optional[tuple[int, Optional[int]]] = None
     pos: int = field(default=0, compare=False)
 
 
@@ -228,17 +234,31 @@ class Return:
 
 
 @dataclass
-class Query:
-    """`MATCH patterns [WHERE where] [RETURN returns]`.
-
-    `variables` maps each named variable to `"node"` or `"relationship"`, in the order they
-    first appear.
-    """
+class Clause:
+    """`[OPTIONAL] MATCH patterns [WHERE where]`."""
 
     patterns: list[Pattern]
     where: Optional[Expr] = None
+    optional: bool = False
+    pos: int = field(default=0, compare=False)
+
+
+@dataclass
+class Query:
+    """One or more `MATCH` clauses, then `[RETURN returns]`.
+
+    `variables` maps each named variable to its kind, in the order they first appear: `"node"`,
+    `"relationship"`, or `"relationships"` for a variable-length relationship (a list of them).
+    """
+
+    clauses: list[Clause]
     returns: Optional[Return] = None
     variables: dict[str, str] = field(default_factory=dict)
+
+    @property
+    def patterns(self) -> list[Pattern]:
+        """The patterns of every clause, in order."""
+        return [pattern for clause in self.clauses for pattern in clause.patterns]
 
 
 def walk(expr: Expr):
@@ -303,10 +323,6 @@ def _unsupported(word: str) -> Optional[str]:
     """Why a clause can't follow the pattern of a query, if `word` starts one."""
     if word in ("CREATE", "MERGE", "SET", "DELETE", "DETACH", "REMOVE"):
         return f"{word} isn't supported: a query only reads the graph"
-    if word == "MATCH":
-        return "only one MATCH clause is supported; separate the patterns with commas instead"
-    if word == "OPTIONAL":
-        return "OPTIONAL MATCH isn't supported"
     if word in ("ORDER", "SKIP", "LIMIT"):
         return f"{word} isn't supported; sort or slice the table that match() returns instead"
     if word in ("WITH", "UNWIND", "UNION", "CALL"):
@@ -391,18 +407,22 @@ class _CypherParser(_TokenParser):
         return patterns
 
     def parse_query(self) -> Query:
-        if not self._accept_keyword("MATCH"):
+        if not (self._at_keyword("MATCH") or self._at_keyword("OPTIONAL")):
             if self.i >= len(self.tokens):
                 self._fail("a query starts with MATCH, but the text is empty")
             kind, word, _ = self.tokens[self.i]
             reason = _unsupported(word.upper()) if kind == "name" else None
-            if reason is None or word.upper() == "MATCH":
-                reason = f"a query starts with MATCH, found {word!r}"
-            self._fail(reason)
-        patterns = [self._pattern(create=False)]
-        while self._accept(","):
-            patterns.append(self._pattern(create=False))
-        where = self._expr() if self._accept_keyword("WHERE") else None
+            self._fail(reason or f"a query starts with MATCH, found {word!r}")
+        clauses: list[Clause] = []
+        while self._at_keyword("MATCH") or self._at_keyword("OPTIONAL"):
+            pos = self._pos()
+            optional = self._accept_keyword("OPTIONAL")
+            self._expect_keyword("MATCH")
+            patterns = [self._pattern(create=False)]
+            while self._accept(","):
+                patterns.append(self._pattern(create=False))
+            where = self._expr() if self._accept_keyword("WHERE") else None
+            clauses.append(Clause(patterns, where, optional, pos))
         returns, pos = None, self._pos()
         if self._accept_keyword("RETURN"):
             returns = self._return(pos)
@@ -412,40 +432,64 @@ class _CypherParser(_TokenParser):
             reason = _unsupported(word.upper()) if kind == "name" else None
             if reason is None:
                 expected = ("the end of the query" if returns else
-                            "RETURN or the end of the query" if where else
-                            "WHERE, RETURN or the end of the query")
+                            "MATCH, RETURN or the end of the query" if clauses[-1].where else
+                            "WHERE, MATCH, RETURN or the end of the query")
                 reason = f"expected {expected}, found {word!r}"
             self._fail(reason)
-        query = Query(patterns, where, returns)
+        query = Query(clauses, returns)
         self._check_variables(query)
         return query
 
     def _check_variables(self, query: Query) -> None:
         kinds = query.variables
-        for pattern in query.patterns:
-            parts: list[Union[NodePattern, RelPattern]] = [pattern.nodes[0]]
-            for rel, node in zip(pattern.rels, pattern.nodes[1:]):
-                parts += [rel, node]
-            for part in parts:
-                if part.variable is None:
-                    continue
-                kind = "node" if isinstance(part, NodePattern) else "relationship"
-                if part.variable not in kinds:
-                    kinds[part.variable] = kind
-                elif kinds[part.variable] != kind:
-                    self._fail(f"`{part.variable}` is used for both a node and a relationship",
-                               part.pos)
-                elif kind == "relationship":
-                    # a row matches each relationship once, so its variable can't repeat
-                    self._fail(f"the relationship variable `{part.variable}` is used more than "
-                               "once", part.pos)
-        exprs = [query.where] if query.where is not None else []
+        # every pattern variable, to tell a WHERE that looks ahead from one that has a typo
+        anywhere = {part.variable for pattern in query.patterns
+                    for part in [*pattern.nodes, *pattern.rels]}
+        for clause in query.clauses:
+            in_clause: set[str] = set()
+            for pattern in clause.patterns:
+                parts: list[Union[NodePattern, RelPattern]] = [pattern.nodes[0]]
+                for rel, node in zip(pattern.rels, pattern.nodes[1:]):
+                    parts += [rel, node]
+                for part in parts:
+                    self._check_part(part, kinds, in_clause)
+            if clause.where is not None:
+                for sub in walk(clause.where):
+                    if isinstance(sub, Var) and sub.name not in kinds:
+                        if sub.name in anywhere:
+                            self._fail(f"the variable `{sub.name}` is only defined in a later "
+                                       "MATCH; a WHERE sees its own MATCH and the ones before it",
+                                       sub.pos)
+                        self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
         if query.returns is not None:
-            exprs += [item.expr for item in query.returns.items]
-        for expr in exprs:
-            for sub in walk(expr):
-                if isinstance(sub, Var) and sub.name not in kinds:
-                    self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+            for item in query.returns.items:
+                for sub in walk(item.expr):
+                    if isinstance(sub, Var) and sub.name not in kinds:
+                        self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+
+    def _check_part(self, part: Union[NodePattern, RelPattern], kinds: dict[str, str],
+                    in_clause: set[str]) -> None:
+        """Record the kind of a pattern element's variable, and check how it's reused."""
+        name = part.variable
+        if name is None:
+            return
+        if isinstance(part, NodePattern):
+            kind = "node"
+        else:
+            kind = "relationship" if part.length is None else "relationships"
+        known = kinds.get(name)
+        if known is None:
+            kinds[name] = kind
+        elif (known == "node") != (kind == "node"):
+            self._fail(f"`{name}` is used for both a node and a relationship", part.pos)
+        elif kind != "node" and name in in_clause:
+            # a row matches each relationship once, so its variable can't repeat in a clause
+            self._fail(f"the relationship variable `{name}` is used more than once in one MATCH",
+                       part.pos)
+        elif "relationships" in (known, kind):
+            self._fail(f"the variable-length relationship `{name}` can't be used again in a "
+                       "later MATCH", part.pos)
+        in_clause.add(name)
 
     def _return(self, start: int) -> Return:
         distinct = self._accept_keyword("DISTINCT")
@@ -526,10 +570,7 @@ class _CypherParser(_TokenParser):
                 if self._peek() == ":":
                     self._fail("a relationship has a single type; write :A|B to match either")
             if self._peek() == "*" and not create:
-                self._fail(
-                    "variable-length relationships (*) aren't supported yet; "
-                    "select_nodes_in_neighborhood() or trav_out_until() can follow several hops"
-                )
+                rel.length = self._length()
             if self._peek() == "{":
                 rel.props = self._map(create)
             self._expect("]")
@@ -539,6 +580,32 @@ class _CypherParser(_TokenParser):
             self._fail("a relationship can't point both ways", start)
         rel.direction = "in" if back else "out" if forward else "either"
         return rel
+
+    def _length(self) -> tuple[int, Optional[int]]:
+        """`*`, `*n`, `*min..max`, `*min..` or `*..max`, as `(min, max)`."""
+        pos = self._pos()
+        self.i += 1  # the `*`
+        low = self._hops() if self._at_number() else None
+        if self._accept(".."):
+            high = self._hops() if self._at_number() else None
+            low = 1 if low is None else low
+        elif low is None:
+            high, low = None, 1
+        else:
+            high = low
+        if high is not None and low > high:
+            self._fail(f"a variable-length relationship can't have more than {high} hops and at "
+                       f"least {low}; write *{high}..{low}", pos)
+        return low, high
+
+    def _at_number(self) -> bool:
+        return self.i < len(self.tokens) and self.tokens[self.i][0] == "number"
+
+    def _hops(self) -> int:
+        _, value, pos = self._next("a number of hops")
+        if not value.isdigit():
+            self._fail(f"a number of hops is a whole number, not {value!r}", pos)
+        return int(value)
 
     def _map(self, create: bool) -> dict[str, Expr]:
         self._expect("{")
@@ -749,7 +816,7 @@ def parse_create(text: str) -> list[Pattern]:
 
 
 def parse_query(text: str) -> Query:
-    """Parse a `MATCH ... [WHERE ...] [RETURN ...]` query."""
+    """Parse a query: `[OPTIONAL] MATCH ... [WHERE ...]` clauses, then `[RETURN ...]`."""
     return _CypherParser(text).parse_query()
 
 
@@ -873,6 +940,8 @@ def _describe(value: Any) -> str:
     kind = _kind(value)
     if kind in ("node", "relationship"):
         return f"a {kind}"
+    if kind == "list" and value and all(isinstance(v, RelRef) for v in value):
+        return "a list of relationships"
     text = repr(value)
     return text if len(text) <= 40 else text[:37] + "..."
 
@@ -936,8 +1005,9 @@ def _is_nan(value: Any) -> bool:
 class Evaluator:
     """Compiles the expressions of one query into Python functions of a binding.
 
-    A binding maps variable names to node or edge IDs. `variables` gives the kind of each
-    variable (`"node"` or `"relationship"`, as in `Query.variables`), `params` the values of the
+    A binding maps variable names to node or edge IDs, a tuple of edge IDs for a variable-length
+    relationship, or `None` for an `OPTIONAL MATCH` that found nothing. `variables` gives the
+    kind of each variable (as in `Query.variables`), `params` the values of the
     `$name` parameters, and `view` reads the graph. Errors point at the query `text`.
     """
 
@@ -987,10 +1057,13 @@ class Evaluator:
         return lambda binding: value
 
     def _var(self, expr: Var):
-        name = expr.name
-        if self.variables[name] == "node":
-            return lambda binding: NodeRef(binding[name])
-        return lambda binding: RelRef(binding[name])
+        name, kind = expr.name, self.variables[expr.name]
+        if kind == "node":
+            return lambda binding: None if binding[name] is None else NodeRef(binding[name])
+        if kind == "relationships":
+            return lambda binding: (None if binding[name] is None
+                                    else [RelRef(edge) for edge in binding[name]])
+        return lambda binding: None if binding[name] is None else RelRef(binding[name])
 
     def _listexpr(self, expr: ListExpr):
         items = [self.compile(item) for item in expr.items]
@@ -1000,10 +1073,17 @@ class Evaluator:
         key, view = expr.key, self.view
         if isinstance(expr.subject, Var):
             # the usual case, without making a NodeRef or RelRef first
-            name = expr.subject.name
-            if self.variables[name] == "node":
-                return lambda binding: view.node_prop(binding[name], key)
-            return lambda binding: view.edge_prop(binding[name], key)
+            name, kind = expr.subject.name, self.variables[expr.subject.name]
+            if kind == "relationships":
+                self._fail(expr.pos, f"`{name}` is a variable-length relationship, a list of "
+                                     "relationships, so it has no properties; to require a "
+                                     "property of every relationship on the path, put it in "
+                                     "the pattern, as in -[r*1..3 {key: value}]->")
+            if kind == "node":
+                return lambda binding: (None if binding[name] is None
+                                        else view.node_prop(binding[name], key))
+            return lambda binding: (None if binding[name] is None
+                                    else view.edge_prop(binding[name], key))
         subject = self.compile(expr.subject)
 
         def run(binding):
@@ -1275,13 +1355,19 @@ def element_conditions(variable: str, element: Union[NodePattern, RelPattern]) -
 
 @dataclass
 class Step:
-    """One step of a `Plan`. It binds one node, or one relationship and the node at its far end.
+    """One step of a `Stage`. It binds one node, or one relationship and the node at its far end.
 
     - `"scan"` binds `node` to each node of the graph. With a `seed` (the operator and value
       side of an `id(node) = value` or `id(node) IN value` condition), it binds only those IDs.
     - `"expand"` binds `rel` to each edge at the bound node `start`, as
       `_incident_edges(start, direction)` lists them, and `node` to the edge's other end.
     - `"connect"` is the same, for edges whose other end is the already bound `node`.
+
+    A variable-length relationship has `hops` (its `(min, max)`), and binds `rel` to each path
+    of edges from `start` instead, each edge passing `edge_conditions` (which read the plan's
+    `edge_slot`). With `reverse`, the path runs from `node` to `start` in the pattern, so its
+    edges are bound in the opposite order. A `fixed` relationship was bound by an earlier clause,
+    so the step only checks that edge.
 
     `conditions` are checked as soon as the step has bound its slots.
     """
@@ -1293,12 +1379,36 @@ class Step:
     direction: Optional[str] = None
     seed: Optional[tuple[str, Expr]] = None
     conditions: list[Expr] = field(default_factory=list)
+    hops: Optional[tuple[int, Optional[int]]] = None
+    edge_conditions: list[Expr] = field(default_factory=list)
+    reverse: bool = False
+    fixed: bool = False
 
     def __str__(self) -> str:
         if self.kind == "scan":
             return f"scan {self.node}" + (" by id" if self.seed else "")
+        rel = self.rel
+        if self.hops is not None:
+            low, high = self.hops
+            rel += f"*{low}" if low == high else f"*{low}..{'' if high is None else high}"
         arrow = {"out": "-[{}]->", "in": "<-[{}]-", "both": "-[{}]-"}[self.direction]
-        return f"{self.kind} ({self.start}){arrow.format(self.rel)}({self.node})"
+        return f"{self.kind} ({self.start}){arrow.format(rel)}({self.node})"
+
+
+@dataclass
+class Stage:
+    """The plan of one `MATCH` clause.
+
+    `entry` holds the conditions that read only slots bound by earlier clauses (or none at all),
+    checked before the clause's `steps`. `new` lists the slots the clause binds, and `joined`
+    the slots of earlier clauses that its patterns use again.
+    """
+
+    optional: bool
+    steps: list[Step]
+    entry: list[Expr]
+    new: list[str]
+    joined: list[str]
 
 
 def _id_seed(condition: Expr, slot: str) -> Optional[tuple[str, Expr]]:
@@ -1336,56 +1446,77 @@ _FLIP = {"out": "in", "in": "out", "either": "both"}
 
 
 class Plan:
-    """The order in which to bind the slots of a `MATCH`, and where each condition is checked.
+    """The order in which to bind the slots of a query, and where each condition is checked.
 
     - **Slots:** a slot is a node or relationship of the patterns. Each named variable is one
       slot, however often it appears. Each anonymous element gets a slot of its own, named so
-      that no variable clashes with it (`" 0"`, `" 1"`, ...). `slots` maps every slot to
-      `"node"` or `"relationship"`, in the order they first appear.
+      that no variable clashes with it (`" 0"`, `" 1"`, ...). `slots` maps every slot to its
+      kind (as in `Query.variables`), in the order they first appear. `paths` maps each
+      variable-length relationship to its left and right node slots.
+    - **Stages:** each `MATCH` clause is a `Stage`, planned with the slots of the clauses before
+      it already bound.
     - **Conditions:** the patterns' labels, types and properties (`element_conditions()`) and
-      the parts of the `WHERE` (`conjuncts()`). Each is checked at the first step that has bound
-      every slot it reads. Those that read no slot are `constant`.
+      the parts of the clause's `WHERE` (`conjuncts()`). Each is checked at the first step that
+      has bound every slot it reads. Those of a variable-length relationship are checked on
+      each of its edges instead, through the slot `edge_slot`.
     - **Order:** each connected group of patterns starts at its most constrained node (by
-      `_selectivity()`, ties going to the first). It then grows along relationships, closing a
-      cycle (`"connect"`) whenever it can, so that every later node is reached through an edge
-      rather than by a scan. Groups that share no variable are scanned one after another, which
-      gives their cross product.
+      `_selectivity()`, ties going to the first), or at a node bound by an earlier clause. It
+      then grows along relationships, closing a cycle (`"connect"`) whenever it can, so that
+      every later node is reached through an edge rather than by a scan. Groups that share no
+      variable are scanned one after another, which gives their cross product.
     - **Directions:** on an undirected graph every relationship is followed with `"both"`, so
       `-->`, `<--` and `--` mean the same.
     """
 
     def __init__(self, query: Query, directed: bool = True):
         self.slots: dict[str, str] = {}
-        rels: list[tuple[str, str, str, str]] = []  # (slot, left node, right node, arrow)
+        self.paths: dict[str, tuple[str, str]] = {}
+        self.edge_slot = " edge"
+        while self.edge_slot in query.variables:
+            self.edge_slot += "_"
+        self._counter = 0
+        self.stages = [self._stage(clause, query, directed) for clause in query.clauses]
+
+    def _stage(self, clause: Clause, query: Query, directed: bool) -> Stage:
+        before = set(self.slots)
+        used: dict[str, str] = {}  # the slots of this clause, in order
+        rels = []  # (slot, left node, right node, arrow, hops)
         conditions: list[Expr] = []
-        counter = 0
+        per_edge: dict[str, list[Expr]] = {}
 
         def slot(element: Union[NodePattern, RelPattern], kind: str) -> str:
-            nonlocal counter
             name = element.variable
             while name is None or (element.variable is None and name in query.variables):
-                name, counter = f" {counter}", counter + 1
+                name, self._counter = f" {self._counter}", self._counter + 1
             self.slots.setdefault(name, kind)
-            conditions.extend(element_conditions(name, element))
+            used.setdefault(name, kind)
+            if kind == "relationships":
+                per_edge[name] = element_conditions(self.edge_slot, element)
+            else:
+                conditions.extend(element_conditions(name, element))
             return name
 
-        for pattern in query.patterns:
+        for pattern in clause.patterns:
             left = slot(pattern.nodes[0], "node")
             for rel, node in zip(pattern.rels, pattern.nodes[1:]):
-                rel_slot = slot(rel, "relationship")
+                rel_slot = slot(rel, "relationship" if rel.length is None else "relationships")
                 right = slot(node, "node")
-                rels.append((rel_slot, left, right, rel.direction))
+                rels.append((rel_slot, left, right, rel.direction, rel.length))
+                if rel.length is not None:
+                    self.paths[rel_slot] = (left, right)
                 left = right
-        conditions += conjuncts(query.where)
+        conditions += conjuncts(clause.where)
 
         needs = [variables_in(c) for c in conditions]
-        self.constant = [c for c, n in zip(conditions, needs) if not n]
-        alone = {s: [c for c, n in zip(conditions, needs) if n == {s}] for s in self.slots}
-        score = {s: _selectivity(alone[s], s) for s in self.slots}
+        new = [s for s in used if s not in before]
+        entry = [c for c, n in zip(conditions, needs) if n <= before]
+        alone = {s: [c for c, n in zip(conditions, needs) if n == {s}] for s in new}
+        score = {s: _selectivity(alone[s], s) for s in new}
+        score.update({s: 10**9 for s in used if s in before})
 
-        self.steps: list[Step] = []
-        placed = [not n for n in needs]
-        bound: set[str] = set()
+        steps: list[Step] = []
+        placed = [n <= before for n in needs]
+        bound = set(before)
 
         def add(step: Step) -> None:
             bound.update(s for s in (step.node, step.rel) if s is not None)
@@ -1393,9 +1524,9 @@ class Plan:
                 if not placed[i] and n <= bound:
                     placed[i] = True
                     step.conditions.append(conditions[i])
-            self.steps.append(step)
+            steps.append(step)
 
-        nodes = [s for s, kind in self.slots.items() if kind == "node"]
+        nodes = [s for s, kind in used.items() if kind == "node"]
         todo = list(rels)
         while todo or len(bound & set(nodes)) < len(nodes):
             ready = [r for r in todo if r[1] in bound or r[2] in bound]
@@ -1410,16 +1541,29 @@ class Plan:
             else:
                 rel = max(ready, key=lambda r: score[r[2] if r[1] in bound else r[1]])
             todo.remove(rel)
-            rel_slot, left, right, arrow = rel
+            rel_slot, left, right, arrow, hops = rel
             if left in bound:
                 start, node, direction = left, right, "both" if arrow == "either" else arrow
             else:
                 start, node, direction = right, left, _FLIP[arrow]
             add(Step("connect" if closing else "expand", node, rel_slot, start,
-                     direction if directed else "both"))
+                     direction if directed else "both", hops=hops,
+                     edge_conditions=per_edge.get(rel_slot, []), reverse=start != left,
+                     fixed=rel_slot in before))
+        return Stage(clause.optional, steps, entry, new, [s for s in used if s in before])
+
+    @property
+    def steps(self) -> list[Step]:
+        """The steps of every stage, in order."""
+        return [step for stage in self.stages for step in stage.steps]
 
     def __str__(self) -> str:
-        return "\n".join(str(step) for step in self.steps)
+        lines = []
+        for i, stage in enumerate(self.stages):
+            if i or stage.optional:
+                lines.append("optional match" if stage.optional else "match")
+            lines += [str(step) for step in stage.steps]
+        return "\n".join(lines)
 
 
 # =============================================================================
@@ -1431,12 +1575,18 @@ class Matcher:
     """Finds the matches of a parsed query in a Rust graph, by a backtracking search over its
     `Plan`.
 
-    - **Matches:** `matches()` yields each match as a dict of slot → node or edge ID, covering
-      every slot, anonymous ones included. They come in search order, which is fixed for a
-      given graph and query.
-    - **Distinctness:** the relationships of one match are distinct edges, which is Cypher's
-      rule, while nodes may repeat. With `distinct_nodes=True`, the node slots must be distinct
-      nodes too, as in a subgraph isomorphism.
+    - **Matches:** `matches()` yields each match as a dict of slot → value, covering every slot,
+      anonymous ones included. A node or relationship slot holds an ID, a variable-length
+      relationship a tuple of edge IDs in pattern order, and a slot that an `OPTIONAL MATCH`
+      found nothing for holds `None`. Matches come in search order, which is fixed for a given
+      graph and query.
+    - **Clauses:** each `MATCH` extends the matches of the clauses before it, and drops those it
+      can't extend. An `OPTIONAL MATCH` keeps them instead, with its new slots `None`. A pattern
+      that uses a `None` slot again matches nothing.
+    - **Distinctness:** the relationships of one clause are distinct edges, which is Cypher's
+      rule, while nodes may repeat. With `distinct_nodes=True`, the nodes of one clause must be
+      distinct too (the inner nodes of variable-length paths included), as in a subgraph
+      isomorphism. Different clauses may reuse edges and nodes.
     - **When errors are raised:** conditions are compiled when the matcher is made, so a missing
       parameter or an unknown function raises then, even on an empty graph. Errors in values
       (`WHERE n.name`, say) raise when a row meets them.
@@ -1444,16 +1594,20 @@ class Matcher:
 
     def __init__(self, query: Query, text: str, graph: Any, params: Optional[dict] = None,
                  label_key: Optional[str] = "name", distinct_nodes: bool = False):
-        self.plan = Plan(query, graph.is_directed)
+        self.plan = plan = Plan(query, graph.is_directed)
         self.graph = graph
         self.distinct_nodes = distinct_nodes
-        self.evaluator = evaluator = Evaluator(text, self.plan.slots, params,
-                                               GraphView(graph, label_key))
-        self._constant = [evaluator.condition(c) for c in self.plan.constant]
-        self._checks = [[evaluator.condition(c) for c in step.conditions]
-                        for step in self.plan.steps]
-        self._seeds = [step.seed and (step.seed[0], evaluator.compile(step.seed[1]))
-                       for step in self.plan.steps]
+        self.view = GraphView(graph, label_key)
+        self.evaluator = evaluator = Evaluator(
+            text, {**plan.slots, plan.edge_slot: "relationship"}, params, self.view)
+        self._stages = [(
+            stage,
+            [evaluator.condition(c) for c in stage.entry],
+            [[evaluator.condition(c) for c in step.conditions] for step in stage.steps],
+            [[evaluator.condition(c) for c in step.edge_conditions] for step in stage.steps],
+            [step.seed and (step.seed[0], evaluator.compile(step.seed[1]))
+             for step in stage.steps],
+        ) for stage in plan.stages]
         self._all_nodes: Optional[list[int]] = None
 
     def _candidates(self, seed) -> list[int]:
@@ -1473,20 +1627,56 @@ class Matcher:
         return self._all_nodes
 
     def matches(self):
-        if not all(check({}) for check in self._constant):
+        binding: dict[str, Any] = {}
+        stages = self._stages
+        last = len(stages)
+
+        def run(s):
+            if s == last:
+                yield dict(binding)
+                return
+            stage = stages[s][0]
+            found = False
+            for _ in self._extend(stages[s], binding):
+                found = True
+                yield from run(s + 1)
+            if stage.optional and not found:
+                for slot in stage.new:
+                    binding[slot] = None
+                yield from run(s + 1)
+
+        yield from run(0)
+
+    def _extend(self, compiled, binding: dict[str, Any]):
+        """Bind the slots of one stage in every way that matches, yielding after each."""
+        stage, entry, checks, edge_checks, seeds = compiled
+        if not all(check(binding) for check in entry):
             return
-        steps, checks, graph = self.plan.steps, self._checks, self.graph
-        candidates = [self._candidates(seed) if step.kind == "scan" else None
-                      for step, seed in zip(steps, self._seeds)]
-        distinct = self.distinct_nodes
-        binding: dict[str, int] = {}
-        used_edges: set[int] = set()
+        slots, distinct = self.plan.slots, self.distinct_nodes
         used_nodes: set[int] = set()
+        used_edges: set[int] = set()
+        for slot in stage.joined:
+            value = binding[slot]
+            if value is None:
+                return
+            if slots[slot] == "node":
+                if distinct and value in used_nodes:
+                    return
+                used_nodes.add(value)
+            elif value in used_edges:
+                return
+            else:
+                used_edges.add(value)
+        if not distinct:
+            used_nodes.clear()
+        steps, graph = stage.steps, self.graph
+        candidates = [self._candidates(seed) if step.kind == "scan" else None
+                      for step, seed in zip(steps, seeds)]
         last = len(steps)
 
         def search(k):
             if k == last:
-                yield dict(binding)
+                yield
                 return
             step, tests = steps[k], checks[k]
             if step.kind == "scan":
@@ -1499,10 +1689,17 @@ class Matcher:
                         yield from search(k + 1)
                         used_nodes.discard(node)
                 return
+            if step.hops is not None:
+                yield from paths(k, step, tests)
+                return
             connect = step.kind == "connect"
             target = binding[step.node] if connect else None
+            fixed = binding[step.rel] if step.fixed else None
             for edge, other in graph._incident_edges(binding[step.start], step.direction):
-                if edge in used_edges:
+                if fixed is not None:
+                    if edge != fixed:
+                        continue
+                elif edge in used_edges:
                     continue
                 if connect:
                     if other != target:
@@ -1513,13 +1710,85 @@ class Matcher:
                     binding[step.node] = other
                 binding[step.rel] = edge
                 if all(test(binding) for test in tests):
-                    used_edges.add(edge)
+                    if fixed is None:
+                        used_edges.add(edge)
                     fresh = distinct and not connect
                     if fresh:
                         used_nodes.add(other)
                     yield from search(k + 1)
-                    used_edges.discard(edge)
+                    if fixed is None:
+                        used_edges.discard(edge)
                     if fresh:
                         used_nodes.discard(other)
 
+        def paths(k, step, tests):
+            # a depth-first walk over the paths from `start`, each edge used once per clause
+            low, high = step.hops
+            connect = step.kind == "connect"
+            target = binding[step.node] if connect else None
+            edge_tests, probe, edge_slot = edge_checks[k], {}, self.plan.edge_slot
+            path: list[int] = []
+
+            def found(node):
+                if not connect:
+                    binding[step.node] = node
+                binding[step.rel] = tuple(reversed(path)) if step.reverse else tuple(path)
+                if all(test(binding) for test in tests):
+                    yield from search(k + 1)
+
+            def walk(node, depth):
+                if depth >= low:
+                    if connect:
+                        if node == target:
+                            yield from found(node)
+                    elif not (distinct and depth == 0):  # the end would be the start
+                        yield from found(node)
+                if depth == high or (distinct and connect and depth and node == target):
+                    return  # (with distinct nodes, a path can end at `target`, not pass it)
+                for edge, other in graph._incident_edges(node, step.direction):
+                    if edge in used_edges:
+                        continue
+                    mark = distinct and other not in used_nodes
+                    if distinct and not mark and not (connect and other == target):
+                        continue
+                    probe[edge_slot] = edge
+                    if not all(test(probe) for test in edge_tests):
+                        continue
+                    used_edges.add(edge)
+                    path.append(edge)
+                    if mark:
+                        used_nodes.add(other)
+                    yield from walk(other, depth + 1)
+                    used_edges.discard(edge)
+                    path.pop()
+                    if mark:
+                        used_nodes.discard(other)
+
+            yield from walk(binding[step.start], 0)
+
         yield from search(0)
+
+    def nodes_of(self, binding: dict[str, Any]) -> list[int]:
+        """The nodes of a match: its node slots, then the inner nodes of its variable-length
+        paths, skipping `None` slots."""
+        nodes = [binding[s] for s, kind in self.plan.slots.items()
+                 if kind == "node" and binding.get(s) is not None]
+        for rel_slot, (left, _) in self.plan.paths.items():
+            edges, node = binding.get(rel_slot), binding.get(left)
+            if not edges:
+                continue
+            for edge in edges[:-1]:
+                source, target = self.view.edge(edge)[:2]
+                node = target if source == node else source
+                nodes.append(node)
+        return nodes
+
+    def edges_of(self, binding: dict[str, Any]) -> list[int]:
+        """The edges of a match, those of its variable-length paths included, skipping `None`
+        slots."""
+        edges = []
+        for s, kind in self.plan.slots.items():
+            value = binding.get(s)
+            if value is not None and kind != "node":
+                edges.extend(value if kind == "relationships" else [value])
+        return edges
