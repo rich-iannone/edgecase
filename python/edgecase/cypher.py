@@ -221,6 +221,7 @@ class ReturnItem:
 class Return:
     items: list[ReturnItem]
     distinct: bool = False
+    pos: int = field(default=0, compare=False)
 
 
 @dataclass
@@ -396,7 +397,9 @@ class _CypherParser(_TokenParser):
         while self._accept(","):
             patterns.append(self._pattern(create=False))
         where = self._expr() if self._accept_keyword("WHERE") else None
-        returns = self._return() if self._accept_keyword("RETURN") else None
+        returns, pos = None, self._pos()
+        if self._accept_keyword("RETURN"):
+            returns = self._return(pos)
         self._accept(";")
         if self.i < len(self.tokens):
             kind, word, _ = self.tokens[self.i]
@@ -438,7 +441,7 @@ class _CypherParser(_TokenParser):
                 if isinstance(sub, Var) and sub.name not in kinds:
                     self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
 
-    def _return(self) -> Return:
+    def _return(self, start: int) -> Return:
         distinct = self._accept_keyword("DISTINCT")
         items: list[ReturnItem] = []
         while True:
@@ -460,7 +463,7 @@ class _CypherParser(_TokenParser):
                 self._fail(f"the column {name!r} is returned twice", pos)
             items.append(ReturnItem(expr, name, pos))
             if not self._accept(","):
-                return Return(items, distinct)
+                return Return(items, distinct, start)
 
     # --- patterns -------------------------------------------------------------
 
@@ -1433,7 +1436,8 @@ class Matcher:
         self.plan = Plan(query, graph.is_directed)
         self.graph = graph
         self.distinct_nodes = distinct_nodes
-        evaluator = Evaluator(text, self.plan.slots, params, GraphView(graph, label_key))
+        self.evaluator = evaluator = Evaluator(text, self.plan.slots, params,
+                                               GraphView(graph, label_key))
         self._constant = [evaluator.condition(c) for c in self.plan.constant]
         self._checks = [[evaluator.condition(c) for c in step.conditions]
                         for step in self.plan.steps]
