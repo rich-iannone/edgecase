@@ -192,6 +192,41 @@ def _mixed_items(lists: list) -> bool:
     return len(kinds) > 1
 
 
+def _attr_column(name: str, values: list) -> pl.Series:
+    """
+    A DataFrame column for one node or edge attribute, whose values may differ in type.
+
+    Polars needs one dtype per column, so mixed values are reconciled: ints beside floats become
+    floats (when that's exact), and single values beside lists become one-item lists (so a
+    `type` of `"Person"` beside `["Person", "Actor"]` reads `["Person"]`). Any other mix, such
+    as a string beside a number, gives an `Object` column holding the values unchanged, rather
+    than an error or a lossy conversion.
+    """
+    original = values
+    types = set(map(type, values)) - {type(None)}
+    if len(types) <= 1 and not types & {list, tuple}:
+        # the common case: one scalar type, which Polars builds directly
+        kinds = set()
+    else:
+        kinds = {_value_kind(v) for v in values if v is not None}
+    if len(kinds) > 1:
+        if kinds == {"int", "float"} and _exact_as_floats(values):
+            values = [None if v is None else float(v) for v in values]
+        elif "list" in kinds and "dict" not in kinds:
+            values = [v if v is None or isinstance(v, (list, tuple)) else [v] for v in values]
+            kinds = {"list"}
+        else:
+            return pl.Series(name, original, dtype=pl.Object)
+    if kinds == {"list"} and _mixed_items(values):
+        # Polars would turn the items into strings
+        return pl.Series(name, original, dtype=pl.Object)
+    try:
+        return pl.Series(name, values)
+    except (TypeError, ValueError, OverflowError, pl.exceptions.PolarsError):
+        # e.g. ints too big for any integer dtype, or dicts whose fields clash
+        return pl.Series(name, original, dtype=pl.Object)
+
+
 def _parse_edge_item(item: Any) -> tuple[Any, Any, Optional[float], dict]:
     """
     Split one `add_edges()` item into `(source, target, weight, attrs)`.
