@@ -112,6 +112,17 @@ QUERIES = [
     ("directors who act", "movies",
      "MATCH (p:Person)-[:DIRECTED]->(m:Movie), (p)-[:ACTED_IN]->(n:Movie) "
      "WHERE m.released > n.released", None),
+    ("path variable *1..3", "social",
+     "MATCH p = (a:Person {name: $name})-[:KNOWS*1..3]->(b)", {"name": "p7"}),
+    ("shortest path", "social",
+     "MATCH p = shortestPath((a:Person {name: $a})-[:KNOWS*]->(b:Person {name: $b}))",
+     {"a": "p7", "b": "p8"}),
+    ("all shortest paths", "social",
+     "MATCH p = allShortestPaths((a:Person {name: $a})-[:KNOWS*]-(b:Person {name: $b}))",
+     {"a": "p7", "b": "p8"}),
+    ("shortest paths from one", "social",
+     "MATCH p = shortestPath((a:Person {name: $a})-[:KNOWS*..4]->(b:Person)) "
+     "WHERE b.age > 89", {"a": "p7"}),
 ]
 
 
