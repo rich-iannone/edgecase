@@ -366,6 +366,13 @@ reference:
         - Graph.count_selected_nodes
         - Graph.count_selected_edges
 
+    - title: Querying
+      desc: Methods for finding the matches of a Cypher pattern
+      contents:
+        - Graph.match
+        - Graph.select_match
+        - Graph.count_matches
+
     - title: Graph Traversal
       desc: Methods for traversing the graph
       contents:
