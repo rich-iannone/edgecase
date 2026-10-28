@@ -4,8 +4,8 @@ query planner and matcher.
 `from_cypher()` builds graphs from the `CREATE` clauses parsed here, and the query methods run the
 `MATCH` queries. Parsing checks the syntax and how variables are used. The `Evaluator` gives the
 expressions their meaning (which functions exist, how values compare, Cypher's `null` logic),
-reading the graph through a `GraphView`. A `Plan` orders the search for a query's matches, and
-the `Matcher` carries it out.
+reading the graph through a `GraphView`. A `Plan` orders the search for a query's matches, the
+`Matcher` carries it out, and a `Projection` makes the table of `RETURN` from them.
 
 This module imports nothing from the rest of EdgeCase, so that both `io` and `graph` can use it.
 """
@@ -16,7 +16,7 @@ import itertools
 import math
 import numbers
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from typing import Any, Optional, Union
 
 # =============================================================================
@@ -231,7 +231,9 @@ class Pattern:
 
 @dataclass
 class ReturnItem:
-    """A `RETURN` column: a variable or one of its properties, named as `v` or `v.prop`."""
+    """A `RETURN` column: an expression and its name, which is the alias of `expr AS name`, or
+    else `v` for a variable, `v.key` for its property, and the expression as written for
+    anything else."""
 
     expr: Expr
     name: str
@@ -239,10 +241,27 @@ class ReturnItem:
 
 
 @dataclass
+class SortItem:
+    """An `ORDER BY` key, `expr [ASC | DESC]`. Once the query is parsed, the names of `RETURN`
+    columns in `expr` are replaced by the expressions of those columns."""
+
+    expr: Expr
+    descending: bool = False
+    pos: int = field(default=0, compare=False)
+
+
+@dataclass
 class Return:
+    """`RETURN [DISTINCT] items [ORDER BY order] [SKIP skip] [LIMIT limit]`. For `RETURN *`,
+    `star` is set and `items` starts with every named variable, in order."""
+
     items: list[ReturnItem]
     distinct: bool = False
     pos: int = field(default=0, compare=False)
+    order: list[SortItem] = field(default_factory=list)
+    skip: Optional[Expr] = None
+    limit: Optional[Expr] = None
+    star: bool = False
 
 
 @dataclass
@@ -274,21 +293,49 @@ class Query:
         return [pattern for clause in self.clauses for pattern in clause.patterns]
 
 
+def _children(expr: Expr) -> list[Expr]:
+    """The expressions directly inside `expr`."""
+    if isinstance(expr, (Prop, HasLabels)):
+        return [expr.subject]
+    if isinstance(expr, (Not, Neg, IsNull)):
+        return [expr.operand]
+    if isinstance(expr, Compare):
+        return [expr.left, expr.right]
+    if isinstance(expr, Call):
+        return expr.args
+    if isinstance(expr, ListExpr):
+        return expr.items
+    if isinstance(expr, BoolOp):
+        return expr.operands
+    return []
+
+
 def walk(expr: Expr):
     """Yield `expr` and every expression inside it, parents first."""
     yield expr
+    for sub in _children(expr):
+        yield from walk(sub)
+
+
+def substitute(expr: Expr, names: dict[str, Expr]) -> Expr:
+    """`expr` with each variable named in `names` replaced by its expression there (which is
+    left as it is, so a name it uses isn't replaced again)."""
+    if isinstance(expr, Var):
+        return names.get(expr.name, expr)
     if isinstance(expr, (Prop, HasLabels)):
-        yield from walk(expr.subject)
-    elif isinstance(expr, (Not, Neg, IsNull)):
-        yield from walk(expr.operand)
-    elif isinstance(expr, Compare):
-        yield from walk(expr.left)
-        yield from walk(expr.right)
-    elif isinstance(expr, (Call, ListExpr, BoolOp)):
-        for sub in expr.args if isinstance(expr, Call) else (
-            expr.items if isinstance(expr, ListExpr) else expr.operands
-        ):
-            yield from walk(sub)
+        return replace(expr, subject=substitute(expr.subject, names))
+    if isinstance(expr, (Not, Neg, IsNull)):
+        return replace(expr, operand=substitute(expr.operand, names))
+    if isinstance(expr, Compare):
+        return replace(expr, left=substitute(expr.left, names),
+                       right=substitute(expr.right, names))
+    if isinstance(expr, Call):
+        return replace(expr, args=[substitute(e, names) for e in expr.args])
+    if isinstance(expr, ListExpr):
+        return replace(expr, items=[substitute(e, names) for e in expr.items])
+    if isinstance(expr, BoolOp):
+        return replace(expr, operands=[substitute(e, names) for e in expr.operands])
+    return expr
 
 
 # =============================================================================
@@ -336,8 +383,6 @@ def _unsupported(word: str) -> Optional[str]:
     """Why a clause can't follow the pattern of a query, if `word` starts one."""
     if word in ("CREATE", "MERGE", "SET", "DELETE", "DETACH", "REMOVE"):
         return f"{word} isn't supported: a query only reads the graph"
-    if word in ("ORDER", "SKIP", "LIMIT"):
-        return f"{word} isn't supported; sort or slice the table that match() returns instead"
     if word in ("WITH", "UNWIND", "UNION", "CALL"):
         return f"{word} isn't supported"
     return None
@@ -350,6 +395,7 @@ class _CypherParser(_TokenParser):
 
     def __init__(self, text: str):
         super().__init__(text)
+        self._projecting = False
         pos = 0
         while pos < len(text):
             m = _TOKEN.match(text, pos)
@@ -442,11 +488,25 @@ class _CypherParser(_TokenParser):
         self._accept(";")
         if self.i < len(self.tokens):
             kind, word, _ = self.tokens[self.i]
-            reason = _unsupported(word.upper()) if kind == "name" else None
+            upper = word.upper() if kind == "name" else None
+            reason = None if upper is None else _unsupported(upper)
+            if upper in ("ORDER", "SKIP", "LIMIT"):
+                what = "ORDER BY" if upper == "ORDER" else upper
+                reason = (f"{what} needs a RETURN before it (RETURN * returns every variable)"
+                          if returns is None else
+                          "ORDER BY, SKIP and LIMIT come after RETURN, in that order")
             if reason is None:
-                expected = ("the end of the query" if returns else
-                            "MATCH, RETURN or the end of the query" if clauses[-1].where else
-                            "WHERE, MATCH, RETURN or the end of the query")
+                if returns is None:
+                    expected = ("MATCH, RETURN or the end of the query" if clauses[-1].where else
+                                "WHERE, MATCH, RETURN or the end of the query")
+                elif returns.limit is not None:
+                    expected = "the end of the query"
+                elif returns.skip is not None:
+                    expected = "LIMIT or the end of the query"
+                elif returns.order:
+                    expected = "SKIP, LIMIT or the end of the query"
+                else:
+                    expected = "ORDER BY, SKIP, LIMIT or the end of the query"
                 reason = f"expected {expected}, found {word!r}"
             self._fail(reason)
         query = Query(clauses, returns)
@@ -484,10 +544,50 @@ class _CypherParser(_TokenParser):
                                        sub.pos)
                         self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
         if query.returns is not None:
-            for item in query.returns.items:
-                for sub in walk(item.expr):
-                    if isinstance(sub, Var) and sub.name not in kinds:
-                        self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+            self._check_return(query.returns, kinds)
+
+    def _check_return(self, returns: Return, kinds: dict[str, str]) -> None:
+        """Check the variables of `RETURN` and what follows it, list the variables of `RETURN
+        *`, and replace the column names in `ORDER BY` with their expressions."""
+        if returns.star:
+            if not kinds:
+                self._fail("RETURN * returns every named variable, but the query names none",
+                           returns.pos)
+            returns.items[:0] = [ReturnItem(Var(name, returns.pos), name, returns.pos)
+                                 for name in kinds]
+        columns: dict[str, Expr] = {}
+        for item in returns.items:
+            for sub in walk(item.expr):
+                if isinstance(sub, Var) and sub.name not in kinds:
+                    self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+            if item.name in columns:
+                self._fail(f"the column {item.name!r} is returned twice", item.pos)
+            columns[item.name] = item.expr
+        returned = list(columns.values())
+
+        def check(expr: Expr) -> None:
+            # after DISTINCT, a key can only be made of returned columns
+            if expr in returned or isinstance(expr, Var) and expr.name in columns:
+                return
+            if isinstance(expr, Var):
+                self._fail(f"after RETURN DISTINCT, ORDER BY can only use the returned columns, "
+                           f"and `{expr.name}` isn't one", expr.pos)
+            for sub in _children(expr):
+                check(sub)
+
+        for key in returns.order:
+            for sub in walk(key.expr):
+                if isinstance(sub, Var) and sub.name not in kinds and sub.name not in columns:
+                    self._fail(f"the variable `{sub.name}` isn't defined in MATCH, or as a "
+                               "column of RETURN", sub.pos)
+            if returns.distinct:
+                check(key.expr)
+            key.expr = substitute(key.expr, columns)
+        for what, expr in (("SKIP", returns.skip), ("LIMIT", returns.limit)):
+            for sub in walk(expr) if expr is not None else ():
+                if isinstance(sub, Var):
+                    self._fail(f"{what} can't use the variable `{sub.name}`; it takes a number "
+                               "or a parameter", sub.pos)
 
     def _check_part(self, part: Union[NodePattern, RelPattern], kinds: dict[str, str],
                     in_clause: set[str]) -> None:
@@ -517,33 +617,47 @@ class _CypherParser(_TokenParser):
         in_clause.add(name)
 
     def _return(self, start: int) -> Return:
-        distinct = self._accept_keyword("DISTINCT")
-        items: list[ReturnItem] = []
-        while True:
-            pos = self._pos()
-            if self._accept("*"):
-                self._fail("RETURN * isn't supported; name the variables to return", pos)
-            word = self._peek()
-            if (self._at_name() and word.lower() in _AGGREGATES and self.i + 1 < len(self.tokens)
-                    and self.tokens[self.i + 1][1] == "("):
-                self._fail(f"aggregation ({word}()) isn't supported; use count_matches(), or group "
-                           "the match() table with Polars", pos)
-            expr = self._expr()
-            if isinstance(expr, Var):
-                name = expr.name
-            elif isinstance(expr, Prop) and isinstance(expr.subject, Var):
-                name = f"{expr.subject.name}.{expr.key}"
-            else:
-                self._fail("RETURN can only list variables and their properties (v or v.prop)",
-                           pos)
-            if self._at_keyword("AS"):
-                self._fail("aliases (AS) aren't supported; rename the columns of the match() "
-                           "table instead")
-            if any(item.name == name for item in items):
-                self._fail(f"the column {name!r} is returned twice", pos)
-            items.append(ReturnItem(expr, name, pos))
-            if not self._accept(","):
-                return Return(items, distinct, start)
+        returns = Return([], self._accept_keyword("DISTINCT"), start)
+        self._projecting = True  # where aggregating functions get their own error
+        returns.star = self._accept("*")
+        if not returns.star or self._accept(","):
+            while True:
+                pos = self._pos()
+                expr = self._expr()
+                if self._accept_keyword("AS"):
+                    name = self._name("a column name")
+                elif isinstance(expr, Var):
+                    name = expr.name
+                elif isinstance(expr, Prop) and isinstance(expr.subject, Var):
+                    name = f"{expr.subject.name}.{expr.key}"
+                else:
+                    name = self.text[pos:self._end()]
+                returns.items.append(ReturnItem(expr, name, pos))
+                if not self._accept(","):
+                    break
+        if self._accept_keyword("ORDER"):
+            self._expect_keyword("BY")
+            while True:
+                pos = self._pos()
+                key = SortItem(self._expr(), pos=pos)
+                if self._accept_keyword("DESC") or self._accept_keyword("DESCENDING"):
+                    key.descending = True
+                elif not self._accept_keyword("ASC"):
+                    self._accept_keyword("ASCENDING")
+                returns.order.append(key)
+                if not self._accept(","):
+                    break
+        self._projecting = False
+        if self._accept_keyword("SKIP"):
+            returns.skip = self._expr()
+        if self._accept_keyword("LIMIT"):
+            returns.limit = self._expr()
+        return returns
+
+    def _end(self) -> int:
+        """The end of the last token read."""
+        _, text, pos = self.tokens[self.i - 1]
+        return pos + len(text)
 
     # --- patterns -------------------------------------------------------------
 
@@ -838,6 +952,9 @@ class _CypherParser(_TokenParser):
             if upper in ("TRUE", "FALSE", "NULL"):
                 return Literal({"TRUE": True, "FALSE": False, "NULL": None}[upper], pos)
             if self._accept("("):
+                if self._projecting and value.lower() in _AGGREGATES:
+                    self._fail(f"aggregation ({value}()) isn't supported; use count_matches(), or "
+                               "group the match() table with Polars", pos)
                 args: list[Expr] = []
                 if not self._accept(")"):
                     args.append(self._expr())
@@ -875,7 +992,8 @@ def parse_create(text: str) -> list[Pattern]:
 
 
 def parse_query(text: str) -> Query:
-    """Parse a query: `[OPTIONAL] MATCH ... [WHERE ...]` clauses, then `[RETURN ...]`."""
+    """Parse a query: `[OPTIONAL] MATCH ... [WHERE ...]` clauses, then `[RETURN ... [ORDER BY
+    ...] [SKIP ...] [LIMIT ...]]`."""
     return _CypherParser(text).parse_query()
 
 
@@ -2298,3 +2416,353 @@ class Matcher:
             if value is not None:
                 edges.extend(value if path else [value])
         return edges
+
+
+# =============================================================================
+# Results
+# =============================================================================
+
+# the kinds of value some expressions always give (or `null`), by function name
+_CALL_KINDS = {
+    "id": "integer", "size": "integer", "length": "integer", "type": "string",
+    "tolower": "string", "toupper": "string", "labels": "strings", "exists": "boolean",
+    "nodes": "nodes", "relationships": "relationships",
+}
+
+
+def _column_kind(expr: Expr, variables: dict[str, str]) -> str:
+    """What a `RETURN` column holds: a kind of `Query.variables` for a variable, `"property"`
+    for `v.key`, `"nodes"` for a list of nodes, `"integer"`, `"string"`, `"boolean"` or
+    `"strings"` (a list of strings) when the expression can only give those (or `null`), and
+    `"value"` for anything else."""
+    if isinstance(expr, Var):
+        return variables[expr.name]
+    if isinstance(expr, Prop) and isinstance(expr.subject, Var):
+        return "property"
+    if isinstance(expr, (Compare, BoolOp, Not, IsNull, HasLabels)):
+        return "boolean"
+    if isinstance(expr, Call):
+        return _CALL_KINDS.get(expr.name.lower(), "value")
+    return "value"
+
+
+def _bound(kind: str, cell: Any) -> Any:
+    """A slot's cell from `Matcher.table()` as a binding holds it."""
+    if cell is None:
+        return None
+    if kind == "relationships":
+        return tuple(cell)
+    if kind == "path":
+        return tuple(cell["nodes"]), tuple(cell["relationships"])
+    return cell
+
+
+def _cypher_value(kind: str, cell: Any) -> Any:
+    """A slot's cell from `Matcher.table()` as an expression's value."""
+    if cell is None:
+        return None
+    if kind == "node":
+        return NodeRef(cell)
+    if kind == "relationship":
+        return RelRef(cell)
+    if kind == "relationships":
+        return [RelRef(edge) for edge in cell]
+    if kind == "path":
+        return PathRef(tuple(cell["nodes"]), tuple(cell["relationships"]))
+    return cell
+
+
+def plain(value: Any, label=None) -> Any:
+    """An expression's value as a cell of a table: nodes and relationships as IDs (or nodes as
+    `label(id)`, given `label`), a path as a dict `{"nodes": [...], "relationships": [...]}`,
+    and lists and maps item by item."""
+    if isinstance(value, NodeRef):
+        return value.id if label is None else label(value.id)
+    if isinstance(value, RelRef):
+        return value.id
+    if isinstance(value, PathRef):
+        return {"nodes": [n if label is None else label(n) for n in value.nodes],
+                "relationships": list(value.rels)}
+    if isinstance(value, (list, tuple)):
+        return [plain(v, label) for v in value]
+    if isinstance(value, dict):
+        return {k: plain(v, label) for k, v in value.items()}
+    return value
+
+
+class _Other:
+    """A stand-in for an odd attribute value (one of no Cypher type) in `hashable()`, equal to
+    another only when they're of the same type and compare equal, as `equals()` has it."""
+
+    __slots__ = ("value",)
+
+    def __init__(self, value: Any):
+        self.value = value
+
+    def __hash__(self) -> int:
+        try:
+            return hash(self.value)
+        except TypeError:
+            return hash(repr(self.value))
+
+    def __eq__(self, other: Any) -> bool:
+        if not isinstance(other, _Other) or type(self.value) is not type(other.value):
+            return False
+        try:
+            return bool(self.value == other.value)
+        except Exception:  # a value that can't be compared
+            return False
+
+
+def hashable(value: Any) -> Any:
+    """A hashable stand-in for a cell, for `RETURN DISTINCT`. Booleans are kept apart from the
+    numbers they would hash as, lists and maps compare by their contents, and values of no
+    Cypher type (such as a `Decimal`) equal no number, string or boolean."""
+    if isinstance(value, bool):
+        return ("bool", value)
+    if isinstance(value, (list, tuple)):
+        return ("list", tuple(hashable(v) for v in value))
+    if isinstance(value, dict):
+        return ("map", tuple(sorted((k, hashable(v)) for k, v in value.items())))
+    if value is None or isinstance(value, (numbers.Real, str)):
+        return value
+    return _Other(value)
+
+
+def sort_key(value: Any) -> tuple:
+    """A key that sorts values in Cypher's order for `ORDER BY`: maps, nodes, relationships,
+    lists, paths, strings, booleans, numbers, then `null`. Nodes and relationships sort by ID,
+    lists item by item (a list before the longer lists it starts), paths as the alternating
+    list of their nodes and relationships, `false` before `true`, and NaN after every other
+    number. Values of other types (odd attribute values) sort after paths, by type name and
+    then as text."""
+    kind = _kind(value)
+    if kind == "null":
+        return (9,)
+    if kind == "number":
+        return (8, (1, 0) if value != value else (0, value))
+    if kind == "boolean":
+        return (7, value)
+    if kind == "string":
+        return (6, value)
+    if kind == "node":
+        return (1, value.id)
+    if kind == "relationship":
+        return (2, value.id)
+    if kind == "list":
+        return (3, tuple(sort_key(v) for v in value))
+    if kind == "path":
+        steps = [(1, value.nodes[0])]
+        for rel, node in zip(value.rels, value.nodes[1:]):
+            steps += [(2, rel), (1, node)]
+        return (4, tuple(steps))
+    if kind == "map":
+        return (0, tuple(sorted((str(k), sort_key(v)) for k, v in value.items())))
+    return (5, type(value).__name__, repr(value))
+
+
+_SIMPLE = frozenset({int, float, str, type(None)})
+
+
+def _distinct_column(values: list) -> list:
+    """Hashable stand-ins for the cells of a column, which compare as `hashable(plain(v))`
+    does (numbers, strings and `null` stand for themselves)."""
+    if set(map(type, values)) <= _SIMPLE:
+        return values
+    return [hashable(plain(v)) for v in values]
+
+
+def _sort_column(values: list) -> list:
+    """Keys that sort the values of a column as `sort_key()` does, but faster for a column of
+    numbers or of strings (with or without `null`)."""
+    types = set(map(type, values))
+    nulls = type(None) in types
+    types.discard(type(None))
+    if not (types <= {int, float} or types == {str}) or (
+            float in types and any(v != v for v in values)):
+        return [sort_key(v) for v in values]
+    if not nulls:
+        return values
+    return [(True, 0) if v is None else (False, v) for v in values]
+
+
+class Projection:
+    """The table a query returns, made from the matches of its `Matcher`: the columns of
+    `RETURN` (every named variable, without one), then `DISTINCT`, `ORDER BY`, `SKIP` and
+    `LIMIT`, in that order.
+
+    - **Columns:** `columns` lists each column's `(name, kind)`, with the kinds of
+      `_column_kind()`. Nodes and relationships are IDs (nodes are labels with
+      `use_labels=True`, wherever they are in a value), a variable-length relationship is a
+      list of edge IDs, and a path is a dict `{"nodes": [...], "relationships": [...]}`.
+    - **Evaluation:** variables and their properties are columns of `Matcher.table()` (which
+      the Rust engine builds itself), and any other expression is evaluated here, for every
+      match with `DISTINCT` (which compares the rows) and else only for the rows returned. An
+      `ORDER BY` key is evaluated for every row (every distinct one, with `DISTINCT`). Rows
+      are evaluated in their order before `ORDER BY`, a column at a time, so both engines meet
+      a value error at the same row.
+    - **Order:** rows are sorted by the IDs of the named variables (see `Matcher.table()`).
+      `DISTINCT` keeps the first of each set of equal rows, at the place of the one that sorts
+      first. `ORDER BY` then sorts them by its keys (see `sort_key()`), keeping that order for
+      ties, and `SKIP` and `LIMIT` take a slice of the result.
+    - **Errors:** the expressions are compiled, and the `SKIP` and `LIMIT` counts checked, when
+      the projection is made, so those errors don't depend on the matches.
+    """
+
+    def __init__(self, query: Query, matcher: Matcher):
+        self.matcher = matcher
+        self.named = list(query.variables)
+        returns = query.returns
+        items = ([ReturnItem(Var(name), name) for name in query.variables] if returns is None
+                 else returns.items)
+        self.columns = [(item.name, _column_kind(item.expr, query.variables)) for item in items]
+        self._specs = [self._spec(item.expr) for item in items]
+        self.distinct = returns is not None and returns.distinct
+        self._order = [] if returns is None else [
+            (self._spec(key.expr), key.descending) for key in returns.order
+        ]
+        self.skip = None if returns is None else self._count("SKIP", returns.skip)
+        self.limit = None if returns is None else self._count("LIMIT", returns.limit)
+
+    def _spec(self, expr: Expr) -> tuple:
+        """How to read `expr`: `("slot", v)` or `("prop", v, key)`, columns of
+        `Matcher.table()`, or `("expr", run, names)` for the compiled `run` of a binding of the
+        variables `names`."""
+        run = self.matcher.evaluator.compile(expr)
+        slots = self.matcher.plan.slots
+        if isinstance(expr, Var):
+            return ("slot", expr.name)
+        if (isinstance(expr, Prop) and isinstance(expr.subject, Var)
+                and slots[expr.subject.name] in ("node", "relationship")):
+            return ("prop", expr.subject.name, expr.key)
+        return ("expr", run, sorted(variables_in(expr)))
+
+    def _count(self, what: str, expr: Optional[Expr]) -> Optional[int]:
+        if expr is None:
+            return None
+        value = self.matcher.evaluator.compile(expr)({})
+        if isinstance(value, bool) or not isinstance(value, numbers.Integral) or value < 0:
+            self.matcher.evaluator._fail(expr.pos, f"{what} needs a non-negative integer, not "
+                                                   f"{_describe(value)}")
+        return int(value)
+
+    def table(self, limit: Optional[int] = None,
+              use_labels: bool = False) -> tuple[list[list], Optional[tuple]]:
+        """The cells, as one list per column, and the first match in search order (or `None`).
+        `limit` stops the search after that many matches (or distinct rows, with `DISTINCT`),
+        before `ORDER BY`, `SKIP` and `LIMIT`."""
+        matcher, specs = self.matcher, self._specs
+        if (not self.distinct and not self._order and self.skip is None and self.limit is None
+                and all(spec[0] != "expr" for spec in specs)):
+            # the common case, which `Matcher.table()` builds whole
+            columns = [("label", spec[1]) if use_labels and kind in ("node", "path") else spec
+                       for (_, kind), spec in zip(self.columns, specs)]
+            _, cells, first = matcher.table(columns, self.named, limit)
+            return cells, first
+        _, values, first = self._rows(limit, True)
+        view = matcher.view
+        label = (lambda n: view.node(n)[0]) if use_labels else None
+        cells = []
+        for (_, kind), spec, column in zip(self.columns, specs, values):
+            if spec[0] == "expr":
+                cells.append([plain(v, label) for v in column])
+            elif use_labels and kind == "node":
+                cells.append([None if v is None else label(v) for v in column])
+            elif use_labels and kind == "path":
+                cells.append([None if v is None else
+                              {"nodes": [label(n) for n in v["nodes"]],
+                               "relationships": v["relationships"]} for v in column])
+            else:
+                cells.append(column)
+        return cells, first
+
+    def count(self) -> tuple[int, Optional[tuple]]:
+        """The number of rows of the table, and the first match in search order (or `None`).
+        Only `DISTINCT` evaluates the columns."""
+        if self.distinct:
+            n, _, first = self._rows(None, False)
+            return n, first
+        n, first = self.matcher.count()
+        n = max(0, n - (self.skip or 0))
+        return (n if self.limit is None else min(n, self.limit)), first
+
+    def _rows(self, limit: Optional[int], ordered: bool) -> tuple[int, list[list], Any]:
+        """The rows of the table: `(count, values, first)`, with `values` one list per column
+        of the cells of table columns (as `Matcher.table()` gives them) and the values of
+        expressions. Without `ordered`, `ORDER BY` is left out."""
+        matcher, named, slots = self.matcher, self.named, self.matcher.plan.slots
+        fetch: dict[tuple, int] = {}  # the columns of `Matcher.table()`, by position
+        for spec in [*self._specs, *(spec for spec, _ in self._order)]:
+            for column in ([("slot", name) for name in spec[2]] if spec[0] == "expr"
+                           else [spec]):
+                fetch.setdefault(column, len(fetch))
+        if self.distinct:
+            for name in named:
+                fetch.setdefault(("slot", name), len(fetch))
+        if limit == 0:
+            n, cells, first = 0, [[] for _ in fetch], None
+        elif self.distinct and limit is not None:
+            # the limit counts distinct rows in search order, so the search can't stop at it
+            n, cells, first = matcher.table(list(fetch))
+        else:
+            n, cells, first = matcher.table(list(fetch), named, limit)
+
+        def read(spec, rows, value=False):
+            # the cells of `spec` for `rows`; with `value`, as an expression's values
+            if spec[0] == "expr":
+                run = spec[1]
+                parts = [(name, slots[name], cells[fetch[("slot", name)]]) for name in spec[2]]
+                return [run({name: _bound(kind, column[r]) for name, kind, column in parts})
+                        for r in rows]
+            column = cells[fetch[spec]]
+            if value and spec[0] == "slot":
+                kind = slots[spec[1]]
+                return [_cypher_value(kind, column[r]) for r in rows]
+            return [column[r] for r in rows]
+
+        rows = range(n)
+        values = None
+        if self.distinct:
+            values = [read(spec, rows) for spec in self._specs]
+            row_keys = list(zip(*[_distinct_column(column) for column in values])) or [()] * n
+            if limit is None:
+                # in ID order, so the first of each set of equal rows is the one that sorts first
+                seen: set = set()
+                rows = [r for r, key in enumerate(row_keys)
+                        if not (key in seen or seen.add(key))]
+            else:
+                ids = [(slots[name], cells[fetch[("slot", name)]]) for name in named]
+                kept, keys, index = [], [], {}
+                for r in rows:
+                    row = row_keys[r]
+                    # nulls sort last, and paths as their node IDs and then their edge IDs
+                    key = tuple((1, 0) if column[r] is None else
+                                (0, (tuple(column[r]["nodes"]),
+                                     tuple(column[r]["relationships"])))
+                                if kind == "path" else (0, column[r]) for kind, column in ids)
+                    # a repeated row keeps the place of its first match in ID order
+                    i = index.setdefault(row, len(kept))
+                    if i < len(kept):
+                        keys[i] = min(keys[i], key)
+                        continue
+                    kept.append(r)
+                    keys.append(key)
+                    if len(kept) >= limit:
+                        break
+                rows = [kept[i] for i in sorted(range(len(kept)), key=keys.__getitem__)]
+        if ordered and self._order:
+            # node and relationship IDs sort as the nodes and relationships do
+            keys = [_sort_column(read(spec, rows, spec[0] != "slot" or
+                                      slots[spec[1]] not in ("node", "relationship")))
+                    for spec, _ in self._order]
+            places = list(range(len(rows)))
+            for key, (_, descending) in reversed(list(zip(keys, self._order))):
+                places.sort(key=key.__getitem__, reverse=descending)
+            rows = [rows[i] for i in places]
+        start = self.skip or 0
+        rows = rows[start:None if self.limit is None else start + self.limit]
+        if values is None:
+            values = [read(spec, rows) for spec in self._specs]
+        else:
+            values = [[column[r] for r in rows] for column in values]
+        return len(rows), values, first
