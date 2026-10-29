@@ -1,13 +1,13 @@
 //! Graph data structure and core operations
 
+use crate::algorithms::sparse_eigen::CsrMatrix;
+use nalgebra as na;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
-use rustc_hash::{FxHashMap, FxHashSet};
-use rand::{Rng, SeedableRng};
 use rand::seq::SliceRandom;
+use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
-use nalgebra as na;
-use crate::algorithms::sparse_eigen::CsrMatrix;
+use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
 /// (blocks, cohesion of each block, parent index of each block) from cohesive blocking.
@@ -29,7 +29,10 @@ pub struct Node {
 /// `get_node()`/`get_edge()` returns) never shares its dict with the original
 pub(crate) fn copy_attrs(py: Python, attrs: &Option<Py<PyDict>>) -> Option<Py<PyDict>> {
     attrs.as_ref().map(|d| {
-        d.bind(py).copy().map(|c| c.unbind()).unwrap_or_else(|_| d.clone_ref(py))
+        d.bind(py)
+            .copy()
+            .map(|c| c.unbind())
+            .unwrap_or_else(|_| d.clone_ref(py))
     })
 }
 
@@ -48,7 +51,11 @@ impl Node {
     #[new]
     #[pyo3(signature = (id, label=None, attributes=None))]
     fn new(id: u64, label: Option<String>, attributes: Option<Py<PyDict>>) -> Self {
-        Node { id, label, attributes }
+        Node {
+            id,
+            label,
+            attributes,
+        }
     }
 
     fn __repr__(&self) -> String {
@@ -113,10 +120,7 @@ impl Edge {
     }
 
     fn __repr__(&self) -> String {
-        format!(
-            "Edge(id={}, {} -> {})",
-            self.id, self.source, self.target
-        )
+        format!("Edge(id={}, {} -> {})", self.id, self.source, self.target)
     }
 
     fn __str__(&self) -> String {
@@ -259,16 +263,16 @@ struct EdgeIndex {
 impl EdgeIndex {
     fn build(edges: &[Edge], directed: bool) -> Self {
         let mut index = EdgeIndex {
-            weight_by_pair: FxHashMap::with_capacity_and_hasher(edges.len() * 2, Default::default()),
+            weight_by_pair: FxHashMap::with_capacity_and_hasher(
+                edges.len() * 2,
+                Default::default(),
+            ),
             position_by_id: FxHashMap::with_capacity_and_hasher(edges.len(), Default::default()),
             total_weight_by_pair: FxHashMap::with_capacity_and_hasher(
                 edges.len() * 2,
                 Default::default(),
             ),
-            positions_by_pair: FxHashMap::with_capacity_and_hasher(
-                edges.len(),
-                Default::default(),
-            ),
+            positions_by_pair: FxHashMap::with_capacity_and_hasher(edges.len(), Default::default()),
             predecessors: FxHashMap::default(),
             in_degree: FxHashMap::default(),
             out_edges: FxHashMap::default(),
@@ -300,8 +304,14 @@ impl EdgeIndex {
             .or_default()
             .push(position);
         *self.in_degree.entry(edge.target).or_insert(0) += 1;
-        self.out_edges.entry(edge.source).or_default().push((edge.id, edge.target));
-        self.in_edges.entry(edge.target).or_default().push((edge.id, edge.source));
+        self.out_edges
+            .entry(edge.source)
+            .or_default()
+            .push((edge.id, edge.target));
+        self.in_edges
+            .entry(edge.target)
+            .or_default()
+            .push((edge.id, edge.source));
         Self::add_predecessor(&mut self.predecessors, edge.target, edge.source);
         if !directed {
             Self::add_predecessor(&mut self.predecessors, edge.source, edge.target);
@@ -320,7 +330,8 @@ impl EdgeIndex {
 impl Graph {
     /// The edge lookup index, built from `edges` on first use
     fn edge_index(&self) -> &EdgeIndex {
-        self.edge_index.get_or_init(|| EdgeIndex::build(&self.edges, self.directed))
+        self.edge_index
+            .get_or_init(|| EdgeIndex::build(&self.edges, self.directed))
     }
 
     /// `(edge ID, other endpoint)` for the edges stored with `node_id` as source (`out`) and/or
@@ -336,7 +347,12 @@ impl Graph {
         if inward {
             if let Some(edges) = index.in_edges.get(&node_id) {
                 // with `out` too, a self-loop is already listed
-                pairs.extend(edges.iter().filter(|&&(_, s)| !(out && s == node_id)).copied());
+                pairs.extend(
+                    edges
+                        .iter()
+                        .filter(|&&(_, s)| !(out && s == node_id))
+                        .copied(),
+                );
             }
         }
         pairs
@@ -344,12 +360,18 @@ impl Graph {
 
     /// `(edge ID, target)` for the edges stored with `node_id` as source, in edge creation order
     pub(crate) fn out_pairs(&self, node_id: u64) -> &[(u64, u64)] {
-        self.edge_index().out_edges.get(&node_id).map_or(&[], |edges| edges.as_slice())
+        self.edge_index()
+            .out_edges
+            .get(&node_id)
+            .map_or(&[], |edges| edges.as_slice())
     }
 
     /// `(edge ID, source)` for the edges stored with `node_id` as target, in edge creation order
     pub(crate) fn in_pairs(&self, node_id: u64) -> &[(u64, u64)] {
-        self.edge_index().in_edges.get(&node_id).map_or(&[], |edges| edges.as_slice())
+        self.edge_index()
+            .in_edges
+            .get(&node_id)
+            .map_or(&[], |edges| edges.as_slice())
     }
 
     /// The node with this ID
@@ -359,7 +381,10 @@ impl Graph {
 
     /// The edge with this ID
     pub(crate) fn edge_by_id(&self, edge_id: u64) -> Option<&Edge> {
-        self.edge_index().position_by_id.get(&edge_id).map(|&position| &self.edges[position])
+        self.edge_index()
+            .position_by_id
+            .get(&edge_id)
+            .map(|&position| &self.edges[position])
     }
 
     /// One more than the largest node or edge ID that may be in use (the next ID to give out)
@@ -389,7 +414,10 @@ impl Graph {
 
     /// The IDs of the edges that `incident_pairs()` lists
     fn incident_edge_ids(&self, node_id: u64, out: bool, inward: bool) -> Vec<u64> {
-        self.incident_pairs(node_id, out, inward).into_iter().map(|(id, _)| id).collect()
+        self.incident_pairs(node_id, out, inward)
+            .into_iter()
+            .map(|(id, _)| id)
+            .collect()
     }
 
     /// Drop the edge lookup index after edges are removed or edited
@@ -477,9 +505,7 @@ impl Graph {
 
         self.node_creation_order.push(node_id);
         self.nodes.insert(node_id, node);
-        self.adjacency_list
-            .entry(node_id)
-            .or_default();
+        self.adjacency_list.entry(node_id).or_default();
 
         Ok(node_id)
     }
@@ -531,7 +557,7 @@ impl Graph {
         let edge_id = edge.id;
 
         self.push_edge(edge);
-        Ok(edge_id)  // Return the edge ID
+        Ok(edge_id) // Return the edge ID
     }
 
     /// Get the number of nodes
@@ -554,12 +580,9 @@ impl Graph {
     /// # Returns
     /// The node ID associated with the label, or an error if not found
     pub fn id_from_label(&self, label: &str) -> PyResult<u64> {
-        self.node_labels
-            .get(label)
-            .copied()
-            .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                format!("No node with label '{}'", label)
-            ))
+        self.node_labels.get(label).copied().ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("No node with label '{}'", label))
+        })
     }
 
     /// Get node label from ID
@@ -609,8 +632,12 @@ impl Graph {
     /// Run a Cypher match program (see `crate::cypher` and `Matcher` in `cypher.py`). Gives the
     /// list of matches as tuples, at most `limit` of them, or with `count_only`, the number of
     /// matches and the first one (or `None`). With `table=(sort, columns)`, gives the matches
-    /// as columns instead, sorted (see `Matcher.table()`).
-    #[pyo3(name = "_cypher_match", signature = (program, limit=None, count_only=false, table=None))]
+    /// as columns instead, sorted (see `Matcher.table()`). With `inputs`, a list of tuples of
+    /// values for the first slots, the search runs once for each of them in turn.
+    #[pyo3(
+        name = "_cypher_match",
+        signature = (program, limit=None, count_only=false, table=None, inputs=None)
+    )]
     pub fn cypher_match(
         &self,
         py: Python,
@@ -618,8 +645,9 @@ impl Graph {
         limit: Option<usize>,
         count_only: bool,
         table: Option<&Bound<'_, PyAny>>,
+        inputs: Option<&Bound<'_, PyAny>>,
     ) -> PyResult<PyObject> {
-        crate::cypher::run(self, py, program, limit, count_only, table)
+        crate::cypher::run(self, py, program, limit, count_only, table, inputs)
     }
 
     /// A mark for `_discard_additions()`: the lengths of the node and edge creation logs and
@@ -642,8 +670,14 @@ impl Graph {
         let (node_len, edge_len, next_node, next_edge) = mark;
         let node_len = node_len.min(self.node_creation_order.len());
         let edge_len = edge_len.min(self.edge_creation_order.len());
-        let new_nodes: FxHashSet<u64> = self.node_creation_order[node_len..].iter().copied().collect();
-        let new_edges: FxHashSet<u64> = self.edge_creation_order[edge_len..].iter().copied().collect();
+        let new_nodes: FxHashSet<u64> = self.node_creation_order[node_len..]
+            .iter()
+            .copied()
+            .collect();
+        let new_edges: FxHashSet<u64> = self.edge_creation_order[edge_len..]
+            .iter()
+            .copied()
+            .collect();
 
         let mut removed: Vec<Edge> = Vec::new();
         let mut kept: Vec<Edge> = Vec::with_capacity(self.edges.len());
@@ -815,15 +849,9 @@ impl Graph {
     /// Get neighbors of a node
     #[inline]
     pub fn neighbors(&self, node_id: u64) -> PyResult<Vec<u64>> {
-        self.adjacency_list
-            .get(&node_id)
-            .cloned()
-            .ok_or_else(|| {
-                pyo3::exceptions::PyKeyError::new_err(format!(
-                    "Node {} does not exist",
-                    node_id
-                ))
-            })
+        self.adjacency_list.get(&node_id).cloned().ok_or_else(|| {
+            pyo3::exceptions::PyKeyError::new_err(format!("Node {} does not exist", node_id))
+        })
     }
 
     /// Check if the graph is directed
@@ -936,7 +964,6 @@ impl Graph {
             .unwrap_or(0.0)
     }
 
-
     /// Delete edge by ID
     pub fn delete_edge_by_id(&mut self, edge_id: u64) -> PyResult<()> {
         let edge_idx = self.edges.iter().position(|e| e.id == edge_id);
@@ -976,11 +1003,9 @@ impl Graph {
 
     /// Delete a node and all its incident edges
     pub fn delete_node(&mut self, node_id: u64) -> PyResult<()> {
-        let node = self.nodes.remove(&node_id)
-            .ok_or_else(|| pyo3::exceptions::PyKeyError::new_err(format!(
-                "Node {} does not exist",
-                node_id
-            )))?;
+        let node = self.nodes.remove(&node_id).ok_or_else(|| {
+            pyo3::exceptions::PyKeyError::new_err(format!("Node {} does not exist", node_id))
+        })?;
 
         // Remove from label index if it has a label
         if let Some(ref label) = node.label {
@@ -1016,7 +1041,13 @@ impl Graph {
     }
 
     /// Set or update an attribute on a node
-    pub fn set_node_attr(&mut self, py: Python, node_id: u64, key: &str, value: PyObject) -> PyResult<()> {
+    pub fn set_node_attr(
+        &mut self,
+        py: Python,
+        node_id: u64,
+        key: &str,
+        value: PyObject,
+    ) -> PyResult<()> {
         let node = self.nodes.get_mut(&node_id).ok_or_else(|| {
             pyo3::exceptions::PyKeyError::new_err(format!("Node '{}' does not exist", node_id))
         })?;
@@ -1036,12 +1067,25 @@ impl Graph {
     }
 
     /// Set or update an attribute on an edge (including weight)
-    pub fn set_edge_attr(&mut self, py: Python, edge_id: u64, key: &str, value: PyObject) -> PyResult<()> {
+    pub fn set_edge_attr(
+        &mut self,
+        py: Python,
+        edge_id: u64,
+        key: &str,
+        value: PyObject,
+    ) -> PyResult<()> {
         // The weight may change; the index is rebuilt on next use
         self.invalidate_edge_index();
-        let edge = self.edges.iter_mut().find(|e| e.id == edge_id).ok_or_else(|| {
-            pyo3::exceptions::PyKeyError::new_err(format!("Edge with ID {} does not exist", edge_id))
-        })?;
+        let edge = self
+            .edges
+            .iter_mut()
+            .find(|e| e.id == edge_id)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyKeyError::new_err(format!(
+                    "Edge with ID {} does not exist",
+                    edge_id
+                ))
+            })?;
 
         // Special handling for weight
         if key == "weight" {
@@ -1052,7 +1096,7 @@ impl Graph {
                 edge.weight = None;
             } else {
                 return Err(pyo3::exceptions::PyTypeError::new_err(
-                    "Weight must be a float or None"
+                    "Weight must be a float or None",
                 ));
             }
         } else {
@@ -1074,15 +1118,22 @@ impl Graph {
     pub fn reverse_edge_direction(&mut self, edge_id: u64) -> PyResult<()> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot reverse edge direction in undirected graph"
+                "Cannot reverse edge direction in undirected graph",
             ));
         }
 
         // Endpoints change; the index is rebuilt on next use
         self.invalidate_edge_index();
-        let edge = self.edges.iter_mut().find(|e| e.id == edge_id).ok_or_else(|| {
-            pyo3::exceptions::PyKeyError::new_err(format!("Edge with ID {} does not exist", edge_id))
-        })?;
+        let edge = self
+            .edges
+            .iter_mut()
+            .find(|e| e.id == edge_id)
+            .ok_or_else(|| {
+                pyo3::exceptions::PyKeyError::new_err(format!(
+                    "Edge with ID {} does not exist",
+                    edge_id
+                ))
+            })?;
 
         // Swap source and target
         std::mem::swap(&mut edge.source, &mut edge.target);
@@ -1399,7 +1450,7 @@ impl Graph {
         // Validate mode
         if mode != "out" && mode != "in" && mode != "all" {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "mode must be 'out', 'in', or 'all'"
+                "mode must be 'out', 'in', or 'all'",
             ));
         }
 
@@ -1409,14 +1460,16 @@ impl Graph {
         // Use BFS to find all nodes within k hops
         let n = self.num_nodes();
         let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
-        let mut current_level = FxHashSet::with_capacity_and_hasher(node_ids.len(), Default::default());
+        let mut current_level =
+            FxHashSet::with_capacity_and_hasher(node_ids.len(), Default::default());
 
         // Initialize with seed nodes
         for node_id in node_ids {
             if !self.nodes.contains_key(&node_id) {
-                return Err(pyo3::exceptions::PyValueError::new_err(
-                    format!("Node {} does not exist", node_id)
-                ));
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Node {} does not exist",
+                    node_id
+                )));
             }
             current_level.insert(node_id);
         }
@@ -1542,15 +1595,10 @@ impl Graph {
     /// Each possible edge is included independently with probability p
     #[inline]
     #[pyo3(signature = (n, p, seed=None))]
-    fn generate_gnp_graph(
-        &mut self,
-        n: usize,
-        p: f64,
-        seed: Option<u64>,
-    ) -> PyResult<()> {
+    fn generate_gnp_graph(&mut self, n: usize, p: f64, seed: Option<u64>) -> PyResult<()> {
         if !(0.0..=1.0).contains(&p) {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Probability p must be between 0.0 and 1.0"
+                "Probability p must be between 0.0 and 1.0",
             ));
         }
 
@@ -1592,13 +1640,7 @@ impl Graph {
             for i in 0..n {
                 for j in (i + 1)..n {
                     if rng.gen::<f64>() < p {
-                        self.add_edge(Edge::new(
-                            0,
-                            node_ids[i],
-                            node_ids[j],
-                            None,
-                            None,
-                        ))?;
+                        self.add_edge(Edge::new(0, node_ids[i], node_ids[j], None, None))?;
                     }
                 }
             }
@@ -1611,12 +1653,7 @@ impl Graph {
     /// Graph with n nodes and exactly m randomly placed edges
     #[inline]
     #[pyo3(signature = (n, m, seed=None))]
-    fn generate_gnm_graph(
-        &mut self,
-        n: usize,
-        m: usize,
-        seed: Option<u64>,
-    ) -> PyResult<()> {
+    fn generate_gnm_graph(&mut self, n: usize, m: usize, seed: Option<u64>) -> PyResult<()> {
         let mut rng = match seed {
             Some(s) => ChaCha8Rng::seed_from_u64(s),
             None => ChaCha8Rng::from_entropy(),
@@ -1680,20 +1717,15 @@ impl Graph {
     /// Grows a graph by adding nodes one at a time with preferential attachment
     #[inline]
     #[pyo3(signature = (n, m, seed=None))]
-    fn generate_pa_graph(
-        &mut self,
-        n: usize,
-        m: usize,
-        seed: Option<u64>,
-    ) -> PyResult<()> {
+    fn generate_pa_graph(&mut self, n: usize, m: usize, seed: Option<u64>) -> PyResult<()> {
         if m < 1 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "m must be at least 1"
+                "m must be at least 1",
             ));
         }
         if m >= n {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "m must be less than n"
+                "m must be less than n",
             ));
         }
 
@@ -1717,18 +1749,13 @@ impl Graph {
 
         for i in 0..=m {
             for j in (i + 1)..=m {
-                self.add_edge(Edge::new(
-                    0,
-                    node_ids[i],
-                    node_ids[j],
-                    None,
-                    None,
-                ))?;
+                self.add_edge(Edge::new(0, node_ids[i], node_ids[j], None, None))?;
             }
         }
 
         // Track degree for preferential attachment
-        let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut degrees: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &id in &node_ids[..=m] {
             degrees.insert(id, m);
         }
@@ -1738,7 +1765,8 @@ impl Graph {
             self.add_node(Node::new(new_id, None, None))?;
 
             // Select m targets with probability proportional to degree
-            let mut targets: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(m, Default::default());
+            let mut targets: FxHashSet<u64> =
+                FxHashSet::with_capacity_and_hasher(m, Default::default());
             let total_degree: usize = degrees.values().sum();
 
             while targets.len() < m {
@@ -1756,13 +1784,7 @@ impl Graph {
 
             // Add edges to selected targets
             for &target in &targets {
-                self.add_edge(Edge::new(
-                    0,
-                    new_id,
-                    target,
-                    None,
-                    None,
-                ))?;
+                self.add_edge(Edge::new(0, new_id, target, None, None))?;
                 *degrees.get_mut(&target).unwrap() += 1;
             }
 
@@ -1785,17 +1807,15 @@ impl Graph {
     ) -> PyResult<()> {
         if k >= n {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "k must be less than n"
+                "k must be less than n",
             ));
         }
         if k % 2 != 0 {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                "k must be even"
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err("k must be even"));
         }
         if !(0.0..=1.0).contains(&p) {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Probability p must be between 0.0 and 1.0"
+                "Probability p must be between 0.0 and 1.0",
             ));
         }
 
@@ -1858,7 +1878,7 @@ impl Graph {
     fn generate_johnson_graph(&mut self, n: usize, k: usize) -> PyResult<()> {
         if k > n {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "k must be between 0 and n"
+                "k must be between 0 and n",
             ));
         }
 
@@ -1869,7 +1889,13 @@ impl Graph {
         // Labels are comma-separated sorted subsets; check them all before adding any node
         let labels: Vec<String> = combinations
             .iter()
-            .map(|combo| combo.iter().map(|x| x.to_string()).collect::<Vec<_>>().join(","))
+            .map(|combo| {
+                combo
+                    .iter()
+                    .map(|x| x.to_string())
+                    .collect::<Vec<_>>()
+                    .join(",")
+            })
             .collect();
         self.check_new_labels(&labels)?;
 
@@ -1895,13 +1921,7 @@ impl Graph {
                 let intersection_size = set_i.intersection(&set_j).count();
 
                 if intersection_size == k.saturating_sub(1) {
-                    let edge = Edge::new(
-                        0,
-                        node_ids[i],
-                        node_ids[j],
-                        None,
-                        None,
-                    );
+                    let edge = Edge::new(0, node_ids[i], node_ids[j], None, None);
                     self.add_edge(edge)?;
                 }
             }
@@ -1971,7 +1991,10 @@ impl Graph {
             .map(|pos| {
                 format!(
                     "[{}]",
-                    pos.iter().map(|x| format!("{:.6}", x)).collect::<Vec<_>>().join(", ")
+                    pos.iter()
+                        .map(|x| format!("{:.6}", x))
+                        .collect::<Vec<_>>()
+                        .join(", ")
                 )
             })
             .collect();
@@ -1987,7 +2010,7 @@ impl Graph {
 
         // Pre-compute radius^p for comparison
         let radius_p = if p_norm == 2.0 {
-            radius * radius  // Compare squared distances for efficiency
+            radius * radius // Compare squared distances for efficiency
         } else {
             radius.powf(p_norm)
         };
@@ -1997,7 +2020,8 @@ impl Graph {
             for j in (i + 1)..n {
                 let dist_p = if p_norm == 2.0 {
                     // Squared Euclidean distance (common case, optimized)
-                    positions[i].iter()
+                    positions[i]
+                        .iter()
                         .zip(positions[j].iter())
                         .map(|(a, b)| {
                             let diff = a - b;
@@ -2006,20 +2030,15 @@ impl Graph {
                         .sum::<f64>()
                 } else {
                     // General Minkowski distance
-                    positions[i].iter()
+                    positions[i]
+                        .iter()
                         .zip(positions[j].iter())
                         .map(|(a, b)| (a - b).abs().powf(p_norm))
                         .sum::<f64>()
                 };
 
                 if dist_p <= radius_p {
-                    let edge = Edge::new(
-                        0,
-                        node_ids[i],
-                        node_ids[j],
-                        None,
-                        None,
-                    );
+                    let edge = Edge::new(0, node_ids[i], node_ids[j], None, None);
                     self.add_edge(edge)?;
                 }
             }
@@ -2069,7 +2088,8 @@ impl Graph {
             None => return true,
         };
 
-        let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut visited: FxHashSet<u64> =
+            FxHashSet::with_capacity_and_hasher(n, Default::default());
         let mut queue: Vec<u64> = Vec::with_capacity(n);
         queue.push(start_node);
         visited.insert(start_node);
@@ -2103,13 +2123,14 @@ impl Graph {
     fn is_dag(&self) -> PyResult<bool> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "is_dag() only works on directed graphs"
+                "is_dag() only works on directed graphs",
             ));
         }
 
         let n = self.num_nodes();
         // Use DFS with coloring: white (unvisited), gray (visiting), black (visited)
-        let mut color: FxHashMap<u64, u8> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut color: FxHashMap<u64, u8> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &node_id in self.nodes.keys() {
             color.insert(node_id, 0); // white
         }
@@ -2140,9 +2161,10 @@ impl Graph {
 
         for &node_id in self.nodes.keys() {
             if *color.get(&node_id).unwrap() == 0
-                && has_cycle(node_id, &mut color, &self.adjacency_list) {
-                    return Ok(false);
-                }
+                && has_cycle(node_id, &mut color, &self.adjacency_list)
+            {
+                return Ok(false);
+            }
         }
 
         Ok(true)
@@ -2159,7 +2181,8 @@ impl Graph {
         }
 
         // Check for multi-edges
-        let mut seen_edges: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
+        let mut seen_edges: FxHashSet<(u64, u64)> =
+            FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
         for edge in &self.edges {
             let edge_key = if self.directed {
                 (edge.source, edge.target)
@@ -2185,7 +2208,8 @@ impl Graph {
     #[inline]
     fn degree_distribution(&self) -> FxHashMap<usize, usize> {
         let n = self.num_nodes();
-        let mut distribution: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut distribution: FxHashMap<usize, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
 
         // Total degree (in + out on directed graphs), matching get_degree()
         for (_, deg) in self.degrees_by_type("total") {
@@ -2205,17 +2229,15 @@ impl Graph {
     /// Count self-loops in the graph
     #[inline]
     fn count_all_loops(&self) -> usize {
-        self.edges
-            .iter()
-            .filter(|e| e.source == e.target)
-            .count()
+        self.edges.iter().filter(|e| e.source == e.target).count()
     }
 
     /// Count multi-edges (multiple edges between same node pair)
     /// Only counts parallel edges beyond the first one
     #[inline]
     fn count_multi_edges(&self) -> usize {
-        let mut edge_pairs: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(self.num_edges(), Default::default());
+        let mut edge_pairs: FxHashMap<(u64, u64), usize> =
+            FxHashMap::with_capacity_and_hasher(self.num_edges(), Default::default());
 
         for edge in &self.edges {
             // Undirected A-B and B-A are the same pair, as in is_simple()
@@ -2228,7 +2250,11 @@ impl Graph {
         }
 
         // Count edges beyond the first for each pair
-        edge_pairs.values().filter(|&&count| count > 1).map(|&count| count - 1).sum()
+        edge_pairs
+            .values()
+            .filter(|&&count| count > 1)
+            .map(|&count| count - 1)
+            .sum()
     }
 
     /// Count mutual node pairs (bidirectional edges in directed graphs)
@@ -2242,7 +2268,8 @@ impl Graph {
         }
 
         // Distinct (source, target) pairs, so parallel edges count once
-        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
+        let mut edge_pairs: FxHashSet<(u64, u64)> =
+            FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
         for edge in &self.edges {
             // Skip self-loops
             if edge.source != edge.target {
@@ -2269,7 +2296,8 @@ impl Graph {
             ));
         }
 
-        let mut edge_pairs: FxHashSet<(u64, u64)> = FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
+        let mut edge_pairs: FxHashSet<(u64, u64)> =
+            FxHashSet::with_capacity_and_hasher(self.num_edges(), Default::default());
 
         // Collect all edges
         for edge in &self.edges {
@@ -2326,7 +2354,8 @@ impl Graph {
         let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
         let mut disc = FxHashMap::with_capacity_and_hasher(n, Default::default()); // Discovery time
         let mut low = FxHashMap::with_capacity_and_hasher(n, Default::default()); // Lowest reachable ancestor
-        let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut parent: FxHashMap<u64, Option<u64>> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut ap = FxHashSet::with_capacity_and_hasher(n, Default::default()); // Articulation points
         let mut time = 0usize;
 
@@ -2414,7 +2443,8 @@ impl Graph {
             // BFS to find max distance from this node
             let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
             let mut queue = std::collections::VecDeque::with_capacity(n);
-            let mut distances: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut distances: FxHashMap<u64, usize> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             visited.insert(node);
             queue.push_back(node);
@@ -2508,10 +2538,7 @@ impl Graph {
 
         // Compute eccentricities and return max
         let eccentricities = self.compute_eccentricities();
-        eccentricities
-            .values()
-            .filter_map(|&ecc| ecc)
-            .max()
+        eccentricities.values().filter_map(|&ecc| ecc).max()
     }
 
     /// Get graph radius (minimum eccentricity)
@@ -2669,8 +2696,10 @@ impl Graph {
                 }
             }
 
-            let mut distances: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut parent: FxHashMap<u64, Option<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut distances: FxHashMap<u64, usize> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut parent: FxHashMap<u64, Option<u64>> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
             let mut queue = std::collections::VecDeque::with_capacity(n);
             let mut found_cycle_from_start = false;
 
@@ -2697,19 +2726,20 @@ impl Graph {
                             // Already visited - potential cycle
                             // In undirected graphs, skip if neighbor is parent (back edge)
                             if (!self.directed || Some(neighbor) != current_parent)
-                                && Some(neighbor) != current_parent {
-                                    // Found a cycle
-                                    let cycle_length = current_dist + neighbor_dist + 1;
-                                    min_cycle = Some(match min_cycle {
-                                        None => cycle_length,
-                                        Some(prev) => prev.min(cycle_length),
-                                    });
-                                    found_cycle_from_start = true;
-                                    // If we found a triangle, we can stop immediately
-                                    if cycle_length == 3 {
-                                        return Some(3);
-                                    }
+                                && Some(neighbor) != current_parent
+                            {
+                                // Found a cycle
+                                let cycle_length = current_dist + neighbor_dist + 1;
+                                min_cycle = Some(match min_cycle {
+                                    None => cycle_length,
+                                    Some(prev) => prev.min(cycle_length),
+                                });
+                                found_cycle_from_start = true;
+                                // If we found a triangle, we can stop immediately
+                                if cycle_length == 3 {
+                                    return Some(3);
                                 }
+                            }
                         } else {
                             // Early termination within BFS
                             if let Some(current_min) = min_cycle {
@@ -2877,8 +2907,11 @@ impl Graph {
         let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
         ids.sort_unstable();
         let index: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
-        let edges: Vec<(usize, usize)> =
-            self.edges().into_iter().map(|(_, s, t)| (index[&s], index[&t])).collect();
+        let edges: Vec<(usize, usize)> = self
+            .edges()
+            .into_iter()
+            .map(|(_, s, t)| (index[&s], index[&t]))
+            .collect();
         crate::algorithms::planarity::is_planar_edges(ids.len(), &edges)
     }
 
@@ -2919,12 +2952,16 @@ impl Graph {
         }
 
         // Must have same degree sequence
-        let mut degrees1: Vec<usize> = self.nodes.keys()
+        let mut degrees1: Vec<usize> = self
+            .nodes
+            .keys()
             .map(|&node_id| self.degree(node_id))
             .collect();
         degrees1.sort_unstable();
 
-        let mut degrees2: Vec<usize> = other.nodes.keys()
+        let mut degrees2: Vec<usize> = other
+            .nodes
+            .keys()
             .map(|&node_id| other.degree(node_id))
             .collect();
         degrees2.sort_unstable();
@@ -2948,7 +2985,7 @@ impl Graph {
     fn find_cliques(&self) -> PyResult<Vec<Vec<u64>>> {
         if self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "find_cliques() only works on undirected graphs"
+                "find_cliques() only works on undirected graphs",
             ));
         }
 
@@ -3000,9 +3037,10 @@ impl Graph {
     #[inline]
     fn bfs(&self, start: u64) -> PyResult<Vec<u64>> {
         if !self.nodes.contains_key(&start) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Node {} not found in graph", start)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Node {} not found in graph",
+                start
+            )));
         }
 
         let mut visited = FxHashSet::default();
@@ -3038,9 +3076,10 @@ impl Graph {
     #[inline]
     fn dfs(&self, start: u64) -> PyResult<Vec<u64>> {
         if !self.nodes.contains_key(&start) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Node {} not found in graph", start)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Node {} not found in graph",
+                start
+            )));
         }
 
         let mut visited = FxHashSet::default();
@@ -3100,14 +3139,16 @@ impl Graph {
     /// edge connectivity, which we compute using max-flow.
     pub fn node_connectivity_between(&self, source: u64, target: u64) -> PyResult<usize> {
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} does not exist", source),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} does not exist",
+                source
+            )));
         }
         if !self.nodes.contains_key(&target) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Target node {} does not exist", target),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Target node {} does not exist",
+                target
+            )));
         }
         if source == target {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3137,7 +3178,8 @@ impl Graph {
         // ids let them collide with another node's split id (e.g. node 6 vs. 3*2).
         let n = self.num_nodes();
         let estimated_capacity = n + self.edges.len() * 2;
-        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_capacity, Default::default());
+        let mut capacity: FxHashMap<(u64, u64), usize> =
+            FxHashMap::with_capacity_and_hasher(estimated_capacity, Default::default());
 
         for &node in self.nodes.keys() {
             if node != source && node != target {
@@ -3284,12 +3326,22 @@ impl Graph {
 
         // Handle empty or trivial graphs
         if n == 0 {
-            return Ok((vec![] as Vec<Vec<u64>>, vec![] as Vec<usize>, vec![] as Vec<Option<usize>>).into_pyobject(py)?.into_any().unbind());
+            return Ok((
+                vec![] as Vec<Vec<u64>>,
+                vec![] as Vec<usize>,
+                vec![] as Vec<Option<usize>>,
+            )
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
         }
 
         if n == 1 {
             let node_id = *self.nodes.keys().next().unwrap();
-            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>]).into_pyobject(py)?.into_any().unbind());
+            return Ok((vec![vec![node_id]], vec![0_usize], vec![None::<usize>])
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
         }
 
         // If graph is disconnected, process each component separately
@@ -3300,7 +3352,8 @@ impl Graph {
             let mut all_parents = Vec::new();
 
             // Group nodes by component ID
-            let mut comp_groups: FxHashMap<usize, Vec<u64>> = FxHashMap::with_capacity_and_hasher(component_map.len(), Default::default());
+            let mut comp_groups: FxHashMap<usize, Vec<u64>> =
+                FxHashMap::with_capacity_and_hasher(component_map.len(), Default::default());
             for (&node, &comp_id) in &component_map {
                 comp_groups.entry(comp_id).or_default().push(node);
             }
@@ -3326,7 +3379,10 @@ impl Graph {
             }
 
             // Return node IDs directly (no label conversion)
-            return Ok((all_blocks, all_cohesions, all_parents).into_pyobject(py)?.into_any().unbind());
+            return Ok((all_blocks, all_cohesions, all_parents)
+                .into_pyobject(py)?
+                .into_any()
+                .unbind());
         }
 
         // Process connected graph
@@ -3336,7 +3392,10 @@ impl Graph {
             self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
 
         // Return node IDs directly (no label conversion)
-        Ok((blocks, cohesions, parents).into_pyobject(py)?.into_any().unbind())
+        Ok((blocks, cohesions, parents)
+            .into_pyobject(py)?
+            .into_any()
+            .unbind())
     }
 
     /// Get eccentricity for each node
@@ -3355,9 +3414,7 @@ impl Graph {
     fn get_radiality(&self) -> FxHashMap<u64, Option<f64>> {
         let n = self.num_nodes();
         if n <= 1 {
-            return self.nodes.keys()
-                .map(|&id| (id, Some(0.0)))
-                .collect();
+            return self.nodes.keys().map(|&id| (id, Some(0.0))).collect();
         }
 
         // Eccentricities are measured within each component, so radiality (which compares
@@ -3382,7 +3439,9 @@ impl Graph {
             }
             None => {
                 // Graph is disconnected
-                eccentricities.into_keys().map(|node| (node, None))
+                eccentricities
+                    .into_keys()
+                    .map(|node| (node, None))
                     .collect()
             }
         }
@@ -3607,14 +3666,16 @@ impl Graph {
     /// This is equivalent to the maximum flow from source to sink
     fn get_min_cut_between(&self, source: u64, sink: u64) -> PyResult<usize> {
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} does not exist", source),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} does not exist",
+                source
+            )));
         }
         if !self.nodes.contains_key(&sink) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Sink node {} does not exist", sink),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Sink node {} does not exist",
+                sink
+            )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3624,8 +3685,13 @@ impl Graph {
 
         // Build capacity matrix (using adjacency list representation for efficiency)
         // For unweighted graphs, each edge has capacity 1
-        let estimated_size = if self.directed { self.edges.len() } else { self.edges.len() * 2 };
-        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
+        let estimated_size = if self.directed {
+            self.edges.len()
+        } else {
+            self.edges.len() * 2
+        };
+        let mut capacity: FxHashMap<(u64, u64), usize> =
+            FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
 
         for edge in &self.edges {
             let key = (edge.source, edge.target);
@@ -3681,16 +3747,23 @@ impl Graph {
     /// Get minimum edge cut between two nodes
     /// Returns the set of edges (as tuples) that form the minimum cut separating source from sink
     /// Uses Ford-Fulkerson algorithm and then identifies the cut edges
-    pub fn minimum_edge_cut<'py>(&self, py: Python<'py>, source: u64, sink: u64) -> PyResult<Bound<'py, PySet>> {
+    pub fn minimum_edge_cut<'py>(
+        &self,
+        py: Python<'py>,
+        source: u64,
+        sink: u64,
+    ) -> PyResult<Bound<'py, PySet>> {
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} does not exist", source),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} does not exist",
+                source
+            )));
         }
         if !self.nodes.contains_key(&sink) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Sink node {} does not exist", sink),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Sink node {} does not exist",
+                sink
+            )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3699,8 +3772,13 @@ impl Graph {
         }
 
         // Build capacity matrix
-        let estimated_size = if self.directed { self.edges.len() } else { self.edges.len() * 2 };
-        let mut capacity: FxHashMap<(u64, u64), usize> = FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
+        let estimated_size = if self.directed {
+            self.edges.len()
+        } else {
+            self.edges.len() * 2
+        };
+        let mut capacity: FxHashMap<(u64, u64), usize> =
+            FxHashMap::with_capacity_and_hasher(estimated_size, Default::default());
 
         for edge in &self.edges {
             let key = (edge.source, edge.target);
@@ -3780,16 +3858,23 @@ impl Graph {
     /// Get minimum node cut between two nodes
     /// Returns the set of nodes whose removal disconnects source from sink
     /// Uses transformation to edge connectivity problem
-    pub fn minimum_node_cut<'py>(&self, py: Python<'py>, source: u64, sink: u64) -> PyResult<Bound<'py, PySet>> {
+    pub fn minimum_node_cut<'py>(
+        &self,
+        py: Python<'py>,
+        source: u64,
+        sink: u64,
+    ) -> PyResult<Bound<'py, PySet>> {
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} does not exist", source),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} does not exist",
+                source
+            )));
         }
         if !self.nodes.contains_key(&sink) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Sink node {} does not exist", sink),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Sink node {} does not exist",
+                sink
+            )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
@@ -3799,12 +3884,10 @@ impl Graph {
         // A direct source -> sink edge (either orientation when undirected) can't be cut by
         // removing other nodes. It would also carry unbounded flow and corrupt the residual
         if !self.find_edge_ids(source, sink).is_empty() {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!(
-                    "Source {} and sink {} are adjacent, so no node cut separates them",
-                    source, sink
-                ),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source {} and sink {} are adjacent, so no node cut separates them",
+                source, sink
+            )));
         }
 
         // Node connectivity is computed by transforming to edge connectivity:
@@ -3854,7 +3937,8 @@ impl Graph {
         let mut residual = capacity.clone();
 
         loop {
-            let path = self.bfs_augmenting_path_custom(source_transformed, sink_transformed, &residual);
+            let path =
+                self.bfs_augmenting_path_custom(source_transformed, sink_transformed, &residual);
             if path.is_empty() {
                 break;
             }
@@ -3936,7 +4020,9 @@ impl Graph {
         }
 
         // Optimization: edge connectivity <= min_degree
-        let min_degree = self.nodes.keys()
+        let min_degree = self
+            .nodes
+            .keys()
             .map(|&id| self.degree(id))
             .min()
             .unwrap_or(0);
@@ -4009,19 +4095,22 @@ impl Graph {
         weighted: bool,
     ) -> PyResult<Vec<u64>> {
         if !self.nodes.contains_key(&start) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Start node {} does not exist", start)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Start node {} does not exist",
+                start
+            )));
         }
         if !matches!(mode, "out" | "in" | "all") {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid mode: '{}'. Must be 'out', 'in', or 'all'",
+                mode
+            )));
         }
         if !matches!(stuck, "return" | "error") {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Invalid stuck: '{}'. Must be 'return' or 'error'",
+                stuck
+            )));
         }
         let start_id = start;
 
@@ -4084,7 +4173,7 @@ impl Graph {
                 // Stuck! Handle according to stuck parameter
                 if stuck == "error" {
                     return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                        "Random walk got stuck at vertex with no neighbors".to_string()
+                        "Random walk got stuck at vertex with no neighbors".to_string(),
                     ));
                 }
                 break; // Return partial walk
@@ -4146,33 +4235,31 @@ impl Graph {
             // with an arbitrary orientation, so every mode follows any incident edge
             // (otherwise "out" could only walk edges in their insertion direction).
             let available_edges: Vec<&Edge> = match mode {
-                "out" | "in" | "all" if !self.directed => {
-                    self.edges.iter()
-                        .filter(|e| e.source == current || e.target == current)
-                        .collect()
-                }
+                "out" | "in" | "all" if !self.directed => self
+                    .edges
+                    .iter()
+                    .filter(|e| e.source == current || e.target == current)
+                    .collect(),
                 "out" => {
                     // Outgoing edges from current
-                    self.edges.iter()
-                        .filter(|e| e.source == current)
-                        .collect()
+                    self.edges.iter().filter(|e| e.source == current).collect()
                 }
                 "in" => {
                     // Incoming edges to current (traverse backwards)
-                    self.edges.iter()
-                        .filter(|e| e.target == current)
-                        .collect()
+                    self.edges.iter().filter(|e| e.target == current).collect()
                 }
                 "all" => {
                     // All edges connected to current
-                    self.edges.iter()
+                    self.edges
+                        .iter()
                         .filter(|e| e.source == current || e.target == current)
                         .collect()
                 }
                 _ => {
-                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        format!("Invalid mode: '{}'. Must be 'out', 'in', or 'all'", mode)
-                    ));
+                    return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "Invalid mode: '{}'. Must be 'out', 'in', or 'all'",
+                        mode
+                    )));
                 }
             };
 
@@ -4182,13 +4269,14 @@ impl Graph {
                     "return" => break, // Return partial walk
                     "error" => {
                         return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                            "Random walk got stuck at vertex with no outgoing edges".to_string()
+                            "Random walk got stuck at vertex with no outgoing edges".to_string(),
                         ));
                     }
                     _ => {
-                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                            format!("Invalid stuck: '{}'. Must be 'return' or 'error'", stuck)
-                        ));
+                        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                            "Invalid stuck: '{}'. Must be 'return' or 'error'",
+                            stuck
+                        )));
                     }
                 }
             }
@@ -4199,7 +4287,11 @@ impl Graph {
             // Determine next vertex based on mode
             let next = match mode {
                 _ if !self.directed => {
-                    if edge.source == current { edge.target } else { edge.source }
+                    if edge.source == current {
+                        edge.target
+                    } else {
+                        edge.source
+                    }
                 }
                 "out" => edge.target,
                 "in" => edge.source,
@@ -4237,7 +4329,7 @@ impl Graph {
         // Check if graph is directed
         if !self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Topological sort only works on directed graphs"
+                "Topological sort only works on directed graphs",
             ));
         }
 
@@ -4295,13 +4387,11 @@ impl Graph {
 
         // Check if all nodes were processed (cycle detection)
         if result.len() != node_ids.len() {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!(
-                    "Graph contains a cycle - not a DAG. Processed {} of {} nodes",
-                    result.len(),
-                    node_ids.len()
-                )
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Graph contains a cycle - not a DAG. Processed {} of {} nodes",
+                result.len(),
+                node_ids.len()
+            )));
         }
 
         // Return node IDs directly
@@ -4355,8 +4445,14 @@ impl Graph {
             if !self.directed && edge.source != edge.target {
                 *a.entry((edge.target, edge.source)).or_insert(0.0) += w;
             }
-            neighbors.entry(edge.source).or_default().insert(edge.target);
-            neighbors.entry(edge.target).or_default().insert(edge.source);
+            neighbors
+                .entry(edge.source)
+                .or_default()
+                .insert(edge.target);
+            neighbors
+                .entry(edge.target)
+                .or_default()
+                .insert(edge.source);
         }
 
         // Mutual tie strength m(u, v) = a_uv + a_vu
@@ -4370,7 +4466,12 @@ impl Graph {
             .nodes
             .keys()
             .map(|&u| {
-                let total = neighbors.get(&u).unwrap_or(&empty).iter().map(|&w| mutual(u, w)).sum();
+                let total = neighbors
+                    .get(&u)
+                    .unwrap_or(&empty)
+                    .iter()
+                    .map(|&w| mutual(u, w))
+                    .sum();
                 (u, total)
             })
             .collect();
@@ -4378,7 +4479,11 @@ impl Graph {
         // Proportional tie strength p_uv = m(u, v) / Σ_w m(u, w)
         let p = |u: u64, v: u64| -> f64 {
             let s = scale.get(&u).copied().unwrap_or(0.0);
-            if s == 0.0 { 0.0 } else { mutual(u, v) / s }
+            if s == 0.0 {
+                0.0
+            } else {
+                mutual(u, v) / s
+            }
         };
 
         // C_u = Σ_v (p_uv + Σ_w p_uw · p_wv)², over u's neighbors v and w (as in Burt 1992 and
@@ -4556,7 +4661,13 @@ impl Graph {
         // Copy all edges in their stored direction, keeping their IDs
         for edge in &self.edges {
             let attrs = copy_attrs(py, &edge.attributes);
-            result.add_edge(Edge::new(edge.id, edge.source, edge.target, edge.weight, attrs))?;
+            result.add_edge(Edge::new(
+                edge.id,
+                edge.source,
+                edge.target,
+                edge.weight,
+                attrs,
+            ))?;
         }
 
         // If originally undirected, add the reverse direction too. These are new edges, added
@@ -4695,18 +4806,24 @@ impl Graph {
     /// - Expected time: O(km) where k = (stretch+1)//2, m = number of edges
     /// - Sparsity: O(k × n^(1+1/k)) edges
     #[pyo3(signature = (stretch, weight=None, seed=None))]
-    pub fn spanner(&self, py: Python, stretch: f64, weight: Option<String>, seed: Option<u64>) -> PyResult<Graph> {
+    pub fn spanner(
+        &self,
+        py: Python,
+        stretch: f64,
+        weight: Option<String>,
+        seed: Option<u64>,
+    ) -> PyResult<Graph> {
         // Validate input
         if stretch < 1.0 {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "stretch must be at least 1.0"
+                "stretch must be at least 1.0",
             ));
         }
 
         // Only works on undirected simple graphs
         if self.directed {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "spanner only works on undirected graphs"
+                "spanner only works on undirected graphs",
             ));
         }
 
@@ -4750,19 +4867,25 @@ impl Graph {
         sorted_edges.extend(self.edges.iter());
         sorted_edges.sort_by(|a, b| {
             let w_a = if let Some(ref w) = weight {
-                a.attributes.as_ref().and_then(|attrs| {
-                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                }).unwrap_or(1.0)
+                a.attributes
+                    .as_ref()
+                    .and_then(|attrs| {
+                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                    })
+                    .unwrap_or(1.0)
             } else {
                 1.0
             };
 
             let w_b = if let Some(ref w) = weight {
-                b.attributes.as_ref().and_then(|attrs| {
-                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                }).unwrap_or(1.0)
+                b.attributes
+                    .as_ref()
+                    .and_then(|attrs| {
+                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                    })
+                    .unwrap_or(1.0)
             } else {
                 1.0
             };
@@ -4776,10 +4899,13 @@ impl Graph {
             let v = edge.target;
 
             let edge_weight = if let Some(ref w) = weight {
-                edge.attributes.as_ref().and_then(|attrs| {
-                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                }).unwrap_or(1.0)
+                edge.attributes
+                    .as_ref()
+                    .and_then(|attrs| {
+                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                    })
+                    .unwrap_or(1.0)
             } else {
                 1.0
             };
@@ -4876,7 +5002,8 @@ impl Graph {
 
             if let Some(neighbors) = self.adjacency_list.get(&current) {
                 for &neighbor in neighbors {
-                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor)
+                    {
                         e.insert(current_dist + 1);
                         queue.push_back(neighbor);
                     }
@@ -4895,7 +5022,11 @@ impl Graph {
 
     /// Helper: Optimized BFS excluding a specific node
     #[inline]
-    fn bfs_distances_excluding_optimized(&self, start: u64, excluded: u64) -> FxHashMap<u64, usize> {
+    fn bfs_distances_excluding_optimized(
+        &self,
+        start: u64,
+        excluded: u64,
+    ) -> FxHashMap<u64, usize> {
         let n = self.num_nodes();
         let mut distances = FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut queue = std::collections::VecDeque::with_capacity(n);
@@ -4911,7 +5042,8 @@ impl Graph {
                     if neighbor == excluded {
                         continue;
                     }
-                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor) {
+                    if let std::collections::hash_map::Entry::Vacant(e) = distances.entry(neighbor)
+                    {
                         e.insert(current_dist + 1);
                         queue.push_back(neighbor);
                     }
@@ -4934,19 +5066,23 @@ impl Graph {
     #[inline]
     pub fn get_coreness(&self) -> FxHashMap<u64, usize> {
         let n = self.nodes.len();
-        let mut coreness: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut coreness: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut degrees: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &id in self.nodes.keys() {
             degrees.insert(id, self.degree(id));
         }
 
-        let mut remaining: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+        let mut remaining: FxHashSet<u64> =
+            FxHashSet::with_capacity_and_hasher(n, Default::default());
         remaining.extend(self.nodes.keys().copied());
         let mut k = 0;
 
         while !remaining.is_empty() {
             // Find minimum degree among remaining nodes
-            let min_deg = remaining.iter()
+            let min_deg = remaining
+                .iter()
                 .map(|id| degrees.get(id).unwrap())
                 .min()
                 .copied()
@@ -5059,12 +5195,13 @@ impl Graph {
         // Validate k parameter
         if k != 3 && k != 4 {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "k must be 3 or 4"
+                "k must be 3 or 4",
             ));
         }
 
         // Build neighbor sets for efficient lookup
-        let neighbor_sets: FxHashMap<u64, FxHashSet<u64>> = self.adjacency_list
+        let neighbor_sets: FxHashMap<u64, FxHashSet<u64>> = self
+            .adjacency_list
             .iter()
             .map(|(&node, neighbors)| (node, neighbors.iter().copied().collect()))
             .collect();
@@ -5074,7 +5211,8 @@ impl Graph {
             self.edges.iter().collect()
         } else {
             let edge_id_set: FxHashSet<u64> = edge_ids.iter().copied().collect();
-            self.edges.iter()
+            self.edges
+                .iter()
                 .filter(|e| edge_id_set.contains(&e.id))
                 .collect()
         };
@@ -5095,10 +5233,8 @@ impl Graph {
 
             let coeff = if k == 3 {
                 // Count triangles: common neighbors of i and j
-                let common_neighbors: FxHashSet<_> = neighbors_i
-                    .intersection(&neighbors_j)
-                    .copied()
-                    .collect();
+                let common_neighbors: FxHashSet<_> =
+                    neighbors_i.intersection(&neighbors_j).copied().collect();
 
                 let mut z = common_neighbors.len() as f64;
                 if offset {
@@ -5270,10 +5406,7 @@ impl Graph {
             }
 
             // Normalize using L2 norm
-            let norm: f64 = new_centrality.iter()
-                .map(|&v| v * v)
-                .sum::<f64>()
-                .sqrt();
+            let norm: f64 = new_centrality.iter().map(|&v| v * v).sum::<f64>().sqrt();
 
             if norm < 1e-10 {
                 // Converged to zero (disconnected or DAG), use uniform
@@ -5286,7 +5419,8 @@ impl Graph {
             // Normalize and check convergence using L1 norm
             // Use multiplication instead of division (3-4× faster)
             let inv_norm = 1.0 / norm;
-            let delta: f64 = new_centrality.iter_mut()
+            let delta: f64 = new_centrality
+                .iter_mut()
                 .zip(centrality.iter())
                 .map(|(new, &old)| {
                     *new *= inv_norm;
@@ -5304,7 +5438,8 @@ impl Graph {
         }
 
         // Convert back to HashMap with node IDs
-        let scores = node_ids.iter()
+        let scores = node_ids
+            .iter()
             .enumerate()
             .map(|(idx, &node_id)| (node_id, centrality[idx]))
             .collect();
@@ -5446,7 +5581,10 @@ impl Graph {
         }
 
         // Per-node baseline, aligned with node_ids
-        let beta: Vec<f64> = node_ids.iter().map(|id| beta.get(id).copied().unwrap_or(0.0)).collect();
+        let beta: Vec<f64> = node_ids
+            .iter()
+            .map(|id| beta.get(id).copied().unwrap_or(0.0))
+            .collect();
 
         // Initialize centrality arrays
         let mut centrality = beta.clone();
@@ -5460,7 +5598,8 @@ impl Graph {
                 let incoming_sum: f64 = transpose
                     .get(&node)
                     .map(|predecessors| {
-                        predecessors.iter()
+                        predecessors
+                            .iter()
                             .filter_map(|&pred| node_to_idx.get(&pred))
                             .map(|&pred_idx| centrality[pred_idx])
                             .sum()
@@ -5472,7 +5611,8 @@ impl Graph {
             }
 
             // Check convergence using vectorized L1 norm
-            let max_change: f64 = new_centrality.iter()
+            let max_change: f64 = new_centrality
+                .iter()
                 .zip(centrality.iter())
                 .map(|(new, old)| (new - old).abs())
                 .fold(0.0, f64::max);
@@ -5517,18 +5657,25 @@ impl Graph {
     /// Also reports whether the iteration converged within `max_iter` rounds (it can't when
     /// alpha >= 1 / lambda_max).
     #[inline]
-    fn get_alpha_centrality(&self, alpha: f64, max_iter: usize, tol: f64) -> (FxHashMap<u64, f64>, bool) {
+    fn get_alpha_centrality(
+        &self,
+        alpha: f64,
+        max_iter: usize,
+        tol: f64,
+    ) -> (FxHashMap<u64, f64>, bool) {
         let n = self.num_nodes();
         if n == 0 {
             return (FxHashMap::default(), true);
         }
 
         // Initialize centrality to 1.0 for all nodes
-        let mut centrality: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut centrality: FxHashMap<u64, f64> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &id in self.nodes.keys() {
             centrality.insert(id, 1.0);
         }
-        let mut prev_centrality: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut prev_centrality: FxHashMap<u64, f64> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut converged = false;
 
         for _ in 0..max_iter {
@@ -5538,10 +5685,12 @@ impl Graph {
 
             for &node in self.nodes.keys() {
                 // Sum of centralities of neighbors
-                let neighbor_sum: f64 = self.adjacency_list
+                let neighbor_sum: f64 = self
+                    .adjacency_list
                     .get(&node)
                     .map(|neighbors| {
-                        neighbors.iter()
+                        neighbors
+                            .iter()
                             .filter_map(|&neighbor| prev_centrality.get(&neighbor))
                             .sum()
                     })
@@ -5629,7 +5778,8 @@ impl Graph {
 
         for &node1 in &nodes {
             let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+            let neighbors1: FxHashSet<&u64> = self
+                .adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
@@ -5640,7 +5790,8 @@ impl Graph {
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                let neighbors2: FxHashSet<&u64> = self
+                    .adjacency_list
                     .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
@@ -5678,7 +5829,8 @@ impl Graph {
 
         for &node1 in &nodes {
             let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+            let neighbors1: FxHashSet<&u64> = self
+                .adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
@@ -5689,7 +5841,8 @@ impl Graph {
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                let neighbors2: FxHashSet<&u64> = self
+                    .adjacency_list
                     .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
@@ -5725,7 +5878,8 @@ impl Graph {
 
         for &node1 in &nodes {
             let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+            let neighbors1: FxHashSet<&u64> = self
+                .adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
@@ -5736,7 +5890,8 @@ impl Graph {
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                let neighbors2: FxHashSet<&u64> = self
+                    .adjacency_list
                     .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
@@ -5776,7 +5931,8 @@ impl Graph {
 
         for &node1 in &nodes {
             let mut node1_sims = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let neighbors1: FxHashSet<&u64> = self.adjacency_list
+            let neighbors1: FxHashSet<&u64> = self
+                .adjacency_list
                 .get(&node1)
                 .map(|v| v.iter().collect())
                 .unwrap_or_default();
@@ -5787,7 +5943,8 @@ impl Graph {
                     continue;
                 }
 
-                let neighbors2: FxHashSet<&u64> = self.adjacency_list
+                let neighbors2: FxHashSet<&u64> = self
+                    .adjacency_list
                     .get(&node2)
                     .map(|v| v.iter().collect())
                     .unwrap_or_default();
@@ -6106,14 +6263,16 @@ impl Graph {
     ) -> PyResult<Option<usize>> {
         // Validate nodes exist
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} not found", source)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} not found",
+                source
+            )));
         }
         if !self.nodes.contains_key(&target) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Target node {} not found", target)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Target node {} not found",
+                target
+            )));
         }
 
         // If source == target, there's 1 trivial trail (empty path)
@@ -6192,14 +6351,16 @@ impl Graph {
     ) -> PyResult<Vec<Vec<u64>>> {
         // Validate nodes exist
         if !self.nodes.contains_key(&source) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Source node {} not found", source)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Source node {} not found",
+                source
+            )));
         }
         if !self.nodes.contains_key(&target) {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Target node {} not found", target)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Target node {} not found",
+                target
+            )));
         }
 
         let mut trails: Vec<Vec<u64>> = Vec::new();
@@ -6287,14 +6448,15 @@ impl Graph {
     pub fn which_mutual(&self) -> PyResult<Vec<(u64, u64)>> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "which_mutual() requires a directed graph"
+                "which_mutual() requires a directed graph",
             ));
         }
 
         let m = self.num_edges();
         let estimated_pairs = m / 10; // Estimate 10% mutual
         let mut mutual_pairs = Vec::with_capacity(estimated_pairs);
-        let mut seen_pairs = FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
+        let mut seen_pairs =
+            FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
 
         // For each edge, check if reverse edge exists
         for edge in &self.edges {
@@ -6319,14 +6481,16 @@ impl Graph {
             }
 
             // Find all edges from source to target
-            let forward_edges: Vec<u64> = self.edges
+            let forward_edges: Vec<u64> = self
+                .edges
                 .iter()
                 .filter(|e| e.source == source && e.target == target)
                 .map(|e| e.id)
                 .collect();
 
             // Find all edges from target to source (reverse)
-            let reverse_edges: Vec<u64> = self.edges
+            let reverse_edges: Vec<u64> = self
+                .edges
                 .iter()
                 .filter(|e| e.source == target && e.target == source)
                 .map(|e| e.id)
@@ -6388,7 +6552,7 @@ impl Graph {
     pub fn reciprocity(&self, mode: &str) -> PyResult<f64> {
         if !self.directed {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "reciprocity() requires a directed graph"
+                "reciprocity() requires a directed graph",
             ));
         }
 
@@ -6402,7 +6566,8 @@ impl Graph {
                 // Count edges that are mutual
                 let mut mutual_count = 0;
                 let estimated_pairs = num_edges / 2;
-                let mut seen_pairs = FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
+                let mut seen_pairs =
+                    FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
 
                 for edge in &self.edges {
                     let source = edge.source;
@@ -6426,12 +6591,14 @@ impl Graph {
                     }
 
                     // Check if reverse edge exists
-                    let has_forward = self.edges.iter().any(|e|
-                        e.source == source && e.target == target
-                    );
-                    let has_reverse = self.edges.iter().any(|e|
-                        e.source == target && e.target == source
-                    );
+                    let has_forward = self
+                        .edges
+                        .iter()
+                        .any(|e| e.source == source && e.target == target);
+                    let has_reverse = self
+                        .edges
+                        .iter()
+                        .any(|e| e.source == target && e.target == source);
 
                     if has_forward && has_reverse {
                         seen_pairs.insert(canonical);
@@ -6443,9 +6610,10 @@ impl Graph {
                 let inv_num_edges = 1.0 / num_edges as f64;
                 Ok((mutual_count as f64) * inv_num_edges)
             }
-            _ => Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid mode '{}'. Use 'default' or 'ratio'", mode)
-            )),
+            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid mode '{}'. Use 'default' or 'ratio'",
+                mode
+            ))),
         }
     }
 
@@ -6622,7 +6790,8 @@ impl Graph {
     #[inline]
     pub fn count_loops(&self) -> PyResult<std::collections::HashMap<u64, usize>> {
         let n = self.num_nodes();
-        let mut loop_counts: std::collections::HashMap<u64, usize> = std::collections::HashMap::with_capacity(n);
+        let mut loop_counts: std::collections::HashMap<u64, usize> =
+            std::collections::HashMap::with_capacity(n);
 
         // Count self-loops per node
         for edge in &self.edges {
@@ -6654,7 +6823,8 @@ impl Graph {
     /// ```
     pub fn remove_selfloops(&mut self) -> PyResult<usize> {
         // Find all self-loop edge IDs
-        let loop_ids: Vec<u64> = self.edges
+        let loop_ids: Vec<u64> = self
+            .edges
             .iter()
             .filter(|e| e.source == e.target)
             .map(|e| e.id)
@@ -6739,7 +6909,8 @@ impl Graph {
                 if let Some(ref attrs) = edge.attributes {
                     Python::with_gil(|py| {
                         let dict = attrs.bind(py);
-                        let mut attr_pairs: Vec<(String, String)> = dict.iter()
+                        let mut attr_pairs: Vec<(String, String)> = dict
+                            .iter()
                             .map(|(k, v)| (k.to_string(), format!("{:?}", v)))
                             .collect();
                         attr_pairs.sort_by(|a, b| a.0.cmp(&b.0));
@@ -6884,7 +7055,7 @@ impl Graph {
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot calculate assortativity for graph with no edges"
+                "Cannot calculate assortativity for graph with no edges",
             ));
         }
 
@@ -6895,8 +7066,10 @@ impl Graph {
         let (degree_source, degree_target): (Vec<f64>, Vec<f64>) = if self.directed {
             // Directed: out-degree for source, in-degree for target
             let n = self.nodes.len();
-            let mut out_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut in_degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut out_degrees: FxHashMap<u64, usize> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut in_degrees: FxHashMap<u64, usize> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             // Build degree maps
             for edge in &self.edges {
@@ -6918,7 +7091,8 @@ impl Graph {
         } else {
             // Undirected: total degree for both ends
             let n = self.nodes.len();
-            let mut degrees: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+            let mut degrees: FxHashMap<u64, usize> =
+                FxHashMap::with_capacity_and_hasher(n, Default::default());
 
             // Build degree map
             for edge in &self.edges {
@@ -6944,16 +7118,21 @@ impl Graph {
 
         let (num1, sum_x, sum_y, sum_x2, sum_y2) = if m >= 10000 {
             // Parallel computation for large graphs
-            degree_source.par_iter()
+            degree_source
+                .par_iter()
                 .zip(degree_target.par_iter())
-                .map(|(x, y)| {
-                    (*x * *y, *x, *y, *x * *x, *y * *y)
-                })
+                .map(|(x, y)| (*x * *y, *x, *y, *x * *x, *y * *y))
                 .reduce(
                     || (0.0, 0.0, 0.0, 0.0, 0.0),
                     |acc, item| {
-                        (acc.0 + item.0, acc.1 + item.1, acc.2 + item.2, acc.3 + item.3, acc.4 + item.4)
-                    }
+                        (
+                            acc.0 + item.0,
+                            acc.1 + item.1,
+                            acc.2 + item.2,
+                            acc.3 + item.3,
+                            acc.4 + item.4,
+                        )
+                    },
                 )
         } else {
             // Sequential for small graphs
@@ -7091,15 +7270,12 @@ impl Graph {
                     }
                     // Try as string (node label)
                     else if let Ok(label) = node.extract::<String>(py) {
-                        self.node_labels
-                            .get(&label)
-                            .copied()
-                            .ok_or_else(|| {
-                                pyo3::exceptions::PyValueError::new_err(format!(
-                                    "Node with label '{}' not found",
-                                    label
-                                ))
-                            })
+                        self.node_labels.get(&label).copied().ok_or_else(|| {
+                            pyo3::exceptions::PyValueError::new_err(format!(
+                                "Node with label '{}' not found",
+                                label
+                            ))
+                        })
                     } else {
                         Err(pyo3::exceptions::PyValueError::new_err(
                             "Node must be an integer (ID) or string (label)",
@@ -7285,7 +7461,7 @@ impl Graph {
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot calculate assortativity for graph with no edges"
+                "Cannot calculate assortativity for graph with no edges",
             ));
         }
 
@@ -7301,14 +7477,16 @@ impl Graph {
                         let attr_str = value.to_string();
                         node_attrs.insert(*node_id, attr_str);
                     } else {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Attribute '{}' not found on node {}", attribute, node_id)
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Attribute '{}' not found on node {}",
+                            attribute, node_id
+                        )));
                     }
                 } else {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!("Node {} has no attributes", node_id)
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Node {} has no attributes",
+                        node_id
+                    )));
                 }
             }
 
@@ -7321,7 +7499,7 @@ impl Graph {
             let n_types = attribute_types.len();
             if n_types < 2 {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "Need at least 2 different attribute values to calculate assortativity"
+                    "Need at least 2 different attribute values to calculate assortativity",
                 ));
             }
 
@@ -7335,14 +7513,18 @@ impl Graph {
             let mut e_matrix = vec![vec![0usize; n_types]; n_types];
 
             for edge in &self.edges {
-                let src_attr = node_attrs.get(&edge.source)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        format!("Missing attribute for node {}", edge.source)
-                    ))?;
-                let tgt_attr = node_attrs.get(&edge.target)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        format!("Missing attribute for node {}", edge.target)
-                    ))?;
+                let src_attr = node_attrs.get(&edge.source).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Missing attribute for node {}",
+                        edge.source
+                    ))
+                })?;
+                let tgt_attr = node_attrs.get(&edge.target).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Missing attribute for node {}",
+                        edge.target
+                    ))
+                })?;
 
                 let i = attr_to_idx[src_attr];
                 let j = attr_to_idx[tgt_attr];
@@ -7361,9 +7543,18 @@ impl Graph {
             // Calculate eᵢⱼ (edge fractions)
             // For undirected: each edge counted twice in e_matrix, so divide by 2*m
             // For directed: edges counted once, so divide by m
-            let inv_normalization = if self.directed { 1.0 / m_f64 } else { 1.0 / (2.0 * m_f64) };
-            let e_ij: Vec<Vec<f64>> = e_matrix.iter()
-                .map(|row| row.iter().map(|&count| count as f64 * inv_normalization).collect())
+            let inv_normalization = if self.directed {
+                1.0 / m_f64
+            } else {
+                1.0 / (2.0 * m_f64)
+            };
+            let e_ij: Vec<Vec<f64>> = e_matrix
+                .iter()
+                .map(|row| {
+                    row.iter()
+                        .map(|&count| count as f64 * inv_normalization)
+                        .collect()
+                })
                 .collect();
 
             // Calculate aᵢ and bᵢ (marginal sums)
@@ -7386,7 +7577,7 @@ impl Graph {
 
             if denominator.abs() < 1e-10 {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "Insufficient mixing to calculate assortativity"
+                    "Insufficient mixing to calculate assortativity",
                 ));
             }
 
@@ -7441,7 +7632,7 @@ impl Graph {
         let m = self.edges.len();
         if m == 0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Cannot calculate assortativity for graph with no edges"
+                "Cannot calculate assortativity for graph with no edges",
             ));
         }
 
@@ -7455,20 +7646,24 @@ impl Graph {
                     let dict = attrs.bind(py);
                     if let Ok(Some(value)) = dict.get_item(attribute) {
                         // Try to extract as float
-                        let attr_val: f64 = value.extract()
-                            .map_err(|_| pyo3::exceptions::PyValueError::new_err(
-                                format!("Attribute '{}' on node {} is not numeric", attribute, node_id)
-                            ))?;
+                        let attr_val: f64 = value.extract().map_err(|_| {
+                            pyo3::exceptions::PyValueError::new_err(format!(
+                                "Attribute '{}' on node {} is not numeric",
+                                attribute, node_id
+                            ))
+                        })?;
                         node_attrs.insert(*node_id, attr_val);
                     } else {
-                        return Err(pyo3::exceptions::PyValueError::new_err(
-                            format!("Attribute '{}' not found on node {}", attribute, node_id)
-                        ));
+                        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                            "Attribute '{}' not found on node {}",
+                            attribute, node_id
+                        )));
                     }
                 } else {
-                    return Err(pyo3::exceptions::PyValueError::new_err(
-                        format!("Node {} has no attributes", node_id)
-                    ));
+                    return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                        "Node {} has no attributes",
+                        node_id
+                    )));
                 }
             }
 
@@ -7477,14 +7672,18 @@ impl Graph {
             let mut y_vals: Vec<f64> = Vec::with_capacity(m);
 
             for edge in &self.edges {
-                let x = *node_attrs.get(&edge.source)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        format!("Missing attribute for node {}", edge.source)
-                    ))?;
-                let y = *node_attrs.get(&edge.target)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(
-                        format!("Missing attribute for node {}", edge.target)
-                    ))?;
+                let x = *node_attrs.get(&edge.source).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Missing attribute for node {}",
+                        edge.source
+                    ))
+                })?;
+                let y = *node_attrs.get(&edge.target).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!(
+                        "Missing attribute for node {}",
+                        edge.target
+                    ))
+                })?;
 
                 x_vals.push(x);
                 y_vals.push(y);
@@ -7517,7 +7716,7 @@ impl Graph {
 
                 if denominator.abs() < 1e-10 {
                     return Err(pyo3::exceptions::PyValueError::new_err(
-                        "Insufficient variance in attribute values to calculate assortativity"
+                        "Insufficient variance in attribute values to calculate assortativity",
                     ));
                 }
 
@@ -7538,7 +7737,7 @@ impl Graph {
 
                 if denominator.abs() < 1e-10 {
                     return Err(pyo3::exceptions::PyValueError::new_err(
-                        "Insufficient variance in attribute values to calculate assortativity"
+                        "Insufficient variance in attribute values to calculate assortativity",
                     ));
                 }
 
@@ -7703,7 +7902,7 @@ impl Graph {
         // Require undirected graph
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Edge Betweenness requires an undirected graph"
+                "Edge Betweenness requires an undirected graph",
             ));
         }
 
@@ -7755,7 +7954,7 @@ impl Graph {
         // Require undirected graph
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Leading Eigenvector requires an undirected graph"
+                "Leading Eigenvector requires an undirected graph",
             ));
         }
 
@@ -7775,7 +7974,9 @@ impl Graph {
 
         // No edges: each node is its own community
         if self.num_edges() == 0 {
-            let result: FxHashMap<u64, usize> = self.nodes.keys()
+            let result: FxHashMap<u64, usize> = self
+                .nodes
+                .keys()
                 .enumerate()
                 .map(|(idx, &id)| (id, idx))
                 .collect();
@@ -7784,7 +7985,8 @@ impl Graph {
 
         // Start with all nodes in one community
         let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut communities: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut communities: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         for &id in &node_ids {
             communities.insert(id, 0);
         }
@@ -7825,7 +8027,8 @@ impl Graph {
         }
 
         // Renumber communities to be contiguous
-        let mut community_map: FxHashMap<usize, usize> = FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
+        let mut community_map: FxHashMap<usize, usize> =
+            FxHashMap::with_capacity_and_hasher(n / 10, Default::default());
         let mut next_id = 0;
 
         for comm_id in communities.values() {
@@ -7835,7 +8038,8 @@ impl Graph {
             }
         }
 
-        let result: FxHashMap<u64, usize> = communities.iter()
+        let result: FxHashMap<u64, usize> = communities
+            .iter()
             .map(|(&node_id, old_comm)| (node_id, *community_map.get(old_comm).unwrap()))
             .collect();
 
@@ -7859,7 +8063,7 @@ impl Graph {
     fn get_cmty_louvain(&self, resolution: f64) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Louvain algorithm requires an undirected graph"
+                "Louvain algorithm requires an undirected graph",
             ));
         }
 
@@ -7882,7 +8086,11 @@ impl Graph {
             // No edges - each node is its own community, numbered in node ID order
             let mut ids: Vec<u64> = self.nodes.keys().copied().collect();
             ids.sort_unstable();
-            return Ok(ids.into_iter().enumerate().map(|(idx, id)| (id, idx)).collect());
+            return Ok(ids
+                .into_iter()
+                .enumerate()
+                .map(|(idx, id)| (id, idx))
+                .collect());
         }
 
         // Multi-level Louvain (local moving + aggregation); the fixed seed keeps it deterministic
@@ -7905,7 +8113,7 @@ impl Graph {
     fn get_cmty_walktrap(&self, steps: usize) -> PyResult<FxHashMap<u64, usize>> {
         if self.is_directed() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "Walktrap algorithm only works on undirected graphs"
+                "Walktrap algorithm only works on undirected graphs",
             ));
         }
 
@@ -8065,9 +8273,10 @@ impl Graph {
         // Endpoints are node IDs, so unlabelled nodes work too
         for (role, id) in [("Source", source), ("Target", target)] {
             if !self.nodes.contains_key(&id) {
-                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("{} node {} does not exist", role, id)
-                ));
+                return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "{} node {} does not exist",
+                    role, id
+                )));
             }
         }
         let (source_id, target_id) = (&source, &target);
@@ -8128,7 +8337,6 @@ impl Graph {
     }
 }
 
-
 impl Graph {
     // ========== Creation-order Helpers ==========
 
@@ -8172,8 +8380,12 @@ impl Graph {
             .collect();
 
         if order.len() < self.nodes.len() {
-            let mut rest: Vec<u64> =
-                self.nodes.keys().copied().filter(|id| !seen.contains(id)).collect();
+            let mut rest: Vec<u64> = self
+                .nodes
+                .keys()
+                .copied()
+                .filter(|id| !seen.contains(id))
+                .collect();
             rest.sort_unstable();
             order.extend(rest);
         }
@@ -8195,8 +8407,11 @@ impl Graph {
             )));
         }
 
-        let node_to_idx: FxHashMap<u64, usize> =
-            node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        let node_to_idx: FxHashMap<u64, usize> = node_ids
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| (id, i))
+            .collect();
         let mut triplets = Vec::with_capacity(2 * self.edges.len());
 
         for edge in &self.edges {
@@ -8240,7 +8455,8 @@ impl Graph {
         let pivot = p.union(x).next().copied();
 
         let mut candidates: Vec<u64> = if let Some(pivot_node) = pivot {
-            let pivot_neighbors: FxHashSet<u64> = self.adjacency_list
+            let pivot_neighbors: FxHashSet<u64> = self
+                .adjacency_list
                 .get(&pivot_node)
                 .map(|neighbors| neighbors.iter().copied().collect())
                 .unwrap_or_default();
@@ -8250,7 +8466,8 @@ impl Graph {
         };
 
         for v in candidates.drain(..) {
-            let neighbors: FxHashSet<u64> = self.adjacency_list
+            let neighbors: FxHashSet<u64> = self
+                .adjacency_list
                 .get(&v)
                 .map(|n| n.iter().copied().collect())
                 .unwrap_or_default();
@@ -8493,7 +8710,11 @@ impl Graph {
             return self.degree_rust(node_id);
         }
         // Counted once in the edge index rather than scanning every edge
-        self.edge_index().in_degree.get(&node_id).copied().unwrap_or(0)
+        self.edge_index()
+            .in_degree
+            .get(&node_id)
+            .copied()
+            .unwrap_or(0)
     }
 
     /// Get out-degree of a node (public method for Rust code)
@@ -8518,7 +8739,6 @@ impl Graph {
         }
     }
 
-
     /// Helper for all_simple_paths: DFS with backtracking
     fn dfs_simple_paths(
         &self,
@@ -8530,7 +8750,9 @@ impl Graph {
         cutoff: Option<usize>,
     ) {
         // Get label for current node
-        let current_label = self.nodes.get(&current)
+        let current_label = self
+            .nodes
+            .get(&current)
             .and_then(|n| n.label.clone())
             .unwrap_or_else(|| current.to_string());
 
@@ -8637,9 +8859,8 @@ impl Graph {
 
         // Create node index mapping
         let _n = nodes.len();
-        let node_to_idx: FxHashMap<u64, usize> = FxHashMap::from_iter(
-            nodes.iter().enumerate().map(|(idx, &id)| (id, idx))
-        );
+        let node_to_idx: FxHashMap<u64, usize> =
+            FxHashMap::from_iter(nodes.iter().enumerate().map(|(idx, &id)| (id, idx)));
 
         let n = nodes.len();
 
@@ -8676,9 +8897,7 @@ impl Graph {
         }
 
         // Precompute degrees
-        let degrees: Vec<f64> = nodes.iter()
-            .map(|&id| self.degree(id) as f64)
-            .collect();
+        let degrees: Vec<f64> = nodes.iter().map(|&id| self.degree(id) as f64).collect();
 
         // Compute B^(g) matrix (same as used in eigenvector computation)
         let mut b_matrix: Vec<Vec<f64>> = vec![vec![0.0; n]; n];
@@ -8688,7 +8907,9 @@ impl Graph {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
             for (k, &node_k) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(&node_i)
+                let has_edge = self
+                    .adjacency_list
+                    .get(&node_i)
                     .map(|neighbors| neighbors.contains(&node_k))
                     .unwrap_or(false);
                 let a_ik = if has_edge { 1.0 } else { 0.0 };
@@ -8698,7 +8919,9 @@ impl Graph {
 
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
             for (j, &node_j) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(&node_i)
+                let has_edge = self
+                    .adjacency_list
+                    .get(&node_i)
                     .map(|neighbors| neighbors.contains(&node_j))
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
@@ -8750,9 +8973,7 @@ impl Graph {
         let n = nodes.len();
 
         // Precompute degrees for efficiency
-        let degrees: Vec<f64> = nodes.iter()
-            .map(|&id| self.degree(id) as f64)
-            .collect();
+        let degrees: Vec<f64> = nodes.iter().map(|&id| self.degree(id) as f64).collect();
 
         // Build B^(g) matrix for the subgraph using nalgebra DMatrix
         let mut b_matrix = na::DMatrix::<f64>::zeros(n, n);
@@ -8761,7 +8982,9 @@ impl Graph {
             // First compute row sum: Σ_k B_ik
             let mut row_sum = 0.0;
             for (k, &node_k) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(&node_i)
+                let has_edge = self
+                    .adjacency_list
+                    .get(&node_i)
                     .map(|neighbors| neighbors.contains(&node_k))
                     .unwrap_or(false);
                 let a_ik = if has_edge { 1.0 } else { 0.0 };
@@ -8771,7 +8994,9 @@ impl Graph {
 
             // Now compute B^(g)_ij = B_ij - δ_ij * row_sum
             for (j, &node_j) in nodes.iter().enumerate() {
-                let has_edge = self.adjacency_list.get(&node_i)
+                let has_edge = self
+                    .adjacency_list
+                    .get(&node_i)
                     .map(|neighbors| neighbors.contains(&node_j))
                     .unwrap_or(false);
                 let a_ij = if has_edge { 1.0 } else { 0.0 };
@@ -8827,7 +9052,8 @@ impl Graph {
     ) -> Vec<u64> {
         let n = self.num_nodes();
         let mut visited = FxHashSet::with_capacity_and_hasher(n, Default::default());
-        let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut parent: FxHashMap<u64, u64> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
         let mut queue = std::collections::VecDeque::with_capacity(n);
 
         visited.insert(source);
@@ -8875,7 +9101,8 @@ impl Graph {
         let n = self.num_nodes();
         let capacity = n * 2; // Transformed graph has split nodes
         let mut visited = FxHashSet::with_capacity_and_hasher(capacity, Default::default());
-        let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(capacity, Default::default());
+        let mut parent: FxHashMap<u64, u64> =
+            FxHashMap::with_capacity_and_hasher(capacity, Default::default());
         let mut queue = std::collections::VecDeque::with_capacity(capacity);
 
         visited.insert(source);
@@ -9004,12 +9231,17 @@ impl Graph {
                 let mut candidate_nodes = comp_nodes.clone();
                 candidate_nodes.extend(separator.iter().copied());
 
-                let candidate_connectivity = self.induced_subgraph_connectivity(&candidate_nodes)?;
+                let candidate_connectivity =
+                    self.induced_subgraph_connectivity(&candidate_nodes)?;
 
                 if candidate_connectivity > k {
                     // Recursively process this higher-cohesion component
-                    let (sub_blocks, sub_cohesions, sub_parents) =
-                        self.cohesive_blocks_for_subgraph(&candidate_nodes, Some(current_idx), all_blocks)?;
+                    let (sub_blocks, sub_cohesions, sub_parents) = self
+                        .cohesive_blocks_for_subgraph(
+                            &candidate_nodes,
+                            Some(current_idx),
+                            all_blocks,
+                        )?;
 
                     blocks.extend(sub_blocks);
                     cohesions.extend(sub_cohesions);
@@ -9103,7 +9335,11 @@ impl Graph {
         }
 
         if n == 2 {
-            return Ok(if self.has_edge(nodes[0], nodes[1]) { 1 } else { 0 });
+            return Ok(if self.has_edge(nodes[0], nodes[1]) {
+                1
+            } else {
+                0
+            });
         }
 
         // If this is the whole graph, use the efficient global method
@@ -9135,11 +9371,10 @@ impl Graph {
         // Find minimum degree in subgraph
         let mut min_degree = usize::MAX;
         for &node in nodes {
-            let degree = self.adjacency_list
+            let degree = self
+                .adjacency_list
                 .get(&node)
-                .map(|neighbors| {
-                    neighbors.iter().filter(|&&n| node_set.contains(&n)).count()
-                })
+                .map(|neighbors| neighbors.iter().filter(|&&n| node_set.contains(&n)).count())
                 .unwrap_or(0);
             min_degree = min_degree.min(degree);
         }
@@ -9634,7 +9869,7 @@ impl Graph {
             if choices.is_empty() {
                 if stuck == "error" {
                     return Err(PyErr::new::<pyo3::exceptions::PyRuntimeError, _>(
-                        "Random walk got stuck at vertex with no neighbors".to_string()
+                        "Random walk got stuck at vertex with no neighbors".to_string(),
                     ));
                 }
                 break;
@@ -9683,7 +9918,11 @@ impl Graph {
         // Arc weights, summed over parallel arcs
         let mut link: FxHashMap<(usize, usize), f64> = FxHashMap::default();
         for e in &self.edges {
-            let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+            let w = if weighted {
+                e.weight.unwrap_or(1.0)
+            } else {
+                1.0
+            };
             if w < 0.0 {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                     "HITS needs non-negative edge weights",
@@ -9691,7 +9930,8 @@ impl Graph {
             }
             *link.entry((idx[&e.source], idx[&e.target])).or_insert(0.0) += w;
         }
-        let arcs: Vec<(usize, usize, f64)> = link.into_iter().map(|((u, v), w)| (u, v, w)).collect();
+        let arcs: Vec<(usize, usize, f64)> =
+            link.into_iter().map(|((u, v), w)| (u, v, w)).collect();
 
         let normalize = |x: &mut [f64]| {
             let norm = x.iter().map(|v| v * v).sum::<f64>().sqrt();
@@ -9841,7 +10081,8 @@ impl Graph {
         let mut distances = vec![vec![0.0; n]; n];
 
         // Precompute degrees
-        let degrees: Vec<f64> = node_ids.iter()
+        let degrees: Vec<f64> = node_ids
+            .iter()
             .map(|&node_id| self.degree(node_id) as f64)
             .collect();
 
@@ -9904,7 +10145,7 @@ impl Graph {
 
             // Create new cluster
             let new_size = cluster_sizes.get(best_i).copied().unwrap_or(1)
-                         + cluster_sizes.get(best_j).copied().unwrap_or(1);
+                + cluster_sizes.get(best_j).copied().unwrap_or(1);
             if cluster_sizes.len() <= next_cluster_id {
                 cluster_sizes.resize(next_cluster_id + 1, 0);
             }
@@ -9947,7 +10188,8 @@ impl Graph {
 
                 // Ward's formula
                 let new_dist = ((size_i + size_k) * d_ik + (size_j + size_k) * d_jk
-                              - size_k * d_ij) / (size_new + size_k);
+                    - size_k * d_ij)
+                    / (size_new + size_k);
 
                 dist_matrix[next_cluster_id][k] = new_dist;
                 dist_matrix[k][next_cluster_id] = new_dist;
@@ -9992,7 +10234,8 @@ impl Graph {
                 let nodes_c2 = Self::get_cluster_nodes(c2, n, &dendrogram[..i]);
 
                 // Union all nodes from c2 into c1's community
-                if let (Some(rep1), Some(_rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next()) {
+                if let (Some(rep1), Some(_rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next())
+                {
                     let root1 = Self::find_root(&mut parent, *rep1);
                     for &node in &nodes_c2 {
                         parent[node] = root1;
@@ -10013,7 +10256,8 @@ impl Graph {
                 comm_remap.insert(old_id, new_id);
             }
 
-            let renumbered: Vec<usize> = partition.iter()
+            let renumbered: Vec<usize> = partition
+                .iter()
                 .map(|&c| comm_remap.get(&c).copied().unwrap_or(0))
                 .collect();
 
@@ -10031,7 +10275,11 @@ impl Graph {
     }
 
     /// Get all original nodes that belong to a cluster
-    fn get_cluster_nodes(cluster_id: usize, n: usize, merges: &[(usize, usize, f64)]) -> FxHashSet<usize> {
+    fn get_cluster_nodes(
+        cluster_id: usize,
+        n: usize,
+        merges: &[(usize, usize, f64)],
+    ) -> FxHashSet<usize> {
         let mut nodes = FxHashSet::default();
 
         // If cluster_id < n, it's an original node
@@ -10076,7 +10324,9 @@ impl Graph {
         for (i, &node_i) in node_ids.iter().enumerate() {
             for (j, &node_j) in node_ids.iter().enumerate() {
                 if partition[i] == partition[j] {
-                    let has_edge = self.adjacency_list.get(&node_i)
+                    let has_edge = self
+                        .adjacency_list
+                        .get(&node_i)
                         .map(|neighbors| neighbors.contains(&node_j))
                         .unwrap_or(false);
 
@@ -10134,7 +10384,10 @@ pub(crate) fn spectral_laplacian(adj: &CsrMatrix, normalized: bool) -> CsrMatrix
     let n = adj.n();
     let degrees = adj.row_sums();
     let scale: Vec<f64> = if normalized {
-        degrees.iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }).collect()
+        degrees
+            .iter()
+            .map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 })
+            .collect()
     } else {
         vec![1.0; n]
     };
@@ -10202,16 +10455,25 @@ pub(crate) fn spectral_symmetric(
         if n <= DENSE_SPECTRUM_FALLBACK_MAX_NODES {
             options.max_iter = iteration_budget(matrix, count.max(2), &options);
         }
-        let leading_end = if descending { Extremal::Largest } else { Extremal::Smallest };
+        let leading_end = if descending {
+            Extremal::Largest
+        } else {
+            Extremal::Smallest
+        };
         let solve = |k: usize, end: Extremal| {
             symmetric_extremal_eigenpairs(matrix, k.min(n), end, &options)
         };
 
-        let main = solve(if end == leading_end { count.max(2) } else { count }, end);
+        let main = solve(
+            if end == leading_end {
+                count.max(2)
+            } else {
+                count
+            },
+            end,
+        );
         let leading: Option<Vec<f64>> = match &main {
-            Some(pairs) if end == leading_end => {
-                Some(pairs.iter().take(2).map(|p| p.0).collect())
-            }
+            Some(pairs) if end == leading_end => Some(pairs.iter().take(2).map(|p| p.0).collect()),
             Some(_) => solve(2, leading_end).map(|p| p.into_iter().map(|p| p.0).collect()),
             None => None,
         };
@@ -10222,7 +10484,9 @@ pub(crate) fn spectral_symmetric(
             if (end == Extremal::Largest) != descending {
                 pairs.reverse();
             }
-            pairs.iter_mut().for_each(|(_, v)| normalize_eigenvector_sign(v));
+            pairs
+                .iter_mut()
+                .for_each(|(_, v)| normalize_eigenvector_sign(v));
             return Ok((pairs, leading));
         }
 
@@ -10463,7 +10727,9 @@ impl PartialOrd for OpenEntry {
 
 impl Ord for OpenEntry {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.key.0.total_cmp(&other.key.0)
+        self.key
+            .0
+            .total_cmp(&other.key.0)
             .then(self.key.1.total_cmp(&other.key.1))
             .then(self.node.cmp(&other.node))
     }
@@ -10479,7 +10745,7 @@ impl Ord for OpenEntry {
 /// Based on: Likhachev et al. "Anytime dynamic A*" ICAPS 2005
 #[pyclass]
 pub struct AdaStar {
-    graph_id: Option<usize>,  // Track which graph this search is for
+    graph_id: Option<usize>, // Track which graph this search is for
     source: u64,
     target: u64,
     weight_attr: String,
@@ -10492,7 +10758,7 @@ pub struct AdaStar {
     one_step_lookahead: FxHashMap<u64, f64>,
 
     // Priority queue sets
-    open: FxHashMap<u64, (f64, f64)>,  // node -> (k1, k2) key
+    open: FxHashMap<u64, (f64, f64)>, // node -> (k1, k2) key
     // Min-heap mirror of `open` for O(log n) minimum lookup. Entries are never removed
     // eagerly: an entry is stale once its node left `open` or got a different key, and stale
     // entries are skipped when they reach the top (see `peek_min_open`)
@@ -10602,8 +10868,16 @@ impl AdaStar {
 
             // Termination condition
             let source_key = self.compute_key(self.source, graph);
-            let source_g = self.state_to_goal_est.get(&self.source).copied().unwrap_or(f64::INFINITY);
-            let source_rhs = self.one_step_lookahead.get(&self.source).copied().unwrap_or(f64::INFINITY);
+            let source_g = self
+                .state_to_goal_est
+                .get(&self.source)
+                .copied()
+                .unwrap_or(f64::INFINITY);
+            let source_rhs = self
+                .one_step_lookahead
+                .get(&self.source)
+                .copied()
+                .unwrap_or(f64::INFINITY);
 
             if min_key >= source_key && source_g == source_rhs {
                 break;
@@ -10613,8 +10887,16 @@ impl AdaStar {
                 self.open.remove(&u);
                 self.visited.insert(u);
 
-                let g_u = self.state_to_goal_est.get(&u).copied().unwrap_or(f64::INFINITY);
-                let rhs_u = self.one_step_lookahead.get(&u).copied().unwrap_or(f64::INFINITY);
+                let g_u = self
+                    .state_to_goal_est
+                    .get(&u)
+                    .copied()
+                    .unwrap_or(f64::INFINITY);
+                let rhs_u = self
+                    .one_step_lookahead
+                    .get(&u)
+                    .copied()
+                    .unwrap_or(f64::INFINITY);
 
                 if g_u > rhs_u {
                     // Overconsistent: make consistent
@@ -10644,7 +10926,12 @@ impl AdaStar {
     }
 
     /// Update graph with edge weight changes
-    fn update_graph(&mut self, py: Python, graph: &Graph, changes: Vec<(u64, u64, f64)>) -> PyResult<()> {
+    fn update_graph(
+        &mut self,
+        py: Python,
+        graph: &Graph,
+        changes: Vec<(u64, u64, f64)>,
+    ) -> PyResult<()> {
         // Apply changes to graph (caller must do this)
         // Just update affected states
 
@@ -10677,11 +10964,16 @@ impl AdaStar {
     /// Extract current path from source to target
     fn extract_path(&self, graph: &Graph) -> PyResult<Vec<u64>> {
         // Check if source is reachable from target (backward search direction)
-        let source_g = self.state_to_goal_est.get(&self.source).copied().unwrap_or(f64::INFINITY);
+        let source_g = self
+            .state_to_goal_est
+            .get(&self.source)
+            .copied()
+            .unwrap_or(f64::INFINITY);
         if source_g.is_infinite() {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("No path exists from {} to {}", self.source, self.target)
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "No path exists from {} to {}",
+                self.source, self.target
+            )));
         }
 
         // Preallocate path with reasonable capacity (won't exceed n)
@@ -10693,9 +10985,10 @@ impl AdaStar {
         // This reconstructs the optimal path found by the backward search
         while current != self.target {
             let neighbors = graph.adjacency_list.get(&current).ok_or_else(|| {
-                PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    format!("No path exists: node {} has no neighbors", current)
-                )
+                PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                    "No path exists: node {} has no neighbors",
+                    current
+                ))
             })?;
 
             // Find neighbor that minimizes edge_cost + g_value
@@ -10720,14 +11013,15 @@ impl AdaStar {
                 })
                 .copied()
                 .ok_or_else(|| {
-                    PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                        format!("No path exists from {} to {}", self.source, self.target)
-                    )
+                    PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                        "No path exists from {} to {}",
+                        self.source, self.target
+                    ))
                 })?;
 
             if path.len() > graph.nodes.len() {
                 return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                    "Path contains cycle or is too long"
+                    "Path contains cycle or is too long",
                 ));
             }
 
@@ -10748,7 +11042,11 @@ impl AdaStar {
 
             if let Some(neighbors) = graph.adjacency_list.get(&n) {
                 for &succ in neighbors {
-                    let g_succ = self.state_to_goal_est.get(&succ).copied().unwrap_or(f64::INFINITY);
+                    let g_succ = self
+                        .state_to_goal_est
+                        .get(&succ)
+                        .copied()
+                        .unwrap_or(f64::INFINITY);
                     let edge_cost = self.get_edge_weight(n, succ, graph);
                     let rhs_candidate = g_succ + edge_cost;
 
@@ -10765,8 +11063,16 @@ impl AdaStar {
         self.open.remove(&n);
 
         // Update OPEN/INCONS based on consistency
-        let g_n = self.state_to_goal_est.get(&n).copied().unwrap_or(f64::INFINITY);
-        let rhs_n = self.one_step_lookahead.get(&n).copied().unwrap_or(f64::INFINITY);
+        let g_n = self
+            .state_to_goal_est
+            .get(&n)
+            .copied()
+            .unwrap_or(f64::INFINITY);
+        let rhs_n = self
+            .one_step_lookahead
+            .get(&n)
+            .copied()
+            .unwrap_or(f64::INFINITY);
 
         if g_n != rhs_n {
             if !self.closed.contains(&n) {
@@ -10783,13 +11089,19 @@ impl AdaStar {
     /// Nodes with an edge into `u`, from the graph's edge index. This used to scan every
     /// node's adjacency list on each expansion, which made the search O(V²) on its own.
     fn predecessors_of(u: u64, graph: &Graph) -> Vec<u64> {
-        graph.edge_index().predecessors.get(&u).cloned().unwrap_or_default()
+        graph
+            .edge_index()
+            .predecessors
+            .get(&u)
+            .cloned()
+            .unwrap_or_default()
     }
 
     /// Insert or re-key a node in OPEN, mirroring it into the heap
     fn open_insert(&mut self, node: u64, key: (f64, f64)) {
         self.open.insert(node, key);
-        self.open_heap.push(std::cmp::Reverse(OpenEntry { key, node }));
+        self.open_heap
+            .push(std::cmp::Reverse(OpenEntry { key, node }));
         // Bulk re-keying (new epsilon, graph updates) leaves stale entries behind; rebuild
         // from `open` before they outnumber the live ones too much
         if self.open_heap.len() > 4 * self.open.len() + 64 {
@@ -10818,8 +11130,16 @@ impl AdaStar {
     /// Compute priority key for a node
     #[inline]
     fn compute_key(&self, n: u64, _graph: &Graph) -> (f64, f64) {
-        let g_n = self.state_to_goal_est.get(&n).copied().unwrap_or(f64::INFINITY);
-        let rhs_n = self.one_step_lookahead.get(&n).copied().unwrap_or(f64::INFINITY);
+        let g_n = self
+            .state_to_goal_est
+            .get(&n)
+            .copied()
+            .unwrap_or(f64::INFINITY);
+        let rhs_n = self
+            .one_step_lookahead
+            .get(&n)
+            .copied()
+            .unwrap_or(f64::INFINITY);
 
         // Heuristic estimates distance from n to source (backward search direction)
         let h = self.get_heuristic(n, self.source);
@@ -10833,14 +11153,12 @@ impl AdaStar {
     #[inline]
     fn get_heuristic(&self, from: u64, to: u64) -> f64 {
         if let Some(ref heuristic_fn) = self.heuristic {
-            Python::with_gil(|py| {
-                match heuristic_fn.call1(py, (from, to)) {
-                    Ok(result) => result.extract::<f64>(py).unwrap_or(0.0),
-                    Err(_) => 0.0,
-                }
+            Python::with_gil(|py| match heuristic_fn.call1(py, (from, to)) {
+                Ok(result) => result.extract::<f64>(py).unwrap_or(0.0),
+                Err(_) => 0.0,
             })
         } else {
-            0.0  // Default: Dijkstra-like (no heuristic)
+            0.0 // Default: Dijkstra-like (no heuristic)
         }
     }
 
