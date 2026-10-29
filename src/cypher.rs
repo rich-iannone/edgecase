@@ -32,6 +32,8 @@ enum Val {
     Path(Vec<u64>),
     /// A path variable: its nodes, and the edges between them
     Walk(Vec<u64>, Vec<u64>),
+    /// Any other value a column of `WITH` holds, at this place in `Search::values`
+    Value(usize),
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -40,6 +42,8 @@ enum Kind {
     Rel,
     Path,
     Walk,
+    /// A column of `WITH` that holds any other value
+    Value,
 }
 
 #[derive(Clone, Copy, PartialEq)]
@@ -299,6 +303,8 @@ enum Column {
     Label(usize),
     /// A property of a node or relationship slot (an `Operand::Prop`)
     Prop(Operand),
+    /// The place of the row's input in `inputs`
+    Input,
 }
 
 /// A slot value kept for the table, with a path as a range of `Table::paths`
@@ -309,14 +315,18 @@ enum Cell {
     Path(usize, usize),
     /// A path variable: its nodes at `paths[i..j]` and its edges at `paths[j..k]`
     Walk(usize, usize, usize),
+    /// A `Val::Value`
+    Value(usize),
 }
 
-/// The matches kept for the table: the values of `slots`, row after row
+/// The matches kept for the table: the values of `slots`, row after row, and the input of
+/// each row
 struct Table {
     slots: Vec<usize>,
     rows: usize,
     cells: Vec<Cell>,
     paths: Vec<u64>,
+    inputs: Vec<usize>,
 }
 
 fn bad_program(message: &str) -> PyErr {
@@ -344,6 +354,7 @@ fn parse_program(program: &Bound<'_, PyAny>) -> PyResult<Program> {
             "relationship" => Ok(Kind::Rel),
             "relationships" => Ok(Kind::Path),
             "path" => Ok(Kind::Walk),
+            "value" => Ok(Kind::Value),
             _ => Err(bad_program(&format!("unknown slot kind {kind:?}"))),
         })
         .collect::<PyResult<Vec<Kind>>>()?;
@@ -607,9 +618,9 @@ impl Reader<'_> {
     /// A node or (single) relationship slot
     fn single(&self, item: &Bound<'_, PyAny>) -> PyResult<usize> {
         let slot = self.slot(item)?;
-        if matches!(self.kinds[slot], Kind::Path | Kind::Walk) {
+        if matches!(self.kinds[slot], Kind::Path | Kind::Walk | Kind::Value) {
             return Err(bad_program(
-                "a variable-length relationship or path can't be tested natively",
+                "only a node or relationship slot can be tested natively",
             ));
         }
         Ok(slot)
@@ -629,9 +640,9 @@ impl Reader<'_> {
     }
 
     fn prop_key(&self, slot: usize, key: Bound<'_, PyString>) -> PyResult<(Py<PyString>, bool)> {
-        if matches!(self.kinds[slot], Kind::Path | Kind::Walk) {
+        if matches!(self.kinds[slot], Kind::Path | Kind::Walk | Kind::Value) {
             return Err(bad_program(
-                "a variable-length relationship or path has no properties",
+                "only a node or relationship slot has properties to read natively",
             ));
         }
         let text = key.to_cow()?;
@@ -642,10 +653,12 @@ impl Reader<'_> {
         Ok((key.unbind(), special))
     }
 
-    /// A table column: `("slot", slot)`, `("label", slot)` or `("prop", slot, key)`
+    /// A table column: `("slot", slot)`, `("label", slot)`, `("prop", slot, key)` or
+    /// `("input",)`
     fn column(&self, column: &Bound<'_, PyAny>) -> PyResult<Column> {
         let tag: String = column.get_item(0)?.extract()?;
         match tag.as_str() {
+            "input" => Ok(Column::Input),
             "slot" => Ok(Column::Slot(self.slot(&column.get_item(1)?)?)),
             "label" => {
                 let slot = self.slot(&column.get_item(1)?)?;
@@ -703,6 +716,10 @@ struct Search<'a, 'py> {
     first: Option<Py<PyTuple>>,
     /// With `table=`, the matches kept for the table, in place of `rows`
     table: Option<Table>,
+    /// The values of the `Val::Value` slots of every input
+    values: Vec<Py<PyAny>>,
+    /// The place in `inputs` of the input being searched
+    input: usize,
     /// The results of each `Native::Cached` condition, by node or edge ID
     cache: RefCell<Vec<Memo>>,
     ticks: u32,
@@ -757,6 +774,7 @@ impl<'a, 'py> Search<'a, 'py> {
             )
                 .into_pyobject(py)?
                 .into_any(),
+            Val::Value(i) => self.values[*i].bind(py).clone(),
         })
     }
 
@@ -780,6 +798,7 @@ impl<'a, 'py> Search<'a, 'py> {
         }
         if let Some(table) = &mut self.table {
             table.rows += 1;
+            table.inputs.push(self.input);
             for &slot in &table.slots {
                 let cell = match &self.binding[slot] {
                     Val::Node(id) | Val::Edge(id) => Cell::Id(*id),
@@ -795,6 +814,7 @@ impl<'a, 'py> Search<'a, 'py> {
                         table.paths.extend_from_slice(edges);
                         Cell::Walk(start, middle, table.paths.len())
                     }
+                    Val::Value(i) => Cell::Value(*i),
                     Val::Null | Val::Unset => Cell::Null,
                 };
                 table.cells.push(cell);
@@ -1618,7 +1638,8 @@ fn cmp_cells(a: Cell, b: Cell, paths: &[u64]) -> std::cmp::Ordering {
 }
 
 /// The table of `run()` with `table=`: `(count, columns, first)`, each column a list in the
-/// order of the `sort` slots (or in search order, without `sort`)
+/// order of the inputs and then the `sort` slots (or in search order, without `sort`)
+#[allow(clippy::too_many_arguments)]
 fn table_result(
     graph: &Graph,
     py: Python,
@@ -1627,6 +1648,7 @@ fn table_result(
     sort: Option<Vec<usize>>,
     columns: &[Column],
     first: Option<Py<PyTuple>>,
+    held: &[Py<PyAny>],
 ) -> PyResult<PyObject> {
     let (width, count) = (table.slots.len(), table.rows);
     // where each slot is in a row of cells
@@ -1639,6 +1661,10 @@ fn table_result(
     if let Some(sort) = sort {
         let keys: Vec<usize> = sort.iter().map(|&slot| at[slot]).collect();
         order.sort_by(|&a, &b| {
+            let c = table.inputs[a].cmp(&table.inputs[b]);
+            if c.is_ne() {
+                return c;
+            }
             for &k in &keys {
                 let c = cmp_cells(
                     table.cells[a * width + k],
@@ -1688,6 +1714,7 @@ fn table_result(
                     Cell::Id(id) => id.into_pyobject(py)?.into_any(),
                     Cell::Path(i, j) => PyList::new(py, &table.paths[i..j])?.into_any(),
                     Cell::Walk(i, j, k) => walk(i, j, k, false)?,
+                    Cell::Value(i) => held[i].bind(py).clone(),
                 },
                 Column::Label(slot) => match cell(row, *slot) {
                     Cell::Id(id) => label(id)?,
@@ -1703,6 +1730,7 @@ fn table_result(
                     read_prop(graph, py, &val, key, *special)?
                 }
                 Column::Prop(Operand::Id(_)) => return Err(bad_program("an ID isn't a column")),
+                Column::Input => table.inputs[row].into_pyobject(py)?.into_any(),
             };
             values.push(value);
         }
@@ -1715,6 +1743,44 @@ fn table_result(
         .unbind())
 }
 
+/// The values of `inputs` (a list of tuples of values, as a binding holds them, for the first
+/// slots), with those of `Val::Value` slots added to `values`
+fn read_inputs(
+    program: &Program,
+    inputs: &Bound<'_, PyAny>,
+    values: &mut Vec<Py<PyAny>>,
+) -> PyResult<Vec<Vec<Val>>> {
+    let rows: Vec<Vec<Bound<'_, PyAny>>> = inputs.extract()?;
+    rows.into_iter()
+        .map(|row| {
+            if row.len() > program.edge_slot {
+                return Err(bad_program("an input has more values than there are slots"));
+            }
+            row.into_iter()
+                .zip(&program.kinds)
+                .map(|(value, kind)| {
+                    if value.is_none() {
+                        return Ok(Val::Null);
+                    }
+                    Ok(match kind {
+                        Kind::Node => Val::Node(value.extract()?),
+                        Kind::Rel => Val::Edge(value.extract()?),
+                        Kind::Path => Val::Path(value.extract()?),
+                        Kind::Walk => {
+                            let (nodes, edges) = value.extract()?;
+                            Val::Walk(nodes, edges)
+                        }
+                        Kind::Value => {
+                            values.push(value.unbind());
+                            Val::Value(values.len() - 1)
+                        }
+                    })
+                })
+                .collect()
+        })
+        .collect()
+}
+
 pub(crate) fn run(
     graph: &Graph,
     py: Python,
@@ -1722,8 +1788,14 @@ pub(crate) fn run(
     limit: Option<usize>,
     count_only: bool,
     table: Option<&Bound<'_, PyAny>>,
+    inputs: Option<&Bound<'_, PyAny>>,
 ) -> PyResult<PyObject> {
     let program = parse_program(program)?;
+    let mut values = Vec::new();
+    let inputs = match inputs {
+        Some(inputs) => read_inputs(&program, inputs, &mut values)?,
+        None => vec![Vec::new()],
+    };
     // with `table=`, `(sort, columns)`: the slots to sort by (or `None`) and the columns
     let mut spec = None;
     if let Some(table) = table {
@@ -1751,6 +1823,7 @@ pub(crate) fn run(
             let slot = match column {
                 Column::Slot(slot) | Column::Label(slot) => *slot,
                 Column::Prop(Operand::Prop { slot, .. }) | Column::Prop(Operand::Id(slot)) => *slot,
+                Column::Input => continue,
             };
             slots.push(slot);
         }
@@ -1782,15 +1855,37 @@ pub(crate) fn run(
             rows: 0,
             cells: Vec::new(),
             paths: Vec::new(),
+            inputs: Vec::new(),
         }),
+        values,
+        input: 0,
         cache: RefCell::new((0..program.caches).map(|_| Memo::Empty).collect()),
         ticks: 0,
     };
     if limit != Some(0) {
-        search.stage(0)?;
+        for (i, input) in inputs.into_iter().enumerate() {
+            search.input = i;
+            search.binding.fill(Val::Unset);
+            for (slot, val) in input.into_iter().enumerate() {
+                search.binding[slot] = val;
+            }
+            if search.stage(0)? {
+                break; // the limit is reached
+            }
+        }
     }
     if let (Some((sort, columns, _)), Some(table)) = (spec, search.table.take()) {
-        return table_result(graph, py, &program, table, sort, &columns, search.first);
+        let values = std::mem::take(&mut search.values);
+        return table_result(
+            graph,
+            py,
+            &program,
+            table,
+            sort,
+            &columns,
+            search.first,
+            &values,
+        );
     }
     if count_only {
         let first = search.first.map_or_else(|| py.None(), |row| row.into_any());
