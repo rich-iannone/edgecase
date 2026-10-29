@@ -18,16 +18,8 @@ use rustc_hash::FxHashSet;
 ///
 /// Helper function used by multiple link prediction methods.
 fn get_common_neighbors_set(graph: &Graph, u: u64, v: u64) -> FxHashSet<u64> {
-    let neighbors_u: FxHashSet<u64> = graph
-        .neighbors(u)
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
-    let neighbors_v: FxHashSet<u64> = graph
-        .neighbors(v)
-        .unwrap_or_default()
-        .into_iter()
-        .collect();
+    let neighbors_u: FxHashSet<u64> = graph.neighbors(u).unwrap_or_default().into_iter().collect();
+    let neighbors_v: FxHashSet<u64> = graph.neighbors(v).unwrap_or_default().into_iter().collect();
 
     neighbors_u.intersection(&neighbors_v).copied().collect()
 }
@@ -257,10 +249,7 @@ pub fn preferential_attachment(
 ///
 /// If ebunch is provided, validates and returns those pairs.
 /// Otherwise, returns all non-adjacent node pairs.
-fn get_node_pairs(
-    graph: &Graph,
-    ebunch: Option<Vec<(u64, u64)>>,
-) -> PyResult<Vec<(u64, u64)>> {
+fn get_node_pairs(graph: &Graph, ebunch: Option<Vec<(u64, u64)>>) -> PyResult<Vec<(u64, u64)>> {
     match ebunch {
         Some(pairs) => {
             // Validate that all nodes exist

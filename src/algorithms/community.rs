@@ -102,13 +102,11 @@ pub fn girvan_newman(
 
     let mut edge_count: usize = adj.values().map(|ns| ns.len()).sum::<usize>() / 2;
 
-    let mut best_modularity =
-        compute_modularity(&orig_adj, &orig_degrees, m_orig, &components);
+    let mut best_modularity = compute_modularity(&orig_adj, &orig_degrees, m_orig, &components);
     let mut best_partition = partition_from_components(&components);
 
     // Per-component edge betweenness cache
-    let mut comp_betweenness: FxHashMap<usize, FxHashMap<(u64, u64), f64>> =
-        FxHashMap::default();
+    let mut comp_betweenness: FxHashMap<usize, FxHashMap<(u64, u64), f64>> = FxHashMap::default();
     for (&comp_id, members) in &components {
         if members.len() > 1 {
             let eb = edge_betweenness_for_component(members, &adj, use_weight, &weights);
@@ -136,8 +134,8 @@ pub fn girvan_newman(
         for eb in comp_betweenness.values() {
             for (&edge, &val) in eb {
                 let tol = 1e-9 * max_val.abs().max(1.0);
-                let better = val > max_val + tol
-                    || ((val - max_val).abs() <= tol && Some(edge) < max_edge);
+                let better =
+                    val > max_val + tol || ((val - max_val).abs() <= tol && Some(edge) < max_edge);
                 if max_edge.is_none() || better {
                     if val > max_val {
                         max_val = val;
@@ -182,12 +180,8 @@ pub fn girvan_newman(
                     node_component.insert(nid, cid);
                 }
                 if new_members.len() > 1 {
-                    let eb = edge_betweenness_for_component(
-                        &new_members,
-                        &adj,
-                        use_weight,
-                        &weights,
-                    );
+                    let eb =
+                        edge_betweenness_for_component(&new_members, &adj, use_weight, &weights);
                     comp_betweenness.insert(cid, eb);
                 }
                 components.insert(cid, new_members);
@@ -195,12 +189,8 @@ pub fn girvan_newman(
         } else {
             // Same component, recompute its betweenness
             if affected_members.len() > 1 {
-                let eb = edge_betweenness_for_component(
-                    &affected_members,
-                    &adj,
-                    use_weight,
-                    &weights,
-                );
+                let eb =
+                    edge_betweenness_for_component(&affected_members, &adj, use_weight, &weights);
                 comp_betweenness.insert(affected_comp, eb);
             } else {
                 comp_betweenness.remove(&affected_comp);
@@ -212,8 +202,7 @@ pub fn girvan_newman(
             prev_num_components = current_num_components;
 
             let partition = partition_from_components(&components);
-            let modularity =
-                compute_modularity(&orig_adj, &orig_degrees, m_orig, &components);
+            let modularity = compute_modularity(&orig_adj, &orig_degrees, m_orig, &components);
 
             if modularity > best_modularity {
                 best_modularity = modularity;
@@ -318,9 +307,7 @@ fn edge_betweenness_for_component(
 
     let partial_results: Vec<FxHashMap<(u64, u64), f64>> = member_vec
         .par_iter()
-        .map(|&source| {
-            brandes_single_source(source, members, adj, use_weight, weights)
-        })
+        .map(|&source| brandes_single_source(source, members, adj, use_weight, weights))
         .collect();
 
     let mut betweenness: FxHashMap<(u64, u64), f64> = FxHashMap::default();
@@ -419,8 +406,7 @@ fn brandes_single_source(
     while let Some(w) = stack.pop() {
         if let Some(preds) = predecessors.get(&w) {
             for &v in preds {
-                let coeff = (num_paths.get(&v).unwrap_or(&1.0)
-                    / num_paths.get(&w).unwrap_or(&1.0))
+                let coeff = (num_paths.get(&v).unwrap_or(&1.0) / num_paths.get(&w).unwrap_or(&1.0))
                     * (1.0 + dependency.get(&w).unwrap_or(&0.0));
                 *dependency.entry(v).or_insert(0.0) += coeff;
                 *edge_btwns.entry(canonical(v, w)).or_insert(0.0) += coeff;
@@ -625,10 +611,7 @@ mod tests {
         let c2: FxHashSet<u64> = best[1].iter().copied().collect();
         let expected1: FxHashSet<u64> = [1, 2, 3].iter().copied().collect();
         let expected2: FxHashSet<u64> = [4, 5, 6].iter().copied().collect();
-        assert!(
-            (c1 == expected1 && c2 == expected2)
-                || (c1 == expected2 && c2 == expected1)
-        );
+        assert!((c1 == expected1 && c2 == expected2) || (c1 == expected2 && c2 == expected1));
     }
 
     #[test]
@@ -644,9 +627,7 @@ mod tests {
         let group_b: FxHashSet<u64> = (7..=12).collect();
         let c1: FxHashSet<u64> = best[0].iter().copied().collect();
         let c2: FxHashSet<u64> = best[1].iter().copied().collect();
-        assert!(
-            (c1 == group_a && c2 == group_b) || (c1 == group_b && c2 == group_a)
-        );
+        assert!((c1 == group_a && c2 == group_b) || (c1 == group_b && c2 == group_a));
     }
 
     #[test]
@@ -694,7 +675,10 @@ mod tests {
                 assert!(
                     bridge_val >= val,
                     "Bridge {:?} betweenness {} should be >= edge {:?} betweenness {}",
-                    bridge, bridge_val, e, val
+                    bridge,
+                    bridge_val,
+                    e,
+                    val
                 );
             }
         }

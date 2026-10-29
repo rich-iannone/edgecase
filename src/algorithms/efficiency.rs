@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use crate::graph::Graph;
+use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 

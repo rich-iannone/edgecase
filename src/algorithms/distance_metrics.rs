@@ -113,8 +113,11 @@ pub fn hyper_wiener_index(graph: &Graph, weight: Option<&str>) -> PyResult<f64> 
     if n <= 1 {
         return Ok(0.0);
     }
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(idx, &node_id)| (node_id, idx)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(idx, &node_id)| (node_id, idx))
+        .collect();
     let use_weights = weight.is_some() && graph.is_weighted();
     let mut total = 0.0;
     for (i, &source) in node_ids.iter().enumerate() {
@@ -309,10 +312,8 @@ pub fn estrada_index(graph: &Graph) -> PyResult<f64> {
     let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
 
     for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
+        if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+        {
             // Skip self-loops for Estrada index computation
             if i != j {
                 // Undirected: symmetric
@@ -346,8 +347,11 @@ impl ResistanceSetup {
     fn new(graph: &Graph) -> Self {
         let node_ids = graph.get_node_ids();
         let n = node_ids.len();
-        let node_to_idx: FxHashMap<u64, usize> =
-            node_ids.iter().enumerate().map(|(idx, &id)| (id, idx)).collect();
+        let node_to_idx: FxHashMap<u64, usize> = node_ids
+            .iter()
+            .enumerate()
+            .map(|(idx, &id)| (id, idx))
+            .collect();
 
         // Self-loops carry no current, so they're skipped
         let edges: Vec<(usize, usize)> = graph
@@ -378,12 +382,19 @@ impl ResistanceSetup {
         }
         let component = (0..n).map(|i| find(&mut parent, i)).collect();
 
-        ResistanceSetup { node_ids, node_to_idx, component, edges }
+        ResistanceSetup {
+            node_ids,
+            node_to_idx,
+            component,
+            edges,
+        }
     }
 
     /// Indices of the nodes in the component with label `label`
     fn members(&self, label: usize) -> Vec<usize> {
-        (0..self.node_ids.len()).filter(|&i| self.component[i] == label).collect()
+        (0..self.node_ids.len())
+            .filter(|&i| self.component[i] == label)
+            .collect()
     }
 
     /// Γ = (L + J/m)⁻¹ for the component made of `members` (m nodes), indexed by position in
@@ -513,7 +524,9 @@ pub fn resistance_distance(graph: &Graph, source: u64, target: u64) -> PyResult<
 /// - For disconnected graphs, distances between components are infinite
 #[pyfunction]
 #[pyo3(signature = (graph))]
-pub fn resistance_distance_matrix(graph: &Graph) -> PyResult<std::collections::HashMap<(u64, u64), f64>> {
+pub fn resistance_distance_matrix(
+    graph: &Graph,
+) -> PyResult<std::collections::HashMap<(u64, u64), f64>> {
     // Validate graph type
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -613,10 +626,8 @@ pub fn kirchhoff_index(graph: &Graph) -> PyResult<f64> {
     let mut laplacian = DMatrix::<f64>::zeros(n, n);
 
     for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
+        if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+        {
             if i != j {
                 laplacian[(i, j)] -= 1.0;
                 laplacian[(j, i)] -= 1.0;

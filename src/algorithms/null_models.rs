@@ -44,7 +44,11 @@ pub fn configuration_model(
     // Add nodes
     let mut node_ids: Vec<u64> = Vec::with_capacity(n);
     for i in 0..n {
-        let node = Node { id: 0, label: Some(format!("{}", i)), attributes: None };
+        let node = Node {
+            id: 0,
+            label: Some(format!("{}", i)),
+            attributes: None,
+        };
         let id = result.add_node_rust(node)?;
         node_ids.push(id);
     }
@@ -67,7 +71,13 @@ pub fn configuration_model(
         sources.shuffle(&mut rng);
 
         for (s, t) in sources.iter().zip(targets.iter()) {
-            let edge = Edge { id: 0, source: *s, target: *t, weight: None, attributes: None };
+            let edge = Edge {
+                id: 0,
+                source: *s,
+                target: *t,
+                weight: None,
+                attributes: None,
+            };
             let _ = result.add_edge_rust(edge);
         }
     } else {
@@ -80,7 +90,13 @@ pub fn configuration_model(
         stubs.shuffle(&mut rng);
 
         for pair in stubs.chunks_exact(2) {
-            let edge = Edge { id: 0, source: pair[0], target: pair[1], weight: None, attributes: None };
+            let edge = Edge {
+                id: 0,
+                source: pair[0],
+                target: pair[1],
+                weight: None,
+                attributes: None,
+            };
             let _ = result.add_edge_rust(edge);
         }
     }
@@ -117,11 +133,21 @@ pub fn degree_preserving_rewire(
         let mut result = Graph::new_rust(directed, weighted);
         for &node_id in graph.get_node_ids().iter() {
             let label = graph.label_from_id(node_id).ok().flatten();
-            let node = Node { id: 0, label, attributes: None };
+            let node = Node {
+                id: 0,
+                label,
+                attributes: None,
+            };
             result.add_node_rust(node)?;
         }
         for &(s, t) in &edge_list {
-            let edge = Edge { id: 0, source: s, target: t, weight: None, attributes: None };
+            let edge = Edge {
+                id: 0,
+                source: s,
+                target: t,
+                weight: None,
+                attributes: None,
+            };
             let _ = result.add_edge_rust(edge);
         }
         return Ok(result);
@@ -187,12 +213,22 @@ pub fn degree_preserving_rewire(
 
     for &node_id in graph.get_node_ids().iter() {
         let label = graph.label_from_id(node_id).ok().flatten();
-        let node = Node { id: node_id, label, attributes: None };
+        let node = Node {
+            id: node_id,
+            label,
+            attributes: None,
+        };
         result.add_node_rust(node)?;
     }
 
     for &(s, t) in &edge_list {
-        let edge = Edge { id: 0, source: s, target: t, weight: None, attributes: None };
+        let edge = Edge {
+            id: 0,
+            source: s,
+            target: t,
+            weight: None,
+            attributes: None,
+        };
         let _ = result.add_edge_rust(edge);
     }
 
@@ -205,10 +241,7 @@ pub fn degree_preserving_rewire(
 /// `w_i * w_j / sum(w)`, where `w` is the weight vector.
 #[pyfunction]
 #[pyo3(signature = (weights, seed=None))]
-pub fn expected_degree_graph(
-    weights: Vec<f64>,
-    seed: Option<u64>,
-) -> PyResult<Graph> {
+pub fn expected_degree_graph(weights: Vec<f64>, seed: Option<u64>) -> PyResult<Graph> {
     let n = weights.len();
     if n == 0 {
         return Ok(Graph::new_rust(false, false));
@@ -239,7 +272,11 @@ pub fn expected_degree_graph(
 
     let mut node_ids: Vec<u64> = Vec::with_capacity(n);
     for i in 0..n {
-        let node = Node { id: 0, label: Some(format!("{}", i)), attributes: None };
+        let node = Node {
+            id: 0,
+            label: Some(format!("{}", i)),
+            attributes: None,
+        };
         let id = result.add_node_rust(node)?;
         node_ids.push(id);
     }
@@ -249,7 +286,13 @@ pub fn expected_degree_graph(
             let p = (weights[i] * weights[j]) / w_sum;
             let p_clamped = p.min(1.0);
             if rng.gen::<f64>() < p_clamped {
-                let edge = Edge { id: 0, source: node_ids[i], target: node_ids[j], weight: None, attributes: None };
+                let edge = Edge {
+                    id: 0,
+                    source: node_ids[i],
+                    target: node_ids[j],
+                    weight: None,
+                    attributes: None,
+                };
                 let _ = result.add_edge_rust(edge);
             }
         }
@@ -306,7 +349,11 @@ pub fn generate_stochastic_block_model(
     for &size in sizes.iter() {
         let mut block_nodes = Vec::with_capacity(size);
         for _ in 0..size {
-            let node = Node { id: 0, label: Some(format!("{}", node_idx)), attributes: None };
+            let node = Node {
+                id: 0,
+                label: Some(format!("{}", node_idx)),
+                attributes: None,
+            };
             let id = result.add_node_rust(node)?;
             block_nodes.push(id);
             node_idx += 1;
@@ -328,7 +375,13 @@ pub fn generate_stochastic_block_model(
                 for a in 0..block.len() {
                     for b in (a + 1)..block.len() {
                         if rng.gen::<f64>() < p {
-                            let edge = Edge { id: 0, source: block[a], target: block[b], weight: None, attributes: None };
+                            let edge = Edge {
+                                id: 0,
+                                source: block[a],
+                                target: block[b],
+                                weight: None,
+                                attributes: None,
+                            };
                             let _ = result.add_edge_rust(edge);
                         }
                     }
@@ -338,7 +391,13 @@ pub fn generate_stochastic_block_model(
                 for &node_a in &blocks[i] {
                     for &node_b in &blocks[j] {
                         if rng.gen::<f64>() < p {
-                            let edge = Edge { id: 0, source: node_a, target: node_b, weight: None, attributes: None };
+                            let edge = Edge {
+                                id: 0,
+                                source: node_a,
+                                target: node_b,
+                                weight: None,
+                                attributes: None,
+                            };
                             let _ = result.add_edge_rust(edge);
                         }
                     }

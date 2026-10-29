@@ -150,7 +150,8 @@ pub fn percolation_centrality(
     let scale = if n > 2 { 1.0 / (n as f64 - 2.0) } else { 1.0 };
 
     // Convert to HashMap
-    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
         result.insert(node_id, centrality[idx] * scale);
     }
@@ -187,8 +188,8 @@ fn compute_percolation_from_source(
 
     if let Some(weighted_adj) = weighted_adj {
         // Dijkstra for weighted graphs
-        use std::collections::BinaryHeap;
         use std::cmp::Ordering;
+        use std::collections::BinaryHeap;
 
         #[derive(PartialEq)]
         struct State {
@@ -200,7 +201,10 @@ fn compute_percolation_from_source(
 
         impl Ord for State {
             fn cmp(&self, other: &Self) -> Ordering {
-                other.cost.partial_cmp(&self.cost).unwrap_or(Ordering::Equal)
+                other
+                    .cost
+                    .partial_cmp(&self.cost)
+                    .unwrap_or(Ordering::Equal)
             }
         }
 
@@ -216,7 +220,11 @@ fn compute_percolation_from_source(
             node_idx: source_idx,
         });
 
-        while let Some(State { cost, node_idx: v_idx }) = heap.pop() {
+        while let Some(State {
+            cost,
+            node_idx: v_idx,
+        }) = heap.pop()
+        {
             if cost > distance[v_idx] {
                 continue;
             }

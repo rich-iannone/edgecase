@@ -55,7 +55,9 @@ pub fn rich_club_coefficient(
         return Ok(rc);
     }
     if n_samples < 1 {
-        return Err(PyValueError::new_err("n_samples must be >= 1 if normalized=True"));
+        return Err(PyValueError::new_err(
+            "n_samples must be >= 1 if normalized=True",
+        ));
     }
 
     // Dense indices, degrees and the edge list of the graph
@@ -154,7 +156,10 @@ pub fn rich_club_coefficient(
             )));
         }
     }
-    Ok(rc.into_iter().map(|(k, coef)| (k, coef / averages[&k])).collect())
+    Ok(rc
+        .into_iter()
+        .map(|(k, coef)| (k, coef / averages[&k]))
+        .collect())
 }
 
 /// Rich-club coefficients of a simple graph given as degrees and an edge list

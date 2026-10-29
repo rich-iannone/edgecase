@@ -93,7 +93,10 @@ fn generations(g: &IndexedGraph) -> Option<Vec<Vec<usize>>> {
 }
 
 fn has_self_loop(graph: &Graph) -> bool {
-    graph.get_edges_internal().iter().any(|e| e.source == e.target)
+    graph
+        .get_edges_internal()
+        .iter()
+        .any(|e| e.source == e.target)
 }
 
 /// Topological generations of a DAG, each a sorted list of node IDs.
@@ -291,8 +294,10 @@ pub fn condensation(graph: &Graph) -> PyResult<(Vec<Vec<u64>>, Vec<(usize, usize
     }
     // Topological order of components, smallest-member first among ready ones
     let key = |c: usize| members[c][0];
-    let mut ready: std::collections::BTreeSet<(usize, usize)> =
-        (0..k).filter(|&c| cindeg[c] == 0).map(|c| (key(c), c)).collect();
+    let mut ready: std::collections::BTreeSet<(usize, usize)> = (0..k)
+        .filter(|&c| cindeg[c] == 0)
+        .map(|c| (key(c), c))
+        .collect();
     let mut order: Vec<usize> = Vec::with_capacity(k);
     while let Some(&first) = ready.iter().next() {
         ready.remove(&first);
@@ -506,11 +511,19 @@ pub fn reachability_index(graph: &Graph) -> ReachIndex {
             seen[h] = stamp;
             queue.push_back(h);
             while let Some(c) = queue.pop_front() {
-                let covered = if forward { share_hub(&lout[h], &lin[c]) } else { share_hub(&lout[c], &lin[h]) };
+                let covered = if forward {
+                    share_hub(&lout[h], &lin[c])
+                } else {
+                    share_hub(&lout[c], &lin[h])
+                };
                 if covered {
                     continue;
                 }
-                if forward { lin[c].push(r) } else { lout[c].push(r) }
+                if forward {
+                    lin[c].push(r)
+                } else {
+                    lout[c].push(r)
+                }
                 for &d in if forward { &succ[c] } else { &pred[c] } {
                     if seen[d] != stamp {
                         seen[d] = stamp;
@@ -520,6 +533,11 @@ pub fn reachability_index(graph: &Graph) -> ReachIndex {
             }
         }
     }
-    let comp = g.ids.iter().enumerate().map(|(v, &id)| (id, comp[v])).collect();
+    let comp = g
+        .ids
+        .iter()
+        .enumerate()
+        .map(|(v, &id)| (id, comp[v]))
+        .collect();
     ReachIndex { comp, lout, lin }
 }

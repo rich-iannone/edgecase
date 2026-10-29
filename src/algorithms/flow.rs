@@ -63,7 +63,10 @@ pub fn max_flow(
     let (_, edge_flows, _) = edmonds_karp(graph, source, sink, capacity)?;
 
     // Only report edges that carry flow
-    Ok(edge_flows.into_iter().filter(|&(_, flow)| flow > 1e-10).collect())
+    Ok(edge_flows
+        .into_iter()
+        .filter(|&(_, flow)| flow > 1e-10)
+        .collect())
 }
 
 /// Compute the maximum flow value only (without flow assignment).
@@ -196,8 +199,18 @@ pub fn min_cost_flow(
         let (u, v) = (node_index[&edge.source], node_index[&edge.target]);
 
         let forward = arcs.len();
-        arcs.push(ResidualArc { to: v, residual: edge_cap, cost: unit_cost, rev: forward + 1 });
-        arcs.push(ResidualArc { to: u, residual: 0.0, cost: -unit_cost, rev: forward });
+        arcs.push(ResidualArc {
+            to: v,
+            residual: edge_cap,
+            cost: unit_cost,
+            rev: forward + 1,
+        });
+        arcs.push(ResidualArc {
+            to: u,
+            residual: 0.0,
+            cost: -unit_cost,
+            rev: forward,
+        });
         out_arcs[u].push(forward);
         out_arcs[v].push(forward + 1);
         edge_arcs.push((edge.id, forward, edge_cap));
@@ -217,10 +230,11 @@ pub fn min_cost_flow(
         }
 
         // Find the cheapest augmenting path (as arc indices) using Bellman-Ford
-        let (path, path_cost) = match cheapest_residual_path(source_idx, sink_idx, &arcs, &out_arcs)? {
-            Some(p) => p,
-            None => break, // No more augmenting paths
-        };
+        let (path, path_cost) =
+            match cheapest_residual_path(source_idx, sink_idx, &arcs, &out_arcs)? {
+                Some(p) => p,
+                None => break, // No more augmenting paths
+            };
 
         // Find minimum residual capacity along the path (bottleneck)
         let mut path_flow = path
@@ -379,11 +393,7 @@ fn cheapest_residual_path(
 /// silently counting as `1.0`. `"weight"` also falls back to the edge's weight field, since
 /// weighted graphs store weights there rather than as an attribute. `role` names the argument in
 /// the error message.
-pub(crate) fn named_edge_value(
-    edge: &crate::graph::Edge,
-    name: &str,
-    role: &str,
-) -> PyResult<f64> {
+pub(crate) fn named_edge_value(edge: &crate::graph::Edge, name: &str, role: &str) -> PyResult<f64> {
     let value = edge.attributes.as_ref().and_then(|attrs| {
         Python::with_gil(|py| match attrs.bind(py).get_item(name) {
             Ok(Some(v)) => v.extract::<f64>().ok(),
@@ -494,8 +504,18 @@ pub(crate) fn edmonds_karp(
         let reverse_cap = if is_directed { 0.0 } else { edge_cap };
 
         let forward = arcs.len();
-        arcs.push(ResidualArc { to: v, residual: edge_cap, cost: 0.0, rev: forward + 1 });
-        arcs.push(ResidualArc { to: u, residual: reverse_cap, cost: 0.0, rev: forward });
+        arcs.push(ResidualArc {
+            to: v,
+            residual: edge_cap,
+            cost: 0.0,
+            rev: forward + 1,
+        });
+        arcs.push(ResidualArc {
+            to: u,
+            residual: reverse_cap,
+            cost: 0.0,
+            rev: forward,
+        });
         out_arcs[u].push(forward);
         out_arcs[v].push(forward + 1);
         edge_arcs.push((edge.id, forward, edge_cap));
@@ -603,8 +623,18 @@ mod tests {
         let mut out_arcs = vec![Vec::new(); n];
         for &(u, v, cap) in edges {
             let forward = arcs.len();
-            arcs.push(ResidualArc { to: v, residual: cap, cost: 0.0, rev: forward + 1 });
-            arcs.push(ResidualArc { to: u, residual: 0.0, cost: 0.0, rev: forward });
+            arcs.push(ResidualArc {
+                to: v,
+                residual: cap,
+                cost: 0.0,
+                rev: forward + 1,
+            });
+            arcs.push(ResidualArc {
+                to: u,
+                residual: 0.0,
+                cost: 0.0,
+                rev: forward,
+            });
             out_arcs[u].push(forward);
             out_arcs[v].push(forward + 1);
         }

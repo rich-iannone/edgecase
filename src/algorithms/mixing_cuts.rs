@@ -83,7 +83,14 @@ pub fn square_clustering(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
         }
         squares /= 2;
         let potential = uw_degrees - uw_count - triangles - squares;
-        out.insert(ids[v], if potential > 0 { squares as f64 / potential as f64 } else { 0.0 });
+        out.insert(
+            ids[v],
+            if potential > 0 {
+                squares as f64 / potential as f64
+            } else {
+                0.0
+            },
+        );
     }
     Ok(out)
 }
@@ -162,7 +169,9 @@ pub fn generalized_degree(graph: &Graph) -> PyResult<FxHashMap<u64, FxHashMap<us
         .map(|v| {
             let mut counts: FxHashMap<usize, usize> = FxHashMap::default();
             for &w in &nb[v] {
-                *counts.entry(nb[v].intersection(&nb[w]).count()).or_insert(0) += 1;
+                *counts
+                    .entry(nb[v].intersection(&nb[w]).count())
+                    .or_insert(0) += 1;
             }
             (ids[v], counts)
         })
@@ -201,10 +210,15 @@ pub fn average_degree_connectivity(
     let directed = graph.is_directed();
     for (name, v) in [("source", source), ("target", target)] {
         if !["in", "out", "in+out"].contains(&v) {
-            return Err(err(format!("{} must be one of 'in', 'out', or 'in+out'", name)));
+            return Err(err(format!(
+                "{} must be one of 'in', 'out', or 'in+out'",
+                name
+            )));
         }
         if !directed && v != "in+out" {
-            return Err(err("source and target arguments are only supported for directed graphs"));
+            return Err(err(
+                "source and target arguments are only supported for directed graphs",
+            ));
         }
     }
     let (ids, idx) = sorted_ids(graph);
@@ -310,7 +324,17 @@ pub fn cut_profile(
     s: Vec<u64>,
     t: Option<Vec<u64>>,
     weighted: bool,
-) -> PyResult<(f64, f64, f64, usize, usize, usize, Vec<u64>, Vec<u64>, usize)> {
+) -> PyResult<(
+    f64,
+    f64,
+    f64,
+    usize,
+    usize,
+    usize,
+    Vec<u64>,
+    Vec<u64>,
+    usize,
+)> {
     let (ids, _) = sorted_ids(graph);
     let known: FxHashSet<u64> = ids.iter().copied().collect();
     let sset: FxHashSet<u64> = s.into_iter().collect();

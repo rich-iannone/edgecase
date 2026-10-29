@@ -89,7 +89,9 @@ impl Eq for OrdF {}
 #[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for OrdF {
     fn cmp(&self, o: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&o.0).unwrap_or(std::cmp::Ordering::Equal)
+        self.0
+            .partial_cmp(&o.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -99,10 +101,7 @@ impl Ord for OrdF {
 /// first. A disconnected graph has value 0. Raises for directed graphs or fewer than 2 nodes.
 #[pyfunction]
 #[pyo3(signature = (graph, capacity=None))]
-pub fn stoer_wagner(
-    graph: &Graph,
-    capacity: Option<&str>,
-) -> PyResult<(f64, Vec<u64>, Vec<u64>)> {
+pub fn stoer_wagner(graph: &Graph, capacity: Option<&str>) -> PyResult<(f64, Vec<u64>, Vec<u64>)> {
     require_undirected(graph, "stoer_wagner()")?;
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
@@ -168,8 +167,14 @@ pub fn stoer_wagner(
         alive[t] = false;
     }
     let side: FxHashSet<usize> = best_side.into_iter().collect();
-    let mut a: Vec<u64> = (0..n).filter(|i| side.contains(i)).map(|i| ids[i]).collect();
-    let mut b: Vec<u64> = (0..n).filter(|i| !side.contains(i)).map(|i| ids[i]).collect();
+    let mut a: Vec<u64> = (0..n)
+        .filter(|i| side.contains(i))
+        .map(|i| ids[i])
+        .collect();
+    let mut b: Vec<u64> = (0..n)
+        .filter(|i| !side.contains(i))
+        .map(|i| ids[i])
+        .collect();
     if b.first() < a.first() || a.is_empty() {
         std::mem::swap(&mut a, &mut b);
     }
@@ -225,10 +230,20 @@ pub fn weighted_tree_graph(
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes,
+        })?;
     }
     for (a, b, w) in edges {
-        result.add_edge_rust(Edge { id: 0, source: a, target: b, weight: Some(w), attributes: None })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: a,
+            target: b,
+            weight: Some(w),
+            attributes: None,
+        })?;
     }
     Ok(result)
 }
@@ -245,10 +260,28 @@ struct Arc {
     step: Option<(usize, usize)>,
 }
 
-fn add_arc(arcs: &mut Vec<Arc>, out: &mut [Vec<usize>], u: usize, v: usize, cap: f64, back: f64, step: Option<(usize, usize)>) {
+fn add_arc(
+    arcs: &mut Vec<Arc>,
+    out: &mut [Vec<usize>],
+    u: usize,
+    v: usize,
+    cap: f64,
+    back: f64,
+    step: Option<(usize, usize)>,
+) {
     let f = arcs.len();
-    arcs.push(Arc { to: v, res: cap, rev: f + 1, step });
-    arcs.push(Arc { to: u, res: back, rev: f, step: step.map(|(a, b)| (b, a)) });
+    arcs.push(Arc {
+        to: v,
+        res: cap,
+        rev: f + 1,
+        step,
+    });
+    arcs.push(Arc {
+        to: u,
+        res: back,
+        rev: f,
+        step: step.map(|(a, b)| (b, a)),
+    });
     out[u].push(f);
     out[v].push(f + 1);
 }
@@ -290,7 +323,14 @@ fn unit_max_flow(arcs: &mut [Arc], out: &[Vec<usize>], s: usize, t: usize, limit
 }
 
 /// Split a unit flow into `count` paths from s to t, given the net flow on each original step.
-fn decompose(units: Vec<(usize, usize)>, n: usize, s: usize, t: usize, count: usize, ids: &[u64]) -> Vec<Vec<u64>> {
+fn decompose(
+    units: Vec<(usize, usize)>,
+    n: usize,
+    s: usize,
+    t: usize,
+    count: usize,
+    ids: &[u64],
+) -> Vec<Vec<u64>> {
     let mut adj: Vec<Vec<(usize, usize)>> = vec![Vec::new(); n]; // (to, unit index)
     for (k, &(a, b)) in units.iter().enumerate() {
         adj[a].push((b, k));
@@ -355,7 +395,15 @@ pub fn edge_disjoint_paths(
         }
         let (a, b) = (idx[&e.source], idx[&e.target]);
         fwd.push(arcs.len());
-        add_arc(&mut arcs, &mut out, a, b, 1.0, if directed { 0.0 } else { 1.0 }, Some((a, b)));
+        add_arc(
+            &mut arcs,
+            &mut out,
+            a,
+            b,
+            1.0,
+            if directed { 0.0 } else { 1.0 },
+            Some((a, b)),
+        );
     }
     let (s, t) = (idx[&source], idx[&target]);
     let flow = unit_max_flow(&mut arcs, &out, s, t, max_paths.unwrap_or(usize::MAX));
@@ -364,7 +412,11 @@ pub fn edge_disjoint_paths(
         let (a, b) = arcs[f].step.unwrap();
         let back = arcs[arcs[f].rev].res;
         // net flow a -> b: directed 1 - res; undirected (res_back - res_fwd) / 2
-        let net = if directed { 1.0 - arcs[f].res } else { (back - arcs[f].res) / 2.0 };
+        let net = if directed {
+            1.0 - arcs[f].res
+        } else {
+            (back - arcs[f].res) / 2.0
+        };
         if net > 0.5 {
             units.push((a, b));
         } else if net < -0.5 {
@@ -403,13 +455,35 @@ pub fn node_disjoint_paths(
         }
         let (a, b) = (idx[&e.source], idx[&e.target]);
         steps.push(arcs.len());
-        add_arc(&mut arcs, &mut out, 2 * a + 1, 2 * b, 1.0, 0.0, Some((a, b)));
+        add_arc(
+            &mut arcs,
+            &mut out,
+            2 * a + 1,
+            2 * b,
+            1.0,
+            0.0,
+            Some((a, b)),
+        );
         if !directed {
             steps.push(arcs.len());
-            add_arc(&mut arcs, &mut out, 2 * b + 1, 2 * a, 1.0, 0.0, Some((b, a)));
+            add_arc(
+                &mut arcs,
+                &mut out,
+                2 * b + 1,
+                2 * a,
+                1.0,
+                0.0,
+                Some((b, a)),
+            );
         }
     }
-    let flow = unit_max_flow(&mut arcs, &out, 2 * s + 1, 2 * t, max_paths.unwrap_or(usize::MAX));
+    let flow = unit_max_flow(
+        &mut arcs,
+        &out,
+        2 * s + 1,
+        2 * t,
+        max_paths.unwrap_or(usize::MAX),
+    );
     let units: Vec<(usize, usize)> = steps
         .into_iter()
         .filter(|&f| arcs[f].res < 0.5)
@@ -456,15 +530,29 @@ pub fn triadic_census(graph: &Graph) -> PyResult<Vec<(String, u64)>> {
         succ[a].insert(b);
         pred[b].insert(a);
     }
-    let nbrs: Vec<FxHashSet<usize>> = (0..n).map(|v| succ[v].union(&pred[v]).copied().collect()).collect();
+    let nbrs: Vec<FxHashSet<usize>> = (0..n)
+        .map(|v| succ[v].union(&pred[v]).copied().collect())
+        .collect();
     let code = |v: usize, u: usize, w: usize| -> usize {
         let mut c = 0;
-        if succ[v].contains(&u) { c |= 1; }
-        if succ[u].contains(&v) { c |= 2; }
-        if succ[v].contains(&w) { c |= 4; }
-        if succ[w].contains(&v) { c |= 8; }
-        if succ[u].contains(&w) { c |= 16; }
-        if succ[w].contains(&u) { c |= 32; }
+        if succ[v].contains(&u) {
+            c |= 1;
+        }
+        if succ[u].contains(&v) {
+            c |= 2;
+        }
+        if succ[v].contains(&w) {
+            c |= 4;
+        }
+        if succ[w].contains(&v) {
+            c |= 8;
+        }
+        if succ[u].contains(&w) {
+            c |= 16;
+        }
+        if succ[w].contains(&u) {
+            c |= 32;
+        }
         c
     };
     let mut census = [0u64; 16];
@@ -490,7 +578,15 @@ pub fn triadic_census(graph: &Graph) -> PyResult<Vec<(String, u64)>> {
         }
     }
     let nf = n as u64;
-    let total = if n >= 3 { nf * (nf - 1) * (nf - 2) / 6 } else { 0 };
+    let total = if n >= 3 {
+        nf * (nf - 1) * (nf - 2) / 6
+    } else {
+        0
+    };
     census[0] = total - census[1..].iter().sum::<u64>();
-    Ok(TRIAD_NAMES.iter().zip(census).map(|(k, c)| (k.to_string(), c)).collect())
+    Ok(TRIAD_NAMES
+        .iter()
+        .zip(census)
+        .map(|(k, c)| (k.to_string(), c))
+        .collect())
 }

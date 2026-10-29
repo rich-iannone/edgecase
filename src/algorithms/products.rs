@@ -31,7 +31,13 @@ struct Factor<'a> {
 impl<'a> Factor<'a> {
     fn is_simple(&self, directed: bool) -> bool {
         let mut seen = FxHashSet::default();
-        self.edges.iter().all(|&(a, b, _)| seen.insert(if directed { (a, b) } else { (a.min(b), a.max(b)) }))
+        self.edges.iter().all(|&(a, b, _)| {
+            seen.insert(if directed {
+                (a, b)
+            } else {
+                (a.min(b), a.max(b))
+            })
+        })
     }
     fn new(graph: &'a Graph) -> Self {
         let mut ids = graph.get_node_ids();
@@ -39,10 +45,18 @@ impl<'a> Factor<'a> {
         let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
         let all = graph.get_nodes();
         let nodes = ids.iter().map(|id| &all[id]).collect();
-        let mut edges: Vec<(usize, usize, &Edge)> =
-            graph.get_edges_internal().iter().map(|e| (idx[&e.source], idx[&e.target], e)).collect();
+        let mut edges: Vec<(usize, usize, &Edge)> = graph
+            .get_edges_internal()
+            .iter()
+            .map(|e| (idx[&e.source], idx[&e.target], e))
+            .collect();
         edges.sort_unstable_by_key(|x| x.2.id);
-        Factor { ids, idx, nodes, edges }
+        Factor {
+            ids,
+            idx,
+            nodes,
+            edges,
+        }
     }
     fn len(&self) -> usize {
         self.ids.len()
@@ -68,7 +82,11 @@ fn copy_attrs(py: Python, attrs: &Option<Py<PyDict>>) -> PyResult<Option<Py<PyDi
 }
 
 /// NetworkX's `_dict_product`: every key of either dict maps to `(value_1, value_2)`.
-fn dict_product(py: Python, a: &Option<Py<PyDict>>, b: &Option<Py<PyDict>>) -> PyResult<Option<Py<PyDict>>> {
+fn dict_product(
+    py: Python,
+    a: &Option<Py<PyDict>>,
+    b: &Option<Py<PyDict>>,
+) -> PyResult<Option<Py<PyDict>>> {
     if a.is_none() && b.is_none() {
         return Ok(None);
     }
@@ -83,18 +101,28 @@ fn dict_product(py: Python, a: &Option<Py<PyDict>>, b: &Option<Py<PyDict>>) -> P
                     continue;
                 }
                 let va = match &da {
-                    Some(x) => x.get_item(&key)?.map(|v| v.unbind()).unwrap_or_else(|| none.clone_ref(py)),
+                    Some(x) => x
+                        .get_item(&key)?
+                        .map(|v| v.unbind())
+                        .unwrap_or_else(|| none.clone_ref(py)),
                     None => none.clone_ref(py),
                 };
                 let vb = match &db {
-                    Some(x) => x.get_item(&key)?.map(|v| v.unbind()).unwrap_or_else(|| none.clone_ref(py)),
+                    Some(x) => x
+                        .get_item(&key)?
+                        .map(|v| v.unbind())
+                        .unwrap_or_else(|| none.clone_ref(py)),
                     None => none.clone_ref(py),
                 };
                 out.set_item(key, PyTuple::new(py, [va, vb])?)?;
             }
         }
     }
-    Ok(if out.is_empty() { None } else { Some(out.unbind()) })
+    Ok(if out.is_empty() {
+        None
+    } else {
+        Some(out.unbind())
+    })
 }
 
 struct Builder {
@@ -107,18 +135,40 @@ struct Builder {
 
 impl Builder {
     fn new(directed: bool, weighted: bool, simple: bool) -> Self {
-        let seen = if simple { Some(FxHashSet::default()) } else { None };
-        Builder { result: Graph::new_rust(directed, weighted), weighted, directed, seen }
+        let seen = if simple {
+            Some(FxHashSet::default())
+        } else {
+            None
+        };
+        Builder {
+            result: Graph::new_rust(directed, weighted),
+            weighted,
+            directed,
+            seen,
+        }
     }
     fn fresh(&mut self, a: u64, b: u64) -> bool {
-        let key = if self.directed { (a, b) } else { (a.min(b), a.max(b)) };
+        let key = if self.directed {
+            (a, b)
+        } else {
+            (a.min(b), a.max(b))
+        };
         match &mut self.seen {
             Some(seen) => seen.insert(key),
             None => true,
         }
     }
-    fn node(&mut self, id: u64, label: Option<String>, attributes: Option<Py<PyDict>>) -> PyResult<()> {
-        self.result.add_node_rust(Node { id, label, attributes })?;
+    fn node(
+        &mut self,
+        id: u64,
+        label: Option<String>,
+        attributes: Option<Py<PyDict>>,
+    ) -> PyResult<()> {
+        self.result.add_node_rust(Node {
+            id,
+            label,
+            attributes,
+        })?;
         Ok(())
     }
     /// An edge copied from a single factor edge.
@@ -127,8 +177,18 @@ impl Builder {
             return Ok(());
         }
         let attributes = copy_attrs(py, &from.attributes)?;
-        let weight = if self.weighted { from.weight.or(Some(1.0)) } else { from.weight };
-        self.result.add_edge_rust(Edge { id: 0, source: a, target: b, weight, attributes })?;
+        let weight = if self.weighted {
+            from.weight.or(Some(1.0))
+        } else {
+            from.weight
+        };
+        self.result.add_edge_rust(Edge {
+            id: 0,
+            source: a,
+            target: b,
+            weight,
+            attributes,
+        })?;
         Ok(())
     }
     /// An edge from a pair of factor edges: product weight, attribute tuples.
@@ -136,9 +196,19 @@ impl Builder {
         if !self.fresh(a, b) {
             return Ok(());
         }
-        let weight = if self.weighted { Some(e.weight.unwrap_or(1.0) * f.weight.unwrap_or(1.0)) } else { None };
+        let weight = if self.weighted {
+            Some(e.weight.unwrap_or(1.0) * f.weight.unwrap_or(1.0))
+        } else {
+            None
+        };
         let attributes = dict_product(py, &e.attributes, &f.attributes)?;
-        self.result.add_edge_rust(Edge { id: 0, source: a, target: b, weight, attributes })?;
+        self.result.add_edge_rust(Edge {
+            id: 0,
+            source: a,
+            target: b,
+            weight,
+            attributes,
+        })?;
         Ok(())
     }
     /// A structural edge with no factor data.
@@ -147,7 +217,13 @@ impl Builder {
             return Ok(());
         }
         let weight = if self.weighted { Some(1.0) } else { None };
-        self.result.add_edge_rust(Edge { id: 0, source: a, target: b, weight, attributes: None })?;
+        self.result.add_edge_rust(Edge {
+            id: 0,
+            source: a,
+            target: b,
+            weight,
+            attributes: None,
+        })?;
         Ok(())
     }
 }
@@ -156,7 +232,13 @@ impl Builder {
 /// `"lexicographic"`, `"rooted"` (with `root` a node ID of `other`), `"corona"` or `"modular"`.
 #[pyfunction]
 #[pyo3(signature = (graph, other, kind, root=None))]
-pub fn graph_product(py: Python, graph: &Graph, other: &Graph, kind: &str, root: Option<u64>) -> PyResult<Graph> {
+pub fn graph_product(
+    py: Python,
+    graph: &Graph,
+    other: &Graph,
+    kind: &str,
+    root: Option<u64>,
+) -> PyResult<Graph> {
     if graph.is_directed() != other.is_directed() {
         return value_err("both graphs must be directed, or both undirected");
     }
@@ -170,18 +252,31 @@ pub fn graph_product(py: Python, graph: &Graph, other: &Graph, kind: &str, root:
     let simple = g.is_simple(directed) && h.is_simple(directed);
     let mut b = Builder::new(directed, graph.is_weighted() || other.is_weighted(), simple);
     let pid = |i: usize, j: usize| (i * m + j + 1) as u64;
-    let name = |f: &Factor, i: usize| f.nodes[i].label.clone().unwrap_or_else(|| f.ids[i].to_string());
+    let name = |f: &Factor, i: usize| {
+        f.nodes[i]
+            .label
+            .clone()
+            .unwrap_or_else(|| f.ids[i].to_string())
+    };
     let pair_label = |i: usize, j: usize| Some(format!("({}, {})", name(&g, i), name(&h, j)));
 
     if kind == "corona" {
         // the first graph keeps its nodes (IDs 1..n), then one copy of `other` per node
         for i in 0..n {
-            b.node((i + 1) as u64, g.nodes[i].label.clone(), copy_attrs(py, &g.nodes[i].attributes)?)?;
+            b.node(
+                (i + 1) as u64,
+                g.nodes[i].label.clone(),
+                copy_attrs(py, &g.nodes[i].attributes)?,
+            )?;
         }
         let cid = |i: usize, j: usize| (n + i * m + j + 1) as u64;
         for i in 0..n {
             for j in 0..m {
-                b.node(cid(i, j), pair_label(i, j), copy_attrs(py, &h.nodes[j].attributes)?)?;
+                b.node(
+                    cid(i, j),
+                    pair_label(i, j),
+                    copy_attrs(py, &h.nodes[j].attributes)?,
+                )?;
             }
         }
         for &(x, y, e) in &g.edges {
@@ -312,7 +407,11 @@ pub fn graph_power(py: Python, graph: &Graph, k: usize) -> PyResult<Graph> {
     let adj = g.adjacency(true);
     let mut result = Graph::new_rust(false, false);
     for i in 0..n {
-        result.add_node_rust(Node { id: g.ids[i], label: g.nodes[i].label.clone(), attributes: copy_attrs(py, &g.nodes[i].attributes)? })?;
+        result.add_node_rust(Node {
+            id: g.ids[i],
+            label: g.nodes[i].label.clone(),
+            attributes: copy_attrs(py, &g.nodes[i].attributes)?,
+        })?;
     }
     for s in 0..n {
         let mut dist = vec![usize::MAX; n];
@@ -331,7 +430,13 @@ pub fn graph_power(py: Python, graph: &Graph, k: usize) -> PyResult<Graph> {
         }
         for t in s + 1..n {
             if dist[t] != usize::MAX {
-                result.add_edge_rust(Edge { id: 0, source: g.ids[s], target: g.ids[t], weight: None, attributes: None })?;
+                result.add_edge_rust(Edge {
+                    id: 0,
+                    source: g.ids[s],
+                    target: g.ids[t],
+                    weight: None,
+                    attributes: None,
+                })?;
             }
         }
     }
@@ -358,9 +463,16 @@ pub fn random_k_lift(py: Python, graph: &Graph, k: usize, seed: Option<u64>) -> 
     let mut b = Builder::new(graph.is_directed(), graph.is_weighted(), false);
     let lid = |j: usize, i: usize| (j * k + i + 1) as u64;
     for j in 0..g.len() {
-        let name = g.nodes[j].label.clone().unwrap_or_else(|| g.ids[j].to_string());
+        let name = g.nodes[j]
+            .label
+            .clone()
+            .unwrap_or_else(|| g.ids[j].to_string());
         for i in 0..k {
-            b.node(lid(j, i), Some(format!("({name}, {i})")), copy_attrs(py, &g.nodes[j].attributes)?)?;
+            b.node(
+                lid(j, i),
+                Some(format!("({name}, {i})")),
+                copy_attrs(py, &g.nodes[j].attributes)?,
+            )?;
         }
     }
     let mut perm: Vec<usize> = (0..k).collect();

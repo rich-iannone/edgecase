@@ -141,8 +141,7 @@ pub fn contracted_edge(
     // Verify the edge exists
     let edges_internal = graph.get_edges_internal();
     let edge_exists = edges_internal.iter().any(|e| {
-        (e.source == u && e.target == v)
-            || (!graph.is_directed() && e.source == v && e.target == u)
+        (e.source == u && e.target == v) || (!graph.is_directed() && e.source == v && e.target == u)
     });
 
     if !edge_exists {
@@ -221,11 +220,7 @@ pub fn contract_nodes_multi(
 /// A new graph where each partition block is a single node.
 #[pyfunction]
 #[pyo3(signature = (graph, partition))]
-pub fn quotient_graph(
-    py: Python<'_>,
-    graph: &Graph,
-    partition: Vec<Vec<u64>>,
-) -> PyResult<Graph> {
+pub fn quotient_graph(py: Python<'_>, graph: &Graph, partition: Vec<Vec<u64>>) -> PyResult<Graph> {
     // Validate partition covers all nodes exactly once
     let mut seen_nodes: FxHashSet<u64> = FxHashSet::default();
     for block in &partition {
@@ -257,7 +252,8 @@ pub fn quotient_graph(
     }
 
     // Create mapping from original nodes to block index
-    let mut node_block_map: std::collections::HashMap<u64, usize> = std::collections::HashMap::new();
+    let mut node_block_map: std::collections::HashMap<u64, usize> =
+        std::collections::HashMap::new();
     for (block_idx, block) in partition.iter().enumerate() {
         for &node in block {
             node_block_map.insert(node, block_idx);

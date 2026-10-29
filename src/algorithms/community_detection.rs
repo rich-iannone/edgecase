@@ -84,7 +84,18 @@ impl WGraph {
             .collect();
         let m2 = deg.iter().sum();
         let size = deg.clone();
-        (WGraph { adj, self_w, deg, m2, size, div: m2, cpm: false }, ids)
+        (
+            WGraph {
+                adj,
+                self_w,
+                deg,
+                m2,
+                size,
+                div: m2,
+                cpm: false,
+            },
+            ids,
+        )
     }
 
     /// Switch the null model to the Constant Potts Model (unit node sizes).
@@ -123,7 +134,15 @@ impl WGraph {
                 v
             })
             .collect();
-        WGraph { adj, self_w, deg, m2: self.m2, size, div: self.div, cpm: self.cpm }
+        WGraph {
+            adj,
+            self_w,
+            deg,
+            m2: self.m2,
+            size,
+            div: self.div,
+            cpm: self.cpm,
+        }
     }
 
     /// The quality being optimized: modularity, or the Constant Potts Model
@@ -145,7 +164,9 @@ impl WGraph {
                 }
             }
         }
-        (0..k).map(|c| inside[c] - gamma * tot[c] * tot[c] / 2.0).sum()
+        (0..k)
+            .map(|c| inside[c] - gamma * tot[c] * tot[c] / 2.0)
+            .sum()
     }
 
     /// Modularity of a partition of this graph's nodes.
@@ -277,7 +298,10 @@ pub fn constant_potts_model(
     let mut inside: FxHashMap<usize, f64> = FxHashMap::default();
     let mut size: FxHashMap<usize, f64> = FxHashMap::default();
     for id in graph.get_node_ids() {
-        let w = node_weights.as_ref().and_then(|m| m.get(&id).copied()).unwrap_or(1.0);
+        let w = node_weights
+            .as_ref()
+            .and_then(|m| m.get(&id).copied())
+            .unwrap_or(1.0);
         *size.entry(comm(id)?).or_insert(0.0) += w;
     }
     for e in graph.get_edges_internal() {
@@ -430,7 +454,11 @@ pub fn bipartite_modularity(
     for e in graph.get_edges_internal() {
         let w = edge_weight(graph, e.weight);
         let (a, b) = (comm(e.source)?, comm(e.target)?);
-        let (top, bottom) = if side[idx[&e.source]] == 0 { (a, b) } else { (b, a) };
+        let (top, bottom) = if side[idx[&e.source]] == 0 {
+            (a, b)
+        } else {
+            (b, a)
+        };
         m += w;
         *top_deg.entry(top).or_insert(0.0) += w;
         *bottom_deg.entry(bottom).or_insert(0.0) += w;
@@ -448,9 +476,7 @@ pub fn bipartite_modularity(
         .into_iter()
         .map(|c| {
             inside.get(c).unwrap_or(&0.0) / m
-                - resolution
-                    * top_deg.get(c).unwrap_or(&0.0)
-                    * bottom_deg.get(c).unwrap_or(&0.0)
+                - resolution * top_deg.get(c).unwrap_or(&0.0) * bottom_deg.get(c).unwrap_or(&0.0)
                     / (m * m)
         })
         .sum())
@@ -508,7 +534,11 @@ fn move_nodes_fast(g: &WGraph, part: &mut [usize], gamma: f64, rng: &mut ChaCha8
         }
         if best_gain < 0.0 {
             // An empty community has gain 0; reuse v's own if it just emptied
-            best = if size[cur] == 0 { cur } else { empty.pop().unwrap_or(cur) };
+            best = if size[cur] == 0 {
+                cur
+            } else {
+                empty.pop().unwrap_or(cur)
+            };
         }
         if size[cur] == 0 && best != cur {
             empty.push(cur);
@@ -559,7 +589,11 @@ fn refine(g: &WGraph, part: &[usize], gamma: f64, theta: f64, rng: &mut ChaCha8R
         let c = part[comm[0]];
         let tot_c: f64 = comm.iter().map(|&v| g.size[v]).sum();
         for &v in comm {
-            ext[v] = g.adj[v].iter().filter(|&&(u, _)| part[u] == c).map(|&(_, w)| w).sum();
+            ext[v] = g.adj[v]
+                .iter()
+                .filter(|&&(u, _)| part[u] == c)
+                .map(|&(_, w)| w)
+                .sum();
         }
         let mut cand: Vec<usize> = comm
             .iter()
@@ -597,7 +631,10 @@ fn refine(g: &WGraph, part: &[usize], gamma: f64, theta: f64, rng: &mut ChaCha8R
                 }
             }
             let max_gain = options.iter().map(|o| o.1).fold(f64::MIN, f64::max);
-            let weights: Vec<f64> = options.iter().map(|o| ((o.1 - max_gain) / theta).exp()).collect();
+            let weights: Vec<f64> = options
+                .iter()
+                .map(|o| ((o.1 - max_gain) / theta).exp())
+                .collect();
             let total: f64 = weights.iter().sum();
             let mut r = rng.gen::<f64>() * total;
             let mut chosen = options[options.len() - 1].0;
@@ -738,7 +775,11 @@ pub fn leiden(
 /// and their community labels, numbered in order of the lowest node ID in each.
 ///
 /// Used by `Graph.cmty_louvain()`. The fixed `seed` keeps results deterministic.
-pub(crate) fn louvain_partition(graph: &Graph, resolution: f64, seed: u64) -> (Vec<u64>, Vec<usize>) {
+pub(crate) fn louvain_partition(
+    graph: &Graph,
+    resolution: f64,
+    seed: u64,
+) -> (Vec<u64>, Vec<usize>) {
     let (base, ids) = WGraph::from_graph(graph);
     let n = base.n();
     let mut rng = ChaCha8Rng::seed_from_u64(seed);
@@ -804,7 +845,11 @@ pub fn community_levels(
         let (aggregate_by, kr) = if leiden {
             let mut refined = refine(&g, &part, resolution, THETA, &mut rng);
             let kr = renumber(&mut refined);
-            if kr == g.n() { (flat.clone(), k) } else { (refined, kr) }
+            if kr == g.n() {
+                (flat.clone(), k)
+            } else {
+                (refined, kr)
+            }
         } else {
             (flat.clone(), k)
         };
@@ -916,7 +961,11 @@ fn maximal_cliques(nbrs: &[FxHashSet<usize>], min_size: usize) -> Vec<Vec<usize>
         for v in p.iter().copied().filter(|v| !nbrs[pivot].contains(v)) {
             let mut r2 = r.clone();
             r2.push(v);
-            let p2: Vec<usize> = p_rest.iter().copied().filter(|u| nbrs[v].contains(u)).collect();
+            let p2: Vec<usize> = p_rest
+                .iter()
+                .copied()
+                .filter(|u| nbrs[v].contains(u))
+                .collect();
             let x2: Vec<usize> = x.iter().copied().filter(|u| nbrs[v].contains(u)).collect();
             stack.push((r2, p2, x2));
             p_rest.retain(|&u| u != v);
@@ -973,7 +1022,10 @@ pub fn k_clique_communities(graph: &Graph, k: usize) -> PyResult<Vec<Vec<u64>>> 
                 if !checked.insert((a, b)) {
                     continue;
                 }
-                let shared = cliques[a].iter().filter(|v| cliques[b].binary_search(v).is_ok()).count();
+                let shared = cliques[a]
+                    .iter()
+                    .filter(|v| cliques[b].binary_search(v).is_ok())
+                    .count();
                 if shared >= k - 1 {
                     let (ra, rb) = (find(&mut parent, a), find(&mut parent, b));
                     if ra != rb {
@@ -1014,10 +1066,7 @@ pub fn k_clique_communities(graph: &Graph, k: usize) -> PyResult<Vec<Vec<u64>>> 
 /// ignores self-loops. Edgeless graphs have coverage 0; graphs with fewer than two nodes have
 /// performance 0.
 #[pyfunction]
-pub fn partition_quality(
-    graph: &Graph,
-    membership: FxHashMap<u64, usize>,
-) -> PyResult<(f64, f64)> {
+pub fn partition_quality(graph: &Graph, membership: FxHashMap<u64, usize>) -> PyResult<(f64, f64)> {
     let comm = |id: u64| -> PyResult<usize> {
         membership.get(&id).copied().ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!(
@@ -1044,7 +1093,11 @@ pub fn partition_quality(
             pairs.insert(key);
         }
     }
-    let coverage = if edges.is_empty() { 0.0 } else { intra_edges as f64 / edges.len() as f64 };
+    let coverage = if edges.is_empty() {
+        0.0
+    } else {
+        intra_edges as f64 / edges.len() as f64
+    };
 
     let n = graph.num_nodes();
     if n < 2 {
@@ -1168,11 +1221,20 @@ pub fn greedy_modularity(graph: &Graph, resolution: f64) -> PyResult<FxHashMap<u
     for i in 0..n {
         recompute(i, &nbr, &share, &mut best_k, &mut best_dq, &mut exact);
         if best_k[i] != usize::MAX {
-            heap.push(RowTop { dq: best_dq[i], row: i, stamp: 0 });
+            heap.push(RowTop {
+                dq: best_dq[i],
+                row: i,
+                stamp: 0,
+            });
         }
     }
 
-    while let Some(RowTop { dq, row: i, stamp: st }) = heap.pop() {
+    while let Some(RowTop {
+        dq,
+        row: i,
+        stamp: st,
+    }) = heap.pop()
+    {
         if !alive[i] || st != stamp[i] {
             continue;
         }
@@ -1180,13 +1242,19 @@ pub fn greedy_modularity(graph: &Graph, resolution: f64) -> PyResult<FxHashMap<u
         let valid = exact[i]
             && p != usize::MAX
             && alive[p]
-            && nbr[i].get(&p).is_some_and(|&w| gain(w, share[i], share[p]) == best_dq[i]);
+            && nbr[i]
+                .get(&p)
+                .is_some_and(|&w| gain(w, share[i], share[p]) == best_dq[i]);
         if !valid {
             // The bound was stale: find the row's true best and requeue it
             recompute(i, &nbr, &share, &mut best_k, &mut best_dq, &mut exact);
             stamp[i] += 1;
             if best_k[i] != usize::MAX {
-                heap.push(RowTop { dq: best_dq[i], row: i, stamp: stamp[i] });
+                heap.push(RowTop {
+                    dq: best_dq[i],
+                    row: i,
+                    stamp: stamp[i],
+                });
             }
             continue;
         }
@@ -1195,7 +1263,11 @@ pub fn greedy_modularity(graph: &Graph, resolution: f64) -> PyResult<FxHashMap<u
         }
 
         // Fold the community with fewer neighbors into the other
-        let (keep, gone) = if nbr[i].len() >= nbr[p].len() { (i, p) } else { (p, i) };
+        let (keep, gone) = if nbr[i].len() >= nbr[p].len() {
+            (i, p)
+        } else {
+            (p, i)
+        };
         let moved: Vec<(usize, f64)> = std::mem::take(&mut nbr[gone]).into_iter().collect();
         for &(k, w) in &moved {
             if k == keep {
@@ -1221,7 +1293,11 @@ pub fn greedy_modularity(graph: &Graph, resolution: f64) -> PyResult<FxHashMap<u
                 best_dq[k] = d;
                 exact[k] = true;
                 stamp[k] += 1;
-                heap.push(RowTop { dq: d, row: k, stamp: stamp[k] });
+                heap.push(RowTop {
+                    dq: d,
+                    row: k,
+                    stamp: stamp[k],
+                });
             }
         }
         // `keep`'s other gains only fell, so its old bound still covers them; add the pairs
@@ -1243,7 +1319,11 @@ pub fn greedy_modularity(graph: &Graph, resolution: f64) -> PyResult<FxHashMap<u
         exact[keep] = false;
         stamp[keep] += 1;
         if !nbr[keep].is_empty() {
-            heap.push(RowTop { dq: ub, row: keep, stamp: stamp[keep] });
+            heap.push(RowTop {
+                dq: ub,
+                row: keep,
+                stamp: stamp[keep],
+            });
         }
     }
     let find = |mut x: usize| {

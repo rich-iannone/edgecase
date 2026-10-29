@@ -37,7 +37,10 @@ pub(crate) fn key(a: usize, b: usize) -> (usize, usize) {
 
 pub(crate) fn check_probability(name: &str, p: f64) -> PyResult<()> {
     if !(0.0..=1.0).contains(&p) {
-        return Err(PyValueError::new_err(format!("{} must be between 0.0 and 1.0, got {}", name, p)));
+        return Err(PyValueError::new_err(format!(
+            "{} must be between 0.0 and 1.0, got {}",
+            name, p
+        )));
     }
     Ok(())
 }
@@ -46,7 +49,13 @@ pub(crate) fn check_probability(name: &str, p: f64) -> PyResult<()> {
 ///
 /// Gaps between kept values are drawn from a geometric distribution, so a sparse
 /// range costs time proportional to the values kept rather than to its length.
-pub(crate) fn sample_range(rng: &mut ChaCha8Rng, p: f64, lo: usize, hi: usize, mut f: impl FnMut(usize)) {
+pub(crate) fn sample_range(
+    rng: &mut ChaCha8Rng,
+    p: f64,
+    lo: usize,
+    hi: usize,
+    mut f: impl FnMut(usize),
+) {
     if p <= 0.0 || lo >= hi {
         return;
     }
@@ -139,10 +148,16 @@ pub fn gaussian_random_partition(
     seed: Option<u64>,
 ) -> PyResult<(Vec<usize>, EdgeList)> {
     if !(mean.is_finite() && mean >= 1.0) {
-        return Err(PyValueError::new_err(format!("mean block size must be at least 1, got {}", mean)));
+        return Err(PyValueError::new_err(format!(
+            "mean block size must be at least 1, got {}",
+            mean
+        )));
     }
     if !(shape.is_finite() && shape > 0.0) {
-        return Err(PyValueError::new_err(format!("shape must be positive, got {}", shape)));
+        return Err(PyValueError::new_err(format!(
+            "shape must be positive, got {}",
+            shape
+        )));
     }
     check_probability("p_in", p_in)?;
     check_probability("p_out", p_out)?;
@@ -237,7 +252,13 @@ fn power_law_int(rng: &mut ChaCha8Rng, tau: f64, lo: usize, hi: usize) -> usize 
 }
 
 /// Community sizes in [smin, smax] summing to exactly `n`.
-fn community_sizes(rng: &mut ChaCha8Rng, n: usize, tau: f64, smin: usize, smax: usize) -> Vec<usize> {
+fn community_sizes(
+    rng: &mut ChaCha8Rng,
+    n: usize,
+    tau: f64,
+    smin: usize,
+    smax: usize,
+) -> Vec<usize> {
     let mut sizes = Vec::new();
     let mut total = 0;
     while total < n {
@@ -323,7 +344,11 @@ fn make_simple(rng: &mut ChaCha8Rng, edges: &mut EdgeList, comm: Option<&[usize]
                 }
                 let (a, b) = edges[i];
                 let (c, d) = edges[j];
-                let (e1, e2) = if rng.gen::<bool>() { ((a, c), (b, d)) } else { ((a, d), (b, c)) };
+                let (e1, e2) = if rng.gen::<bool>() {
+                    ((a, c), (b, d))
+                } else {
+                    ((a, d), (b, c))
+                };
                 let free = |e: (usize, usize)| {
                     !forbidden(e.0, e.1) && count.get(&key(e.0, e.1)).copied().unwrap_or(0) == 0
                 };
@@ -385,7 +410,10 @@ pub fn lfr_benchmark(
     check_probability("mu", mu)?;
     for (name, tau) in [("tau1", tau1), ("tau2", tau2)] {
         if !(tau.is_finite() && tau >= 0.0) {
-            return Err(PyValueError::new_err(format!("{} must be a non-negative number, got {}", name, tau)));
+            return Err(PyValueError::new_err(format!(
+                "{} must be a non-negative number, got {}",
+                name, tau
+            )));
         }
     }
     if n < 2 {
@@ -447,7 +475,9 @@ pub fn lfr_benchmark(
 
     // 3. community sizes
     let smin = min_community.unwrap_or_else(|| (kmin.round() as usize).max(1));
-    let smax = max_community.unwrap_or_else(|| max_degree.max(kin_max + 1)).min(n);
+    let smax = max_community
+        .unwrap_or_else(|| max_degree.max(kin_max + 1))
+        .min(n);
     if smin < 1 || smin > smax {
         return Err(PyValueError::new_err(format!(
             "min_community ({}) must be at least 1 and no larger than max_community ({})",
@@ -500,7 +530,9 @@ pub fn lfr_benchmark(
             Some(i) => i,
             None => {
                 candidates = (0..open.len()).filter(|&i| fits(open[i])).collect();
-                *candidates.choose(&mut rng).expect("fit check guarantees a community")
+                *candidates
+                    .choose(&mut rng)
+                    .expect("fit check guarantees a community")
             }
         };
         let c = open[i];
@@ -516,7 +548,10 @@ pub fn lfr_benchmark(
         if group.iter().map(|&v| kin[v]).sum::<usize>() % 2 == 0 {
             continue;
         }
-        if let Some(&v) = group.iter().find(|&&v| kin[v] < degree[v] && kin[v] + 1 < sizes[c]) {
+        if let Some(&v) = group
+            .iter()
+            .find(|&&v| kin[v] < degree[v] && kin[v] + 1 < sizes[c])
+        {
             kin[v] += 1;
         } else if let Some(&v) = group.iter().find(|&&v| kin[v] > 0) {
             kin[v] -= 1;
@@ -526,13 +561,17 @@ pub fn lfr_benchmark(
     // wiring
     let mut edges: EdgeList = Vec::new();
     for group in &members {
-        let stubs: Vec<usize> = group.iter().flat_map(|&v| std::iter::repeat(v).take(kin[v])).collect();
+        let stubs: Vec<usize> = group
+            .iter()
+            .flat_map(|&v| std::iter::repeat(v).take(kin[v]))
+            .collect();
         let mut internal = pair_stubs(&mut rng, stubs);
         make_simple(&mut rng, &mut internal, None);
         edges.extend(internal);
     }
-    let stubs: Vec<usize> =
-        (0..n).flat_map(|v| std::iter::repeat(v).take(degree[v] - kin[v])).collect();
+    let stubs: Vec<usize> = (0..n)
+        .flat_map(|v| std::iter::repeat(v).take(degree[v] - kin[v]))
+        .collect();
     let mut external = pair_stubs(&mut rng, stubs);
     make_simple(&mut rng, &mut external, Some(&comm));
     edges.extend(external);
@@ -549,7 +588,10 @@ pub fn lfr_benchmark(
             next += 1;
         }
     }
-    let mut edges: EdgeList = edges.into_iter().map(|(a, b)| key(new_id[a], new_id[b])).collect();
+    let mut edges: EdgeList = edges
+        .into_iter()
+        .map(|(a, b)| key(new_id[a], new_id[b]))
+        .collect();
     edges.sort_unstable();
     Ok((edges, communities))
 }

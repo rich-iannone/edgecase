@@ -93,13 +93,18 @@ pub fn network_robustness(
         "betweenness" => {
             let bc = crate::algorithms::centrality::betweenness_centrality(graph)?;
             let mut scored: Vec<(u64, f64)> = bc.into_iter().collect();
-            scored.sort_by(|a, b| b.1.partial_cmp(&a.1).unwrap_or(std::cmp::Ordering::Equal).then(a.0.cmp(&b.0)));
+            scored.sort_by(|a, b| {
+                b.1.partial_cmp(&a.1)
+                    .unwrap_or(std::cmp::Ordering::Equal)
+                    .then(a.0.cmp(&b.0))
+            });
             scored.into_iter().map(|(nid, _)| nid).collect()
         }
         other => {
-            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                format!("Unknown strategy '{}'. Use 'random', 'degree', or 'betweenness'.", other),
-            ));
+            return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+                "Unknown strategy '{}'. Use 'random', 'degree', or 'betweenness'.",
+                other
+            )));
         }
     };
 

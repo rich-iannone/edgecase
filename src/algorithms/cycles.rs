@@ -55,7 +55,8 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
     let mut all_cycles = Vec::new();
 
     // Build adjacency list for efficient traversal
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut adj_list: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             adj_list.insert(node_id, neighbors);
@@ -70,14 +71,19 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
 
         // Build subgraph containing start_node and all nodes with higher indices
         let remaining = n - start_idx;
-        let mut subgraph_nodes: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(remaining, Default::default());
+        let mut subgraph_nodes: FxHashSet<u64> =
+            FxHashSet::with_capacity_and_hasher(remaining, Default::default());
         subgraph_nodes.extend(node_ids[start_idx..].iter().copied());
 
         // Find strongly connected component containing start_node in subgraph
         let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
 
-        if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
-            .is_some_and(|neighbors| neighbors.contains(&start_node))) {
+        if scc.len() > 1
+            || (scc.len() == 1
+                && adj_list
+                    .get(&start_node)
+                    .is_some_and(|neighbors| neighbors.contains(&start_node)))
+        {
             if let Some(bound) = length_bound {
                 // Johnson's blocking is unsound under a length bound: a node blocked
                 // after a search cut short by the bound may still close a cycle when
@@ -88,13 +94,22 @@ fn simple_cycles_directed(graph: &Graph, length_bound: Option<usize>) -> PyResul
                 let mut path_set = FxHashSet::default();
                 path_set.insert(start_node);
                 bounded_cycles_from_node(
-                    start_node, start_node, &adj_list, &scc, &dist, bound, &mut path,
-                    &mut path_set, &mut all_cycles,
+                    start_node,
+                    start_node,
+                    &adj_list,
+                    &scc,
+                    &dist,
+                    bound,
+                    &mut path,
+                    &mut path_set,
+                    &mut all_cycles,
                 );
                 continue;
             }
-            let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
-            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked: FxHashSet<u64> =
+                FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> =
+                FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
             let mut path = Vec::with_capacity(scc.len());
             path.push(start_node);
             let mut path_set = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
@@ -175,7 +190,9 @@ fn bounded_cycles_from_node(
                 cycles.push(path.clone());
             }
         } else if !path_set.contains(&neighbor)
-            && dist.get(&neighbor).is_some_and(|&d| path.len() + d <= bound)
+            && dist
+                .get(&neighbor)
+                .is_some_and(|&d| path.len() + d <= bound)
         {
             path.push(neighbor);
             path_set.insert(neighbor);
@@ -251,10 +268,7 @@ fn simple_cycles_from_node_directed(
     } else if let Some(neighbors) = adj_list.get(&current) {
         for &neighbor in neighbors {
             if scc.contains(&neighbor) {
-                blocked_map
-                    .entry(neighbor)
-                    .or_default()
-                    .insert(current);
+                blocked_map.entry(neighbor).or_default().insert(current);
             }
         }
     }
@@ -272,7 +286,8 @@ fn simple_cycles_undirected(graph: &Graph, length_bound: Option<usize>) -> PyRes
     }
 
     // Build adjacency list
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut adj_list: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             adj_list.insert(node_id, neighbors);
@@ -282,7 +297,8 @@ fn simple_cycles_undirected(graph: &Graph, length_bound: Option<usize>) -> PyRes
     }
 
     // Create node index mapping for canonical ordering
-    let node_to_idx: FxHashMap<u64, usize> = node_ids.iter()
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
         .enumerate()
         .map(|(i, &id)| (id, i))
         .collect();
@@ -397,8 +413,14 @@ fn canonicalize_cycle(cycle: &[u64], node_to_idx: &FxHashMap<u64, usize>) -> Vec
     let next_pos = (min_pos + 1) % n;
     let prev_pos = (min_pos + n - 1) % n;
 
-    let next_idx = node_to_idx.get(&cycle[next_pos]).copied().unwrap_or(usize::MAX);
-    let prev_idx = node_to_idx.get(&cycle[prev_pos]).copied().unwrap_or(usize::MAX);
+    let next_idx = node_to_idx
+        .get(&cycle[next_pos])
+        .copied()
+        .unwrap_or(usize::MAX);
+    let prev_idx = node_to_idx
+        .get(&cycle[prev_pos])
+        .copied()
+        .unwrap_or(usize::MAX);
 
     let mut result = Vec::with_capacity(n);
 
@@ -516,7 +538,7 @@ fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f6
 pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> {
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "cycle_basis() is only defined for undirected graphs"
+            "cycle_basis() is only defined for undirected graphs",
         ));
     }
 
@@ -528,7 +550,8 @@ pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> 
     }
 
     // Build adjacency list for efficient traversal
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut adj_list: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             adj_list.insert(node_id, neighbors);
@@ -538,16 +561,18 @@ pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> 
     }
 
     // Track which nodes have been processed (across all components)
-    let mut global_seen: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+    let mut global_seen: FxHashSet<u64> =
+        FxHashSet::with_capacity_and_hasher(n, Default::default());
     let mut cycles = Vec::new();
 
     // Start with the specified root (or first node)
     let start_nodes: Vec<u64> = if let Some(r) = root {
         // Verify root exists
         if !adj_list.contains_key(&r) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Root node {} not found in graph", r)
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Root node {} not found in graph",
+                r
+            )));
         }
         let mut starts = vec![r];
         // Add remaining nodes for disconnected components
@@ -704,7 +729,7 @@ pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> 
 pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Vec<Vec<u64>>> {
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "minimum_cycle_basis() is only defined for undirected graphs"
+            "minimum_cycle_basis() is only defined for undirected graphs",
         ));
     }
 
@@ -719,7 +744,8 @@ pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Ve
 
     // Build adjacency list with edge info
     // For undirected graphs, we store both directions
-    let mut adj_with_edges: FxHashMap<u64, Vec<(u64, u64)>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut adj_with_edges: FxHashMap<u64, Vec<(u64, u64)>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     for &node_id in &node_ids {
         adj_with_edges.insert(node_id, Vec::new());
@@ -793,14 +819,9 @@ pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Ve
 
     for &(edge_id, u, v, edge_weight) in &edges_info {
         // Find shortest path from u to v NOT using this edge
-        if let Some((path_weight, path)) = shortest_path_excluding_edge(
-            &adj_with_edges,
-            u,
-            v,
-            edge_id,
-            graph,
-            weight_attr,
-        ) {
+        if let Some((path_weight, path)) =
+            shortest_path_excluding_edge(&adj_with_edges, u, v, edge_id, graph, weight_attr)
+        {
             // The cycle is: path from u to v + direct edge back
             let cycle_weight = path_weight + edge_weight;
             if path.len() >= 2 {
@@ -943,10 +964,8 @@ fn is_independent_cycle(
     // Check if this edge set is a subset or superset of any existing
     for existing in edge_space {
         // Check if XOR would be empty (meaning same cycle)
-        let xor_result: FxHashSet<(u64, u64)> = new_edges
-            .symmetric_difference(existing)
-            .cloned()
-            .collect();
+        let xor_result: FxHashSet<(u64, u64)> =
+            new_edges.symmetric_difference(existing).cloned().collect();
 
         if xor_result.is_empty() {
             return false; // Same cycle
@@ -979,7 +998,7 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
 
     if !graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "Cycle enumeration requires a directed graph"
+            "Cycle enumeration requires a directed graph",
         ));
     }
 
@@ -993,7 +1012,8 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
     let mut all_cycles = Vec::with_capacity(n); // Estimated capacity
 
     // Build adjacency list for efficient traversal
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut adj_list: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for &node_id in &node_ids {
         if let Ok(neighbors) = graph.neighbors(node_id) {
             adj_list.insert(node_id, neighbors);
@@ -1008,17 +1028,24 @@ pub fn find_cycles(graph: &Graph, min_amount: Option<f64>) -> PyResult<Vec<Vec<u
 
         // Build subgraph containing start_node and all nodes with higher indices
         let remaining = n - start_idx;
-        let mut subgraph_nodes: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(remaining, Default::default());
+        let mut subgraph_nodes: FxHashSet<u64> =
+            FxHashSet::with_capacity_and_hasher(remaining, Default::default());
         subgraph_nodes.extend(node_ids[start_idx..].iter().copied());
 
         // Find strongly connected component containing start_node in subgraph
         let scc = find_scc_containing_node(start_node, &adj_list, &subgraph_nodes);
 
-        if scc.len() > 1 || (scc.len() == 1 && adj_list.get(&start_node)
-            .is_some_and(|neighbors| neighbors.contains(&start_node))) {
+        if scc.len() > 1
+            || (scc.len() == 1
+                && adj_list
+                    .get(&start_node)
+                    .is_some_and(|neighbors| neighbors.contains(&start_node)))
+        {
             // There might be cycles in this SCC
-            let mut blocked: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
-            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> = FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked: FxHashSet<u64> =
+                FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
+            let mut blocked_map: FxHashMap<u64, FxHashSet<u64>> =
+                FxHashMap::with_capacity_and_hasher(scc.len(), Default::default());
             let mut path = Vec::with_capacity(scc.len());
             path.push(start_node);
             let mut path_set = FxHashSet::with_capacity_and_hasher(scc.len(), Default::default());
@@ -1181,10 +1208,7 @@ fn find_cycles_from_node(
         if let Some(neighbors) = adj_list.get(&current) {
             for &neighbor in neighbors {
                 if scc.contains(&neighbor) {
-                    blocked_map
-                        .entry(neighbor)
-                        .or_default()
-                        .insert(current);
+                    blocked_map.entry(neighbor).or_default().insert(current);
                 }
             }
         }
@@ -1223,9 +1247,10 @@ pub fn has_cycle(graph: &Graph) -> bool {
 
     for node_id in node_ids {
         if !visited.contains(&node_id)
-            && has_cycle_util(graph, node_id, &mut visited, &mut rec_stack) {
-                return true;
-            }
+            && has_cycle_util(graph, node_id, &mut visited, &mut rec_stack)
+        {
+            return true;
+        }
     }
 
     false
@@ -1368,14 +1393,16 @@ pub fn directed_cycle_basis(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
 
         // Try to add a closed directed walk [n0, n1, ..., nk] (nk -> n0 implied).
         let try_add = |cycle: &[u64],
-                           used_arcs: &mut FxHashMap<(u64, u64), usize>,
-                           basis_rows: &mut Vec<Vec<f64>>,
-                           pivots: &mut Vec<usize>|
+                       used_arcs: &mut FxHashMap<(u64, u64), usize>,
+                       basis_rows: &mut Vec<Vec<f64>>,
+                       pivots: &mut Vec<usize>|
          -> bool {
             let mut row = vec![0.0f64; edges.len()];
             for w in 0..cycle.len() {
                 let (u, v) = (cycle[w], cycle[(w + 1) % cycle.len()]);
-                let Some(ids) = index.get(&(u, v)) else { return false };
+                let Some(ids) = index.get(&(u, v)) else {
+                    return false;
+                };
                 // rotate among parallel arcs so different cycles can use different copies
                 let k = used_arcs.get(&(u, v)).copied().unwrap_or(0) % ids.len();
                 row[ids[k]] += 1.0;
@@ -1440,7 +1467,12 @@ pub fn directed_cycle_basis(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
     // Report each cycle starting at its smallest node ID (rotation keeps the
     // arc order), so the output doesn't depend on hash or search order.
     for c in cycles.iter_mut() {
-        if let Some(pos) = c.iter().enumerate().min_by_key(|&(_, v)| *v).map(|(i, _)| i) {
+        if let Some(pos) = c
+            .iter()
+            .enumerate()
+            .min_by_key(|&(_, v)| *v)
+            .map(|(i, _)| i)
+        {
             c.rotate_left(pos);
         }
     }
@@ -1685,7 +1717,14 @@ mod tests {
         for l in ["A", "B", "C", "D", "E"] {
             graph.add_test_node(l);
         }
-        for (u, v) in [("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "D"), ("D", "B")] {
+        for (u, v) in [
+            ("A", "B"),
+            ("B", "C"),
+            ("C", "A"),
+            ("C", "E"),
+            ("E", "D"),
+            ("D", "B"),
+        ] {
             graph.add_test_edge_by_label(u, v, None);
         }
         let arcs: FxHashSet<(u64, u64)> = graph.edges().iter().map(|&(_, u, v)| (u, v)).collect();
@@ -1693,7 +1732,11 @@ mod tests {
         assert_eq!(basis.len(), 2); // m - n + p = 6 - 5 + 1
         for c in &basis {
             for i in 0..c.len() {
-                assert!(arcs.contains(&(c[i], c[(i + 1) % c.len()])), "cycle {:?} breaks an arc", c);
+                assert!(
+                    arcs.contains(&(c[i], c[(i + 1) % c.len()])),
+                    "cycle {:?} breaks an arc",
+                    c
+                );
             }
         }
     }
@@ -1713,7 +1756,11 @@ pub fn feedback_edge_set(graph: &Graph, weighted: bool) -> PyResult<Vec<u64>> {
     let idx: FxHashMap<u64, usize> = nodes.iter().enumerate().map(|(i, &v)| (v, i)).collect();
     let mut edges: Vec<(u64, usize, usize, f64)> = Vec::new();
     for e in graph.get_edges_internal() {
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         if w.is_nan() || w < 0.0 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "feedback_edge_set() requires non-negative edge weights",
@@ -1752,8 +1799,12 @@ pub fn feedback_edge_set(graph: &Graph, weighted: bool) -> PyResult<Vec<u64>> {
 }
 
 /// A directed cycle among the live edges, as edge indices, or `None` if there is none.
-fn live_cycle(n: usize, adj: &[Vec<usize>], edges: &[(u64, usize, usize, f64)], live: &[bool])
-    -> Option<Vec<usize>> {
+fn live_cycle(
+    n: usize,
+    adj: &[Vec<usize>],
+    edges: &[(u64, usize, usize, f64)],
+    live: &[bool],
+) -> Option<Vec<usize>> {
     // 0 = unvisited, 1 = on the DFS stack, 2 = finished
     let mut state = vec![0u8; n];
     let mut via = vec![usize::MAX; n];
@@ -1806,7 +1857,10 @@ fn directed_feedback(n: usize, edges: &[(u64, usize, usize, f64)]) -> Vec<u64> {
     let mut residual: Vec<f64> = edges.iter().map(|e| e.3).collect();
     let mut removed = Vec::new();
     while let Some(cycle) = live_cycle(n, &adj, edges, &live) {
-        let low = cycle.iter().map(|&e| residual[e]).fold(f64::INFINITY, f64::min);
+        let low = cycle
+            .iter()
+            .map(|&e| residual[e])
+            .fold(f64::INFINITY, f64::min);
         for &e in &cycle {
             residual[e] -= low;
             if residual[e] <= 0.0 {

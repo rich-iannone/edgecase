@@ -19,7 +19,8 @@ use std::collections::HashSet;
 pub fn count_triangles(graph: &Graph) -> FxHashMap<u64, usize> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let mut triangle_count: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut triangle_count: FxHashMap<u64, usize> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     // Initialize all nodes to 0
     for &node_id in node_ids.iter() {
@@ -113,7 +114,8 @@ fn count_triangles_undirected(graph: &Graph, triangle_count: &mut FxHashMap<u64,
     // Parallelize triangle counting only for very large graphs
     // Threshold chosen to avoid Rayon overhead on medium graphs
     let local_counts: FxHashMap<u64, usize> = if edges.len() >= 50000 {
-        edges.par_iter()
+        edges
+            .par_iter()
             .fold(
                 || FxHashMap::with_capacity_and_hasher(n / 10, Default::default()),
                 |mut local_map, &(u, v)| {
@@ -193,10 +195,7 @@ pub fn list_triangles(graph: &Graph) -> Vec<(u64, u64, u64)> {
 /// List triangles in undirected graphs
 /// Compact forward algorithm with sorted adjacency lists
 /// PARALLELIZED: Uses Rayon for parallel node processing on large graphs
-fn list_triangles_undirected(
-    graph: &Graph,
-    triangles: &mut Vec<(u64, u64, u64)>,
-) {
+fn list_triangles_undirected(graph: &Graph, triangles: &mut Vec<(u64, u64, u64)>) {
     use rayon::prelude::*;
 
     let node_ids = graph.get_node_ids();
@@ -235,13 +234,15 @@ fn list_triangles_undirected(
     // For very large graphs, parallelize triangle enumeration per node
     // High threshold to avoid Rayon overhead
     let all_triangles: Vec<(u64, u64, u64)> = if n >= 10000 {
-        node_ids.par_iter()
+        node_ids
+            .par_iter()
             .filter_map(|&u| adj_lists.get(&u).map(|u_neighbors| (u, u_neighbors)))
             .flat_map(|(u, u_neighbors)| triangles_from(u, u_neighbors))
             .collect()
     } else {
         // Sequential for small graphs
-        node_ids.iter()
+        node_ids
+            .iter()
             .filter_map(|&u| adj_lists.get(&u).map(|u_neighbors| (u, u_neighbors)))
             .flat_map(|(u, u_neighbors)| triangles_from(u, u_neighbors))
             .collect()
@@ -260,9 +261,13 @@ fn list_triangles_directed(
     let nodes = graph.get_node_ids();
 
     for &u in nodes.iter() {
-        let Some(u_neighbors) = adj.get(&u) else { continue };
+        let Some(u_neighbors) = adj.get(&u) else {
+            continue;
+        };
         for v in u_neighbors.iter() {
-            let Some(v_neighbors) = adj.get(v) else { continue };
+            let Some(v_neighbors) = adj.get(v) else {
+                continue;
+            };
             for &w in v_neighbors.iter() {
                 if w != u {
                     // Check if w -> u exists (forming cycle u -> v -> w -> u)
@@ -312,7 +317,11 @@ fn transitivity_undirected(graph: &Graph) -> Option<f64> {
         .values()
         .map(|neighbors| {
             let degree = neighbors.len();
-            if degree >= 2 { degree * (degree - 1) / 2 } else { 0 }
+            if degree >= 2 {
+                degree * (degree - 1) / 2
+            } else {
+                0
+            }
         })
         .sum();
 
@@ -350,7 +359,8 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
     let paths_from = |node_id: &u64| -> usize {
         adj.get(node_id)
             .map(|neighbors| {
-                neighbors.iter()
+                neighbors
+                    .iter()
                     .filter_map(|neighbor| adj.get(neighbor))
                     .map(|second| second.len() - usize::from(second.binary_search(node_id).is_ok()))
                     .sum()
@@ -401,7 +411,11 @@ pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>
         let pairs = (degree * (degree - 1)) as f64;
 
         // Directed: triangles / (d * (d - 1)); undirected: triangles / C(d, 2)
-        let coeff = if is_directed { triangles / pairs } else { 2.0 * triangles / pairs };
+        let coeff = if is_directed {
+            triangles / pairs
+        } else {
+            2.0 * triangles / pairs
+        };
         (*node_id, Some(coeff))
     };
 

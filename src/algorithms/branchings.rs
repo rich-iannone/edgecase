@@ -91,7 +91,11 @@ impl W {
         self.cmp(&W { f: 0, k: 0, w: 0.0 }) == Ordering::Greater
     }
     fn shift(&self, minus: W, plus: W) -> W {
-        W { f: self.f - minus.f + plus.f, k: self.k - minus.k + plus.k, w: self.w - minus.w + plus.w }
+        W {
+            f: self.f - minus.f + plus.f,
+            k: self.k - minus.k + plus.k,
+            w: self.w - minus.w + plus.w,
+        }
     }
 }
 
@@ -184,7 +188,10 @@ fn max_branching(n: usize, edges: &[(usize, usize, W)]) -> Vec<usize> {
         origin.push(i);
     }
 
-    let chosen: Vec<usize> = max_branching(m, &sub_edges).into_iter().map(|j| origin[j]).collect();
+    let chosen: Vec<usize> = max_branching(m, &sub_edges)
+        .into_iter()
+        .map(|j| origin[j])
+        .collect();
     let mut entered: Vec<Option<usize>> = vec![None; cycles.len()];
     for &e in &chosen {
         let v = edges[e].1;
@@ -198,7 +205,12 @@ fn max_branching(n: usize, edges: &[(usize, usize, W)]) -> Vec<usize> {
             Some(v) => best[v].unwrap(),
             None => min_edge[c],
         };
-        result.extend(cycle.iter().map(|&y| best[y].unwrap()).filter(|&e| e != drop));
+        result.extend(
+            cycle
+                .iter()
+                .map(|&y| best[y].unwrap())
+                .filter(|&e| e != drop),
+        );
     }
     result
 }
@@ -213,7 +225,11 @@ const EXCLUDED: u8 = 2;
 
 /// The state of every edge (indexed like `edge_ids`) for the given included and excluded IDs.
 fn partition_state(edge_ids: &[u64], include: &[u64], exclude: &[u64]) -> PyResult<Vec<u8>> {
-    let pos: FxHashMap<u64, usize> = edge_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let pos: FxHashMap<u64, usize> = edge_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
     let mut state = vec![OPEN; edge_ids.len()];
     for (list, mark) in [(include, INCLUDED), (exclude, EXCLUDED)] {
         for id in list {
@@ -252,7 +268,10 @@ impl PartialOrd for Pending {
 impl Ord for Pending {
     // Reversed, so the max-heap `BinaryHeap` pops the smallest (key, seq) first
     fn cmp(&self, other: &Self) -> Ordering {
-        other.key.total_cmp(&self.key).then(other.seq.cmp(&self.seq))
+        other
+            .key
+            .total_cmp(&self.key)
+            .then(other.seq.cmp(&self.seq))
     }
 }
 
@@ -274,7 +293,12 @@ fn split_partition(
         state[e] = EXCLUDED;
         if let Some((key, tree)) = solve(&state) {
             *seq += 1;
-            heap.push(Pending { key, seq: *seq, tree, state: state.clone() });
+            heap.push(Pending {
+                key,
+                seq: *seq,
+                tree,
+                state: state.clone(),
+            });
         }
         state[e] = INCLUDED;
     }
@@ -329,10 +353,21 @@ fn constrained_branching(
         }
         let f = (state[i] == INCLUDED) as i64;
         forced += f as usize;
-        sub.push((u, v, W { f, k: spanning as i64, w }));
+        sub.push((
+            u,
+            v,
+            W {
+                f,
+                k: spanning as i64,
+                w,
+            },
+        ));
         origin.push(i);
     }
-    let mut chosen: Vec<usize> = max_branching(n, &sub).into_iter().map(|j| origin[j]).collect();
+    let mut chosen: Vec<usize> = max_branching(n, &sub)
+        .into_iter()
+        .map(|j| origin[j])
+        .collect();
     if chosen.iter().filter(|&&i| state[i] == INCLUDED).count() != forced
         || (spanning && n > 0 && chosen.len() != n - 1)
     {
@@ -372,12 +407,16 @@ pub fn optimum_branching(
     let state = partition_state(&edge_ids, &include, &exclude)?;
     match constrained_branching(n, &edges, &state, spanning) {
         Some(chosen) => Ok(chosen.into_iter().map(|i| edge_ids[i]).collect()),
-        None if include.is_empty() && exclude.is_empty() => {
-            value_err("no spanning arborescence exists: not every node can be reached from a single root")
-        }
+        None if include.is_empty() && exclude.is_empty() => value_err(
+            "no spanning arborescence exists: not every node can be reached from a single root",
+        ),
         None => value_err(format!(
             "no {} uses every included edge and avoids every excluded one",
-            if spanning { "spanning arborescence" } else { "branching" }
+            if spanning {
+                "spanning arborescence"
+            } else {
+                "branching"
+            }
         )),
     }
 }
@@ -418,13 +457,26 @@ impl ArborescenceIter {
         let (n, edges, edge_ids) = branching_edges(py, graph, sign, weight_attr)?;
         let state = partition_state(&edge_ids, &include, &exclude)?;
         if constrained_branching(n, &edges, &vec![OPEN; edges.len()], true).is_none() {
-            return value_err("no spanning arborescence exists: not every node can be reached from a single root");
+            return value_err(
+                "no spanning arborescence exists: not every node can be reached from a single root",
+            );
         }
         let mut heap = BinaryHeap::new();
         if let Some((key, tree)) = Self::solve(n, &edges, &state) {
-            heap.push(Pending { key, seq: 0, tree, state });
+            heap.push(Pending {
+                key,
+                seq: 0,
+                tree,
+                state,
+            });
         }
-        Ok(ArborescenceIter { n, edges, edge_ids, heap, seq: 0 })
+        Ok(ArborescenceIter {
+            n,
+            edges,
+            edge_ids,
+            heap,
+            seq: 0,
+        })
     }
 
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -434,7 +486,9 @@ impl ArborescenceIter {
     fn __next__(&mut self) -> Option<Vec<u64>> {
         let entry = self.heap.pop()?;
         let (n, edges) = (self.n, &self.edges);
-        split_partition(&mut self.heap, &mut self.seq, &entry, |state| Self::solve(n, edges, state));
+        split_partition(&mut self.heap, &mut self.seq, &entry, |state| {
+            Self::solve(n, edges, state)
+        });
         Some(entry.tree.iter().map(|&i| self.edge_ids[i]).collect())
     }
 }
@@ -453,7 +507,12 @@ struct KruskalData {
     order: Vec<usize>,
 }
 
-fn kruskal_data(py: Python, graph: &Graph, minimum: bool, weight_attr: Option<&str>) -> PyResult<KruskalData> {
+fn kruskal_data(
+    py: Python,
+    graph: &Graph,
+    minimum: bool,
+    weight_attr: Option<&str>,
+) -> PyResult<KruskalData> {
     let (ids, idx) = sorted_ids(graph);
     let mut pairs = Vec::new();
     let mut values = Vec::new();
@@ -473,7 +532,13 @@ fn kruskal_data(py: Python, graph: &Graph, minimum: bool, weight_attr: Option<&s
     } else {
         order.sort_by(|&a, &b| values[b].total_cmp(&values[a]));
     }
-    Ok(KruskalData { n: ids.len(), pairs, values, edge_ids, order })
+    Ok(KruskalData {
+        n: ids.len(),
+        pairs,
+        values,
+        edge_ids,
+        order,
+    })
 }
 
 /// Kruskal's algorithm on a partition: every included edge first (in storage order), then the
@@ -566,9 +631,19 @@ impl SpanningTreeIter {
         }
         let mut heap = BinaryHeap::new();
         if let Some((key, tree)) = Self::solve(&data, minimum, &state) {
-            heap.push(Pending { key, seq: 0, tree, state });
+            heap.push(Pending {
+                key,
+                seq: 0,
+                tree,
+                state,
+            });
         }
-        Ok(SpanningTreeIter { data, minimum, heap, seq: 0 })
+        Ok(SpanningTreeIter {
+            data,
+            minimum,
+            heap,
+            seq: 0,
+        })
     }
 
     fn __iter__(slf: PyRef<'_, Self>) -> PyRef<'_, Self> {
@@ -578,7 +653,9 @@ impl SpanningTreeIter {
     fn __next__(&mut self) -> Option<Vec<u64>> {
         let entry = self.heap.pop()?;
         let (data, minimum) = (&self.data, self.minimum);
-        split_partition(&mut self.heap, &mut self.seq, &entry, |state| Self::solve(data, minimum, state));
+        split_partition(&mut self.heap, &mut self.seq, &entry, |state| {
+            Self::solve(data, minimum, state)
+        });
         Some(entry.tree.iter().map(|&i| self.data.edge_ids[i]).collect())
     }
 }
@@ -586,8 +663,17 @@ impl SpanningTreeIter {
 /// The values of the given edges (see the module notes), in the given order.
 #[pyfunction]
 #[pyo3(signature = (graph, edge_ids, weight_attr=None))]
-pub fn edge_values(py: Python, graph: &Graph, edge_ids: Vec<u64>, weight_attr: Option<&str>) -> PyResult<Vec<f64>> {
-    let by_id: FxHashMap<u64, &Edge> = graph.get_edges_internal().iter().map(|e| (e.id, e)).collect();
+pub fn edge_values(
+    py: Python,
+    graph: &Graph,
+    edge_ids: Vec<u64>,
+    weight_attr: Option<&str>,
+) -> PyResult<Vec<f64>> {
+    let by_id: FxHashMap<u64, &Edge> = graph
+        .get_edges_internal()
+        .iter()
+        .map(|e| (e.id, e))
+        .collect();
     edge_ids
         .iter()
         .map(|eid| match by_id.get(eid) {
@@ -626,9 +712,17 @@ pub fn spanning_subgraph(
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes,
+        })?;
     }
-    let by_id: FxHashMap<u64, &Edge> = graph.get_edges_internal().iter().map(|e| (e.id, e)).collect();
+    let by_id: FxHashMap<u64, &Edge> = graph
+        .get_edges_internal()
+        .iter()
+        .map(|e| (e.id, e))
+        .collect();
     for eid in edge_ids {
         let Some(e) = by_id.get(&eid) else {
             return value_err(format!("Edge with ID {eid} not found in graph"));
@@ -637,7 +731,13 @@ pub fn spanning_subgraph(
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_edge_rust(Edge { id: eid, source: e.source, target: e.target, weight: e.weight, attributes })?;
+        result.add_edge_rust(Edge {
+            id: eid,
+            source: e.source,
+            target: e.target,
+            weight: e.weight,
+            attributes,
+        })?;
     }
     Ok(result)
 }
@@ -704,10 +804,24 @@ pub fn number_of_spanning_trees(
         .get_edges_internal()
         .iter()
         .filter(|e| e.source != e.target)
-        .map(|e| (idx[&e.source], idx[&e.target], if weighted { e.weight.unwrap_or(1.0) } else { 1.0 }))
+        .map(|e| {
+            (
+                idx[&e.source],
+                idx[&e.target],
+                if weighted {
+                    e.weight.unwrap_or(1.0)
+                } else {
+                    1.0
+                },
+            )
+        })
         .collect();
     if !spans(n, edges.iter().map(|&(a, b, _)| (a, b))) {
-        return Ok(if weighted { 0.0f64.into_pyobject(py)?.into_any().unbind() } else { 0i64.into_pyobject(py)?.into_any().unbind() });
+        return Ok(if weighted {
+            0.0f64.into_pyobject(py)?.into_any().unbind()
+        } else {
+            0i64.into_pyobject(py)?.into_any().unbind()
+        });
     }
     // Laplacian (out-degree convention for undirected, in-degree for arborescences)
     let mut lap = vec![vec![0.0f64; n]; n];
@@ -722,8 +836,10 @@ pub fn number_of_spanning_trees(
     let keep: Vec<usize> = (0..n).filter(|&i| i != skip).collect();
     let m = keep.len();
     if !weighted {
-        let minor: Vec<Vec<i128>> =
-            keep.iter().map(|&i| keep.iter().map(|&j| lap[i][j] as i128).collect()).collect();
+        let minor: Vec<Vec<i128>> = keep
+            .iter()
+            .map(|&i| keep.iter().map(|&j| lap[i][j] as i128).collect())
+            .collect();
         if let Some(det) = bareiss(minor.clone()) {
             return Ok(det.into_pyobject(py)?.into_any().unbind());
         }
@@ -731,7 +847,14 @@ pub fn number_of_spanning_trees(
         // (Hadamard's bound), combined into an exact integer by the Python wrapper (CRT)
         let bits: f64 = minor
             .iter()
-            .map(|row| row.iter().map(|&x| (x as f64) * (x as f64)).sum::<f64>().sqrt().max(1.0).log2())
+            .map(|row| {
+                row.iter()
+                    .map(|&x| (x as f64) * (x as f64))
+                    .sum::<f64>()
+                    .sqrt()
+                    .max(1.0)
+                    .log2()
+            })
             .sum();
         let count = (bits / 60.0).ceil() as usize + 2;
         let mut residues = Vec::with_capacity(count);
@@ -799,8 +922,14 @@ fn is_prime(n: u64) -> bool {
 /// Determinant of an integer matrix modulo the prime `p` (Gaussian elimination).
 fn det_mod(a: &[Vec<i128>], p: u64) -> u64 {
     let n = a.len();
-    let mut m: Vec<Vec<u64>> =
-        a.iter().map(|row| row.iter().map(|&x| x.rem_euclid(p as i128) as u64).collect()).collect();
+    let mut m: Vec<Vec<u64>> = a
+        .iter()
+        .map(|row| {
+            row.iter()
+                .map(|&x| x.rem_euclid(p as i128) as u64)
+                .collect()
+        })
+        .collect();
     let mut det = 1u64;
     for k in 0..n {
         let Some(piv) = (k..n).find(|&r| m[r][k] != 0) else {
@@ -831,7 +960,11 @@ fn det_mod(a: &[Vec<i128>], p: u64) -> u64 {
 /// Wilson's loop-erased random walk algorithm. Returns edge IDs.
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=false, seed=None))]
-pub fn random_spanning_tree(graph: &Graph, weighted: bool, seed: Option<u64>) -> PyResult<Vec<u64>> {
+pub fn random_spanning_tree(
+    graph: &Graph,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<Vec<u64>> {
     if graph.is_directed() {
         return value_err("random_spanning_tree() requires an undirected graph");
     }
@@ -843,7 +976,11 @@ pub fn random_spanning_tree(graph: &Graph, weighted: bool, seed: Option<u64>) ->
         if e.source == e.target {
             continue;
         }
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         if !(w >= 0.0) {
             return value_err("edge weights must be non-negative");
         }
@@ -854,7 +991,14 @@ pub fn random_spanning_tree(graph: &Graph, weighted: bool, seed: Option<u64>) ->
         adj[a].push((b, e.id, w));
         adj[b].push((a, e.id, w));
     }
-    if n == 0 || !spans(n, adj.iter().enumerate().flat_map(|(a, l)| l.iter().map(move |&(b, _, _)| (a, b)))) {
+    if n == 0
+        || !spans(
+            n,
+            adj.iter()
+                .enumerate()
+                .flat_map(|(a, l)| l.iter().map(move |&(b, _, _)| (a, b))),
+        )
+    {
         return value_err("the graph must be non-empty and connected (positive-weight edges)");
     }
     let mut rng = match seed {
@@ -1022,7 +1166,11 @@ pub fn join_trees(
     }
     let mut result = Graph::new_rust(directed, weighted);
     let label = |id: u64| Some((first_label + id as i64 - 1).to_string());
-    result.add_node_rust(Node { id: 1, label: label(1), attributes: None })?;
+    result.add_node_rust(Node {
+        id: 1,
+        label: label(1),
+        attributes: None,
+    })?;
     let mut next = 2u64;
     let mut new_roots = Vec::with_capacity(trees.len());
     for (tree, &root) in trees.iter().zip(&roots) {
@@ -1052,7 +1200,11 @@ pub fn join_trees(
                     Some(dict.unbind())
                 }
             };
-            result.add_node_rust(Node { id, label: label(id), attributes })?;
+            result.add_node_rust(Node {
+                id,
+                label: label(id),
+                attributes,
+            })?;
         }
         for e in tree.get_edges_internal() {
             result.add_edge_rust(Edge {
@@ -1067,7 +1219,13 @@ pub fn join_trees(
     }
     for target in new_roots {
         let weight = if weighted { Some(1.0) } else { None };
-        result.add_edge_rust(Edge { id: 0, source: 1, target, weight, attributes: None })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: 1,
+            target,
+            weight,
+            attributes: None,
+        })?;
     }
     Ok(result)
 }
@@ -1113,8 +1271,14 @@ pub fn to_prufer_sequence(graph: &Graph) -> PyResult<Vec<u64>> {
         return value_err("the Prüfer sequence is undefined for trees with fewer than two nodes");
     }
     let edges = graph.get_edges_internal();
-    let pairs: Vec<(usize, usize)> = edges.iter().map(|e| (idx[&e.source], idx[&e.target])).collect();
-    if pairs.len() != n - 1 || pairs.iter().any(|&(a, b)| a == b) || !spans(n, pairs.iter().copied()) {
+    let pairs: Vec<(usize, usize)> = edges
+        .iter()
+        .map(|e| (idx[&e.source], idx[&e.target]))
+        .collect();
+    if pairs.len() != n - 1
+        || pairs.iter().any(|&(a, b)| a == b)
+        || !spans(n, pairs.iter().copied())
+    {
         return value_err("the graph is not a tree");
     }
     let mut adj = vec![Vec::new(); n];
@@ -1137,7 +1301,9 @@ pub fn to_prufer_sequence(graph: &Graph) -> PyResult<Vec<u64>> {
         if v < index && degree[v] == 1 {
             u = v;
         } else {
-            index = (index + 1..n).find(|&k| degree[k] == 1 && !removed[k]).unwrap();
+            index = (index + 1..n)
+                .find(|&k| degree[k] == 1 && !removed[k])
+                .unwrap();
             u = index;
         }
     }

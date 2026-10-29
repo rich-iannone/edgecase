@@ -173,10 +173,9 @@ fn build_transition_matrix(
     if graph.is_directed() {
         // For directed graphs: in-neighbors of j are nodes with edges -> j
         for edge in graph.get_edges_internal() {
-            if let (Some(&src_idx), Some(&tgt_idx)) = (
-                node_to_idx.get(&edge.source),
-                node_to_idx.get(&edge.target),
-            ) {
+            if let (Some(&src_idx), Some(&tgt_idx)) =
+                (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+            {
                 in_neighbors[tgt_idx].push(src_idx);
             }
         }
@@ -331,8 +330,7 @@ fn solve_quasi_triangular_lyapunov(t: &DMatrix<f64>, f: &DMatrix<f64>) -> DMatri
             }
             for i in 0..n {
                 for jj in 0..n {
-                    a_big[(n + i, n + jj)] =
-                        t[(i, jj)] + if i == jj { t11 } else { 0.0 };
+                    a_big[(n + i, n + jj)] = t[(i, jj)] + if i == jj { t11 } else { 0.0 };
                 }
             }
 
@@ -357,13 +355,7 @@ fn solve_quasi_triangular_lyapunov(t: &DMatrix<f64>, f: &DMatrix<f64>) -> DMatri
 /// Iterative SimRank* solver: fixed-point iteration of
 /// S_{k+1} = (C/2) * (Q * S_k + S_k * Q^T) + (1-C) * I
 /// then normalize: S_norm[i,j] = S[i,j] / sqrt(S[i,i] * S[j,j])
-fn solve_iterative(
-    q: &DMatrix<f64>,
-    c: f64,
-    n: usize,
-    max_iter: usize,
-    tol: f64,
-) -> DMatrix<f64> {
+fn solve_iterative(q: &DMatrix<f64>, c: f64, n: usize, max_iter: usize, tol: f64) -> DMatrix<f64> {
     if n == 0 {
         return DMatrix::<f64>::zeros(0, 0);
     }
@@ -477,7 +469,9 @@ fn walks(
     let starts: Vec<usize> = if start.is_some() {
         Vec::new()
     } else {
-        (0..ids.len()).filter(|&i| out[i].last().is_some_and(|a| a.1 > 0.0)).collect()
+        (0..ids.len())
+            .filter(|&i| out[i].last().is_some_and(|a| a.1 > 0.0))
+            .collect()
     };
     if start.is_none() && starts.is_empty() && sample_size > 0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -628,7 +622,11 @@ fn panther_sample(
         None,
         &mut rng,
     )?;
-    Ok(PantherSample { ids: kept_ids, src: new_index[s], paths })
+    Ok(PantherSample {
+        ids: kept_ids,
+        src: new_index[s],
+        paths,
+    })
 }
 
 /// Panther similarity (Zhang et al., KDD 2015) of every non-isolated node to `source`: the
@@ -732,7 +730,12 @@ pub fn panther_vector_similarity(
     let mut out: Vec<(u64, f64, f64)> = (0..n)
         .filter(|&j| j != sample.src)
         .map(|j| {
-            let d = theta[j].iter().zip(base).map(|(x, y)| (x - y) * (x - y)).sum::<f64>().sqrt();
+            let d = theta[j]
+                .iter()
+                .zip(base)
+                .map(|(x, y)| (x - y) * (x - y))
+                .sum::<f64>()
+                .sqrt();
             (sample.ids[j], d, 1.0 / d.max(f64::EPSILON))
         })
         .collect();
@@ -856,7 +859,14 @@ mod tests {
         // Sharing only an out-neighbor (1 -> 3, 2 -> 3) gives no in-link evidence
         let g = make_simple_directed();
         let result = simrank_star_similarity(&g, 0.8, 100, 1e-6, "closed_form").unwrap();
-        assert_eq!(result.get(&1).and_then(|m| m.get(&2)).copied().unwrap_or(0.0), 0.0);
+        assert_eq!(
+            result
+                .get(&1)
+                .and_then(|m| m.get(&2))
+                .copied()
+                .unwrap_or(0.0),
+            0.0
+        );
     }
 
     #[test]

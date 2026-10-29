@@ -168,12 +168,10 @@ pub fn min_weighted_dominating_set(
 
     // Get weights for all nodes (default to 1.0)
     let node_weights: std::collections::HashMap<u64, f64> = match weights {
-        Some(w) => {
-            all_nodes
-                .iter()
-                .map(|&node| (node, *w.get(&node).unwrap_or(&1.0)))
-                .collect()
-        }
+        Some(w) => all_nodes
+            .iter()
+            .map(|&node| (node, *w.get(&node).unwrap_or(&1.0)))
+            .collect(),
         None => all_nodes.iter().map(|&node| (node, 1.0)).collect(),
     };
 

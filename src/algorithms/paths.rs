@@ -3,8 +3,8 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
-use std::collections::{BinaryHeap, VecDeque};
 use std::cmp::Ordering;
+use std::collections::{BinaryHeap, VecDeque};
 
 /// Priority queue item for Dijkstra's algorithm
 #[derive(Copy, Clone, PartialEq)]
@@ -18,7 +18,9 @@ impl Eq for State {}
 impl Ord for State {
     fn cmp(&self, other: &Self) -> Ordering {
         // Min-heap: reverse the ordering
-        other.cost.partial_cmp(&self.cost)
+        other
+            .cost
+            .partial_cmp(&self.cost)
             .unwrap_or(Ordering::Equal)
             .then_with(|| self.node.cmp(&other.node))
     }
@@ -52,7 +54,8 @@ pub fn shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
 fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option<Vec<u64>>> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut node_to_idx: FxHashMap<u64, usize> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     let mut idx_to_node: Vec<u64> = Vec::with_capacity(n);
 
     // Build node index mappings
@@ -71,7 +74,10 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
     let mut heap = BinaryHeap::new();
 
     dist[source_idx] = 0.0;
-    heap.push(State { cost: 0.0, node: source_idx });
+    heap.push(State {
+        cost: 0.0,
+        node: source_idx,
+    });
 
     while let Some(State { cost, node }) = heap.pop() {
         // Skip if we've found a better path already
@@ -97,7 +103,10 @@ fn dijkstra_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<O
                     if new_cost < dist[neighbor_idx] {
                         dist[neighbor_idx] = new_cost;
                         prev[neighbor_idx] = Some(node);
-                        heap.push(State { cost: new_cost, node: neighbor_idx });
+                        heap.push(State {
+                            cost: new_cost,
+                            node: neighbor_idx,
+                        });
                     }
                 }
             }
@@ -129,7 +138,8 @@ fn bfs_shortest_path(graph: &Graph, source: u64, target: u64) -> PyResult<Option
     let n = graph.num_nodes();
     let mut queue = VecDeque::with_capacity(n);
     let mut visited = FxHashMap::with_capacity_and_hasher(n, Default::default());
-    let mut parent: FxHashMap<u64, u64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut parent: FxHashMap<u64, u64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     queue.push_back(source);
     visited.insert(source, true);
@@ -183,7 +193,8 @@ pub fn bellman_ford_shortest_path(
 
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let mut node_to_idx: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut node_to_idx: FxHashMap<u64, usize> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     let mut idx_to_node: Vec<u64> = Vec::with_capacity(n);
 
     // Build node index mappings
@@ -249,7 +260,7 @@ pub fn bellman_ford_shortest_path(
 
                         if new_dist < dist[neighbor_idx] {
                             return Err(pyo3::exceptions::PyValueError::new_err(
-                                "Graph contains a negative weight cycle"
+                                "Graph contains a negative weight cycle",
                             ));
                         }
                     }
@@ -378,7 +389,10 @@ pub(crate) fn single_source_dijkstra_distances(
     let mut heap = BinaryHeap::new();
 
     dist[source_idx] = 0.0;
-    heap.push(State { cost: 0.0, node: source_idx });
+    heap.push(State {
+        cost: 0.0,
+        node: source_idx,
+    });
 
     while let Some(State { cost, node }) = heap.pop() {
         // Skip if we've found a better path already
@@ -398,7 +412,10 @@ pub(crate) fn single_source_dijkstra_distances(
                     // Relaxation step
                     if new_cost < dist[neighbor_idx] {
                         dist[neighbor_idx] = new_cost;
-                        heap.push(State { cost: new_cost, node: neighbor_idx });
+                        heap.push(State {
+                            cost: new_cost,
+                            node: neighbor_idx,
+                        });
                     }
                 }
             }
@@ -406,7 +423,8 @@ pub(crate) fn single_source_dijkstra_distances(
     }
 
     // Convert to result map (only include reachable nodes)
-    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &distance) in dist.iter().enumerate() {
         if distance.is_finite() {
             result.insert(idx_to_node[idx], distance);
@@ -418,10 +436,7 @@ pub(crate) fn single_source_dijkstra_distances(
 
 /// Helper function: Compute paths from a single source using Dijkstra
 #[inline]
-fn single_source_dijkstra_paths(
-    graph: &Graph,
-    source: u64,
-) -> PyResult<FxHashMap<u64, Vec<u64>>> {
+fn single_source_dijkstra_paths(graph: &Graph, source: u64) -> PyResult<FxHashMap<u64, Vec<u64>>> {
     ensure_non_negative_weights(graph)?;
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
@@ -443,7 +458,10 @@ fn single_source_dijkstra_paths(
     let mut heap = BinaryHeap::new();
 
     dist[source_idx] = 0.0;
-    heap.push(State { cost: 0.0, node: source_idx });
+    heap.push(State {
+        cost: 0.0,
+        node: source_idx,
+    });
 
     while let Some(State { cost, node }) = heap.pop() {
         // Skip if we've found a better path already
@@ -464,7 +482,10 @@ fn single_source_dijkstra_paths(
                     if new_cost < dist[neighbor_idx] {
                         dist[neighbor_idx] = new_cost;
                         prev[neighbor_idx] = Some(node);
-                        heap.push(State { cost: new_cost, node: neighbor_idx });
+                        heap.push(State {
+                            cost: new_cost,
+                            node: neighbor_idx,
+                        });
                     }
                 }
             }
@@ -472,7 +493,8 @@ fn single_source_dijkstra_paths(
     }
 
     // Reconstruct paths for all reachable nodes
-    let mut result: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     for target_idx in 0..n {
         if dist[target_idx].is_finite() {
@@ -533,7 +555,13 @@ pub fn k_shortest_paths(
 
     // Find first shortest path
     if let Some((path, dist)) = dijkstra_path_with_distance(
-        graph, &node_to_idx, &idx_to_node, source_idx, target_idx, &[], &[]
+        graph,
+        &node_to_idx,
+        &idx_to_node,
+        source_idx,
+        target_idx,
+        &[],
+        &[],
     )? {
         k_paths.push((path, dist));
     } else {
@@ -562,10 +590,9 @@ pub fn k_shortest_paths(
 
             // Remove edges that are part of previous paths with the same root path
             for (p_path, _) in &k_paths {
-                if p_path.len() > i && &p_path[0..=i] == root_path
-                    && i + 1 < p_path.len() {
-                        removed_edges.push((p_path[i], p_path[i + 1]));
-                    }
+                if p_path.len() > i && &p_path[0..=i] == root_path && i + 1 < p_path.len() {
+                    removed_edges.push((p_path[i], p_path[i + 1]));
+                }
             }
 
             // Remove nodes in the root path except the spur node
@@ -581,16 +608,16 @@ pub fn k_shortest_paths(
                 spur_idx,
                 target_idx,
                 &removed_edges,
-                &removed_nodes
+                &removed_nodes,
             )? {
                 // Combine root path and spur path
                 let mut total_path: Vec<u64> = root_path[0..i].to_vec();
                 total_path.extend_from_slice(&spur_path);
 
                 // Calculate total distance
-                let root_dist: f64 = (0..i).map(|j| {
-                    graph.get_edge_weight(prev_path[j], prev_path[j + 1])
-                }).sum();
+                let root_dist: f64 = (0..i)
+                    .map(|j| graph.get_edge_weight(prev_path[j], prev_path[j + 1]))
+                    .sum();
                 let total_dist = root_dist + spur_dist;
 
                 // Add to candidates if it's a new path
@@ -600,8 +627,8 @@ pub fn k_shortest_paths(
                 };
 
                 // Check if this path is already in candidates or k_paths
-                let is_duplicate = k_paths.iter().any(|(p, _)| p == &total_path) ||
-                                   candidates.iter().any(|c| c.path == total_path);
+                let is_duplicate = k_paths.iter().any(|(p, _)| p == &total_path)
+                    || candidates.iter().any(|c| c.path == total_path);
 
                 if !is_duplicate {
                     candidates.push(candidate);
@@ -635,7 +662,9 @@ impl Eq for CandidatePath {}
 impl Ord for CandidatePath {
     fn cmp(&self, other: &Self) -> Ordering {
         // Min-heap: reverse the ordering
-        other.distance.partial_cmp(&self.distance)
+        other
+            .distance
+            .partial_cmp(&self.distance)
             .unwrap_or(Ordering::Equal)
     }
 }
@@ -660,14 +689,9 @@ fn dijkstra_path_with_distance(
     let n = idx_to_node.len();
 
     // Convert removed items to sets for faster lookup
-    let removed_edge_set: FxHashMap<(u64, u64), bool> = removed_edges
-        .iter()
-        .map(|&e| (e, true))
-        .collect();
-    let removed_node_set: FxHashMap<u64, bool> = removed_nodes
-        .iter()
-        .map(|&n| (n, true))
-        .collect();
+    let removed_edge_set: FxHashMap<(u64, u64), bool> =
+        removed_edges.iter().map(|&e| (e, true)).collect();
+    let removed_node_set: FxHashMap<u64, bool> = removed_nodes.iter().map(|&n| (n, true)).collect();
 
     // Initialize distances and predecessors
     let mut dist = vec![f64::INFINITY; n];
@@ -675,7 +699,10 @@ fn dijkstra_path_with_distance(
     let mut heap = BinaryHeap::new();
 
     dist[source_idx] = 0.0;
-    heap.push(State { cost: 0.0, node: source_idx });
+    heap.push(State {
+        cost: 0.0,
+        node: source_idx,
+    });
 
     while let Some(State { cost, node }) = heap.pop() {
         // Skip if we've found a better path already
@@ -711,7 +738,10 @@ fn dijkstra_path_with_distance(
                     if new_cost < dist[neighbor_idx] {
                         dist[neighbor_idx] = new_cost;
                         prev[neighbor_idx] = Some(node);
-                        heap.push(State { cost: new_cost, node: neighbor_idx });
+                        heap.push(State {
+                            cost: new_cost,
+                            node: neighbor_idx,
+                        });
                     }
                 }
             }

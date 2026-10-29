@@ -158,7 +158,12 @@ pub fn closeness_vitality_weighted(graph: &Graph) -> PyResult<FxHashMap<u64, f64
     let total = weighted_sum_of_distances(&adj, &node_ids, None);
     Ok(node_ids
         .par_iter()
-        .map(|&v| (v, total - weighted_sum_of_distances(&adj, &node_ids, Some(v))))
+        .map(|&v| {
+            (
+                v,
+                total - weighted_sum_of_distances(&adj, &node_ids, Some(v)),
+            )
+        })
         .collect())
 }
 
@@ -235,7 +240,11 @@ fn weighted_sum_of_distances(
                 }
             }
         }
-        total += dist.iter().filter(|(&t, _)| t != source).map(|(_, &d)| d).sum::<f64>();
+        total += dist
+            .iter()
+            .filter(|(&t, _)| t != source)
+            .map(|(_, &d)| d)
+            .sum::<f64>();
     }
     total
 }

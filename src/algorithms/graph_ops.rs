@@ -70,7 +70,12 @@ fn node_attrs(g: &Graph, id: u64) -> Option<Py<PyDict>> {
 /// Build a result node from `primary` (falling back to `secondary` for nodes it
 /// lacks): label from whichever graph has the node, attributes merged with
 /// `primary`'s values winning. Used by intersection / (symmetric) difference.
-fn merged_node(py: Python<'_>, id: u64, primary: &Graph, secondary: Option<&Graph>) -> PyResult<Node> {
+fn merged_node(
+    py: Python<'_>,
+    id: u64,
+    primary: &Graph,
+    secondary: Option<&Graph>,
+) -> PyResult<Node> {
     let in_p = primary.has_node_id(id);
     let sec = secondary.filter(|g| g.has_node_id(id));
     let label = if in_p {
@@ -81,7 +86,11 @@ fn merged_node(py: Python<'_>, id: u64, primary: &Graph, secondary: Option<&Grap
     .or_else(|| sec.and_then(|g| g.label_from_id(id).ok().flatten()));
     let high = if in_p { node_attrs(primary, id) } else { None };
     let low = sec.and_then(|g| node_attrs(g, id));
-    Ok(Node { id, label, attributes: merge_attrs(py, &low, &high)? })
+    Ok(Node {
+        id,
+        label,
+        attributes: merge_attrs(py, &low, &high)?,
+    })
 }
 
 /// Sorted node IDs, so results don't inherit hash-set ordering.
@@ -96,12 +105,7 @@ fn sorted_ids(ids: FxHashSet<u64>) -> Vec<u64> {
 /// Nodes merge by ID and duplicate edges collapse to one. Wherever both graphs
 /// carry a value for the same node or edge (label, attributes, edge weight), the
 /// preferred graph's value wins and the other graph fills in what it lacks.
-fn merge_graphs(
-    py: Python<'_>,
-    g1: &Graph,
-    g2: &Graph,
-    prefer_g2: bool,
-) -> PyResult<Graph> {
+fn merge_graphs(py: Python<'_>, g1: &Graph, g2: &Graph, prefer_g2: bool) -> PyResult<Graph> {
     let directed = g1.is_directed();
     let weighted = g1.is_weighted() || g2.is_weighted();
     let mut result = Graph::new_rust(directed, weighted);
@@ -110,15 +114,27 @@ fn merge_graphs(
     // Nodes: G1's in G1 order, then G2-only nodes.
     let mut ids: Vec<u64> = g1.get_node_ids();
     let g1_ids: FxHashSet<u64> = ids.iter().copied().collect();
-    ids.extend(g2.get_node_ids().into_iter().filter(|id| !g1_ids.contains(id)));
+    ids.extend(
+        g2.get_node_ids()
+            .into_iter()
+            .filter(|id| !g1_ids.contains(id)),
+    );
     for node_id in ids {
         let label = if hi.has_node_id(node_id) {
             hi.label_from_id(node_id).ok().flatten()
         } else {
             lo.label_from_id(node_id).ok().flatten()
         };
-        let low = if lo.has_node_id(node_id) { node_attrs(lo, node_id) } else { None };
-        let high = if hi.has_node_id(node_id) { node_attrs(hi, node_id) } else { None };
+        let low = if lo.has_node_id(node_id) {
+            node_attrs(lo, node_id)
+        } else {
+            None
+        };
+        let high = if hi.has_node_id(node_id) {
+            node_attrs(hi, node_id)
+        } else {
+            None
+        };
         result.add_node_rust(Node {
             id: node_id,
             label,
@@ -130,8 +146,7 @@ fn merge_graphs(
     // other graph only contributes values the kept edge lacks, unless it is the
     // preferred graph, in which case its values win.
     let mut order: Vec<(u64, u64)> = Vec::new();
-    let mut merged: FxHashMap<(u64, u64), MergedEdge> =
-        FxHashMap::default();
+    let mut merged: FxHashMap<(u64, u64), MergedEdge> = FxHashMap::default();
     for (from_g1, g, is_hi) in [(true, g1, !prefer_g2), (false, g2, prefer_g2)] {
         for edge in g.get_edges_internal() {
             if !result.has_node_id(edge.source) || !result.has_node_id(edge.target) {
@@ -146,7 +161,13 @@ fn merge_graphs(
                     let id = if from_g1 { edge.id } else { 0 };
                     merged.insert(
                         key,
-                        (id, edge.source, edge.target, edge.weight, copy_attrs(py, &edge.attributes)?),
+                        (
+                            id,
+                            edge.source,
+                            edge.target,
+                            edge.weight,
+                            copy_attrs(py, &edge.attributes)?,
+                        ),
                     );
                 }
                 Some(entry) => {
@@ -168,7 +189,13 @@ fn merge_graphs(
             id = fresh_id;
             fresh_id += 1;
         }
-        result.add_edge_rust(Edge { id, source, target, weight, attributes })?;
+        result.add_edge_rust(Edge {
+            id,
+            source,
+            target,
+            weight,
+            attributes,
+        })?;
     }
 
     Ok(result)
@@ -233,7 +260,9 @@ pub fn graph_intersection(py: Python<'_>, g1: &Graph, g2: &Graph) -> PyResult<Gr
     // G2's edges by key, for lookup and for their attributes
     let mut g2_edges: FxHashMap<(u64, u64), &Edge> = FxHashMap::default();
     for edge in g2.get_edges_internal() {
-        g2_edges.entry(edge_key(edge.source, edge.target, directed)).or_insert(edge);
+        g2_edges
+            .entry(edge_key(edge.source, edge.target, directed))
+            .or_insert(edge);
     }
 
     // Find edges present in both graphs (G1's values win; G2 fills in the rest)
@@ -728,10 +757,8 @@ pub fn transitive_reduction(graph: &Graph) -> PyResult<Graph> {
 
         if let Some(u_neighbors) = adj_list.get(&u) {
             // Get neighbors other than v
-            let other_neighbors: Vec<u64> = u_neighbors.iter()
-                .filter(|&&n| n != v)
-                .copied()
-                .collect();
+            let other_neighbors: Vec<u64> =
+                u_neighbors.iter().filter(|&&n| n != v).copied().collect();
 
             if !other_neighbors.is_empty() {
                 // BFS to see if v is reachable
@@ -976,10 +1003,8 @@ pub fn to_adjacency_matrix(
 
     // Fill in edge values
     for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
+        if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+        {
             // Determine edge value
             let value = if weight.is_some() || graph.is_weighted() {
                 edge.weight.unwrap_or(1.0)
@@ -1118,25 +1143,109 @@ mod tests {
 
     fn create_triangle() -> Graph {
         let mut g = Graph::new_rust(false, false);
-        g.add_node_rust(Node { id: 1, label: Some("A".to_string()), attributes: None }).unwrap();
-        g.add_node_rust(Node { id: 2, label: Some("B".to_string()), attributes: None }).unwrap();
-        g.add_node_rust(Node { id: 3, label: Some("C".to_string()), attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 1, target: 2, weight: None, attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 2, target: 3, weight: None, attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 3, target: 1, weight: None, attributes: None }).unwrap();
+        g.add_node_rust(Node {
+            id: 1,
+            label: Some("A".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_node_rust(Node {
+            id: 2,
+            label: Some("B".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_node_rust(Node {
+            id: 3,
+            label: Some("C".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 1,
+            target: 2,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 2,
+            target: 3,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 3,
+            target: 1,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
         g
     }
 
     fn create_square() -> Graph {
         let mut g = Graph::new_rust(false, false);
-        g.add_node_rust(Node { id: 1, label: Some("A".to_string()), attributes: None }).unwrap();
-        g.add_node_rust(Node { id: 2, label: Some("B".to_string()), attributes: None }).unwrap();
-        g.add_node_rust(Node { id: 3, label: Some("C".to_string()), attributes: None }).unwrap();
-        g.add_node_rust(Node { id: 4, label: Some("D".to_string()), attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 1, target: 2, weight: None, attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 2, target: 3, weight: None, attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 3, target: 4, weight: None, attributes: None }).unwrap();
-        g.add_edge_rust(Edge { id: 0, source: 4, target: 1, weight: None, attributes: None }).unwrap();
+        g.add_node_rust(Node {
+            id: 1,
+            label: Some("A".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_node_rust(Node {
+            id: 2,
+            label: Some("B".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_node_rust(Node {
+            id: 3,
+            label: Some("C".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_node_rust(Node {
+            id: 4,
+            label: Some("D".to_string()),
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 1,
+            target: 2,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 2,
+            target: 3,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 3,
+            target: 4,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: 4,
+            target: 1,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap();
         g
     }
 
@@ -1226,14 +1335,48 @@ mod tests {
         pyo3::prepare_freethreaded_python();
         Python::with_gil(|py| {
             let mut g1 = Graph::new_rust(true, false);
-            g1.add_node_rust(Node { id: 1, label: None, attributes: None }).unwrap();
-            g1.add_node_rust(Node { id: 2, label: None, attributes: None }).unwrap();
-            g1.add_edge_rust(Edge { id: 0, source: 1, target: 2, weight: None, attributes: None }).unwrap();
+            g1.add_node_rust(Node {
+                id: 1,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+            g1.add_node_rust(Node {
+                id: 2,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+            g1.add_edge_rust(Edge {
+                id: 0,
+                source: 1,
+                target: 2,
+                weight: None,
+                attributes: None,
+            })
+            .unwrap();
 
             let mut g2 = Graph::new_rust(true, false);
-            g2.add_node_rust(Node { id: 1, label: None, attributes: None }).unwrap();
-            g2.add_node_rust(Node { id: 2, label: None, attributes: None }).unwrap();
-            g2.add_edge_rust(Edge { id: 0, source: 2, target: 1, weight: None, attributes: None }).unwrap();
+            g2.add_node_rust(Node {
+                id: 1,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+            g2.add_node_rust(Node {
+                id: 2,
+                label: None,
+                attributes: None,
+            })
+            .unwrap();
+            g2.add_edge_rust(Edge {
+                id: 0,
+                source: 2,
+                target: 1,
+                weight: None,
+                attributes: None,
+            })
+            .unwrap();
 
             // Union should have both directed edges
             let union = graph_union(py, &g1, &g2).unwrap();

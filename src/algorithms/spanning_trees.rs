@@ -179,9 +179,9 @@ fn dijkstra_single_source(
 
         for neighbor in neighbors {
             // Cheapest edge between node and neighbor
-            let Some((_, edge_weight)) =
-                cheapest_edge(graph, node, neighbor, |eid| get_edge_weight(graph, eid, weight_attr))
-            else {
+            let Some((_, edge_weight)) = cheapest_edge(graph, node, neighbor, |eid| {
+                get_edge_weight(graph, eid, weight_attr)
+            }) else {
                 continue;
             };
 
@@ -355,8 +355,9 @@ pub fn steiner_tree(
     let mut final_edges: Vec<(f64, u64, u64, u64)> = Vec::new(); // (weight, edge_id, source, target)
 
     for &(a, b) in &steiner_edges {
-        let cheapest =
-            cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr_ref));
+        let cheapest = cheapest_edge(graph, a, b, |eid| {
+            get_edge_weight(graph, eid, weight_attr_ref)
+        });
         if let Some((edge_id, weight)) = cheapest {
             if let Some(edge) = graph.get_edge(edge_id) {
                 final_edges.push((weight, edge_id, edge.source, edge.target));
@@ -397,7 +398,9 @@ fn path_to_edge_tuples(
         if let Some((edge_id, weight)) =
             cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr))
         {
-            let edge = graph.get_edge(edge_id).expect("edge from find_edge_ids exists");
+            let edge = graph
+                .get_edge(edge_id)
+                .expect("edge from find_edge_ids exists");
             edges.push((edge_id, edge.source, edge.target, weight));
         }
     }
@@ -622,14 +625,11 @@ pub fn prize_collecting_steiner_tree(
                     let prize = prize_by_id.get(&candidate).copied().unwrap_or(0.0);
                     let benefit = prize - cost;
 
-                    if benefit > best_benefit
-                        || (benefit == best_benefit && cost < best_cost)
-                    {
+                    if benefit > best_benefit || (benefit == best_benefit && cost < best_cost) {
                         best_benefit = benefit;
                         best_cost = cost;
                         best_target = Some(candidate);
-                        best_path =
-                            Some(reconstruct_path(&predecessors, tree_node, candidate));
+                        best_path = Some(reconstruct_path(&predecessors, tree_node, candidate));
                     }
                 }
             }
@@ -649,9 +649,9 @@ pub fn prize_collecting_steiner_tree(
             tree_nodes.insert(a);
             tree_nodes.insert(b);
 
-            if let Some((eid, weight)) =
-                cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr_ref))
-            {
+            if let Some((eid, weight)) = cheapest_edge(graph, a, b, |eid| {
+                get_edge_weight(graph, eid, weight_attr_ref)
+            }) {
                 tree_edges.push((eid, a, b, weight));
             }
         }

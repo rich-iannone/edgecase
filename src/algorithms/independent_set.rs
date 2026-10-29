@@ -20,8 +20,11 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// and `B` can't both be chosen, which is how `is_independent_set()` checks it. Using
 /// `Graph::neighbors()` directly would only rule out out-neighbors on directed graphs.
 fn undirected_neighbors(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
-    let mut adj: FxHashMap<u64, Vec<u64>> =
-        graph.get_node_ids().into_iter().map(|id| (id, Vec::new())).collect();
+    let mut adj: FxHashMap<u64, Vec<u64>> = graph
+        .get_node_ids()
+        .into_iter()
+        .map(|id| (id, Vec::new()))
+        .collect();
     for edge in graph.get_edges_internal() {
         if edge.source != edge.target {
             adj.entry(edge.source).or_default().push(edge.target);
@@ -97,7 +100,7 @@ pub fn maximal_independent_set(
             for neighbor in &adj[&node] {
                 if independent_set.contains(neighbor) {
                     return Err(pyo3::exceptions::PyValueError::new_err(
-                        "Starting nodes do not form an independent set (adjacent nodes found)"
+                        "Starting nodes do not form an independent set (adjacent nodes found)",
                     ));
                 }
             }

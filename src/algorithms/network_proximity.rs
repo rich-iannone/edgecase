@@ -50,16 +50,18 @@ pub fn network_proximity(
     let valid: rustc_hash::FxHashSet<u64> = node_ids.iter().copied().collect();
     for &a in &set_a {
         if !valid.contains(&a) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Node {} not found in graph", a),
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} not found in graph",
+                a
+            )));
         }
     }
     for &b in &set_b {
         if !valid.contains(&b) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Node {} not found in graph", b),
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} not found in graph",
+                b
+            )));
         }
     }
 
@@ -68,17 +70,14 @@ pub fn network_proximity(
         "shortest" => compute_shortest(graph, &set_a, &set_b),
         "kernel" => compute_kernel(graph, &set_a, &set_b),
         "separation" => compute_separation(graph, &set_a, &set_b),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(
-            format!("Unknown method '{}'; use 'closest', 'shortest', 'kernel', or 'separation'", method),
-        )),
+        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Unknown method '{}'; use 'closest', 'shortest', 'kernel', or 'separation'",
+            method
+        ))),
     }
 }
 
-fn compute_closest(
-    graph: &Graph,
-    set_a: &[u64],
-    set_b: &[u64],
-) -> PyResult<HashMap<String, f64>> {
+fn compute_closest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut min_dist = f64::INFINITY;
@@ -103,11 +102,7 @@ fn compute_closest(
     Ok(result)
 }
 
-fn compute_shortest(
-    graph: &Graph,
-    set_a: &[u64],
-    set_b: &[u64],
-) -> PyResult<HashMap<String, f64>> {
+fn compute_shortest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut sum = 0.0;
@@ -132,11 +127,7 @@ fn compute_shortest(
     Ok(result)
 }
 
-fn compute_kernel(
-    graph: &Graph,
-    set_a: &[u64],
-    set_b: &[u64],
-) -> PyResult<HashMap<String, f64>> {
+fn compute_kernel(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut sum = 0.0;
@@ -161,10 +152,7 @@ fn compute_kernel(
     Ok(result)
 }
 
-fn mean_internal_distance(
-    graph: &Graph,
-    nodes: &[u64],
-) -> PyResult<f64> {
+fn mean_internal_distance(graph: &Graph, nodes: &[u64]) -> PyResult<f64> {
     if nodes.len() <= 1 {
         return Ok(0.0);
     }

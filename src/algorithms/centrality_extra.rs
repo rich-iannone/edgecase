@@ -31,7 +31,12 @@ fn weight_of(e: &crate::graph::Edge, weighted: bool) -> f64 {
 }
 
 fn check_nonnegative(graph: &Graph, weighted: bool) -> PyResult<()> {
-    if weighted && graph.get_edges_internal().iter().any(|e| e.weight.is_some_and(|w| w < 0.0)) {
+    if weighted
+        && graph
+            .get_edges_internal()
+            .iter()
+            .any(|e| e.weight.is_some_and(|w| w < 0.0))
+    {
         return Err(err("Edge weights must be non-negative"));
     }
     Ok(())
@@ -64,11 +69,17 @@ pub fn subgraph_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMa
         a[(t, s)] = 1.0;
     }
     let eig = na::SymmetricEigen::new(a);
-    let shift = if normalized { eig.eigenvalues.max() } else { 0.0 };
+    let shift = if normalized {
+        eig.eigenvalues.max()
+    } else {
+        0.0
+    };
     let expw: Vec<f64> = eig.eigenvalues.iter().map(|w| (w - shift).exp()).collect();
     Ok((0..n)
         .map(|i| {
-            let sc: f64 = (0..n).map(|j| eig.eigenvectors[(i, j)].powi(2) * expw[j]).sum();
+            let sc: f64 = (0..n)
+                .map(|j| eig.eigenvectors[(i, j)].powi(2) * expw[j])
+                .sum();
             (ids[i], sc)
         })
         .collect())
@@ -88,8 +99,16 @@ fn electrical_network(
     if graph.is_directed() {
         return Err(err(format!("{} requires an undirected graph", what)));
     }
-    if weighted && graph.get_edges_internal().iter().any(|e| e.weight.is_some_and(|w| w <= 0.0)) {
-        return Err(err(format!("{} requires positive edge weights (conductances)", what)));
+    if weighted
+        && graph
+            .get_edges_internal()
+            .iter()
+            .any(|e| e.weight.is_some_and(|w| w <= 0.0))
+    {
+        return Err(err(format!(
+            "{} requires positive edge weights (conductances)",
+            what
+        )));
     }
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
@@ -128,7 +147,10 @@ fn electrical_network(
 
 /// Inverse of the Laplacian with node 0 grounded (row and column 0 are zero). Potential
 /// differences, currents and effective resistances computed from it are exact.
-fn grounded_laplacian_inverse(n: usize, edges: &[(usize, usize, f64)]) -> PyResult<na::DMatrix<f64>> {
+fn grounded_laplacian_inverse(
+    n: usize,
+    edges: &[(usize, usize, f64)],
+) -> PyResult<na::DMatrix<f64>> {
     let mut c = na::DMatrix::<f64>::zeros(n, n);
     if n <= 1 {
         return Ok(c);
@@ -167,7 +189,8 @@ pub fn current_flow_betweenness_centrality(
     normalized: bool,
     weighted: bool,
 ) -> PyResult<FxHashMap<u64, f64>> {
-    let (ids, edges) = electrical_network(graph, weighted, "current_flow_betweenness_centrality()")?;
+    let (ids, edges) =
+        electrical_network(graph, weighted, "current_flow_betweenness_centrality()")?;
     let n = ids.len();
     if n < 3 {
         return Ok(ids.iter().map(|&id| (id, 0.0)).collect());
@@ -190,7 +213,11 @@ pub fn current_flow_betweenness_centrality(
         total[v] += 0.5 * s_e;
     }
     // Each of the n-1 pairs with the node as an endpoint carried exactly half a unit through it
-    let scale = if normalized { 2.0 / ((n - 1) as f64 * (n - 2) as f64) } else { 1.0 };
+    let scale = if normalized {
+        2.0 / ((n - 1) as f64 * (n - 2) as f64)
+    } else {
+        1.0
+    };
     Ok(ids
         .iter()
         .enumerate()
@@ -211,7 +238,9 @@ pub fn current_flow_closeness_centrality(
     let c = grounded_laplacian_inverse(n, &edges)?;
     Ok((0..n)
         .map(|v| {
-            let total: f64 = (0..n).map(|w| c[(v, v)] + c[(w, w)] - 2.0 * c[(v, w)]).sum();
+            let total: f64 = (0..n)
+                .map(|w| c[(v, v)] + c[(w, w)] - 2.0 * c[(v, w)])
+                .sum();
             (ids[v], if total > 0.0 { 1.0 / total } else { 0.0 })
         })
         .collect())
@@ -234,7 +263,9 @@ impl Eq for OrdF {}
 #[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for OrdF {
     fn cmp(&self, o: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&o.0).unwrap_or(std::cmp::Ordering::Equal)
+        self.0
+            .partial_cmp(&o.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -246,7 +277,12 @@ fn same(a: f64, b: f64) -> bool {
 }
 
 /// adj[i] = [(j, w)] following edge direction (both ways if undirected), no self-loops.
-fn adjacency(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool, reverse: bool) -> Vec<Vec<(usize, f64)>> {
+fn adjacency(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    weighted: bool,
+    reverse: bool,
+) -> Vec<Vec<(usize, f64)>> {
     let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); idx.len()];
     let undirected = !graph.is_directed();
     for e in graph.get_edges_internal() {
@@ -300,7 +336,12 @@ fn sp_dag(adj: &[Vec<(usize, f64)>], s: usize) -> SpDag {
             }
         }
     }
-    SpDag { order, preds, sigma, dist }
+    SpDag {
+        order,
+        preds,
+        sigma,
+        dist,
+    }
 }
 
 /// Group betweenness (Everett & Borgatti 1999): the share of shortest paths between pairs of
@@ -322,7 +363,9 @@ pub fn group_betweenness_centrality(
     let n = ids.len();
     let mut in_group = vec![false; n];
     for g in &group {
-        in_group[*idx.get(g).ok_or_else(|| err(format!("Node {} does not exist", g)))?] = true;
+        in_group[*idx
+            .get(g)
+            .ok_or_else(|| err(format!("Node {} does not exist", g)))?] = true;
     }
     let c = in_group.iter().filter(|&&x| x).count();
     let adj = adjacency(graph, &idx, weighted, false);
@@ -351,7 +394,11 @@ pub fn group_betweenness_centrality(
             if in_group[t] && !endpoints {
                 continue;
             }
-            let through = if in_group[t] { dag.sigma[t] } else { dag.sigma[t] - avoid[t] };
+            let through = if in_group[t] {
+                dag.sigma[t]
+            } else {
+                dag.sigma[t] - avoid[t]
+            };
             total += through / dag.sigma[t];
         }
     }
@@ -384,7 +431,9 @@ pub fn group_closeness_centrality(graph: &Graph, group: Vec<u64>, weighted: bool
     let mut heap = BinaryHeap::new();
     let mut in_group = vec![false; n];
     for g in &group {
-        let i = *idx.get(g).ok_or_else(|| err(format!("Node {} does not exist", g)))?;
+        let i = *idx
+            .get(g)
+            .ok_or_else(|| err(format!("Node {} does not exist", g)))?;
         in_group[i] = true;
         dist[i] = 0.0;
         heap.push((std::cmp::Reverse(OrdF(0.0)), i));
@@ -401,8 +450,15 @@ pub fn group_closeness_centrality(graph: &Graph, group: Vec<u64>, weighted: bool
         }
     }
     let outside = in_group.iter().filter(|&&x| !x).count();
-    let total: f64 = (0..n).filter(|&v| !in_group[v] && dist[v].is_finite()).map(|v| dist[v]).sum();
-    Ok(if total > 0.0 { outside as f64 / total } else { 0.0 })
+    let total: f64 = (0..n)
+        .filter(|&v| !in_group[v] && dist[v].is_finite())
+        .map(|v| dist[v])
+        .sum();
+    Ok(if total > 0.0 {
+        outside as f64 / total
+    } else {
+        0.0
+    })
 }
 
 /// Group degree: the share of nodes outside the group adjacent to at least one member.
@@ -414,7 +470,12 @@ pub fn group_degree_centrality(graph: &Graph, group: Vec<u64>, mode: &str) -> Py
         "all" | "total" => (true, true),
         "out" => (true, false),
         "in" => (false, true),
-        _ => return Err(err(format!("Invalid mode '{}'. Must be 'all', 'in', or 'out'", mode))),
+        _ => {
+            return Err(err(format!(
+                "Invalid mode '{}'. Must be 'all', 'in', or 'out'",
+                mode
+            )))
+        }
     };
     let (ids, idx) = sorted_ids(graph);
     let members: FxHashSet<u64> = group.iter().copied().collect();
@@ -435,7 +496,11 @@ pub fn group_degree_centrality(graph: &Graph, group: Vec<u64>, mode: &str) -> Py
     }
     let outside = ids.len() - members.len();
     let count = reached.iter().filter(|v| !members.contains(v)).count();
-    Ok(if outside > 0 { count as f64 / outside as f64 } else { 0.0 })
+    Ok(if outside > 0 {
+        count as f64 / outside as f64
+    } else {
+        0.0
+    })
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -625,7 +690,11 @@ pub fn local_reaching_centrality(
         return Err(err("Reaching centrality requires at least one edge"));
     }
     let directed = graph.is_directed();
-    let norm = if weighted && normalized { total_w / edges.len() as f64 } else { 1.0 };
+    let norm = if weighted && normalized {
+        total_w / edges.len() as f64
+    } else {
+        1.0
+    };
     // adjacency with (neighbor, weight); for paths, distance = total_w / weight when weighted
     let adj = adjacency(graph, &idx, weighted, false);
     let mut out = FxHashMap::default();
@@ -659,7 +728,12 @@ pub fn local_reaching_centrality(
         } else if !weighted {
             reached.iter().map(|&v| 1.0 / hops[v] as f64).sum::<f64>() / (n - 1) as f64
         } else {
-            reached.iter().map(|&v| wsum[v] / hops[v] as f64).sum::<f64>() / norm / (n - 1) as f64
+            reached
+                .iter()
+                .map(|&v| wsum[v] / hops[v] as f64)
+                .sum::<f64>()
+                / norm
+                / (n - 1) as f64
         };
         out.insert(ids[s], value);
     }
@@ -685,7 +759,11 @@ pub fn betweenness_centrality_subset(
     check_nonnegative(graph, weighted)?;
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
-    let lookup = |v: &u64| idx.get(v).copied().ok_or_else(|| err(format!("Node {} does not exist", v)));
+    let lookup = |v: &u64| {
+        idx.get(v)
+            .copied()
+            .ok_or_else(|| err(format!("Node {} does not exist", v)))
+    };
     let srcs: Vec<usize> = sources.iter().map(lookup).collect::<PyResult<_>>()?;
     let mut is_target = vec![false; n];
     for t in &targets {
@@ -711,13 +789,21 @@ pub fn betweenness_centrality_subset(
         }
     }
     let scale = if normalized {
-        if n > 2 { 1.0 / ((n - 1) * (n - 2)) as f64 } else { 1.0 }
+        if n > 2 {
+            1.0 / ((n - 1) * (n - 2)) as f64
+        } else {
+            1.0
+        }
     } else if graph.is_directed() {
         1.0
     } else {
         0.5
     };
-    Ok(ids.iter().enumerate().map(|(i, &id)| (id, bc[i] * scale)).collect())
+    Ok(ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, bc[i] * scale))
+        .collect())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -725,7 +811,11 @@ pub fn betweenness_centrality_subset(
 // ---------------------------------------------------------------------------------------------
 
 /// Mutual weights `mw[u][v] = a_uv + a_vu` (no self-loops).
-fn mutual_weights(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> Vec<FxHashMap<usize, f64>> {
+fn mutual_weights(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    weighted: bool,
+) -> Vec<FxHashMap<usize, f64>> {
     let mut mw: Vec<FxHashMap<usize, f64>> = vec![FxHashMap::default(); idx.len()];
     let directed = graph.is_directed();
     for e in graph.get_edges_internal() {
@@ -750,7 +840,10 @@ pub fn effective_size(graph: &Graph, weighted: bool) -> PyResult<FxHashMap<u64, 
     let (ids, idx) = sorted_ids(graph);
     let mw = mutual_weights(graph, &idx, weighted);
     let sums: Vec<f64> = mw.iter().map(|m| m.values().sum()).collect();
-    let maxs: Vec<f64> = mw.iter().map(|m| m.values().copied().fold(0.0, f64::max)).collect();
+    let maxs: Vec<f64> = mw
+        .iter()
+        .map(|m| m.values().copied().fold(0.0, f64::max))
+        .collect();
     let mut out = FxHashMap::default();
     for v in 0..ids.len() {
         if mw[v].is_empty() {
@@ -764,7 +857,10 @@ pub fn effective_size(graph: &Graph, weighted: bool) -> PyResult<FxHashMap<u64, 
                 .iter()
                 .map(|(&w, &vw)| {
                     let p_vw = vw / sums[v];
-                    let m_uw = mw[u].get(&w).map_or(0.0, |&uw| if maxs[u] > 0.0 { uw / maxs[u] } else { 0.0 });
+                    let m_uw =
+                        mw[u]
+                            .get(&w)
+                            .map_or(0.0, |&uw| if maxs[u] > 0.0 { uw / maxs[u] } else { 0.0 });
                     p_vw * m_uw
                 })
                 .sum();
@@ -781,12 +877,20 @@ pub fn effective_size(graph: &Graph, weighted: bool) -> PyResult<FxHashMap<u64, 
 #[pyo3(signature = (graph, u, v, weighted=false))]
 pub fn local_constraint(graph: &Graph, u: u64, v: u64, weighted: bool) -> PyResult<f64> {
     let (_, idx) = sorted_ids(graph);
-    let a = *idx.get(&u).ok_or_else(|| err(format!("Node {} does not exist", u)))?;
-    let b = *idx.get(&v).ok_or_else(|| err(format!("Node {} does not exist", v)))?;
+    let a = *idx
+        .get(&u)
+        .ok_or_else(|| err(format!("Node {} does not exist", u)))?;
+    let b = *idx
+        .get(&v)
+        .ok_or_else(|| err(format!("Node {} does not exist", v)))?;
     let mw = mutual_weights(graph, &idx, weighted);
     let p = |x: usize, y: usize| -> f64 {
         let total: f64 = mw[x].values().sum();
-        if total == 0.0 { 0.0 } else { mw[x].get(&y).copied().unwrap_or(0.0) / total }
+        if total == 0.0 {
+            0.0
+        } else {
+            mw[x].get(&y).copied().unwrap_or(0.0) / total
+        }
     };
     let direct = p(a, b);
     let indirect: f64 = mw[a].keys().map(|&w| p(a, w) * p(w, b)).sum();
@@ -800,7 +904,11 @@ pub fn local_constraint(graph: &Graph, u: u64, v: u64, weighted: bool) -> PyResu
 /// Index lookup for a list of node IDs, failing on unknown nodes.
 fn lookup_all(ids: &[u64], idx: &FxHashMap<u64, usize>) -> PyResult<Vec<usize>> {
     ids.iter()
-        .map(|v| idx.get(v).copied().ok_or_else(|| err(format!("Node {} does not exist", v))))
+        .map(|v| {
+            idx.get(v)
+                .copied()
+                .ok_or_else(|| err(format!("Node {} does not exist", v)))
+        })
         .collect()
 }
 
@@ -846,11 +954,19 @@ pub fn current_flow_betweenness_centrality_subset(
         }
     }
     let scale = if normalized {
-        if n > 2 { 1.0 / ((n - 1) as f64 * (n - 2) as f64) } else { 0.0 }
+        if n > 2 {
+            1.0 / ((n - 1) as f64 * (n - 2) as f64)
+        } else {
+            0.0
+        }
     } else {
         0.5
     };
-    Ok(ids.iter().enumerate().map(|(i, &id)| (id, total[i] * scale)).collect())
+    Ok(ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, total[i] * scale))
+        .collect())
 }
 
 /// Edge current-flow betweenness (Brandes & Fleischer 2005), keyed by edge ID: the total
@@ -888,7 +1004,11 @@ pub fn edge_current_flow_betweenness_centrality(
     }
     let triples: Vec<(usize, usize, f64)> = net.iter().map(|&(_, u, v, w)| (u, v, w)).collect();
     let c = grounded_laplacian_inverse(n, &triples)?;
-    let nb = if normalized { (n - 1) as f64 * (n - 2) as f64 } else { 2.0 };
+    let nb = if normalized {
+        (n - 1) as f64 * (n - 2) as f64
+    } else {
+        2.0
+    };
     let subset = match (sources, targets) {
         (Some(s), Some(t)) => Some((lookup_all(&s, &idx)?, lookup_all(&t, &idx)?)),
         _ => None,
@@ -941,8 +1061,11 @@ pub fn approximate_current_flow_betweenness_centrality(
     sample_weight: f64,
 ) -> PyResult<FxHashMap<u64, f64>> {
     use rand::{Rng, SeedableRng};
-    let (ids, edges) =
-        electrical_network(graph, weighted, "approximate_current_flow_betweenness_centrality()")?;
+    let (ids, edges) = electrical_network(
+        graph,
+        weighted,
+        "approximate_current_flow_betweenness_centrality()",
+    )?;
     let n = ids.len();
     if epsilon.is_nan() || epsilon <= 0.0 {
         return Err(err("epsilon must be positive"));
@@ -955,7 +1078,8 @@ pub fn approximate_current_flow_betweenness_centrality(
     }
     let nb = (n - 1) as f64 * (n - 2) as f64;
     let cstar = (n * (n - 1)) as f64 / nb;
-    let k = ((sample_weight * ((cstar / epsilon).powi(2) * (n as f64).ln()).ceil()) as usize).max(1);
+    let k =
+        ((sample_weight * ((cstar / epsilon).powi(2) * (n as f64).ln()).ceil()) as usize).max(1);
     if k > kmax {
         return Err(err(format!(
             "The approximation needs {} random pairs, more than kmax={}; increase kmax or epsilon",
@@ -988,7 +1112,11 @@ pub fn approximate_current_flow_betweenness_centrality(
         }
     }
     let scale = cstar / (2.0 * k as f64) * if normalized { 1.0 } else { nb / 2.0 };
-    Ok(ids.iter().enumerate().map(|(i, &id)| (id, total[i] * scale)).collect())
+    Ok(ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, total[i] * scale))
+        .collect())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1007,7 +1135,11 @@ struct EdgeSpDag {
 type EdgeAdjacency = Vec<Vec<(usize, f64, usize)>>;
 
 /// Edge IDs by slot, and adjacency following edge direction (both ways if undirected).
-fn edge_adjacency(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> (Vec<u64>, EdgeAdjacency) {
+fn edge_adjacency(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    weighted: bool,
+) -> (Vec<u64>, EdgeAdjacency) {
     let mut adj: EdgeAdjacency = vec![Vec::new(); idx.len()];
     let mut slots = Vec::new();
     let undirected = !graph.is_directed();
@@ -1060,7 +1192,11 @@ fn edge_sp_dag(adj: &[Vec<(usize, f64, usize)>], s: usize) -> EdgeSpDag {
             }
         }
     }
-    EdgeSpDag { order, preds, sigma }
+    EdgeSpDag {
+        order,
+        preds,
+        sigma,
+    }
 }
 
 /// Edge betweenness counting only shortest paths from `sources` to `targets` (Brandes 2008),
@@ -1099,13 +1235,21 @@ pub fn edge_betweenness_centrality_subset(
         }
     }
     let scale = if normalized {
-        if n > 1 { 1.0 / (n * (n - 1)) as f64 } else { 1.0 }
+        if n > 1 {
+            1.0 / (n * (n - 1)) as f64
+        } else {
+            1.0
+        }
     } else if graph.is_directed() {
         1.0
     } else {
         0.5
     };
-    Ok(slots.iter().zip(eb).map(|(&id, b)| (id, b * scale)).collect())
+    Ok(slots
+        .iter()
+        .zip(eb)
+        .map(|(&id, b)| (id, b * scale))
+        .collect())
 }
 
 /// Edge load (Goh et al. 2001), as NetworkX's `edge_load_centrality`: every node sends one
@@ -1114,7 +1258,10 @@ pub fn edge_betweenness_centrality_subset(
 /// carry the same value). Unweighted; parallel edges count once.
 #[pyfunction]
 #[pyo3(signature = (graph, cutoff=None))]
-pub fn edge_load_centrality(graph: &Graph, cutoff: Option<usize>) -> PyResult<FxHashMap<(u64, u64), f64>> {
+pub fn edge_load_centrality(
+    graph: &Graph,
+    cutoff: Option<usize>,
+) -> PyResult<FxHashMap<(u64, u64), f64>> {
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
     let directed = graph.is_directed();
@@ -1186,7 +1333,10 @@ pub fn edge_load_centrality(graph: &Graph, cutoff: Option<usize>) -> PyResult<Fx
             *load.get_mut(&key).unwrap() += b;
         }
     }
-    Ok(load.into_iter().map(|((u, v), b)| ((ids[u], ids[v]), b)).collect())
+    Ok(load
+        .into_iter()
+        .map(|((u, v), b)| ((ids[u], ids[v]), b))
+        .collect())
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1222,20 +1372,31 @@ struct GroupSearch {
 impl GroupSearch {
     /// The objective: group betweenness before scaling.
     fn value(&self, st: &GroupState) -> f64 {
-        if self.endpoints { st.gbc } else { st.gbc - st.end_pairs }
+        if self.endpoints {
+            st.gbc
+        } else {
+            st.gbc - st.end_pairs
+        }
     }
 
     /// Upper bound on what the missing members can still add: the best single contributions.
     fn heuristic(&self, st: &GroupState) -> f64 {
         let need = self.k - st.members.len();
         let pb = &st.mats.1;
-        st.candidates.iter().take(need).map(|&c| pb[c * self.m + c]).sum()
+        st.candidates
+            .iter()
+            .take(need)
+            .map(|&c| pb[c * self.m + c])
+            .sum()
     }
 
     fn sort_candidates(&self, pb: &[f64], cands: &mut [usize]) {
         // by contribution, descending; ties to the later node, as NetworkX
         cands.sort_by(|&a, &b| {
-            pb[b * self.m + b].partial_cmp(&pb[a * self.m + a]).unwrap().then(b.cmp(&a))
+            pb[b * self.m + b]
+                .partial_cmp(&pb[a * self.m + a])
+                .unwrap()
+                .then(b.cmp(&a))
         });
     }
 
@@ -1364,7 +1525,11 @@ pub fn prominent_group(
         return Err(err("k must be at least 1"));
     }
     if k > cand.len() {
-        return Err(err(format!("k={} is larger than the {} nodes available", k, cand.len())));
+        return Err(err(format!(
+            "k={} is larger than the {} nodes available",
+            k,
+            cand.len()
+        )));
     }
     let adj = adjacency(graph, &idx, weighted, false);
     let mut dist = vec![f64::INFINITY; n * n];
@@ -1403,7 +1568,8 @@ pub fn prominent_group(
             for s in 0..n {
                 let (sa, sb) = (dist[s * n + a], dist[s * n + b]);
                 if sa.is_finite() && sb.is_finite() && same(sb, sa + dist[a * n + b]) {
-                    total += dep[s * n + b] * sigma[s * n + a] * sigma[a * n + b] / sigma[s * n + b];
+                    total +=
+                        dep[s * n + b] * sigma[s * n + a] * sigma[a * n + b] / sigma[s * n + b];
                 }
             }
             pb[i * m + j] = total;
@@ -1413,7 +1579,11 @@ pub fn prominent_group(
         m,
         k,
         dist: cd,
-        reach: dist.iter().enumerate().map(|(i, d)| d.is_finite() && i / n != i % n).collect(),
+        reach: dist
+            .iter()
+            .enumerate()
+            .map(|(i, d)| d.is_finite() && i / n != i % n)
+            .collect(),
         n,
         cand: cand.clone(),
         endpoints,

@@ -1,8 +1,8 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
+use rand::Rng;
 use rand::SeedableRng;
 use rand_chacha::ChaCha8Rng;
-use rand::Rng;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
 
@@ -39,9 +39,10 @@ pub fn influence_maximization(
     seed: Option<u64>,
 ) -> PyResult<Vec<(u64, f64)>> {
     if model != "independent_cascade" {
-        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            format!("Unknown model '{}'. Use 'independent_cascade'.", model),
-        ));
+        return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
+            "Unknown model '{}'. Use 'independent_cascade'.",
+            model
+        )));
     }
     if k == 0 {
         return Ok(Vec::new());

@@ -37,7 +37,11 @@ fn simple_edges(
         if e.source == e.target {
             continue;
         }
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         if !w.is_finite() {
             return value_err("edge weights must be finite numbers");
         }
@@ -55,7 +59,10 @@ fn simple_edges(
             }
         }
     }
-    let mut out: Vec<_> = best.into_iter().map(|((a, b), (w, id))| (a, b, w, id)).collect();
+    let mut out: Vec<_> = best
+        .into_iter()
+        .map(|((a, b), (w, id))| (a, b, w, id))
+        .collect();
     out.sort_unstable_by_key(|x| x.3);
     Ok(out)
 }
@@ -251,7 +258,8 @@ impl<'a> Blossom<'a> {
                     let bj = self.inblossom[j];
                     if bj != b
                         && self.label[bj] == 1
-                        && (bestedgeto[bj] == -1 || self.slack(k) < self.slack(bestedgeto[bj] as usize))
+                        && (bestedgeto[bj] == -1
+                            || self.slack(k) < self.slack(bestedgeto[bj] as usize))
                     {
                         bestedgeto[bj] = k as i64;
                     }
@@ -260,7 +268,11 @@ impl<'a> Blossom<'a> {
             self.blossombestedges[sub] = None;
             self.bestedge[sub] = -1;
         }
-        let list: Vec<usize> = bestedgeto.into_iter().filter(|&k| k != -1).map(|k| k as usize).collect();
+        let list: Vec<usize> = bestedgeto
+            .into_iter()
+            .filter(|&k| k != -1)
+            .map(|k| k as usize)
+            .collect();
         self.bestedge[b] = -1;
         for &k in &list {
             if self.bestedge[b] == -1 || self.slack(k) < self.slack(self.bestedge[b] as usize) {
@@ -462,11 +474,14 @@ impl<'a> Blossom<'a> {
                             }
                         } else if self.label[self.inblossom[w]] == 1 {
                             let b = self.inblossom[v];
-                            if self.bestedge[b] == -1 || kslack < self.slack(self.bestedge[b] as usize) {
+                            if self.bestedge[b] == -1
+                                || kslack < self.slack(self.bestedge[b] as usize)
+                            {
                                 self.bestedge[b] = k as i64;
                             }
                         } else if self.label[w] == 0
-                            && (self.bestedge[w] == -1 || kslack < self.slack(self.bestedge[w] as usize))
+                            && (self.bestedge[w] == -1
+                                || kslack < self.slack(self.bestedge[w] as usize))
                         {
                             self.bestedge[w] = k as i64;
                         }
@@ -480,7 +495,10 @@ impl<'a> Blossom<'a> {
                 let mut delta = 0.0f64;
                 let mut deltaedge = 0usize;
                 let mut deltablossom = 0usize;
-                let min_dual = self.dualvar[..n].iter().cloned().fold(f64::INFINITY, f64::min);
+                let min_dual = self.dualvar[..n]
+                    .iter()
+                    .cloned()
+                    .fold(f64::INFINITY, f64::min);
                 if !maxcardinality {
                     deltatype = 1;
                     delta = min_dual;
@@ -571,7 +589,11 @@ impl<'a> Blossom<'a> {
 
 /// Indices into `edges` of a maximum-weight matching (maximum cardinality first when
 /// `maxcardinality`).
-pub(crate) fn blossom_matching(n: usize, edges: &[(usize, usize, f64)], maxcardinality: bool) -> Vec<usize> {
+pub(crate) fn blossom_matching(
+    n: usize,
+    edges: &[(usize, usize, f64)],
+    maxcardinality: bool,
+) -> Vec<usize> {
     if edges.is_empty() {
         return Vec::new();
     }
@@ -670,7 +692,11 @@ fn adjacency(n: usize, simple: &[(usize, usize, f64, u64)]) -> Vec<Vec<(usize, u
 }
 
 /// Hopcroft-Karp maximum matching: `mate[u]` = (partner, simple edge index).
-pub(crate) fn hopcroft_karp(n: usize, adj: &[Vec<(usize, usize)>], side: &[u8]) -> Vec<Option<(usize, usize)>> {
+pub(crate) fn hopcroft_karp(
+    n: usize,
+    adj: &[Vec<(usize, usize)>],
+    side: &[u8],
+) -> Vec<Option<(usize, usize)>> {
     let mut mate: Vec<Option<(usize, usize)>> = vec![None; n];
     let left: Vec<usize> = (0..n).filter(|&u| side[u] == 0).collect();
     let mut dist = vec![usize::MAX; n];
@@ -762,7 +788,10 @@ pub fn hopcroft_karp_matching(graph: &Graph, top_nodes: Option<Vec<u64>>) -> PyR
 /// edge IDs)`.
 #[pyfunction]
 #[pyo3(signature = (graph, top_nodes=None))]
-pub fn bipartite_vertex_cover(graph: &Graph, top_nodes: Option<Vec<u64>>) -> PyResult<(Vec<u64>, Vec<u64>)> {
+pub fn bipartite_vertex_cover(
+    graph: &Graph,
+    top_nodes: Option<Vec<u64>>,
+) -> PyResult<(Vec<u64>, Vec<u64>)> {
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
     let simple = simple_edges(graph, &idx, false, true)?;
@@ -771,14 +800,20 @@ pub fn bipartite_vertex_cover(graph: &Graph, top_nodes: Option<Vec<u64>>) -> PyR
     let mate = hopcroft_karp(n, &adj, &side);
     // Z: reachable from free top nodes along alternating paths
     let mut seen = vec![false; n];
-    let mut queue: VecDeque<usize> = (0..n).filter(|&u| side[u] == 0 && mate[u].is_none()).collect();
+    let mut queue: VecDeque<usize> = (0..n)
+        .filter(|&u| side[u] == 0 && mate[u].is_none())
+        .collect();
     for &u in &queue {
         seen[u] = true;
     }
     while let Some(u) = queue.pop_front() {
         for &(v, k) in &adj[u] {
             let via_matching = mate[u].map(|(_, e)| e) == Some(k);
-            let allowed = if side[u] == 0 { !via_matching } else { via_matching };
+            let allowed = if side[u] == 0 {
+                !via_matching
+            } else {
+                via_matching
+            };
             if allowed && !seen[v] {
                 seen[v] = true;
                 queue.push_back(v);
@@ -789,8 +824,10 @@ pub fn bipartite_vertex_cover(graph: &Graph, top_nodes: Option<Vec<u64>>) -> PyR
         .filter(|&u| (side[u] == 0 && !seen[u]) || (side[u] == 1 && seen[u]))
         .map(|u| ids[u])
         .collect();
-    let mut matching: Vec<u64> =
-        (0..n).filter(|&u| side[u] == 0).filter_map(|u| mate[u].map(|(_, k)| simple[k].3)).collect();
+    let mut matching: Vec<u64> = (0..n)
+        .filter(|&u| side[u] == 0)
+        .filter_map(|u| mate[u].map(|(_, k)| simple[k].3))
+        .collect();
     matching.sort_unstable();
     Ok((cover, matching))
 }
@@ -860,7 +897,9 @@ pub fn min_weight_full_matching(
                 }
             }
             if j1 == usize::MAX {
-                return value_err("no full matching exists: some node on the smaller side cannot be matched");
+                return value_err(
+                    "no full matching exists: some node on the smaller side cannot be matched",
+                );
             }
             for j in 0..=c {
                 if used[j] {
@@ -939,7 +978,11 @@ pub fn min_edge_cover(graph: &Graph) -> PyResult<Vec<u64>> {
 /// Node costs come from the node attribute `weight_attr` (default 1; non-numeric counts as 1).
 #[pyfunction]
 #[pyo3(signature = (graph, weight_attr=None))]
-pub fn min_weighted_vertex_cover(py: Python, graph: &Graph, weight_attr: Option<&str>) -> PyResult<Vec<u64>> {
+pub fn min_weighted_vertex_cover(
+    py: Python,
+    graph: &Graph,
+    weight_attr: Option<&str>,
+) -> PyResult<Vec<u64>> {
     let (ids, idx) = sorted_ids(graph);
     let nodes = graph.get_nodes();
     let mut cost = Vec::with_capacity(ids.len());
@@ -972,5 +1015,8 @@ pub fn min_weighted_vertex_cover(py: Python, graph: &Graph, weight_attr: Option<
             cost[u] -= cost[v];
         }
     }
-    Ok((0..ids.len()).filter(|&i| in_cover[i]).map(|i| ids[i]).collect())
+    Ok((0..ids.len())
+        .filter(|&i| in_cover[i])
+        .map(|i| ids[i])
+        .collect())
 }

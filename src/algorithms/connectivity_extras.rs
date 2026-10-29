@@ -202,7 +202,11 @@ pub fn dominators(graph: &Graph, start: u64) -> PyResult<(Vec<(u64, u64)>, Vec<(
                 if idom[p] == usize::MAX {
                     continue;
                 }
-                new = if new == usize::MAX { p } else { intersect(p, new, &idom) };
+                new = if new == usize::MAX {
+                    p
+                } else {
+                    intersect(p, new, &idom)
+                };
             }
             if new != usize::MAX && idom[u] != new {
                 idom[u] = new;
@@ -213,7 +217,11 @@ pub fn dominators(graph: &Graph, start: u64) -> PyResult<(Vec<(u64, u64)>, Vec<(
     let reach: Vec<usize> = (0..n).filter(|&u| idom[u] != usize::MAX).collect();
     let mut df: Vec<Vec<usize>> = vec![Vec::new(); n];
     for &u in &reach {
-        let preds: Vec<usize> = pred[u].iter().copied().filter(|&p| idom[p] != usize::MAX).collect();
+        let preds: Vec<usize> = pred[u]
+            .iter()
+            .copied()
+            .filter(|&p| idom[p] != usize::MAX)
+            .collect();
         if pred[u].len() >= 2 {
             for mut v in preds {
                 while v != idom[u] {
@@ -275,7 +283,9 @@ fn unit_gomory_hu(nodes: &[usize], adj: &[Vec<usize>]) -> Vec<(usize, usize, i64
             fl[t] = value;
         }
     }
-    (1..k).map(|i| (nodes[i], nodes[parent[i]], fl[i])).collect()
+    (1..k)
+        .map(|i| (nodes[i], nodes[parent[i]], fl[i]))
+        .collect()
 }
 
 /// Undirected adjacency with parallel edges repeated and self-loops dropped.
@@ -411,7 +421,10 @@ pub fn k_edge_components(graph: &Graph, k: i64, subgraphs: bool) -> PyResult<Vec
         }
         result.sort();
     }
-    Ok(result.into_iter().map(|g| g.into_iter().map(|v| ids[v]).collect()).collect())
+    Ok(result
+        .into_iter()
+        .map(|g| g.into_iter().map(|v| ids[v]).collect())
+        .collect())
 }
 
 /// Distinct arcs between different nodes (both orientations if undirected).
@@ -464,14 +477,21 @@ pub fn average_node_connectivity(graph: &Graph) -> PyResult<f64> {
             den += 1;
         }
     }
-    Ok(if den == 0 { 0.0 } else { num as f64 / den as f64 })
+    Ok(if den == 0 {
+        0.0
+    } else {
+        num as f64 / den as f64
+    })
 }
 
 /// Local node connectivity of every pair of `nodes` (all nodes if None): `(u, v, value)` for
 /// unordered pairs if undirected, ordered pairs if directed.
 #[pyfunction]
 #[pyo3(signature = (graph, nodes=None))]
-pub fn all_pairs_node_connectivity(graph: &Graph, nodes: Option<Vec<u64>>) -> PyResult<Vec<(u64, u64, i64)>> {
+pub fn all_pairs_node_connectivity(
+    graph: &Graph,
+    nodes: Option<Vec<u64>>,
+) -> PyResult<Vec<(u64, u64, i64)>> {
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
     let chosen: Vec<usize> = match nodes {
@@ -480,9 +500,9 @@ pub fn all_pairs_node_connectivity(graph: &Graph, nodes: Option<Vec<u64>>) -> Py
             let mut seen = FxHashSet::default();
             let mut out = Vec::new();
             for v in list {
-                let i = *idx
-                    .get(&v)
-                    .ok_or_else(|| pyo3::exceptions::PyValueError::new_err(format!("Node {} does not exist", v)))?;
+                let i = *idx.get(&v).ok_or_else(|| {
+                    pyo3::exceptions::PyValueError::new_err(format!("Node {} does not exist", v))
+                })?;
                 if seen.insert(i) {
                     out.push(i);
                 }
@@ -521,7 +541,11 @@ fn closest_separator(
     let inf = n as i64 + 1;
     let mut net = Dinic::new(2 * n);
     for u in 0..n {
-        let cap = if u == x || u == v || forced[u] { inf } else { 1 };
+        let cap = if u == x || u == v || forced[u] {
+            inf
+        } else {
+            1
+        };
         net.add(2 * u, 2 * u + 1, cap, 0);
         if forced[u] {
             net.add(2 * x + 1, 2 * u, inf, 0);
@@ -534,7 +558,9 @@ fn closest_separator(
         return None;
     }
     let side = net.source_side(2 * x + 1);
-    let sep: Vec<usize> = (0..n).filter(|&u| side[2 * u] && !side[2 * u + 1]).collect();
+    let sep: Vec<usize> = (0..n)
+        .filter(|&u| side[2 * u] && !side[2 * u + 1])
+        .collect();
     let inside: Vec<bool> = (0..n).map(|u| side[2 * u + 1]).collect();
     Some((sep, inside))
 }
@@ -573,7 +599,9 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
         return Ok(Vec::new());
     }
     // node connectivity (Even 1975): min over non-adjacent pairs (v_i, v_j), i <= k
-    let arcs: Vec<(usize, usize)> = (0..n).flat_map(|u| adj[u].iter().map(move |&w| (u, w))).collect();
+    let arcs: Vec<(usize, usize)> = (0..n)
+        .flat_map(|u| adj[u].iter().map(move |&w| (u, w)))
+        .collect();
     let mut k = adj.iter().map(|a| a.len()).min().unwrap() as i64;
     let mut i = 0;
     while (i as i64) <= k && i < n {
@@ -626,7 +654,10 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
     }
     let mut cuts: Vec<Vec<usize>> = found.into_iter().collect();
     cuts.sort();
-    Ok(cuts.into_iter().map(|c| c.into_iter().map(|u| ids[u]).collect()).collect())
+    Ok(cuts
+        .into_iter()
+        .map(|c| c.into_iter().map(|u| ids[u]).collect())
+        .collect())
 }
 
 /// Whether the nodes not in `removed` induce a connected graph (true when at most one is left).
@@ -688,11 +719,18 @@ impl Simple {
             triples += d * d.saturating_sub(1);
             for &v in nb {
                 if v > u {
-                    tri += nb.iter().filter(|&&w| w > v && self.adj[v].contains(&w)).count();
+                    tri += nb
+                        .iter()
+                        .filter(|&&w| w > v && self.adj[v].contains(&w))
+                        .count();
                 }
             }
         }
-        if triples == 0 { 0.0 } else { 6.0 * tri as f64 / triples as f64 }
+        if triples == 0 {
+            0.0
+        } else {
+            6.0 * tri as f64 / triples as f64
+        }
     }
     fn average_clustering(&self) -> f64 {
         let n = self.adj.len();
@@ -702,7 +740,14 @@ impl Simple {
             if d < 2 {
                 continue;
             }
-            let links = nb.iter().map(|&v| nb.iter().filter(|&&w| w != v && self.adj[v].contains(&w)).count()).sum::<usize>();
+            let links = nb
+                .iter()
+                .map(|&v| {
+                    nb.iter()
+                        .filter(|&&w| w != v && self.adj[v].contains(&w))
+                        .count()
+                })
+                .sum::<usize>();
             total += links as f64 / (d * (d - 1)) as f64;
         }
         total / n as f64
@@ -757,7 +802,13 @@ fn simple_from(graph: &Graph) -> PyResult<(Vec<u64>, Simple)> {
 /// Degree-preserving rewiring by double edge swaps, as in NetworkX's `random_reference`
 /// (`lattice=false`) and `lattice_reference` (`lattice=true`, only swaps that do not lengthen
 /// the edges on a ring of the nodes in ID order).
-fn rewire(g: &Simple, niter: usize, lattice: bool, connectivity: bool, rng: &mut ChaCha8Rng) -> Simple {
+fn rewire(
+    g: &Simple,
+    niter: usize,
+    lattice: bool,
+    connectivity: bool,
+    rng: &mut ChaCha8Rng,
+) -> Simple {
     let mut adj = g.adj.clone();
     let n = adj.len();
     let degrees: Vec<usize> = (0..n).map(|v| g.degree(v)).collect();
@@ -794,7 +845,10 @@ fn rewire(g: &Simple, niter: usize, lattice: bool, connectivity: bool, rng: &mut
             if b == a || b == c || b == d || d == a || d == c {
                 continue;
             }
-            if !adj[a].contains(&d) && !adj[c].contains(&b) && (!lattice || ring(a, d) + ring(c, b) <= ring(a, b) + ring(c, d)) {
+            if !adj[a].contains(&d)
+                && !adj[c].contains(&b)
+                && (!lattice || ring(a, d) + ring(c, b) <= ring(a, b) + ring(c, d))
+            {
                 adj[a].remove(&b);
                 adj[b].remove(&a);
                 adj[c].remove(&d);
@@ -854,13 +908,29 @@ pub fn reference_graph(
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes,
+        })?;
     }
-    let mut pairs: Vec<(usize, usize)> =
-        (0..ids.len()).flat_map(|u| r.adj[u].iter().filter(move |&&v| u < v).map(move |&v| (u, v))).collect();
+    let mut pairs: Vec<(usize, usize)> = (0..ids.len())
+        .flat_map(|u| {
+            r.adj[u]
+                .iter()
+                .filter(move |&&v| u < v)
+                .map(move |&v| (u, v))
+        })
+        .collect();
     pairs.sort_unstable();
     for (a, b) in pairs {
-        result.add_edge_rust(Edge { id: 0, source: ids[a], target: ids[b], weight: None, attributes: None })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: ids[a],
+            target: ids[b],
+            weight: None,
+            attributes: None,
+        })?;
     }
     Ok(result)
 }
@@ -869,7 +939,13 @@ pub fn reference_graph(
 /// computed as in NetworkX. Returns `(value, (C, L, C_ref, L_ref))`.
 #[pyfunction]
 #[pyo3(signature = (graph, kind, niter, nrand, seed=None))]
-pub fn small_world(graph: &Graph, kind: &str, niter: usize, nrand: usize, seed: Option<u64>) -> PyResult<(f64, (f64, f64, f64, f64))> {
+pub fn small_world(
+    graph: &Graph,
+    kind: &str,
+    niter: usize,
+    nrand: usize,
+    seed: Option<u64>,
+) -> PyResult<(f64, (f64, f64, f64, f64))> {
     let (_, g) = simple_from(graph)?;
     if nrand < 1 {
         return value_err("nrand must be at least 1");
@@ -915,7 +991,11 @@ fn bf_arcs(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> Vec<(u
     let mut arcs = Vec::new();
     for e in edges_by_id(graph) {
         let (a, b) = (idx[&e.source], idx[&e.target]);
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         arcs.push((a, b, w));
         if !graph.is_directed() && a != b {
             arcs.push((b, a, w));
@@ -926,7 +1006,11 @@ fn bf_arcs(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> Vec<(u
 
 /// Bellman-Ford from the given sources (distance 0); returns a node relaxed in round `n`, if
 /// any, with the predecessor array.
-fn bellman_ford(n: usize, arcs: &[(usize, usize, f64)], sources: &[usize]) -> (Option<usize>, Vec<usize>) {
+fn bellman_ford(
+    n: usize,
+    arcs: &[(usize, usize, f64)],
+    sources: &[usize],
+) -> (Option<usize>, Vec<usize>) {
     let mut dist = vec![f64::INFINITY; n];
     let mut pred = vec![usize::MAX; n];
     for &s in sources {
@@ -1144,12 +1228,17 @@ pub fn link_scores(
             for (u, v) in list {
                 match (idx.get(&u), idx.get(&v)) {
                     (Some(&a), Some(&b)) => out.push((a, b)),
-                    _ => return value_err(format!("pair ({u}, {v}) has a node that does not exist")),
+                    _ => {
+                        return value_err(format!("pair ({u}, {v}) has a node that does not exist"))
+                    }
                 }
             }
             out
         }
-        None => (0..n).flat_map(|u| (u + 1..n).map(move |v| (u, v))).filter(|&(u, v)| !adj[u].contains(&v)).collect(),
+        None => (0..n)
+            .flat_map(|u| (u + 1..n).map(move |v| (u, v)))
+            .filter(|&(u, v)| !adj[u].contains(&v))
+            .collect(),
     };
     let comm: Option<Vec<i64>> = match (&community, kind) {
         (_, "ccpa") => None,
@@ -1166,7 +1255,11 @@ pub fn link_scores(
         (None, _) => return value_err("this score needs community information"),
     };
     let common = |u: usize, v: usize| -> Vec<usize> {
-        adj[u].iter().copied().filter(|&w| w != u && w != v && adj[v].contains(&w)).collect()
+        adj[u]
+            .iter()
+            .copied()
+            .filter(|&w| w != u && w != v && adj[v].contains(&w))
+            .collect()
     };
     // BFS distances on demand for CCPA
     let mut dist_cache: FxHashMap<usize, Vec<usize>> = FxHashMap::default();
@@ -1195,13 +1288,21 @@ pub fn link_scores(
                         }
                         d
                     });
-                    let path = if dist[v] == usize::MAX { f64::INFINITY } else { dist[v] as f64 };
+                    let path = if dist[v] == usize::MAX {
+                        f64::INFINITY
+                    } else {
+                        dist[v] as f64
+                    };
                     alpha * cn.len() as f64 + (1.0 - alpha) * n as f64 / path
                 }
             }
             "cn_sh" => {
                 let c = comm.as_ref().unwrap();
-                let bonus = if c[u] == c[v] { cn.iter().filter(|&&w| c[w] == c[u]).count() } else { 0 };
+                let bonus = if c[u] == c[v] {
+                    cn.iter().filter(|&&w| c[w] == c[u]).count()
+                } else {
+                    0
+                };
                 (cn.len() + bonus) as f64
             }
             "ra_sh" => {
@@ -1209,7 +1310,10 @@ pub fn link_scores(
                 if c[u] != c[v] {
                     0.0
                 } else {
-                    cn.iter().filter(|&&w| c[w] == c[u]).map(|&w| 1.0 / degree(w) as f64).sum()
+                    cn.iter()
+                        .filter(|&&w| c[w] == c[u])
+                        .map(|&w| 1.0 / degree(w) as f64)
+                        .sum()
                 }
             }
             "within_inter_cluster" => {

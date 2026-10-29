@@ -35,9 +35,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     // Parallel computation: each source node processes independently
     let betweenness = node_ids
         .par_iter()
-        .map(|&source| {
-            compute_betweenness_from_source(graph, source, &node_ids, &node_to_idx)
-        })
+        .map(|&source| compute_betweenness_from_source(graph, source, &node_ids, &node_to_idx))
         .reduce(
             || vec![0.0; n],
             |mut acc, partial| {
@@ -45,7 +43,7 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
                     acc[i] += partial[i];
                 }
                 acc
-            }
+            },
         );
 
     // Normalization
@@ -75,7 +73,8 @@ pub fn betweenness_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     }
 
     // Convert back to HashMap with node IDs
-    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
         result.insert(node_id, normalized[idx]);
     }
@@ -202,9 +201,7 @@ pub fn load_centrality(
     // Parallel computation: each source node processes independently
     let load = node_ids
         .par_iter()
-        .map(|&source| {
-            compute_load_from_source(graph, source, &node_ids, &node_to_idx, cutoff)
-        })
+        .map(|&source| compute_load_from_source(graph, source, &node_ids, &node_to_idx, cutoff))
         .reduce(
             || vec![0.0; n],
             |mut acc, partial| {
@@ -212,7 +209,7 @@ pub fn load_centrality(
                     acc[i] += partial[i];
                 }
                 acc
-            }
+            },
         );
 
     let mut result_vec = load;
@@ -226,7 +223,8 @@ pub fn load_centrality(
     }
 
     // Convert back to HashMap with node IDs
-    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     for (idx, &node_id) in node_ids.iter().enumerate() {
         result.insert(node_id, result_vec[idx]);
     }
@@ -254,7 +252,7 @@ fn compute_load_from_source(
     // Local arrays for this source's BFS
     let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut distance: Vec<i32> = vec![-1; n];
-    let mut load: Vec<f64> = vec![1.0; n];  // Initialize with 1.0
+    let mut load: Vec<f64> = vec![1.0; n]; // Initialize with 1.0
     let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
     let mut ordered_nodes: Vec<usize> = Vec::with_capacity(n);
 
@@ -298,7 +296,7 @@ fn compute_load_from_source(
     // Start from nodes furthest from source
     while let Some(v_idx) = ordered_nodes.pop() {
         if v_idx == source_idx {
-            continue;  // Skip source
+            continue; // Skip source
         }
 
         let num_preds = predecessors[v_idx].len();
@@ -308,7 +306,7 @@ fn compute_load_from_source(
 
             for &pred_idx in &predecessors[v_idx] {
                 if pred_idx == source_idx {
-                    break;  // Stop if we hit source
+                    break; // Stop if we hit source
                 }
                 load[pred_idx] += contribution;
             }
@@ -373,22 +371,23 @@ pub fn harmonic_centrality(
             // For undirected mode, we'll handle it by treating the graph as undirected
             if graph.is_directed() {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "mode='all' requires treating directed graph as undirected"
+                    "mode='all' requires treating directed graph as undirected",
                 ));
             }
             false
         }
         _ => {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Invalid mode '{}'. Must be 'out', 'in', 'all', or 'total'", mode)
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Invalid mode '{}'. Must be 'out', 'in', 'all', or 'total'",
+                mode
+            )));
         }
     };
 
     if weights.is_some() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "weights= is not supported; edge weights are used automatically on weighted \
-             graphs (or pass weighted=True)"
+             graphs (or pass weighted=True)",
         ));
     }
 
@@ -419,7 +418,8 @@ pub fn harmonic_centrality(
         .collect();
 
     // Normalize if requested
-    let mut result: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     if normalized && n > 1 {
         let normalization = 1.0 / (n - 1) as f64;
@@ -619,21 +619,24 @@ pub fn pagerank(
         // Parallel computation for large graphs (threshold: 1000 nodes)
         if n >= 1000 {
             // Parallel version
-            new_ranks.par_iter_mut().enumerate().for_each(|(target_idx, new_rank)| {
-                *new_rank = base_rank;
+            new_ranks
+                .par_iter_mut()
+                .enumerate()
+                .for_each(|(target_idx, new_rank)| {
+                    *new_rank = base_rank;
 
-                // Get incoming edges for this target node
-                let start = incoming_offsets[target_idx];
-                let end = incoming_offsets[target_idx + 1];
+                    // Get incoming edges for this target node
+                    let start = incoming_offsets[target_idx];
+                    let end = incoming_offsets[target_idx + 1];
 
-                // Sum contributions from all incoming edges
-                let mut rank_sum = 0.0;
-                for &source_idx in &incoming_data[start..end] {
-                    rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
-                }
+                    // Sum contributions from all incoming edges
+                    let mut rank_sum = 0.0;
+                    for &source_idx in &incoming_data[start..end] {
+                        rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
+                    }
 
-                *new_rank += damping * rank_sum;
-            });
+                    *new_rank += damping * rank_sum;
+                });
         } else {
             // Sequential version for small graphs
             for target_idx in 0..n {
@@ -652,7 +655,8 @@ pub fn pagerank(
         }
 
         // Check convergence using L1 norm
-        let delta: f64 = ranks.iter()
+        let delta: f64 = ranks
+            .iter()
             .zip(new_ranks.iter())
             .map(|(old, new)| (new - old).abs())
             .sum();
@@ -743,9 +747,7 @@ mod tests {
 /// - Returns error if graph is not connected
 #[pyfunction]
 #[pyo3(signature = (graph))]
-pub fn second_order_centrality(
-    graph: &Graph,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn second_order_centrality(graph: &Graph) -> PyResult<FxHashMap<u64, f64>> {
     use nalgebra::{DMatrix, DVector};
 
     // Check if graph is directed
@@ -1089,11 +1091,7 @@ pub fn average_neighbor_degree(
 /// Core of a Complex Network. PLoS ONE 7(5): e36579.
 #[pyfunction]
 #[pyo3(signature = (graph, top_m=10, compact=false))]
-pub fn knotty_centrality(
-    graph: &Graph,
-    top_m: usize,
-    compact: bool,
-) -> PyResult<(f64, Vec<u64>)> {
+pub fn knotty_centrality(graph: &Graph, top_m: usize, compact: bool) -> PyResult<(f64, Vec<u64>)> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
@@ -1108,10 +1106,7 @@ pub fn knotty_centrality(
         return Ok((0.0, vec![]));
     }
 
-    let bc_norm: FxHashMap<u64, f64> = bc
-        .iter()
-        .map(|(&id, &v)| (id, v / bc_sum))
-        .collect();
+    let bc_norm: FxHashMap<u64, f64> = bc.iter().map(|(&id, &v)| (id, v / bc_sum)).collect();
 
     let adj: FxHashMap<u64, rustc_hash::FxHashSet<u64>> = {
         let raw = graph.get_adjacency_list();
@@ -1125,9 +1120,7 @@ pub fn knotty_centrality(
     let m = top_m.min(ranked.len());
     let top_nodes: Vec<u64> = ranked[..m].iter().map(|&(id, _)| id).collect();
 
-    let score_fn = |subset: &[u64]| -> f64 {
-        kc_score(subset, &bc_norm, &adj, n, compact)
-    };
+    let score_fn = |subset: &[u64]| -> f64 { kc_score(subset, &bc_norm, &adj, n, compact) };
 
     // Phase 1: exhaustive search over subsets of top_nodes (size >= 2)
     let mut best_score: f64 = 0.0;
@@ -1159,8 +1152,7 @@ pub fn knotty_centrality(
     loop {
         let mut improved = false;
 
-        let current_set: rustc_hash::FxHashSet<u64> =
-            best_subset.iter().copied().collect();
+        let current_set: rustc_hash::FxHashSet<u64> = best_subset.iter().copied().collect();
         for &nid in &all_node_set {
             if current_set.contains(&nid) {
                 continue;
@@ -1219,7 +1211,10 @@ fn kc_score(
     let mut edge_count: usize = 0;
     for (i, node) in subset.iter().enumerate() {
         if let Some(neighbors) = adj.get(node) {
-            edge_count += subset[i + 1..].iter().filter(|v| neighbors.contains(v)).count();
+            edge_count += subset[i + 1..]
+                .iter()
+                .filter(|v| neighbors.contains(v))
+                .count();
         }
     }
 
@@ -1250,10 +1245,7 @@ fn kc_score(
 /// Identifies nodes that bridge densely-connected communities.
 #[pyfunction]
 #[pyo3(signature = (graph, normalized=true))]
-pub fn bridging_centrality(
-    graph: &Graph,
-    normalized: bool,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn bridging_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMap<u64, f64>> {
     let node_ids = graph.get_node_ids();
     if node_ids.is_empty() {
         return Ok(FxHashMap::default());
@@ -1277,7 +1269,11 @@ pub fn bridging_centrality(
             .iter()
             .map(|nbr| {
                 let d_j = degrees[nbr] as f64;
-                if d_j > 0.0 { 1.0 / d_j } else { 0.0 }
+                if d_j > 0.0 {
+                    1.0 / d_j
+                } else {
+                    0.0
+                }
             })
             .sum();
 
@@ -1312,10 +1308,7 @@ pub fn bridging_centrality(
 /// Normalized: C_L(v) = ΔE(v) / E_L(G) where E_L(G) = Σ_v ΔE(v)
 #[pyfunction]
 #[pyo3(signature = (graph, normalized=true))]
-pub fn laplacian_centrality(
-    graph: &Graph,
-    normalized: bool,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn laplacian_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMap<u64, f64>> {
     let node_ids = graph.get_node_ids();
     if node_ids.is_empty() {
         return Ok(FxHashMap::default());
@@ -1331,10 +1324,7 @@ pub fn laplacian_centrality(
     for &nid in &node_ids {
         let d_v = degrees[&nid] as f64;
         let neighbors = graph.neighbors(nid).unwrap_or_default();
-        let neighbor_deg_sum: f64 = neighbors
-            .iter()
-            .map(|nbr| degrees[nbr] as f64)
-            .sum();
+        let neighbor_deg_sum: f64 = neighbors.iter().map(|nbr| degrees[nbr] as f64).sum();
 
         let delta_e = d_v * d_v + d_v + 2.0 * neighbor_deg_sum;
         result.insert(nid, delta_e);
@@ -1377,8 +1367,7 @@ fn indexed_adjacency(
         if e.source == e.target {
             continue;
         }
-        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target))
-        else {
+        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target)) else {
             continue;
         };
         if undirected || both {
@@ -1443,8 +1432,11 @@ pub fn closeness_centrality(
         return Ok(FxHashMap::default());
     }
 
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
     let adj = indexed_adjacency(graph, &node_to_idx, reverse, both);
 
     let scores: Vec<f64> = (0..n)
@@ -1478,7 +1470,11 @@ pub fn closeness_centrality(
         })
         .collect();
 
-    Ok(node_ids.iter().zip(scores).map(|(&id, c)| (id, c)).collect())
+    Ok(node_ids
+        .iter()
+        .zip(scores)
+        .map(|(&id, c)| (id, c))
+        .collect())
 }
 
 /// Hop distances from `src` (-1 where unreachable).
@@ -1620,8 +1616,7 @@ pub fn degree_centrality(graph: &Graph, mode: &str) -> PyResult<FxHashMap<u64, f
 
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let mut deg: FxHashMap<u64, f64> =
-        node_ids.iter().map(|&id| (id, 0.0)).collect();
+    let mut deg: FxHashMap<u64, f64> = node_ids.iter().map(|&id| (id, 0.0)).collect();
 
     // On undirected graphs both endpoints always count, whatever the mode
     let undirected = !graph.is_directed();
@@ -1671,8 +1666,7 @@ pub fn edge_betweenness_centrality(
     use std::collections::VecDeque;
 
     let edges = graph.get_edges_internal();
-    let mut result: FxHashMap<u64, f64> =
-        edges.iter().map(|e| (e.id, 0.0)).collect();
+    let mut result: FxHashMap<u64, f64> = edges.iter().map(|e| (e.id, 0.0)).collect();
 
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
@@ -1680,11 +1674,18 @@ pub fn edge_betweenness_centrality(
         return Ok(result);
     }
 
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
 
     let scale = if normalized {
-        if n > 1 { 1.0 / (n * (n - 1)) as f64 } else { 1.0 }
+        if n > 1 {
+            1.0 / (n * (n - 1)) as f64
+        } else {
+            1.0
+        }
     } else if graph.is_directed() {
         1.0
     } else {
@@ -1802,8 +1803,7 @@ fn weighted_adjacency(
         if e.source == e.target {
             continue;
         }
-        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target))
-        else {
+        let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target)) else {
             continue;
         };
         if undirected || both {
@@ -1864,13 +1864,20 @@ fn dijkstra_dag(
     let n = adj.len();
     let mut dist = vec![f64::INFINITY; n];
     let mut sigma = vec![0.0; n];
-    let mut preds: Vec<Vec<(usize, u64)>> = if want_preds { vec![Vec::new(); n] } else { Vec::new() };
+    let mut preds: Vec<Vec<(usize, u64)>> = if want_preds {
+        vec![Vec::new(); n]
+    } else {
+        Vec::new()
+    };
     let mut done = vec![false; n];
     let mut order = Vec::with_capacity(n);
     let mut heap = BinaryHeap::new();
     dist[src] = 0.0;
     sigma[src] = 1.0;
-    heap.push(HeapItem { dist: 0.0, node: src });
+    heap.push(HeapItem {
+        dist: 0.0,
+        node: src,
+    });
     while let Some(HeapItem { dist: d, node: v }) = heap.pop() {
         if done[v] || d > dist[v] {
             continue;
@@ -1903,7 +1910,12 @@ fn dijkstra_dag(
             }
         }
     }
-    ShortestPathDag { order, preds, sigma, dist }
+    ShortestPathDag {
+        order,
+        preds,
+        sigma,
+        dist,
+    }
 }
 
 /// Weighted Brandes accumulation over all sources: (node betweenness by index, edge betweenness
@@ -1960,8 +1972,11 @@ pub fn betweenness_centrality_weighted(graph: &Graph) -> PyResult<FxHashMap<u64,
     if n == 0 {
         return Ok(FxHashMap::default());
     }
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
     let (mut bc, _, _) = weighted_brandes(graph, &node_ids, &node_to_idx)?;
     // Same scaling as the unweighted version: undirected pairs are seen from both ends
     let mut scale = if graph.is_directed() { 1.0 } else { 0.5 };
@@ -1988,8 +2003,11 @@ fn closeness_weighted(
     use rayon::prelude::*;
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
     let adj = weighted_adjacency(graph, &node_to_idx, reverse, both)?;
     let scores: Vec<f64> = (0..n)
         .into_par_iter()
@@ -2021,8 +2039,11 @@ fn harmonic_weighted(
     use rayon::prelude::*;
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let node_to_idx: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i))
+        .collect();
     let adj = weighted_adjacency(graph, &node_to_idx, reverse, false)?;
     let cut = (cutoff >= 0).then_some(cutoff as f64);
     let scores: Vec<f64> = (0..n)

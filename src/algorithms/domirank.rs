@@ -44,22 +44,22 @@ pub fn domirank(
     // Validate parameters
     if alpha <= 0.0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "alpha must be positive (alpha > 0)"
+            "alpha must be positive (alpha > 0)",
         ));
     }
     if dt <= 0.0 || dt >= 1.0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "dt must be in range (0, 1)"
+            "dt must be in range (0, 1)",
         ));
     }
     if epsilon <= 0.0 {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "epsilon must be positive (epsilon > 0)"
+            "epsilon must be positive (epsilon > 0)",
         ));
     }
     if patience * 3 > max_iter {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "max_iter must be > 3 * patience"
+            "max_iter must be > 3 * patience",
         ));
     }
 
@@ -71,8 +71,10 @@ pub fn domirank(
     }
 
     // Build adjacency structure with degrees
-    let mut adj_list: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
-    let mut degrees: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let mut adj_list: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let mut degrees: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
 
     for &node_id in &node_ids {
         let neighbors = graph.neighbors(node_id).unwrap_or_default();
@@ -87,13 +89,7 @@ pub fn domirank(
     } else {
         // Find smallest eigenvalue (most negative) using bisection
         let smallest_eigenvalue = find_smallest_eigenvalue(
-            &adj_list,
-            &degrees,
-            max_depth,
-            dt,
-            epsilon,
-            max_iter,
-            patience,
+            &adj_list, &degrees, max_depth, dt, epsilon, max_iter, patience,
         )?;
         alpha / smallest_eigenvalue.abs()
     };
@@ -140,7 +136,8 @@ fn domirank_iterative(
     let num_nodes = degrees.len();
 
     // Initialize psi with small uniform values
-    let mut psi: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let mut psi: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
     let initial_val = 1.0 / (num_nodes as f64);
     for &node_id in degrees.keys() {
         psi.insert(node_id, initial_val);
@@ -151,7 +148,8 @@ fn domirank_iterative(
     let boundary = epsilon * (num_nodes as f64) * dt;
 
     // Preallocate new_psi outside loop for swap optimization
-    let mut new_psi: FxHashMap<u64, f64> = FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
+    let mut new_psi: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(num_nodes, Default::default());
 
     for i in 0..max_iter {
         // Compute update: temp_val = σ(d - A·psi) - psi
@@ -198,8 +196,7 @@ fn domirank_iterative(
             // Check for divergence (3 consecutive increases)
             if max_vals.len() >= 3 {
                 let len = max_vals.len();
-                if max_vals[len - 1] > max_vals[len - 2]
-                    && max_vals[len - 2] > max_vals[len - 3] {
+                if max_vals[len - 1] > max_vals[len - 2] && max_vals[len - 2] > max_vals[len - 3] {
                     // Diverging
                     return Ok((psi, false));
                 }
@@ -256,15 +253,8 @@ fn find_smallest_eigenvalue(
         }
 
         // Test if this sigma causes convergence
-        let (_, converged) = domirank_iterative(
-            adj_list,
-            degrees,
-            x,
-            dt,
-            epsilon,
-            max_iter,
-            patience,
-        )?;
+        let (_, converged) =
+            domirank_iterative(adj_list, degrees, x, dt, epsilon, max_iter, patience)?;
 
         if converged {
             min_val = x;

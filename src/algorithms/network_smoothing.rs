@@ -31,14 +31,19 @@ pub fn network_smooth(
             reverse_adj.insert(nid, Vec::new());
         }
         for edge in graph.get_edges_internal() {
-            reverse_adj.entry(edge.target).or_default().push(edge.source);
+            reverse_adj
+                .entry(edge.target)
+                .or_default()
+                .push(edge.source);
         }
     }
 
     let edge_weights: FxHashMap<(u64, u64), f64> = if graph.is_weighted() {
-        graph.get_edges_internal().iter().map(|e| {
-            ((e.source, e.target), e.weight.unwrap_or(1.0))
-        }).collect()
+        graph
+            .get_edges_internal()
+            .iter()
+            .map(|e| ((e.source, e.target), e.weight.unwrap_or(1.0)))
+            .collect()
     } else {
         FxHashMap::default()
     };
@@ -48,9 +53,10 @@ pub fn network_smooth(
     for &nid in &node_ids {
         let neighbors = adj.get(&nid).map(|v| v.as_slice()).unwrap_or(&[]);
         let strength: f64 = if graph.is_weighted() {
-            neighbors.iter().map(|&nbr| {
-                edge_weights.get(&(nid, nbr)).copied().unwrap_or(1.0)
-            }).sum()
+            neighbors
+                .iter()
+                .map(|&nbr| edge_weights.get(&(nid, nbr)).copied().unwrap_or(1.0))
+                .sum()
         } else {
             neighbors.len() as f64
         };
@@ -82,7 +88,8 @@ pub fn network_smooth(
                     if graph.is_directed() {
                         edge_weights.get(&(nbr, nid)).copied().unwrap_or(1.0)
                     } else {
-                        edge_weights.get(&(nbr, nid))
+                        edge_weights
+                            .get(&(nbr, nid))
                             .or_else(|| edge_weights.get(&(nid, nbr)))
                             .copied()
                             .unwrap_or(1.0)
@@ -96,16 +103,14 @@ pub fn network_smooth(
                 }
             }
 
-            let smoothed = alpha * neighbor_sum
-                + (1.0 - alpha) * initial.get(&nid).copied().unwrap_or(0.0);
+            let smoothed =
+                alpha * neighbor_sum + (1.0 - alpha) * initial.get(&nid).copied().unwrap_or(0.0);
             next.insert(nid, smoothed);
         }
 
         let max_diff: f64 = node_ids
             .iter()
-            .map(|&nid| {
-                (next.get(&nid).unwrap_or(&0.0) - current.get(&nid).unwrap_or(&0.0)).abs()
-            })
+            .map(|&nid| (next.get(&nid).unwrap_or(&0.0) - current.get(&nid).unwrap_or(&0.0)).abs())
             .fold(0.0f64, f64::max);
 
         current = next;

@@ -14,12 +14,8 @@ fn collect_label_edges(graph: &Graph) -> PyResult<FxHashSet<(String, String)>> {
     let raw_edges = graph.edges();
     let mut edge_set = FxHashSet::default();
     for &(_, s, t) in &raw_edges {
-        let s_label = graph
-            .label_from_id(s)?
-            .unwrap_or_else(|| format!("{}", s));
-        let t_label = graph
-            .label_from_id(t)?
-            .unwrap_or_else(|| format!("{}", t));
+        let s_label = graph.label_from_id(s)?.unwrap_or_else(|| format!("{}", s));
+        let t_label = graph.label_from_id(t)?.unwrap_or_else(|| format!("{}", t));
         let key = if directed || s_label <= t_label {
             (s_label, t_label)
         } else {
@@ -86,14 +82,8 @@ pub fn differential_edges(
     let edges1 = collect_label_edges(g1)?;
     let edges2 = collect_label_edges(g2)?;
 
-    let removed: Vec<(String, String)> = edges1
-        .difference(&edges2)
-        .cloned()
-        .collect();
-    let added: Vec<(String, String)> = edges2
-        .difference(&edges1)
-        .cloned()
-        .collect();
+    let removed: Vec<(String, String)> = edges1.difference(&edges2).cloned().collect();
+    let added: Vec<(String, String)> = edges2.difference(&edges1).cloned().collect();
 
     let mut result = std::collections::HashMap::new();
     result.insert("added".to_string(), added);
@@ -128,8 +118,8 @@ pub fn graph_edit_distance(
     let edge_ins = edges2.difference(&edges1).count();
     let edge_del = edges1.difference(&edges2).count();
 
-    let distance = (node_ins + node_del) as f64 * node_cost
-        + (edge_ins + edge_del) as f64 * edge_cost;
+    let distance =
+        (node_ins + node_del) as f64 * node_cost + (edge_ins + edge_del) as f64 * edge_cost;
 
     let mut result = std::collections::HashMap::new();
     result.insert("distance".to_string(), distance);

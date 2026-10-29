@@ -12,11 +12,7 @@
 /// - Galloping search when size ratio > 4:1
 /// - Optimized scalar merge otherwise
 #[inline]
-pub fn count_intersection_sorted_above(
-    a: &[u64],
-    b: &[u64],
-    threshold: u64,
-) -> usize {
+pub fn count_intersection_sorted_above(a: &[u64], b: &[u64], threshold: u64) -> usize {
     if a.is_empty() || b.is_empty() {
         return 0;
     }
@@ -43,11 +39,7 @@ pub fn count_intersection_sorted_above(
 
 /// Galloping search: for each element in small list, binary search in large list
 #[inline]
-fn count_intersection_galloping(
-    small: &[u64],
-    large: &[u64],
-    threshold: u64,
-) -> usize {
+fn count_intersection_galloping(small: &[u64], large: &[u64], threshold: u64) -> usize {
     let mut count = 0;
     let mut large_start = 0;
 

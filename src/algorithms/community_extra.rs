@@ -45,7 +45,11 @@ impl Adj {
             if a == b && !keep_loops {
                 continue;
             }
-            let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+            let w = if weighted {
+                e.weight.unwrap_or(1.0)
+            } else {
+                1.0
+            };
             for (x, y) in [(a, b), (b, a)] {
                 if a == b && x != a {
                     continue;
@@ -59,7 +63,9 @@ impl Adj {
                 }
             }
         }
-        let nbrs = (0..n).map(|u| order[u].iter().map(|&v| (v, acc[u][&v])).collect()).collect();
+        let nbrs = (0..n)
+            .map(|u| order[u].iter().map(|&v| (v, acc[u][&v])).collect())
+            .collect();
         Adj { ids, idx, nbrs }
     }
     fn n(&self) -> usize {
@@ -92,7 +98,12 @@ fn connected(adj: &Adj) -> bool {
 /// Returns a community label (0..k) per node, in node ID order.
 #[pyfunction]
 #[pyo3(signature = (graph, k, max_iter=100, seed=None))]
-pub fn fluid_communities(graph: &Graph, k: usize, max_iter: usize, seed: Option<u64>) -> PyResult<(Vec<u64>, Vec<usize>)> {
+pub fn fluid_communities(
+    graph: &Graph,
+    k: usize,
+    max_iter: usize,
+    seed: Option<u64>,
+) -> PyResult<(Vec<u64>, Vec<usize>)> {
     if graph.is_directed() {
         return value_err("fluid communities require an undirected graph");
     }
@@ -135,7 +146,11 @@ pub fn fluid_communities(graph: &Graph, k: usize, max_iter: usize, seed: Option<
                 continue;
             }
             let top = score.values().cloned().fold(f64::MIN, f64::max);
-            let mut best: Vec<usize> = score.iter().filter(|(_, &s)| top - s < 1e-4).map(|(&c, _)| c).collect();
+            let mut best: Vec<usize> = score
+                .iter()
+                .filter(|(_, &s)| top - s < 1e-4)
+                .map(|(&c, _)| c)
+                .collect();
             best.sort_unstable();
             if let Some(c) = com[v] {
                 if best.contains(&c) {
@@ -146,7 +161,11 @@ pub fn fluid_communities(graph: &Graph, k: usize, max_iter: usize, seed: Option<
             let new = best[rng.gen_range(0..best.len())];
             if let Some(old) = com[v] {
                 size[old] -= 1;
-                density[old] = if size[old] > 0 { 1.0 / size[old] as f64 } else { 1.0 };
+                density[old] = if size[old] > 0 {
+                    1.0 / size[old] as f64
+                } else {
+                    1.0
+                };
             }
             com[v] = Some(new);
             size[new] += 1;
@@ -173,7 +192,13 @@ pub fn fluid_communities(graph: &Graph, k: usize, max_iter: usize, seed: Option<
 /// optionally gives the first side; otherwise a random half. Returns `(side A, side B)`.
 #[pyfunction]
 #[pyo3(signature = (graph, initial=None, max_iter=10, weighted=false, seed=None))]
-pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, weighted: bool, seed: Option<u64>) -> PyResult<(Vec<u64>, Vec<u64>)> {
+pub fn kernighan_lin(
+    graph: &Graph,
+    initial: Option<Vec<u64>>,
+    max_iter: usize,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<(Vec<u64>, Vec<u64>)> {
     if graph.is_directed() {
         return value_err("Kernighan-Lin bisection requires an undirected graph");
     }
@@ -203,7 +228,12 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
     for _ in 0..max_iter {
         // d[u]: external minus internal weight, i.e. the cut reduction of moving u alone
         let mut d: Vec<f64> = (0..n)
-            .map(|u| adj.nbrs[u].iter().map(|&(v, w)| if side[v] != side[u] { w } else { -w }).sum())
+            .map(|u| {
+                adj.nbrs[u]
+                    .iter()
+                    .map(|&(v, w)| if side[v] != side[u] { w } else { -w })
+                    .sum()
+            })
             .collect();
         let mut locked = vec![false; n];
         let mut swaps: Vec<(usize, usize)> = Vec::new();
@@ -215,7 +245,9 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
                 .max_by(|&x, &y| d[x].partial_cmp(&d[y]).unwrap().then(y.cmp(&x)))
         };
         loop {
-            let Some(a) = take(false, &d, &locked, &side) else { break };
+            let Some(a) = take(false, &d, &locked, &side) else {
+                break;
+            };
             if take(true, &d, &locked, &side).is_none() {
                 break;
             }
@@ -224,7 +256,11 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
             locked[a] = true;
             for &(v, w) in &adj.nbrs[a] {
                 if !locked[v] {
-                    d[v] += if side[v] == side[a] { 2.0 * w } else { -2.0 * w };
+                    d[v] += if side[v] == side[a] {
+                        2.0 * w
+                    } else {
+                        -2.0 * w
+                    };
                 }
             }
             let b = take(true, &d, &locked, &side).unwrap();
@@ -232,7 +268,11 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
             locked[b] = true;
             for &(v, w) in &adj.nbrs[b] {
                 if !locked[v] {
-                    d[v] += if side[v] == side[b] { 2.0 * w } else { -2.0 * w };
+                    d[v] += if side[v] == side[b] {
+                        2.0 * w
+                    } else {
+                        -2.0 * w
+                    };
                 }
             }
             total += gain;
@@ -263,7 +303,13 @@ pub fn kernighan_lin(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, 
 /// `(first side, second side, modularity)`.
 #[pyfunction]
 #[pyo3(signature = (graph, initial=None, max_iter=10, weighted=false, seed=None))]
-pub fn greedy_node_swap_bipartition(graph: &Graph, initial: Option<Vec<u64>>, max_iter: usize, weighted: bool, seed: Option<u64>) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
+pub fn greedy_node_swap_bipartition(
+    graph: &Graph,
+    initial: Option<Vec<u64>>,
+    max_iter: usize,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
     if graph.is_directed() {
         return value_err("greedy_node_swap_bipartition() requires an undirected graph");
     }
@@ -288,7 +334,14 @@ pub fn greedy_node_swap_bipartition(graph: &Graph, initial: Option<Vec<u64>>, ma
         }
     }
     // deg counts a self-loop twice; link[u] holds u's weight to its neighbors, loops left out
-    let deg: Vec<f64> = (0..n).map(|u| adj.nbrs[u].iter().map(|&(v, w)| if v == u { 2.0 * w } else { w }).sum()).collect();
+    let deg: Vec<f64> = (0..n)
+        .map(|u| {
+            adj.nbrs[u]
+                .iter()
+                .map(|&(v, w)| if v == u { 2.0 * w } else { w })
+                .sum()
+        })
+        .collect();
     let m: f64 = deg.iter().sum::<f64>() / 2.0;
     let modularity = |side: &[bool]| -> f64 {
         if m == 0.0 {
@@ -330,7 +383,8 @@ pub fn greedy_node_swap_bipartition(graph: &Graph, initial: Option<Vec<u64>>, ma
             let mut pick: Option<(usize, f64)> = None;
             for u in (0..n).filter(|&u| !moved[u]) {
                 let (s, o) = (cur[u] as usize, 1 - cur[u] as usize);
-                let delta = (link[u][o] - link[u][s]) / m + deg[u] * (dsum[s] - dsum[o] - deg[u]) / (2.0 * m * m);
+                let delta = (link[u][o] - link[u][s]) / m
+                    + deg[u] * (dsum[s] - dsum[o] - deg[u]) / (2.0 * m * m);
                 if pick.map_or(true, |(_, b)| delta > b) {
                     pick = Some((u, delta));
                 }
@@ -369,7 +423,11 @@ pub fn greedy_node_swap_bipartition(graph: &Graph, initial: Option<Vec<u64>>, ma
 /// changed; each takes the label with the most (weighted) neighbors, ties at random.
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=false, seed=None))]
-pub fn fast_label_propagation(graph: &Graph, weighted: bool, seed: Option<u64>) -> PyResult<(Vec<u64>, Vec<usize>)> {
+pub fn fast_label_propagation(
+    graph: &Graph,
+    weighted: bool,
+    seed: Option<u64>,
+) -> PyResult<(Vec<u64>, Vec<usize>)> {
     let adj = Adj::new(graph, weighted, false);
     let n = adj.n();
     let mut rng = rng_from(seed);
@@ -388,7 +446,11 @@ pub fn fast_label_propagation(graph: &Graph, weighted: bool, seed: Option<u64>) 
             *freq.entry(label[u]).or_insert(0.0) += w;
         }
         let top = freq.values().cloned().fold(f64::MIN, f64::max);
-        let mut best: Vec<usize> = freq.iter().filter(|(_, &f)| f == top).map(|(&l, _)| l).collect();
+        let mut best: Vec<usize> = freq
+            .iter()
+            .filter(|(_, &f)| f == top)
+            .map(|(&l, _)| l)
+            .collect();
         best.sort_unstable();
         let chosen = best[rng.gen_range(0..best.len())];
         if label[v] != chosen {
@@ -426,7 +488,11 @@ pub fn fast_label_propagation(graph: &Graph, weighted: bool, seed: Option<u64>) 
 pub fn semi_synchronous_label_propagation(graph: &Graph) -> PyResult<(Vec<u64>, Vec<usize>)> {
     let adj = Adj::new(graph, false, true);
     let n = adj.n();
-    let nbrs: Vec<Vec<usize>> = adj.nbrs.iter().map(|l| l.iter().map(|&(u, _)| u).collect()).collect();
+    let nbrs: Vec<Vec<usize>> = adj
+        .nbrs
+        .iter()
+        .map(|l| l.iter().map(|&(u, _)| u).collect())
+        .collect();
 
     // greedy coloring, largest degree first (NetworkX's greedy_color default)
     let degree = |v: usize| nbrs[v].len() + usize::from(nbrs[v].contains(&v));
@@ -460,7 +526,11 @@ pub fn semi_synchronous_label_propagation(graph: &Graph) -> PyResult<(Vec<u64>, 
             freq[label[u]] += 1;
         }
         let top = nbrs[v].iter().map(|&u| freq[label[u]]).max().unwrap_or(0);
-        let mut out: Vec<usize> = nbrs[v].iter().map(|&u| label[u]).filter(|&l| freq[l] == top).collect();
+        let mut out: Vec<usize> = nbrs[v]
+            .iter()
+            .map(|&u| label[u])
+            .filter(|&l| freq[l] == top)
+            .collect();
         for &u in &nbrs[v] {
             freq[label[u]] = 0;
         }
@@ -469,7 +539,8 @@ pub fn semi_synchronous_label_propagation(graph: &Graph) -> PyResult<(Vec<u64>, 
         out
     };
     loop {
-        let done = (0..n).all(|v| nbrs[v].is_empty() || best(v, &label, &mut freq).contains(&label[v]));
+        let done =
+            (0..n).all(|v| nbrs[v].is_empty() || best(v, &label, &mut freq).contains(&label[v]));
         if done {
             break;
         }
@@ -511,7 +582,13 @@ fn attr_f64(py: Python, attrs: &Option<Py<PyDict>>, name: &str) -> PyResult<Opti
 /// Returns `(clusters, kept edge weight)`.
 #[pyfunction]
 #[pyo3(signature = (graph, max_size, node_weight=None, edge_weight=None))]
-pub fn lukes_partitioning(py: Python, graph: &Graph, max_size: usize, node_weight: Option<&str>, edge_weight: Option<&str>) -> PyResult<(Vec<Vec<u64>>, f64)> {
+pub fn lukes_partitioning(
+    py: Python,
+    graph: &Graph,
+    max_size: usize,
+    node_weight: Option<&str>,
+    edge_weight: Option<&str>,
+) -> PyResult<(Vec<Vec<u64>>, f64)> {
     let mut ids = graph.get_node_ids();
     ids.sort_unstable();
     let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
@@ -613,7 +690,9 @@ pub fn lukes_partitioning(py: Python, graph: &Graph, max_size: usize, node_weigh
     // reconstruct
     let mut cluster_of = vec![usize::MAX; n];
     let mut clusters: Vec<Vec<usize>> = Vec::new();
-    let root_best = (0..=k).max_by(|&a, &b| dp[0][a].partial_cmp(&dp[0][b]).unwrap()).unwrap();
+    let root_best = (0..=k)
+        .max_by(|&a, &b| dp[0][a].partial_cmp(&dp[0][b]).unwrap())
+        .unwrap();
     let total = dp[0][root_best];
     let mut stack: Vec<(usize, usize, usize)> = vec![(0, root_best, usize::MAX)]; // node, weight, cluster
     while let Some((v, target, cl)) = stack.pop() {
@@ -640,7 +719,10 @@ pub fn lukes_partitioning(py: Python, graph: &Graph, max_size: usize, node_weigh
             let mut done = false;
             for b in 0..=want {
                 let a = want - b;
-                if before[a] != NEG && child[b] != NEG && (before[a] + child[b] + w - value).abs() < 1e-9 {
+                if before[a] != NEG
+                    && child[b] != NEG
+                    && (before[a] + child[b] + w - value).abs() < 1e-9
+                {
                     stack.push((*c, b, cluster));
                     want = a;
                     value = before[a];
@@ -670,7 +752,15 @@ pub fn lukes_partitioning(py: Python, graph: &Graph, max_size: usize, node_weigh
 /// Returns the predicted class index per node.
 #[pyfunction]
 #[pyo3(signature = (graph, labels, n_classes, kind, alpha=0.99, max_iter=30, weighted=false))]
-pub fn spread_labels(graph: &Graph, labels: Vec<i64>, n_classes: usize, kind: &str, alpha: f64, max_iter: usize, weighted: bool) -> PyResult<Vec<usize>> {
+pub fn spread_labels(
+    graph: &Graph,
+    labels: Vec<i64>,
+    n_classes: usize,
+    kind: &str,
+    alpha: f64,
+    max_iter: usize,
+    weighted: bool,
+) -> PyResult<Vec<usize>> {
     if graph.is_directed() {
         return value_err("node classification requires an undirected graph");
     }
@@ -682,7 +772,11 @@ pub fn spread_labels(graph: &Graph, labels: Vec<i64>, n_classes: usize, kind: &s
     let degree: Vec<f64> = (0..n)
         .map(|u| {
             let d: f64 = adj.nbrs[u].iter().map(|&(_, w)| w).sum();
-            if d == 0.0 { 1.0 } else { d }
+            if d == 0.0 {
+                1.0
+            } else {
+                d
+            }
         })
         .collect();
     let harmonic = match kind {
@@ -704,7 +798,11 @@ pub fn spread_labels(graph: &Graph, labels: Vec<i64>, n_classes: usize, kind: &s
                 continue; // labeled rows of P are zero
             }
             for &(v, w) in &adj.nbrs[u] {
-                let coef = if harmonic { w / degree[u] } else { alpha * w / (degree[u].sqrt() * degree[v].sqrt()) };
+                let coef = if harmonic {
+                    w / degree[u]
+                } else {
+                    alpha * w / (degree[u].sqrt() * degree[v].sqrt())
+                };
                 for c in 0..n_classes {
                     next[u][c] += coef * f[v][c];
                 }

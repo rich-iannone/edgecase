@@ -93,12 +93,7 @@ fn find_bridges_directed(graph: &Graph) -> PyResult<Vec<u64>> {
 ///
 /// An edge (u -> v) is part of a cycle if:
 /// - There's a path from v back to u (without using this edge)
-fn is_edge_in_cycle(
-    graph: &Graph,
-    source: u64,
-    target: u64,
-    edge_id: u64,
-) -> PyResult<bool> {
+fn is_edge_in_cycle(graph: &Graph, source: u64, target: u64, edge_id: u64) -> PyResult<bool> {
     // Check if there's a path from target back to source without using this edge
     can_reach_without_edge(graph, target, source, edge_id)
 }
@@ -123,7 +118,8 @@ fn can_reach_without_edge(
         for neighbor in neighbors {
             if !visited.contains(&neighbor) {
                 // Check if this edge is the excluded one
-                let is_excluded = graph.get_edges_internal()
+                let is_excluded = graph
+                    .get_edges_internal()
                     .iter()
                     .any(|e| e.id == excluded_edge && e.source == current && e.target == neighbor);
 

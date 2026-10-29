@@ -44,7 +44,11 @@ impl IndexedGraph {
             let (Some(&s), Some(&t)) = (idx.get(&e.source), idx.get(&e.target)) else {
                 continue;
             };
-            let w = if use_weights { e.weight.unwrap_or(1.0) } else { 1.0 };
+            let w = if use_weights {
+                e.weight.unwrap_or(1.0)
+            } else {
+                1.0
+            };
             out[s].push((t, w));
             inn[t].push((s, w));
             if undirected {
@@ -142,7 +146,11 @@ fn dijkstra(
     let n = g.len();
     let mut dist = vec![f64::INFINITY; n];
     let mut pred: Vec<Option<usize>> = vec![None; n];
-    let mut preds: Vec<Vec<usize>> = if all_preds { vec![Vec::new(); n] } else { Vec::new() };
+    let mut preds: Vec<Vec<usize>> = if all_preds {
+        vec![Vec::new(); n]
+    } else {
+        Vec::new()
+    };
     let mut done = vec![false; n];
     let mut heap = BinaryHeap::new();
     for &s in sources {
@@ -219,8 +227,7 @@ pub fn multi_source_distances(
     let g = IndexedGraph::new(graph, graph.is_weighted());
     let src = resolve_sources(&g, &sources)?;
     let s = dijkstra(&g, &src, None, cutoff, false);
-    Ok(s
-        .dist
+    Ok(s.dist
         .iter()
         .enumerate()
         .filter(|(_, d)| d.is_finite())
@@ -376,7 +383,10 @@ pub fn bidirectional_dijkstra(
                 }
             }
         }
-        let top = [heaps[0].peek().map(|x| x.cost), heaps[1].peek().map(|x| x.cost)];
+        let top = [
+            heaps[0].peek().map(|x| x.cost),
+            heaps[1].peek().map(|x| x.cost),
+        ];
         let (Some(tf), Some(tb)) = (top[0], top[1]) else {
             break;
         };

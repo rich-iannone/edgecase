@@ -35,7 +35,9 @@ fn weight_of(e: &crate::graph::Edge, weighted: bool) -> f64 {
 
 fn to_rows(m: &na::DMatrix<f64>) -> Vec<Vec<f64>> {
     // `+ 0.0` turns negative zeros (from negating empty entries) into plain zeros
-    (0..m.nrows()).map(|i| (0..m.ncols()).map(|j| m[(i, j)] + 0.0).collect()).collect()
+    (0..m.nrows())
+        .map(|i| (0..m.ncols()).map(|j| m[(i, j)] + 0.0).collect())
+        .collect()
 }
 
 fn dense_adjacency(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> na::DMatrix<f64> {
@@ -61,7 +63,10 @@ fn laplacian_from(a: &na::DMatrix<f64>, normalized: bool) -> na::DMatrix<f64> {
         l[(i, i)] += deg[i];
     }
     if normalized {
-        let s: Vec<f64> = deg.iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }).collect();
+        let s: Vec<f64> = deg
+            .iter()
+            .map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 })
+            .collect();
         for i in 0..n {
             for j in 0..n {
                 l[(i, j)] *= s[i] * s[j];
@@ -146,7 +151,11 @@ fn strongly_connected(adj: &[Vec<usize>], radj: &[Vec<usize>]) -> bool {
 }
 
 fn gcd(a: i64, b: i64) -> i64 {
-    if b == 0 { a.abs() } else { gcd(b, a % b) }
+    if b == 0 {
+        a.abs()
+    } else {
+        gcd(b, a % b)
+    }
 }
 
 /// Period of a strongly connected digraph (gcd of level differences along edges).
@@ -204,7 +213,10 @@ pub fn directed_laplacian_matrix(
     let walk = match walk_type {
         Some(w @ ("random" | "lazy" | "pagerank")) => w.to_string(),
         Some(other) => {
-            return Err(err(format!("walk_type must be 'random', 'lazy' or 'pagerank', got '{}'", other)))
+            return Err(err(format!(
+                "walk_type must be 'random', 'lazy' or 'pagerank', got '{}'",
+                other
+            )))
         }
         None => {
             if strongly_connected(&adj, &radj) {
@@ -219,7 +231,9 @@ pub fn directed_laplacian_matrix(
     match walk.as_str() {
         "random" | "lazy" => {
             if rowsum.iter().any(|&s| s == 0.0) {
-                return Err(err("The random and lazy walks need every node to have an out-edge"));
+                return Err(err(
+                    "The random and lazy walks need every node to have an out-edge",
+                ));
             }
             for i in 0..n {
                 for j in 0..n {
@@ -236,7 +250,11 @@ pub fn directed_laplacian_matrix(
             }
             for i in 0..n {
                 for j in 0..n {
-                    let row = if rowsum[i] == 0.0 { 1.0 / n as f64 } else { a[(i, j)] / rowsum[i] };
+                    let row = if rowsum[i] == 0.0 {
+                        1.0 / n as f64
+                    } else {
+                        a[(i, j)] / rowsum[i]
+                    };
                     p[(i, j)] = alpha * row + (1.0 - alpha) / n as f64;
                 }
             }
@@ -259,14 +277,22 @@ pub fn directed_laplacian_matrix(
     let mut q = na::DMatrix::<f64>::zeros(n, n);
     for i in 0..n {
         for j in 0..n {
-            q[(i, j)] = if sq[j] > 0.0 { sq[i] * p[(i, j)] / sq[j] } else { 0.0 };
+            q[(i, j)] = if sq[j] > 0.0 {
+                sq[i] * p[(i, j)] / sq[j]
+            } else {
+                0.0
+            };
         }
     }
     let l = na::DMatrix::<f64>::identity(n, n) - (&q + q.transpose()) / 2.0;
     Ok((to_rows(&l), ids, walk))
 }
 
-fn modularity_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> na::DMatrix<f64> {
+fn modularity_dense(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    weighted: bool,
+) -> na::DMatrix<f64> {
     let a = dense_adjacency(graph, idx, weighted);
     let n = a.nrows();
     let mut b = a.clone();
@@ -303,7 +329,12 @@ pub fn modularity_matrix(graph: &Graph, weighted: bool) -> PyResult<(Vec<Vec<f64
     Ok((to_rows(&modularity_dense(graph, &idx, weighted)), ids))
 }
 
-fn bethe_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, r: Option<f64>, weighted: bool) -> PyResult<(na::DMatrix<f64>, f64)> {
+fn bethe_dense(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    r: Option<f64>,
+    weighted: bool,
+) -> PyResult<(na::DMatrix<f64>, f64)> {
     if graph.is_directed() {
         return Err(err("bethe_hessian_matrix() requires an undirected graph"));
     }
@@ -360,7 +391,11 @@ pub fn modularity_spectrum(py: Python, graph: &Graph, weighted: bool) -> PyResul
         }
         Ok(list.into())
     } else {
-        let mut vals: Vec<f64> = na::SymmetricEigen::new(b).eigenvalues.iter().copied().collect();
+        let mut vals: Vec<f64> = na::SymmetricEigen::new(b)
+            .eigenvalues
+            .iter()
+            .copied()
+            .collect();
         vals.sort_by(|x, y| x.total_cmp(y));
         Ok(vals.into_pyobject(py)?.into())
     }
@@ -372,7 +407,11 @@ pub fn modularity_spectrum(py: Python, graph: &Graph, weighted: bool) -> PyResul
 pub fn bethe_hessian_spectrum(graph: &Graph, r: Option<f64>, weighted: bool) -> PyResult<Vec<f64>> {
     let (_, idx) = sorted_ids(graph);
     let (h, _) = bethe_dense(graph, &idx, r, weighted)?;
-    let mut vals: Vec<f64> = na::SymmetricEigen::new(h).eigenvalues.iter().copied().collect();
+    let mut vals: Vec<f64> = na::SymmetricEigen::new(h)
+        .eigenvalues
+        .iter()
+        .copied()
+        .collect();
     vals.sort_by(|x, y| x.total_cmp(y));
     Ok(vals)
 }
@@ -384,9 +423,14 @@ pub fn bethe_hessian_spectrum(graph: &Graph, r: Option<f64>, weighted: bool) -> 
 /// the rest (zeros included) the second. Returns `(first, second, largest eigenvalue)`.
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=false))]
-pub fn spectral_modularity_bipartition(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
+pub fn spectral_modularity_bipartition(
+    graph: &Graph,
+    weighted: bool,
+) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
     if graph.is_directed() {
-        return Err(err("spectral_modularity_bipartition() requires an undirected graph"));
+        return Err(err(
+            "spectral_modularity_bipartition() requires an undirected graph",
+        ));
     }
     let (ids, idx) = sorted_ids(graph);
     if ids.is_empty() {
@@ -398,7 +442,13 @@ pub fn spectral_modularity_bipartition(graph: &Graph, weighted: bool) -> PyResul
         return Ok((Vec::new(), ids, 0.0));
     }
     let eig = na::SymmetricEigen::new(b);
-    let lead = (0..ids.len()).fold(0, |best, j| if eig.eigenvalues[j] > eig.eigenvalues[best] { j } else { best });
+    let lead = (0..ids.len()).fold(0, |best, j| {
+        if eig.eigenvalues[j] > eig.eigenvalues[best] {
+            j
+        } else {
+            best
+        }
+    });
     let v = eig.eigenvectors.column(lead);
     let tol = 1e-12;
     let sign = match v.iter().find(|x| x.abs() > tol) {
@@ -421,7 +471,13 @@ pub fn spectral_modularity_bipartition(graph: &Graph, weighted: bool) -> PyResul
 /// is +1 if only j → k is an edge, -1 if only k → j is, and 0 if both are; then L = D - H
 /// for the row sums D of |H|, or I - D^{-1/2} H D^{-1/2} (zero rows for isolated nodes, with
 /// 1 on the diagonal) when normalized. Hermitian, so its eigenvalues are real.
-fn magnetic_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, q: f64, normalized: bool, weighted: bool) -> PyResult<na::DMatrix<na::Complex<f64>>> {
+fn magnetic_dense(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    q: f64,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<na::DMatrix<na::Complex<f64>>> {
     if !graph.is_directed() {
         return Err(err("The magnetic Laplacian requires a directed graph"));
     }
@@ -447,9 +503,14 @@ fn magnetic_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, q: f64, normalized
             h[(t, s)] = na::Complex::from_polar(sym, -phase);
         }
     }
-    let deg: Vec<f64> = (0..n).map(|i| h.row(i).iter().map(|z| z.norm()).sum()).collect();
+    let deg: Vec<f64> = (0..n)
+        .map(|i| h.row(i).iter().map(|z| z.norm()).sum())
+        .collect();
     if normalized {
-        let inv: Vec<f64> = deg.iter().map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }).collect();
+        let inv: Vec<f64> = deg
+            .iter()
+            .map(|&d| if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 })
+            .collect();
         for i in 0..n {
             for j in 0..n {
                 h[(i, j)] *= -(inv[i] * inv[j]);
@@ -470,7 +531,13 @@ fn magnetic_dense(graph: &Graph, idx: &FxHashMap<u64, usize>, q: f64, normalized
 /// The magnetic Laplacian as rows of Python complex numbers, with the node IDs.
 #[pyfunction]
 #[pyo3(signature = (graph, q=0.25, normalized=false, weighted=false))]
-pub fn magnetic_laplacian_matrix(py: Python, graph: &Graph, q: f64, normalized: bool, weighted: bool) -> PyResult<(PyObject, Vec<u64>)> {
+pub fn magnetic_laplacian_matrix(
+    py: Python,
+    graph: &Graph,
+    q: f64,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<(PyObject, Vec<u64>)> {
     let (ids, idx) = sorted_ids(graph);
     let l = magnetic_dense(graph, &idx, q, normalized, weighted)?;
     let rows = pyo3::types::PyList::empty(py);
@@ -488,10 +555,19 @@ pub fn magnetic_laplacian_matrix(py: Python, graph: &Graph, q: f64, normalized: 
 /// Eigenvalues of the magnetic Laplacian (real, as it is Hermitian), in increasing order.
 #[pyfunction]
 #[pyo3(signature = (graph, q=0.25, normalized=false, weighted=false))]
-pub fn magnetic_spectrum(graph: &Graph, q: f64, normalized: bool, weighted: bool) -> PyResult<Vec<f64>> {
+pub fn magnetic_spectrum(
+    graph: &Graph,
+    q: f64,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<Vec<f64>> {
     let (_, idx) = sorted_ids(graph);
     let l = magnetic_dense(graph, &idx, q, normalized, weighted)?;
-    let mut vals: Vec<f64> = na::SymmetricEigen::new(l).eigenvalues.iter().copied().collect();
+    let mut vals: Vec<f64> = na::SymmetricEigen::new(l)
+        .eigenvalues
+        .iter()
+        .copied()
+        .collect();
     vals.sort_by(|x, y| x.total_cmp(y));
     Ok(vals)
 }
@@ -569,7 +645,12 @@ fn require_undirected(graph: &Graph, what: &str) -> PyResult<()> {
 }
 
 fn check_weights(graph: &Graph, weighted: bool) -> PyResult<()> {
-    if weighted && graph.get_edges_internal().iter().any(|e| e.weight.is_some_and(|w| w < 0.0)) {
+    if weighted
+        && graph
+            .get_edges_internal()
+            .iter()
+            .any(|e| e.weight.is_some_and(|w| w < 0.0))
+    {
         return Err(err("Edge weights must be non-negative"));
     }
     Ok(())
@@ -589,14 +670,20 @@ pub fn algebraic_connectivity(graph: &Graph, normalized: bool, weighted: bool) -
         return Ok(0.0);
     }
     let all: Vec<usize> = (0..ids.len()).collect();
-    Ok(fiedler_pair(graph, &idx, &all, weighted, normalized)?.0.max(0.0))
+    Ok(fiedler_pair(graph, &idx, &all, weighted, normalized)?
+        .0
+        .max(0.0))
 }
 
 /// Fiedler vector (eigenvector of the second smallest Laplacian eigenvalue), unit length, sign
 /// fixed so the first non-negligible entry (in node-ID order) is positive.
 #[pyfunction]
 #[pyo3(signature = (graph, normalized=false, weighted=false))]
-pub fn fiedler_vector(graph: &Graph, normalized: bool, weighted: bool) -> PyResult<FxHashMap<u64, f64>> {
+pub fn fiedler_vector(
+    graph: &Graph,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
     require_undirected(graph, "fiedler_vector()")?;
     check_weights(graph, weighted)?;
     let (ids, idx) = sorted_ids(graph);
@@ -656,7 +743,11 @@ pub fn kemeny_constant(graph: &Graph, weighted: bool) -> PyResult<f64> {
     let s: Vec<f64> = (0..n)
         .map(|i| {
             let d = a.row(i).sum();
-            if d > 0.0 { 1.0 / d.sqrt() } else { 0.0 }
+            if d > 0.0 {
+                1.0 / d.sqrt()
+            } else {
+                0.0
+            }
         })
         .collect();
     let mut h = a.clone();
@@ -665,7 +756,11 @@ pub fn kemeny_constant(graph: &Graph, weighted: bool) -> PyResult<f64> {
             h[(i, j)] *= s[i] * s[j];
         }
     }
-    let mut vals: Vec<f64> = na::SymmetricEigen::new(h).eigenvalues.iter().copied().collect();
+    let mut vals: Vec<f64> = na::SymmetricEigen::new(h)
+        .eigenvalues
+        .iter()
+        .copied()
+        .collect();
     vals.sort_by(|x, y| x.total_cmp(y));
     vals.pop();
     Ok(vals.iter().map(|l| 1.0 / (1.0 - l)).sum())
@@ -676,7 +771,10 @@ pub fn kemeny_constant(graph: &Graph, weighted: bool) -> PyResult<f64> {
 /// bipartivity (Estrada and Rodríguez-Velázquez, 2005).
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=false))]
-pub fn exp_cosh_diagonals(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, Vec<f64>, Vec<f64>)> {
+pub fn exp_cosh_diagonals(
+    graph: &Graph,
+    weighted: bool,
+) -> PyResult<(Vec<u64>, Vec<f64>, Vec<f64>)> {
     require_undirected(graph, "spectral_bipartivity()")?;
     let (ids, idx) = sorted_ids(graph);
     let a = dense_adjacency(graph, &idx, weighted);

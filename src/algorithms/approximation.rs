@@ -34,11 +34,19 @@ fn rng_from(seed: Option<u64>) -> ChaCha8Rng {
 }
 
 /// Outgoing adjacency `(target, weight)` following edge direction on directed graphs.
-fn out_adjacency(graph: &Graph, idx: &FxHashMap<u64, usize>, weighted: bool) -> PyResult<Vec<Vec<(usize, f64)>>> {
+fn out_adjacency(
+    graph: &Graph,
+    idx: &FxHashMap<u64, usize>,
+    weighted: bool,
+) -> PyResult<Vec<Vec<(usize, f64)>>> {
     let directed = graph.is_directed();
     let mut adj = vec![Vec::new(); idx.len()];
     for e in graph.get_edges_internal() {
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         if !(w >= 0.0) || !w.is_finite() {
             return value_err("edge weights must be finite and non-negative");
         }
@@ -126,7 +134,10 @@ fn christofides_tour(d: &[Vec<f64>]) -> Vec<usize> {
     let mut multi: Vec<(usize, usize)> = Vec::new();
     best[0] = 0.0;
     for _ in 0..k {
-        let u = (0..k).filter(|&v| !in_tree[v]).min_by(|&a, &b| best[a].partial_cmp(&best[b]).unwrap().then(a.cmp(&b))).unwrap();
+        let u = (0..k)
+            .filter(|&v| !in_tree[v])
+            .min_by(|&a, &b| best[a].partial_cmp(&best[b]).unwrap().then(a.cmp(&b)))
+            .unwrap();
         in_tree[u] = true;
         if parent[u] != usize::MAX {
             multi.push((parent[u], u));
@@ -153,7 +164,10 @@ fn christofides_tour(d: &[Vec<f64>]) -> Vec<usize> {
             top = top.max(d[a][b]);
         }
     }
-    let flipped: Vec<(usize, usize, f64)> = pairs.iter().map(|&(i, j, w)| (i, j, top + 1.0 - w)).collect();
+    let flipped: Vec<(usize, usize, f64)> = pairs
+        .iter()
+        .map(|&(i, j, w)| (i, j, top + 1.0 - w))
+        .collect();
     for e in blossom_matching(odd.len(), &flipped, true) {
         multi.push((odd[pairs[e].0], odd[pairs[e].1]));
     }
@@ -850,7 +864,16 @@ pub fn traveling_salesman(
                 let anneal = method == "simulated_annealing";
                 let mut rng = rng_from(seed);
                 let t = temperature.unwrap_or(if anneal { 100.0 } else { 1.0 });
-                local_search(&d, greedy_tour(&d), anneal, move_one, t, max_iterations, n_inner, &mut rng)
+                local_search(
+                    &d,
+                    greedy_tour(&d),
+                    anneal,
+                    move_one,
+                    t,
+                    max_iterations,
+                    n_inner,
+                    &mut rng,
+                )
             }
             _ => return value_err(format!("unknown method {method:?}")),
         }
@@ -864,7 +887,11 @@ pub fn traveling_salesman(
             }
         }
         let body = &tour[..tour.len() - 1];
-        tour = body[worst + 1..].iter().chain(body[..worst + 1].iter()).copied().collect();
+        tour = body[worst + 1..]
+            .iter()
+            .chain(body[..worst + 1].iter())
+            .copied()
+            .collect();
     }
     let cost = tour_cost(&d, &tour);
     // expand legs into shortest paths
@@ -902,7 +929,11 @@ pub fn metric_closure(py: Python, graph: &Graph, weighted: bool) -> PyResult<Gra
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes,
+        })?;
     }
     for s in 0..ids.len() {
         let (dist, _) = dijkstra(&adj, s);
@@ -917,7 +948,13 @@ pub fn metric_closure(py: Python, graph: &Graph, weighted: bool) -> PyResult<Gra
                     "the metric closure needs a connected graph"
                 });
             }
-            result.add_edge_rust(Edge { id: 0, source: ids[s], target: ids[t], weight: Some(dist[t]), attributes: None })?;
+            result.add_edge_rust(Edge {
+                id: 0,
+                source: ids[s],
+                target: ids[t],
+                weight: Some(dist[t]),
+                attributes: None,
+            })?;
         }
     }
     Ok(result)
@@ -943,11 +980,18 @@ fn simple_sets(graph: &Graph, idx: &FxHashMap<u64, usize>) -> Vec<FxHashSet<usiz
 /// Tree decomposition by greedy elimination: `(width, bags as node IDs, bag edges)`.
 #[pyfunction]
 #[pyo3(signature = (graph, heuristic="min_fill_in"))]
-pub fn tree_decomposition(graph: &Graph, heuristic: &str) -> PyResult<(i64, Vec<Vec<u64>>, Vec<(usize, usize)>)> {
+pub fn tree_decomposition(
+    graph: &Graph,
+    heuristic: &str,
+) -> PyResult<(i64, Vec<Vec<u64>>, Vec<(usize, usize)>)> {
     let min_fill = match heuristic {
         "min_fill_in" => true,
         "min_degree" => false,
-        _ => return value_err(format!("heuristic= must be 'min_fill_in' or 'min_degree', got {heuristic:?}")),
+        _ => {
+            return value_err(format!(
+                "heuristic= must be 'min_fill_in' or 'min_degree', got {heuristic:?}"
+            ))
+        }
     };
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
@@ -979,7 +1023,10 @@ pub fn tree_decomposition(graph: &Graph, heuristic: &str) -> PyResult<(i64, Vec<
                     let nbrs = &adj[v];
                     let mut fill = 0usize;
                     for &u in nbrs {
-                        fill += nbrs.iter().filter(|&&x| x != u && !adj[u].contains(&x)).count();
+                        fill += nbrs
+                            .iter()
+                            .filter(|&&x| x != u && !adj[u].contains(&x))
+                            .count();
                     }
                     let fill = fill / 2;
                     if fill < best_fill {
@@ -1034,7 +1081,10 @@ pub fn tree_decomposition(graph: &Graph, heuristic: &str) -> PyResult<(i64, Vec<
     let mut width = alive.len() as i64 - 1;
     let mut edges = Vec::new();
     while let Some((v, nbrs)) = stack.pop() {
-        let old = bag_sets.iter().position(|bag| nbrs.iter().all(|x| bag.contains(x))).unwrap_or(0);
+        let old = bag_sets
+            .iter()
+            .position(|bag| nbrs.iter().all(|x| bag.contains(x)))
+            .unwrap_or(0);
         let mut bag = nbrs.clone();
         bag.push(v);
         bag.sort_unstable();
@@ -1043,7 +1093,10 @@ pub fn tree_decomposition(graph: &Graph, heuristic: &str) -> PyResult<(i64, Vec<
         bags.push(bag);
         edges.push((old, bags.len() - 1));
     }
-    let bags = bags.into_iter().map(|b| b.into_iter().map(|i| ids[i]).collect()).collect();
+    let bags = bags
+        .into_iter()
+        .map(|b| b.into_iter().map(|i| ids[i]).collect())
+        .collect();
     Ok((width, bags, edges))
 }
 
@@ -1059,7 +1112,11 @@ pub(crate) struct Dinic {
 
 impl Dinic {
     pub(crate) fn new(n: usize) -> Self {
-        Dinic { adj: vec![Vec::new(); n], to: Vec::new(), cap: Vec::new() }
+        Dinic {
+            adj: vec![Vec::new(); n],
+            to: Vec::new(),
+            cap: Vec::new(),
+        }
     }
     pub(crate) fn add(&mut self, u: usize, v: usize, c: i64, back: i64) {
         self.adj[u].push(self.to.len());
@@ -1137,12 +1194,17 @@ impl Dinic {
 /// iterations) or `"greedy++"` (Boob et al. peeling, `iterations` rounds).
 #[pyfunction]
 #[pyo3(signature = (graph, method="exact", iterations=1))]
-pub fn densest_subgraph(graph: &Graph, method: &str, iterations: usize) -> PyResult<(f64, Vec<u64>)> {
+pub fn densest_subgraph(
+    graph: &Graph,
+    method: &str,
+    iterations: usize,
+) -> PyResult<(f64, Vec<u64>)> {
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
     let adj = simple_sets(graph, &idx);
-    let pairs: Vec<(usize, usize)> =
-        (0..n).flat_map(|u| adj[u].iter().filter(move |&&v| u < v).map(move |&v| (u, v))).collect();
+    let pairs: Vec<(usize, usize)> = (0..n)
+        .flat_map(|u| adj[u].iter().filter(move |&&v| u < v).map(move |&v| (u, v)))
+        .collect();
     let m = pairs.len();
     if m == 0 {
         return Ok((0.0, Vec::new()));
@@ -1170,7 +1232,10 @@ pub fn densest_subgraph(graph: &Graph, method: &str, iterations: usize) -> PyRes
                     break;
                 }
                 let inside: FxHashSet<usize> = cand.iter().copied().collect();
-                let e = pairs.iter().filter(|(a, b)| inside.contains(a) && inside.contains(b)).count() as i64;
+                let e = pairs
+                    .iter()
+                    .filter(|(a, b)| inside.contains(a) && inside.contains(b))
+                    .count() as i64;
                 if q * e - p * cand.len() as i64 > 0 {
                     p = e;
                     q = cand.len() as i64;
@@ -1193,7 +1258,8 @@ pub fn densest_subgraph(graph: &Graph, method: &str, iterations: usize) -> PyRes
                 let mut alive = vec![true; n];
                 let mut count = n;
                 let mut edges = m;
-                let mut heap: BinaryHeap<Reverse<(usize, usize)>> = (0..n).map(|v| Reverse((loads[v] + cur[v], v))).collect();
+                let mut heap: BinaryHeap<Reverse<(usize, usize)>> =
+                    (0..n).map(|v| Reverse((loads[v] + cur[v], v))).collect();
                 let mut order = Vec::with_capacity(n);
                 let mut best_round = (0.0f64, 0usize); // density, nodes removed before it
                 while count > 0 {
@@ -1201,7 +1267,9 @@ pub fn densest_subgraph(graph: &Graph, method: &str, iterations: usize) -> PyRes
                     if density > best_round.0 {
                         best_round = (density, order.len());
                     }
-                    let Some(Reverse((key, v))) = heap.pop() else { break };
+                    let Some(Reverse((key, v))) = heap.pop() else {
+                        break;
+                    };
                     if !alive[v] || key != loads[v] + cur[v] {
                         continue;
                     }
@@ -1225,12 +1293,22 @@ pub fn densest_subgraph(graph: &Graph, method: &str, iterations: usize) -> PyRes
             }
             best_set
         }
-        _ => return value_err(format!("method= must be 'exact' or 'greedy++', got {method:?}")),
+        _ => {
+            return value_err(format!(
+                "method= must be 'exact' or 'greedy++', got {method:?}"
+            ))
+        }
     };
     best.sort_unstable();
     let inside: FxHashSet<usize> = best.iter().copied().collect();
-    let e = pairs.iter().filter(|(a, b)| inside.contains(a) && inside.contains(b)).count();
-    Ok((e as f64 / best.len() as f64, best.into_iter().map(|v| ids[v]).collect()))
+    let e = pairs
+        .iter()
+        .filter(|(a, b)| inside.contains(a) && inside.contains(b))
+        .count();
+    Ok((
+        e as f64 / best.len() as f64,
+        best.into_iter().map(|v| ids[v]).collect(),
+    ))
 }
 
 // ---------------------------------------------------------------------------------------------
@@ -1257,7 +1335,11 @@ pub fn max_cut(
         if a == b {
             continue;
         }
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         adj[a].push((b, w));
         adj[b].push((a, w));
     }
@@ -1274,7 +1356,12 @@ pub fn max_cut(
                 }
             }
             let mut gain: Vec<f64> = (0..n)
-                .map(|v| adj[v].iter().map(|&(u, w)| if side[u] == side[v] { w } else { -w }).sum())
+                .map(|v| {
+                    adj[v]
+                        .iter()
+                        .map(|&(u, w)| if side[u] == side[v] { w } else { -w })
+                        .sum()
+                })
                 .collect();
             let mut order: Vec<usize> = (0..n).collect();
             loop {
@@ -1290,7 +1377,11 @@ pub fn max_cut(
                     break;
                 }
                 for &(u, w) in &adj[v] {
-                    gain[u] += if side[u] == side[v] { -2.0 * w } else { 2.0 * w };
+                    gain[u] += if side[u] == side[v] {
+                        -2.0 * w
+                    } else {
+                        2.0 * w
+                    };
                 }
                 gain[v] = -gain[v];
                 side[v] = !side[v];
@@ -1304,9 +1395,22 @@ pub fn max_cut(
                 *s = rng.gen::<f64>() < p;
             }
         }
-        _ => return value_err(format!("method= must be 'one_exchange' or 'randomized', got {method:?}")),
+        _ => {
+            return value_err(format!(
+                "method= must be 'one_exchange' or 'randomized', got {method:?}"
+            ))
+        }
     }
-    let value: f64 = (0..n).map(|v| adj[v].iter().filter(|&&(u, _)| side[u] != side[v]).map(|&(_, w)| w).sum::<f64>()).sum::<f64>() / 2.0;
+    let value: f64 = (0..n)
+        .map(|v| {
+            adj[v]
+                .iter()
+                .filter(|&&(u, _)| side[u] != side[v])
+                .map(|&(_, w)| w)
+                .sum::<f64>()
+        })
+        .sum::<f64>()
+        / 2.0;
     let s: Vec<u64> = (0..n).filter(|&v| side[v]).map(|v| ids[v]).collect();
     let t: Vec<u64> = (0..n).filter(|&v| !side[v]).map(|v| ids[v]).collect();
     Ok((value, s, t))

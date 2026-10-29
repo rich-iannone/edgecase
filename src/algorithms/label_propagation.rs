@@ -24,9 +24,10 @@ pub fn label_propagation(
     let valid: FxHashSet<u64> = node_ids.iter().copied().collect();
     for &nid in known_labels.keys() {
         if !valid.contains(&nid) {
-            return Err(pyo3::exceptions::PyValueError::new_err(
-                format!("Node {} in known_labels not found in graph", nid),
-            ));
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Node {} in known_labels not found in graph",
+                nid
+            )));
         }
     }
 
@@ -110,9 +111,10 @@ pub fn label_propagation(
                 }
             }
 
-            if let Some((&best_label, _)) = votes.iter().max_by(|a, b| {
-                a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal)
-            }) {
+            if let Some((&best_label, _)) = votes
+                .iter()
+                .max_by(|a, b| a.1.partial_cmp(b.1).unwrap_or(std::cmp::Ordering::Equal))
+            {
                 let old = *labels.get(&nid).unwrap_or(&-1);
                 if best_label != old {
                     labels.insert(nid, best_label);

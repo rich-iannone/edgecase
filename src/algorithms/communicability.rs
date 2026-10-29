@@ -59,10 +59,8 @@ pub fn communicability(graph: &Graph) -> PyResult<FxHashMap<u64, FxHashMap<u64, 
     let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
 
     for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
+        if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+        {
             // Check for self-loops
             if i == j {
                 return Err(pyo3::exceptions::PyValueError::new_err(
@@ -170,10 +168,8 @@ pub fn communicability_betweenness_centrality(graph: &Graph) -> PyResult<FxHashM
     let mut adj_matrix = DMatrix::<f64>::zeros(n, n);
 
     for edge in graph.get_edges_internal() {
-        if let (Some(&i), Some(&j)) = (
-            node_to_idx.get(&edge.source),
-            node_to_idx.get(&edge.target),
-        ) {
+        if let (Some(&i), Some(&j)) = (node_to_idx.get(&edge.source), node_to_idx.get(&edge.target))
+        {
             // Check for self-loops
             if i == j {
                 return Err(pyo3::exceptions::PyValueError::new_err(

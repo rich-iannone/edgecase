@@ -20,8 +20,11 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// makes the graph non-bipartite, as it should). `Graph::neighbors()` alone would only follow
 /// out-edges on directed graphs.
 fn undirected_adjacency(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
-    let mut adj: FxHashMap<u64, Vec<u64>> =
-        graph.get_node_ids().into_iter().map(|id| (id, Vec::new())).collect();
+    let mut adj: FxHashMap<u64, Vec<u64>> = graph
+        .get_node_ids()
+        .into_iter()
+        .map(|id| (id, Vec::new()))
+        .collect();
     for edge in graph.get_edges_internal() {
         adj.entry(edge.source).or_default().push(edge.target);
         adj.entry(edge.target).or_default().push(edge.source);
@@ -47,8 +50,7 @@ pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
     let mut node_ids = graph.get_node_ids();
     node_ids.sort_unstable();
     let adj = undirected_adjacency(graph);
-    let mut color: FxHashMap<u64, u8> =
-        FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut color: FxHashMap<u64, u8> = FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     let mut set_0: Vec<u64> = Vec::new();
     let mut set_1: Vec<u64> = Vec::new();
@@ -106,10 +108,7 @@ pub fn bipartite_sets(graph: &Graph) -> PyResult<(Vec<u64>, Vec<u64>)> {
 /// `bipartite_sets`).
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
-pub fn bipartite_projection(
-    graph: &Graph,
-    which: u8,
-) -> PyResult<Vec<(u64, u64, f64)>> {
+pub fn bipartite_projection(graph: &Graph, which: u8) -> PyResult<Vec<(u64, u64, f64)>> {
     if which > 1 {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "which must be 0 or 1",
@@ -162,10 +161,7 @@ pub fn bipartite_projection(
 /// Normalized by the size of the opposite partition (the maximum possible degree).
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
-pub fn bipartite_degree_centrality(
-    graph: &Graph,
-    which: u8,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn bipartite_degree_centrality(graph: &Graph, which: u8) -> PyResult<FxHashMap<u64, f64>> {
     if which > 1 {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "which must be 0 or 1",
@@ -228,10 +224,7 @@ fn bfs_distances(adj: &FxHashMap<u64, Vec<u64>>, source: u64) -> FxHashMap<u64, 
 /// nodes in the opposite partition.
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
-pub fn bipartite_closeness_centrality(
-    graph: &Graph,
-    which: u8,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn bipartite_closeness_centrality(graph: &Graph, which: u8) -> PyResult<FxHashMap<u64, f64>> {
     if which > 1 {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "which must be 0 or 1",
@@ -286,10 +279,7 @@ pub fn bipartite_closeness_centrality(
 /// in the opposite partition.
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
-pub fn bipartite_betweenness_centrality(
-    graph: &Graph,
-    which: u8,
-) -> PyResult<FxHashMap<u64, f64>> {
+pub fn bipartite_betweenness_centrality(graph: &Graph, which: u8) -> PyResult<FxHashMap<u64, f64>> {
     if which > 1 {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "which must be 0 or 1",
@@ -380,7 +370,6 @@ pub fn bipartite_betweenness_centrality(
     Ok(betweenness)
 }
 
-
 fn value_err<T>(msg: &str) -> PyResult<T> {
     Err(pyo3::exceptions::PyValueError::new_err(msg.to_string()))
 }
@@ -396,7 +385,11 @@ struct SplitNetwork {
 
 impl SplitNetwork {
     fn new(n: usize, arcs: &[(usize, usize)]) -> Self {
-        let mut net = SplitNetwork { head: vec![Vec::new(); 2 * n], to: Vec::new(), cap: Vec::new() };
+        let mut net = SplitNetwork {
+            head: vec![Vec::new(); 2 * n],
+            to: Vec::new(),
+            cap: Vec::new(),
+        };
         for x in 0..n {
             net.add(2 * x, 2 * x + 1);
         }

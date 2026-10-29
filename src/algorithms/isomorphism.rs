@@ -40,7 +40,11 @@ struct Side {
 }
 
 impl Side {
-    fn new(graph: &Graph, node_colors: &FxHashMap<u64, i64>, edge_colors: &FxHashMap<u64, i64>) -> Self {
+    fn new(
+        graph: &Graph,
+        node_colors: &FxHashMap<u64, i64>,
+        edge_colors: &FxHashMap<u64, i64>,
+    ) -> Self {
         let mut ids = graph.get_node_ids();
         ids.sort_unstable();
         let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
@@ -63,21 +67,34 @@ impl Side {
                 label.sort_unstable();
             }
         }
-        let deg_out = out.iter().map(|m| m.values().map(|l| l.len()).sum()).collect();
+        let deg_out = out
+            .iter()
+            .map(|m| m.values().map(|l| l.len()).sum())
+            .collect();
         let deg_in = if directed {
-            inn.iter().map(|m| m.values().map(|l| l.len()).sum()).collect()
+            inn.iter()
+                .map(|m| m.values().map(|l| l.len()).sum())
+                .collect()
         } else {
             vec![0; n]
         };
         let any = (0..n)
             .map(|u| {
-                let mut v: Vec<usize> = out[u].keys().chain(inn[u].keys()).copied().filter(|&w| w != u).collect();
+                let mut v: Vec<usize> = out[u]
+                    .keys()
+                    .chain(inn[u].keys())
+                    .copied()
+                    .filter(|&w| w != u)
+                    .collect();
                 v.sort_unstable();
                 v.dedup();
                 v
             })
             .collect();
-        let color = ids.iter().map(|id| node_colors.get(id).copied().unwrap_or(0)).collect();
+        let color = ids
+            .iter()
+            .map(|id| node_colors.get(id).copied().unwrap_or(0))
+            .collect();
         let edges = graph.num_edges();
         Side {
             ids,
@@ -186,8 +203,10 @@ fn refine(p: &Side, t: &Side, directed: bool) -> (Vec<i64>, Vec<i64>) {
         let mut sig = |side: &Side, col: &[i64]| -> Vec<i64> {
             (0..side.ids.len())
                 .map(|u| {
-                    let mut parts: Vec<(u8, i64, Label)> =
-                        side.out[u].iter().map(|(&w, l)| (0u8, col[w], l.clone())).collect();
+                    let mut parts: Vec<(u8, i64, Label)> = side.out[u]
+                        .iter()
+                        .map(|(&w, l)| (0u8, col[w], l.clone()))
+                        .collect();
                     if directed {
                         parts.extend(side.inn[u].iter().map(|(&w, l)| (1u8, col[w], l.clone())));
                     }
@@ -285,7 +304,10 @@ impl<'a> Matcher<'a> {
                 }
             }
             if self.mode != 2 {
-                let mapped_t = tm[x].keys().filter(|&&y| y != x && self.inv[y] != NONE).count();
+                let mapped_t = tm[x]
+                    .keys()
+                    .filter(|&&y| y != x && self.inv[y] != NONE)
+                    .count();
                 if mapped_t != mapped_p {
                     return false;
                 }
@@ -300,21 +322,30 @@ impl<'a> Matcher<'a> {
         if self.mode == 2 {
             return true;
         }
-        let split = |any: &[usize], col: &[i64], touch: &[usize], mapped: &dyn Fn(usize) -> bool| {
-            let mut front = Vec::new();
-            let mut rest = Vec::new();
-            for &w in any {
-                if mapped(w) {
-                    continue;
+        let split =
+            |any: &[usize], col: &[i64], touch: &[usize], mapped: &dyn Fn(usize) -> bool| {
+                let mut front = Vec::new();
+                let mut rest = Vec::new();
+                for &w in any {
+                    if mapped(w) {
+                        continue;
+                    }
+                    if touch[w] > 0 {
+                        front.push(col[w])
+                    } else {
+                        rest.push(col[w])
+                    }
                 }
-                if touch[w] > 0 { front.push(col[w]) } else { rest.push(col[w]) }
-            }
-            front.sort_unstable();
-            rest.sort_unstable();
-            (front, rest)
-        };
-        let (fp, rp) = split(&self.p.any[u], &self.pc, &self.touch_p, &|w| self.map[w] != NONE);
-        let (ft, rt) = split(&self.t.any[x], &self.tc, &self.touch_t, &|y| self.inv[y] != NONE);
+                front.sort_unstable();
+                rest.sort_unstable();
+                (front, rest)
+            };
+        let (fp, rp) = split(&self.p.any[u], &self.pc, &self.touch_p, &|w| {
+            self.map[w] != NONE
+        });
+        let (ft, rt) = split(&self.t.any[x], &self.tc, &self.touch_t, &|y| {
+            self.inv[y] != NONE
+        });
         if self.mode == 0 {
             fp == ft && rp == rt
         } else {
@@ -331,10 +362,18 @@ impl<'a> Matcher<'a> {
             self.inv[x] = NONE;
         }
         for &w in &self.p.any[u] {
-            if on { self.touch_p[w] += 1 } else { self.touch_p[w] -= 1 }
+            if on {
+                self.touch_p[w] += 1
+            } else {
+                self.touch_p[w] -= 1
+            }
         }
         for &y in &self.t.any[x] {
-            if on { self.touch_t[y] += 1 } else { self.touch_t[y] -= 1 }
+            if on {
+                self.touch_t[y] += 1
+            } else {
+                self.touch_t[y] -= 1
+            }
         }
     }
 
@@ -471,7 +510,13 @@ fn run_matcher(
     while order.len() < np {
         let root = (0..np)
             .filter(|&u| !placed[u])
-            .min_by_key(|&u| (rarity.get(&pc[u]).copied().unwrap_or(0), std::cmp::Reverse(degree(u)), u))
+            .min_by_key(|&u| {
+                (
+                    rarity.get(&pc[u]).copied().unwrap_or(0),
+                    std::cmp::Reverse(degree(u)),
+                    u,
+                )
+            })
             .unwrap();
         let mut seen = vec![false; np];
         seen[root] = true;
@@ -722,7 +767,11 @@ pub fn simrank(
     let mut a = DMatrix::<f64>::zeros(n, n);
     for e in graph.get_edges_internal() {
         let (u, v) = (idx[&e.source], idx[&e.target]);
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         a[(u, v)] += w;
         if !graph.is_directed() && u != v {
             a[(v, u)] += w;
@@ -742,7 +791,10 @@ pub fn simrank(
         for i in 0..n {
             next[(i, i)] = 1.0;
         }
-        let close = sim.iter().zip(next.iter()).all(|(&old, &new)| (old - new).abs() <= tolerance + 1e-5 * new.abs());
+        let close = sim
+            .iter()
+            .zip(next.iter())
+            .all(|(&old, &new)| (old - new).abs() <= tolerance + 1e-5 * new.abs());
         sim = next;
         if close {
             converged = true;
@@ -750,8 +802,12 @@ pub fn simrank(
         }
     }
     if !converged && n > 0 {
-        return value_err(format!("SimRank did not converge after {max_iterations} iterations"));
+        return value_err(format!(
+            "SimRank did not converge after {max_iterations} iterations"
+        ));
     }
-    let rows = (0..n).map(|i| (0..n).map(|j| sim[(i, j)]).collect()).collect();
+    let rows = (0..n)
+        .map(|i| (0..n).map(|j| sim[(i, j)]).collect())
+        .collect();
     Ok((ids, rows))
 }

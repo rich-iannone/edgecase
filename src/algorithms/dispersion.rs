@@ -1,5 +1,5 @@
-use pyo3::prelude::*;
 use crate::graph::Graph;
+use pyo3::prelude::*;
 use rustc_hash::FxHashSet;
 
 /// Compute dispersion between two nodes u and v.
@@ -20,12 +20,7 @@ use rustc_hash::FxHashSet;
 /// The dispersion score between u and v
 #[pyfunction]
 #[pyo3(signature = (graph, u, v, normalized=true))]
-pub fn dispersion(
-    graph: &Graph,
-    u: u64,
-    v: u64,
-    normalized: bool,
-) -> PyResult<f64> {
+pub fn dispersion(graph: &Graph, u: u64, v: u64, normalized: bool) -> PyResult<f64> {
     // Verify nodes exist
     if !graph.has_node_id(u) {
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -68,7 +63,6 @@ pub fn dispersion(
             .collect();
 
         for &t in &common[i + 1..n] {
-
             // Check if s and t are directly connected
             if !s_nbrs.contains(&t) {
                 // Check if s and t share any common neighbors (excluding u and v)

@@ -141,16 +141,10 @@ pub fn greedy_color(
 
     // Perform greedy coloring
     let coloring = match strat {
-        ColoringStrategy::SaturationLargestFirst => {
-            dsatur_coloring(&node_ids, &adj_list)?
-        }
-        ColoringStrategy::IndependentSet => {
-            independent_set_coloring(&node_ids, &adj_list)?
-        }
+        ColoringStrategy::SaturationLargestFirst => dsatur_coloring(&node_ids, &adj_list)?,
+        ColoringStrategy::IndependentSet => independent_set_coloring(&node_ids, &adj_list)?,
         _ if use_interchange => interchange_coloring(&ordered_nodes, &adj_list),
-        _ => {
-            greedy_sequential_coloring(&ordered_nodes, &adj_list)?
-        }
+        _ => greedy_sequential_coloring(&ordered_nodes, &adj_list)?,
     };
 
     // Convert to Python dict
@@ -178,9 +172,7 @@ fn order_nodes_by_strategy(
         }
         ColoringStrategy::LargestFirst => {
             // Sort by degree descending
-            ordered.sort_by_key(|&node| {
-                Reverse(adj_list.get(&node).map(|s| s.len()).unwrap_or(0))
-            });
+            ordered.sort_by_key(|&node| Reverse(adj_list.get(&node).map(|s| s.len()).unwrap_or(0)));
         }
         ColoringStrategy::SmallestLast => {
             // Smallest-last ordering: repeatedly remove min-degree node
@@ -208,10 +200,7 @@ fn order_nodes_by_strategy(
 
 /// Compute smallest-last ordering
 /// Repeatedly removes the node with minimum degree from the remaining graph
-fn smallest_last_ordering(
-    node_ids: &[u64],
-    adj_list: &FxHashMap<u64, FxHashSet<u64>>,
-) -> Vec<u64> {
+fn smallest_last_ordering(node_ids: &[u64], adj_list: &FxHashMap<u64, FxHashSet<u64>>) -> Vec<u64> {
     let n = node_ids.len();
     let mut result = Vec::with_capacity(n);
     let mut remaining: FxHashSet<u64> = node_ids.iter().copied().collect();
@@ -368,7 +357,9 @@ fn try_interchange(
             }
 
             for member in chain {
-                let c = coloring.get_mut(&member).expect("chain members are colored");
+                let c = coloring
+                    .get_mut(&member)
+                    .expect("chain members are colored");
                 *c = if *c == a { b } else { a };
             }
             return Some(a);
@@ -385,7 +376,8 @@ fn dsatur_coloring(
     adj_list: &FxHashMap<u64, FxHashSet<u64>>,
 ) -> PyResult<FxHashMap<u64, usize>> {
     let n = node_ids.len();
-    let mut coloring: FxHashMap<u64, usize> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut coloring: FxHashMap<u64, usize> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
     let mut uncolored: FxHashSet<u64> = node_ids.iter().copied().collect();
 
     // Track saturation (number of different colors in neighborhood)
@@ -530,7 +522,9 @@ pub fn is_valid_coloring(
 /// Get the chromatic number upper bound from a coloring
 /// (The number of distinct colors used)
 #[pyfunction]
-pub fn chromatic_number_upper_bound(coloring: std::collections::HashMap<u64, i64>) -> PyResult<usize> {
+pub fn chromatic_number_upper_bound(
+    coloring: std::collections::HashMap<u64, i64>,
+) -> PyResult<usize> {
     let colors: FxHashSet<i64> = coloring.values().copied().collect();
     Ok(colors.len())
 }
@@ -554,8 +548,7 @@ pub fn edge_coloring(graph: &Graph) -> PyResult<Vec<(u64, usize)>> {
     raw.sort_unstable();
     let mut node_ids = graph.get_node_ids();
     node_ids.sort_unstable();
-    let index: FxHashMap<u64, usize> =
-        node_ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
+    let index: FxHashMap<u64, usize> = node_ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
 
     let mut ends: Vec<(usize, usize)> = Vec::with_capacity(raw.len());
     let mut pairs: FxHashSet<(usize, usize)> = FxHashSet::default();
@@ -594,7 +587,14 @@ pub fn edge_coloring(graph: &Graph) -> PyResult<Vec<(u64, usize)>> {
         }
     };
 
-    fn paint(e: usize, c: usize, ends: &[(usize, usize)], at: &mut [usize], color: &mut [usize], k: usize) {
+    fn paint(
+        e: usize,
+        c: usize,
+        ends: &[(usize, usize)],
+        at: &mut [usize],
+        color: &mut [usize],
+        k: usize,
+    ) {
         let (a, b) = ends[e];
         at[a * k + c] = e;
         at[b * k + c] = e;
@@ -658,7 +658,14 @@ pub fn edge_coloring(graph: &Graph) -> PyResult<Vec<(u64, usize)>> {
                 unpaint(ed, &ends, &mut at, &mut color, k);
             }
             for (&ed, &was) in path.iter().zip(&old) {
-                paint(ed, if was == c { d } else { c }, &ends, &mut at, &mut color, k);
+                paint(
+                    ed,
+                    if was == c { d } else { c },
+                    &ends,
+                    &mut at,
+                    &mut color,
+                    k,
+                );
             }
         }
 
@@ -684,7 +691,11 @@ pub fn edge_coloring(graph: &Graph) -> PyResult<Vec<(u64, usize)>> {
         paint(fan_e[w], d, &ends, &mut at, &mut color, k);
     }
 
-    Ok(raw.iter().zip(&color).map(|(&(id, _, _), &c)| (id, c)).collect())
+    Ok(raw
+        .iter()
+        .zip(&color)
+        .map(|(&(id, _, _), &c)| (id, c))
+        .collect())
 }
 
 #[cfg(test)]

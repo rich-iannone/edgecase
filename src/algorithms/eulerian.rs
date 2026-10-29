@@ -327,7 +327,14 @@ fn euler_adjacency(graph: &Graph) -> EulerAdj {
             adj[t].push((s, e.id));
         }
     }
-    EulerAdj { ids, idx, adj, outd, ind, m: edges.len() }
+    EulerAdj {
+        ids,
+        idx,
+        adj,
+        outd,
+        ind,
+        m: edges.len(),
+    }
 }
 
 /// Hierholzer's algorithm from `start`, returning (nodes, edge IDs) of a trail that uses every
@@ -412,7 +419,9 @@ fn euler_start(graph: &Graph, ea: &EulerAdj, source: Option<u64>) -> PyResult<Op
         return Ok(match src {
             Some(s) if has_edges(s) || ea.m == 0 => Some(s),
             Some(_) => None,
-            None => (0..n).find(|&v| has_edges(v)).or(if n > 0 { Some(0) } else { None }),
+            None => (0..n)
+                .find(|&v| has_edges(v))
+                .or(if n > 0 { Some(0) } else { None }),
         });
     }
     Ok(match src {
@@ -426,10 +435,7 @@ fn euler_start(graph: &Graph, ea: &EulerAdj, source: Option<u64>) -> PyResult<Op
 /// if the graph has none. On an Eulerian graph this is a circuit. Isolated nodes are ignored.
 #[pyfunction]
 #[pyo3(signature = (graph, source=None))]
-pub fn eulerian_path(
-    graph: &Graph,
-    source: Option<u64>,
-) -> PyResult<Option<(Vec<u64>, Vec<u64>)>> {
+pub fn eulerian_path(graph: &Graph, source: Option<u64>) -> PyResult<Option<(Vec<u64>, Vec<u64>)>> {
     let ea = euler_adjacency(graph);
     let Some(start) = euler_start(graph, &ea, source)? else {
         return Ok(None);
@@ -502,7 +508,11 @@ fn min_cost_pairing(cost: &[Vec<f64>]) -> Vec<(usize, usize)> {
             cand.push((cost[i][j], i, j));
         }
     }
-    cand.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap().then((a.1, a.2).cmp(&(b.1, b.2))));
+    cand.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap()
+            .then((a.1, a.2).cmp(&(b.1, b.2)))
+    });
     let mut taken = vec![false; k];
     let mut pairs: Vec<(usize, usize)> = Vec::new();
     for (_, i, j) in cand {
@@ -566,14 +576,25 @@ pub fn eulerize(py: Python, graph: &Graph, weighted: bool) -> PyResult<(Graph, V
     let weight_of: FxHashMap<u64, f64> = graph
         .get_edges_internal()
         .iter()
-        .map(|e| (e.id, if weighted { e.weight.unwrap_or(1.0) } else { 1.0 }))
+        .map(|e| {
+            (
+                e.id,
+                if weighted {
+                    e.weight.unwrap_or(1.0)
+                } else {
+                    1.0
+                },
+            )
+        })
         .collect();
     if weight_of.values().any(|&w| w < 0.0) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "eulerize() requires non-negative edge weights",
         ));
     }
-    let odd: Vec<usize> = (0..n).filter(|&v| (ea.outd[v] + ea.ind[v]) % 2 == 1).collect();
+    let odd: Vec<usize> = (0..n)
+        .filter(|&v| (ea.outd[v] + ea.ind[v]) % 2 == 1)
+        .collect();
 
     // Shortest paths from each odd node (Dijkstra; ties keep the first predecessor found)
     let mut dist_rows: Vec<Vec<f64>> = Vec::with_capacity(odd.len());
@@ -614,12 +635,13 @@ pub fn eulerize(py: Python, graph: &Graph, weighted: bool) -> PyResult<(Graph, V
 
     // Build the result: same nodes (IDs kept) and edges, then the duplicates
     let mut result = Graph::new_rust(false, graph.is_weighted());
-    let copy_attrs = |attrs: &Option<Py<pyo3::types::PyDict>>| -> PyResult<Option<Py<pyo3::types::PyDict>>> {
-        Ok(match attrs {
-            Some(d) => Some(d.bind(py).copy()?.unbind()),
-            None => None,
-        })
-    };
+    let copy_attrs =
+        |attrs: &Option<Py<pyo3::types::PyDict>>| -> PyResult<Option<Py<pyo3::types::PyDict>>> {
+            Ok(match attrs {
+                Some(d) => Some(d.bind(py).copy()?.unbind()),
+                None => None,
+            })
+        };
     let nodes = graph.get_nodes();
     for &id in &ea.ids {
         let node = &nodes[&id];
@@ -629,8 +651,11 @@ pub fn eulerize(py: Python, graph: &Graph, weighted: bool) -> PyResult<(Graph, V
             attributes: copy_attrs(&node.attributes)?,
         })?;
     }
-    let by_id: FxHashMap<u64, &Edge> =
-        graph.get_edges_internal().iter().map(|e| (e.id, e)).collect();
+    let by_id: FxHashMap<u64, &Edge> = graph
+        .get_edges_internal()
+        .iter()
+        .map(|e| (e.id, e))
+        .collect();
     for e in graph.get_edges_internal() {
         // keep original edge IDs; duplicates get fresh IDs after them. Originals are marked
         // `eulerize_added = False` (not left null) so filters on either value work.
@@ -673,7 +698,9 @@ impl Eq for OrdF {}
 #[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for OrdF {
     fn cmp(&self, o: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&o.0).unwrap_or(std::cmp::Ordering::Equal)
+        self.0
+            .partial_cmp(&o.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 

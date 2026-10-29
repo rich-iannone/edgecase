@@ -169,7 +169,16 @@ fn enumerate_combos(
     let n = node_ids.len();
     for i in start..=(n - remaining) {
         combo[depth] = i;
-        enumerate_combos(node_ids, adj, directed, size, depth + 1, i + 1, combo, result);
+        enumerate_combos(
+            node_ids,
+            adj,
+            directed,
+            size,
+            depth + 1,
+            i + 1,
+            combo,
+            result,
+        );
     }
 }
 
@@ -206,10 +215,7 @@ fn motif_class_name(key: u64, size: usize, directed: bool) -> String {
 /// Count occurrences of all non-isomorphic connected subgraphs of a given size.
 #[pyfunction]
 #[pyo3(signature = (graph, size))]
-pub fn motif_census(
-    graph: &Graph,
-    size: usize,
-) -> PyResult<HashMap<String, u64>> {
+pub fn motif_census(graph: &Graph, size: usize) -> PyResult<HashMap<String, u64>> {
     if !(3..=4).contains(&size) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Motif size must be 3 or 4",
@@ -301,15 +307,18 @@ pub fn motif_significance(
             .collect();
 
         let mean: f64 = rand_vals.iter().sum::<f64>() / n_f;
-        let variance: f64 =
-            rand_vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n_f;
+        let variance: f64 = rand_vals.iter().map(|v| (v - mean).powi(2)).sum::<f64>() / n_f;
         let std_dev = variance.sqrt();
 
         let z_score = if std_dev > 1e-10 {
             (obs - mean) / std_dev
         } else if (obs - mean).abs() < 1e-10 {
             0.0
-        } else if obs > mean { f64::INFINITY } else { f64::NEG_INFINITY };
+        } else if obs > mean {
+            f64::INFINITY
+        } else {
+            f64::NEG_INFINITY
+        };
 
         // p-value: fraction of random graphs with count >= observed
         let p_value = rand_vals.iter().filter(|&&v| v >= obs).count() as f64 / n_f;

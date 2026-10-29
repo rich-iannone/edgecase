@@ -22,7 +22,12 @@ impl Adjacency {
         let words = (n + 63) / 64;
         let idx: rustc_hash::FxHashMap<u64, usize> =
             ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
-        let mut adj = Adjacency { n, words, bits: vec![0; n * words], lists: vec![Vec::new(); n] };
+        let mut adj = Adjacency {
+            n,
+            words,
+            bits: vec![0; n * words],
+            lists: vec![Vec::new(); n],
+        };
         for e in graph.get_edges_internal() {
             let (a, b) = (idx[&e.source], idx[&e.target]);
             if a != b && !adj.has(a, b) {
@@ -42,8 +47,13 @@ impl Adjacency {
 
 /// Components of `set` in the graph (`complement = false`) or in its complement, each sorted,
 /// ordered by smallest member. `mark` is scratch space: entries for `set` must equal `stamp`.
-fn components(adj: &Adjacency, set: &[usize], complement: bool, mark: &mut [usize], stamp: usize)
-    -> Vec<Vec<usize>> {
+fn components(
+    adj: &Adjacency,
+    set: &[usize],
+    complement: bool,
+    mark: &mut [usize],
+    stamp: usize,
+) -> Vec<Vec<usize>> {
     let mut out = Vec::new();
     if complement {
         // BFS in the complement: scan the not-yet-reached nodes for non-neighbours.

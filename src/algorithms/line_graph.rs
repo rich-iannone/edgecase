@@ -301,12 +301,44 @@ mod tests {
         // Path: A -- B -- C (2 edges)
         let mut g = Graph::new_rust(false, false);
 
-        let n1 = g.add_node_rust(Node { id: 0, label: Some("A".to_string()), attributes: None }).unwrap();
-        let n2 = g.add_node_rust(Node { id: 0, label: Some("B".to_string()), attributes: None }).unwrap();
-        let n3 = g.add_node_rust(Node { id: 0, label: Some("C".to_string()), attributes: None }).unwrap();
+        let n1 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("A".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n2 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("B".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n3 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("C".to_string()),
+                attributes: None,
+            })
+            .unwrap();
 
-        g.add_edge_rust(Edge { id: 0, source: n1, target: n2, weight: None, attributes: None }).unwrap(); // A-B
-        g.add_edge_rust(Edge { id: 0, source: n2, target: n3, weight: None, attributes: None }).unwrap(); // B-C
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n1,
+            target: n2,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // A-B
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n2,
+            target: n3,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // B-C
 
         let lg = line_graph(&g, None).unwrap();
 
@@ -324,13 +356,52 @@ mod tests {
         // Triangle: A -- B -- C -- A (3 edges)
         let mut g = Graph::new_rust(false, false);
 
-        let n1 = g.add_node_rust(Node { id: 0, label: Some("A".to_string()), attributes: None }).unwrap();
-        let n2 = g.add_node_rust(Node { id: 0, label: Some("B".to_string()), attributes: None }).unwrap();
-        let n3 = g.add_node_rust(Node { id: 0, label: Some("C".to_string()), attributes: None }).unwrap();
+        let n1 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("A".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n2 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("B".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n3 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("C".to_string()),
+                attributes: None,
+            })
+            .unwrap();
 
-        g.add_edge_rust(Edge { id: 0, source: n1, target: n2, weight: None, attributes: None }).unwrap(); // A-B
-        g.add_edge_rust(Edge { id: 0, source: n2, target: n3, weight: None, attributes: None }).unwrap(); // B-C
-        g.add_edge_rust(Edge { id: 0, source: n3, target: n1, weight: None, attributes: None }).unwrap(); // C-A
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n1,
+            target: n2,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // A-B
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n2,
+            target: n3,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // B-C
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n3,
+            target: n1,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // C-A
 
         let lg = line_graph(&g, None).unwrap();
 
@@ -349,11 +420,30 @@ mod tests {
         // Star: center connected to 4 leaves (4 edges)
         let mut g = Graph::new_rust(false, false);
 
-        let center = g.add_node_rust(Node { id: 0, label: Some("center".to_string()), attributes: None }).unwrap();
+        let center = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("center".to_string()),
+                attributes: None,
+            })
+            .unwrap();
 
         for i in 1..=4 {
-            let leaf = g.add_node_rust(Node { id: 0, label: Some(format!("leaf{}", i)), attributes: None }).unwrap();
-            g.add_edge_rust(Edge { id: 0, source: center, target: leaf, weight: None, attributes: None }).unwrap();
+            let leaf = g
+                .add_node_rust(Node {
+                    id: 0,
+                    label: Some(format!("leaf{}", i)),
+                    attributes: None,
+                })
+                .unwrap();
+            g.add_edge_rust(Edge {
+                id: 0,
+                source: center,
+                target: leaf,
+                weight: None,
+                attributes: None,
+            })
+            .unwrap();
         }
 
         let lg = line_graph(&g, None).unwrap();
@@ -373,12 +463,44 @@ mod tests {
         // Directed chain: A -> B -> C (2 edges)
         let mut g = Graph::new_rust(true, false);
 
-        let n1 = g.add_node_rust(Node { id: 0, label: Some("A".to_string()), attributes: None }).unwrap();
-        let n2 = g.add_node_rust(Node { id: 0, label: Some("B".to_string()), attributes: None }).unwrap();
-        let n3 = g.add_node_rust(Node { id: 0, label: Some("C".to_string()), attributes: None }).unwrap();
+        let n1 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("A".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n2 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("B".to_string()),
+                attributes: None,
+            })
+            .unwrap();
+        let n3 = g
+            .add_node_rust(Node {
+                id: 0,
+                label: Some("C".to_string()),
+                attributes: None,
+            })
+            .unwrap();
 
-        g.add_edge_rust(Edge { id: 0, source: n1, target: n2, weight: None, attributes: None }).unwrap(); // A->B
-        g.add_edge_rust(Edge { id: 0, source: n2, target: n3, weight: None, attributes: None }).unwrap(); // B->C
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n1,
+            target: n2,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // A->B
+        g.add_edge_rust(Edge {
+            id: 0,
+            source: n2,
+            target: n3,
+            weight: None,
+            attributes: None,
+        })
+        .unwrap(); // B->C
 
         let lg = line_graph(&g, None).unwrap();
 

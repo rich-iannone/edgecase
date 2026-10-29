@@ -99,7 +99,10 @@ struct WeightTree {
 
 impl WeightTree {
     fn new(n: usize) -> Self {
-        WeightTree { tree: vec![0.0; n + 1], weight: vec![0.0; n] }
+        WeightTree {
+            tree: vec![0.0; n + 1],
+            weight: vec![0.0; n],
+        }
     }
 
     fn set(&mut self, i: usize, w: f64) {
@@ -146,7 +149,10 @@ impl WeightTree {
         if pos < n && self.weight[pos] > 0.0 {
             return Some(pos);
         }
-        (0..pos.min(n)).rev().chain(pos.min(n)..n).find(|&i| self.weight[i] > 0.0)
+        (0..pos.min(n))
+            .rev()
+            .chain(pos.min(n)..n)
+            .find(|&i| self.weight[i] > 0.0)
     }
 }
 
@@ -165,7 +171,9 @@ fn minkowski(a: &[f64], b: &[f64], p: f64) -> f64 {
 }
 
 fn uniform_positions(rng: &mut ChaCha8Rng, n: usize, dim: usize) -> Positions {
-    (0..n).map(|_| (0..dim).map(|_| rng.gen::<f64>()).collect()).collect()
+    (0..n)
+        .map(|_| (0..dim).map(|_| rng.gen::<f64>()).collect())
+        .collect()
 }
 
 fn check_geometry(dim: usize, p_norm: f64) -> PyResult<()> {
@@ -214,7 +222,10 @@ fn degree_list(name: &str, seq: &[i64]) -> PyResult<Vec<usize>> {
     seq.iter()
         .map(|&d| {
             usize::try_from(d).map_err(|_| {
-                PyValueError::new_err(format!("{} must hold non-negative integers, got {}", name, d))
+                PyValueError::new_err(format!(
+                    "{} must hold non-negative integers, got {}",
+                    name, d
+                ))
             })
         })
         .collect()
@@ -247,7 +258,10 @@ pub fn random_regular_edges(n: usize, d: usize, seed: Option<u64>) -> PyResult<E
             return Ok(edges);
         }
     }
-    value_error(format!("could not build a {}-regular graph on {} nodes in 10000 attempts", d, n))
+    value_error(format!(
+        "could not build a {}-regular graph on {} nodes in 10000 attempts",
+        d, n
+    ))
 }
 
 fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(usize, usize)>> {
@@ -272,7 +286,10 @@ fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(us
         if !suitable {
             return None;
         }
-        stubs = leftover.iter().flat_map(|(&v, &c)| std::iter::repeat(v).take(c)).collect();
+        stubs = leftover
+            .iter()
+            .flat_map(|(&v, &c)| std::iter::repeat(v).take(c))
+            .collect();
     }
     Some(edges)
 }
@@ -288,7 +305,10 @@ fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(us
 #[pyo3(signature = (n, m, p, seed=None))]
 pub fn powerlaw_cluster_edges(n: usize, m: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
     if m < 1 || n < m {
-        return value_error(format!("m must be at least 1 and at most n, got n={} and m={}", n, m));
+        return value_error(format!(
+            "m must be at least 1 and at most n, got n={} and m={}",
+            n, m
+        ));
     }
     check_probability("p", p)?;
     let mut rng = make_rng(seed);
@@ -341,13 +361,20 @@ pub fn powerlaw_cluster_edges(n: usize, m: usize, p: f64, seed: Option<u64>) -> 
 /// complete graph.
 #[pyfunction]
 #[pyo3(signature = (n, k, p, seed=None))]
-pub fn newman_watts_strogatz_edges(n: usize, k: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn newman_watts_strogatz_edges(
+    n: usize,
+    k: usize,
+    p: f64,
+    seed: Option<u64>,
+) -> PyResult<EdgeList> {
     if k > n {
         return value_error(format!("k must be at most n, got n={} and k={}", n, k));
     }
     check_probability("p", p)?;
     if k == n {
-        return Ok((0..n).flat_map(|i| ((i + 1)..n).map(move |j| (i, j))).collect());
+        return Ok((0..n)
+            .flat_map(|i| ((i + 1)..n).map(move |j| (i, j)))
+            .collect());
     }
     let mut rng = make_rng(seed);
     let mut adj: Vec<FxHashSet<usize>> = vec![FxHashSet::default(); n];
@@ -462,17 +489,23 @@ pub fn extended_barabasi_albert_edges(
     seed: Option<u64>,
 ) -> PyResult<EdgeList> {
     if m < 1 || m >= n {
-        return value_error(format!("m must be at least 1 and less than n, got n={} and m={}", n, m));
+        return value_error(format!(
+            "m must be at least 1 and less than n, got n={} and m={}",
+            n, m
+        ));
     }
     check_probability("p", p)?;
     check_probability("q", q)?;
     if p + q >= 1.0 {
-        return value_error(format!("p + q must be less than 1, got p={} and q={}", p, q));
+        return value_error(format!(
+            "p + q must be less than 1, got p={} and q={}",
+            p, q
+        ));
     }
     let mut rng = make_rng(seed);
     let mut adj: Vec<FxHashSet<usize>> = vec![FxHashSet::default(); n];
     let mut size = 0usize; // edge count
-    // each node appears once plus once per incident edge
+                           // each node appears once plus once per incident edge
     let mut preference: Vec<usize> = (0..m).collect();
     let mut new_node = m;
     while new_node < n {
@@ -481,12 +514,21 @@ pub fn extended_barabasi_albert_edges(
         let clique_size = new_node * clique_degree / 2;
         if a < p && size + m <= clique_size {
             // add m edges between existing nodes
-            let mut eligible: Vec<usize> = (0..new_node).filter(|&v| adj[v].len() < clique_degree).collect();
+            let mut eligible: Vec<usize> = (0..new_node)
+                .filter(|&v| adj[v].len() < clique_degree)
+                .collect();
             for _ in 0..m {
-                let Some(&src) = eligible.choose(&mut rng) else { break };
-                let candidates: Vec<usize> =
-                    preference.iter().copied().filter(|&v| v != src && !adj[src].contains(&v)).collect();
-                let Some(&dest) = candidates.choose(&mut rng) else { break };
+                let Some(&src) = eligible.choose(&mut rng) else {
+                    break;
+                };
+                let candidates: Vec<usize> = preference
+                    .iter()
+                    .copied()
+                    .filter(|&v| v != src && !adj[src].contains(&v))
+                    .collect();
+                let Some(&dest) = candidates.choose(&mut rng) else {
+                    break;
+                };
                 adj[src].insert(dest);
                 adj[dest].insert(src);
                 size += 1;
@@ -501,16 +543,24 @@ pub fn extended_barabasi_albert_edges(
             }
         } else if p <= a && a < p + q && m <= size && size < clique_size {
             // rewire m edges
-            let mut eligible: Vec<usize> =
-                (0..new_node).filter(|&v| !adj[v].is_empty() && adj[v].len() < clique_degree).collect();
+            let mut eligible: Vec<usize> = (0..new_node)
+                .filter(|&v| !adj[v].is_empty() && adj[v].len() < clique_degree)
+                .collect();
             for _ in 0..m {
-                let Some(&node) = eligible.choose(&mut rng) else { break };
+                let Some(&node) = eligible.choose(&mut rng) else {
+                    break;
+                };
                 let mut nbrs: Vec<usize> = adj[node].iter().copied().collect();
                 nbrs.sort_unstable();
                 let src = *nbrs.choose(&mut rng).unwrap();
-                let candidates: Vec<usize> =
-                    preference.iter().copied().filter(|&v| v != node && !adj[node].contains(&v)).collect();
-                let Some(&dest) = candidates.choose(&mut rng) else { break };
+                let candidates: Vec<usize> = preference
+                    .iter()
+                    .copied()
+                    .filter(|&v| v != node && !adj[node].contains(&v))
+                    .collect();
+                let Some(&dest) = candidates.choose(&mut rng) else {
+                    break;
+                };
                 adj[node].remove(&src);
                 adj[src].remove(&node);
                 adj[node].insert(dest);
@@ -565,7 +615,10 @@ pub fn dual_barabasi_albert_edges(
 ) -> PyResult<EdgeList> {
     for (name, m) in [("m1", m1), ("m2", m2)] {
         if m < 1 || m >= n {
-            return value_error(format!("{} must be at least 1 and less than n, got n={} and {}={}", name, n, name, m));
+            return value_error(format!(
+                "{} must be at least 1 and less than n, got n={} and {}={}",
+                name, n, name, m
+            ));
         }
     }
     check_probability("p", p)?;
@@ -597,10 +650,18 @@ pub fn dual_barabasi_albert_edges(
 /// the edges.
 #[pyfunction]
 #[pyo3(signature = (n, p1, p2, seed=None))]
-pub fn random_lobster_edges(n: usize, p1: f64, p2: f64, seed: Option<u64>) -> PyResult<(usize, EdgeList)> {
+pub fn random_lobster_edges(
+    n: usize,
+    p1: f64,
+    p2: f64,
+    seed: Option<u64>,
+) -> PyResult<(usize, EdgeList)> {
     for (name, p) in [("p1", p1), ("p2", p2)] {
         if !(0.0..1.0).contains(&p) {
-            return value_error(format!("{} must be at least 0 and less than 1, got {}", name, p));
+            return value_error(format!(
+                "{} must be at least 0 and less than 1, got {}",
+                name, p
+            ));
         }
     }
     let mut rng = make_rng(seed);
@@ -671,7 +732,12 @@ pub fn random_labeled_tree_edges(n: usize, seed: Option<u64>) -> PyResult<EdgeLi
 /// joining the high-degree nodes in a path and hanging leaves off it.
 #[pyfunction]
 #[pyo3(signature = (n, gamma=3.0, tries=100, seed=None))]
-pub fn random_powerlaw_tree_edges(n: usize, gamma: f64, tries: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_powerlaw_tree_edges(
+    n: usize,
+    gamma: f64,
+    tries: usize,
+    seed: Option<u64>,
+) -> PyResult<EdgeList> {
     if n == 0 {
         return value_error("a tree needs at least 1 node, got n=0");
     }
@@ -795,7 +861,10 @@ pub fn directed_configuration_edges(
         ));
     }
     let stubs = |seq: &[usize]| -> Vec<usize> {
-        seq.iter().enumerate().flat_map(|(v, &d)| std::iter::repeat(v).take(d)).collect()
+        seq.iter()
+            .enumerate()
+            .flat_map(|(v, &d)| std::iter::repeat(v).take(d))
+            .collect()
     };
     let mut rng = make_rng(seed);
     let mut out_stubs = stubs(&outs);
@@ -823,7 +892,9 @@ pub fn directed_havel_hakimi_edges(
             sum_in, sum_out
         ));
     }
-    let not_digraphical = || value_error("the in- and out-degree sequences are not digraphical: no simple directed graph has these degrees");
+    let not_digraphical = || {
+        value_error("the in- and out-degree sequences are not digraphical: no simple directed graph has these degrees")
+    };
     // min-heaps keyed like NetworkX's: (-out, -in, node) and (-out, node)
     let mut stubheap: BinaryHeap<Reverse<(i64, i64, usize)>> = BinaryHeap::new();
     let mut zeroheap: BinaryHeap<Reverse<(i64, usize)>> = BinaryHeap::new();
@@ -891,7 +962,11 @@ pub fn directed_havel_hakimi_edges(
 /// that can't be joined; up to `tries` attempts are made.
 #[pyfunction]
 #[pyo3(signature = (degree_sequence, tries=10, seed=None))]
-pub fn random_degree_sequence_edges(degree_sequence: Vec<i64>, tries: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_degree_sequence_edges(
+    degree_sequence: Vec<i64>,
+    tries: usize,
+    seed: Option<u64>,
+) -> PyResult<EdgeList> {
     let degree = degree_list("degree_sequence", &degree_sequence)?;
     if !is_graphical(&degree) {
         return value_error("degree_sequence is not graphical: no simple graph has these degrees");
@@ -906,7 +981,10 @@ pub fn random_degree_sequence_edges(degree_sequence: Vec<i64>, tries: usize, see
             return Ok(edges);
         }
     }
-    value_error(format!("failed to generate a graph with this degree sequence in {} tries", tries))
+    value_error(format!(
+        "failed to generate a graph with this degree sequence in {} tries",
+        tries
+    ))
 }
 
 /// One attempt of the Bayati-Kim-Saberi construction.
@@ -1058,7 +1136,11 @@ impl<'a> BksAttempt<'a> {
         let mut stall = 0;
         while !self.alive.is_empty() {
             let u = *self.alive.iter().min().unwrap();
-            if !self.alive.iter().any(|&v| v != u && !self.edges.contains(&key(u, v))) {
+            if !self
+                .alive
+                .iter()
+                .any(|&v| v != u && !self.edges.contains(&key(u, v)))
+            {
                 return None;
             }
             let idx = loop {
@@ -1098,13 +1180,21 @@ pub fn joint_degree_edges(
     joint_degrees: BTreeMap<usize, BTreeMap<usize, usize>>,
     seed: Option<u64>,
 ) -> PyResult<(usize, EdgeList)> {
-    let entry = |k: usize, l: usize| joint_degrees.get(&k).and_then(|row| row.get(&l)).copied().unwrap_or(0);
+    let entry = |k: usize, l: usize| {
+        joint_degrees
+            .get(&k)
+            .and_then(|row| row.get(&l))
+            .copied()
+            .unwrap_or(0)
+    };
     let mut class_size: BTreeMap<usize, usize> = BTreeMap::new();
     for (&k, row) in &joint_degrees {
         let total: usize = row.values().sum();
         if k == 0 {
             if total > 0 {
-                return value_error("nodes of degree 0 can't have edges, but joint_degrees[0] has some");
+                return value_error(
+                    "nodes of degree 0 can't have edges, but joint_degrees[0] has some",
+                );
             }
             continue;
         }
@@ -1132,7 +1222,10 @@ pub fn joint_degree_edges(
             let (ck, cl) = (class_size[&k], class_size[&l]);
             if k == l {
                 if count % 2 != 0 {
-                    return value_error(format!("joint_degrees[{}][{}] counts each edge twice, so it must be even", k, k));
+                    return value_error(format!(
+                        "joint_degrees[{}][{}] counts each edge twice, so it must be even",
+                        k, k
+                    ));
                 }
                 if count > ck * (ck - 1) {
                     return value_error(format!(
@@ -1170,9 +1263,13 @@ pub fn joint_degree_edges(
             let same = k == l;
             let (k0, k_size) = (start[&k], class_size[&k]);
             let (l0, l_size) = (start[&l], class_size[&l]);
-            let mut k_unsat: BTreeSet<usize> = (k0..k0 + k_size).filter(|&v| residual[v] > 0).collect();
-            let mut l_unsat: BTreeSet<usize> =
-                if same { BTreeSet::new() } else { (l0..l0 + l_size).filter(|&v| residual[v] > 0).collect() };
+            let mut k_unsat: BTreeSet<usize> =
+                (k0..k0 + k_size).filter(|&v| residual[v] > 0).collect();
+            let mut l_unsat: BTreeSet<usize> = if same {
+                BTreeSet::new()
+            } else {
+                (l0..l0 + l_size).filter(|&v| residual[v] > 0).collect()
+            };
             let mut to_add = if same { count / 2 } else { count };
             let mut stall = 0;
             while to_add > 0 {
@@ -1185,7 +1282,9 @@ pub fn joint_degree_edges(
                 if v == w || adj[v].contains(&w) {
                     continue;
                 }
-                if residual[v] == 0 && !neighbor_switch(&mut adj, v, &mut k_unsat, &mut residual, None) {
+                if residual[v] == 0
+                    && !neighbor_switch(&mut adj, v, &mut k_unsat, &mut residual, None)
+                {
                     return stuck();
                 }
                 if residual[w] == 0 {
@@ -1208,7 +1307,11 @@ pub fn joint_degree_edges(
                     k_unsat.remove(&v);
                 }
                 if residual[w] == 0 {
-                    if same { k_unsat.remove(&w) } else { l_unsat.remove(&w) };
+                    if same {
+                        k_unsat.remove(&w)
+                    } else {
+                        l_unsat.remove(&w)
+                    };
                 }
             }
         }
@@ -1233,7 +1336,10 @@ fn neighbor_switch(
     let Some(w_prime) = w_prime else { return false };
     let mut nbrs: Vec<usize> = adj[w].iter().copied().collect();
     nbrs.sort_unstable();
-    let Some(switch) = nbrs.into_iter().find(|&x| x != w_prime && !adj[w_prime].contains(&x)) else {
+    let Some(switch) = nbrs
+        .into_iter()
+        .find(|&x| x != w_prime && !adj[w_prime].contains(&x))
+    else {
         return false;
     };
     adj[w].remove(&switch);
@@ -1260,7 +1366,10 @@ fn neighbor_switch(
 pub fn gn_edges(n: usize, kernel: Option<Vec<f64>>, seed: Option<u64>) -> PyResult<EdgeList> {
     if let Some(table) = &kernel {
         if let Some(bad) = table.iter().find(|w| !(w.is_finite() && **w >= 0.0)) {
-            return value_error(format!("kernel must return finite, non-negative weights, got {}", bad));
+            return value_error(format!(
+                "kernel must return finite, non-negative weights, got {}",
+                bad
+            ));
         }
     }
     let weight = |d: usize| match &kernel {
@@ -1280,7 +1389,9 @@ pub fn gn_edges(n: usize, kernel: Option<Vec<f64>>, seed: Option<u64>) -> PyResu
     tree.set(1, weight(1));
     for source in 2..n {
         let Some(target) = tree.sample(&mut rng) else {
-            return value_error("kernel gives every existing node zero weight, so no target can be chosen");
+            return value_error(
+                "kernel gives every existing node zero weight, so no target can be chosen",
+            );
         };
         edges.push((source, target));
         degree[source] = 1;
@@ -1350,7 +1461,10 @@ pub fn scale_free_edges(
     seed: Option<u64>,
 ) -> PyResult<EdgeList> {
     if n < 3 {
-        return value_error(format!("n must be at least 3 (growth starts from a 3-cycle), got {}", n));
+        return value_error(format!(
+            "n must be at least 3 (growth starts from a 3-cycle), got {}",
+            n
+        ));
     }
     for (name, x) in [("alpha", alpha), ("beta", beta), ("gamma", gamma)] {
         if x.is_nan() || x <= 0.0 {
@@ -1358,7 +1472,10 @@ pub fn scale_free_edges(
         }
     }
     if (alpha + beta + gamma - 1.0).abs() >= 1e-9 {
-        return value_error(format!("alpha + beta + gamma must equal 1, got {}", alpha + beta + gamma));
+        return value_error(format!(
+            "alpha + beta + gamma must equal 1, got {}",
+            alpha + beta + gamma
+        ));
     }
     for (name, x) in [("delta_in", delta_in), ("delta_out", delta_out)] {
         if x.is_nan() || x < 0.0 {
@@ -1403,7 +1520,13 @@ pub fn scale_free_edges(
 /// whose targets are chosen with probability proportional to `alpha + in-degree`.
 #[pyfunction]
 #[pyo3(signature = (n, k, alpha, self_loops=true, seed=None))]
-pub fn random_k_out_edges(n: usize, k: usize, alpha: f64, self_loops: bool, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_k_out_edges(
+    n: usize,
+    k: usize,
+    alpha: f64,
+    self_loops: bool,
+    seed: Option<u64>,
+) -> PyResult<EdgeList> {
     if !(alpha.is_finite() && alpha > 0.0) {
         return value_error(format!("alpha must be positive, got {}", alpha));
     }
@@ -1461,7 +1584,10 @@ pub fn waxman_edges(
     seed: Option<u64>,
 ) -> PyResult<(Positions, EdgeList)> {
     if !(beta > 0.0 && beta <= 1.0) {
-        return value_error(format!("beta must be greater than 0 and at most 1, got {}", beta));
+        return value_error(format!(
+            "beta must be greater than 0 and at most 1, got {}",
+            beta
+        ));
     }
     if !(alpha.is_finite() && alpha > 0.0) {
         return value_error(format!("alpha must be positive, got {}", alpha));
@@ -1473,7 +1599,9 @@ pub fn waxman_edges(
     }
     let (xmin, ymin, xmax, ymax) = domain;
     if ![xmin, ymin, xmax, ymax].iter().all(|v| v.is_finite()) || xmin > xmax || ymin > ymax {
-        return value_error("domain must be (xmin, ymin, xmax, ymax) with xmin <= xmax and ymin <= ymax");
+        return value_error(
+            "domain must be (xmin, ymin, xmax, ymax) with xmin <= xmax and ymin <= ymax",
+        );
     }
     let mut rng = make_rng(seed);
     let pos: Positions = (0..n)
@@ -1502,7 +1630,11 @@ pub fn waxman_edges(
                 Some(l) => rng.gen::<f64>() * l,
                 None => minkowski(&pos[i], &pos[j], 2.0),
             };
-            let ratio = if scale > 0.0 { d / (alpha * scale) } else { 0.0 };
+            let ratio = if scale > 0.0 {
+                d / (alpha * scale)
+            } else {
+                0.0
+            };
             if rng.gen::<f64>() < beta * (-ratio).exp() {
                 edges.push((i, j));
             }
@@ -1629,7 +1761,11 @@ pub fn navigable_small_world_edges(
         })
         .collect();
     let lattice_dist = |a: usize, b: usize| -> usize {
-        coords[a].iter().zip(&coords[b]).map(|(x, y)| x.abs_diff(*y)).sum()
+        coords[a]
+            .iter()
+            .zip(&coords[b])
+            .map(|(x, y)| x.abs_diff(*y))
+            .sum()
     };
     let mut rng = make_rng(seed);
     let mut seen: FxHashSet<(usize, usize)> = FxHashSet::default();

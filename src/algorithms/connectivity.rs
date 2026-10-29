@@ -103,29 +103,28 @@ pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, Strin
 
     for &node_id in &node_ids {
         if !visited.contains(&node_id) {
-            fill_order(node_id, &mut visited, &mut stack, graph.get_adjacency_list());
+            fill_order(
+                node_id,
+                &mut visited,
+                &mut stack,
+                graph.get_adjacency_list(),
+            );
         }
     }
 
     // Step 2: Create transposed graph (reverse all edges)
-    let mut transposed: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut transposed: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     for edge in graph.get_edges_internal() {
-        transposed
-            .entry(edge.target)
-            .or_default()
-            .push(edge.source);
+        transposed.entry(edge.target).or_default().push(edge.source);
     }
 
     // Step 3: Do DFS on transposed graph in reverse finish order
     visited.clear();
     let mut component_count = 0;
 
-    fn dfs(
-        node: u64,
-        visited: &mut FxHashSet<u64>,
-        adj_list: &FxHashMap<u64, Vec<u64>>,
-    ) {
+    fn dfs(node: u64, visited: &mut FxHashSet<u64>, adj_list: &FxHashMap<u64, Vec<u64>>) {
         visited.insert(node);
 
         if let Some(neighbors) = adj_list.get(&node) {
@@ -253,18 +252,21 @@ pub fn strongly_connected_components(graph: &Graph) -> Result<Vec<Vec<u64>>, Str
 
     for &node_id in &node_ids {
         if !visited.contains(&node_id) {
-            fill_order(node_id, &mut visited, &mut stack, graph.get_adjacency_list());
+            fill_order(
+                node_id,
+                &mut visited,
+                &mut stack,
+                graph.get_adjacency_list(),
+            );
         }
     }
 
     // Step 2: Create transposed graph (reverse all edges)
-    let mut transposed: FxHashMap<u64, Vec<u64>> = FxHashMap::with_capacity_and_hasher(n, Default::default());
+    let mut transposed: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
 
     for edge in graph.get_edges_internal() {
-        transposed
-            .entry(edge.target)
-            .or_default()
-            .push(edge.source);
+        transposed.entry(edge.target).or_default().push(edge.source);
     }
 
     // Step 3: Do DFS on transposed graph in reverse finish order, collecting components
@@ -357,8 +359,7 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
 
     // k=1: SCCs for directed, CCs for undirected
     let base_components = if graph.is_directed() {
-        strongly_connected_components(graph)
-            .map_err(pyo3::exceptions::PyRuntimeError::new_err)?
+        strongly_connected_components(graph).map_err(pyo3::exceptions::PyRuntimeError::new_err)?
     } else {
         weakly_connected_components_list(graph)
     };
@@ -373,7 +374,10 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         return Ok(result);
     }
 
-    result.entry(1).or_default().extend(base_nontrivial.iter().cloned());
+    result
+        .entry(1)
+        .or_default()
+        .extend(base_nontrivial.iter().cloned());
 
     // For each base component, recursively find higher-k components
     for component in &base_nontrivial {
@@ -390,9 +394,9 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         comps.dedup();
         let mut kept: Vec<Vec<u64>> = Vec::with_capacity(comps.len());
         for c in comps.drain(..) {
-            let is_subset = kept.iter().any(|k: &Vec<u64>| {
-                c.iter().all(|x| k.binary_search(x).is_ok())
-            });
+            let is_subset = kept
+                .iter()
+                .any(|k: &Vec<u64>| c.iter().all(|x| k.binary_search(x).is_ok()));
             if !is_subset {
                 kept.push(c);
             }
@@ -603,7 +607,10 @@ fn is_subgraph_strongly_connected(graph: &Graph, node_set: &FxHashSet<u64>) -> b
     let mut reverse_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
     for edge in edges {
         if node_set.contains(&edge.source) && node_set.contains(&edge.target) {
-            reverse_adj.entry(edge.target).or_default().push(edge.source);
+            reverse_adj
+                .entry(edge.target)
+                .or_default()
+                .push(edge.source);
         }
     }
 
@@ -660,7 +667,10 @@ fn find_directed_components_in_subgraph(graph: &Graph, nodes: &[u64]) -> Vec<Vec
     let mut reverse_adj: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
     for edge in edges {
         if node_set.contains(&edge.source) && node_set.contains(&edge.target) {
-            reverse_adj.entry(edge.target).or_default().push(edge.source);
+            reverse_adj
+                .entry(edge.target)
+                .or_default()
+                .push(edge.source);
         }
     }
 
@@ -721,7 +731,11 @@ fn weakly_connected_components_list(graph: &Graph) -> Vec<Vec<u64>> {
         }
     }
 
-    let effective_adj = if graph.is_directed() { &undirected_adj } else { adj };
+    let effective_adj = if graph.is_directed() {
+        &undirected_adj
+    } else {
+        adj
+    };
 
     for &node in &node_ids {
         if visited.contains(&node) {

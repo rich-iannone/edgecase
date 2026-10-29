@@ -37,7 +37,11 @@ impl Net {
         let mut edges: Vec<_> = graph.get_edges_internal().iter().collect();
         edges.sort_unstable_by_key(|e| e.id);
         for e in edges {
-            let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+            let w = if weighted {
+                e.weight.unwrap_or(1.0)
+            } else {
+                1.0
+            };
             if !w.is_finite() {
                 return value_err("edge weights must be finite");
             }
@@ -53,7 +57,14 @@ impl Net {
         if negative && !directed {
             return value_err("an undirected graph with a negative edge has a negative cycle");
         }
-        Ok(Net { ids, idx, out, inn, directed, negative })
+        Ok(Net {
+            ids,
+            idx,
+            out,
+            inn,
+            directed,
+            negative,
+        })
     }
     fn node(&self, id: u64) -> PyResult<usize> {
         match self.idx.get(&id) {
@@ -62,7 +73,11 @@ impl Net {
         }
     }
     fn arcs(&self, reverse: bool) -> &Vec<Vec<(usize, f64, u64)>> {
-        if reverse { &self.inn } else { &self.out }
+        if reverse {
+            &self.inn
+        } else {
+            &self.out
+        }
     }
 }
 
@@ -76,14 +91,22 @@ impl PartialOrd for Item {
 }
 impl Ord for Item {
     fn cmp(&self, o: &Self) -> Ordering {
-        o.0.partial_cmp(&self.0).unwrap_or(Ordering::Equal).then(o.1.cmp(&self.1))
+        o.0.partial_cmp(&self.0)
+            .unwrap_or(Ordering::Equal)
+            .then(o.1.cmp(&self.1))
     }
 }
 
 /// Distances and every equal-cost predecessor from `sources` (along `reverse` arcs for
 /// single-target searches). BFS when unweighted, Dijkstra for non-negative weights, and
 /// Bellman-Ford with negative weights. `cutoff` bounds the distance.
-fn shortest_preds(net: &Net, sources: &[usize], weighted: bool, reverse: bool, cutoff: Option<f64>) -> PyResult<(Vec<f64>, Vec<Vec<usize>>)> {
+fn shortest_preds(
+    net: &Net,
+    sources: &[usize],
+    weighted: bool,
+    reverse: bool,
+    cutoff: Option<f64>,
+) -> PyResult<(Vec<f64>, Vec<Vec<usize>>)> {
     let n = net.ids.len();
     let arcs = net.arcs(reverse);
     let mut dist = vec![f64::INFINITY; n];
@@ -172,7 +195,11 @@ fn shortest_preds(net: &Net, sources: &[usize], weighted: bool, reverse: bool, c
             }
         }
         for v in 0..n {
-            let keep: Vec<usize> = pred[v].iter().copied().filter(|&u| dist[u].is_finite()).collect();
+            let keep: Vec<usize> = pred[v]
+                .iter()
+                .copied()
+                .filter(|&u| dist[u].is_finite())
+                .collect();
             pred[v] = keep;
         }
     }
@@ -194,11 +221,19 @@ pub fn shortest_path_predecessors(
     cutoff: Option<f64>,
 ) -> PyResult<(Vec<(u64, Vec<u64>)>, Vec<(u64, f64)>)> {
     let net = Net::new(graph, weighted)?;
-    let srcs: Vec<usize> = sources.iter().map(|&s| net.node(s)).collect::<PyResult<_>>()?;
+    let srcs: Vec<usize> = sources
+        .iter()
+        .map(|&s| net.node(s))
+        .collect::<PyResult<_>>()?;
     let (dist, pred) = shortest_preds(&net, &srcs, weighted || net.negative, reverse, cutoff)?;
-    let reached: Vec<usize> = (0..net.ids.len()).filter(|&v| dist[v].is_finite()).collect();
+    let reached: Vec<usize> = (0..net.ids.len())
+        .filter(|&v| dist[v].is_finite())
+        .collect();
     Ok((
-        reached.iter().map(|&v| (net.ids[v], pred[v].iter().map(|&p| net.ids[p]).collect())).collect(),
+        reached
+            .iter()
+            .map(|&v| (net.ids[v], pred[v].iter().map(|&p| net.ids[p]).collect()))
+            .collect(),
         reached.iter().map(|&v| (net.ids[v], dist[v])).collect(),
     ))
 }
@@ -207,7 +242,10 @@ pub fn shortest_path_predecessors(
 /// `pred[s][t]` is the node before `t` on a shortest `s`-`t` path (`-1` if none).
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=true))]
-pub fn floyd_warshall(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, Vec<Vec<f64>>, Vec<Vec<i64>>)> {
+pub fn floyd_warshall(
+    graph: &Graph,
+    weighted: bool,
+) -> PyResult<(Vec<u64>, Vec<Vec<f64>>, Vec<Vec<i64>>)> {
     let net = Net::new(graph, weighted)?;
     let n = net.ids.len();
     let mut dist = vec![vec![f64::INFINITY; n]; n];
@@ -310,7 +348,14 @@ pub fn johnson(graph: &Graph, weighted: bool) -> PyResult<Vec<(u64, Vec<(u64, Ve
 /// overestimate the remaining distance). Returns `(length, path)` or None.
 #[pyfunction]
 #[pyo3(signature = (graph, source, target, heuristic=None, weighted=true))]
-pub fn astar(py: Python, graph: &Graph, source: u64, target: u64, heuristic: Option<PyObject>, weighted: bool) -> PyResult<Option<(f64, Vec<u64>)>> {
+pub fn astar(
+    py: Python,
+    graph: &Graph,
+    source: u64,
+    target: u64,
+    heuristic: Option<PyObject>,
+    weighted: bool,
+) -> PyResult<Option<(f64, Vec<u64>)>> {
     let net = Net::new(graph, weighted)?;
     if net.negative {
         return value_err("A* requires non-negative edge weights");
@@ -365,7 +410,12 @@ pub fn astar(py: Python, graph: &Graph, source: u64, target: u64, heuristic: Opt
 /// distinct paths), with at most `cutoff` edges.
 #[pyfunction]
 #[pyo3(signature = (graph, source, target, cutoff=None))]
-pub fn simple_edge_paths(graph: &Graph, source: u64, target: u64, cutoff: Option<usize>) -> PyResult<Vec<Vec<u64>>> {
+pub fn simple_edge_paths(
+    graph: &Graph,
+    source: u64,
+    target: u64,
+    cutoff: Option<usize>,
+) -> PyResult<Vec<Vec<u64>>> {
     let net = Net::new(graph, false)?;
     let (s, t) = (net.node(source)?, net.node(target)?);
     let limit = cutoff.unwrap_or(net.ids.len().saturating_sub(1));
@@ -435,7 +485,12 @@ impl ShortestSimplePaths {
     fn cost(&self, path: &[usize]) -> f64 {
         path.windows(2).map(|w| self.adj[w[0]][&w[1]]).sum()
     }
-    fn spur(&self, from: usize, banned_nodes: &[bool], banned_arcs: &FxHashSet<(usize, usize)>) -> Option<(f64, Vec<usize>)> {
+    fn spur(
+        &self,
+        from: usize,
+        banned_nodes: &[bool],
+        banned_arcs: &FxHashSet<(usize, usize)>,
+    ) -> Option<(f64, Vec<usize>)> {
         let n = self.ids.len();
         let mut dist = vec![f64::INFINITY; n];
         let mut parent = vec![usize::MAX; n];
@@ -532,14 +587,27 @@ impl ShortestSimplePaths {
                 }
             }
         }
-        Some(self.found.last().unwrap().1.iter().map(|&v| self.ids[v]).collect())
+        Some(
+            self.found
+                .last()
+                .unwrap()
+                .1
+                .iter()
+                .map(|&v| self.ids[v])
+                .collect(),
+        )
     }
 }
 
 /// Start a lazy enumeration of simple paths in increasing order of length (Yen's algorithm).
 #[pyfunction]
 #[pyo3(signature = (graph, source, target, weighted=true))]
-pub fn shortest_simple_paths(graph: &Graph, source: u64, target: u64, weighted: bool) -> PyResult<ShortestSimplePaths> {
+pub fn shortest_simple_paths(
+    graph: &Graph,
+    source: u64,
+    target: u64,
+    weighted: bool,
+) -> PyResult<ShortestSimplePaths> {
     let net = Net::new(graph, weighted)?;
     if net.negative {
         return value_err("shortest_simple_paths() requires non-negative edge weights");
@@ -623,14 +691,24 @@ impl AltTable {
 /// nodes first; ties go to the smallest ID).
 #[pyfunction]
 #[pyo3(signature = (graph, start, k, weighted=true))]
-pub fn alt_heuristic(graph: &Graph, start: Vec<u64>, k: usize, weighted: bool) -> PyResult<AltTable> {
+pub fn alt_heuristic(
+    graph: &Graph,
+    start: Vec<u64>,
+    k: usize,
+    weighted: bool,
+) -> PyResult<AltTable> {
     let net = Net::new(graph, weighted)?;
     if net.negative {
         return value_err("alt_heuristic() requires non-negative edge weights");
     }
     let n = net.ids.len();
-    let sweep = |s: usize, reverse: bool| -> PyResult<Vec<f64>> { Ok(shortest_preds(&net, &[s], weighted, reverse, None)?.0) };
-    let mut chosen: Vec<usize> = start.iter().map(|&s| net.node(s)).collect::<PyResult<_>>()?;
+    let sweep = |s: usize, reverse: bool| -> PyResult<Vec<f64>> {
+        Ok(shortest_preds(&net, &[s], weighted, reverse, None)?.0)
+    };
+    let mut chosen: Vec<usize> = start
+        .iter()
+        .map(|&s| net.node(s))
+        .collect::<PyResult<_>>()?;
     let mut from = Vec::with_capacity(k.max(chosen.len()) * n);
     let mut nearest = vec![f64::INFINITY; n];
     let mut is_chosen = vec![false; n];
@@ -666,5 +744,11 @@ pub fn alt_heuristic(graph: &Graph, start: Vec<u64>, k: usize, weighted: bool) -
     } else {
         None
     };
-    Ok(AltTable { landmarks: chosen.iter().map(|&s| net.ids[s]).collect(), idx: net.idx, n, from, to })
+    Ok(AltTable {
+        landmarks: chosen.iter().map(|&s| net.ids[s]).collect(),
+        idx: net.idx,
+        n,
+        from,
+        to,
+    })
 }

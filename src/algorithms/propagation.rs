@@ -297,4 +297,3 @@ pub fn heat_diffusion(
         .map(|(idx, &node_id)| (node_id, heat[idx]))
         .collect())
 }
-

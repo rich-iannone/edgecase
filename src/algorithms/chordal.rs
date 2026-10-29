@@ -51,7 +51,11 @@ impl Simple {
 /// Maximum cardinality search from `start` over `nodes` (all nodes when None). Returns the
 /// first triple `(u, v, w)` where `v`'s numbered neighbors are not a clique (`u`-`w` missing),
 /// or None if the visit order is a perfect elimination order (reversed).
-fn chordality_breaker(adj: &[BTreeSet<usize>], nodes: &[usize], start: usize) -> Option<(usize, usize, usize)> {
+fn chordality_breaker(
+    adj: &[BTreeSet<usize>],
+    nodes: &[usize],
+    start: usize,
+) -> Option<(usize, usize, usize)> {
     let mut numbered: FxHashSet<usize> = FxHashSet::default();
     numbered.insert(start);
     let mut count: FxHashMap<usize, usize> = nodes.iter().map(|&v| (v, 0)).collect();
@@ -62,9 +66,16 @@ fn chordality_breaker(adj: &[BTreeSet<usize>], nodes: &[usize], start: usize) ->
     }
     let mut remaining: BTreeSet<usize> = nodes.iter().copied().filter(|&v| v != start).collect();
     while !remaining.is_empty() {
-        let v = *remaining.iter().max_by_key(|&&v| (count[&v], std::cmp::Reverse(v))).unwrap();
+        let v = *remaining
+            .iter()
+            .max_by_key(|&&v| (count[&v], std::cmp::Reverse(v)))
+            .unwrap();
         remaining.remove(&v);
-        let clique: Vec<usize> = adj[v].iter().copied().filter(|w| numbered.contains(w)).collect();
+        let clique: Vec<usize> = adj[v]
+            .iter()
+            .copied()
+            .filter(|w| numbered.contains(w))
+            .collect();
         for (i, &a) in clique.iter().enumerate() {
             for &b in &clique[i + 1..] {
                 if !adj[a].contains(&b) {
@@ -127,7 +138,9 @@ pub fn is_chordal(graph: &Graph) -> PyResult<bool> {
 fn has_odd_hole(bits: &[Vec<u64>]) -> bool {
     let n = bits.len();
     let adjacent = |u: usize, v: usize| bits[u][v / 64] >> (v % 64) & 1 == 1;
-    let nbrs: Vec<Vec<usize>> = (0..n).map(|u| (0..n).filter(|&v| adjacent(u, v)).collect()).collect();
+    let nbrs: Vec<Vec<usize>> = (0..n)
+        .map(|u| (0..n).filter(|&v| adjacent(u, v)).collect())
+        .collect();
     let mut block = vec![0u32; n];
     let mut on_path = vec![false; n];
     for s in 0..n {
@@ -255,9 +268,16 @@ pub fn chordal_graph_cliques(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
         let mut remaining: BTreeSet<usize> = comp.iter().copied().filter(|&v| v != first).collect();
         let mut current: BTreeSet<usize> = BTreeSet::from([first]);
         while !remaining.is_empty() {
-            let v = *remaining.iter().max_by_key(|&&v| (count[&v], std::cmp::Reverse(v))).unwrap();
+            let v = *remaining
+                .iter()
+                .max_by_key(|&&v| (count[&v], std::cmp::Reverse(v)))
+                .unwrap();
             remaining.remove(&v);
-            let mut next: BTreeSet<usize> = g.adj[v].iter().copied().filter(|w| numbered.contains(w)).collect();
+            let mut next: BTreeSet<usize> = g.adj[v]
+                .iter()
+                .copied()
+                .filter(|w| numbered.contains(w))
+                .collect();
             next.insert(v);
             if !next.is_superset(&current) {
                 out.push(current.iter().map(|&x| g.ids[x]).collect());
@@ -285,7 +305,11 @@ pub fn complete_to_chordal(graph: &Graph) -> PyResult<(Vec<(u64, u64)>, Vec<(u64
     let mut chords: BTreeSet<(usize, usize)> = BTreeSet::new();
     for i in (1..=n).rev() {
         // first node of maximal weight in the remaining list
-        let (pos, &z) = unnumbered.iter().enumerate().max_by_key(|(k, &v)| (weight[v], std::cmp::Reverse(*k))).unwrap();
+        let (pos, &z) = unnumbered
+            .iter()
+            .enumerate()
+            .max_by_key(|(k, &v)| (weight[v], std::cmp::Reverse(*k)))
+            .unwrap();
         unnumbered.remove(pos);
         alpha[z] = i;
         // bottleneck search: least possible maximum weight of internal nodes on a z-y path
@@ -326,7 +350,10 @@ pub fn complete_to_chordal(graph: &Graph) -> PyResult<(Vec<(u64, u64)>, Vec<(u64
         }
     }
     Ok((
-        chords.into_iter().map(|(a, b)| (g.ids[a], g.ids[b])).collect(),
+        chords
+            .into_iter()
+            .map(|(a, b)| (g.ids[a], g.ids[b]))
+            .collect(),
         (0..n).map(|v| (g.ids[v], alpha[v])).collect(),
     ))
 }
@@ -372,15 +399,22 @@ pub fn find_induced_nodes(graph: &Graph, s: u64, t: u64) -> PyResult<Vec<u64>> {
 pub fn enumerate_all_cliques(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
     let g = Simple::new(graph)?;
     let n = g.ids.len();
-    let later: Vec<Vec<usize>> = (0..n).map(|u| g.adj[u].iter().copied().filter(|&v| v > u).collect()).collect();
-    let mut queue: VecDeque<(Vec<usize>, Vec<usize>)> = (0..n).map(|u| (vec![u], later[u].clone())).collect();
+    let later: Vec<Vec<usize>> = (0..n)
+        .map(|u| g.adj[u].iter().copied().filter(|&v| v > u).collect())
+        .collect();
+    let mut queue: VecDeque<(Vec<usize>, Vec<usize>)> =
+        (0..n).map(|u| (vec![u], later[u].clone())).collect();
     let mut out = Vec::new();
     while let Some((base, cands)) = queue.pop_front() {
         out.push(base.iter().map(|&v| g.ids[v]).collect());
         for (i, &u) in cands.iter().enumerate() {
             let mut next = base.clone();
             next.push(u);
-            let rest: Vec<usize> = cands[i + 1..].iter().copied().filter(|v| g.adj[u].contains(v)).collect();
+            let rest: Vec<usize> = cands[i + 1..]
+                .iter()
+                .copied()
+                .filter(|v| g.adj[u].contains(v))
+                .collect();
             queue.push_back((next, rest));
         }
     }
@@ -392,7 +426,11 @@ pub fn enumerate_all_cliques(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
 /// `(node IDs, total weight)`.
 #[pyfunction]
 #[pyo3(signature = (graph, weight_attr=None))]
-pub fn max_weight_clique(py: Python, graph: &Graph, weight_attr: Option<&str>) -> PyResult<(Vec<u64>, f64)> {
+pub fn max_weight_clique(
+    py: Python,
+    graph: &Graph,
+    weight_attr: Option<&str>,
+) -> PyResult<(Vec<u64>, f64)> {
     let g = Simple::new(graph)?;
     let n = g.ids.len();
     let nodes = graph.get_nodes();
@@ -400,7 +438,12 @@ pub fn max_weight_clique(py: Python, graph: &Graph, weight_attr: Option<&str>) -
     if let Some(attr) = weight_attr {
         for (i, id) in g.ids.iter().enumerate() {
             let value = match &nodes[id].attributes {
-                Some(d) => d.bind(py).downcast::<PyDict>()?.get_item(attr)?.map(|v| v.extract::<f64>()).transpose()?,
+                Some(d) => d
+                    .bind(py)
+                    .downcast::<PyDict>()?
+                    .get_item(attr)?
+                    .map(|v| v.extract::<f64>())
+                    .transpose()?,
                 None => None,
             };
             match value {
@@ -411,7 +454,14 @@ pub fn max_weight_clique(py: Python, graph: &Graph, weight_attr: Option<&str>) -
         }
     }
     let mut best: (f64, Vec<usize>) = (0.0, Vec::new());
-    fn expand(adj: &[BTreeSet<usize>], w: &[f64], current: &mut Vec<usize>, cur_w: f64, cands: Vec<usize>, best: &mut (f64, Vec<usize>)) {
+    fn expand(
+        adj: &[BTreeSet<usize>],
+        w: &[f64],
+        current: &mut Vec<usize>,
+        cur_w: f64,
+        cands: Vec<usize>,
+        best: &mut (f64, Vec<usize>),
+    ) {
         if cur_w > best.0 {
             *best = (cur_w, current.clone());
         }
@@ -424,7 +474,10 @@ pub fn max_weight_clique(py: Python, graph: &Graph, weight_attr: Option<&str>) -
         order.sort_by(|&a, &b| w[b].partial_cmp(&w[a]).unwrap().then(a.cmp(&b)));
         let mut classes: Vec<Vec<usize>> = Vec::new();
         for &v in &order {
-            match classes.iter_mut().find(|c| c.iter().all(|&u| !adj[u].contains(&v))) {
+            match classes
+                .iter_mut()
+                .find(|c| c.iter().all(|&u| !adj[u].contains(&v)))
+            {
                 Some(c) => c.push(v),
                 None => classes.push(vec![v]),
             }
@@ -443,7 +496,11 @@ pub fn max_weight_clique(py: Python, graph: &Graph, weight_attr: Option<&str>) -
                 return;
             }
             remaining.remove(&v);
-            let next: Vec<usize> = remaining.iter().copied().filter(|u| adj[v].contains(u)).collect();
+            let next: Vec<usize> = remaining
+                .iter()
+                .copied()
+                .filter(|u| adj[v].contains(u))
+                .collect();
             current.push(v);
             expand(adj, w, current, cur_w + w[v], next, best);
             current.pop();
@@ -469,7 +526,11 @@ pub fn with_extra_edges(py: Python, graph: &Graph, edges: Vec<(u64, u64)>) -> Py
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes,
+        })?;
     }
     let mut all: Vec<&Edge> = graph.get_edges_internal().iter().collect();
     all.sort_unstable_by_key(|e| e.id);
@@ -478,11 +539,23 @@ pub fn with_extra_edges(py: Python, graph: &Graph, edges: Vec<(u64, u64)>) -> Py
             Some(d) => Some(d.bind(py).copy()?.unbind()),
             None => None,
         };
-        result.add_edge_rust(Edge { id: 0, source: e.source, target: e.target, weight: e.weight, attributes })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: e.source,
+            target: e.target,
+            weight: e.weight,
+            attributes,
+        })?;
     }
     for (a, b) in edges {
         let weight = if graph.is_weighted() { Some(1.0) } else { None };
-        result.add_edge_rust(Edge { id: 0, source: a, target: b, weight, attributes: None })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: a,
+            target: b,
+            weight,
+            attributes: None,
+        })?;
     }
     Ok(result)
 }

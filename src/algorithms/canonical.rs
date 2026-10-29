@@ -32,8 +32,12 @@ struct Structure {
 }
 
 impl Structure {
-    fn new(graph: &Graph, ids: &[u64], node_colors: &FxHashMap<u64, i64>,
-           edge_colors: &FxHashMap<u64, i64>) -> Self {
+    fn new(
+        graph: &Graph,
+        ids: &[u64],
+        node_colors: &FxHashMap<u64, i64>,
+        edge_colors: &FxHashMap<u64, i64>,
+    ) -> Self {
         let n = ids.len();
         let directed = graph.is_directed();
         let idx: FxHashMap<u64, usize> = ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
@@ -43,7 +47,10 @@ impl Structure {
             if !directed && a > b {
                 std::mem::swap(&mut a, &mut b);
             }
-            multi.entry((a, b)).or_default().push(edge_colors.get(&e.id).copied().unwrap_or(0));
+            multi
+                .entry((a, b))
+                .or_default()
+                .push(edge_colors.get(&e.id).copied().unwrap_or(0));
         }
         for colors in multi.values_mut() {
             colors.sort_unstable();
@@ -52,8 +59,11 @@ impl Structure {
         let mut distinct: Vec<&Vec<i64>> = multi.values().collect();
         distinct.sort_unstable();
         distinct.dedup();
-        let rank: FxHashMap<&Vec<i64>, u32> =
-            distinct.into_iter().enumerate().map(|(i, c)| (c, i as u32)).collect();
+        let rank: FxHashMap<&Vec<i64>, u32> = distinct
+            .into_iter()
+            .enumerate()
+            .map(|(i, c)| (c, i as u32))
+            .collect();
         let mut pairs: Vec<(usize, usize, u32)> =
             multi.iter().map(|(&(a, b), c)| (a, b, rank[c])).collect();
         pairs.sort_unstable();
@@ -69,13 +79,24 @@ impl Structure {
                 adj[b].push((a, OUT, l));
             }
         }
-        let color = ids.iter().map(|id| node_colors.get(id).copied().unwrap_or(0)).collect();
-        Structure { n, color, adj, pairs, directed }
+        let color = ids
+            .iter()
+            .map(|id| node_colors.get(id).copied().unwrap_or(0))
+            .collect();
+        Structure {
+            n,
+            color,
+            adj,
+            pairs,
+            directed,
+        }
     }
 
     fn signature(&self, u: usize, col: &[u32]) -> Signature {
-        let mut sig: Signature =
-            self.adj[u].iter().map(|&(w, k, l)| (col[w], k, l)).collect();
+        let mut sig: Signature = self.adj[u]
+            .iter()
+            .map(|&(w, k, l)| (col[w], k, l))
+            .collect();
         sig.sort_unstable();
         sig
     }
@@ -91,7 +112,11 @@ impl Structure {
             .iter()
             .map(|&(a, b, l)| {
                 let (x, y) = (lab[a], lab[b]);
-                if self.directed || x <= y { (x, y, l) } else { (y, x, l) }
+                if self.directed || x <= y {
+                    (x, y, l)
+                } else {
+                    (y, x, l)
+                }
             })
             .collect();
         pairs.sort_unstable();
@@ -155,8 +180,10 @@ impl Partition {
             for c in dirty {
                 dirty_mark[c] = false;
                 let b = self.end[c] as usize;
-                let mut keyed: Vec<(Signature, usize)> =
-                    self.order[c..b].iter().map(|&u| (s.signature(u, &self.col), u)).collect();
+                let mut keyed: Vec<(Signature, usize)> = self.order[c..b]
+                    .iter()
+                    .map(|&u| (s.signature(u, &self.col), u))
+                    .collect();
                 keyed.sort_unstable();
                 if keyed[0].0 == keyed[keyed.len() - 1].0 {
                     continue;
@@ -255,7 +282,13 @@ impl Partition {
             let mut v: Vec<(usize, u8, u32)> = s.adj[u]
                 .iter()
                 .filter(|&&(w, k, _)| k == LOOP || (self.col[w] as usize) != a)
-                .map(|&(w, k, l)| if k == LOOP { (usize::MAX, k, l) } else { (w, k, l) })
+                .map(|&(w, k, l)| {
+                    if k == LOOP {
+                        (usize::MAX, k, l)
+                    } else {
+                        (w, k, l)
+                    }
+                })
                 .collect();
             v.sort_unstable();
             v
@@ -265,16 +298,18 @@ impl Partition {
         let inside = s.adj[self.order[a]].len() - first.len();
         let size = b - a;
         let kinds = if s.directed { 2 } else { 1 };
-        (inside == 0 || inside == kinds * (size - 1) && {
-            let mut labels: Vec<u32> = s.adj[self.order[a]]
-                .iter()
-                .filter(|&&(w, k, _)| k != LOOP && self.col[w] as usize == a)
-                .map(|&(_, _, l)| l)
-                .collect();
-            labels.sort_unstable();
-            labels.dedup();
-            labels.len() == 1
-        }) && self.order[a + 1..b].iter().all(|&u| outside(u) == first)
+        (inside == 0
+            || inside == kinds * (size - 1) && {
+                let mut labels: Vec<u32> = s.adj[self.order[a]]
+                    .iter()
+                    .filter(|&&(w, k, _)| k != LOOP && self.col[w] as usize == a)
+                    .map(|&(_, _, l)| l)
+                    .collect();
+                labels.sort_unstable();
+                labels.dedup();
+                labels.len() == 1
+            })
+            && self.order[a + 1..b].iter().all(|&u| outside(u) == first)
     }
 
     /// The target cell: the first smallest non-singleton cell.
@@ -312,7 +347,8 @@ impl Search<'_> {
         let depth = self.seq.len();
         let uniform = p.is_uniform(self.s);
         let target = if uniform { None } else { Some(p.target()) };
-        self.path.push((inv, target.map_or(u32::MAX, |t| t.0 as u32)));
+        self.path
+            .push((inv, target.map_or(u32::MAX, |t| t.0 as u32)));
         // Prune when the path is already worse than the best leaf's
         if let Some(best) = &self.best {
             let k = self.path.len().min(best.path.len());
@@ -336,12 +372,23 @@ impl Search<'_> {
         for (u, &l) in lab.iter().enumerate() {
             inv[l as usize] = u;
         }
-        let leaf = Leaf { path: self.path.clone(), cert, lab, inv, seq: self.seq.clone() };
+        let leaf = Leaf {
+            path: self.path.clone(),
+            cert,
+            lab,
+            inv,
+            seq: self.seq.clone(),
+        };
         for stored in [&self.first, &self.best].into_iter().flatten() {
             if stored.path == leaf.path && stored.cert == leaf.cert {
                 // Equal leaves differ by an automorphism, which fixes their common prefix
                 let gamma: Vec<usize> = leaf.lab.iter().map(|&l| stored.inv[l as usize]).collect();
-                let common = leaf.seq.iter().zip(&stored.seq).take_while(|(x, y)| x == y).count();
+                let common = leaf
+                    .seq
+                    .iter()
+                    .zip(&stored.seq)
+                    .take_while(|(x, y)| x == y)
+                    .count();
                 if gamma.iter().enumerate().any(|(u, &g)| u != g) {
                     self.gens.push(gamma);
                 }
@@ -385,7 +432,10 @@ impl Search<'_> {
                     orbit = self.orbits();
                     gens_seen = self.gens.len();
                 }
-                if explored.iter().any(|&x| find(&mut orbit, x) == find(&mut orbit, v)) {
+                if explored
+                    .iter()
+                    .any(|&x| find(&mut orbit, x) == find(&mut orbit, v))
+                {
                     continue;
                 }
             }
@@ -450,8 +500,14 @@ pub fn canonical_labeling(
     let mut root = Partition::new(&s);
     let mut trace = FxHasher::default();
     root.refine(&s, (0..s.n).collect(), &mut trace);
-    let mut search =
-        Search { s: &s, first: None, best: None, gens: Vec::new(), path: Vec::new(), seq: Vec::new() };
+    let mut search = Search {
+        s: &s,
+        first: None,
+        best: None,
+        gens: Vec::new(),
+        path: Vec::new(),
+        seq: Vec::new(),
+    };
     search.visit(&root, trace.finish());
     let best = search.best.expect("the search reaches a leaf");
     ids.into_iter().zip(best.lab).collect()
