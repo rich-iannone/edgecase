@@ -340,6 +340,56 @@ class TestAggregates:
         assert substitute(Aggregate("count", None), {"x": Var("y")}) == Aggregate("count", None)
 
 
+class TestWith:
+    def test_parts(self):
+        # each WITH ends a part, which the next part takes as its `previous`
+        q = parse_query("MATCH (a)-->(b) WITH b, count(*) AS n WHERE n > 1 "
+                        "MATCH (b)-->(c) RETURN b, n, c")
+        first = q.previous
+        assert first.previous is None and first.inputs == {}
+        assert first.returns.keyword == "WITH"
+        assert [item.name for item in first.returns.items] == ["b", "n"]
+        assert first.returns.where == Compare(">", Var("n"), Literal(1))
+        assert q.returns.keyword == "RETURN" and q.returns.where is None
+        assert q.inputs == {"b": "node", "n": "value"}
+        assert list(q.variables) == ["b", "n", "c"]
+
+    def test_kinds_of_the_inputs(self):
+        # a variable keeps its kind, as does an expression that can only give a node or a
+        # relationship; anything else is a value
+        q = parse_query("MATCH p = (a)-[r]->(b)-[s*]->(c) WITH p, r, s, a AS x, min(b) AS y, "
+                        "a.k AS k, [a] AS l RETURN *")
+        assert q.inputs == {"p": "path", "r": "relationship", "s": "relationships",
+                            "x": "node", "y": "node", "k": "value", "l": "value"}
+
+    def test_chains_and_star(self):
+        q = parse_query("MATCH (a)-->(b) WITH * WITH a WHERE a.k = 1 RETURN a")
+        assert q.inputs == {"a": "node"} and q.previous.inputs == {"a": "node", "b": "node"}
+        assert q.previous.previous.returns.star
+
+    def test_distinct_order_skip_limit(self):
+        q = parse_query("MATCH (a) WITH DISTINCT a.k AS k ORDER BY k DESC SKIP 1 LIMIT $n "
+                        "WHERE k > 0 RETURN k")
+        w = q.previous.returns
+        assert w.distinct and w.order[0].descending
+        assert w.skip == Literal(1) and w.limit == Param("n")
+        assert w.where == Compare(">", Var("k"), Literal(0))
+
+    def test_a_final_part_without_return(self):
+        q = parse_query("MATCH (a) WITH a MATCH (a)-->(b)")
+        assert q.returns is None and q.inputs == {"a": "node"}
+        assert list(q.variables) == ["a", "b"]
+
+    def test_names_can_be_reused_after_with(self):
+        # a variable that WITH drops can be defined again, as a new one
+        q = parse_query("MATCH (a)-->(b) WITH a MATCH (b) RETURN a, b")
+        assert q.inputs == {"a": "node"} and list(q.variables) == ["a", "b"]
+
+    def test_aggregates_in_with(self):
+        q = parse_query("MATCH (a) WITH collect(a) AS all, count(*) AS n RETURN all, n")
+        assert q.previous.returns.items[0].expr == Aggregate("collect", Var("a"))
+
+
 class TestSubstitute:
     def test_replaces_variables(self):
         names = {"x": Prop(Var("a"), "x")}
@@ -405,7 +455,8 @@ class TestErrors:
             ("MATCH (a) RETURN a.x, [a.y, count(*)]", r"`a` is used beside an aggregation"),
             ("MATCH (a) RETURN count(*), a.x = max(a.x)", r"`a` is used beside an aggregation"),
             ("MATCH (a) WHERE count(*) > 1", r"count\(\) is an aggregating function, which only "
-                                             r"RETURN and ORDER BY can use \(line 1, column 17\)"),
+                                             r"RETURN, WITH and ORDER BY can use \(line 1, "
+                                             r"column 17\)"),
             ("MATCH (a) RETURN a LIMIT count(*)", r"count\(\) is an aggregating function"),
             ("MATCH (a {x: count(*)})", r"expected a value, found 'count'"),
             ("MATCH (a) RETURN count(max(a.x))", r"aggregating functions can't be nested, as max\(\) "
@@ -429,10 +480,61 @@ class TestErrors:
             ("MATCH () RETURN *", r"RETURN \* returns every named variable, but the query names "
                                   r"none \(line 1, column 10\)"),
             ("MATCH (a) RETURN a, *", r"expected an expression, found '\*'"),
-            ("MATCH (a) WITH a", r"WITH isn't supported"),
-            ("MATCH (a) b", r"expected WHERE, MATCH, RETURN or the end of the query, found 'b'"),
+            ("MATCH (a) WITH a", r"a query can't end with WITH; finish it with RETURN \(or "
+                                 r"MATCH\) \(line 1, column 11\)"),
+            ("MATCH (a) WITH a WHERE a.k = 1", r"a query can't end with WITH"),
+            ("WITH 1 AS x RETURN x", r"a query starts with MATCH, found 'WITH'"),
+            ("MATCH (a) WITH a.x RETURN 1",
+             r"WITH needs a name for each expression that isn't a variable, as in "
+             r"WITH a.name AS name \(line 1, column 16\)"),
+            ("MATCH (a) WITH count(*) RETURN 1", r"WITH needs a name for each expression"),
+            ("MATCH (a)-->(b) WITH a RETURN b",
+             r"the variable `b` isn't carried over by the WITH before it; list it in that WITH "
+             r"to use it after \(line 1, column 31\)"),
+            ("MATCH (a) WITH a.x AS v, a WITH a RETURN v", r"`v` isn't carried over"),
+            ("MATCH (a)-->(b) WITH a MATCH (a) WHERE b.k = 1", r"`b` isn't carried over"),
+            ("MATCH (a) WITH a RETURN c", r"the variable `c` isn't defined in MATCH or WITH "
+                                          r"\(line 1, column 25\)"),
+            ("MATCH (a)-->(b) WITH a WHERE b.x = 1 RETURN a",
+             r"the WHERE of WITH sees only the columns of WITH, and `b` isn't one; list it in "
+             r"the WITH to use it \(line 1, column 30\)"),
+            ("MATCH (a) WITH a.x AS v WHERE a.x = 1 RETURN v", r"and `a` isn't one"),
+            ("MATCH (a) WITH a WHERE count(*) > 1 RETURN a",
+             r"count\(\) is an aggregating function, which only RETURN, WITH and ORDER BY"),
+            ("MATCH (a) WITH a.x AS v MATCH (v) RETURN v",
+             r"`v` holds a value that WITH carries over, not a node or relationship, so it "
+             r"can't be used in a pattern \(line 1, column 31\)"),
+            ("MATCH (a) WITH count(*) AS n MATCH ()-[n]->() RETURN n", r"`n` holds a value"),
+            ("MATCH p = (a) WITH p MATCH (p) RETURN p", r"`p` is a path variable, so it can't "
+                                                       r"also be a node"),
+            ("MATCH (a)-[r*]->(b) WITH r MATCH ()-[r]->() RETURN r",
+             r"the variable-length relationship `r` can't be used again in a later MATCH"),
+            ("MATCH (a) WITH a WHERE a.k > 1 ORDER BY a.k RETURN a",
+             r"ORDER BY, SKIP and LIMIT come after WITH, in that order, and before its WHERE "
+             r"\(line 1, column 32\)"),
+            ("MATCH (a) WITH a LIMIT 1 SKIP 1 RETURN a", r"ORDER BY, SKIP and LIMIT come after"),
+            ("MATCH (a) WITH a a", r"expected ORDER BY, SKIP, LIMIT, WHERE, MATCH, WITH or "
+                                   r"RETURN, found 'a' \(line 1, column 18\)"),
+            ("MATCH (a) WITH a, a RETURN a", r"the column 'a' is listed twice \(line 1, column "
+                                             r"19\)"),
+            ("MATCH () WITH * RETURN 1", r"WITH \* lists every named variable, but the query "
+                                         r"names none"),
+            ("MATCH (a) WITH a ORDER BY b RETURN a",
+             r"the variable `b` isn't defined in MATCH, or as a column of WITH"),
+            ("MATCH (a) WITH a.x AS v, count(*) AS n ORDER BY a.y RETURN v",
+             r"after an aggregation, ORDER BY can only use the listed columns, and `a` isn't "
+             r"one"),
+            ("MATCH (a)-->(b) WITH a.x AS v, [b.x, count(*)] AS w RETURN v",
+             r"`b` is used beside an aggregation, so it must be a grouping key: list `b`"),
+            ("MATCH (a) WITH a ORDER BY count(*) RETURN a",
+             r"ORDER BY can only sort by an aggregation that WITH lists; list count\(\) as a "
+             r"column"),
+            ("MATCH (a) WITH DISTINCT a.x AS v ORDER BY a.y RETURN v",
+             r"after WITH DISTINCT"),
+            ("MATCH (a) b", r"expected WHERE, MATCH, WITH, RETURN or the end of the query, found "
+                            r"'b'"),
             ("MATCH (a) WHERE a.x = 1 (b)",
-             r"expected MATCH, RETURN or the end of the query, found '\('"),
+             r"expected MATCH, WITH, RETURN or the end of the query, found '\('"),
             ("MATCH (a) RETURN a a", r"expected ORDER BY, SKIP, LIMIT or the end of the query, "
                                      r"found 'a'"),
             ("MATCH (a)-[*3..1]->(b)", r"can't have more than 1 hops and at least 3; write "
