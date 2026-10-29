@@ -15,9 +15,7 @@ use std::collections::HashMap;
 /// Returns a nested dict: result[node_i][node_j] = TOM value.
 #[pyfunction]
 #[pyo3(signature = (graph,))]
-pub fn topological_overlap_matrix(
-    graph: &Graph,
-) -> PyResult<HashMap<u64, HashMap<u64, f64>>> {
+pub fn topological_overlap_matrix(graph: &Graph) -> PyResult<HashMap<u64, HashMap<u64, f64>>> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 

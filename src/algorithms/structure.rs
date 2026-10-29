@@ -32,7 +32,8 @@ pub fn k_core(graph: &Graph, k: usize) -> PyResult<Graph> {
     // Add all edges
     for edge in graph.get_edges_internal() {
         if let (Some(&new_source), Some(&new_target)) =
-            (node_map.get(&edge.source), node_map.get(&edge.target)) {
+            (node_map.get(&edge.source), node_map.get(&edge.target))
+        {
             let new_edge = Edge {
                 id: edge.id,
                 source: new_source,
@@ -96,7 +97,8 @@ pub fn k_shell(graph: &Graph, k: usize) -> PyResult<Graph> {
     // Add edges between k-shell nodes
     for edge in graph.get_edges_internal() {
         if let (Some(&new_source), Some(&new_target)) =
-            (node_map.get(&edge.source), node_map.get(&edge.target)) {
+            (node_map.get(&edge.source), node_map.get(&edge.target))
+        {
             let new_edge = Edge {
                 id: edge.id,
                 source: new_source,
@@ -142,7 +144,8 @@ pub fn k_crust(graph: &Graph, k: usize) -> PyResult<Graph> {
     // Add edges between k-crust nodes
     for edge in graph.get_edges_internal() {
         if let (Some(&new_source), Some(&new_target)) =
-            (node_map.get(&edge.source), node_map.get(&edge.target)) {
+            (node_map.get(&edge.source), node_map.get(&edge.target))
+        {
             let new_edge = Edge {
                 id: edge.id,
                 source: new_source,
@@ -196,7 +199,7 @@ fn count_triangles_containing_edge(graph: &Graph, source: u64, target: u64) -> u
 pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
     if k < 3 {
         return Err(pyo3::exceptions::PyValueError::new_err(
-            "k must be at least 3 for k-truss"
+            "k must be at least 3 for k-truss",
         ));
     }
 
@@ -216,7 +219,8 @@ pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
     // Add all edges
     for edge in graph.get_edges_internal() {
         if let (Some(&new_source), Some(&new_target)) =
-            (node_map.get(&edge.source), node_map.get(&edge.target)) {
+            (node_map.get(&edge.source), node_map.get(&edge.target))
+        {
             let new_edge = Edge {
                 id: edge.id,
                 source: new_source,
@@ -235,11 +239,8 @@ pub fn k_truss(graph: &Graph, k: usize) -> PyResult<Graph> {
         let mut edges_to_remove = Vec::new();
 
         for edge in truss_graph.get_edges_internal() {
-            let triangle_count = count_triangles_containing_edge(
-                &truss_graph,
-                edge.source,
-                edge.target
-            );
+            let triangle_count =
+                count_triangles_containing_edge(&truss_graph, edge.source, edge.target);
 
             if triangle_count < min_triangles {
                 edges_to_remove.push(edge.id);
@@ -299,7 +300,10 @@ pub fn k_corona(graph: &Graph, k: usize) -> PyResult<Graph> {
             .get_adjacency_list()
             .get(&node_id)
             .map(|neighbors| {
-                neighbors.iter().filter(|&n| k_core_nodes.contains(n)).count()
+                neighbors
+                    .iter()
+                    .filter(|&n| k_core_nodes.contains(n))
+                    .count()
             })
             .unwrap_or(0);
 

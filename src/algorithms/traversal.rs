@@ -221,8 +221,10 @@ pub fn bfs_beam_search(
     while !layer.is_empty() {
         let mut next = Vec::new();
         for &v in &layer {
-            let mut best: Vec<(usize, f64)> =
-                nbrs[v].iter().map(|&w| Ok((w, score(w)?))).collect::<PyResult<_>>()?;
+            let mut best: Vec<(usize, f64)> = nbrs[v]
+                .iter()
+                .map(|&w| Ok((w, score(w)?)))
+                .collect::<PyResult<_>>()?;
             // stable, so equal values keep the neighbor order (like Python's sorted)
             best.sort_by(|a, b| b.1.total_cmp(&a.1));
             for &(w, _) in best.iter().take(width) {
@@ -326,7 +328,11 @@ pub fn tree_graph(
         let node = all_nodes.get(&id).ok_or_else(|| {
             pyo3::exceptions::PyValueError::new_err(format!("Node {} not found in graph", id))
         })?;
-        result.add_node_rust(Node { id, label: node.label.clone(), attributes: copy(&node.attributes)? })?;
+        result.add_node_rust(Node {
+            id,
+            label: node.label.clone(),
+            attributes: copy(&node.attributes)?,
+        })?;
     }
     let mut by_pair: FxHashMap<(u64, u64), &Edge> = FxHashMap::default();
     for e in graph.get_edges_internal() {
@@ -338,7 +344,13 @@ pub fn tree_graph(
             Some(e) => (e.weight, copy(&e.attributes)?),
             None => (None, None),
         };
-        result.add_edge_rust(Edge { id: 0, source: p, target: c, weight, attributes })?;
+        result.add_edge_rust(Edge {
+            id: 0,
+            source: p,
+            target: c,
+            weight,
+            attributes,
+        })?;
     }
     Ok(result)
 }

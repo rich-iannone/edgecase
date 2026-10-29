@@ -130,7 +130,16 @@ pub fn local_bridges(graph: &Graph, weighted: bool) -> PyResult<Vec<(u64, f64)>>
     let weight: FxHashMap<u64, f64> = graph
         .get_edges_internal()
         .iter()
-        .map(|e| (e.id, if weighted { e.weight.unwrap_or(1.0) } else { 1.0 }))
+        .map(|e| {
+            (
+                e.id,
+                if weighted {
+                    e.weight.unwrap_or(1.0)
+                } else {
+                    1.0
+                },
+            )
+        })
         .collect();
     if weighted && weight.values().any(|&w| w < 0.0) {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -151,7 +160,11 @@ pub fn local_bridges(graph: &Graph, weighted: bool) -> PyResult<Vec<(u64, f64)>>
         .collect();
     edges.sort_unstable_by_key(|e| e.0);
     for (eid, u, v) in edges {
-        let (small, big) = if nbrs[u].len() <= nbrs[v].len() { (u, v) } else { (v, u) };
+        let (small, big) = if nbrs[u].len() <= nbrs[v].len() {
+            (u, v)
+        } else {
+            (v, u)
+        };
         if nbrs[small].iter().any(|w| nbrs[big].contains(w)) {
             continue;
         }
@@ -211,7 +224,9 @@ impl Eq for OrdF64 {}
 #[allow(clippy::derive_ord_xor_partial_ord)]
 impl Ord for OrdF64 {
     fn cmp(&self, other: &Self) -> std::cmp::Ordering {
-        self.0.partial_cmp(&other.0).unwrap_or(std::cmp::Ordering::Equal)
+        self.0
+            .partial_cmp(&other.0)
+            .unwrap_or(std::cmp::Ordering::Equal)
     }
 }
 
@@ -283,7 +298,11 @@ pub fn barycenter(graph: &Graph, weighted: bool) -> PyResult<(Vec<u64>, f64)> {
         })
         .collect();
     if totals.iter().any(|t| t.is_none()) {
-        let what = if graph.is_directed() { "strongly connected" } else { "connected" };
+        let what = if graph.is_directed() {
+            "strongly connected"
+        } else {
+            "connected"
+        };
         return Err(pyo3::exceptions::PyValueError::new_err(format!(
             "The barycenter is only defined for a {} graph",
             what

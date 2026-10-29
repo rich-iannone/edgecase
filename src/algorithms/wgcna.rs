@@ -139,17 +139,48 @@ pub fn soft_threshold_power(
             .find(|(_, sr2, _, _)| *sr2 >= r_squared_cutoff)
             .map(|(p, _, _, _)| *p);
 
-        let powers_list: Vec<PyObject> = results.iter().map(|(p, _, _, _)| p.into_pyobject(py).unwrap().into_any().unbind()).collect();
-        let r2_list: Vec<PyObject> = results.iter().map(|(_, sr2, _, _)| sr2.into_pyobject(py).unwrap().into_any().unbind()).collect();
-        let slope_list: Vec<PyObject> = results.iter().map(|(_, _, s, _)| s.into_pyobject(py).unwrap().into_any().unbind()).collect();
-        let mean_k_list: Vec<PyObject> = results.iter().map(|(_, _, _, mk)| mk.into_pyobject(py).unwrap().into_any().unbind()).collect();
+        let powers_list: Vec<PyObject> = results
+            .iter()
+            .map(|(p, _, _, _)| p.into_pyobject(py).unwrap().into_any().unbind())
+            .collect();
+        let r2_list: Vec<PyObject> = results
+            .iter()
+            .map(|(_, sr2, _, _)| sr2.into_pyobject(py).unwrap().into_any().unbind())
+            .collect();
+        let slope_list: Vec<PyObject> = results
+            .iter()
+            .map(|(_, _, s, _)| s.into_pyobject(py).unwrap().into_any().unbind())
+            .collect();
+        let mean_k_list: Vec<PyObject> = results
+            .iter()
+            .map(|(_, _, _, mk)| mk.into_pyobject(py).unwrap().into_any().unbind())
+            .collect();
 
         let mut out: FxHashMap<String, PyObject> = FxHashMap::default();
-        out.insert("powers".to_string(), powers_list.into_pyobject(py).unwrap().into_any().unbind());
-        out.insert("signed_r_squared".to_string(), r2_list.into_pyobject(py).unwrap().into_any().unbind());
-        out.insert("slope".to_string(), slope_list.into_pyobject(py).unwrap().into_any().unbind());
-        out.insert("mean_connectivity".to_string(), mean_k_list.into_pyobject(py).unwrap().into_any().unbind());
-        out.insert("r_squared_cutoff".to_string(), r_squared_cutoff.into_pyobject(py).unwrap().into_any().unbind());
+        out.insert(
+            "powers".to_string(),
+            powers_list.into_pyobject(py).unwrap().into_any().unbind(),
+        );
+        out.insert(
+            "signed_r_squared".to_string(),
+            r2_list.into_pyobject(py).unwrap().into_any().unbind(),
+        );
+        out.insert(
+            "slope".to_string(),
+            slope_list.into_pyobject(py).unwrap().into_any().unbind(),
+        );
+        out.insert(
+            "mean_connectivity".to_string(),
+            mean_k_list.into_pyobject(py).unwrap().into_any().unbind(),
+        );
+        out.insert(
+            "r_squared_cutoff".to_string(),
+            r_squared_cutoff
+                .into_pyobject(py)
+                .unwrap()
+                .into_any()
+                .unbind(),
+        );
 
         let rec_obj: PyObject = match recommended {
             Some(p) => p.into_pyobject(py).unwrap().into_any().unbind(),
