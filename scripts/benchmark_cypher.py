@@ -157,6 +157,18 @@ RETURN_QUERIES = [
     ("count distinct, no keys", "movies",
      "MATCH (a:Person)-[:ACTED_IN]->(m:Movie)<-[:ACTED_IN]-(b:Person)",
      "RETURN count(*) AS pairs, count(DISTINCT m) AS movies", None),
+    ("with count filter", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "WITH b, count(*) AS n WHERE n > 8 RETURN b.name AS name, n ORDER BY n DESC, name "
+     "LIMIT 10", None),
+    ("with top 100, then match", "social", "MATCH (a:Person)-[:KNOWS]->(b:Person)",
+     "WITH b, count(*) AS n ORDER BY n DESC, b LIMIT 100 MATCH (b)-[:KNOWS]->(c:Person) "
+     "RETURN b.name AS name, n, c.name", None),
+    ("with many rows, then match", "social", "MATCH (a:Person)",
+     "WITH a WHERE a.age > 80 MATCH (a)-[:KNOWS]->(b)-[:KNOWS]->(c) RETURN a, b, c", None),
+    ("with collect, then match", "movies", "MATCH (m:Movie)<-[:ACTED_IN]-(p:Person)",
+     "WITH m, count(*) AS cast ORDER BY cast DESC, m LIMIT 10 "
+     "MATCH (m)<-[:DIRECTED]-(d:Person) RETURN m.title AS title, cast, d.name AS director",
+     None),
 ]
 
 
