@@ -1054,8 +1054,10 @@ def _projection_items(draw, variables):
             pool += [v, f"type({v})", f"{v}.weight", f"id({v})", f"{v}.weight > 1"]
         elif kind == "relationships":
             pool += [v, f"size({v})"]
-        else:
+        elif kind == "path":
             pool += [v, f"length({v})", f"nodes({v})", f"relationships({v})"]
+        else:  # a value that WITH carries over
+            pool += [v, f"{v} IS NULL", f"[{v}, 1]", f"{v} = 1"]
     return st.sampled_from(pool)
 
 
@@ -1101,7 +1103,8 @@ def _aggregations(draw, variables):
     numbers = ["1", "2.5"] + [e for v, kind in variables.items() for e in (
         [f"{v}.k", f"id({v})"] if kind == "node" else
         [f"{v}.weight", f"id({v})"] if kind == "relationship" else
-        [f"size({v})"] if kind == "relationships" else [f"length({v})"])]
+        [f"size({v})"] if kind == "relationships" else [f"length({v})"] if kind == "path"
+        else [v])]
 
     @st.composite
     def aggregation(draw):
@@ -1217,6 +1220,151 @@ def test_aggregation_against_a_group_by(g, text, data):
             + order)
     assert g.match(full, params={"k": 1}).rows() == expected, full
     assert g.count_matches(full, params={"k": 1}) == len(expected), full
+
+
+def _with_part(draw, text):
+    """A random `WITH` after `text`, and a random part after it (without `RETURN`), which may
+    be empty. `text` is a query without `RETURN`, which may end with `WITH`."""
+    variables = parse_query(text + " RETURN 1").variables
+    pool, aggregation = _aggregations(draw, variables)
+    carried = draw(st.lists(st.sampled_from(list(variables)), unique=True,
+                            max_size=3)) if variables else []
+    prefix = "w" * (text.count(" WITH ") + 1)  # new names for each WITH
+    items = [*carried, *(f"{item} AS {prefix}{i}" for i, item in enumerate(
+        draw(st.lists(pool, max_size=2))))]
+    if draw(st.integers(0, 2)) == 0:
+        items.append(f"{draw(aggregation)} AS {prefix}n")
+    star = bool(variables) and (not items or draw(st.integers(0, 5)) == 0)
+    if not star and not items:
+        items = ["1 AS one"]
+    names = list(variables) if star else [item.split(" AS ")[-1] for item in items]
+    listed = "*" if star else ", ".join(items)
+    order = draw(st.lists(st.sampled_from(names), max_size=2))
+    order = ", ".join(key + draw(st.sampled_from(["", " DESC"])) for key in order)
+    # mostly unfiltered, so that most queries have rows
+    skip = draw(st.sampled_from([None, None, None, 0, 1, "$k"]))
+    cap = draw(st.sampled_from([None, None, None, None, 0, 2, "$k"]))
+    where = draw(st.sampled_from([None, None, None, "{v} IS NULL", "NOT {v} IS NULL",
+                                  "{v} = 1 OR NOT {u} IS NULL"]))
+    text += (f" WITH {'DISTINCT ' if draw(st.booleans()) else ''}{listed}"
+             + (f" ORDER BY {order}" if order else "")
+             + (f" SKIP {skip}" if skip is not None else "")
+             + (f" LIMIT {cap}" if cap is not None else "")
+             + (" WHERE " + where.format(v=draw(st.sampled_from(names)),
+                                         u=draw(st.sampled_from(names))) if where else ""))
+    kinds = parse_query(text + " RETURN 1").inputs
+    nodes = [v for v, kind in kinds.items() if kind == "node"] or ["x"]
+    rels = [v for v, kind in kinds.items() if kind == "relationship"] or ["s"]
+    values = [v for v, kind in kinds.items() if kind == "value"] or ["1"]
+    second = draw(st.sampled_from([
+        "", "", "", "MATCH ({n})-[s]-(y)", "MATCH ({n})--(y:P)", "OPTIONAL MATCH ({n})-[s]->(y)",
+        "MATCH (y) WHERE y.k = {v}", "MATCH ()-[{r}]-(y) WHERE id(y) > 1",
+        "OPTIONAL MATCH ({n})-[s*1..2]-(y) WHERE {v} IS NULL",
+        "MATCH p = ({n})-->(y) MATCH (y)-->(z)",
+    ]))
+    return text + " " + second.format(n=draw(st.sampled_from(nodes)),
+                                      r=draw(st.sampled_from(rels)),
+                                      v=draw(st.sampled_from(values)))
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data(),
+       limit=st.sampled_from([None, None, None, 0, 1, 3]), use_labels=st.booleans())
+@settings(max_examples=400, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_engines_agree_on_with(g, text, data, limit, use_labels):
+    try:
+        text = _with_part(data.draw, text)
+        if data.draw(st.booleans()):
+            text = _with_part(data.draw, text)
+        query = parse_query(text + " RETURN 1")
+    except ValueError:
+        # a later part that defines a variable again, as a path or a variable-length one
+        assume(False)
+    pool, aggregation = _aggregations(data.draw, query.variables)
+    # a query can end with a MATCH, but not with WITH
+    ending = data.draw(st.sampled_from(["", "items", "items", "aggregation"] if
+                                       text.strip() == text else ["items", "aggregation"]))
+    full = text
+    if ending == "items":
+        items = data.draw(st.lists(pool, min_size=1, max_size=3))
+        full += (f" RETURN {'DISTINCT ' if data.draw(st.booleans()) else ''}"
+                 + ", ".join(f"{item} AS c{i}" for i, item in enumerate(items))
+                 + data.draw(st.sampled_from(["", " ORDER BY c0", " ORDER BY c0 DESC SKIP 1"])))
+    elif ending == "aggregation":
+        keys = data.draw(st.lists(pool, max_size=1))
+        full += " RETURN " + ", ".join(f"{item} AS c{i}" for i, item in enumerate(
+            keys + [data.draw(aggregation)]))
+    else:
+        assume(query.variables)
+    parsed = parse_query(full)
+    results = []
+    for engine in ("rust", "python"):
+        try:
+            projection = Projection(parsed, Matcher(parsed, full, g._graph, {"k": 1},
+                                                    engine=engine))
+            results.append((projection.table(limit, use_labels), projection.count()))
+        except ValueError as e:
+            results.append(str(e))
+    assert results[0] == results[1], full
+    if not isinstance(results[0], str):
+        (cells, _), (n, _) = results[0]
+        assert all(len(column) == len(cells[0]) for column in cells)
+        if limit is None:
+            assert n == len(cells[0]), full
+
+
+# the part after WITH v, x: its text, with {x} for x, and whether it uses v in a pattern
+_SECOND_PARTS = [
+    ("MATCH (v)-[s]->(y)", True),
+    ("MATCH (v)--(y:P)", True),
+    ("OPTIONAL MATCH (v)-[s]->(y)", True),
+    ("OPTIONAL MATCH (v)-[s*1..2]-(y) WHERE {x} IS NULL OR {x} > 1", True),
+    ("MATCH (y) WHERE y.k = {x}", False),
+    ("MATCH (y)-[s]-(z) WHERE id(y) > {x}", False),
+]
+
+
+@given(g=graphs(), text=st.one_of(BROAD_QUERIES, BROAD_QUERIES, queries()), data=st.data())
+@settings(max_examples=300, deadline=None, suppress_health_check=[HealthCheck.too_slow])
+def test_with_against_its_parts(g, text, data):
+    # WITH pipes the rows of its part on: the same as returning them, keeping those that pass
+    # its WHERE, and matching the next part once for each, in their order
+    query = parse_query(text)
+    nodes = [v for v, kind in query.variables.items() if kind == "node"]
+    assume(nodes)
+    v = data.draw(st.sampled_from(nodes))
+    aggregate = data.draw(st.booleans())
+    item = "count(*)" if aggregate else f"{v}.k"
+    tail = data.draw(st.sampled_from(["", " ORDER BY x", " ORDER BY x DESC, v", " ORDER BY v DESC"]))
+    tail += data.draw(st.sampled_from(["", "", " SKIP 1", " LIMIT 2", " SKIP 1 LIMIT 1"]))
+    distinct = "DISTINCT " if not aggregate and data.draw(st.booleans()) else ""
+    conditions = {None: lambda v, x: True, "x IS NULL": lambda v, x: x is None,
+                  "x > 1": lambda v, x: x is not None and x > 1,
+                  "v IS NULL OR id(v) = 2": lambda v, x: v is None or v == 2}
+    where = data.draw(st.sampled_from(list(conditions)))
+    second, uses_v = data.draw(st.sampled_from(_SECOND_PARTS))
+    params = {"k": 1}
+
+    rows = g.match(f"{text} RETURN {distinct}{v} AS v, {item} AS x{tail}", params=params).rows()
+    rows = [row for row in rows if conditions[where](*row)]
+    plain = second.format(x="$x")
+    added = [name for name in parse_query(plain).variables if name != "v"]
+    expected = []
+    for vid, x in rows:
+        if vid is None and uses_v:
+            # a null v matches nothing, but OPTIONAL MATCH keeps the row
+            if second.startswith("OPTIONAL"):
+                expected.append((vid, x) + (None,) * len(added))
+            continue
+        start = "MATCH (v) WHERE id(v) = $v " if vid is not None else ""
+        found = g.match(f"{start}{plain} RETURN $v AS v, $x AS x"
+                        + "".join(f", {name}" for name in added),
+                        params={"v": vid, "x": x}).rows()
+        expected += found
+
+    full = (f"{text} WITH {distinct}{v} AS v, {item} AS x{tail}"
+            + (f" WHERE {where}" if where else "") + " " + second.format(x="x") + " RETURN *")
+    assert g.match(full, params=params).rows() == expected, full
+    assert g.count_matches(full, params=params) == len(expected), full
 
 
 _CELLS = st.one_of(
