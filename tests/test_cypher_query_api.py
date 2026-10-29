@@ -839,6 +839,117 @@ class TestClauses:
         assert df["p.name"].to_list() == ["Carrie-Anne Moss"]
 
 
+class TestWith:
+    def test_filter_on_an_aggregation(self, g):
+        query = ("MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WITH m, count(*) AS n WHERE n > 1 "
+                 "RETURN m.title, n")
+        assert g.match(query).rows() == [("The Matrix", 2)]
+        assert g.count_matches(query) == 1
+
+    def test_match_again_from_the_carried_rows(self, g):
+        # the most active actor, and then their movies
+        df = g.match("MATCH (p:Person)-[:ACTED_IN]->(m) WITH p, count(*) AS n "
+                     "ORDER BY n DESC LIMIT 1 MATCH (p)-[:ACTED_IN]->(m) RETURN p.name, m.title")
+        assert df.rows() == [("Keanu Reeves", "The Matrix"), ("Keanu Reeves", "John Wick")]
+
+    def test_where_comes_after_order_skip_and_limit(self, g):
+        df = g.match("MATCH (p:Person) WITH p ORDER BY p.born SKIP 1 WHERE p.born > 1964 "
+                     "RETURN p.name")
+        # Keanu Reeves is skipped as the oldest, and the rows keep the order of WITH
+        assert df["p.name"].to_list() == ["Lana Wachowski", "Carrie-Anne Moss"]
+
+    def test_rows_follow_the_carried_rows(self, g):
+        df = g.match("MATCH (p:Person) WITH p ORDER BY p.born DESC MATCH (p)-->(m) "
+                     "RETURN p.name, m.title")
+        assert df.rows() == [("Carrie-Anne Moss", "The Matrix"), ("Lana Wachowski", "The Matrix"),
+                             ("Keanu Reeves", "The Matrix"), ("Keanu Reeves", "John Wick")]
+        # and the ones of a WITH without ORDER BY are in the order of its part
+        df = g.match("MATCH (p:Person)-[r]->(m) WITH r, m RETURN r, m")
+        assert df.rows() == [(1, 4), (3, 5), (2, 4), (4, 4)]
+
+    def test_distinct(self, g):
+        df = g.match("MATCH (p:Person)-->(m) WITH DISTINCT m MATCH (m)<--(q) "
+                     "RETURN m.title, q.name ORDER BY m.title, q.name")
+        assert df.rows() == [("John Wick", "Keanu Reeves"), ("The Matrix", "Carrie-Anne Moss"),
+                             ("The Matrix", "Keanu Reeves"), ("The Matrix", "Lana Wachowski")]
+
+    def test_values_are_carried_to_where_and_return(self, g):
+        df = g.match("MATCH (p:Person) WITH p.born AS year, p MATCH (m:Movie) "
+                     "WHERE m.released > 2000 AND year < 1966 RETURN p.name, year, m.title")
+        assert df.rows() == [("Keanu Reeves", 1964, "John Wick"),
+                             ("Lana Wachowski", 1965, "John Wick")]
+        df = g.match("MATCH (m:Movie) WITH collect(m.title) AS titles "
+                     "RETURN titles, size(titles) AS n")
+        assert df.rows() == [(["The Matrix", "John Wick"], 2)]
+        assert df.dtypes == [pl.List(pl.String), pl.Int64]
+
+    def test_an_expression_that_gives_a_node_is_a_node(self, g):
+        df = g.match("MATCH (p:Person)-->(m) WITH max(m) AS last MATCH (last)<--(q) "
+                     "RETURN last, q.name")
+        assert df.rows() == [(node(g, "wick"), "Keanu Reeves")]
+        assert g.match("MATCH (p:Person)-->(m) WITH max(m) AS last RETURN last",
+                       use_labels=True).rows() == [("wick",)]
+
+    def test_a_chain_of_withs(self, g):
+        df = g.match("MATCH (a:Person) WITH a MATCH (b:Person) WHERE id(a) < id(b) "
+                     "WITH a, b RETURN a.name, b.name")
+        assert df.height == 3
+
+    def test_optional_match_and_nulls(self, g):
+        base = "MATCH (p:Person) OPTIONAL MATCH (p)-[:DIRECTED]->(m) WITH p, m "
+        df = g.match(base + "OPTIONAL MATCH (m)<-[:ACTED_IN]-(a) RETURN p.name, m.title, a.name")
+        assert df.rows() == [("Keanu Reeves", None, None), ("Carrie-Anne Moss", None, None),
+                             ("Lana Wachowski", "The Matrix", "Keanu Reeves"),
+                             ("Lana Wachowski", "The Matrix", "Carrie-Anne Moss")]
+        # a null that WITH carries matches nothing in a later MATCH
+        df = g.match(base + "MATCH (m)<-[:ACTED_IN]-(a) RETURN p.name, a.name")
+        assert df["p.name"].to_list() == ["Lana Wachowski"] * 2
+
+    def test_an_aggregation_of_no_rows_is_one_row(self, g):
+        df = g.match("MATCH (p:Person) WITH p WHERE p.born < 1960 RETURN count(*) AS n")
+        assert df.rows() == [(0,)]
+
+    def test_without_return(self, g):
+        df = g.match("MATCH (p:Person) WITH p, p.born AS b ORDER BY b DESC LIMIT 2 "
+                     "MATCH (p)-->(m)")
+        assert df.columns == ["p", "b", "m"]
+        assert df.rows() == [(node(g, "Carrie-Anne Moss"), 1967, node(g, "matrix")),
+                             (node(g, "Lana Wachowski"), 1965, node(g, "matrix"))]
+
+    def test_limit_applies_to_the_last_part(self, g):
+        query = "MATCH (p:Person) WITH p ORDER BY p.born DESC MATCH (p)-->(m) RETURN p.name"
+        assert g.match(query, limit=1).rows() == [("Carrie-Anne Moss",)]
+        assert g.match(query + " LIMIT 3", limit=0).height == 0
+        # the earlier parts see every match
+        assert g.match("MATCH (p:Person) WITH count(*) AS n RETURN n", limit=1).rows() == [(3,)]
+        assert g.match("MATCH (p:Person) WITH count(*) AS n RETURN n", limit=0).rows() == []
+
+    def test_count_matches(self, g):
+        assert g.count_matches("MATCH (p:Person) WITH p MATCH (p)-->(m)") == 4
+        assert g.count_matches("MATCH (p:Person) WITH p MATCH (p)-->(m) RETURN DISTINCT p") == 3
+        assert g.count_matches("MATCH (p:Person)-->(m) WITH m, count(*) AS n WHERE n > 1 "
+                               "RETURN m") == 1
+
+    def test_select_match(self, g):
+        g.select_match("MATCH (p:Person)-[:ACTED_IN]->(m) WITH m, count(*) AS n WHERE n > 1 "
+                       "MATCH (m)<-[:DIRECTED]-(d)", select="d")
+        assert labels(g, g.get_selected_node_ids()) == ["Lana Wachowski"]
+        # by default, every node of the last part's matches, the carried ones included
+        g.select_match("MATCH (p:Person {name: 'Carrie-Anne Moss'}) WITH p "
+                       "MATCH (m:Movie {title: 'John Wick'})", set_op="replace")
+        assert labels(g, g.get_selected_node_ids()) == ["Carrie-Anne Moss", "wick"]
+
+    def test_select_can_only_name_nodes_and_relationships(self, g):
+        g.select_match(ACTED, select="p")
+        before = g.get_selected_node_ids()
+        with pytest.raises(ValueError, match=r"select= names 'n', which holds a value that "
+                                             r"WITH carries over"):
+            g.select_match("MATCH (p:Person)-->(m) WITH m, count(*) AS n MATCH (m)", select="n")
+        with pytest.raises(ValueError, match=r"select= names 'p', which the query doesn't bind"):
+            g.select_match("MATCH (p:Person)-->(m) WITH m MATCH (m)", select="p")
+        assert g.get_selected_node_ids() == before
+
+
 # =============================================================================
 # Steps
 # =============================================================================
