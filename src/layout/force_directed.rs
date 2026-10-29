@@ -45,11 +45,7 @@ impl ForceDirectedLayout {
 
     /// Compute layout for a graph
     /// Returns HashMap mapping node indices to (x, y) positions
-    pub fn compute(
-        &self,
-        node_count: usize,
-        edges: &[(usize, usize)],
-    ) -> HashMap<usize, Position> {
+    pub fn compute(&self, node_count: usize, edges: &[(usize, usize)]) -> HashMap<usize, Position> {
         if node_count == 0 {
             return HashMap::new();
         }
@@ -95,21 +91,14 @@ impl ForceDirectedLayout {
                     // Limit displacement by temperature
                     let disp = (fx * fx + fy * fy).sqrt();
                     let limited_disp = disp.min(temp);
-                    let scale = if disp > 0.0 {
-                        limited_disp / disp
-                    } else {
-                        0.0
-                    };
+                    let scale = if disp > 0.0 { limited_disp / disp } else { 0.0 };
 
                     let new_vel = (
                         velocities[i].0 * self.config.damping + fx * scale,
                         velocities[i].1 * self.config.damping + fy * scale,
                     );
 
-                    let new_pos = (
-                        positions[i].0 + new_vel.0,
-                        positions[i].1 + new_vel.1,
-                    );
+                    let new_pos = (positions[i].0 + new_vel.0, positions[i].1 + new_vel.1);
 
                     (new_pos, new_vel)
                 })
@@ -251,7 +240,11 @@ impl ForceDirectedLayout {
         let max_range = range_x.max(range_y);
 
         // Scale to [-0.8, 0.8] viewport
-        let scale = if max_range > 0.0 { 1.6 / max_range } else { 1.0 };
+        let scale = if max_range > 0.0 {
+            1.6 / max_range
+        } else {
+            1.0
+        };
         let center_x = (min_x + max_x) / 2.0;
         let center_y = (min_y + max_y) / 2.0;
 
@@ -346,7 +339,12 @@ impl QuadTree {
 
         // Add padding to ensure all points are inside
         let padding = 0.01;
-        let bounds = BoundingBox::new(min_x - padding, min_y - padding, max_x + padding, max_y + padding);
+        let bounds = BoundingBox::new(
+            min_x - padding,
+            min_y - padding,
+            max_x + padding,
+            max_y + padding,
+        );
 
         let mut tree = QuadTree::new_empty(bounds);
         for (i, &pos) in positions.iter().enumerate() {
