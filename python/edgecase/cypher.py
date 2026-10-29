@@ -48,7 +48,7 @@ _RESERVED = frozenset({
 
 _COMPARISONS = ("=", "<>", "<", "<=", ">", ">=", "=~")
 
-# the aggregating functions, which only RETURN and ORDER BY can use
+# the aggregating functions, which only RETURN, WITH and ORDER BY can use
 _AGGREGATES = frozenset({"avg", "collect", "count", "max", "min", "sum"})
 
 # the shortest-path functions of a pattern, lower-cased -> as documented
@@ -263,8 +263,9 @@ class SortItem:
 
 @dataclass
 class Return:
-    """`RETURN [DISTINCT] items [ORDER BY order] [SKIP skip] [LIMIT limit]`. For `RETURN *`,
-    `star` is set and `items` starts with every named variable, in order."""
+    """`RETURN [DISTINCT] items [ORDER BY order] [SKIP skip] [LIMIT limit]`, or the same with
+    `WITH` (`keyword`), which may end with `WHERE where`. For `RETURN *`, `star` is set and
+    `items` starts with every named variable, in order."""
 
     items: list[ReturnItem]
     distinct: bool = False
@@ -273,6 +274,8 @@ class Return:
     skip: Optional[Expr] = None
     limit: Optional[Expr] = None
     star: bool = False
+    keyword: str = "RETURN"
+    where: Optional[Expr] = None
 
 
 @dataclass
@@ -287,16 +290,28 @@ class Clause:
 
 @dataclass
 class Query:
-    """One or more `MATCH` clauses, then `[RETURN returns]`.
+    """One or more `MATCH` clauses, then `[RETURN returns]`; or one part of a query that `WITH`
+    splits into parts.
 
     `variables` maps each named variable to its kind, in the order they first appear: `"node"`,
-    `"relationship"`, `"relationships"` for a variable-length relationship (a list of them), or
-    `"path"` for a path variable.
+    `"relationship"`, `"relationships"` for a variable-length relationship (a list of them),
+    `"path"` for a path variable, or `"value"` for a column of `WITH` that holds any other
+    value.
+
+    - **Parts:** `parse_query()` gives the last part. Each part before it ends with `WITH`
+      (its `returns`, with `keyword` `"WITH"`), and the part after it has it as `previous`.
+      A part after `WITH` may have no clauses, and the last part may have no `RETURN`.
+    - **Inputs:** `inputs` maps the columns of the `WITH` before a part to their kinds, in
+      order (and they start `variables`). A column of a variable keeps its kind, one that
+      always holds a node or a relationship (`min(n)`) is a `"node"` or `"relationship"`,
+      and any other is a `"value"`.
     """
 
     clauses: list[Clause]
     returns: Optional[Return] = None
     variables: dict[str, str] = field(default_factory=dict)
+    inputs: dict[str, str] = field(default_factory=dict)
+    previous: Optional["Query"] = None
 
     @property
     def patterns(self) -> list[Pattern]:
@@ -412,7 +427,7 @@ def _unsupported(word: str) -> Optional[str]:
     """Why a clause can't follow the pattern of a query, if `word` starts one."""
     if word in ("CREATE", "MERGE", "SET", "DELETE", "DETACH", "REMOVE"):
         return f"{word} isn't supported: a query only reads the graph"
-    if word in ("WITH", "UNWIND", "UNION", "CALL"):
+    if word in ("UNWIND", "UNION", "CALL"):
         return f"{word} isn't supported"
     return None
 
@@ -503,49 +518,91 @@ class _CypherParser(_TokenParser):
             kind, word, _ = self.tokens[self.i]
             reason = _unsupported(word.upper()) if kind == "name" else None
             self._fail(reason or f"a query starts with MATCH, found {word!r}")
-        clauses: list[Clause] = []
-        while self._at_keyword("MATCH") or self._at_keyword("OPTIONAL"):
-            pos = self._pos()
-            optional = self._accept_keyword("OPTIONAL")
-            self._expect_keyword("MATCH")
-            patterns = [self._pattern(create=False)]
-            while self._accept(","):
-                patterns.append(self._pattern(create=False))
-            where = self._expr() if self._accept_keyword("WHERE") else None
-            clauses.append(Clause(patterns, where, optional, pos))
-        returns, pos = None, self._pos()
+        previous: Optional[Query] = None
+        while True:
+            clauses: list[Clause] = []
+            while self._at_keyword("MATCH") or self._at_keyword("OPTIONAL"):
+                pos = self._pos()
+                optional = self._accept_keyword("OPTIONAL")
+                self._expect_keyword("MATCH")
+                patterns = [self._pattern(create=False)]
+                while self._accept(","):
+                    patterns.append(self._pattern(create=False))
+                where = self._expr() if self._accept_keyword("WHERE") else None
+                clauses.append(Clause(patterns, where, optional, pos))
+            returns, pos = None, self._pos()
+            if not self._at_keyword("WITH"):
+                break
+            self.i += 1
+            returns = self._return(pos, "WITH")
+            if self._accept_keyword("WHERE"):
+                returns.where = self._expr()
+            part = Query(clauses, returns, previous=previous)
+            self._check_variables(part)
+            previous = part
         if self._accept_keyword("RETURN"):
             returns = self._return(pos)
         self._accept(";")
-        if self.i < len(self.tokens):
+        ended = self.i >= len(self.tokens)
+        after_with = previous is not None and not clauses and returns is None
+        if ended and after_with:
+            self._fail("a query can't end with WITH; finish it with RETURN (or MATCH)",
+                       previous.returns.pos)
+        if not ended:
             kind, word, _ = self.tokens[self.i]
             upper = word.upper() if kind == "name" else None
             reason = None if upper is None else _unsupported(upper)
             if upper in ("ORDER", "SKIP", "LIMIT"):
                 what = "ORDER BY" if upper == "ORDER" else upper
-                reason = (f"{what} needs a RETURN before it (RETURN * returns every variable)"
-                          if returns is None else
-                          "ORDER BY, SKIP and LIMIT come after RETURN, in that order")
-            if reason is None:
-                if returns is None:
-                    expected = ("MATCH, RETURN or the end of the query" if clauses[-1].where else
-                                "WHERE, MATCH, RETURN or the end of the query")
-                elif returns.limit is not None:
-                    expected = "the end of the query"
-                elif returns.skip is not None:
-                    expected = "LIMIT or the end of the query"
-                elif returns.order:
-                    expected = "SKIP, LIMIT or the end of the query"
+                if after_with:
+                    reason = ("ORDER BY, SKIP and LIMIT come after WITH, in that order, and "
+                              "before its WHERE")
+                elif returns is None:
+                    reason = f"{what} needs a RETURN before it (RETURN * returns every variable)"
                 else:
-                    expected = "ORDER BY, SKIP, LIMIT or the end of the query"
+                    reason = "ORDER BY, SKIP and LIMIT come after RETURN, in that order"
+            if reason is None:
+                last = previous.returns if after_with else returns
+                if last is None:
+                    options = ["MATCH", "WITH", "RETURN", "the end of the query"]
+                    if not clauses[-1].where:
+                        options.insert(0, "WHERE")
+                else:
+                    options = (["MATCH", "WITH", "RETURN"] if after_with
+                               else ["the end of the query"])
+                    if after_with and last.where is None:
+                        options.insert(0, "WHERE")
+                    if last.where is None:
+                        tail = (["ORDER BY"] if not last.order else []) + ["SKIP", "LIMIT"]
+                        if last.limit is not None:
+                            tail = []
+                        elif last.skip is not None:
+                            tail = ["LIMIT"]
+                        options[:0] = tail
+                expected = (options[0] if len(options) == 1 else
+                            ", ".join(options[:-1]) + " or " + options[-1])
                 reason = f"expected {expected}, found {word!r}"
             self._fail(reason)
-        query = Query(clauses, returns)
+        query = Query(clauses, returns, previous=previous)
         self._check_variables(query)
         return query
 
+    def _undefined(self, query: Query, name: str, pos: int, extra: str = "") -> None:
+        """Fail on the variable `name`, which `query` doesn't define."""
+        earlier = query.previous
+        while earlier is not None:
+            if name in earlier.variables:
+                self._fail(f"the variable `{name}` isn't carried over by the WITH before it; "
+                           "list it in that WITH to use it after", pos)
+            earlier = earlier.previous
+        where = "MATCH" if query.previous is None else "MATCH or WITH"
+        self._fail(f"the variable `{name}` isn't defined in {where}{extra}", pos)
+
     def _check_variables(self, query: Query) -> None:
         kinds = query.variables
+        if query.previous is not None:
+            query.inputs = self._carried(query.previous)
+            kinds.update(query.inputs)
         # every pattern variable, to tell a WHERE that looks ahead from one that has a typo
         anywhere = {part.variable for pattern in query.patterns
                     for part in [*pattern.nodes, *pattern.rels, pattern]}
@@ -557,6 +614,8 @@ class _CypherParser(_TokenParser):
                     known = kinds.get(name)
                     if known == "path":
                         self._fail(f"the path variable `{name}` is defined twice", pattern.pos)
+                    if known == "value":
+                        self._value_in_pattern(name, pattern.pos)
                     if known is not None:
                         what = "node" if known == "node" else "relationship"
                         self._fail(f"`{name}` is used for both a path and a {what}", pattern.pos)
@@ -573,16 +632,42 @@ class _CypherParser(_TokenParser):
                             self._fail(f"the variable `{sub.name}` is only defined in a later "
                                        "MATCH; a WHERE sees its own MATCH and the ones before it",
                                        sub.pos)
-                        self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+                        self._undefined(query, sub.name, sub.pos)
         if query.returns is not None:
-            self._check_return(query.returns, kinds)
+            self._check_return(query, kinds)
 
-    def _check_return(self, returns: Return, kinds: dict[str, str]) -> None:
-        """Check the variables of `RETURN` and what follows it, list the variables of `RETURN
-        *`, and replace the column names in `ORDER BY` with their expressions."""
+    def _carried(self, part: Query) -> dict[str, str]:
+        """The columns that the `WITH` of `part` carries to the next part, and their kinds,
+        after checking its `WHERE` (which sees only those columns)."""
+        carried = {}
+        for item in part.returns.items:
+            if isinstance(item.expr, Var):
+                carried[item.name] = part.variables[item.expr.name]
+            else:
+                kind = _column_kind(item.expr, part.variables)
+                carried[item.name] = kind if kind in ("node", "relationship") else "value"
+        where = part.returns.where
+        for sub in walk(where) if where is not None else ():
+            if isinstance(sub, Var) and sub.name not in carried:
+                if sub.name in part.variables:
+                    self._fail(f"the WHERE of WITH sees only the columns of WITH, and `{sub.name}` "
+                               "isn't one; list it in the WITH to use it", sub.pos)
+                self._undefined(part, sub.name, sub.pos)
+        return carried
+
+    def _value_in_pattern(self, name: str, pos: int) -> None:
+        self._fail(f"`{name}` holds a value that WITH carries over, not a node or relationship, "
+                   "so it can't be used in a pattern", pos)
+
+    def _check_return(self, query: Query, kinds: dict[str, str]) -> None:
+        """Check the variables of `RETURN` (or `WITH`) and what follows it, list the variables of
+        `RETURN *`, and replace the column names in `ORDER BY` with their expressions."""
+        returns = query.returns
+        word = returns.keyword
+        verb, listed = ("return", "returned") if word == "RETURN" else ("list", "listed")
         if returns.star:
             if not kinds:
-                self._fail("RETURN * returns every named variable, but the query names none",
+                self._fail(f"{word} * {verb}s every named variable, but the query names none",
                            returns.pos)
             returns.items[:0] = [ReturnItem(Var(name, returns.pos), name, returns.pos)
                                  for name in kinds]
@@ -590,9 +675,9 @@ class _CypherParser(_TokenParser):
         for item in returns.items:
             for sub in walk(item.expr):
                 if isinstance(sub, Var) and sub.name not in kinds:
-                    self._fail(f"the variable `{sub.name}` isn't defined in MATCH", sub.pos)
+                    self._undefined(query, sub.name, sub.pos)
             if item.name in columns:
-                self._fail(f"the column {item.name!r} is returned twice", item.pos)
+                self._fail(f"the column {item.name!r} is {listed} twice", item.pos)
             columns[item.name] = item.expr
         returned = list(columns.values())
         grouping = [expr for expr in returned if not aggregates_in(expr)]
@@ -604,7 +689,7 @@ class _CypherParser(_TokenParser):
                 return
             if isinstance(expr, Var):
                 self._fail(f"`{expr.name}` is used beside an aggregation, so it must be a grouping "
-                           f"key: return `{expr.name}` (or the expression it's in) as a column "
+                           f"key: {verb} `{expr.name}` (or the expression it's in) as a column "
                            "of its own", expr.pos)
             for sub in _children(expr):
                 grouped(sub)
@@ -612,17 +697,17 @@ class _CypherParser(_TokenParser):
         if aggregating:
             for expr in returned:
                 grouped(expr)
-        after = "RETURN DISTINCT" if returns.distinct else "an aggregation"
+        after = f"{word} DISTINCT" if returns.distinct else "an aggregation"
 
         def check(expr: Expr) -> None:
             # after DISTINCT or an aggregation, a key can only be made of returned columns
             if expr in returned or isinstance(expr, Var) and expr.name in columns:
                 return
             if isinstance(expr, Aggregate):
-                self._fail(f"ORDER BY can only sort by an aggregation that RETURN returns; return "
-                           f"{expr.name}() as a column, and sort by its name", expr.pos)
+                self._fail(f"ORDER BY can only sort by an aggregation that {word} {verb}s; "
+                           f"{verb} {expr.name}() as a column, and sort by its name", expr.pos)
             if isinstance(expr, Var) and (returns.distinct or aggregating):
-                self._fail(f"after {after}, ORDER BY can only use the returned columns, and "
+                self._fail(f"after {after}, ORDER BY can only use the {listed} columns, and "
                            f"`{expr.name}` isn't one", expr.pos)
             for sub in _children(expr):
                 check(sub)
@@ -630,8 +715,7 @@ class _CypherParser(_TokenParser):
         for key in returns.order:
             for sub in walk(key.expr):
                 if isinstance(sub, Var) and sub.name not in kinds and sub.name not in columns:
-                    self._fail(f"the variable `{sub.name}` isn't defined in MATCH, or as a "
-                               "column of RETURN", sub.pos)
+                    self._undefined(query, sub.name, sub.pos, f", or as a column of {word}")
             check(key.expr)
             key.expr = substitute(key.expr, columns)
         for what, expr in (("SKIP", returns.skip), ("LIMIT", returns.limit)):
@@ -653,6 +737,8 @@ class _CypherParser(_TokenParser):
         known = kinds.get(name)
         if known is None:
             kinds[name] = kind
+        elif known == "value":
+            self._value_in_pattern(name, part.pos)
         elif known == "path":
             what = "node" if kind == "node" else "relationship"
             self._fail(f"`{name}` is a path variable, so it can't also be a {what}", part.pos)
@@ -667,8 +753,8 @@ class _CypherParser(_TokenParser):
                        "later MATCH", part.pos)
         in_clause.add(name)
 
-    def _return(self, start: int) -> Return:
-        returns = Return([], self._accept_keyword("DISTINCT"), start)
+    def _return(self, start: int, keyword: str = "RETURN") -> Return:
+        returns = Return([], self._accept_keyword("DISTINCT"), start, keyword=keyword)
         self._projecting = True  # where aggregating functions get their own error
         returns.star = self._accept("*")
         if not returns.star or self._accept(","):
@@ -679,6 +765,10 @@ class _CypherParser(_TokenParser):
                     name = self._name("a column name")
                 elif isinstance(expr, Var):
                     name = expr.name
+                elif keyword == "WITH":
+                    # as in Neo4j, since the name is how the rest of the query reads the column
+                    self._fail("WITH needs a name for each expression that isn't a variable, as "
+                               "in WITH a.name AS name", pos)
                 elif isinstance(expr, Prop) and isinstance(expr.subject, Var):
                     name = f"{expr.subject.name}.{expr.key}"
                 else:
@@ -1035,8 +1125,8 @@ class _CypherParser(_TokenParser):
         """The rest of an aggregating function call, after its `(`."""
         name = written.lower()
         if not self._projecting:
-            self._fail(f"{written}() is an aggregating function, which only RETURN and ORDER BY "
-                       "can use", pos)
+            self._fail(f"{written}() is an aggregating function, which only RETURN, WITH and "
+                       "ORDER BY can use", pos)
         if self._aggregating is not None:
             self._fail(f"aggregating functions can't be nested, as {written}() is in "
                        f"{self._aggregating}()", pos)
@@ -1073,7 +1163,9 @@ def parse_create(text: str) -> list[Pattern]:
 
 def parse_query(text: str) -> Query:
     """Parse a query: `[OPTIONAL] MATCH ... [WHERE ...]` clauses, then `[RETURN ... [ORDER BY
-    ...] [SKIP ...] [LIMIT ...]]`."""
+    ...] [SKIP ...] [LIMIT ...]]`, with any number of `WITH ... [ORDER BY ...] [SKIP ...]
+    [LIMIT ...] [WHERE ...]` between them that split it into parts (see `Query`). This gives
+    the last part."""
     return _CypherParser(text).parse_query()
 
 
@@ -1277,8 +1369,8 @@ class Evaluator:
     """Compiles the expressions of one query into Python functions of a binding.
 
     A binding maps variable names to node or edge IDs, a tuple of edge IDs for a variable-length
-    relationship, a pair of tuples `(node IDs, edge IDs)` for a path, or `None` for an
-    `OPTIONAL MATCH` that found nothing. `variables` gives the
+    relationship, a pair of tuples `(node IDs, edge IDs)` for a path, the value itself for a
+    `"value"` column of `WITH`, or `None` for an `OPTIONAL MATCH` that found nothing. `variables` gives the
     kind of each variable (as in `Query.variables`), `params` the values of the
     `$name` parameters, and `view` reads the graph. Errors point at the query `text`.
 
@@ -1341,12 +1433,14 @@ class Evaluator:
                                     else [RelRef(edge) for edge in binding[name]])
         if kind == "path":
             return lambda binding: None if binding[name] is None else PathRef(*binding[name])
+        if kind == "value":
+            return lambda binding: binding[name]
         return lambda binding: None if binding[name] is None else RelRef(binding[name])
 
     def _aggregate(self, expr: Aggregate):
         if expr not in self.aggregates:
-            self._fail(expr.pos, f"{expr.name}() is an aggregating function, which only RETURN "
-                                 "and ORDER BY can use")
+            self._fail(expr.pos, f"{expr.name}() is an aggregating function, which only RETURN, "
+                                 "WITH and ORDER BY can use")
         key = ("aggregate", self.aggregates.index(expr))
         return lambda binding: binding[key]
 
@@ -1356,7 +1450,7 @@ class Evaluator:
 
     def _prop(self, expr: Prop):
         key, view = expr.key, self.view
-        if isinstance(expr.subject, Var):
+        if isinstance(expr.subject, Var) and self.variables[expr.subject.name] != "value":
             # the usual case, without making a NodeRef or RelRef first
             name, kind = expr.subject.name, self.variables[expr.subject.name]
             if kind == "relationships":
@@ -1773,7 +1867,8 @@ class Plan:
       followed to reach a node. Its two nodes are bound first, like any others, and a
       `"shortest"` step after the clause's other steps finds the paths between them.
     - **Stages:** each `MATCH` clause is a `Stage`, planned with the slots of the clauses before
-      it already bound.
+      it already bound. The inputs of a part after `WITH` (`Query.inputs`) are the first slots,
+      bound before the first stage.
     - **Conditions:** the patterns' labels, types and properties (`element_conditions()`) and
       the parts of the clause's `WHERE` (`conjuncts()`). Each is checked at the first step that
       has bound every slot it reads. Those of a variable-length relationship are checked on
@@ -1790,7 +1885,7 @@ class Plan:
     """
 
     def __init__(self, query: Query, directed: bool = True):
-        self.slots: dict[str, str] = {}
+        self.slots: dict[str, str] = dict(query.inputs)
         self.paths: dict[str, tuple[str, str]] = {}
         self.walks: dict[str, list[str]] = {}
         self.edge_slot = " edge"
@@ -2047,6 +2142,11 @@ class Matcher:
       rule, while nodes may repeat. With `distinct_nodes=True`, the nodes of one clause must be
       distinct too (the inner nodes of variable-length paths included), as in a subgraph
       isomorphism. Different clauses may reuse edges and nodes.
+    - **Parts:** for a part after `WITH`, the matcher also makes the `Matcher` and `Projection`
+      of the part before it (and so on back), and runs them when it first searches. Each row
+      of the `WITH` that passes its `WHERE` becomes one of `inputs`, a tuple of values (as a
+      binding holds them) for the first slots, and the search runs once for each input in
+      turn. `limit` counts the matches of all of them.
     - **When errors are raised:** conditions are compiled when the matcher is made, so a missing
       parameter or an unknown function raises then, even on an empty graph. Errors in values
       (`WHERE n.name`, say) raise when a row meets them.
@@ -2062,6 +2162,12 @@ class Matcher:
                  engine: str = "rust"):
         if engine not in ("rust", "python"):
             raise ValueError(f"engine must be 'rust' or 'python', not {engine!r}")
+        self.inputs: Optional[list[tuple]] = None
+        self._source: Optional[Projection] = None
+        if query.previous is not None:
+            before = Matcher(query.previous, text, graph, params, label_key, distinct_nodes,
+                             engine)
+            self._source = Projection(query.previous, before)
         self.plan = plan = Plan(query, graph.is_directed)
         self.graph = graph
         self.distinct_nodes = distinct_nodes
@@ -2069,6 +2175,9 @@ class Matcher:
         self.view = GraphView(graph, label_key)
         kinds = {**plan.slots, plan.edge_slot: "relationship"}
         self.evaluator = evaluator = Evaluator(text, kinds, params, self.view)
+        self._input_kinds = list(query.inputs.values())
+        where = None if query.previous is None else query.previous.returns.where
+        self._where = None if where is None else evaluator.condition(where)
         self._stages = [(
             stage,
             [evaluator.condition(c) for c in stage.entry],
@@ -2149,18 +2258,30 @@ class Matcher:
             self._all_nodes = sorted(self.graph.get_node_ids())
         return self._all_nodes
 
+    def _feed(self) -> None:
+        """Run the parts before this one, once, to find the inputs."""
+        if self._source is None or self.inputs is not None:
+            return
+        rows = self._source.carry(self._input_kinds)
+        if self._where is not None:
+            names = self._names[:len(self._input_kinds)]
+            rows = [row for row in rows if self._where(dict(zip(names, row)))]
+        self.inputs = rows
+
     def rows(self, limit: Optional[int] = None) -> list[tuple]:
         """The matches, or the first `limit` of them, as tuples."""
         if limit == 0:
             return []
+        self._feed()
         if self._program is not None:
-            return self.graph._cypher_match(self._program, limit)
+            return self.graph._cypher_match(self._program, limit, False, None, self.inputs)
         return list(itertools.islice(self._search(), limit))
 
     def count(self) -> tuple[int, Optional[tuple]]:
         """The number of matches, and the first one (or `None`)."""
+        self._feed()
         if self._program is not None:
-            return self.graph._cypher_match(self._program, None, True)
+            return self.graph._cypher_match(self._program, None, True, None, self.inputs)
         n, first = 0, None
         for row in self._search():
             if first is None:
@@ -2176,27 +2297,35 @@ class Matcher:
         Each column is `("slot", name)`, the slot's values (a list of edge IDs for a
         variable-length relationship, and a dict `{"nodes": [...], "relationships": [...]}` of
         IDs for a path variable), `("label", name)`, the labels of a node slot (or a path's dict
-        with the labels of its nodes), or `("prop", name, key)`, a property of a node or
-        relationship slot as `GraphView` reads it. With `sort`, the rows are sorted by the IDs
-        of those slots (a variable-length relationship compares as its list of edge IDs, a path
-        as its node IDs and then its edge IDs, and `None` sorts last), keeping search order for
-        ties; without it, they stay in search order. The Rust engine builds the columns without
-        making a tuple per match.
+        with the labels of its nodes), `("prop", name, key)`, a property of a node or
+        relationship slot as `GraphView` reads it, or `("input",)`, the place in `inputs` of
+        the input each row comes from (0 without inputs). With `sort`, the rows are sorted by
+        their inputs and then the IDs of those slots (a variable-length relationship compares
+        as its list of edge IDs, a path as its node IDs and then its edge IDs, and `None` sorts
+        last), keeping search order for ties; without it, they stay in search order. The Rust
+        engine builds the columns without making a tuple per match.
         """
         index = {name: i for i, name in enumerate(self._names)}
+        if limit == 0:
+            return 0, [[] for _ in columns], None
+        self._feed()
         if self._program is not None:
             table = (None if sort is None else [index[name] for name in sort],
-                     [(c[0], index[c[1]], *c[2:]) for c in columns])
-            return self.graph._cypher_match(self._program, limit, False, table)
-        rows = self.rows(limit)
-        first = rows[0] if rows else None
+                     [c if c[0] == "input" else (c[0], index[c[1]], *c[2:]) for c in columns])
+            return self.graph._cypher_match(self._program, limit, False, table, self.inputs)
+        found = list(itertools.islice(self._indexed(), limit))
+        first = found[0][1] if found else None
         if sort is not None:
             keys = [index[name] for name in sort]
-            rows.sort(key=lambda row: tuple((1, 0) if row[i] is None else (0, row[i])
-                                            for i in keys))
+            found.sort(key=lambda pair: (pair[0], tuple((1, 0) if pair[1][i] is None
+                                                        else (0, pair[1][i]) for i in keys)))
+        rows = [row for _, row in found]
         slots, view = self.plan.slots, self.view
         cells = []
         for column in columns:
+            if column[0] == "input":
+                cells.append([place for place, _ in found])
+                continue
             i, kind = index[column[1]], slots[column[1]]
             values = [row[i] for row in rows]
             if kind == "path":
@@ -2220,12 +2349,19 @@ class Matcher:
 
     def matches(self):
         """The matches as dicts (see `binding()`), lazily with the Python engine."""
+        self._feed()
         rows = self._search() if self._program is None else self.rows()
         for row in rows:
             yield self.binding(row)
 
     def _search(self):
         """The Python search, yielding each match as a tuple."""
+        for _, row in self._indexed():
+            yield row
+
+    def _indexed(self):
+        """The Python search, yielding each match as `(input, row)`: the place of its input in
+        `inputs` (0 without inputs), and the match as a tuple."""
         binding: dict[str, Any] = {}
         stages, names = self._stages, self._names
         last = len(stages)
@@ -2244,7 +2380,11 @@ class Matcher:
                     binding[slot] = None
                 yield from run(s + 1)
 
-        yield from run(0)
+        for place, values in enumerate([()] if self.inputs is None else self.inputs):
+            binding.clear()
+            binding.update(zip(names, values))
+            for row in run(0):
+                yield place, row
 
     def _extend(self, compiled, binding: dict[str, Any]):
         """Bind the slots of one stage in every way that matches, yielding after each."""
@@ -2714,18 +2854,22 @@ class Projection:
       no matches). Every aggregation is computed for every group (see `_fold()`), and then the
       aggregating columns and the `ORDER BY` keys are evaluated once per group, reading
       variables from the group's first row.
-    - **Order:** rows are sorted by the IDs of the named variables (see `Matcher.table()`).
+    - **Order:** rows are sorted by the IDs of the named variables (see `Matcher.table()`), and
+      in a part after `WITH`, by their inputs first, and then by the variables the part adds.
       `DISTINCT` keeps the first of each set of equal rows, at the place of the one that sorts
       first, and a group takes the place of its first row. `ORDER BY` then sorts them by its
       keys (see `sort_key()`), keeping that order for ties, and `SKIP` and `LIMIT` take a
       slice of the result.
+    - **WITH:** the projection of a part before `WITH` gives its rows to the next part with
+      `carry()`.
     - **Errors:** the expressions are compiled, and the `SKIP` and `LIMIT` counts checked, when
       the projection is made, so those errors don't depend on the matches.
     """
 
     def __init__(self, query: Query, matcher: Matcher):
         self.matcher = matcher
-        self.named = list(query.variables)
+        self.named = [name for name in query.variables if name not in query.inputs]
+        self.piped = query.previous is not None
         returns = query.returns
         items = ([ReturnItem(Var(name), name) for name in query.variables] if returns is None
                  else returns.items)
@@ -2755,7 +2899,7 @@ class Projection:
         variables `names`."""
         run = self.matcher.evaluator.compile(expr)
         slots = self.matcher.plan.slots
-        if isinstance(expr, Var):
+        if isinstance(expr, Var) and slots[expr.name] != "value":
             return ("slot", expr.name)
         if (isinstance(expr, Prop) and isinstance(expr.subject, Var)
                 and slots[expr.subject.name] in ("node", "relationship")):
@@ -2807,6 +2951,20 @@ class Projection:
             else:
                 cells.append(column)
         return cells, first
+
+    def carry(self, kinds: list[str]) -> list[tuple]:
+        """The rows of the table as the inputs of the next part (see `Matcher`): a tuple per
+        row, with each value as a binding holds a variable of its column's kind in `kinds`."""
+        _, values, _ = self._groups(None, True) if self.grouping else self._rows(None, True)
+        slots, columns = self.matcher.plan.slots, []
+        for spec, kind, column in zip(self._specs, kinds, values):
+            if spec[0] == "slot":
+                columns.append([_bound(slots[spec[1]], v) for v in column])
+            elif spec[0] != "prop" and kind in ("node", "relationship"):
+                columns.append([None if v is None else v.id for v in column])
+            else:
+                columns.append(column)
+        return list(zip(*columns))
 
     def count(self) -> tuple[int, Optional[tuple]]:
         """The number of rows of the table, and the first match in search order (or `None`).
@@ -2867,6 +3025,8 @@ class Projection:
         if self.distinct:
             for name in named:
                 fetch.setdefault(("slot", name), len(fetch))
+            if self.piped:
+                fetch.setdefault(("input",), len(fetch))
         if limit == 0:
             n, cells, first = 0, [[] for _ in fetch], None
         elif self.distinct and limit is not None:
@@ -2888,14 +3048,16 @@ class Projection:
                         if not (key in seen or seen.add(key))]
             else:
                 ids = [(slots[name], cells[fetch[("slot", name)]]) for name in named]
+                places = cells[fetch[("input",)]] if self.piped else None
                 kept, keys, index = [], [], {}
                 for r in rows:
                     row = row_keys[r]
-                    # nulls sort last, and paths as their node IDs and then their edge IDs
-                    key = tuple((1, 0) if column[r] is None else
-                                (0, (tuple(column[r]["nodes"]),
-                                     tuple(column[r]["relationships"])))
-                                if kind == "path" else (0, column[r]) for kind, column in ids)
+                    # after WITH, by the place of the input row first; nulls sort last, and
+                    # paths as their node IDs and then their edge IDs
+                    key = (0 if places is None else places[r],) + tuple(
+                        (1, 0) if column[r] is None else
+                        (0, (tuple(column[r]["nodes"]), tuple(column[r]["relationships"])))
+                        if kind == "path" else (0, column[r]) for kind, column in ids)
                     # a repeated row keeps the place of its first match in ID order
                     i = index.setdefault(row, len(kept))
                     if i < len(kept):
