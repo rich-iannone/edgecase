@@ -24865,7 +24865,8 @@ class Graph:
         matches instead, use `select_match()`, and to count them, `count_matches()`.
 
         The query is one or more `MATCH` clauses, each with an optional `WHERE`, and then an
-        optional `RETURN`:
+        optional `RETURN`. `WITH` can split it into parts, each of which runs on the rows of
+        the one before:
 
         - **Patterns:** nodes such as `(p:Person {born: 1964})` and relationships such as
           `-[r:ACTED_IN]->`, `<-[:KNOWS]-` or `--`. Several patterns can be listed with commas,
@@ -24913,6 +24914,15 @@ class Graph:
           `RETURN DISTINCT` or an aggregation, it can only use the returned columns (and
           expressions of them). `SKIP 2` drops the first two rows and `LIMIT 5` keeps at most
           five; each takes a non-negative integer or a parameter (`LIMIT $n`).
+        - **`WITH`:** ends a part of the query, and passes its rows on to the next part, which
+          starts with a `MATCH` (or another `WITH`) and ends with the next `WITH` or the end of
+          the query. `WITH` lists columns as `RETURN` does, and can be `DISTINCT`, aggregate,
+          and have `ORDER BY`, `SKIP` and `LIMIT`; then an optional `WHERE` filters its rows.
+          So `MATCH (p)-[:ACTED_IN]->(m) WITH m, count(*) AS n WHERE n > 1` keeps the movies
+          with more than one actor, and `WITH p ORDER BY p.born LIMIT 3` the three oldest
+          people, for the rest of the query to go on from. Each expression that isn't a
+          variable needs a name (`WITH p.name AS name`), and the next part sees only the
+          columns `WITH` lists (`WITH *` lists every named variable).
 
         The query reads EdgeCase graphs the way `from_cypher()` writes them:
 
@@ -24969,12 +24979,22 @@ class Graph:
           order, so they work on any values. `avg()`, `min()` and `max()` of no values are
           `null`. Grouping keys and `DISTINCT` compare values as `RETURN DISTINCT` does, where
           `1` and `1.0` are the same value and so are any two NaNs.
+        - **`WITH`:** the next part runs once for each row of `WITH`, with its columns bound,
+          so `WITH m MATCH (m)<--(q)` extends each movie with its neighbors, and a row that the
+          next part can't extend is dropped (but kept by `OPTIONAL MATCH`). A column that holds
+          a node or relationship, such as `m`, `r` or `max(m)`, can be used in the patterns of
+          the next part, and one that holds another value only in expressions. The `WHERE` of
+          `WITH` comes after its `ORDER BY`, `SKIP` and `LIMIT`, and sees only its columns. A
+          variable that `WITH` doesn't list is gone from the next part, which can use its name
+          for a new variable.
 
         Without `ORDER BY`, rows are sorted by the IDs of the named variables, in the order they
         first appear in the query (with `null` last), so the same query on the same graph always
         gives the same table. `ORDER BY` keeps that order for rows that tie on every key,
         `RETURN DISTINCT` keeps each row at the place of its first match, and an aggregation
-        puts each group at the place of its first row.
+        puts each group at the place of its first row. After `WITH`, the rows follow the
+        order of the rows of `WITH`, and for each of those, the IDs of the variables that the
+        part adds.
 
         Parameters
         ----------
@@ -24993,7 +25013,8 @@ class Graph:
             rows, and with aggregation, the groups are made from the matches it found. It
             applies before `ORDER BY`, `SKIP` and `LIMIT` in the query, which sort and slice the
             rows it found; it's a cap on the work, while the query's own `LIMIT` gives the top
-            rows of the full result.
+            rows of the full result. After `WITH`, it applies to the last part only, so the
+            parts before it see every match.
         use_labels
             If `True`, nodes show as their labels instead of IDs, in node columns and inside
             values such as `nodes(p)` or `[a, b]`. Edges have no labels, so relationships always
@@ -25035,8 +25056,11 @@ class Graph:
             and the query names no variables (so there would be no columns), if `RETURN` gives
             two columns the same name, if an aggregating function is outside `RETURN` and
             `ORDER BY` or inside another, if a column beside an aggregation uses a variable that
-            isn't a grouping key, if `SKIP` or `LIMIT` isn't a non-negative integer, or if
-            `limit=` isn't one.
+            isn't a grouping key, if `WITH` lists an expression without a name, if a part uses
+            a variable that the `WITH` before it doesn't list, if a pattern uses a column of
+            `WITH` that holds a value (and not a node or relationship), if the query ends with
+            `WITH`, if `SKIP` or `LIMIT` isn't a non-negative integer, or if `limit=` isn't
+            one.
         TypeError
             If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
             `None`.
@@ -25169,6 +25193,18 @@ class Graph:
         )
         ```
 
+        `WITH` passes rows on to the rest of the query, which can filter on an aggregation or
+        match again from the rows it keeps. Here, the movies with more than one actor, and who
+        directed them:
+
+        ```{python}
+        graph.match(
+            "MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WITH m, count(*) AS actors "
+            "WHERE actors > 1 "
+            "MATCH (d)-[:DIRECTED]->(m) RETURN m.title, actors, d.name AS director"
+        )
+        ```
+
         """
         if limit is not None and (
             isinstance(limit, bool) or not isinstance(limit, int) or limit < 0
@@ -25254,6 +25290,11 @@ class Graph:
         - A path variable counts as a node variable, and selects every node on its paths.
         - Relationship variables, as in `select="r"`, select edges instead. A variable-length
           one selects every edge on its paths.
+        - After `WITH`, the matches are those of the last part, and `select=` names its
+          variables: those it matches and the columns of the `WITH` before it that hold nodes
+          or relationships. `select=None` selects the nodes of the last part's matches, which
+          include the nodes that `WITH` passes on, but not the ones that earlier parts matched
+          and `WITH` dropped.
 
         A variable that an `OPTIONAL MATCH` left `null` selects nothing.
 
@@ -25271,7 +25312,7 @@ class Graph:
         select
             What to select: `None` (the default) for every node of every match, or the name of a
             variable, or a list of names. The names must all be node (or path) variables or all
-            be relationship variables.
+            be relationship variables, and can't be columns of `WITH` that hold other values.
         params
             Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
         set_op
@@ -25295,8 +25336,8 @@ class Graph:
         ------
         ValueError
             If the query is invalid (as for `match()`) or has a `RETURN` clause; if `select=`
-            names a variable that the query doesn't bind, or mixes node and relationship
-            variables; or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or
+            names a variable that the query doesn't bind or that holds a value, or mixes node
+            and relationship variables; or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or
             `"difference"`. The selection is left unchanged.
         TypeError
             If `query=` isn't a string, `select=` isn't a name or a list of names, `params=`
@@ -25386,6 +25427,11 @@ class Graph:
                         f"select= names {name!r}, which the query doesn't bind; "
                         + (f"its variables are {known}" if known else "it names no variables")
                     )
+                if parsed.variables[name] == "value":
+                    raise ValueError(
+                        f"select= names {name!r}, which holds a value that WITH carries over, "
+                        "not a node or relationship, so it has nothing to select"
+                    )
             kinds = {
                 "node" if parsed.variables[name] in ("node", "path") else "edge" for name in names
             }
@@ -25457,10 +25503,11 @@ class Graph:
         query
             The Cypher text, such as `"MATCH (a)-->(b)-->(c)-->(a)"`. A `RETURN` clause is
             allowed; `RETURN DISTINCT`, aggregation (which gives one row per group), `SKIP` and
-            `LIMIT` change the count, as they change the rows of `match()`. Without `DISTINCT`,
-            the columns aren't computed, and with aggregation only the grouping keys are, so an
-            expression that would raise an error in `match()` (such as `toLower()` of a
-            number, or `sum()` of strings) doesn't raise one here.
+            `LIMIT` change the count, as they change the rows of `match()`, and so does `WITH`.
+            Without `DISTINCT`, the columns of `RETURN` aren't computed, and with aggregation
+            only the grouping keys are, so an expression that would raise an error in
+            `match()` (such as `toLower()` of a number, or `sum()` of strings) doesn't raise
+            one here. The columns of `WITH` are always computed.
         params
             Values for the `$name` parameters in the query, as a dict such as `{"year": 1999}`.
         distinct_nodes
