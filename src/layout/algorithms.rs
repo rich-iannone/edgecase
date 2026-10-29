@@ -44,7 +44,11 @@ fn neighbor_weights(
         if s == t {
             continue;
         }
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         *maps[s].entry(t).or_insert(0.0) += w;
         *maps[t].entry(s).or_insert(0.0) += w;
     }
@@ -75,7 +79,10 @@ fn initial_positions(
     let mut rng = make_rng(seed);
     let extent = initial
         .as_ref()
-        .map(|m| m.values().fold(0.0_f64, |acc, &(x, y)| acc.max(x.abs()).max(y.abs())))
+        .map(|m| {
+            m.values()
+                .fold(0.0_f64, |acc, &(x, y)| acc.max(x.abs()).max(y.abs()))
+        })
         .filter(|&e| e > 0.0)
         .unwrap_or(1.0);
     ids.iter()
@@ -99,7 +106,10 @@ fn check_initial(initial: &Option<HashMap<u64, (f64, f64)>>) -> PyResult<()> {
 }
 
 fn rows(ids: &[u64], pos: &[[f64; 2]]) -> Positions {
-    ids.iter().zip(pos).map(|(&id, p)| (id, p[0], p[1])).collect()
+    ids.iter()
+        .zip(pos)
+        .map(|(&id, p)| (id, p[0], p[1]))
+        .collect()
 }
 
 fn check_weights(graph: &Graph, weighted: bool, what: &str) -> PyResult<()> {
@@ -109,7 +119,10 @@ fn check_weights(graph: &Graph, weighted: bool, what: &str) -> PyResult<()> {
             .iter()
             .any(|e| e.weight.is_some_and(|w| !w.is_finite() || w < 0.0))
     {
-        return Err(err(format!("{} requires finite, non-negative edge weights", what)));
+        return Err(err(format!(
+            "{} requires finite, non-negative edge weights",
+            what
+        )));
     }
     Ok(())
 }
@@ -148,7 +161,9 @@ pub fn spring_layout(
     let mut is_fixed = vec![false; n];
     if let Some(fixed) = &fixed {
         for id in fixed {
-            let i = *idx.get(id).ok_or_else(|| err(format!("Fixed node {} not found", id)))?;
+            let i = *idx
+                .get(id)
+                .ok_or_else(|| err(format!("Fixed node {} not found", id)))?;
             if !initial.as_ref().is_some_and(|m| m.contains_key(id)) {
                 return Err(err(format!("Fixed node {} has no initial position", id)));
             }
@@ -175,7 +190,9 @@ pub fn spring_layout(
     let span = |axis: usize| {
         let (lo, hi) = pos
             .iter()
-            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| (lo.min(p[axis]), hi.max(p[axis])));
+            .fold((f64::INFINITY, f64::NEG_INFINITY), |(lo, hi), p| {
+                (lo.min(p[axis]), hi.max(p[axis]))
+            });
         hi - lo
     };
     let mut t = 0.1 * span(0).max(span(1));
@@ -364,9 +381,11 @@ fn lbfgs(
             q.iter_mut().zip(y).for_each(|(qi, yi)| *qi -= a * yi);
             alphas.push(a);
         }
-        let h0 = history.back().map_or(1.0 / dot(g, g).sqrt().max(1.0), |(s, y, _)| {
-            dot(s, y) / dot(y, y)
-        });
+        let h0 = history
+            .back()
+            .map_or(1.0 / dot(g, g).sqrt().max(1.0), |(s, y, _)| {
+                dot(s, y) / dot(y, y)
+            });
         q.iter_mut().for_each(|qi| *qi *= h0);
         for ((s, y, rho), a) in history.iter().zip(alphas.iter().rev()) {
             let b = rho * dot(y, &q);
@@ -435,7 +454,9 @@ pub fn kamada_kawai_layout(
             .iter()
             .any(|e| e.source != e.target && e.weight.is_some_and(|w| !w.is_finite() || w <= 0.0))
     {
-        return Err(err("layout_kamada_kawai() requires finite, positive edge weights"));
+        return Err(err(
+            "layout_kamada_kawai() requires finite, positive edge weights",
+        ));
     }
     if !(tol.is_finite() && tol >= 0.0) {
         return Err(err("tol must be a non-negative number"));
@@ -463,7 +484,11 @@ pub fn kamada_kawai_layout(
         if s == t {
             continue;
         }
-        let w = if weighted { e.weight.unwrap_or(1.0) } else { 1.0 };
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
         for (a, b) in [(s, t), (t, s)] {
             let slot = adj[a].entry(b).or_insert(f64::INFINITY);
             *slot = slot.min(w);
@@ -510,7 +535,9 @@ pub fn kamada_kawai_layout(
     }
     let mut grad;
     (energy, grad) = stress_and_gradient(&x, &dist);
-    lbfgs(&mut x, &mut energy, &mut grad, max_iter, tol, |x| stress_and_gradient(x, &dist));
+    lbfgs(&mut x, &mut energy, &mut grad, max_iter, tol, |x| {
+        stress_and_gradient(x, &dist)
+    });
     let pos: Vec<[f64; 2]> = x.chunks(2).map(|c| [c[0], c[1]]).collect();
     Ok(rows(&ids, &pos))
 }
@@ -541,7 +568,11 @@ pub fn spectral_layout(graph: &Graph, weighted: bool) -> PyResult<Positions> {
         return Err(err("Eigenvalue computation returned too few eigenvectors"));
     }
     let (xs, ys) = (&pairs[1].1, &pairs[2].1);
-    Ok(ids.iter().enumerate().map(|(i, &id)| (id, xs[i], ys[i])).collect())
+    Ok(ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, xs[i], ys[i]))
+        .collect())
 }
 
 /// ForceAtlas2 positions (Jacomy, Venturini, Heymann & Bastian 2014).
@@ -599,7 +630,11 @@ pub fn forceatlas2_layout(
     let masses: Vec<f64> = ids
         .iter()
         .enumerate()
-        .map(|(i, id)| mass.as_ref().and_then(|m| m.get(id).copied()).unwrap_or(degree[i] + 1.0))
+        .map(|(i, id)| {
+            mass.as_ref()
+                .and_then(|m| m.get(id).copied())
+                .unwrap_or(degree[i] + 1.0)
+        })
         .collect();
     if masses.iter().any(|m| !(m.is_finite() && *m > 0.0)) {
         return Err(err("Node masses must be positive numbers"));
@@ -607,7 +642,11 @@ pub fn forceatlas2_layout(
     let adjust_sizes = size.is_some();
     let sizes: Vec<f64> = ids
         .iter()
-        .map(|id| size.as_ref().and_then(|m| m.get(id).copied()).unwrap_or(1.0))
+        .map(|id| {
+            size.as_ref()
+                .and_then(|m| m.get(id).copied())
+                .unwrap_or(1.0)
+        })
         .collect();
     if sizes.iter().any(|s| !(s.is_finite() && *s >= 0.0)) {
         return Err(err("Node sizes must be non-negative numbers"));
@@ -690,12 +729,15 @@ pub fn forceatlas2_layout(
         // Adaptive speed (the paper's Algorithm 1, as in Gephi)
         let norm = |v: [f64; 2]| (v[0] * v[0] + v[1] * v[1]).sqrt();
         let swinging: Vec<f64> = (0..n)
-            .map(|i| masses[i] * norm([force[i][0] - old_force[i][0], force[i][1] - old_force[i][1]]))
+            .map(|i| {
+                masses[i] * norm([force[i][0] - old_force[i][0], force[i][1] - old_force[i][1]])
+            })
             .collect();
         let total_swinging: f64 = swinging.iter().sum();
         let total_traction: f64 = (0..n)
             .map(|i| {
-                0.5 * masses[i] * norm([force[i][0] + old_force[i][0], force[i][1] + old_force[i][1]])
+                0.5 * masses[i]
+                    * norm([force[i][0] + old_force[i][0], force[i][1] + old_force[i][1]])
             })
             .sum();
         let optimal_jitter = 0.05 * (n as f64).sqrt();
@@ -790,7 +832,9 @@ pub fn arf_layout(
     let rho = scaling * (n as f64).sqrt();
 
     for _ in 0..max_iter {
-        let (sx, sy) = pos.iter().fold((0.0, 0.0), |(x, y), p| (x + p[0], y + p[1]));
+        let (sx, sy) = pos
+            .iter()
+            .fold((0.0, 0.0), |(x, y), p| (x + p[0], y + p[1]));
         let current = &pos;
         let adj = &adj;
         let change: Vec<[f64; 2]> = per_node(n, |j| {

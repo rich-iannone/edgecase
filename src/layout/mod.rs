@@ -44,4 +44,3 @@ pub fn force_directed_layout_rust(
 
     Ok(positions)
 }
-
