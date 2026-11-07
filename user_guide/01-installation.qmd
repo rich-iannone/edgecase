@@ -1,0 +1,103 @@
+---
+title: Installation
+guide-section: "Getting started"
+---
+
+EdgeCase is a Python package with a compiled Rust extension. It supports Python 3.9 and later on
+macOS, Linux, and Windows.
+
+## Installing from source
+
+EdgeCase is not yet published on PyPI, so for now it is installed from its GitHub repository.
+Building it compiles the Rust core, which needs a Rust toolchain. If you don't have one, install it
+with [rustup](https://rustup.rs) first:
+
+```bash
+curl --proto '=https' --tlsv1.2 -sSf https://sh.rustup.rs | sh
+```
+
+Then clone the repository and install the package. `pip` uses
+[maturin](https://www.maturin.rs) behind the scenes to build the extension module:
+
+```bash
+git clone https://github.com/rich-iannone/edgecase.git
+cd edgecase
+pip install -e .
+```
+
+The `-e` flag installs EdgeCase in editable mode, so changes to the Python sources take effect
+without reinstalling. Changes to the Rust sources need a rebuild, which `maturin` does in place:
+
+```bash
+maturin develop --release
+```
+
+The `--release` flag turns on compiler optimizations. Leave it off for faster builds while working
+on the Rust code, but use it for any benchmarking or for work on large graphs, since an unoptimized
+build is many times slower.
+
+## Dependencies
+
+The core package needs only a few dependencies, which `pip` installs automatically:
+
+| Package | Purpose |
+|---|---|
+| [Polars](https://pola.rs) | The node and edge tables, Cypher query results, and step logs |
+| [Great Tables](https://posit-dev.github.io/great-tables/) | Formatted summary tables |
+| [anywidget](https://anywidget.dev) | Interactive graph widgets in notebooks |
+| typing-extensions | Type annotations on older Python versions |
+
+Everything else is optional. EdgeCase imports an optional package only when you call a function
+that needs it, and raises an `ImportError` naming the package if it isn't installed:
+
+| Package | Needed for |
+|---|---|
+| [NetworkX](https://networkx.org) | `to_networkx()` and `from_networkx()` |
+| [python-igraph](https://python.igraph.org) | `to_igraph()` and `from_igraph()` |
+| [NumPy](https://numpy.org) | `to_numpy_array()` and `from_numpy_array()` |
+| [SciPy](https://scipy.org) | sparse matrix conversion and Matrix Market files |
+| [pandas](https://pandas.pydata.org) | pandas edge lists and adjacency frames, and `steps.to_pandas()` |
+
+The package defines extras that install groups of these:
+
+```bash
+pip install -e ".[networkx]"   # NetworkX
+pip install -e ".[bio]"        # SciPy and scikit-learn
+pip install -e ".[dev]"        # testing, linting and build tools
+pip install -e ".[all]"        # all of the above, plus the documentation tools
+```
+
+## Verifying the installation
+
+Once it is installed, import EdgeCase and print its version:
+
+```{python}
+import edgecase as ec
+
+print(ec.__version__)
+```
+
+A quick way to check that the compiled core is working is to build a small graph and run an
+algorithm on it. This builds a cycle of five nodes and asks for the distance between two of them:
+
+```{python}
+ec.Graph().add_cycle_graph(n=5).shortest_path_length(1, 3)
+```
+
+If that prints `2`, everything is in place. An `ImportError` that mentions `edgecase._core` means
+the Rust extension wasn't built or was built for a different Python interpreter; running
+`maturin develop` with the interpreter you are using fixes it.
+
+## Development setup
+
+To work on EdgeCase itself, the repository's `Makefile` wraps the common tasks:
+
+```bash
+make dev           # install with development dependencies, plus rustfmt and clippy
+make build         # rebuild the Rust extension
+make test          # run the Python test suite
+make test-rust     # run the Rust unit tests
+make lint          # run ruff and clippy
+```
+
+`make help` lists the rest, including benchmarks and coverage reports.
