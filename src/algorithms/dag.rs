@@ -200,7 +200,7 @@ pub fn dag_longest_path(graph: &Graph) -> PyResult<(Vec<u64>, f64)> {
         }
     }
     let end = (0..n)
-        .max_by(|&a, &b| best[a].partial_cmp(&best[b]).unwrap().then(b.cmp(&a)))
+        .max_by(|&a, &b| best[a].total_cmp(&best[b]).then(b.cmp(&a)))
         .unwrap();
     let mut path = vec![g.ids[end]];
     let mut cur = end;
