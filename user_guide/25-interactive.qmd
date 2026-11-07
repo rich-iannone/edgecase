@@ -1,0 +1,290 @@
+---
+title: Interactive widgets
+guide-section: "Visualization"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A static drawing is the right choice for a report, but exploring a network is a different activity.
+It calls for dragging a crowded region apart, zooming in on a cluster, and clicking a node to see
+what it is. EdgeCase has several interactive views for this, each built on a different rendering
+technology and suited to a different size of graph:
+
+| View | Built on | Interaction | Suits |
+|---|---|---|---|
+| `plot()` | SVG | hover tooltips | reports, documents, any size up to a few thousand edges |
+| `plot_vis()` | vis-network | live physics, dragging, zooming, a click panel | hands-on exploration of small and medium graphs |
+| [`graph_widget()`](../reference/graph_widget.qmd) | HTML canvas | dragging, panning, zooming, hover tooltips | notebook exploration with colors and sizes from the data |
+| `plot_cosmo()` | Cosmograph (WebGL) | GPU layout, zooming, selection | graphs of many thousands of nodes and more |
+| step players | SVG and JavaScript | stepping through recorded operations | teaching and explaining algorithms |
+
+All of them run in the browser, so they work in Jupyter notebooks, in VS Code, and in rendered
+documents, and most of them can also be saved as standalone HTML files to share. This page
+describes each view in turn.
+
+## Tooltips in static plots
+
+The drawings made by `plot()`, described in [Static plots](22-plotting.qmd), are already
+interactive in a modest way. When they are displayed in a notebook or a web page, hovering over a
+node shows a tooltip with its ID and attributes, and hovering over an edge shows the edge's
+attributes. Any attribute stored on the graph appears, including the results of analysis methods:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.pagerank()
+karate.plot(color_by="faction", size_by="pagerank", label_by="label", seed=1)
+```
+
+Hovering over the large node `"33"` shows its node ID, 34, that it belongs to faction 2, that its
+role is Administrator, and that it has the highest PageRank of the club. The tooltips make it
+possible to leave most nodes unlabelled and still identify any node of interest. They need
+JavaScript, so they are kept when a plot is saved with a path ending in `.html` and lost when it is
+saved as plain SVG:
+
+```{python}
+#| eval: false
+karate.plot(color_by="faction", size_by="pagerank", seed=1, output="karate.html")
+```
+
+## Live physics with plot_vis()
+
+`plot_vis()` draws the graph with [vis-network](https://visjs.github.io/vis-network/), a
+JavaScript library for interactive network diagrams. The library is bundled with EdgeCase, so the
+view works without an internet connection. Unlike `plot()`, which computes its layout in Python
+and draws a finished picture, `plot_vis()` hands the graph to a physics simulation that runs in the
+browser. The nodes settle into place on screen and stay alive afterwards: dragging a node pulls its
+neighbors along, and the network springs back into balance when it is let go.
+
+The view takes its node colors from a `color` attribute stored on the nodes, which
+[`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) prepares from a categorical
+attribute (see [Aesthetics](24-aesthetics.qmd#visual-attributes-for-the-interactive-views)). For
+the karate club, colored by faction:
+
+```{python}
+karate.colorize_node_attrs("faction", palette="Set2")
+karate.plot_vis(width=640, height=480)
+```
+
+Each node is drawn as a circle holding its node ID, so the instructor is node 1 and the
+administrator node 34. The label text adapts to the node color, white on dark colors and dark gray
+on light ones. A few interactions are available:
+
+- **dragging** a node moves it, and the simulation rearranges its neighbors around the new position
+- **scrolling** zooms in and out around the pointer, and dragging the background pans the view
+- the **Zoom Out**, **Reset View**, and **Zoom In** buttons below the canvas do the same with a
+  smooth animation, and *Reset View* fits the whole graph into the canvas again
+- **clicking** a node or an edge opens a panel in the top left corner listing its attributes, and
+  clicking the background closes it
+
+The click panel lists the stored attributes other than the visual ones, such as `faction`, `role`,
+and `pagerank` here. Node labels are not part of it, so for graphs whose IDs mean little, it can
+help to copy the labels into an ordinary attribute, such as `name`, before calling `plot_vis()`.
+Edges are drawn as smooth curves, directed edges get arrowheads, and parallel edges between the same
+two nodes are bent apart so that each one stays visible. An edge `color` attribute sets the color of
+individual edges.
+
+### Choosing where the view appears
+
+`plot_vis()` writes the view to a self-contained HTML file in a temporary location, and then shows
+it. With the default `target="auto"`, the view is displayed inline below the cell when the code
+runs in a Jupyter or IPython session, and opened in the default web browser otherwise, such as from
+a script or a terminal. `target="browser"` always opens a browser tab, which gives the view more
+room than a notebook cell:
+
+```{python}
+#| eval: false
+karate.plot_vis(target="browser", width=1200, height=800)
+```
+
+The method returns `None`, since the view is shown as a side effect. To write the HTML file to a
+chosen path instead, for example to send it to a colleague or publish it on a website, use the
+top-level function [`plot_graph()`](../reference/plot_graph.qmd), which takes the same options
+together with `output_path=`, and returns the path of the file it wrote. With `open_browser=False`
+and `display_inline=False`, it only writes the file:
+
+```{python}
+#| eval: false
+ec.plot_graph(karate, output_path="karate-vis.html", open_browser=False, display_inline=False)
+```
+
+The file contains the vis-network library itself, about 700 KB, so it opens anywhere, offline as
+well.
+
+### Layout and static mode
+
+With the default `layout="force"`, vis-network computes the positions itself. `layout="circular"`
+and `layout="random"` give the simulation starting positions on a circle or at random instead, but
+since the physics keeps running, the nodes then drift toward the same kind of balanced arrangement
+as before. `static=True` stops the simulation once the initial layout has settled, and turns off
+node dragging and hover effects, which keeps a chosen arrangement exactly as it is. A circle of
+fixed nodes, in which every edge can be followed:
+
+```{python}
+#| eval: false
+karate.plot_vis(layout="circular", static=True, edge_width=1)
+```
+
+`edge_width=` sets the width of every edge, and `width=` and `height=` the size of the canvas.
+
+Since the simulation runs continuously in the browser, `plot_vis()` is at its best with up to a few
+hundred nodes. For graphs of more than a thousand nodes, it settles the
+layout in fewer steps, hides the edges while the view is dragged or zoomed, and turns off hover
+effects to keep the view responsive, but `plot_cosmo()`, described below, is the better tool at that
+scale.
+
+## The graph widget
+
+[`graph_widget()`](../reference/graph_widget.qmd) creates a `GraphWidget`, a lighter interactive
+view drawn on an HTML canvas. It computes a force-directed layout in Python, and the browser then
+draws the nodes and edges and handles the interaction: dragging a node moves it, dragging the
+background pans, scrolling zooms around the pointer, and hovering over a node highlights it and
+shows a tooltip with its ID and attributes. Unlike `plot_vis()`, the nodes don't move by
+themselves once they are drawn.
+
+The widget reads both of the stored visual attributes: `color` for the node color and `size` for
+the node radius. Both can be prepared in advance with
+[`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) and
+[`rescale_node_attrs()`](../reference/Graph.rescale_node_attrs.qmd):
+
+```{python}
+karate.colorize_node_attrs("faction", palette="Set2")
+karate.rescale_node_attrs("pagerank")
+karate.get_node_df().select("id", "faction", "color", "pagerank", "size").head(4)
+```
+
+`rescale_node_attrs()` maps the PageRank scores onto its default range from 0.5 to 1. The widget
+treats sizes between 0 and 1 as relative, and turns them into a radius of `node_size=` times
+`0.5 + size × size_scale`, so with a `node_size=` of 8 the nodes here range from 8 to 12 pixels.
+Sizes greater than 1 are taken as radii in pixels. The widget itself is created and displayed with
+`show()`:
+
+```{python}
+#| eval: false
+widget = ec.graph_widget(karate, width=600, height=450, node_size=8)
+widget.show()
+```
+
+In a Jupyter notebook, `show()` displays the widget below the cell. It uses
+[anywidget](https://anywidget.dev), which needs to be installed with `pip install anywidget`.
+Outside a notebook, or when anywidget is missing, `show()` falls back to `plot_vis()` in a browser
+tab, which draws the graph with that view's own defaults rather than the widget's settings.
+
+For a widget that works everywhere, `to_html()` writes a standalone HTML page with the same
+interactive canvas, and returns its path:
+
+```{python}
+#| eval: false
+widget.to_html("karate-widget.html")
+```
+
+### Mapping data in the widget
+
+The widget can also derive colors and sizes from the data itself, much like `plot()`. `color_by=`
+names a categorical attribute, with colors from one of the palettes `"default"`, `"vibrant"`,
+`"pastel"`, `"dark"`, or `"tableau"`, chosen with `color_palette=`. `size_by=` names a numeric
+attribute, which is scaled from half the base `node_size=` upward, with `size_scale=` setting how
+far. Stored `color` and `size` attributes take precedence over both, so a graph that has been
+through `colorize_node_attrs()` keeps its colors:
+
+```{python}
+#| eval: false
+dolphins = ec.dolphins()
+dolphins.cmty_louvain().degree_centrality()
+
+ec.graph_widget(
+    dolphins,
+    color_by="cmty_louvain",
+    color_palette="tableau",
+    size_by="degree_centrality",
+    size_scale=1.5,
+    node_size=6,
+).show()
+```
+
+The widget's palettes are its own, separate from the palettes of `plot()`, and the order in which
+colors are assigned to the values may change between sessions. When the same colors must appear in
+every view and every time, `colorize_node_attrs()` is the more reliable route, since it sorts the
+values before assigning colors and stores the result on the graph.
+
+The remaining options are `layout=`, which also accepts `"circular"` and `"random"`, `width=` and
+`height=` for the canvas, `edge_width=`, and `background=` for the canvas color. The widget draws
+every edge as a straight, undirected line, and draws a single line for a pair of nodes linked by
+several edges, so for directed graphs and multigraphs `plot()` and `plot_vis()` are the better
+choices.
+
+## Large graphs with plot_cosmo()
+
+`plot()`, `plot_vis()`, and the graph widget all slow down on graphs of a few thousand nodes.
+`plot_cosmo()` hands the graph to [Cosmograph](https://cosmograph.app), which computes the layout
+and draws the graph on the GPU with WebGL, and handles hundreds of thousands of nodes in the
+browser. It needs the `cosmograph` package (`pip install cosmograph`) and runs as a Jupyter widget,
+so it displays in a notebook rather than in a rendered document:
+
+```{python}
+#| eval: false
+power_grid = ec.power_grid()
+power_grid.cmty_louvain()
+power_grid.plot_cosmo(point_color_by="cmty_louvain")
+```
+
+The layout of the 4,941 substations of the western United States power grid unfolds on screen as
+the simulation runs on the GPU, with each community in its own color. The method passes the node
+table and the edge table of the graph to Cosmograph, so its four mapping arguments name columns of
+those tables:
+
+- `point_color_by=` and `point_size_by=` name node attributes, such as a community or a centrality
+  score
+- `link_color_by=` and `link_width_by=` name edge attributes, including `"weight"`, which is a
+  column of the edge table
+
+All node and edge attributes are included in the hover and selection information, and the node
+labels are used as point labels when the graph has them. Since the result is a `cosmograph`
+widget, it can be configured further with the options of the Cosmograph library.
+
+Even with GPU rendering, a drawing of a very large graph shows mostly its overall texture, such as
+dense cores, long chains, and loosely attached periphery. The strategies of
+[Static plots](22-plotting.qmd#larger-graphs), such as drawing a k-core or a single community, are
+often the better way to see the detail.
+
+## Step players
+
+The last kind of interactive view replays a process rather than showing a finished graph. A *step
+player* shows a sequence of frames with controls to step forward and back, play and pause, and
+jump to any frame with a slider. Two families of methods produce them.
+
+`plot_traversal()` and the recorder returned by `record_traversal()` animate a search through a
+graph, lighting up nodes in the order they are reached, as described in
+[Traversals](09-traversals.qmd#drawing-a-search):
+
+```{python}
+florentine = ec.florentine_families()
+florentine.plot_traversal(start="Medici", algorithm="BFS")
+```
+
+The breadth-first search from the Medici reaches their six marriage partners first, then five
+families two marriages away, and finally Bischeri, Peruzzi, and Lamberteschi, three steps out.
+
+`play()` replays the graph's *step log*, the record of every operation that built or changed it, so
+that each frame shows a step of the construction together with the code that performed it. It is
+the subject of [The step log](26-step-log.qmd). Both kinds of player are `StepPlayer` objects, like
+the result of `plot()`, so they display themselves in notebooks and rendered documents and can be
+saved with `save()` to an HTML file that keeps all the controls.
+
+## Summary
+
+| Method | Displays | Colors and sizes from | Save with |
+|---|---|---|---|
+| `plot()` | inline, as SVG with tooltips | `color_by=`, `size_by=` | `output=` or `save()`, as `.svg` or `.html` |
+| `plot_vis()` | inline in IPython, else in a browser | the stored `color` attribute | [`plot_graph(output_path=)`](../reference/plot_graph.qmd) |
+| [`graph_widget()`](../reference/graph_widget.qmd) | `show()`, in a notebook | the stored `color` and `size` attributes, or `color_by=`, `size_by=` | `to_html()` |
+| `plot_cosmo()` | as a Jupyter widget | `point_color_by=`, `point_size_by=`, `link_color_by=`, `link_width_by=` | the Cosmograph widget's own export |
+| `plot_traversal()`, `play()` | inline, as a step player | the traversal or step log | `save()`, as `.html` |
