@@ -266,6 +266,15 @@ class TestSpannerErrors:
         with pytest.raises(ValueError):
             g.transform_with_spanner(stretch=-1.0)
 
+    def test_missing_weight_attribute(self):
+        """`weight="wieght"` used to count every edge as 1.0."""
+        g = Graph().add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", {"w": 1.0}), ("B", "C", {"w": 1.0}), ("A", "C", {"w": "far"})])
+        for name in ("wieght", "w"):
+            with pytest.raises(ValueError, match=f"no numeric '{name}' attribute"):
+                g.transform_with_spanner(stretch=2.0, weight=name)
+        assert g.transform_with_spanner(stretch=2.0, weight="weight").count_edges() == 2
+
 
 class TestSpannerConnectivity:
     """Tests for connectivity preservation."""
