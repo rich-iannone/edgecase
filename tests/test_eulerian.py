@@ -549,6 +549,10 @@ class TestEulerianPathAndEulerize:
         two = ec.Graph().add_nodes(list("ABCD")).add_edges([("A", "B"), ("C", "D")])
         with pytest.raises(ValueError, match="connected"):
             two.eulerize()
+        inf = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        inf.add_edges([("A", "B", float("inf")), ("B", "C", 1.0), ("C", "D", float("inf"))])
+        with pytest.raises(ValueError, match="finite"):  # the pairing traceback used to hang
+            inf.eulerize()
 
     def test_steps(self):
         path = ec.Graph().add_path_graph(4)
