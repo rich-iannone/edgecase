@@ -1,0 +1,319 @@
+---
+title: Selections
+guide-section: "Working with graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Many tasks come down to doing something to *some* of a graph's nodes or edges: tag the hubs, delete
+the weak ties, extract the neighborhood of one node, reverse a set of edges. EdgeCase handles these
+with *selections*. A graph holds a current selection, `select_*` methods build it, and methods whose
+names end in `_ws` ("with selection") act on it:
+
+```{python}
+import edgecase as ec
+
+karate = ec.karate_club()
+
+(
+    karate
+    .select_nodes_by_degree(min_degree=10)
+    .set_node_attrs_ws(hub=True)
+    .get_node_df_ws()
+)
+```
+
+The first call selected the four members with ten or more friends, the second tagged them, and the
+third showed the selected rows of the node table. The same two-part pattern, select and then act,
+underlies everything on this page.
+
+A selection is part of the graph's state. It persists from one call to the next until something
+changes it, which is what lets a selection made in one call be used by the next. The flip side is
+that a forgotten selection lingers, so finish with
+[`clear_selection()`](../reference/Graph.clear_selection.qmd) when you're done:
+
+```{python}
+karate.clear_selection().count_selected_nodes()
+```
+
+A graph selects either nodes or edges, never both at once. Selecting edges clears any node
+selection, and selecting nodes clears any edge selection.
+
+## Selecting nodes
+
+| Method | Selects |
+|---|---|
+| [`select_nodes_by_id()`](../reference/Graph.select_nodes_by_id.qmd) | the nodes with the given IDs |
+| [`select_nodes()`](../reference/Graph.select_nodes.qmd) | the nodes for which a Python function returns `True` |
+| [`select_nodes_by_degree()`](../reference/Graph.select_nodes_by_degree.qmd) | the nodes with a degree in a range |
+| [`select_nodes_by_centrality()`](../reference/Graph.select_nodes_by_centrality.qmd) | the top `k` nodes by a centrality measure |
+| [`select_nodes_in_neighborhood()`](../reference/Graph.select_nodes_in_neighborhood.qmd) | the nodes within `k` hops of some seed nodes |
+| [`select_last_nodes_created()`](../reference/Graph.select_last_nodes_created.qmd) | the most recently added nodes |
+| [`select_match()`](../reference/Graph.select_match.qmd) | the nodes that match a Cypher pattern |
+
+### By attribute
+
+[`select_nodes()`](../reference/Graph.select_nodes.qmd) is the most general selector. It calls a
+function once for each node, passing a `Node` object with `id`, `label`, and `attributes`, and
+selects the nodes for which the function returns `True`. Here it selects the members of the
+instructor's faction:
+
+```{python}
+karate.select_nodes(lambda node: node.attributes["faction"] == 1)
+karate.count_selected_nodes()
+```
+
+The function must return an actual `bool`, which guards against a common mistake: in a graph where
+some nodes lack an attribute, an expression like `node.attributes.get("score") and ...` can return
+`None`, and EdgeCase raises a `TypeError` rather than silently treating it as false. A node with no
+attributes at all has `attributes` set to `None`, so for graphs where that can happen, write the
+test as `node.attributes is not None and ...`.
+
+### By structure
+
+The specialized selectors run in Rust, so on large graphs they are much faster than an equivalent
+`select_nodes()` predicate. [`select_nodes_by_degree()`](../reference/Graph.select_nodes_by_degree.qmd)
+selects by degree, and in a directed graph `degree_type=` chooses in-, out-, or total degree.
+[`select_nodes_by_centrality()`](../reference/Graph.select_nodes_by_centrality.qmd) selects the
+top `k` nodes by degree, PageRank, or betweenness:
+
+```{python}
+karate.select_nodes_by_centrality(measure="betweenness", k=3, set_op="replace")
+sorted(karate.get_selected_node_ids())
+```
+
+The three best brokers are the instructor (ID 1), the administrator (ID 34), and member `"32"`
+(ID 33), one of the administrator's closest allies. The `set_op="replace"` argument made these
+three the whole selection, rather than adding them to the faction members selected before; see
+[Combining selections](#combining-selections) below.
+
+[`select_nodes_in_neighborhood()`](../reference/Graph.select_nodes_in_neighborhood.qmd) selects an
+*ego network*: one or more seed nodes and everything within `k` hops of them. This selects the
+administrator and all of their friends:
+
+```{python}
+karate.select_nodes_in_neighborhood("33", k=1, set_op="replace").count_selected_nodes()
+```
+
+### By pattern
+
+[`select_match()`](../reference/Graph.select_match.qmd) selects whatever a Cypher `MATCH` pattern
+finds. By default it selects every node in every match; `select=` names the variables to keep. This
+selects the members who have a friend in the other faction:
+
+```{python}
+karate.select_match(
+    "MATCH (a)--(b) WHERE a.faction <> b.faction",
+    select="a",
+    set_op="replace",
+)
+karate.count_selected_nodes()
+```
+
+[Cypher queries](10-cypher.qmd) describes the pattern language in full.
+
+## Inspecting a selection
+
+Three methods report on the current node selection:
+
+- [`count_selected_nodes()`](../reference/Graph.count_selected_nodes.qmd) counts it,
+- [`get_selected_node_ids()`](../reference/Graph.get_selected_node_ids.qmd) lists its IDs (in no
+  particular order, so sort them if the order matters), and
+- [`get_node_df_ws()`](../reference/Graph.get_node_df_ws.qmd) returns its rows of the node table.
+
+```{python}
+karate.get_node_df_ws().select("id", "label", "faction", "role")
+```
+
+Each has an edge counterpart: `count_selected_edges()`, `get_selected_edge_ids()`, and
+`get_edge_df_ws()`.
+
+## Combining selections
+
+Every `select_*` method takes a `set_op=` argument that says how its result combines with the
+current selection:
+
+| `set_op=` | Result |
+|---|---|
+| `"union"` (the default) | the current selection plus the new matches |
+| `"replace"` | the new matches only |
+| `"intersect"` | the current selection, keeping only the new matches |
+| `"difference"` | the current selection, without the new matches |
+
+Chaining selectors with these operations builds up compound conditions. This finds the hubs of the
+administrator's faction: members with at least six friends, intersected with faction 2:
+
+```{python}
+(
+    karate
+    .select_nodes_by_degree(min_degree=6, set_op="replace")
+    .select_nodes(lambda node: node.attributes["faction"] == 2, set_op="intersect")
+    .get_node_df_ws()
+    .select("id", "label", "faction", "degree")
+)
+```
+
+The default is `"union"`, so without `set_op="replace"` the first selector would have added to the
+members selected by the previous example. Starting each new selection with either
+`clear_selection()` or `set_op="replace"` avoids such leftovers.
+
+Three more methods adjust a selection directly.
+[`deselect_nodes()`](../reference/Graph.deselect_nodes.qmd) removes some nodes from it,
+[`invert_node_selection()`](../reference/Graph.invert_node_selection.qmd) swaps the selected and
+unselected nodes, and `clear_selection()` empties it. Removing the seed from an ego network, for
+instance, leaves just the neighbors:
+
+```{python}
+(
+    karate
+    .select_nodes_in_neighborhood("33", k=1, set_op="replace")
+    .deselect_nodes(["33"])
+    .count_selected_nodes()
+)
+```
+
+## Acting on selected nodes
+
+| Method | Effect |
+|---|---|
+| [`set_node_attrs_ws()`](../reference/Graph.set_node_attrs_ws.qmd) | set attributes on every selected node |
+| [`mutate_node_attrs_ws()`](../reference/Graph.mutate_node_attrs_ws.qmd) | transform an attribute's value on every selected node |
+| [`delete_nodes_ws()`](../reference/Graph.delete_nodes_ws.qmd) | delete the selected nodes and their edges |
+| [`transform_to_subgraph_ws()`](../reference/Graph.transform_to_subgraph_ws.qmd) | return a new graph of the selected nodes and the edges among them |
+| [`fully_connect_nodes_ws()`](../reference/Graph.fully_connect_nodes_ws.qmd) | join every pair of selected nodes with an edge |
+| [`get_node_df_ws()`](../reference/Graph.get_node_df_ws.qmd) | return the selected rows of the node table |
+
+`set_node_attrs_ws()` takes the attributes as keyword arguments, so one call can set several, and
+`mutate_node_attrs_ws()` applies a function to the current value of one attribute. Together they
+make conditional updates easy. Here the PageRank of the two leaders is scaled down, as might be
+done to study the network's structure without their dominance:
+
+```{python}
+(
+    karate
+    .pagerank()
+    .select_nodes_by_id([1, 34], set_op="replace")
+    .set_node_attrs_ws(leader=True, note="scaled")
+    .mutate_node_attrs_ws("pagerank", lambda value: value / 2)
+    .get_node_df_ws()
+    .select("id", "label", "pagerank", "leader", "note")
+)
+```
+
+`transform_to_subgraph_ws()` extracts the selection as a new graph and leaves the original alone.
+Combined with a neighborhood selection, it extracts an ego network:
+
+```{python}
+ego = karate.select_nodes_in_neighborhood("0", k=1, set_op="replace").transform_to_subgraph_ws()
+ego
+```
+
+The nodes keep their IDs, labels, and attributes in the new graph, so results computed on the
+subgraph can be matched back to the original.
+
+`delete_nodes_ws()` is the bulk counterpart of `delete_node()`. A common use is pruning, such as
+removing every node of degree one before an analysis of the network's core:
+
+```{python}
+core = karate.subgraph(karate.get_node_ids(limit=None))
+core.select_nodes_by_degree(max_degree=1).delete_nodes_ws()
+core.count_nodes()
+```
+
+Only one member had a single friend. The deletion was made on a copy, taken with `subgraph()`, so
+`karate` itself still has all 34 members.
+
+## Selecting edges
+
+| Method | Selects |
+|---|---|
+| [`select_edges_by_id()`](../reference/Graph.select_edges_by_id.qmd) | the edges with the given IDs |
+| [`select_edges()`](../reference/Graph.select_edges.qmd) | the edges for which a Python function returns `True` |
+| [`select_edges_by_node()`](../reference/Graph.select_edges_by_node.qmd) | every edge that touches the given nodes |
+| [`select_last_edges_created()`](../reference/Graph.select_last_edges_created.qmd) | the most recently added edges |
+| [`select_match()`](../reference/Graph.select_match.qmd) with `select=` naming a relationship variable | the edges that match a Cypher pattern |
+
+[`select_edges()`](../reference/Graph.select_edges.qmd) passes its function an `Edge` object with
+`id`, `source`, `target`, `weight`, and `attributes`. A natural use is a weight threshold. In *Les
+Misérables*, where the weight counts the chapters two characters share, more than a third of the
+pairs meet only once:
+
+```{python}
+les_mis = ec.les_miserables()
+les_mis.select_edges(lambda edge: edge.weight is not None and edge.weight < 2)
+les_mis.count_selected_edges(), les_mis.count_edges()
+```
+
+Deleting those single encounters leaves the network of lasting relationships:
+
+```{python}
+les_mis.delete_edges_ws()
+les_mis.count_edges(), les_mis.count_weakly_connected_components()
+```
+
+Removing the 97 weakest edges split the network into 20 pieces, since many minor characters appear
+only once beside a main character and are left isolated.
+
+### Acting on selected edges
+
+| Method | Effect |
+|---|---|
+| [`set_edge_attrs_ws()`](../reference/Graph.set_edge_attrs_ws.qmd) | set attributes on every selected edge |
+| [`mutate_edge_attrs_ws()`](../reference/Graph.mutate_edge_attrs_ws.qmd) | transform an attribute's value on every selected edge |
+| [`delete_edges_ws()`](../reference/Graph.delete_edges_ws.qmd) | delete the selected edges, keeping their endpoints |
+| [`rev_edge_dir_ws()`](../reference/Graph.rev_edge_dir_ws.qmd) | reverse the selected edges (directed graphs only) |
+| [`add_reverse_edges_ws()`](../reference/Graph.add_reverse_edges_ws.qmd) | add a reversed copy of each selected edge (directed graphs only) |
+| [`transform_to_subgraph_ws()`](../reference/Graph.transform_to_subgraph_ws.qmd) | return a new graph of the selected edges and their endpoints |
+| [`get_edge_df_ws()`](../reference/Graph.get_edge_df_ws.qmd) | return the selected rows of the edge table |
+
+The direction methods are useful for fixing data in which some edges were recorded the wrong way
+round. In this small dependency graph, the edges should all point from a service to what it depends
+on, but the edges into the database were recorded backwards:
+
+```{python}
+services = ec.Graph.from_edges(
+    [("web", "api"), ("api", "auth"), ("db", "api"), ("db", "auth")],
+    directed=True,
+)
+db = services.get_id_from_label("db")
+
+(
+    services
+    .select_edges(lambda edge: edge.source == db)
+    .rev_edge_dir_ws()
+    .set_edge_attrs_ws(rel="depends_on", fixed=True)
+    .clear_selection()
+)
+services.get_edges_str_repr()
+```
+
+Both edges out of `db` (ID 4) now point into it. The selection persisted across the two `_ws`
+calls, so the same edges were reversed and then tagged.
+
+## Selections, traversals, and plots
+
+Selections are also the starting point for *traversals*, which move a selection along the edges of
+the graph: from a set of nodes to their neighbors, to the edges between them, and so on.
+[Traversals](09-traversals.qmd) covers them.
+
+`plot()` doesn't draw the selection itself. To highlight selected nodes in a drawing, store a flag
+with `set_node_attrs_ws()` and color by it:
+
+```{python}
+(
+    karate
+    .select_nodes_by_centrality(measure="pagerank", k=5, set_op="replace")
+    .set_node_attrs_ws(top5=True)
+    .clear_selection()
+    .plot(color_by="top5", label_by="label", seed=7)
+)
+```
+
+Nodes without the attribute form their own color group, so the five most central members stand
+apart from the rest.
