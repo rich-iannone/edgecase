@@ -173,14 +173,21 @@ fn compute_betweenness_from_source(
 ///   Shortest paths, weighted networks, and centrality.
 ///   Physical Review E, 64(016132).
 ///
-/// Performance: O(V·E) time with BFS from each node, parallelized with Rayon
+/// With `weighted`, shortest paths minimize total edge weight (Dijkstra, as
+/// `networkx.load_centrality(G, weight="weight")`) and `cutoff` is a maximum total weight;
+/// otherwise they minimize hops (BFS) and `cutoff` is a maximum number of hops. Parallel
+/// edges count once as a predecessor link.
+///
+/// Performance: O(V·E) time with BFS from each node (O(V·E log V) with Dijkstra),
+/// parallelized with Rayon
 #[pyfunction]
-#[pyo3(signature = (graph, normalized=true, cutoff=None))]
+#[pyo3(signature = (graph, normalized=true, cutoff=None, weighted=false))]
 #[inline]
 pub fn load_centrality(
     graph: &Graph,
     normalized: bool,
-    cutoff: Option<i32>,
+    cutoff: Option<f64>,
+    weighted: bool,
 ) -> PyResult<FxHashMap<u64, f64>> {
     use rayon::prelude::*;
 
@@ -198,10 +205,35 @@ pub fn load_centrality(
         .map(|(idx, &node_id)| (node_id, idx))
         .collect();
 
+    let weighted_adj = if weighted {
+        Some(weighted_adjacency(graph, &node_to_idx, false, false)?)
+    } else {
+        None
+    };
+
     // Parallel computation: each source node processes independently
-    let load = node_ids
-        .par_iter()
-        .map(|&source| compute_load_from_source(graph, source, &node_ids, &node_to_idx, cutoff))
+    let load = (0..n)
+        .into_par_iter()
+        .map(|source_idx| {
+            let (order, predecessors) = match &weighted_adj {
+                Some(adj) => {
+                    let dag = dijkstra_dag(adj, source_idx, cutoff, true);
+                    let preds = dag
+                        .preds
+                        .into_iter()
+                        .map(|p| {
+                            let mut nodes: Vec<usize> = p.into_iter().map(|(v, _)| v).collect();
+                            nodes.sort_unstable();
+                            nodes.dedup();
+                            nodes
+                        })
+                        .collect();
+                    (dag.order, preds)
+                }
+                None => bfs_predecessors(graph, source_idx, &node_ids, &node_to_idx, cutoff),
+            };
+            accumulate_load(source_idx, order, &predecessors, n)
+        })
         .reduce(
             || vec![0.0; n],
             |mut acc, partial| {
@@ -232,27 +264,25 @@ pub fn load_centrality(
     Ok(result)
 }
 
-/// Helper: Compute load contribution from a single source node
+/// Helper: BFS from one source for load centrality
 ///
-/// This implements the Newman load centrality algorithm which differs
-/// from betweenness in the accumulation step.
+/// Returns the reached nodes in BFS order and, for each node, its distinct predecessors on
+/// shortest paths from the source. Only nodes at most `cutoff` hops away are reached.
 #[inline]
-fn compute_load_from_source(
+fn bfs_predecessors(
     graph: &Graph,
-    source: u64,
+    source_idx: usize,
     node_ids: &[u64],
     node_to_idx: &FxHashMap<u64, usize>,
-    cutoff: Option<i32>,
-) -> Vec<f64> {
+    cutoff: Option<f64>,
+) -> (Vec<usize>, Vec<Vec<usize>>) {
     use std::collections::VecDeque;
 
     let n = node_ids.len();
-    let source_idx = node_to_idx[&source];
 
     // Local arrays for this source's BFS
     let mut predecessors: Vec<Vec<usize>> = vec![Vec::new(); n];
-    let mut distance: Vec<i32> = vec![-1; n];
-    let mut load: Vec<f64> = vec![1.0; n]; // Initialize with 1.0
+    let mut distance: Vec<i64> = vec![-1; n];
     let mut queue: VecDeque<usize> = VecDeque::with_capacity(n);
     let mut ordered_nodes: Vec<usize> = Vec::with_capacity(n);
 
@@ -266,9 +296,9 @@ fn compute_load_from_source(
         let v = node_ids[v_idx];
         let dist_v = distance[v_idx];
 
-        // Check cutoff
+        // Check cutoff: only step to nodes within `cutoff` hops
         if let Some(max_dist) = cutoff {
-            if dist_v >= max_dist {
+            if (dist_v + 1) as f64 > max_dist {
                 continue;
             }
         }
@@ -284,44 +314,61 @@ fn compute_load_from_source(
                     distance[w_idx] = dist_v + 1;
                 }
 
-                // Shortest path to w via v?
-                if distance[w_idx] == dist_v + 1 {
+                // Shortest path to w via v? A parallel edge repeats w in v's list, but all of
+                // v's links are added together, so checking the last entry skips repeats
+                if distance[w_idx] == dist_v + 1 && predecessors[w_idx].last() != Some(&v_idx) {
                     predecessors[w_idx].push(v_idx);
                 }
             }
         }
     }
 
+    (ordered_nodes, predecessors)
+}
+
+/// Helper: load contribution from a single source node
+///
+/// This implements the Newman load centrality algorithm, which differs from betweenness in
+/// the accumulation step: each node splits its load equally among its predecessors. `order`
+/// lists the reached nodes by non-decreasing distance from the source.
+#[inline]
+fn accumulate_load(
+    source_idx: usize,
+    mut order: Vec<usize>,
+    predecessors: &[Vec<usize>],
+    n: usize,
+) -> Vec<f64> {
+    // Every reached node starts with one unit of load
+    let mut load: Vec<f64> = vec![0.0; n];
+    for &v_idx in &order {
+        load[v_idx] = 1.0;
+    }
+
     // Accumulation: process nodes in reverse order (by distance)
     // Start from nodes furthest from source
-    while let Some(v_idx) = ordered_nodes.pop() {
+    while let Some(v_idx) = order.pop() {
         if v_idx == source_idx {
             continue; // Skip source
         }
 
         let num_preds = predecessors[v_idx].len();
         if num_preds > 0 {
-            let load_v = load[v_idx];
-            let contribution = load_v / num_preds as f64;
-
+            let contribution = load[v_idx] / num_preds as f64;
             for &pred_idx in &predecessors[v_idx] {
-                if pred_idx == source_idx {
-                    break; // Stop if we hit source
+                // The source's share is dropped: it isn't an interior node
+                if pred_idx != source_idx {
+                    load[pred_idx] += contribution;
                 }
-                load[pred_idx] += contribution;
             }
         }
     }
 
-    // Subtract 1 from each (initial value) and zero out source
-    for i in 0..n {
-        if i != source_idx && distance[i] >= 0 {
-            load[i] -= 1.0;
-        } else if i == source_idx {
-            load[i] = 0.0;
+    // Subtract 1 from each reached node (initial value); the source and unreached nodes get 0
+    for (i, value) in load.iter_mut().enumerate() {
+        if i == source_idx || *value == 0.0 {
+            *value = 0.0;
         } else {
-            // Unreachable nodes get 0
-            load[i] = 0.0;
+            *value -= 1.0;
         }
     }
 
@@ -520,20 +567,25 @@ fn compute_harmonic_from_node(
 ///
 /// Highly optimized implementation for large graphs using:
 /// - CSR-like format with index-based storage (no HashMap lookups in hot loop)
-/// - Precomputed inverse out-degrees (multiplication instead of division)
+/// - Precomputed transition coefficients (multiplication instead of division)
 /// - Parallel computation with Rayon for large graphs
 /// - Contiguous memory layout for cache efficiency
+///
+/// With `weighted`, a node passes rank along each edge in proportion to the edge's weight
+/// (1.0 if it has none), as `networkx.pagerank` does: the coefficient is weight / out-strength.
+/// Otherwise every outgoing edge gets an equal share. Weights must be finite and non-negative.
 ///
 /// Time complexity: O(iterations × edges)
 /// Space complexity: O(nodes + edges)
 #[pyfunction]
-#[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6))]
+#[pyo3(signature = (graph, damping=0.85, max_iter=100, tol=1e-6, weighted=false))]
 #[inline]
 pub fn pagerank(
     graph: &Graph,
     damping: f64,
     max_iter: usize,
     tol: f64,
+    weighted: bool,
 ) -> PyResult<FxHashMap<u64, f64>> {
     use rayon::prelude::*;
 
@@ -551,32 +603,57 @@ pub fn pagerank(
         .map(|(idx, &node_id)| (node_id, idx))
         .collect();
 
-    // ============================================================
-    // BUILD CSR-LIKE INCOMING EDGES STRUCTURE
-    // Store indices instead of node IDs to eliminate HashMap lookups
-    // ============================================================
-
-    // First pass: count incoming edges per node
-    let mut in_degree: Vec<usize> = vec![0; n];
-    let mut out_degree: Vec<usize> = vec![0; n];
-
-    for (source_idx, &source_node) in node_ids.iter().enumerate() {
-        if let Ok(neighbors) = graph.neighbors(source_node) {
-            let degree = neighbors.len();
-            out_degree[source_idx] = degree;
-
-            for &target_node in &neighbors {
-                if let Some(&target_idx) = node_to_idx.get(&target_node) {
-                    in_degree[target_idx] += 1;
+    // Every arc a random surfer can follow, as (source index, target index, weight)
+    let mut arcs: Vec<(usize, usize, f64)> = Vec::new();
+    if weighted {
+        let directed = graph.is_directed();
+        for e in graph.get_edges_internal() {
+            let w = e.weight.unwrap_or(1.0);
+            if !w.is_finite() || w < 0.0 {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Weighted PageRank requires finite, non-negative edge weights, but edge {} \
+                     ({} -> {}) has weight {}",
+                    e.id, e.source, e.target, w
+                )));
+            }
+            let (Some(&s), Some(&t)) = (node_to_idx.get(&e.source), node_to_idx.get(&e.target))
+            else {
+                continue;
+            };
+            arcs.push((s, t, w));
+            // An undirected edge can be walked both ways; a self-loop is one arc
+            if !directed && s != t {
+                arcs.push((t, s, w));
+            }
+        }
+    } else {
+        for (source_idx, &source_node) in node_ids.iter().enumerate() {
+            if let Ok(neighbors) = graph.neighbors(source_node) {
+                for target_node in neighbors {
+                    if let Some(&target_idx) = node_to_idx.get(&target_node) {
+                        arcs.push((source_idx, target_idx, 1.0));
+                    }
                 }
             }
         }
     }
 
-    // Build CSR structure: incoming_data stores all source indices contiguously
-    // incoming_offsets[i] = start position of node i's incoming edges
-    let total_edges: usize = in_degree.iter().sum();
-    let mut incoming_data: Vec<usize> = vec![0; total_edges];
+    // ============================================================
+    // BUILD CSR-LIKE INCOMING EDGES STRUCTURE
+    // Store indices instead of node IDs to eliminate HashMap lookups
+    // ============================================================
+
+    // First pass: count incoming arcs and total outgoing weight per node
+    let mut in_degree: Vec<usize> = vec![0; n];
+    let mut out_strength: Vec<f64> = vec![0.0; n];
+    for &(s, t, w) in &arcs {
+        in_degree[t] += 1;
+        out_strength[s] += w;
+    }
+
+    // Build CSR structure: incoming_data stores (source index, transition coefficient) pairs
+    // contiguously; incoming_offsets[i] = start position of node i's incoming arcs
+    let mut incoming_data: Vec<(usize, f64)> = vec![(0, 0.0); arcs.len()];
     let mut incoming_offsets: Vec<usize> = Vec::with_capacity(n + 1);
     incoming_offsets.push(0);
 
@@ -587,26 +664,17 @@ pub fn pagerank(
     // Temporary counter for filling incoming_data (tracks current write position per node)
     let mut write_pos: Vec<usize> = incoming_offsets[..n].to_vec();
 
-    // Second pass: fill incoming edges
-    for (source_idx, &source_node) in node_ids.iter().enumerate() {
-        if let Ok(neighbors) = graph.neighbors(source_node) {
-            for &target_node in &neighbors {
-                if let Some(&target_idx) = node_to_idx.get(&target_node) {
-                    let pos = write_pos[target_idx];
-                    incoming_data[pos] = source_idx;
-                    write_pos[target_idx] += 1;
-                }
-            }
-        }
+    // Second pass: fill incoming arcs with weight / out-strength (a node with no outgoing
+    // weight is dangling and passes nothing on)
+    for &(s, t, w) in &arcs {
+        let coefficient = if out_strength[s] > 0.0 {
+            w / out_strength[s]
+        } else {
+            0.0
+        };
+        incoming_data[write_pos[t]] = (s, coefficient);
+        write_pos[t] += 1;
     }
-
-    // ============================================================
-    // PRECOMPUTE INVERSE OUT-DEGREES (avoid division in hot loop)
-    // ============================================================
-    let inv_out_degree: Vec<f64> = out_degree
-        .iter()
-        .map(|&deg| if deg > 0 { 1.0 / deg as f64 } else { 0.0 })
-        .collect();
 
     // ============================================================
     // POWER ITERATION WITH PARALLELIZATION
@@ -631,8 +699,8 @@ pub fn pagerank(
 
                     // Sum contributions from all incoming edges
                     let mut rank_sum = 0.0;
-                    for &source_idx in &incoming_data[start..end] {
-                        rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
+                    for &(source_idx, coefficient) in &incoming_data[start..end] {
+                        rank_sum += ranks[source_idx] * coefficient;
                     }
 
                     *new_rank += damping * rank_sum;
@@ -646,8 +714,8 @@ pub fn pagerank(
                 let end = incoming_offsets[target_idx + 1];
 
                 let mut rank_sum = 0.0;
-                for &source_idx in &incoming_data[start..end] {
-                    rank_sum += ranks[source_idx] * inv_out_degree[source_idx];
+                for &(source_idx, coefficient) in &incoming_data[start..end] {
+                    rank_sum += ranks[source_idx] * coefficient;
                 }
 
                 new_ranks[target_idx] += damping * rank_sum;
@@ -702,7 +770,7 @@ mod tests {
     #[test]
     fn test_pagerank_empty_graph() {
         let graph = Graph::new_rust(false, false);
-        let ranks = pagerank(&graph, 0.85, 100, 1e-6).unwrap();
+        let ranks = pagerank(&graph, 0.85, 100, 1e-6, false).unwrap();
         assert_eq!(ranks.len(), 0);
     }
 
@@ -711,7 +779,7 @@ mod tests {
         let mut graph = Graph::new_rust(false, false);
         let a = graph.add_test_node("A");
 
-        let ranks = pagerank(&graph, 0.85, 100, 1e-6).unwrap();
+        let ranks = pagerank(&graph, 0.85, 100, 1e-6, false).unwrap();
         assert_eq!(ranks.len(), 1);
         assert!((ranks[&a] - 1.0).abs() < 1e-6);
     }
@@ -1304,37 +1372,74 @@ pub fn bridging_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMa
 /// Qi, X. et al. (2012). "Laplacian centrality: A new centrality measure for
 /// weighted networks." Information Sciences, 194, pp. 240-253.
 ///
-/// Uses the closed-form: ΔE(v) = d(v)² + d(v) + 2·Σ_{u∈N(v)} d(u)
-/// Normalized: C_L(v) = ΔE(v) / E_L(G) where E_L(G) = Σ_v ΔE(v)
+/// With `w_uv` the total weight between `u` and `v` (parallel edges summed, self-loops
+/// ignored, direction ignored) and `s_v` the strength of `v`, the energy drop is the
+/// closed form ΔE(v) = s_v² + Σ_u w_uv² + 2·Σ_u s_u·w_uv. Normalized: C_L(v) = ΔE(v) / E_L(G),
+/// where E_L(G) = Σ_v s_v² + 2·Σ_{u<v} w_uv² is the Laplacian energy of the whole graph.
 #[pyfunction]
-#[pyo3(signature = (graph, normalized=true))]
-pub fn laplacian_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMap<u64, f64>> {
+#[pyo3(signature = (graph, normalized=true, weighted=false))]
+pub fn laplacian_centrality(
+    graph: &Graph,
+    normalized: bool,
+    weighted: bool,
+) -> PyResult<FxHashMap<u64, f64>> {
     let node_ids = graph.get_node_ids();
     if node_ids.is_empty() {
         return Ok(FxHashMap::default());
     }
+    let n = node_ids.len();
+    let node_to_idx: FxHashMap<u64, usize> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &nid)| (nid, i))
+        .collect();
 
-    let degrees = compute_degrees(graph, &node_ids);
-
-    let mut result: FxHashMap<u64, f64> =
-        FxHashMap::with_capacity_and_hasher(node_ids.len(), Default::default());
-
-    let mut total_energy = 0.0;
-
-    for &nid in &node_ids {
-        let d_v = degrees[&nid] as f64;
-        let neighbors = graph.neighbors(nid).unwrap_or_default();
-        let neighbor_deg_sum: f64 = neighbors.iter().map(|nbr| degrees[nbr] as f64).sum();
-
-        let delta_e = d_v * d_v + d_v + 2.0 * neighbor_deg_sum;
-        result.insert(nid, delta_e);
-        total_energy += delta_e;
+    // Total weight between each pair of distinct nodes
+    let mut pair_weight: FxHashMap<(usize, usize), f64> = FxHashMap::default();
+    for e in graph.get_edges_internal() {
+        if e.source == e.target {
+            continue;
+        }
+        let w = if weighted {
+            e.weight.unwrap_or(1.0)
+        } else {
+            1.0
+        };
+        if !w.is_finite() || w < 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Weighted Laplacian centrality requires finite, non-negative edge weights, but \
+                 edge {} ({} -> {}) has weight {}",
+                e.id, e.source, e.target, w
+            )));
+        }
+        let a = node_to_idx[&e.source];
+        let b = node_to_idx[&e.target];
+        *pair_weight.entry((a.min(b), a.max(b))).or_insert(0.0) += w;
     }
 
-    if normalized && total_energy > 0.0 {
-        for val in result.values_mut() {
-            *val /= total_energy;
+    let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+    let mut strength = vec![0.0; n];
+    let mut total_energy = 0.0;
+    for (&(a, b), &w) in &pair_weight {
+        adj[a].push((b, w));
+        adj[b].push((a, w));
+        strength[a] += w;
+        strength[b] += w;
+        total_energy += 2.0 * w * w;
+    }
+    total_energy += strength.iter().map(|s| s * s).sum::<f64>();
+
+    let mut result: FxHashMap<u64, f64> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for (v, &nid) in node_ids.iter().enumerate() {
+        let mut delta_e = strength[v] * strength[v];
+        for &(u, w) in &adj[v] {
+            delta_e += w * w + 2.0 * strength[u] * w;
         }
+        if normalized && total_energy > 0.0 {
+            delta_e /= total_energy;
+        }
+        result.insert(nid, delta_e);
     }
 
     Ok(result)
