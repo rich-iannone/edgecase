@@ -3,8 +3,8 @@
 //! (Wilson's algorithm), branching recognition and Prüfer sequences.
 //!
 //! Edge values come from the edge attribute named by `weight_attr`, else the edge weight
-//! (1.0 when unset); missing or non-numeric attribute values count as 1.0, as in
-//! `minimum_spanning_tree()`.
+//! (1.0 when unset). An edge without a numeric value under `weight_attr` raises `ValueError`,
+//! except that `"weight"` falls back to the weight field, as in `minimum_spanning_tree()`.
 
 use crate::graph::{Edge, Graph, Node};
 use nalgebra as na;
@@ -28,21 +28,10 @@ fn value_err<T>(msg: impl Into<String>) -> PyResult<T> {
 }
 
 fn edge_value(py: Python, e: &Edge, weight_attr: Option<&str>) -> PyResult<f64> {
-    Ok(match weight_attr {
-        None => e.weight.unwrap_or(1.0),
-        Some(attr) => {
-            let value = match &e.attributes {
-                Some(d) => d.bind(py).downcast::<PyDict>()?.get_item(attr)?,
-                None => None,
-            };
-            match value {
-                Some(v) => v.extract::<f64>().unwrap_or(1.0),
-                // Weighted graphs keep weights in the weight field, not as an attribute
-                None if attr == "weight" => e.weight.unwrap_or(1.0),
-                None => 1.0,
-            }
-        }
-    })
+    match weight_attr {
+        None => Ok(e.weight.unwrap_or(1.0)),
+        Some(attr) => crate::utils::require_named_edge_weight(py, e, attr, "weight_attr"),
+    }
 }
 
 fn find(parent: &mut [usize], mut x: usize) -> usize {
