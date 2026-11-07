@@ -887,6 +887,14 @@ class TestResistanceDistanceMatrix:
         matrix = G.resistance_distance_matrix()
         assert len(matrix) == 0
 
+    def test_resistance_distance_matrix_key_order(self):
+        # The dict came from a Rust HashMap, so the key order changed from call to call
+        G = ec.Graph().add_gnp_graph(10, 0.3, seed=2)
+        ids = G.get_node_ids()
+        expected = [(u, v) for u in ids for v in ids]
+        for _ in range(5):
+            assert list(G.resistance_distance_matrix()) == expected
+
 
 class TestResistanceDistanceAccuracy:
     """Exact values on spectra with repeated eigenvalues, and infinite cross-component pairs."""
