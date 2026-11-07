@@ -1,0 +1,711 @@
+---
+title: Paths and distances
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A path is a sequence of edges leading from one node to another, and the length of the shortest
+one is the distance between them. Paths are behind route planning, the chains of contacts that link
+two people, the spread of a failure through a network, and many measures built on top of them,
+from closeness centrality to the diameter. EdgeCase has methods for most of the standard path
+problems:
+
+| Question | Methods |
+|---|---|
+| What is the shortest route from A to B? | [`shortest_path()`](../reference/Graph.shortest_path.qmd), [`shortest_path_length()`](../reference/Graph.shortest_path_length.qmd), [`all_shortest_paths()`](../reference/Graph.all_shortest_paths.qmd) |
+| How far is everything from A? | [`single_source_shortest_path_length()`](../reference/Graph.single_source_shortest_path_length.qmd), [`multi_source_shortest_path_length()`](../reference/Graph.multi_source_shortest_path_length.qmd) |
+| How far is everything from everything? | [`all_pairs_shortest_path_length()`](../reference/Graph.all_pairs_shortest_path_length.qmd), [`floyd_warshall()`](../reference/Graph.floyd_warshall.qmd), [`johnson()`](../reference/Graph.johnson.qmd) |
+| What are the next-best routes? | [`k_shortest_paths()`](../reference/Graph.k_shortest_paths.qmd), [`shortest_simple_paths()`](../reference/Graph.shortest_simple_paths.qmd), [`get_all_simple_paths()`](../reference/Graph.get_all_simple_paths.qmd) |
+| What if some weights are negative? | [`bellman_ford_shortest_path()`](../reference/Graph.bellman_ford_shortest_path.qmd), [`find_negative_cycle()`](../reference/Graph.find_negative_cycle.qmd) |
+| What route covers every edge, or every node? | [`eulerian_circuit()`](../reference/Graph.eulerian_circuit.qmd), [`traveling_salesman()`](../reference/Graph.traveling_salesman.qmd) |
+| What is the cheapest way to connect some nodes? | [`steiner_tree()`](../reference/Graph.steiner_tree.qmd) |
+
+[Traversals](09-traversals.qmd) covers the related questions of what a node can reach and how far
+away it is in steps, and [Structural properties](11-structure.qmd#distances) covers the
+whole-graph summaries of distance, such as the diameter.
+
+## A road network
+
+The examples on this page use a small network of roads between fourteen European cities. Each
+road's weight is its length in kilometers. The cities also carry their latitude and longitude,
+and a `pos` attribute that holds the two as an `(x, y)` pair, so that the network can be drawn as
+a map:
+
+```{python}
+import edgecase as ec
+
+cities = {
+    "Amsterdam": (52.37, 4.90), "Brussels": (50.85, 4.35), "Paris": (48.86, 2.35),
+    "Lyon": (45.76, 4.84), "Marseille": (43.30, 5.37), "Geneva": (46.20, 6.14),
+    "Zurich": (47.37, 8.54), "Milan": (45.46, 9.19), "Munich": (48.14, 11.58),
+    "Frankfurt": (50.11, 8.68), "Cologne": (50.94, 6.96), "Berlin": (52.52, 13.40),
+    "Prague": (50.08, 14.44), "Vienna": (48.21, 16.37),
+}
+
+roads = [
+    ("Amsterdam", "Brussels", 210), ("Amsterdam", "Cologne", 260), ("Amsterdam", "Berlin", 655),
+    ("Brussels", "Paris", 300), ("Brussels", "Cologne", 210), ("Paris", "Lyon", 465),
+    ("Paris", "Frankfurt", 570), ("Lyon", "Marseille", 315), ("Lyon", "Geneva", 150),
+    ("Geneva", "Zurich", 280), ("Geneva", "Milan", 320), ("Marseille", "Milan", 600),
+    ("Zurich", "Milan", 280), ("Zurich", "Munich", 315), ("Zurich", "Frankfurt", 410),
+    ("Cologne", "Frankfurt", 190), ("Frankfurt", "Munich", 390), ("Frankfurt", "Berlin", 545),
+    ("Berlin", "Prague", 350), ("Munich", "Prague", 380), ("Munich", "Vienna", 435),
+    ("Prague", "Vienna", 330), ("Munich", "Milan", 490),
+]
+
+places = [(city, {"lat": lat, "lon": lon, "pos": [lon, lat]}) for city, (lat, lon) in cities.items()]
+road_net = ec.Graph.from_edges(roads, nodes=places, graph_name="Roads")
+road_net
+```
+
+Since the edges have weights, `from_edges()` made the graph weighted. As on the
+[Traversals](09-traversals.qmd) page, a small helper turns the node IDs that path methods return
+into city names:
+
+```{python}
+def names(ids):
+    return [road_net.get_label_from_id(i) for i in ids]
+```
+
+To label each road with its length in the drawing, the length must also be stored as an edge
+attribute, since `edge_label_by=` reads attributes and the weight is a separate field. The
+`pos` attribute then serves as the layout:
+
+```{python}
+road_net.set_edge_attrs("km", {e["id"]: e["weight"] for e in road_net.get_edge_df().iter_rows(named=True)})
+road_net.plot(layout="pos", label_by="label", edge_label_by="km", node_size=10, height=480)
+```
+
+## The shortest path between two nodes
+
+[`shortest_path()`](../reference/Graph.shortest_path.qmd) finds a shortest path from one node to
+another, and [`shortest_path_length()`](../reference/Graph.shortest_path_length.qmd) finds its
+length without building the path. With `return_list=True`, `shortest_path()` returns the path as a
+list of node IDs:
+
+```{python}
+names(road_net.shortest_path("Amsterdam", "Vienna", return_list=True))
+```
+
+```{python}
+road_net.shortest_path_length("Amsterdam", "Vienna")
+```
+
+The fastest way from Amsterdam to Vienna is south-east through Germany, a drive of 1275 km.
+
+### What "shortest" means
+
+On a weighted graph, the shortest path is the one with the lowest total weight, found with
+Dijkstra's algorithm. On an unweighted graph, it is the one with the fewest edges, found with a
+breadth-first search, and any weights are ignored. The same roads give a different answer when the
+graph is built with `weighted=False`:
+
+```{python}
+hops = ec.Graph.from_edges(roads, nodes=places, weighted=False)
+names(hops.shortest_path("Amsterdam", "Vienna", return_list=True)), hops.shortest_path_length("Amsterdam", "Vienna")
+```
+
+The route through Berlin and Prague has only three legs, one fewer than the route through Germany,
+but it is 60 km longer. Which answer is right depends on the question: hops suit networks where
+every link costs the same, such as the steps between people in a social network, and weights suit
+networks where links differ, such as roads, flights, or the latency of network connections. (The
+nodes were created in the same order in both graphs, so they have the same IDs, and the `names()`
+helper works for both.)
+
+In a weighted graph, an edge without a weight counts as 1. In a directed graph, paths follow edge
+direction, so the distance from A to B can differ from the distance from B to A, or one of them may
+not exist at all.
+
+### Storing a path
+
+Without `return_list=True`, `shortest_path()` follows the convention of the other algorithms and
+stores its result on the graph. Each node on the path gets its position along it, counted from 0,
+in a `shortest_path_order` attribute (or the name given by `attr_name=`), and every other node gets
+a null value:
+
+```{python}
+(
+    road_net
+    .shortest_path("Amsterdam", "Vienna")
+    .get_node_df()
+    .select("label", "shortest_path_order")
+    .drop_nulls()
+    .sort("shortest_path_order")
+)
+```
+
+A stored path is easy to highlight in a drawing. Since `color_by=` gives each distinct value its own
+color, a simple flag on the nodes of the path works better than their positions:
+
+```{python}
+route = road_net.shortest_path("Amsterdam", "Vienna", return_list=True)
+road_net.set_node_attrs("on_route", {node: True for node in route})
+road_net.plot(layout="pos", color_by="on_route", label_by="label", edge_label_by="km", node_size=10, height=480)
+```
+
+The edges whose two ends are both on the route take the route's color, so the drive stands out
+from the rest of the network.
+
+When no path exists, `shortest_path()` and `shortest_path_length()` return `None`. Because of this,
+a chain such as `graph.shortest_path(a, b).plot()` fails when `b` can't be reached from `a`, so
+check with [`has_path()`](../reference/Graph.has_path.qmd) first when that might happen.
+
+### Ties
+
+There is often more than one shortest path, especially when distances are counted in hops.
+`shortest_path()` returns one of them, and [`all_shortest_paths()`](../reference/Graph.all_shortest_paths.qmd)
+returns them all. In the karate club, member `"11"` (ID 12) has only one friend, the instructor,
+and is three steps from the administrator (ID 34) by any of four routes:
+
+```{python}
+karate = ec.karate_club()
+karate.all_shortest_paths(12, 34)
+```
+
+Every route runs through the instructor and then through one of the four friends that the
+instructor and the administrator have in common. Counting how many shortest paths pass through each
+node is the idea behind betweenness centrality (see [Centrality](13-centrality.qmd)). On a large
+graph the number of ties can be very large, and `max_paths=` caps it.
+
+## Choosing an algorithm
+
+`shortest_path()` uses Dijkstra's algorithm on weighted graphs, which is the right choice for most
+work. A few alternatives are faster in particular situations, or handle cases that Dijkstra's
+algorithm can't:
+
+| Method | Algorithm | Use it when |
+|---|---|---|
+| [`shortest_path()`](../reference/Graph.shortest_path.qmd) | Dijkstra, or breadth-first search when unweighted | the weights are non-negative (the usual case) |
+| [`bidirectional_dijkstra()`](../reference/Graph.bidirectional_dijkstra.qmd) | Dijkstra from both ends at once | a single long path is needed in a large graph |
+| [`astar_path()`](../reference/Graph.astar_path.qmd), [`astar_path_length()`](../reference/Graph.astar_path_length.qmd) | A* search, guided by an estimate of the remaining distance | a good estimate is available, as on maps and grids |
+| [`bellman_ford_shortest_path()`](../reference/Graph.bellman_ford_shortest_path.qmd) | Bellman-Ford | some weights are negative |
+| [`goldberg_radzik()`](../reference/Graph.goldberg_radzik.qmd) | Goldberg-Radzik | some weights are negative, and all distances from a source are needed |
+| [`ada_star_search()`](../reference/Graph.ada_star_search.qmd) | Anytime Dynamic A* | a good path is needed quickly, and can be improved later |
+
+[`bidirectional_dijkstra()`](../reference/Graph.bidirectional_dijkstra.qmd) grows a search from
+each end and stops when the two meet, which usually explores far fewer nodes than a search from one
+end. It returns the length and the path together:
+
+```{python}
+road_net.bidirectional_dijkstra("Amsterdam", "Vienna")
+```
+
+### A* search
+
+A* search is Dijkstra's algorithm steered by a *heuristic*, a function that estimates the remaining
+distance from any node to the target. The search explores the nodes that look closest to the target
+first, so with a good estimate it finds the same shortest path after looking at far fewer nodes.
+The estimate must never be larger than the true distance, or the path found may not be the
+shortest.
+
+For a road network, the straight-line distance between two cities is the natural estimate, since
+no road is shorter than the straight line. The heuristic receives two node IDs, the current node
+and the target, and here computes the great-circle distance between them from their stored
+coordinates:
+
+```{python}
+import math
+
+
+def straight_line(node, target):
+    a = road_net.get_node(node).attributes
+    b = road_net.get_node(target).attributes
+    lat1, lat2 = math.radians(a["lat"]), math.radians(b["lat"])
+    dlat, dlon = lat2 - lat1, math.radians(b["lon"] - a["lon"])
+    h = math.sin(dlat / 2) ** 2 + math.cos(lat1) * math.cos(lat2) * math.sin(dlon / 2) ** 2
+    return 2 * 6371 * math.asin(math.sqrt(h))
+
+
+names(road_net.astar_path("Amsterdam", "Vienna", heuristic=straight_line))
+```
+
+A* found the same route as Dijkstra's algorithm, as it must. On fourteen cities the saving is
+negligible, but on a road network of millions of junctions it is large, which is why A* and its
+relatives are the standard algorithms for route planning.
+
+When the nodes have no coordinates, [`alt_heuristic()`](../reference/Graph.alt_heuristic.qmd)
+builds a heuristic from the graph itself. It picks a few *landmark* nodes, computes the distance
+from each to every node in advance, and uses the triangle inequality to bound the remaining
+distance. The precomputation pays off when many paths are needed on the same graph:
+
+```{python}
+grid = ec.power_grid()
+landmarks = grid.alt_heuristic(k=8, seed=1)
+grid.astar_path_length(1, 4000, heuristic=landmarks), grid.shortest_path_length(1, 4000)
+```
+
+The heuristic is built from the graph as it is, so rebuild it after the graph changes.
+
+## Negative weights
+
+Dijkstra's algorithm assumes that weights are never negative, and the methods that use it raise a
+`ValueError` when they find a negative weight. Negative weights are rare in physical networks, but
+they arise naturally when a weight represents a gain as well as a cost. The classic example is
+currency exchange. Converting one currency to another multiplies an amount by an exchange rate, and
+taking the logarithm turns that product into a sum, so with each rate stored as `-log(rate)`, the
+shortest path is the conversion that ends with the most money.
+
+Here a dealer quotes each conversion at the market rate less a spread, which is small for the most
+traded pairs of currencies and larger for the others. Some of the weights come out negative:
+
+```{python}
+usd_value = {"USD": 1.0, "EUR": 1.08, "GBP": 1.27, "JPY": 0.0067, "CHF": 1.13}
+spreads = {
+    ("USD", "EUR"): 0.001, ("USD", "GBP"): 0.002, ("EUR", "GBP"): 0.002,
+    ("USD", "JPY"): 0.002, ("EUR", "CHF"): 0.002, ("EUR", "JPY"): 0.004,
+    ("GBP", "CHF"): 0.008, ("CHF", "JPY"): 0.015,
+}
+
+
+def quote(have, want):
+    spread = spreads.get((have, want), spreads.get((want, have)))
+    return usd_value[have] / usd_value[want] * (1 - spread)
+
+
+fx = ec.Graph.from_edges(
+    [
+        (x, y, -math.log(quote(x, y)), {"rate": quote(x, y)})
+        for a, b in spreads
+        for x, y in [(a, b), (b, a)]
+    ],
+    directed=True,
+    graph_name="Currency exchange",
+)
+fx.get_edge_df().head(4)
+```
+
+[`bellman_ford_shortest_path()`](../reference/Graph.bellman_ford_shortest_path.qmd) handles
+negative weights. It always uses the weights, and otherwise works like `shortest_path()`. The best
+way to turn Swiss francs into yen is not the direct quote, with its wide spread, but a chain of
+conversions through the euro and the dollar:
+
+```{python}
+fx_names = lambda ids: [fx.get_label_from_id(i) for i in ids]
+fx_names(fx.bellman_ford_shortest_path("CHF", "JPY", return_list=True))
+```
+
+[`goldberg_radzik()`](../reference/Graph.goldberg_radzik.qmd) computes the distance from one node
+to every other in a graph with negative weights. It returns a predecessor and a distance for each
+node, and converting the distance back with `exp(-distance)` gives the best rate. Applied to 1000
+francs, the chain gains about 1700 yen over the direct quote:
+
+```{python}
+predecessors, distances = fx.goldberg_radzik("CHF")
+jpy = fx.get_id_from_label("JPY")
+round(1000 * math.exp(-distances[jpy])), round(1000 * quote("CHF", "JPY"))
+```
+
+### Negative cycles
+
+Shortest paths are only defined when no cycle has a negative total weight, since otherwise going
+round the cycle again always makes a path shorter. With exchange rates, a negative cycle is an
+*arbitrage*: a sequence of conversions that ends with more money than it began with. The dealer's
+spreads rule that out, but a second dealer who quotes pounds into yen 1% above the market rate
+creates one:
+
+```{python}
+mispriced = usd_value["GBP"] / usd_value["JPY"] * 1.01
+fx.add_edge("GBP", "JPY", weight=-math.log(mispriced), rate=mispriced, rel="mispriced")
+fx.negative_edge_cycle()
+```
+
+[`negative_edge_cycle()`](../reference/Graph.negative_edge_cycle.qmd) reports whether any negative
+cycle exists, and [`find_negative_cycle()`](../reference/Graph.find_negative_cycle.qmd) finds one
+that can be reached from a given node, as a list of nodes that ends where it began:
+
+```{python}
+cycle = fx.find_negative_cycle("USD")
+fx_names(cycle)
+```
+
+Converting dollars to pounds, pounds to yen at the mispriced rate, and yen back to dollars returns
+about 0.6% more than it started with. With the cycle in the graph, `bellman_ford_shortest_path()`
+raises a `ValueError` rather than return a meaningless path.
+
+In an undirected graph, every edge can be crossed in both directions, so a single negative edge is
+already a negative cycle. Negative weights are therefore only meaningful in directed graphs.
+
+## From one node to many
+
+Many questions need the distance from one node to every other: how far is each city from the
+warehouse, how many steps is each person from the source of a rumor?
+[`single_source_shortest_path_length()`](../reference/Graph.single_source_shortest_path_length.qmd)
+answers them with a single search, and stores each node's distance in an attribute named after the
+method:
+
+```{python}
+(
+    road_net
+    .single_source_shortest_path_length("Paris")
+    .get_node_df()
+    .select("label", "single_source_shortest_path_length")
+    .sort("single_source_shortest_path_length")
+)
+```
+
+With `cutoff=`, the search stops at a given distance, and with `return_dict=True` the method returns
+a dictionary of the nodes it reached. These are the cities within 600 km of Paris:
+
+```{python}
+sorted(names(road_net.single_source_shortest_path_length("Paris", cutoff=600, return_dict=True)))
+```
+
+[`single_source_shortest_path()`](../reference/Graph.single_source_shortest_path.qmd) returns the
+paths themselves, as a dictionary from each reached node to a path that leads to it. Together the
+paths form a *shortest-path tree*, which is a compact routing table for everything that starts at
+the source:
+
+```{python}
+from_paris = road_net.single_source_shortest_path("Paris")
+names(from_paris[road_net.get_id_from_label("Vienna")])
+```
+
+The methods for a single target work the other way round, finding the distance or path from every
+node *to* the target. In an undirected graph that's the same thing, but in a directed graph, such
+as a network of one-way streets, it isn't.
+
+| Method | Returns |
+|---|---|
+| [`single_source_shortest_path_length()`](../reference/Graph.single_source_shortest_path_length.qmd), [`single_source_shortest_path()`](../reference/Graph.single_source_shortest_path.qmd) | the distance or a path from a source to every reachable node |
+| [`single_target_shortest_path_length()`](../reference/Graph.single_target_shortest_path_length.qmd), [`single_target_shortest_path()`](../reference/Graph.single_target_shortest_path.qmd) | the distance or a path to a target from every node that can reach it |
+| [`single_source_all_shortest_paths()`](../reference/Graph.single_source_all_shortest_paths.qmd) | every tied shortest path from a source to each node |
+| [`predecessor()`](../reference/Graph.predecessor.qmd) | each node's predecessors on every shortest path from a source |
+| [`multi_source_shortest_path_length()`](../reference/Graph.multi_source_shortest_path_length.qmd), [`multi_source_shortest_path()`](../reference/Graph.multi_source_shortest_path.qmd) | the distance or a path from the nearest of several sources |
+
+### The nearest of several sources
+
+[`multi_source_shortest_path_length()`](../reference/Graph.multi_source_shortest_path_length.qmd)
+measures the distance from every node to whichever of several sources is nearest. It answers the
+facility questions: how far is each customer from the closest warehouse, hospital, or server? With
+warehouses in Paris, Berlin, and Milan, the distances and paths together show which warehouse
+should serve each city:
+
+```{python}
+import polars as pl
+
+depots = ["Paris", "Berlin", "Milan"]
+km = road_net.multi_source_shortest_path_length(depots, return_dict=True)
+paths = road_net.multi_source_shortest_path(depots)
+
+pl.DataFrame({
+    "city": names(paths),
+    "depot": [road_net.get_label_from_id(path[0]) for path in paths.values()],
+    "km": [km[node] for node in paths],
+}).sort("depot", "km")
+```
+
+Each path starts at the nearest depot, so its first node identifies the depot that serves the city.
+Vienna is the farthest city from any depot, 680 km from Berlin, which makes it the obvious place
+for a fourth.
+
+## Between every pair
+
+[`all_pairs_shortest_path_length()`](../reference/Graph.all_pairs_shortest_path_length.qmd)
+computes the distance between every pair of nodes, as a nested dictionary in which
+`result[a][b]` is the distance from `a` to `b`. It is convenient to turn part of it into a
+distance table:
+
+```{python}
+dist = road_net.all_pairs_shortest_path_length()
+
+sample = ["Amsterdam", "Berlin", "Marseille", "Vienna"]
+ids = [road_net.get_id_from_label(city) for city in sample]
+pl.DataFrame({"from": sample} | {city: [dist[i][j] for i in ids] for city, j in zip(sample, ids)})
+```
+
+The table is symmetric because the roads are two-way. In a directed graph, `result[a][b]` and
+`result[b][a]` can differ, and pairs that can't reach each other are left out rather than given an
+infinite distance.
+
+A full table has one entry per pair of nodes, so its size grows with the square of the number of
+nodes: a graph of 100,000 nodes has ten billion pairs. For large graphs, compute distances from the
+sources you actually need, or use a summary such as the [mean distance](11-structure.qmd#distances).
+
+| Method | Returns |
+|---|---|
+| [`all_pairs_shortest_path_length()`](../reference/Graph.all_pairs_shortest_path_length.qmd), [`all_pairs_shortest_path()`](../reference/Graph.all_pairs_shortest_path.qmd) | the distance, or one shortest path, between every pair |
+| [`all_pairs_all_shortest_paths()`](../reference/Graph.all_pairs_all_shortest_paths.qmd) | every shortest path between every pair |
+| [`floyd_warshall()`](../reference/Graph.floyd_warshall.qmd) | the distances between every pair, allowing negative weights; best for small, dense graphs |
+| [`johnson()`](../reference/Graph.johnson.qmd) | a shortest path between every pair, allowing negative weights; best for sparse graphs |
+| [`metric_closure()`](../reference/Graph.metric_closure.qmd) | a complete graph, with an edge between every pair weighted by their distance |
+
+`floyd_warshall()` and `johnson()` handle the currency graph, as long as there's no arbitrage
+in it. Removing the mispriced quote restores that, and the best rate from pounds to every other
+currency follows:
+
+```{python}
+fx.select_edges(lambda edge: edge.attributes.get("rel") == "mispriced").delete_edges_ws()
+gbp = fx.get_id_from_label("GBP")
+{fx.get_label_from_id(c): round(math.exp(-d), 4) for c, d in fx.floyd_warshall()[gbp].items()}
+```
+
+Converting pounds to francs through the euro gives a better rate than the direct quote, since the
+two legs through the euro together cost less than the direct quote's wide spread.
+
+## Alternative routes
+
+The shortest path is often not the only route worth knowing. A backup is needed when the best route
+is closed, and a choice of good routes spreads traffic. [`k_shortest_paths()`](../reference/Graph.k_shortest_paths.qmd)
+returns the `k` shortest *simple* paths (paths that visit no node twice), each with its length:
+
+```{python}
+[(names(path), length) for path, length in road_net.k_shortest_paths("Amsterdam", "Vienna", k=4)]
+```
+
+The route through Berlin and Prague is only 60 km longer than the best route, which makes it a good
+alternative. The third and fourth routes are small detours on the first.
+
+[`shortest_simple_paths()`](../reference/Graph.shortest_simple_paths.qmd) produces the same
+sequence lazily, computing each path only when it is asked for. Take as many as needed with
+`itertools.islice()`, or stop at the first path that meets some condition, such as avoiding a city:
+
+```{python}
+import itertools
+
+[names(path) for path in itertools.islice(road_net.shortest_simple_paths("Paris", "Milan"), 3)]
+```
+
+```{python}
+milan_routes = road_net.shortest_simple_paths("Paris", "Milan")
+next(names(path) for path in milan_routes if "Geneva" not in names(path))
+```
+
+If the road through Geneva is closed, the best way from Paris to Milan is through Frankfurt and
+Zurich.
+
+### Every simple path
+
+[`get_all_simple_paths()`](../reference/Graph.get_all_simple_paths.qmd) lists every simple path
+between two nodes, in no particular order. Unlike the other path methods, it returns the paths as
+lists of node *labels*. The number of simple paths grows explosively with the size of a graph, so
+on anything beyond a small graph, set `cutoff=` to limit the number of edges per path:
+
+```{python}
+len(road_net.get_all_simple_paths("Paris", "Milan")), road_net.get_all_simple_paths("Paris", "Milan", cutoff=3)
+```
+
+Even in this small network, there are 119 ways to drive from Paris to Milan without passing through
+any city twice, but only four of them use three roads or fewer.
+[`all_simple_edge_paths()`](../reference/Graph.all_simple_edge_paths.qmd) lists the paths as edge
+IDs instead, which tells parallel edges apart, and [`count_trails()`](../reference/Graph.count_trails.qmd)
+and [`enumerate_trails()`](../reference/Graph.enumerate_trails.qmd) cover *trails*, which may revisit
+a node but not an edge. [`is_simple_path()`](../reference/Graph.is_simple_path.qmd) checks a
+sequence of nodes.
+
+### Disjoint paths
+
+Alternatives that share a road don't help when that road is closed.
+[`edge_disjoint_paths()`](../reference/Graph.edge_disjoint_paths.qmd) finds the largest set of
+paths that share no edge, and [`node_disjoint_paths()`](../reference/Graph.node_disjoint_paths.qmd)
+the largest set that share no node other than their ends:
+
+```{python}
+[names(path) for path in road_net.node_disjoint_paths("Paris", "Vienna")]
+```
+
+There are only two, because Vienna has only two roads. The number of disjoint paths between two
+nodes measures how robust the connection between them is, and
+[Connectivity and flows](16-connectivity.qmd) builds on it.
+
+## Walks
+
+A *walk* is a sequence of edges that may revisit nodes and edges, and walks underlie several
+measures that consider every route between two nodes rather than only the shortest.
+[`count_walks()`](../reference/Graph.count_walks.qmd) counts the walks of a given length between
+every pair of nodes. In the karate club, the walks of length two from the instructor to the
+administrator are the routes through a common friend, and there are four of them, matching the
+four common friends found on the [Traversals](09-traversals.qmd#neighbors) page:
+
+```{python}
+karate.count_walks(2)[1][34], karate.count_walks(3)[1][34]
+```
+
+[`random_walk()`](../reference/Graph.random_walk.qmd) takes a random walk from a node. On a weighted
+graph, each step favors the heavier edges, so on the road network, where weights are lengths, the
+walker prefers long roads. Use `seed=` for a repeatable walk:
+
+```{python}
+names(road_net.random_walk("Paris", steps=6, seed=3, return_list=True))
+```
+
+Random walks are the basis of PageRank (see [Centrality](13-centrality.qmd)), of the Walktrap and
+Infomap community methods (see [Community detection](14-communities.qmd)), and of several
+similarity measures (see [Similarity and link prediction](18-similarity.qmd)).
+[`random_walk_with_restart()`](../reference/Graph.random_walk_with_restart.qmd),
+[`random_edge_walk()`](../reference/Graph.random_edge_walk.qmd), and
+[`generate_random_paths()`](../reference/Graph.generate_random_paths.qmd) are variations.
+
+## Distance-based indices
+
+A few single numbers summarize the distances of a whole graph. The best known is the *Wiener
+index*, the sum of the distances between all pairs of nodes, which originated in chemistry as a
+predictor of the boiling points of molecules:
+
+```{python}
+road_net.get_wiener_index(), road_net.get_wiener_index(weight="weight")
+```
+
+[`get_wiener_index()`](../reference/Graph.get_wiener_index.qmd) counts hops unless `weight=` names
+an edge attribute to sum; `"weight"` uses the edge weights. Over the 91 pairs of cities, the hop
+counts add up to 203, which is an average of 2.23 hops per pair, the
+[mean distance](../reference/Graph.get_mean_distance.qmd). The road lengths add up to 71,360 km.
+[`get_hyper_wiener_index()`](../reference/Graph.get_hyper_wiener_index.qmd) is a variant that
+weights long distances more heavily.
+
+### Resistance distance
+
+The *resistance distance* treats a graph as an electrical circuit, with a one-ohm resistor on each
+edge, and measures the resistance between two nodes. Unlike the shortest-path distance, it takes
+every route into account: many parallel routes bring two nodes closer together, while a single
+bridge between them keeps them apart. [`get_resistance_distance()`](../reference/Graph.get_resistance_distance.qmd)
+computes it for one pair:
+
+```{python}
+round(karate.get_resistance_distance(1, 34), 3), round(karate.get_resistance_distance(1, 12), 3)
+```
+
+The instructor and the administrator are two steps apart, but because there are so many routes
+between them, the resistance is only 0.254, a quarter of a single edge. Member `"11"` (ID 12), by
+contrast, has a single friendship with the instructor, and the resistance across it is a full
+1.0. [`resistance_distance_matrix()`](../reference/Graph.resistance_distance_matrix.qmd) computes
+the resistance between every pair, and [`get_kirchhoff_index()`](../reference/Graph.get_kirchhoff_index.qmd)
+sums it over all pairs, the electrical counterpart of the Wiener index.
+
+## Routing problems
+
+The last group of problems asks for a route with a property, rather than a route between two
+nodes: one that covers every edge, one that visits every node, or a network that connects some
+nodes as cheaply as possible.
+
+### Eulerian paths and circuits
+
+An *Eulerian circuit* is a closed walk that uses every edge exactly once, and an *Eulerian path* is
+one that needn't return to its start. Graph theory began with the question of whether one exists
+in the city of Königsberg, whose seven bridges joined two river banks and two islands (here the
+north bank, the south bank, the central island, and the land to the east). Two pairs of places are
+joined by two bridges each, so the graph has parallel edges:
+
+```{python}
+koenigsberg = ec.Graph.from_edges(
+    [
+        ("North", "Island"), ("North", "Island"),
+        ("South", "Island"), ("South", "Island"),
+        ("North", "East"), ("South", "East"), ("Island", "East"),
+    ],
+    graph_name="Königsberg",
+)
+bridges = koenigsberg.degrees(return_dict=True)
+{koenigsberg.get_label_from_id(place): n for place, n in bridges.items()}
+```
+
+Euler showed in 1736 that a connected graph has an Eulerian circuit exactly when every node has an
+even degree, and an Eulerian path exactly when no more than two nodes have an odd degree. Every
+place in Königsberg has an odd number of bridges, so no walk crosses each bridge once.
+[`is_eulerian()`](../reference/Graph.is_eulerian.qmd) and
+[`has_eulerian_path()`](../reference/Graph.has_eulerian_path.qmd) make the two tests:
+
+```{python}
+koenigsberg.is_eulerian(), koenigsberg.has_eulerian_path()
+```
+
+[`is_semieulerian()`](../reference/Graph.is_semieulerian.qmd) checks for a path without a circuit,
+and [`eulerian_circuit()`](../reference/Graph.eulerian_circuit.qmd) and
+[`eulerian_path()`](../reference/Graph.eulerian_path.qmd) find the walk when one exists.
+
+When none exists, [`eulerize()`](../reference/Graph.eulerize.qmd) adds the fewest duplicate edges,
+or on a weighted graph the lightest ones, that make every degree even. The duplicates are the edges
+that a closed walk must use twice, so this solves the *Chinese postman problem*: the shortest route
+that covers every street at least once, as a postal worker or a snowplow must. The duplicates are
+marked with an `eulerize_added` attribute:
+
+```{python}
+walkable = koenigsberg.eulerize()
+walkable.get_edge_df().filter(eulerize_added=True)
+```
+
+```{python}
+[walkable.get_label_from_id(node) for node in walkable.eulerian_circuit()]
+```
+
+Recrossing one of the bridges between the north bank and the island, and the bridge between the
+south bank and the east, gives a walk over all seven bridges that crosses nine times. In a graph with
+parallel edges, a list of nodes doesn't say which of two bridges was crossed;
+`eulerian_path(edges=True)` returns edge IDs instead.
+
+### The traveling salesperson problem
+
+The traveling salesperson problem asks for the shortest round trip that visits every one of a set
+of places. [`traveling_salesman()`](../reference/Graph.traveling_salesman.qmd) solves it on any
+connected graph, not only on a complete one: between consecutive stops it travels along a shortest
+path, so the route it returns may pass through places that aren't stops. Here a sales rep based in
+Paris must visit Milan, Berlin, and Amsterdam:
+
+```{python}
+tour = road_net.traveling_salesman(nodes=["Paris", "Milan", "Berlin", "Amsterdam"])
+names(tour)
+```
+
+The tour returns to Paris after passing through five other cities on the way. With `cycle=False`,
+the method returns a one-way route instead, by dropping the most expensive leg of the round trip.
+
+The problem is hard to solve exactly, so the method uses heuristics that give good, but not always
+optimal, routes. The default for undirected graphs is Christofides' algorithm, which guarantees a
+route no more than 50% longer than the best. The local search methods often do better, at the cost
+of more time. A small helper measures a route, so the methods can be compared on a tour of all
+fourteen cities:
+
+```{python}
+def route_length(route):
+    return sum(road_net.shortest_path_length(a, b) for a, b in zip(route, route[1:]))
+
+
+{
+    method: route_length(road_net.traveling_salesman(method=method, seed=1))
+    for method in ["christofides", "greedy", "simulated_annealing", "threshold_accepting"]
+}
+```
+
+Simulated annealing finds the shortest tour here, almost 500 km shorter than Christofides', while
+the simple greedy method, which always moves to the nearest unvisited stop, is the worst. With
+asymmetric costs, such as one-way streets, use a directed graph; there the default is
+`"threshold_accepting"`, and `"asadpour"` is also available.
+
+### Steiner trees
+
+A *Steiner tree* connects a given set of *terminal* nodes as cheaply as possible, and may use other
+nodes along the way. It is the problem of designing a network: the cheapest set of pipes, cables,
+or roads that links a set of sites. [`steiner_tree()`](../reference/Graph.steiner_tree.qmd) finds
+an approximate one and returns it as a new graph. Here it connects Paris, Milan, Berlin, and Vienna:
+
+```{python}
+tree = road_net.steiner_tree(["Paris", "Milan", "Berlin", "Vienna"])
+sorted(names(tree.get_node_ids())), tree.get_edge_df()["weight"].sum()
+```
+
+The tree runs south from Paris through Lyon and Geneva to Milan, and from there through Munich and
+Prague to Vienna and Berlin, using 2540 km of road. That is far less than the 3700 km of the
+[minimum spanning tree](../reference/Graph.minimum_spanning_tree.qmd), which must reach every city.
+The Steiner problem is hard to solve exactly, and the method's result is guaranteed to be no more
+than twice the optimal length. Here it isn't quite optimal: a tree through Frankfurt and Munich
+would use 2430 km. [`directed_steiner_tree()`](../reference/Graph.directed_steiner_tree.qmd) and
+[`prize_collecting_steiner_tree()`](../reference/Graph.prize_collecting_steiner_tree.qmd) solve
+variants of the problem.
+
+## Paths in other contexts
+
+Path problems turn up throughout the library. The longest path in a directed acyclic graph, which
+gives the critical path of a project, is covered in [Directed acyclic graphs](17-dags.qmd).
+Centrality measures such as closeness and betweenness are built from shortest paths
+([Centrality](13-centrality.qmd)), and flows and cuts generalize disjoint paths
+([Connectivity and flows](16-connectivity.qmd)). For Cypher users, `shortestPath()` and
+variable-length patterns find paths within a query ([Cypher queries](10-cypher.qmd#path-variables-and-shortest-paths)).
+Finally, [`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) draws a graph so
+that the distances in the drawing match the shortest-path distances in the graph (see
+[Layouts](23-layouts.qmd)).
