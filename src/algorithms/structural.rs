@@ -386,7 +386,7 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
 
 /// Compute local clustering coefficient for each node
 /// For undirected graphs: C(v) = 2 * triangles(v) / (degree(v) * (degree(v) - 1))
-/// For directed graphs: C(v) = triangles(v) / (out_degree(v) * (out_degree(v) - 1))
+/// For directed graphs: Fagiolo's directed clustering (see `local_clustering_directed`)
 ///
 /// Degrees count distinct neighbors other than the node itself, so parallel edges and
 /// self-loops don't lower the coefficient. Returns None for nodes with degree < 2.
@@ -395,11 +395,14 @@ fn transitivity_directed(graph: &Graph) -> Option<f64> {
 pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>> {
     use rayon::prelude::*;
 
+    if graph.is_directed() {
+        return local_clustering_directed(graph);
+    }
+
     let triangle_counts = count_triangles(graph);
     let adj = simple_adjacency(graph);
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
-    let is_directed = graph.is_directed();
 
     let coefficient = |node_id: &u64| -> (u64, Option<f64>) {
         let degree = adj.get(node_id).map_or(0, |neighbors| neighbors.len());
@@ -407,20 +410,96 @@ pub fn local_clustering_coefficient(graph: &Graph) -> FxHashMap<u64, Option<f64>
             return (*node_id, None);
         }
 
+        // triangles / C(d, 2)
         let triangles = triangle_counts.get(node_id).copied().unwrap_or(0) as f64;
         let pairs = (degree * (degree - 1)) as f64;
-
-        // Directed: triangles / (d * (d - 1)); undirected: triangles / C(d, 2)
-        let coeff = if is_directed {
-            triangles / pairs
-        } else {
-            2.0 * triangles / pairs
-        };
-        (*node_id, Some(coeff))
+        (*node_id, Some(2.0 * triangles / pairs))
     };
 
     // Parallelize for very large graphs
     // High threshold to avoid Rayon overhead on medium graphs
+    if n >= 10000 {
+        node_ids.par_iter().map(coefficient).collect()
+    } else {
+        node_ids.iter().map(coefficient).collect()
+    }
+}
+
+/// Count the values two sorted, deduplicated slices have in common
+fn count_common(a: &[u64], b: &[u64]) -> usize {
+    let (mut i, mut j, mut count) = (0, 0, 0);
+    while i < a.len() && j < b.len() {
+        match a[i].cmp(&b[j]) {
+            std::cmp::Ordering::Less => i += 1,
+            std::cmp::Ordering::Greater => j += 1,
+            std::cmp::Ordering::Equal => {
+                count += 1;
+                i += 1;
+                j += 1;
+            }
+        }
+    }
+    count
+}
+
+/// Fagiolo's (2007) directed clustering, the definition `networkx.clustering` uses
+///
+/// Arcs between v and two neighbors j and k, and between j and k, close a triangle whatever
+/// their directions, so all four triangle types count: T(v) = ((A + A^T)^3)_vv / 2. The
+/// most v could have is d_tot(d_tot - 1) - 2 d_recip, where d_tot is v's in-degree plus
+/// out-degree and d_recip the number of neighbors v links to in both directions, so
+/// C(v) = T(v) / (d_tot(d_tot - 1) - 2 d_recip), which lies in [0, 1].
+///
+/// Degrees count distinct neighbors other than the node itself (parallel arcs count once,
+/// self-loops not at all). Returns None for nodes with fewer than 2 distinct neighbors.
+fn local_clustering_directed(graph: &Graph) -> FxHashMap<u64, Option<f64>> {
+    use rayon::prelude::*;
+
+    let succ = simple_adjacency(graph);
+    let mut pred: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(succ.len(), Default::default());
+    for &u in succ.keys() {
+        pred.entry(u).or_default();
+    }
+    for (&u, targets) in succ.iter() {
+        for &v in targets {
+            pred.entry(v).or_default().push(u);
+        }
+    }
+    // Each source appears once per target, so sorting is all that's needed
+    for sources in pred.values_mut() {
+        sources.sort_unstable();
+    }
+
+    let empty: Vec<u64> = Vec::new();
+    let node_ids = graph.get_node_ids();
+    let n = node_ids.len();
+
+    let coefficient = |node_id: &u64| -> (u64, Option<f64>) {
+        let v_in = pred.get(node_id).unwrap_or(&empty);
+        let v_out = succ.get(node_id).unwrap_or(&empty);
+        let reciprocal = count_common(v_in, v_out);
+        if v_in.len() + v_out.len() - reciprocal < 2 {
+            return (*node_id, None);
+        }
+
+        // Twice T(v): each triangle is reached once from each of its two other corners
+        let mut closed = 0usize;
+        for j in v_in.iter().chain(v_out.iter()) {
+            let j_in = pred.get(j).unwrap_or(&empty);
+            let j_out = succ.get(j).unwrap_or(&empty);
+            closed += count_common(v_in, j_in)
+                + count_common(v_in, j_out)
+                + count_common(v_out, j_in)
+                + count_common(v_out, j_out);
+        }
+
+        // Positive whenever v has at least 2 distinct neighbors
+        let total = v_in.len() + v_out.len();
+        let possible = total * (total - 1) - 2 * reciprocal;
+        (*node_id, Some(closed as f64 / (2 * possible) as f64))
+    };
+
     if n >= 10000 {
         node_ids.par_iter().map(coefficient).collect()
     } else {
@@ -513,5 +592,22 @@ mod tests {
         let clustering = local_clustering_coefficient(&graph);
         assert!(clustering.get(&1).unwrap().is_some());
         assert!((clustering.get(&1).unwrap().unwrap() - 1.0).abs() < 1e-10);
+    }
+
+    #[test]
+    fn test_local_clustering_directed_feed_forward() {
+        // 1 -> 2, 2 -> 3, 1 -> 3: every node's two neighbors are linked
+        let mut graph = Graph::new_rust(true, false);
+        for id in 1..=3 {
+            graph.add_test_node_with_id(id);
+        }
+        graph.add_test_edge(1, 2, None);
+        graph.add_test_edge(2, 3, None);
+        graph.add_test_edge(1, 3, None);
+
+        let clustering = local_clustering_coefficient(&graph);
+        for id in 1..=3 {
+            assert!((clustering[&id].unwrap() - 0.5).abs() < 1e-12);
+        }
     }
 }
