@@ -50,7 +50,9 @@ pub fn dispersion(graph: &Graph, u: u64, v: u64, normalized: bool) -> PyResult<f
         return Ok(0.0);
     }
 
-    // Count pairs of common neighbors that are NOT connected and do NOT share neighbors
+    // Count pairs of common neighbors that are NOT connected and do NOT share neighbors.
+    // Distances are measured inside u's ego network (Backstrom and Kleinberg), so only
+    // neighbors of u count as shared neighbors.
     let mut total = 0;
     let n = common.len();
 
@@ -59,7 +61,7 @@ pub fn dispersion(graph: &Graph, u: u64, v: u64, normalized: bool) -> PyResult<f
         let s_nbrs: FxHashSet<u64> = graph
             .neighbors(s)?
             .into_iter()
-            .filter(|&n| n != u && n != v)
+            .filter(|&n| n != u && n != v && u_nbrs.contains(&n))
             .collect();
 
         for &t in &common[i + 1..n] {
