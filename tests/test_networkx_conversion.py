@@ -463,3 +463,140 @@ class TestErrorHandling:
         # Round trip
         G2 = from_networkx(nx_graph)
         assert G2.count_edges() == 1
+
+
+class TestReservedNamesAndRoundTrip:
+    """Attribute names that `add_node()`/`add_edge()` would take as arguments, and lossless
+    round trips."""
+
+    def test_node_attribute_named_label(self):
+        nx_graph = nx.Graph()
+        nx_graph.add_node("a", label="Alice", type="person", from_node="x", to_node="y")
+        nx_graph.add_node("b", label="Bob")
+        nx_graph.add_edge("a", "b")
+
+        G = from_networkx(nx_graph)
+
+        node = G.get_node(G.get_id_from_label("a"))
+        assert node.attributes == {
+            "label": "Alice",
+            "type": "person",
+            "from_node": "x",
+            "to_node": "y",
+        }
+        assert G.get_node(G.get_id_from_label("b")).attributes == {"label": "Bob"}
+        assert G.count_edges() == 1
+
+    def test_edge_attributes_named_like_add_edge_arguments(self):
+        nx_graph = nx.DiGraph()
+        nx_graph.add_edge("a", "b", source="s", target="t", rel="knows", auto_create_nodes=1)
+
+        G = from_networkx(nx_graph)
+
+        (edge_id,) = G.find_edge_ids("a", "b")
+        assert G.get_edge(edge_id).attributes == {
+            "source": "s",
+            "target": "t",
+            "rel": "knows",
+            "auto_create_nodes": 1,
+        }
+
+    def test_multigraph_round_trip_adds_no_edge_id_attribute(self):
+        G1 = Graph(directed=True)
+        G1.add_node("A")
+        G1.add_node("B")
+        G1.add_edge("A", "B", kind="x")
+        G1.add_edge("A", "B", kind="y")
+
+        G2 = from_networkx(to_networkx(G1, multigraph=True))
+
+        assert G2.count_edges() == 2
+        kinds = sorted(G2.get_edge(eid).attributes["kind"] for eid in G2.find_edge_ids("A", "B"))
+        assert kinds == ["x", "y"]
+        for eid in G2.find_edge_ids("A", "B"):
+            assert set(G2.get_edge(eid).attributes) == {"kind"}
+
+    def test_edge_attribute_named_key_in_multigraph(self):
+        G = Graph()
+        G.add_node("a")
+        G.add_node("b")
+        G.add_edge("a", "b", key="k1")
+
+        nx_graph = to_networkx(G, multigraph=True)
+
+        ((u, v, key, data),) = nx_graph.edges(keys=True, data=True)
+        assert {u, v} == {"a", "b"}
+        assert key == 1
+        assert data["key"] == "k1"
+
+    def test_undirected_parallel_edges_either_way_round_warn(self):
+        G = Graph(directed=False)
+        G.add_node("a")
+        G.add_node("b")
+        G.add_edge("a", "b")
+        G.add_edge("b", "a")
+
+        with pytest.warns(UserWarning, match="multiple edges"):
+            nx_graph = to_networkx(G)
+        assert nx_graph.number_of_edges() == 1
+
+    def test_nodes_with_the_same_str_raise(self):
+        nx_graph = nx.Graph()
+        nx_graph.add_node(1)
+        nx_graph.add_node("1")
+
+        with pytest.raises(ValueError, match="'1' is used by more than one node"):
+            from_networkx(nx_graph)
+
+    def test_non_numeric_weight_is_kept_as_attribute(self):
+        nx_graph = nx.Graph()
+        nx_graph.add_edge("a", "b", weight="heavy")
+
+        G = from_networkx(nx_graph)
+
+        assert not G.is_weighted()
+        (edge_id,) = G.find_edge_ids("a", "b")
+        assert G.get_edge(edge_id).attributes == {"weight": "heavy"}
+
+    def test_numpy_weights(self):
+        import numpy as np
+
+        nx_graph = nx.from_numpy_array(np.array([[0, 2], [2, 0]], dtype=np.int64))
+        G = from_networkx(nx_graph)
+
+        assert G.is_weighted()
+        assert G.get_edge_df()["weight"].to_list() == [2.0]
+
+    def test_graph_name_round_trips(self):
+        G1 = Graph(graph_name="flows")
+        G1.add_node("a")
+
+        nx_graph = to_networkx(G1)
+
+        assert nx_graph.graph["name"] == "flows"
+        assert from_networkx(nx_graph).get_graph_name() == "flows"
+
+    def test_built_as_a_single_step(self):
+        G = from_networkx(nx.path_graph(4))
+
+        assert len(G.steps) == 1
+
+    def test_unlabeled_node_whose_id_is_another_label(self):
+        G1 = Graph()
+        G1.add_node()  # ID 1, no label
+        G1.add_node(label="1")
+        G1.add_edge(1, 2)
+
+        nx_graph = to_networkx(G1)
+
+        assert sorted(map(str, nx_graph.nodes)) == ["1", "n1"]
+        G2 = from_networkx(nx_graph)
+        assert G2.count_nodes() == 2
+        assert G2.count_edges() == 1
+
+    def test_unlabeled_nodes_use_numeric_ids(self):
+        G = Graph()
+        G.add_node()
+        G.add_node(label="a")
+
+        assert list(to_networkx(G).nodes) == [1, "a"]
