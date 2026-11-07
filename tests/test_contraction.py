@@ -117,6 +117,21 @@ class TestContractNodes:
         with pytest.raises(ValueError, match="Node 99 does not exist"):
             g.contract_nodes(1, 99)
 
+    def test_parallel_edges_elsewhere_are_kept(self):
+        """Only edges at the merged node collapse; `c - d` twice used to become one edge."""
+        g = Graph().add_nodes(list("abcd"))
+        g.add_edges([("a", "b"), ("c", "d"), ("c", "d"), ("a", "c"), ("b", "b")])
+        result = g.contract_nodes("a", "b")
+        assert result.get_edges_str_repr(use_labels=True) == ["a--a", "c--d", "c--d", "a--c"]
+        assert result.get_edge_ids(limit=None) == [1, 2, 3, 4]
+
+    def test_directed_collapse_keeps_each_direction(self):
+        """On a directed graph, `a -> c` and `c -> a` are different pairs."""
+        g = Graph(directed=True).add_nodes(list("abc"))
+        g.add_edges([("a", "c"), ("b", "c"), ("c", "b"), ("c", "a"), ("b", "a"), ("a", "b")])
+        result = g.contract_nodes("a", "b")
+        assert result.get_edges_str_repr(use_labels=True) == ["a->c", "c->a", "a->a"]
+
 
 class TestContractedEdge:
     """Tests for contracted_edge method."""
