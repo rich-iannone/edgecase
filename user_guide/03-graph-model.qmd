@@ -1,0 +1,361 @@
+---
+title: The graph model
+guide-section: "Building graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A graph is a set of nodes joined by edges. That much is common to every graph library, but the
+details differ: how nodes are named, what data they can carry, whether edges have a direction or a
+weight, and whether two nodes can be joined more than once. This page describes how EdgeCase
+answers each of those questions. The conventions here apply to every other page of the guide, so
+it's worth reading before the rest.
+
+## Creating a graph
+
+A graph starts with the [`Graph`](../reference/Graph.qmd) constructor. With no arguments it makes an
+empty, undirected, unweighted graph:
+
+```{python}
+import edgecase as ec
+
+graph = ec.Graph()
+graph
+```
+
+Two arguments fix the kind of graph, and both are set once, at creation:
+
+- `directed=` decides whether each edge points from a source to a target (`True`) or simply joins
+  two nodes (`False`, the default).
+- `weighted=` decides whether algorithms take edge weights into account (`True`) or treat every
+  edge as having the same length (`False`, the default).
+
+A third argument, `graph_name=`, gives the graph a name that appears at the top of its summary and
+can be read back with [`get_graph_name()`](../reference/Graph.get_graph_name.qmd):
+
+```{python}
+roads = ec.Graph(directed=True, weighted=True, graph_name="Road network")
+roads.get_graph_name()
+```
+
+The constructor can also build a graph from Polars DataFrames of nodes and edges, which is covered
+in [Building graphs](04-building-graphs.qmd).
+
+## Nodes
+
+Every node in EdgeCase has three kinds of information:
+
+- an **ID**, a positive integer that identifies the node,
+- an optional **label**, a string name that you choose, and
+- any number of **attributes**, named values such as an age, a category, or a score.
+
+### IDs
+
+IDs are assigned by EdgeCase, never by you. The first node gets ID 1, the next ID 2, and so on, in
+the order nodes are added:
+
+```{python}
+graph = ec.Graph().add_node("Ada").add_node("Grace").add_node("Alan")
+graph.get_node_df()
+```
+
+An ID is never reused, even after its node is deleted. If Grace leaves and Katherine joins,
+Katherine gets ID 4, not 2:
+
+```{python}
+graph.delete_node("Grace").add_node("Katherine")
+graph.get_node_df()
+```
+
+This makes IDs stable: an ID stored in a variable, a result dictionary, or a selection keeps
+pointing at the same node (or at nothing) for the life of the graph.
+
+### Labels
+
+A label is a human-readable name, and labels are unique: adding a second node labelled `"Ada"`
+raises an error. Labels are always strings. A label given as another type is converted with
+`str()`, so a node added as `add_node(7)` is labelled `"7"`.
+
+Labels can be changed later with [`relabel_nodes()`](../reference/Graph.relabel_nodes.qmd), which
+takes a dictionary of new labels or a function to apply to every label. Relabelling leaves the IDs
+alone:
+
+```{python}
+graph.relabel_nodes(str.upper).get_node_df()
+```
+
+Labels are optional. A node added with no label at all is known only by its ID, and shows a `null`
+label in the node table:
+
+```{python}
+ec.Graph().add_node("named").add_node().get_node_df()
+```
+
+### Referring to nodes
+
+Wherever a method takes a node, it accepts either form: an `int` is read as an ID, and a `str` as
+a label. These two calls fetch the same node:
+
+```{python}
+graph.get_node(1)
+```
+
+```{python}
+graph.get_node("ADA")
+```
+
+The rule depends only on the Python type, never on the value. This matters for graphs whose labels
+look like numbers, which is common with data read from files. In the karate club dataset, the
+members are labelled `"0"` to `"33"` while their IDs run from 1 to 34, so the integer `1` and the
+string `"1"` are different members:
+
+```{python}
+karate = ec.karate_club()
+karate.get_node(1), karate.get_node("1")
+```
+
+When in doubt, convert between the two with
+[`get_id_from_label()`](../reference/Graph.get_id_from_label.qmd) and
+[`get_label_from_id()`](../reference/Graph.get_label_from_id.qmd):
+
+```{python}
+karate.get_id_from_label("33"), karate.get_label_from_id(34)
+```
+
+Methods that *return* nodes, such as `neighbors()` or `shortest_path()`, always return IDs, since
+every node has one and not every node has a label.
+
+### Types and attributes
+
+Any keyword argument to `add_node()` becomes an attribute of the node. One attribute is special:
+`type`, which classifies nodes into kinds, such as people and places. It always has its own column
+in the node table, Cypher queries read it as the node's label (as in `(p:Person)`), and many
+methods accept a type to filter on.
+
+```{python}
+town = (
+    ec.Graph()
+    .add_node("Mia", type="person", age=34)
+    .add_node("Leo", type="person", age=29, occupation="baker")
+    .add_node("Oakdale", type="place", population=12400)
+)
+town.get_node_df()
+```
+
+Each attribute becomes a column. A node that lacks an attribute has `null` in that column, as Leo
+is the only one with an occupation. Attribute values can be any Python object, including lists and
+dictionaries, though plain numbers, strings, and booleans make the most useful columns.
+
+`get_node()` returns a `Node` object with all of one node's information:
+
+```{python}
+leo = town.get_node("Leo")
+leo.id, leo.label, leo.attributes
+```
+
+To read one attribute across many nodes, use
+[`get_node_attrs()`](../reference/Graph.get_node_attrs.qmd). It returns a dictionary keyed by node
+ID, and leaves out nodes that don't have the attribute:
+
+```{python}
+town.get_node_attrs("age")
+```
+
+[Node and edge data](07-node-and-edge-data.qmd) covers setting, reading, and transforming
+attributes in detail.
+
+## Edges
+
+An edge joins a **source** node to a **target** node. Like nodes, edges get sequential integer IDs,
+starting at 1. Each edge can also have:
+
+- a **relationship type**, `rel`, the edge counterpart of a node's `type` (such as `"knows"` or
+  `"lives_in"`),
+- a **weight**, a number that weighted algorithms read as the edge's length, cost, or capacity,
+  and
+- any number of other attributes.
+
+```{python}
+town = (
+    town
+    .add_edge("Mia", "Leo", rel="knows", since=2015)
+    .add_edge("Mia", "Oakdale", rel="lives_in")
+    .add_edge("Leo", "Oakdale", rel="lives_in")
+)
+town.get_edge_df()
+```
+
+The `source` and `target` columns hold node IDs. `get_edge()` takes an edge ID and returns an
+`Edge` object, and [`find_edge_ids()`](../reference/Graph.find_edge_ids.qmd) finds the IDs of the
+edges between two nodes:
+
+```{python}
+edge = town.get_edge(1)
+edge.source, edge.target, edge.attributes
+```
+
+```{python}
+town.find_edge_ids("Leo", "Oakdale")
+```
+
+### Directed and undirected graphs
+
+In an undirected graph, an edge joins its two nodes symmetrically: it can be traversed either way,
+and both endpoints count it among their neighbors. The `source` and `target` columns just record
+the order in which the endpoints were given.
+
+In a directed graph, an edge runs one way only. Methods that follow edges go from source to target,
+and many methods take a `mode=` or `direction=` argument to choose between outgoing edges,
+incoming edges, or both. Here a small directed graph shows the difference with
+[`neighbors()`](../reference/Graph.neighbors.qmd):
+
+```{python}
+follows = (
+    ec.Graph(directed=True)
+    .add_nodes(["ana", "ben", "cy"])
+    .add_edges([("ana", "ben"), ("cy", "ana")])
+)
+
+follows.neighbors("ana"), follows.neighbors("ana", mode="in"), follows.neighbors("ana", mode="all")
+```
+
+Ana follows Ben (ID 2) and is followed by Cy (ID 3). The `mode="all"` list includes both.
+
+The summary of a directed graph reports strong and weak connectivity separately, since a directed
+graph can be connected as a network of roads yet impossible to traverse along its one-way streets:
+
+```{python}
+follows
+```
+
+### Weighted graphs
+
+An edge can always be given a weight, but whether algorithms *use* weights depends on the graph's
+`weighted=` setting. Here are two graphs with the same three edges: a direct route from A to C of
+length 10, and a detour through B of total length 6:
+
+```{python}
+edges = [("A", "B", 5.0), ("B", "C", 1.0), ("A", "C", 10.0)]
+
+hops = ec.Graph(weighted=False).add_edges(edges, auto_create_nodes=True)
+costs = ec.Graph(weighted=True).add_edges(edges, auto_create_nodes=True)
+
+hops.shortest_path_length("A", "C"), costs.shortest_path_length("A", "C")
+```
+
+The unweighted graph counts hops, so the direct edge wins with a length of 1. The weighted graph
+adds up weights, so the detour wins with a length of 6.0. Both graphs store the same weights,
+which appear in the edge table either way; `weighted=` only decides what algorithms do with them.
+Check the setting with [`is_weighted()`](../reference/Graph.is_weighted.qmd).
+
+In a weighted graph, an edge without a weight counts as having weight 1.
+
+### Parallel edges and self-loops
+
+EdgeCase allows any number of edges between the same two nodes (*parallel edges*) and edges from a
+node to itself (*self-loops*), so every graph can be a multigraph. Each edge has its own ID and its
+own attributes, which suits data such as repeated transactions between accounts or several kinds of
+relationship between two people:
+
+```{python}
+payments = (
+    ec.Graph(directed=True)
+    .add_nodes(["acct_1", "acct_2"])
+    .add_edge("acct_1", "acct_2", amount=250)
+    .add_edge("acct_1", "acct_2", amount=75)
+    .add_edge("acct_2", "acct_2", amount=10)
+)
+payments.get_edge_df()
+```
+
+[`is_simple()`](../reference/Graph.is_simple.qmd) reports whether a graph has no parallel edges or
+self-loops, and several methods count them:
+
+```{python}
+payments.is_simple(), payments.count_multi_edges(), payments.count_all_loops()
+```
+
+The graph isn't simple: it has one pair of nodes joined by more than one edge, and one self-loop.
+
+To collapse a multigraph into a simple graph, use `simplify()`, `remove_duplicate_edges()`, or
+`remove_selfloops()`, all described in [Building graphs](04-building-graphs.qmd#cleaning-up).
+Some algorithms are defined only for simple graphs, and their reference pages say so.
+
+## The graph summary
+
+Printing a graph shows the summary produced by
+[`describe()`](../reference/Graph.describe.qmd). It reports the basic shape of the graph, and once
+computations have been run, which attributes hold their results:
+
+```{python}
+ec.les_miserables().betweenness_centrality()
+```
+
+The fields are:
+
+| Field | Meaning |
+|---|---|
+| Number of nodes, edges | the size of the graph |
+| Directed | whether edges have a direction |
+| Density | the fraction of possible edges that are present |
+| Average degree (min, max) | the mean number of edges per node, and its range |
+| Connected, components | whether every node can reach every other, and how many pieces there are |
+| Tree | whether the graph is connected and has no cycles |
+| Bipartite | whether the nodes split into two groups with edges only between them |
+| Computations | the methods whose results are stored, the attributes they wrote, and their coverage |
+
+For a directed graph, connectivity is reported as both strong and weak. The individual values are
+also available from methods such as `count_nodes()`, `get_density()`, and `is_connected()`,
+described in [Structure and properties](11-structure.qmd).
+
+## Methods modify the graph in place
+
+Methods that add, remove, or annotate nodes and edges change the graph they are called on, and
+return that same graph so that calls can be chained. Assigning the result is therefore optional:
+
+```{python}
+g = ec.Graph().add_nodes(["A", "B"])
+same = g.add_edge("A", "B")
+same is g
+```
+
+Methods that build a *different* graph, such as `subgraph()`, `reverse()`, `complement()`, or
+`to_directed()`, return a new graph and leave the original alone. The simplest way to take an
+independent copy of a graph is a subgraph of all its nodes, which keeps every ID, label,
+attribute, and edge. Since `get_node_ids()` returns at most 1,000 IDs by default, pass
+`limit=None` to be sure of getting them all:
+
+```{python}
+copy = g.subgraph(g.get_node_ids(limit=None))
+copy.add_node("C")
+
+g.count_nodes(), copy.count_nodes()
+```
+
+## Errors
+
+Referring to a node or edge that doesn't exist raises a `NodeNotFoundError` or an
+`EdgeNotFoundError`. Both are subclasses of `ValueError` and of `KeyError`, so existing code that
+catches either keeps working:
+
+```{python}
+try:
+    town.get_node("Zoe")
+except ec.NodeNotFoundError as err:
+    print(f"{type(err).__name__}: {err}")
+```
+
+To test for a node without raising, use [`has_node()`](../reference/Graph.has_node.qmd):
+
+```{python}
+town.has_node("Mia"), town.has_node("Zoe")
+```
+
+Other invalid arguments, such as an unknown `mode=` or a negative edge weight passed to an
+algorithm that forbids them, raise a `ValueError` whose message says what was expected.
