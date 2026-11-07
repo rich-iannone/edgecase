@@ -86,16 +86,28 @@ class TestNodeDataFrameStructure:
         assert types[1] is None
 
     def test_empty_graph_structure(self):
-        """Test that empty graph returns empty DataFrame."""
+        """An empty graph gives no rows but the mandatory columns."""
         g = ec.Graph()
         df = g.get_node_df()
 
-        # Empty graph returns empty DataFrame with no columns
         assert len(df) == 0
-        # When nodes are added, structure will be correct
+        schema = {"id": pl.Int64, "label": pl.String, "type": pl.Null, "degree": pl.Int64}
+        assert df.schema == schema
+        assert g.get_node_df_ws().columns == df.columns
         g.add_node()
         df = g.get_node_df()
         assert list(df.columns[:3]) == ["id", "label", "type"]
+
+    def test_empty_edge_df_structure(self):
+        """No edges gives no rows but the mandatory columns, plus `weight` when weighted."""
+        g = ec.Graph().add_nodes(["A", "B"])
+        assert g.get_edge_df().columns == ["id", "source", "target", "rel"]
+        assert g.get_edge_df().select("source", "target").height == 0
+        assert g.get_edge_df_ws().columns == ["id", "source", "target", "rel"]
+        w = ec.Graph(weighted=True).add_nodes(["A", "B"])
+        assert w.get_edge_df().schema["weight"] == pl.Float64
+        # a subgraph with no nodes keeps the columns too
+        assert ec.Graph().add_path_graph(4).k_core(5).get_node_df().columns[0] == "id"
 
 
 class TestAddNodeWithType:
