@@ -1,0 +1,503 @@
+---
+title: Spreading and robustness
+guide-section: "Specialized topics"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Many of the questions asked about networks concern something that moves through them. An
+infection passes from person to person along their contacts, a rumor or a new product spreads
+through a social network, and a failure in a power grid or a supply chain travels from one
+component to the next. Closely related are questions about how a network holds together when
+parts of it are lost: when servers fail, when roads close, or when people are vaccinated and
+so removed from the chains of transmission.
+
+The two kinds of question share their mathematics. Whether an outbreak can become an epidemic is
+decided by whether the contacts that actually transmit form a large connected cluster, and whether
+a network survives a loss of nodes is decided by whether the surviving nodes do. Both are questions
+of *percolation*, the theory of when random removals break a network apart. This page simulates
+epidemics on networks, uses percolation to explain their thresholds, compares strategies for
+immunization and for choosing influential spreaders, and measures the robustness of networks to
+failures and attacks.
+
+## Two networks
+
+The structure of a network shapes everything that spreads on it, and the most important single
+feature is the spread of its degrees. Two networks of the same size and density show this. The first
+is grown by preferential attachment, in which new nodes link to well-connected ones, so that a few
+nodes become hubs; the second is a random graph, in which every pair of nodes is equally likely to
+be linked (see [Generating graphs](05-generators.qmd)):
+
+```{python}
+import edgecase as ec
+import numpy as np
+import polars as pl
+
+n = 2000
+hubs = ec.Graph(graph_name="hubs").add_pa_graph(n, m=2, seed=1)
+flat = ec.Graph(graph_name="random").add_gnm_graph(n, hubs.count_edges(), seed=1)
+networks = {"hubs": hubs, "random": flat}
+
+pl.DataFrame(
+    [
+        {
+            "network": name,
+            "edges": graph.count_edges(),
+            "mean_degree": graph.get_node_df()["degree"].mean(),
+            "max_degree": graph.get_node_df()["degree"].max(),
+            "mean_squared_degree": (graph.get_node_df()["degree"] ** 2).mean(),
+        }
+        for name, graph in networks.items()
+    ]
+)
+```
+
+Both networks have 2,000 nodes, 3,997 edges, and a mean degree of 4. In the random graph, no node
+has more than 12 neighbors, while the largest hub of the other network has 103. The mean of the
+squared degrees, 45 against 20, measures this difference, and it is the quantity that the theory of
+spreading turns on.
+
+## Simulating an epidemic
+
+The classic model of an epidemic is the SIR model, in which every person is *susceptible*,
+*infected*, or *recovered*. Infected people pass the infection to each of their susceptible
+contacts with some probability, and after a while recover, becoming immune. On a network, the
+contacts are the edges. In the simplest discrete-time version, each infected node has a single
+step in which to infect each susceptible neighbor, with probability `beta`, and then recovers. A
+simulation needs only the neighbors of each node, from
+[`neighbors()`](../reference/Graph.neighbors.qmd), and a random number generator:
+
+```{python}
+def simulate_sir(graph, source, beta, rng):
+    neighbors = {node: graph.neighbors(node) for node in graph.get_node_df()["id"]}
+    infected, recovered = {source}, set()
+    curve = [1]
+    while infected:
+        new = {
+            other
+            for node in infected
+            for other in neighbors[node]
+            if other not in infected and other not in recovered and rng.random() < beta
+        }
+        recovered |= infected
+        infected = new
+        curve.append(len(infected))
+    return curve
+```
+
+The function returns the *epidemic curve*: the number of infected nodes at each step, from the
+first case until the infection dies out. The total number ever infected is the sum of the curve.
+A single run on the network with hubs, from a randomly chosen first case and with a transmission
+probability of 0.3:
+
+```{python}
+rng = np.random.default_rng(1)
+source = int(rng.integers(1, n + 1))
+curve = simulate_sir(hubs, source, 0.3, rng)
+sum(curve), curve
+```
+
+The infection lingers at one or two cases for seven steps, then takes off, peaks at step 13 with 156
+nodes infected at once, and burns out after 23 steps, having reached 918 nodes, almost half of the
+network. Epidemics on networks are random, though, and a single run says little. Two hundred runs on
+each network, each from a random first case, give a picture of the typical outbreak:
+
+```{python}
+rows = []
+for name, graph in networks.items():
+    rng = np.random.default_rng(2)
+    for run in range(200):
+        curve = simulate_sir(graph, int(rng.integers(1, n + 1)), 0.3, rng)
+        rows.append(
+            {
+                "network": name,
+                "size": sum(curve),
+                "peak_step": int(np.argmax(curve)),
+                "duration": len(curve) - 1,
+            }
+        )
+outbreaks = pl.DataFrame(rows)
+
+outbreaks.group_by("network").agg(
+    major=(pl.col("size") > 100).mean(),
+    attack_rate=pl.col("size").filter(pl.col("size") > 100).mean() / n,
+    peak_step=pl.col("peak_step").filter(pl.col("size") > 100).median(),
+    duration=pl.col("duration").filter(pl.col("size") > 100).median(),
+).sort("network")
+```
+
+Outbreaks fall into two kinds: most either die out after a handful of cases or grow into a *major
+outbreak* that reaches a large share of the network, with little in between. The threshold of 100
+cases separates the two. The table shows how often a major outbreak occurs, the *attack rate*, the
+share of the network that a major outbreak infects, and the median step of its peak and its
+duration.
+
+The hubs make a large difference. On the network with hubs, a major outbreak is more likely, 42%
+against 33% of first cases, and it reaches more of the network, 43% against 31%. It also peaks and
+ends much sooner: once the infection reaches a hub, the hub passes it to dozens of others at once,
+and the hubs, being linked to each other, carry it quickly across the whole network. On the random
+graph, the infection advances slowly, from neighbor to neighbor, and takes more than twice as long
+to run its course.
+
+## Outbreaks as percolation
+
+In this model, each edge gets a single chance to transmit, with probability `beta`, whatever
+happens elsewhere. Whether an edge would transmit can therefore be decided in advance, for all the
+edges at once, and the outbreak from a first case is then simply the set of nodes it can reach along
+the transmitting edges. Keeping each edge with probability `beta` is *bond percolation*, which
+[`edge_percolation()`](../reference/Graph.edge_percolation.qmd) performs. Its `q=` is the share of
+edges to remove, so `q=1 - beta` keeps the share `beta`. The outbreak from a node is its connected
+component in the result, from
+[`node_connected_component()`](../reference/Graph.node_connected_component.qmd):
+
+```{python}
+rng = np.random.default_rng(3)
+sizes = []
+for run in range(200):
+    transmitting = hubs.edge_percolation(q=0.7, seed=run)
+    sizes.append(len(transmitting.node_connected_component(int(rng.integers(1, n + 1)))))
+
+round(np.mean(sizes)), round(outbreaks.filter(pl.col("network") == "hubs")["size"].mean())
+```
+
+The mean outbreak size from percolation agrees with that of the simulation, up to the noise of 200
+runs each. The equivalence explains why outbreaks are either small or large. A percolated network
+has, at most, one large connected cluster, the *giant component*, and many small ones. A first case
+in a small cluster produces a small outbreak, and a first case in the giant component infects all
+of it. The size of the giant component is the attack rate of a major outbreak, and the share of the
+nodes in it is the chance that one occurs, which is why the two columns of the simulation's table
+were so close to each other.
+
+The equivalence holds whenever each contact transmits independently with a fixed probability, the
+*transmissibility* `T`. In a model in which infected nodes stay infectious for several steps, each
+with transmission probability `beta`, the transmissibility is the chance of at least one
+transmission over the whole infectious period, such as `1 - (1 - beta) ** 3` for three steps.
+
+### The epidemic threshold
+
+The giant component of a percolated network exists only when enough edges are kept, so an epidemic
+is possible only when the transmissibility is above a *threshold*. For a network with random
+wiring, the theory of percolation gives the threshold from the degrees alone:
+`T_c = <k> / (<k²> - <k>)`, where `<k>` is the mean degree and `<k²>` the mean squared degree.
+For the two networks:
+
+```{python}
+thresholds = {}
+for name, graph in networks.items():
+    degree = graph.get_node_df()["degree"]
+    thresholds[name] = round(degree.mean() / ((degree**2).mean() - degree.mean()), 3)
+thresholds
+```
+
+The random graph needs a transmissibility of 0.25 for an epidemic, while the network with hubs
+needs less than 0.1. The larger the mean squared degree, the lower the threshold: a hub is both
+very likely to be infected, since it has so many neighbors, and very likely to pass the infection
+on. For networks whose degrees follow a power law with an exponent of 3 or less, such as many
+social and technological networks, `<k²>` grows without limit as the network grows, and the
+threshold falls toward zero, so that even a barely transmissible infection can spread.
+
+The size of the giant component over a range of transmissibilities shows the threshold in action.
+[`largest_component_size()`](../reference/Graph.largest_component_size.qmd) gives the size of the
+largest component, averaged here over twenty percolated copies of each network:
+
+```{python}
+def attack_rate(graph, transmissibility, runs=20):
+    sizes = [
+        graph.edge_percolation(q=1 - transmissibility, seed=run).largest_component_size()
+        for run in range(runs)
+    ]
+    return round(float(np.mean(sizes)) / n, 3)
+
+
+pl.DataFrame(
+    [
+        {"T": t} | {name: attack_rate(graph, t) for name, graph in networks.items()}
+        for t in [0.05, 0.1, 0.15, 0.2, 0.25, 0.3, 0.4, 0.5, 0.7]
+    ]
+)
+```
+
+The random graph has no epidemic below a transmissibility of about 0.25, and a sharp rise above
+it. The network with hubs has a small giant component already at 0.15 and a gradual rise, with no
+sharp threshold. At 0.4 and 0.5, the order reverses, and the random graph's epidemics are slightly
+larger: the many nodes of the network with hubs that have only two contacts each are easily
+missed. Hubs make epidemics easier to start, not necessarily larger, and at high transmissibility
+both networks are almost entirely infected.
+
+Other models have thresholds of their own. In the SIS model, in which recovered nodes become
+susceptible again, as with many bacterial infections, the infection persists when the ratio of the
+infection and recovery rates exceeds about `1 / λ`, where `λ` is the largest eigenvalue of the
+adjacency matrix, which [Other libraries](28-other-libraries.qmd#sparse-matrices) computes with
+SciPy. Hubs raise the largest eigenvalue, and lower the threshold, in the same way.
+
+## Immunization
+
+Vaccinating a node removes it from every chain of transmission, as if it had been deleted from the
+network, so immunization is node percolation: the question is how few nodes need to be removed for
+the giant component of transmitting contacts to vanish. The choice of whom to immunize matters as
+much as the number. Three strategies with the same number of doses compare as follows:
+
+- **Random** immunization picks nodes at random, which is what a campaign without information about
+  the network does.
+- **Targeted** immunization picks the nodes of highest degree, which requires knowing the whole
+  network.
+- **Acquaintance** immunization picks random nodes and immunizes a random *neighbor* of each. Since
+  a node with many neighbors is named as a neighbor often, this finds hubs without knowledge of the
+  network, only of a few contacts of each person asked.
+
+Each strategy returns a list of node IDs, and the immunized network is the
+[`subgraph()`](../reference/Graph.subgraph.qmd) of the remaining nodes. Its attack rate at a
+transmissibility of 0.3 comes from percolation, as before, and is measured as a share of the
+whole population:
+
+```{python}
+def immunize(graph, doses, strategy, rng):
+    nodes = graph.get_node_df()
+    ids = nodes["id"].to_list()
+    if strategy == "random":
+        return rng.choice(ids, doses, replace=False).tolist()
+    if strategy == "targeted":
+        return nodes.sort("degree", descending=True)["id"].head(doses).to_list()
+    chosen = set()
+    while len(chosen) < doses:
+        contacts = graph.neighbors(int(rng.choice(ids)))
+        if contacts:
+            chosen.add(int(rng.choice(contacts)))
+    return list(chosen)
+
+
+rows = []
+for name, graph in networks.items():
+    rng = np.random.default_rng(4)
+    for share in [0.05, 0.1, 0.2]:
+        row = {"network": name, "immunized": share}
+        for strategy in ["random", "targeted", "acquaintance"]:
+            immune = set(immunize(graph, int(share * n), strategy, rng))
+            remaining = graph.subgraph([v for v in graph.get_node_df()["id"] if v not in immune])
+            row[strategy] = attack_rate(remaining, 0.3)
+        rows.append(row)
+pl.DataFrame(rows)
+```
+
+Without immunization, an epidemic at this transmissibility reaches 43% of the network with hubs and
+31% of the random graph. Random immunization helps only in proportion to the doses: immunizing a
+tenth of the network with hubs at random lowers the attack rate only from 43% to 33%. Targeting the
+hubs is far more effective. Immunizing the best-connected 5% all but eliminates the epidemic, since
+the hubs are the bridges through which it reaches most of the network. Acquaintance immunization,
+without any knowledge of the network's structure, comes close: with a tenth of the network
+immunized, the epidemic shrinks to about 4%.
+
+On the random graph, every strategy works less dramatically, since there are no hubs to find, but
+targeting the nodes of highest degree is still the most effective. The lesson is general: the
+nodes that make a network vulnerable to spreading are also the ones whose removal protects it.
+
+## Influential spreaders
+
+The reverse problem arises when spreading is wanted, as with information, a public-health message,
+or a new product: which few nodes should be chosen as *seeds*, to reach as much of the network as
+possible? The usual model is the *independent cascade*, the same model as the epidemic above: each
+newly activated node has one chance to activate each of its neighbors, with probability `p`.
+
+The obvious choice, the nodes of highest degree, has a flaw: hubs tend to sit close together, and
+seeds in the same region reach the same nodes. Two methods take the overlap into account.
+[`voterank()`](../reference/Graph.voterank.qmd), described in
+[Centrality](13-centrality.qmd#spreaders), elects seeds one at a time and weakens the votes of each
+winner's neighbors, so that later seeds lie elsewhere.
+[`influence_maximization()`](../reference/Graph.influence_maximization.qmd) chooses seeds greedily,
+simulating cascades to find, at each step, the node that adds the most to the expected spread of
+the seeds already chosen. On the dolphin social network, with five seeds and an activation
+probability of 0.2:
+
+```{python}
+dolphins = ec.dolphins()
+dolphins.cmty_louvain()
+nodes = dolphins.get_node_df()
+
+seed_sets = {
+    "degree": nodes.sort("degree", descending=True)["id"].head(5).to_list(),
+    "voterank": dolphins.voterank(count=5),
+    "greedy": [
+        node
+        for node, gain in dolphins.influence_maximization(
+            5, probability=0.2, n_simulations=500, seed=1, return_dict=True
+        )
+    ],
+}
+seed_sets
+```
+
+`influence_maximization()` returns each chosen node with its *marginal gain*, the estimated number
+of additional nodes it reaches, and its `n_simulations=` sets the number of simulated cascades for
+each estimate. The greedy search runs about `k * n_nodes * n_simulations` cascades, so it takes a
+fraction of a second on a network of this size but tens of seconds on one of a few thousand nodes.
+
+To compare the seed sets fairly, each is evaluated on the same percolated copies of the network.
+The spread of a set of seeds in one copy is the union of their components, and its mean over many
+copies is the expected spread:
+
+```{python}
+def expected_spread(graph, seeds, p, runs=2000):
+    total = 0
+    for run in range(runs):
+        transmitting = graph.edge_percolation(q=1 - p, seed=run)
+        reached = set()
+        for node in seeds:
+            if node not in reached:
+                reached |= transmitting.node_connected_component(node)
+        total += len(reached)
+    return round(total / runs, 1)
+
+
+spreads = {name: expected_spread(dolphins, seeds, 0.2) for name, seeds in seed_sets.items()}
+
+rng = np.random.default_rng(5)
+random_sets = [rng.choice(nodes["id"].to_list(), 5, replace=False).tolist() for _ in range(20)]
+spreads["random"] = round(np.mean([expected_spread(dolphins, s, 0.2, 200) for s in random_sets]), 1)
+spreads
+```
+
+`rng.choice()` returns NumPy integers, and `tolist()` turns them into the Python integers that
+EdgeCase accepts as node IDs. The random baseline averages twenty random seed sets.
+
+The five best-connected dolphins reach about 20 of the 62, fewer than five dolphins chosen at
+random, which reach about 21. VoteRank and the greedy search both reach about 26, a quarter more
+than the hubs. The reason is visible when the seeds are drawn on the network, colored by the
+communities that [Louvain](../reference/Graph.cmty_louvain.qmd) finds:
+
+```{python}
+marks = {
+    node: ("D" if node in seed_sets["degree"] else "")
+    + ("V" if node in seed_sets["voterank"] else "")
+    for node in nodes["id"]
+}
+dolphins.set_node_attrs("seed", marks)
+dolphins.plot(color_by="cmty_louvain", palette="Set2", label_by="seed", seed=3)
+```
+
+Nodes labelled `D` are among the five of highest degree, nodes labelled `V` were chosen by VoteRank,
+and nodes labelled `DV` by both. Three of the five hubs lie in the same community, in teal, and the
+other two in the neighboring orange community, so their cascades overlap. VoteRank keeps two of the
+hubs but places two of its seeds in the blue community at the lower right, which none of the hubs
+belong to. Its seeds lie in three communities, and those of the greedy search in four. The greedy
+search reaches a similar spread with different seeds on different runs, since many seed sets do
+almost equally well; its result is an estimate, and different values of `seed=` can give different
+choices. The best seeds also depend on `p`: at low probabilities cascades stay local and high degree
+matters most, while at high probabilities the seeds' positions in different parts of the network
+matter more.
+
+For a single spreader rather than a set, the *coreness* of a node from
+[`coreness()`](../reference/Graph.coreness.qmd), its depth in the k-core decomposition (see
+[Structure](11-structure.qmd)), is a good predictor of its reach, often better than its degree,
+since a hub on the periphery of a network spreads less than a node in its dense core.
+
+## Robustness
+
+[Connectivity](16-connectivity.qmd#robustness) introduced
+[`network_robustness()`](../reference/Graph.network_robustness.qmd), which removes nodes one at a
+time, in random order or in order of degree or betweenness, and records the share of the original
+nodes that remain in the largest component. The whole curve can be summarized by its mean, the
+*robustness index* `R` of Schneider and colleagues, which is the area under the curve. It is close
+to 0.5 for a network that shrinks only as fast as its nodes are removed, and close to 0 for one that
+falls apart after the first few removals:
+
+```{python}
+def robustness_index(graph, strategy):
+    curve = graph.network_robustness(strategy=strategy, seed=1, return_dict=True)
+    return round(float(np.mean([share for removed, share in curve])), 3)
+
+
+strategies = ["random", "degree", "betweenness"]
+pl.DataFrame(
+    [
+        {"network": name} | {strategy: robustness_index(graph, strategy) for strategy in strategies}
+        for name, graph in networks.items()
+    ]
+)
+```
+
+Under random failure, the two networks are about equally robust. Under an attack on the
+best-connected nodes, the network with hubs is more than twice as fragile as the random graph. The
+removal order is fixed from the intact network, by degree or by betweenness computed once, as in
+most studies of attacks; an attacker who recomputes the degrees after every removal does only
+slightly more damage here.
+
+### The threshold of random failure
+
+The theory of percolation also predicts how much random failure a network survives. For a network
+with random wiring, the giant component survives the removal of a share of nodes `f` as long as
+`f < 1 - 1 / (κ - 1)`, where `κ = <k²> / <k>` is the ratio of the mean squared degree to the mean
+degree. For the two networks:
+
+```{python}
+critical = {}
+for name, graph in networks.items():
+    degree = graph.get_node_df()["degree"]
+    kappa = (degree**2).mean() / degree.mean()
+    critical[name] = round(1 - 1 / (kappa - 1), 2)
+critical
+```
+
+The random graph should break up when about three quarters of its nodes have failed, and the
+network with hubs only when nine tenths have.
+[`node_percolation()`](../reference/Graph.node_percolation.qmd) removes a share `q=` of the nodes
+at random, which tests the prediction:
+
+```{python}
+def giant_share(graph, removed, runs=20):
+    sizes = [
+        graph.node_percolation(q=removed, seed=run).largest_component_size()
+        for run in range(runs)
+    ]
+    return round(float(np.mean(sizes)) / n, 3)
+
+
+pl.DataFrame(
+    [
+        {"removed": f} | {name: giant_share(graph, f) for name, graph in networks.items()}
+        for f in [0.5, 0.6, 0.7, 0.75, 0.8, 0.85, 0.9]
+    ]
+)
+```
+
+The random graph's giant component has all but vanished at three quarters of its nodes removed,
+holding under 3% of the network, as the prediction says. The network with hubs has no sharp
+collapse: its giant component fades gradually, and some of it survives beyond the point where the
+random graph has broken up. For networks whose degrees follow a power law, the theory predicts that
+the threshold approaches 1 as the network grows, so that no amount of random failure breaks up a
+large enough network. A network of 2,000 nodes is far from that limit, and the effect is modest, but
+it is the same effect that makes the Internet robust to the failure of random routers, while its
+hubs make it fragile to attack.
+
+[`percolation_threshold_analysis()`](../reference/Graph.percolation_threshold_analysis.qmd) runs
+the same sweep in a single call, averaging over `trials=` random removals at each of `steps=`
+evenly spaced shares. It reports the largest component as a share of the *surviving* nodes rather
+than of all of them, which shows how well the survivors hold together (see
+[Connectivity](16-connectivity.qmd#robustness)).
+
+### Robustness and spreading
+
+Random edge failure is bond percolation, the same process that decides the size of an epidemic. A
+network whose giant component survives the loss of most of its edges is also one in which an
+infection with low transmissibility can still spread, and the threshold `T_c` computed above is also
+the share of edges that must survive random failure for a giant component to remain. The two views
+lead to one conclusion: the hubs of a heterogeneous network hold it together against random failure
+and carry epidemics across it, and they are its weak point when they are attacked, or protected.
+
+## Summary
+
+| Task | Approach |
+|---|---|
+| Simulate an epidemic and its curve | an SIR loop over `neighbors()`, with a random number generator |
+| Sizes of outbreaks without simulation | `edge_percolation(q=1 - T)` and `node_connected_component()` |
+| Epidemic threshold and attack rate | `<k> / (<k²> - <k>)`, and `largest_component_size()` of percolated copies |
+| Effect of immunization | `subgraph()` of the remaining nodes, then the attack rate |
+| Choose a set of spreaders | `influence_maximization()`, `voterank()` |
+| Rank single spreaders | `coreness()`, `degree`, `percolation_centrality()` |
+| Robustness to failure and attack | `network_robustness(strategy=)`, with its mean as the index `R` |
+| Random failure | `node_percolation()`, `edge_percolation()`, `percolation_threshold_analysis()` |
