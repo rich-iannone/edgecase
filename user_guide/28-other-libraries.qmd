@@ -1,0 +1,417 @@
+---
+title: Other libraries
+guide-section: "Interoperability"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+EdgeCase covers a broad range of graph analysis, but it is rarely the only library in a project.
+The data may arrive as a NumPy matrix or a pandas data frame, a colleague's code may build NetworkX
+graphs, and a particular algorithm may exist only in igraph. EdgeCase converts graphs to and from
+the objects of these libraries directly in memory, without a file in between, so each library can
+be used for what it does best.
+
+| Library | To EdgeCase | From EdgeCase | Object |
+|---|---|---|---|
+| NetworkX | [`from_networkx()`](../reference/from_networkx.qmd) | [`to_networkx()`](../reference/to_networkx.qmd) | `Graph`, `DiGraph`, `MultiGraph`, `MultiDiGraph` |
+| igraph | [`from_igraph()`](../reference/from_igraph.qmd) | [`to_igraph()`](../reference/to_igraph.qmd) | `igraph.Graph` |
+| NumPy | [`from_numpy_array()`](../reference/from_numpy_array.qmd) | [`to_numpy_array()`](../reference/to_numpy_array.qmd) | a dense adjacency matrix |
+| SciPy | [`from_scipy_sparse_array()`](../reference/from_scipy_sparse_array.qmd) | [`to_scipy_sparse_array()`](../reference/to_scipy_sparse_array.qmd) | a sparse adjacency matrix |
+| pandas | [`from_pandas_edgelist()`](../reference/from_pandas_edgelist.qmd), [`from_pandas_adjacency()`](../reference/from_pandas_adjacency.qmd) | [`to_pandas_edgelist()`](../reference/to_pandas_edgelist.qmd), [`to_pandas_adjacency()`](../reference/to_pandas_adjacency.qmd) | an edge list or an adjacency data frame |
+| two-mode data | [`from_biadjacency_matrix()`](../reference/from_biadjacency_matrix.qmd) | [`biadjacency_matrix()`](../reference/Graph.biadjacency_matrix.qmd) | a rows-by-columns matrix |
+
+These libraries are optional dependencies, imported only when a conversion needs them (see
+[Installation](01-installation.qmd)). The conversions follow the conventions of NetworkX wherever
+there is one, so code written for NetworkX's functions of the same names carries over.
+
+## NetworkX
+
+[NetworkX](https://networkx.org) is the most widely used graph library in Python, and a great deal
+of existing code, teaching material, and research software is written for it.
+[`to_networkx()`](../reference/to_networkx.qmd) converts an EdgeCase graph to a NetworkX graph:
+
+```{python}
+import edgecase as ec
+import networkx as nx
+import polars as pl
+
+lab = ec.Graph(weighted=True)
+lab.add_node("Ada", type="faculty", since=2009)
+lab.add_node("Bo", type="postdoc", since=2021)
+lab.add_node("Cleo", type="student", since=2022)
+lab.add_edge("Ada", "Bo", weight=5.0, rel="coauthor")
+lab.add_edge("Ada", "Cleo", weight=2.0, rel="coauthor")
+lab.add_edge("Bo", "Cleo", weight=1.0, rel="code")
+
+G = ec.to_networkx(lab)
+type(G).__name__, G.nodes["Ada"], G.edges["Ada", "Bo"]
+```
+
+The node labels become the NetworkX nodes, so nodes are addressed by name, as is usual in NetworkX
+code. The node attributes, including the node `type`, become the node data, and the edge weight
+and attributes, including `rel`, become the edge data. A node without a label is represented by
+its integer ID. A directed graph becomes a `DiGraph`.
+
+NetworkX's `Graph` and `DiGraph` hold at most one edge between two nodes. When an EdgeCase graph
+has parallel edges, `to_networkx()` warns and keeps only the last of them, and
+`multigraph=True` gives a `MultiGraph` or `MultiDiGraph` that keeps them all, with the EdgeCase edge
+IDs as the edge keys:
+
+```{python}
+deliveries = ec.Graph(directed=True).add_edges(
+    [("Farm", "Mill"), ("Farm", "Mill"), ("Mill", "Bakery")], auto_create_nodes=True
+)
+M = ec.to_networkx(deliveries, multigraph=True)
+type(M).__name__, M.number_of_edges()
+```
+
+[`from_networkx()`](../reference/from_networkx.qmd) converts the other way, for any of the four
+NetworkX graph classes. NetworkX's own copy of the karate club, for example, records each member's
+eventual club in a `club` attribute and the strength of each friendship as a `weight`:
+
+```{python}
+from_nx = ec.from_networkx(nx.karate_club_graph())
+from_nx.is_weighted(), from_nx.get_node_df().head(3)
+```
+
+The graph is weighted, since the edges have a `weight`; `weighted=` overrides the detection. The
+NetworkX nodes, the integers 0 to 33, become the labels, as strings, since EdgeCase labels are
+always text. A round trip of a graph with integer nodes therefore gives back a NetworkX graph with
+the string nodes `"0"` to `"33"`, which `nx.relabel_nodes(G, int)` turns back into integers.
+
+### Checking results against NetworkX
+
+A common use of the conversion is validation: computing a measure in both libraries and comparing
+the results, either to check an analysis or to confirm that the two libraries define a measure
+the same way. PageRank on the karate club:
+
+```{python}
+karate = ec.karate_club()
+karate.pagerank()
+
+nx_scores = nx.pagerank(ec.to_networkx(karate))
+ours = dict(karate.get_node_df().select("label", "pagerank").iter_rows())
+max(abs(nx_scores[label] - score) for label, score in ours.items())
+```
+
+The scores agree to within a few millionths, the tolerance of the two iterative solvers. Many of
+EdgeCase's methods are named after their NetworkX counterparts and document where their results or
+conventions differ, which makes this kind of comparison straightforward.
+
+## igraph
+
+[igraph](https://python.igraph.org) is a fast graph library with a C core, popular in network
+science and especially strong in community detection. [`to_igraph()`](../reference/to_igraph.qmd)
+converts a graph to an `igraph.Graph`. igraph numbers its vertices from 0, so the node labels are
+kept in the standard `name` vertex attribute, by which igraph can also look vertices up:
+
+```{python}
+import igraph as ig
+
+I = ec.to_igraph(lab)
+I.vs["name"], I.es[I.get_eid("Ada", "Bo")].attributes()
+```
+
+The vertex and edge attributes come along, with the edge weights in the `weight` edge attribute,
+which igraph's algorithms use by default. Each edge also gets an `edgecase_edge_id` attribute
+holding its EdgeCase edge ID, which links the igraph edges back to the original ones.
+[`from_igraph()`](../reference/from_igraph.qmd) converts back, labelling the nodes with their
+`name` attribute, or with their vertex indices when there is none.
+
+### Borrowing an algorithm
+
+The conversions make it easy to use an algorithm that EdgeCase doesn't have, and to bring its
+result back for further work. igraph implements the Infomap community detection method, which finds
+communities by compressing the description of a random walk on the graph. It is randomized, so the
+seed of Python's random number generator, which igraph uses, is fixed first:
+
+```{python}
+import random
+
+random.seed(1)
+I = ec.to_igraph(karate)
+infomap = I.community_infomap()
+len(infomap), round(infomap.modularity, 3)
+```
+
+Infomap finds three communities with a modularity of 0.402. The membership list is in igraph's
+vertex order, so it is paired with the vertex names and stored on the EdgeCase graph by label with
+[`set_node_attrs()`](../reference/Graph.set_node_attrs.qmd):
+
+```{python}
+membership = dict(zip(I.vs["name"], infomap.membership))
+karate.set_node_attrs("infomap", membership)
+karate.plot(color_by="infomap", label_by="label", seed=1)
+```
+
+Two of the communities follow the two camps of the club, and the third is a group of five members,
+`"4"`, `"5"`, `"6"`, `"10"`, and `"16"`, who are attached to the club mostly through the
+instructor. From here, the communities are an ordinary node attribute, available to `plot()`, to
+[`modularity()`](../reference/Graph.modularity.qmd), and to every other method that takes a node
+attribute. Pairing results with node names rather than relying on positions is the safe pattern
+for any conversion, since the libraries need not list the nodes in the same order.
+
+The same route works in the other direction: igraph's `compare_communities()` measures how well
+two partitions agree, for example with the normalized mutual information, which compares a
+detected partition with the factions the club actually split into:
+
+```{python}
+karate.cmty_louvain()
+nodes = karate.get_node_df()
+{
+    method: round(
+        ig.compare_communities(nodes["faction"].to_list(), nodes[method].to_list(), method="nmi"), 3
+    )
+    for method in ["infomap", "cmty_louvain"]
+}
+```
+
+Infomap's three communities match the two factions somewhat more closely than Louvain's four, as
+measured by the normalized mutual information, which is 1 for identical partitions and 0 for
+unrelated ones.
+
+## NumPy and SciPy matrices
+
+An adjacency matrix holds a graph as numbers: entry `[i, j]` is the weight of the edge from the
+`i`-th node to the `j`-th, and 0 where there is none. In this form, a graph can be handed to the
+whole of numerical Python, from linear algebra to machine learning. [Matrices and
+spectra](21-spectral.qmd) describes the matrices that EdgeCase computes itself, such as the
+Laplacian; this section covers the conversions.
+
+### Dense arrays
+
+[`to_numpy_array()`](../reference/to_numpy_array.qmd) gives the adjacency matrix as a NumPy array,
+with the rows and columns in node ID order. For the marriage network of the Florentine families:
+
+```{python}
+import numpy as np
+
+florentine = ec.florentine_families()
+A = ec.to_numpy_array(florentine)
+A.shape, A.sum()
+```
+
+The 15 families and 20 marriages give a 15 × 15 matrix with 40 ones, since an undirected graph
+gives a symmetric matrix with each edge in two entries. Matrix products then answer questions about
+the graph. The entries of `A @ A` count the walks of two steps, so off the diagonal they count the
+neighbors that two families have in common:
+
+```{python}
+labels = florentine.get_node_df()["label"].to_list()
+common = np.triu(A @ A, k=1)
+[(labels[i], labels[j]) for i, j in np.argwhere(common == common.max())]
+```
+
+`np.triu(..., k=1)` keeps the entries above the diagonal, so each pair of families is counted
+once. No two families share more than two in-laws, and four pairs share two. The labels are listed
+in node ID order, the same order as the rows of the matrix, so a row index can be turned straight
+into a family name. The rows and columns can be put in another order, or
+limited to some of the nodes, with `nodelist=`, which takes node IDs or labels. Other options choose
+whether the entries are weights or edge counts (`weighted=`), how parallel edges combine
+(`multigraph_weight=`, which sums them by default), and the value for pairs with no edge
+(`nonedge=`), such as `float("inf")` for a matrix of distances.
+
+### Sparse matrices
+
+A dense matrix has an entry for every pair of nodes, so it grows with the square of the number of
+nodes: a graph of 100,000 nodes would need 80 GB. Real networks are sparse, with far fewer edges
+than pairs, and [`to_scipy_sparse_array()`](../reference/to_scipy_sparse_array.qmd) stores only the
+nonzero entries, in a SciPy sparse array. The western United States power grid, with its 4,941
+substations:
+
+```{python}
+from scipy.sparse import csgraph
+from scipy.sparse.linalg import eigsh
+
+grid = ec.power_grid()
+S = ec.to_scipy_sparse_array(grid)
+S.shape, S.nnz
+```
+
+The matrix stores 13,188 entries, two for each of the 6,594 lines, instead of the 24 million of a
+dense matrix. The CSR format is the default and suits arithmetic and linear algebra, and `format=`
+chooses another, such as `"coo"` or `"csc"`. SciPy's sparse graph routines and solvers then work on
+the matrix directly, such as `csgraph.connected_components()` for the components and `eigsh()` for
+the largest eigenvalue of the adjacency matrix:
+
+```{python}
+n_components, _ = csgraph.connected_components(S, directed=False)
+largest = eigsh(S, k=1, which="LA")[0][0]
+n_components, round(largest, 3)
+```
+
+The grid is connected, and its largest adjacency eigenvalue is about 7.5. That eigenvalue matters
+for spreading processes: its reciprocal approximates the epidemic threshold, the infection rate
+above which an outbreak can take hold on the network (see [Spreading and
+robustness](32-spreading.qmd)).
+
+### Graphs from matrices
+
+[`from_numpy_array()`](../reference/from_numpy_array.qmd) and
+[`from_scipy_sparse_array()`](../reference/from_scipy_sparse_array.qmd) build a graph from a
+matrix: each nonzero entry becomes an edge, weighted by the entry. This is the usual way to turn a
+matrix of similarities or correlations into a network. Consider the daily returns of eleven stocks
+in three sectors, simulated here with a market-wide movement and a movement of each sector:
+
+```{python}
+rng = np.random.default_rng(7)
+sectors = {
+    "tech": ["AAPL", "MSFT", "NVDA", "GOOG"],
+    "energy": ["XOM", "CVX", "COP"],
+    "banks": ["JPM", "BAC", "WFC", "C"],
+}
+market = rng.normal(size=250)
+returns, tickers = [], []
+for stocks in sectors.values():
+    sector = rng.normal(size=250)
+    for ticker in stocks:
+        returns.append(0.3 * market + 0.8 * sector + 0.5 * rng.normal(size=250))
+        tickers.append(ticker)
+
+corr = np.corrcoef(returns)
+np.round(corr[:5, :5], 2)
+```
+
+The tech stocks are strongly correlated with each other and only weakly with Exxon (`XOM`), the
+fifth stock. A *correlation network* links the pairs whose correlation is strong. Keeping the
+correlations above 0.6 as edge weights, with the diagonal cleared so that no stock is linked to
+itself:
+
+```{python}
+corr = (corr + corr.T) / 2
+adjacency = np.where(np.abs(corr) > 0.6, corr, 0.0)
+np.fill_diagonal(adjacency, 0.0)
+
+market_graph = ec.from_numpy_array(adjacency, node_labels=tickers)
+market_graph.count_nodes(), market_graph.count_edges(), market_graph.is_weighted()
+```
+
+An undirected graph needs a symmetric matrix, and EdgeCase checks this exactly. The first line
+makes the matrix exactly symmetric, since floating-point rounding in `corrcoef()` can leave the two
+halves different in the last digit; an asymmetric matrix raises an error, unless `directed=True`
+says that it describes a directed graph. Each edge is then read once, from the upper triangle.
+`node_labels=` names the nodes in row order, and without it they are labelled `"0"`, `"1"`, and so
+on. The graph is weighted because some entries aren't 1, and `weighted=` overrides this.
+
+The eleven stocks are linked by 15 strong correlations, and community detection recovers the
+sectors:
+
+```{python}
+market_graph.cmty_louvain()
+market_graph.get_node_df().group_by("cmty_louvain").agg(pl.col("label")).sort("cmty_louvain")
+```
+
+`nonedge=` sets the value that means "no edge", for matrices that use something other than 0,
+such as `float("inf")` in a distance matrix. With `parallel_edges=True`, each entry is a count of
+parallel edges, so an entry of 3 gives three edges, which reads back the matrix of an unweighted
+multigraph. `from_scipy_sparse_array()` takes the same arguments, and reads only the stored entries,
+so a graph of millions of edges can be built from a sparse matrix without ever forming a dense one.
+
+## pandas
+
+[pandas](https://pandas.pydata.org) data frames are the common currency of data analysis in Python.
+[`to_pandas_edgelist()`](../reference/to_pandas_edgelist.qmd) gives one row per edge, with the
+endpoint labels in `source` and `target` columns, the weight, and the edge attributes:
+
+```{python}
+ec.to_pandas_edgelist(lab)
+```
+
+[`from_pandas_edgelist()`](../reference/from_pandas_edgelist.qmd) builds a graph from such a table,
+whether it comes from pandas or from Polars. `source=` and `target=` name the endpoint columns, and
+`edge_attr=` chooses which other columns become edge attributes: none by default, as in NetworkX,
+`True` for all of them, or a name or a list of names. A numeric `weight` column sets the weights:
+
+```{python}
+trades = pl.DataFrame(
+    {
+        "exporter": ["Chile", "Chile", "Peru", "Brazil"],
+        "importer": ["China", "Japan", "China", "China"],
+        "weight": [21.4, 3.1, 18.2, 104.3],
+        "product": ["copper", "copper", "copper", "soybeans"],
+    }
+)
+exports = ec.from_pandas_edgelist(
+    trades, source="exporter", target="importer", edge_attr=True, directed=True
+)
+exports.get_edge_df()
+```
+
+Since EdgeCase works with Polars natively, the `Graph` constructor with `edges_df=` is the more
+direct route for Polars tables (see [Building graphs](04-building-graphs.qmd)), while
+`from_pandas_edgelist()` is the drop-in replacement for NetworkX's function of the same name.
+
+[`to_pandas_adjacency()`](../reference/to_pandas_adjacency.qmd) gives the adjacency matrix as a
+data frame indexed by the node labels, which is easier to read than a bare array, and
+[`from_pandas_adjacency()`](../reference/from_pandas_adjacency.qmd) reads one back:
+
+```{python}
+ec.to_pandas_adjacency(lab)
+```
+
+## Two-mode data
+
+Two-mode, or bipartite, data usually arrives as a rectangular table rather than as a graph: people
+by the events they attended, documents by the words they contain, customers by the products they
+bought. [`from_biadjacency_matrix()`](../reference/from_biadjacency_matrix.qmd) turns such a table
+into a bipartite graph, with one node per row, one node per column, and an edge for each nonzero
+entry:
+
+```{python}
+purchases = np.array(
+    [
+        [1, 0, 2, 0],
+        [0, 1, 1, 0],
+        [3, 0, 0, 1],
+    ]
+)
+shop = ec.from_biadjacency_matrix(
+    purchases,
+    row_labels=["Ana", "Ben", "Cy"],
+    column_labels=["tea", "coffee", "milk", "honey"],
+)
+shop.get_node_df()
+```
+
+The rows come first and the columns after, and the `bipartite` attribute marks the two sides with 0
+and 1, as in NetworkX, which is what [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd)
+and the projections of [Transforming graphs](19-transforming.qmd) work with. The counts of the
+purchases become edge weights. The matrix need not be square, and it can be a list of rows, a NumPy
+array, or a SciPy sparse matrix.
+
+[`biadjacency_matrix()`](../reference/Graph.biadjacency_matrix.qmd) goes the other way. It returns
+the matrix with the node IDs of its rows and of its columns, which for the Southern Women network
+gives the classic table of the eighteen women and the fourteen events they attended:
+
+```{python}
+davis = ec.davis_southern_women()
+matrix, rows, columns = davis.biadjacency_matrix()
+len(rows), len(columns), sum(map(sum, matrix))
+```
+
+The 89 ones of the table are the 89 attendances. `row_nodes=` and `column_nodes=` choose the two
+sides and their order, which is needed when a bipartite graph has several components.
+
+## Summary
+
+| Task | Function |
+|---|---|
+| Use NetworkX code or algorithms | `to_networkx()`, `from_networkx()` |
+| Keep parallel edges in NetworkX | `to_networkx(multigraph=True)` |
+| Use igraph algorithms | `to_igraph()`, `from_igraph()` |
+| Do linear algebra on the adjacency matrix | `to_numpy_array()`, `to_scipy_sparse_array()` |
+| Build a graph from a similarity or correlation matrix | `from_numpy_array()`, `from_scipy_sparse_array()` |
+| Exchange edge lists with pandas code | `to_pandas_edgelist()`, `from_pandas_edgelist()` |
+| Read an adjacency table | `from_pandas_adjacency()` |
+| Build a bipartite graph from a rows-by-columns table | `from_biadjacency_matrix()` |
+| Get the rows-by-columns table of a bipartite graph | `biadjacency_matrix()` |
+
+Whichever library computes a result, the pattern for bringing it back is the same: pair each value
+with its node label, and store it with `set_node_attrs()`, so the result joins the rest of the
+graph's data.
