@@ -1,0 +1,117 @@
+---
+title: Get started
+guide-section: "Getting started"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+EdgeCase is a Python library for building, analyzing, querying, and drawing graphs. Its algorithms
+run in a Rust core, so they stay fast on graphs with millions of edges, while its interface is
+plain Python: you build a graph with a few method calls, compute what you need, and get the results
+back as ordinary dictionaries and lists or as Polars DataFrames.
+
+```{python}
+import edgecase as ec
+
+graph = ec.karate_club().pagerank().cmty_louvain()
+graph
+```
+
+That one line loads Zachary's karate club network, scores every member with PageRank, and divides
+the club into communities. The printed summary describes the graph and lists the two computations
+that have been stored on it. The rest of this guide explains each part of that line, and much more
+besides.
+
+## What EdgeCase provides
+
+EdgeCase covers the whole life of a graph, from building it to publishing a figure of it:
+
+- **Construction.** Add nodes and edges one at a time or in bulk, build a graph from a list of
+  pairs or from Polars DataFrames, generate one from nearly a hundred models (grids,
+  trees, random graphs, small worlds, scale-free networks, community benchmarks), or load one of
+  the bundled datasets.
+- **Analysis.** Hundreds of algorithms: paths and distances, centrality, community detection,
+  clustering and motifs, connectivity and flows, spanning trees, DAG analysis, similarity and link
+  prediction, spectral methods, coloring, matching, isomorphism, percolation, and influence
+  spreading.
+- **Data access.** Every node and edge can carry attributes, and the whole graph can be viewed as
+  a pair of Polars DataFrames for filtering, joining, and summarizing.
+- **Selection and traversal.** Select nodes or edges by attribute, degree, centrality or pattern,
+  walk outward from a selection along edges, and then act on whatever is selected.
+- **Querying.** Find shapes in a graph with a subset of Cypher, the query language of Neo4j, and
+  get the matches back as a DataFrame.
+- **Visualization.** Draw static SVG figures with `plot()`, explore large graphs in interactive
+  widgets, compute layouts, and map attributes to colors and sizes.
+- **Provenance.** Every change to a graph is recorded in a step log, which can be inspected,
+  exported, or replayed as an animation.
+- **Interoperability.** Read and write more than twenty file formats, and convert to and from
+  NetworkX, igraph, NumPy, SciPy, and pandas.
+
+## Three ideas that run through the library
+
+A few conventions appear in nearly every method. Learning them early makes the rest of the API
+predictable.
+
+**Nodes have IDs and labels.** Each node gets an integer ID, assigned in order from 1, and may
+have a string label that you choose. Wherever a method takes a node, an integer means an ID and a
+string means a label. So both of these refer to the karate club's instructor, whose label is
+`"0"`:
+
+```{python}
+graph.get_node(1)
+```
+
+```{python}
+graph.get_node("0")
+```
+
+**Methods chain.** Methods that build, change, or annotate a graph return the graph itself, so
+calls can be strung together into a pipeline that reads top to bottom.
+
+**Results are stored on the graph by default.** Methods that compute a value for every node, such
+as a centrality score or a community, write it to a node attribute named after the method and hand
+back the graph. Ask for `return_dict=True` to get a dictionary keyed by node ID instead:
+
+```{python}
+ranks = graph.pagerank(return_dict=True)
+round(ranks[1], 4)
+```
+
+Stored attributes show up as columns of the node table, which makes it easy to compare several
+measures side by side:
+
+```{python}
+graph.get_node_df().sort("pagerank", descending=True)
+```
+
+## How this guide is organized
+
+The guide moves from the basics to specialized topics, and each page can be read on its own once
+the first few are familiar.
+
+- **Getting started** covers installation and a [quick tour](02-quick-start.qmd) of the library.
+- **Building graphs** explains the [graph model](03-graph-model.qmd), the
+  [construction methods](04-building-graphs.qmd), [generators](05-generators.qmd), and the
+  [bundled datasets](06-datasets.qmd).
+- **Working with graphs** covers [node and edge data](07-node-and-edge-data.qmd),
+  [selections](08-selections.qmd), [traversals](09-traversals.qmd), and
+  [Cypher queries](10-cypher.qmd).
+- **Analysis** works through the algorithm families, from
+  [structural properties](11-structure.qmd) and [paths](12-paths.qmd) to
+  [centrality](13-centrality.qmd), [communities](14-communities.qmd), and beyond.
+- **Visualization** covers [static plots](22-plotting.qmd), [layouts](23-layouts.qmd),
+  [aesthetics](24-aesthetics.qmd), [interactive widgets](25-interactive.qmd), and the
+  [step log](26-step-log.qmd).
+- **Interoperability** covers [file formats](27-file-formats.qmd),
+  [other libraries](28-other-libraries.qmd), and [summary tables](29-tables.qmd).
+- **Specialized topics** cover [multiplex networks](30-multiplex.qmd),
+  [network biology](31-network-biology.qmd), and [spreading and robustness](32-spreading.qmd).
+
+Each page links to the [API reference](../reference/index.qmd) for the methods it uses, where every
+parameter is documented in full.
