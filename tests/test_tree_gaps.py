@@ -143,10 +143,8 @@ class TestPartitionSpanningTree:
         with pytest.raises(ValueError, match="cycle"):
             loop.minimum_spanning_tree(include=[("A", "A")])
         nan = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
-        nan.add_edges([("A", "B", float("nan")), ("B", "C", 1.0)])
-        assert nan.minimum_spanning_tree().count_edges() == 2
-        with pytest.raises(ValueError, match="NaN"):
-            nan.minimum_spanning_tree(include=[("B", "C")])
+        with pytest.raises(ValueError, match="NaN"):  # rejected on entry
+            nan.add_edges([("A", "B", float("nan")), ("B", "C", 1.0)])
 
 
 # ---------------------------------------------------------------------------------------------
@@ -208,9 +206,8 @@ class TestIterSpanningTrees:
         with pytest.raises(ValueError, match="disconnected"):
             split.iter_spanning_trees()
         nan = ec.Graph(weighted=True).add_nodes(["A", "B"])
-        nan.add_edge("A", "B", weight=float("nan"))
-        with pytest.raises(ValueError, match="NaN"):
-            nan.iter_spanning_trees()
+        with pytest.raises(ValueError, match="NaN"):  # rejected on entry
+            nan.add_edge("A", "B", weight=float("nan"))
 
 
 # ---------------------------------------------------------------------------------------------
@@ -322,6 +319,51 @@ class TestArborescences:
             und.iter_spanning_arborescences()
         with pytest.raises(ValueError, match="directed"):
             und.maximum_spanning_arborescence(include=[("A", "B")])
+
+
+# ---------------------------------------------------------------------------------------------
+# weight_attr="weight"
+# ---------------------------------------------------------------------------------------------
+
+
+class TestWeightAttrNamedWeight:
+    """`weight_attr="weight"` reads the weight field, as `None` does (it used to count every
+    edge as 1.0, since the weight field isn't an attribute)."""
+
+    @pytest.mark.parametrize(
+        "name",
+        [
+            "minimum_spanning_tree",
+            "maximum_spanning_tree",
+            "minimum_branching",
+            "maximum_branching",
+        ],
+    )
+    def test_undirected_and_directed(self, name):
+        directed = "branching" in name
+        for _, g in random_weighted(30, seed=41, directed=directed):
+            method = getattr(g, name)
+            assert total(method(weight_attr="weight")) == pytest.approx(total(method()))
+
+    @pytest.mark.parametrize("minimum", [True, False])
+    def test_arborescences(self, minimum):
+        checked = 0
+        for G, g in random_weighted(60, seed=42, directed=True):
+            if len(G) < 2 or not any(len(nx.descendants(G, r)) == len(G) - 1 for r in G):
+                continue
+            checked += 1
+            method = g.minimum_spanning_arborescence if minimum else g.maximum_spanning_arborescence
+            assert total(method(weight_attr="weight")) == pytest.approx(total(method()))
+            ours = [total(t) for t in g.iter_spanning_arborescences(minimum, weight_attr="weight")]
+            assert ours == pytest.approx([total(t) for t in g.iter_spanning_arborescences(minimum)])
+        assert checked > 10
+
+    def test_spanning_tree_lists(self):
+        for _, g in random_weighted(20, seed=43):
+            got = [total(t) for t in g.iter_spanning_trees(weight_attr="weight")]
+            assert got == pytest.approx([total(t) for t in g.iter_spanning_trees()])
+            edges = g.all_spanning_trees(weight_attr="weight", return_subgraphs=False)
+            assert edges == g.all_spanning_trees(return_subgraphs=False)
 
 
 # ---------------------------------------------------------------------------------------------
