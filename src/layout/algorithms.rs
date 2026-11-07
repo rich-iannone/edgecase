@@ -10,6 +10,7 @@
 use crate::algorithms::generators::make_rng;
 use crate::algorithms::sparse_eigen::CsrMatrix;
 use crate::graph::{spectral_laplacian, spectral_symmetric, Graph};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::Rng;
 use rayon::prelude::*;
@@ -144,8 +145,9 @@ pub fn spring_layout(
     weighted: bool,
     initial: Option<HashMap<u64, (f64, f64)>>,
     fixed: Option<Vec<u64>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Positions> {
+    let seed = seed.map(u64::from);
     if let Some(k) = k {
         if !(k.is_finite() && k > 0.0) {
             return Err(err("k must be a positive number"));
@@ -600,8 +602,9 @@ pub fn forceatlas2_layout(
     mass: Option<HashMap<u64, f64>>,
     size: Option<HashMap<u64, f64>>,
     initial: Option<HashMap<u64, (f64, f64)>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Positions> {
+    let seed = seed.map(u64::from);
     for (name, value) in [
         ("jitter_tolerance", jitter_tolerance),
         ("scaling_ratio", scaling_ratio),
@@ -808,8 +811,9 @@ pub fn arf_layout(
     dt: f64,
     max_iter: usize,
     initial: Option<HashMap<u64, (f64, f64)>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Positions> {
+    let seed = seed.map(u64::from);
     if !(a.is_finite() && a > 1.0) {
         return Err(err("a must be larger than 1"));
     }
