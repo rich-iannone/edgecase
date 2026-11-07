@@ -202,7 +202,7 @@ pub fn current_flow_betweenness_centrality(
         for k in 0..n {
             row[k] = w * (c[(u, k)] - c[(v, k)]);
         }
-        row.sort_by(|a, b| a.partial_cmp(b).unwrap());
+        row.sort_by(|a, b| a.total_cmp(b));
         // Σ_{s<t} |row_s - row_t| from sorted values
         let s_e: f64 = row
             .iter()
@@ -649,11 +649,15 @@ pub fn trophic_levels(
             }
         }
     }
-    let y = a.lu().solve(&b).ok_or_else(|| err(unreachable_msg))?;
     let mut levels: FxHashMap<u64, f64> = FxHashMap::default();
     for v in 0..n {
         levels.insert(ids[v], 1.0);
     }
+    if m == 0 {
+        // Every node is basal (nalgebra's LU aborts on a 0 × 0 system)
+        return Ok(levels);
+    }
+    let y = a.lu().solve(&b).ok_or_else(|| err(unreachable_msg))?;
     for (i, &v) in rest.iter().enumerate() {
         levels.insert(ids[v], y[i]);
     }
@@ -1021,7 +1025,7 @@ pub fn edge_current_flow_betweenness_centrality(
         let value = match &subset {
             None => {
                 let mut sorted = row.clone();
-                sorted.sort_by(|a, b| a.partial_cmp(b).unwrap());
+                sorted.sort_by(|a, b| a.total_cmp(b));
                 // Σ_{s<t} |row_s - row_t| from sorted values
                 sorted
                     .iter()
@@ -1394,8 +1398,7 @@ impl GroupSearch {
         // by contribution, descending; ties to the later node, as NetworkX
         cands.sort_by(|&a, &b| {
             pb[b * self.m + b]
-                .partial_cmp(&pb[a * self.m + a])
-                .unwrap()
+                .total_cmp(&pb[a * self.m + a])
                 .then(b.cmp(&a))
         });
     }
