@@ -1,6 +1,7 @@
 //! Graph data structure and core operations
 
 use crate::algorithms::sparse_eigen::CsrMatrix;
+use crate::utils::Seed;
 use nalgebra as na;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyList, PySet, PyTuple};
@@ -1609,7 +1610,8 @@ impl Graph {
     /// Each possible edge is included independently with probability p
     #[inline]
     #[pyo3(signature = (n, p, seed=None))]
-    fn generate_gnp_graph(&mut self, n: usize, p: f64, seed: Option<u64>) -> PyResult<()> {
+    fn generate_gnp_graph(&mut self, n: usize, p: f64, seed: Option<Seed>) -> PyResult<()> {
+        let seed = seed.map(u64::from);
         if !(0.0..=1.0).contains(&p) {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "Probability p must be between 0.0 and 1.0",
@@ -1667,7 +1669,8 @@ impl Graph {
     /// Graph with n nodes and exactly m randomly placed edges
     #[inline]
     #[pyo3(signature = (n, m, seed=None))]
-    fn generate_gnm_graph(&mut self, n: usize, m: usize, seed: Option<u64>) -> PyResult<()> {
+    fn generate_gnm_graph(&mut self, n: usize, m: usize, seed: Option<Seed>) -> PyResult<()> {
+        let seed = seed.map(u64::from);
         let mut rng = match seed {
             Some(s) => ChaCha8Rng::seed_from_u64(s),
             None => ChaCha8Rng::from_entropy(),
@@ -1731,7 +1734,8 @@ impl Graph {
     /// Grows a graph by adding nodes one at a time with preferential attachment
     #[inline]
     #[pyo3(signature = (n, m, seed=None))]
-    fn generate_pa_graph(&mut self, n: usize, m: usize, seed: Option<u64>) -> PyResult<()> {
+    fn generate_pa_graph(&mut self, n: usize, m: usize, seed: Option<Seed>) -> PyResult<()> {
+        let seed = seed.map(u64::from);
         if m < 1 {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "m must be at least 1",
@@ -1817,8 +1821,9 @@ impl Graph {
         n: usize,
         k: usize,
         p: f64,
-        seed: Option<u64>,
+        seed: Option<Seed>,
     ) -> PyResult<()> {
+        let seed = seed.map(u64::from);
         if k >= n {
             return Err(pyo3::exceptions::PyValueError::new_err(
                 "k must be less than n",
@@ -1966,8 +1971,9 @@ impl Graph {
         radius: f64,
         dim: usize,
         p_norm: f64,
-        seed: Option<u64>,
+        seed: Option<Seed>,
     ) -> PyResult<()> {
+        let seed = seed.map(u64::from);
         if radius < 0.0 {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
                 "radius must be non-negative",
@@ -4077,9 +4083,10 @@ impl Graph {
         steps: usize,
         mode: &str,
         stuck: &str,
-        seed: Option<u64>,
+        seed: Option<Seed>,
         weighted: bool,
     ) -> PyResult<Vec<u64>> {
+        let seed = seed.map(u64::from);
         if !self.nodes.contains_key(&start) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
                 "Start node {} does not exist",
@@ -4195,8 +4202,9 @@ impl Graph {
         steps: usize,
         mode: &str,
         stuck: &str,
-        seed: Option<u64>,
+        seed: Option<Seed>,
     ) -> PyResult<Vec<(u64, u64, u64)>> {
+        let seed = seed.map(u64::from);
         // The start is a node ID (Python resolves labels), so digit-only labels aren't mistaken
         // for IDs
         if !self.nodes.contains_key(&start) {
@@ -4797,8 +4805,9 @@ impl Graph {
         py: Python,
         stretch: f64,
         weight: Option<String>,
-        seed: Option<u64>,
+        seed: Option<Seed>,
     ) -> PyResult<Graph> {
+        let seed = seed.map(u64::from);
         // Validate input
         if stretch < 1.0 {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
