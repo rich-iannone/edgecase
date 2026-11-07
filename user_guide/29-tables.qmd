@@ -1,0 +1,469 @@
+---
+title: Summary tables
+guide-section: "Interoperability"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Most network analyses end in a table: the networks of a study side by side, the most central nodes
+and their scores, the communities with their sizes, the strongest ties. In EdgeCase, every result
+that describes nodes or edges is stored as an attribute, and the node and edge tables are Polars
+data frames, so a summary table is a few Polars operations away from the graph. The finished table
+can then be presented with [Great Tables](https://posit-dev.github.io/great-tables/), which is
+installed together with EdgeCase and turns a data frame into a formatted, publication-ready table.
+
+This page works through the common kinds of summary, from whole graphs down to individual edges,
+and then shows how to present and save them. The tables of [Node and edge
+data](07-node-and-edge-data.qmd) are the starting point for all of them.
+
+## Summarizing a graph
+
+[`describe()`](../reference/Graph.describe.qmd) prints a quick overview of a single graph, with its
+size, density, degrees, and connectivity, as described in [Structure](11-structure.qmd). Its
+`describe_hook=` takes a function that returns further properties to include, which is a simple way
+to add the measures that matter for a particular study:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.describe(
+    describe_hook=lambda graph: {
+        "Transitivity": round(graph.get_transitivity(), 3),
+        "Diameter": graph.get_diameter(),
+    }
+)
+```
+
+The printed summary is meant for reading at the console. For a table that can be sorted, filtered,
+and published, the measures are collected into a data frame instead.
+
+### Comparing networks
+
+A study of several networks usually begins with a table of their basic properties, one row per
+network. Each measure is a single method call, and a list of dictionaries, one per network, becomes
+a Polars data frame directly:
+
+```{python}
+loaders = [
+    ec.florentine_families,
+    ec.karate_club,
+    ec.dolphins,
+    ec.les_miserables,
+    ec.jazz,
+    ec.celegans,
+    ec.power_grid,
+]
+
+rows = []
+for loader in loaders:
+    graph = loader()
+    rows.append(
+        {
+            "network": graph.get_graph_name(),
+            "nodes": graph.count_nodes(),
+            "edges": graph.count_edges(),
+            "density": graph.get_density(),
+            "mean_degree": 2 * graph.count_edges() / graph.count_nodes(),
+            "transitivity": graph.get_transitivity(),
+            "assortativity": graph.get_assortativity_degree(),
+            "diameter": graph.get_diameter(),
+            "mean_distance": graph.get_mean_distance(),
+        }
+    )
+
+networks = pl.DataFrame(rows)
+networks
+```
+
+The table brings out patterns that no single network shows. Density falls steadily as the networks
+grow, from 0.19 for the fifteen Florentine families to 0.0005 for the power grid, while the mean
+degree, between about 3 and 28, shows no such trend. A node of a large network has no more ties than
+a node of a small one, so its ties reach a smaller share of the others. The mean distances stay
+between two and four steps for all the social and biological networks, which is the small-world
+effect, and only the power grid, a network laid out on a map, has long paths. The assortativity is
+negative for most of the social networks, whose well-connected members tend to link to less
+connected ones. The `mean_degree` formula, twice the edges over the nodes, suits undirected graphs;
+for a directed graph, the edges over the nodes give the mean in-degree, which equals the mean
+out-degree.
+
+This table is the basis of the first Great Tables example, in [Presenting tables with Great
+Tables](#presenting-tables-with-great-tables) below.
+
+## Summarizing nodes
+
+The results of centrality measures and other node-level methods are columns of the node table, so
+a table of the most important nodes is a selection and a sort. For the karate club, with four
+centrality measures:
+
+```{python}
+karate.degree_centrality().betweenness_centrality().closeness_centrality().pagerank()
+
+measures = ["degree_centrality", "betweenness_centrality", "closeness_centrality", "pagerank"]
+leaders = (
+    karate.get_node_df()
+    .select("label", "role", "faction", *measures)
+    .sort("pagerank", descending=True)
+    .head(8)
+)
+leaders
+```
+
+The administrator, `"33"`, and the instructor, `"0"`, have the two highest scores by degree,
+betweenness, and PageRank, followed by `"32"`, `"2"`, and `"1"`. The scores of different measures
+are on different scales, which makes them hard to compare across the columns. Ranks are often
+clearer, and Polars computes them for all the measures at once, with `name.suffix()` giving the new
+columns their names:
+
+```{python}
+ranks = (
+    karate.get_node_df()
+    .select(
+        "label",
+        "role",
+        pl.col(measures).rank(descending=True, method="min").cast(pl.Int32).name.suffix("_rank"),
+    )
+    .sort("pagerank_rank")
+)
+ranks.head(8)
+```
+
+The ranks show where the measures disagree. Member `"3"` is sixth by degree but only fifteenth by
+betweenness, since its friends are also friends of each other and its position is seldom on the
+shortest path between others. Member `"2"` is second by closeness: with friends in both camps, it is
+close to almost everyone. `method="min"` gives tied nodes the same rank, as for `"31"` and `"3"`,
+which have the same degree.
+
+A correlation summarizes how closely two measures agree over all the nodes. Spearman's rank
+correlation suits centralities, whose distributions are usually skewed:
+
+```{python}
+karate.get_node_df().select(
+    pl.corr("betweenness_centrality", "pagerank", method="spearman").alias("spearman")
+)
+```
+
+A rank correlation of 0.88 says that the two measures largely agree on the order of the members,
+with the exceptions that the table of ranks picks out.
+
+### Tables of a selection
+
+[`get_node_df_ws()`](../reference/Graph.get_node_df_ws.qmd) returns the node table of the current
+selection only (see [Selections](08-selections.qmd)), which is a quick way to tabulate the nodes
+that meet a structural criterion, such as the members with at least ten friends:
+
+```{python}
+hubs = karate.select_nodes_by_degree(min_degree=10).get_node_df_ws()
+hubs.select("id", "label", "role", "degree")
+```
+
+```{python}
+#| echo: false
+#| output: false
+karate.clear_selection()
+```
+
+## Summarizing groups
+
+Community detection and node attributes divide the nodes into groups, and a group-level table
+gives the size and character of each group. `group_by()` on the node table does most of the work.
+For the communities that [Leiden](../reference/Graph.cmty_leiden.qmd) finds among the characters
+of *Les Misérables*, the size of each community and its three best-connected characters:
+
+```{python}
+miserables = ec.les_miserables()
+miserables.cmty_leiden()
+
+nodes = miserables.get_node_df()
+communities = (
+    nodes.sort("degree", descending=True)
+    .group_by("cmty_leiden", maintain_order=True)
+    .agg(
+        pl.len().alias("size"),
+        pl.col("label").head(3).str.join(", ").alias("leading"),
+    )
+    .sort("cmty_leiden")
+)
+communities
+```
+
+The three leading characters name each community's storyline: Myriel and his household in the
+opening chapters, Valjean with Marius and Javert, Fantine and her companions, the Thénardiers, the
+trial of Champmathieu, and Gavroche with the students of the barricade. Sorting by degree before
+grouping, with `maintain_order=True`, keeps the characters in each group in order of degree, so
+that `head(3)` picks the best-connected.
+
+### Ties within and between groups
+
+A community is cohesive when most of its members' ties stay inside it. Counting this needs the
+edge table, with the community of each endpoint looked up from the node table.
+`replace_strict()` maps the endpoint IDs through a dictionary:
+
+```{python}
+community_of = dict(nodes.select("id", "cmty_leiden").iter_rows())
+edges = miserables.get_edge_df().with_columns(
+    pl.col("source").replace_strict(community_of).alias("source_cmty"),
+    pl.col("target").replace_strict(community_of).alias("target_cmty"),
+)
+
+internal = (
+    edges.filter(pl.col("source_cmty") == pl.col("target_cmty"))
+    .group_by(pl.col("source_cmty").alias("cmty_leiden"))
+    .agg(pl.len().alias("internal"))
+)
+crossing = edges.filter(pl.col("source_cmty") != pl.col("target_cmty"))
+boundary = (
+    pl.concat(
+        [crossing.select(cmty_leiden="source_cmty"), crossing.select(cmty_leiden="target_cmty")]
+    )
+    .group_by("cmty_leiden")
+    .agg(pl.len().alias("boundary"))
+)
+
+communities = (
+    communities.join(internal, on="cmty_leiden")
+    .join(boundary, on="cmty_leiden")
+    .with_columns(cohesion=pl.col("internal") / (pl.col("internal") + pl.col("boundary")))
+    .sort("cmty_leiden")
+)
+communities
+```
+
+`internal` counts the ties between two members of a community, and `boundary` the ties from a
+member to someone outside it, so `cohesion` is the share of a community's ties that stay inside.
+The household of Myriel and the companions of Fantine keep more than three quarters of their ties
+within their groups, while Valjean's community, at the center of the novel, has more ties leaving
+it than inside it. [`partition_quality()`](../reference/Graph.partition_quality.qmd),
+[`conductance()`](../reference/Graph.conductance.qmd), and the quotient graph of [Community
+detection](14-communities.qmd) give related measures directly.
+
+### Cross-tabulations
+
+When two partitions of the same nodes are compared, such as a detected community and a known
+category, a cross-tabulation counts the nodes in each combination. Polars' `pivot()` produces one,
+here for the karate club's factions against the communities found by Louvain:
+
+```{python}
+karate.cmty_louvain()
+karate.get_node_df().pivot(
+    on="cmty_louvain", index="faction", values="id", aggregate_function="len", sort_columns=True
+).fill_null(0)
+```
+
+Each Louvain community lies almost entirely within one faction: communities 0 and 1 hold the
+instructor's side, and communities 2 and 3 the administrator's, with a single member of faction 2
+placed in community 0. Louvain divides each faction in two, but its communities respect the real
+split. For a single attribute,
+[`attribute_mixing_matrix()`](../reference/Graph.attribute_mixing_matrix.qmd) tabulates the edges
+instead of the nodes, giving the share of ties between each pair of values.
+
+## Summarizing edges
+
+Edge tables hold node IDs in their `source` and `target` columns, which are compact but not
+readable. For a table of edges to show to others, the IDs are replaced by labels, with the same
+`replace_strict()` mapping. The strongest ties of *Les Misérables*, where the weight counts the
+chapters in which two characters appear together:
+
+```{python}
+label_of = dict(nodes.select("id", "label").iter_rows())
+(
+    miserables.get_edge_df()
+    .with_columns(pl.col("source", "target").replace_strict(label_of, return_dtype=pl.String))
+    .sort("weight", descending=True)
+    .select("source", "target", "weight")
+    .head(6)
+)
+```
+
+Valjean and Cosette appear together most often, followed by Marius and Cosette, Marius and
+Valjean, and Valjean and Javert. Grouping edges works like grouping nodes, once each edge carries
+the groups of its endpoints. For the karate club, the friendships within and between the two
+factions:
+
+```{python}
+faction_of = dict(karate.get_node_df().select("id", "faction").iter_rows())
+(
+    karate.get_edge_df()
+    .with_columns(pl.col("source", "target").replace_strict(faction_of).name.suffix("_faction"))
+    .group_by(within=pl.col("source_faction") == pl.col("target_faction"))
+    .agg(pl.len().alias("edges"))
+    .sort("within", descending=True)
+)
+```
+
+Only 10 of the 78 friendships crossed the line along which the club later split.
+
+## Summarizing distributions
+
+A distribution, such as the degree distribution, is a table with one row per value.
+[`get_degree_distribution()`](../reference/Graph.get_degree_distribution.qmd) returns a dictionary
+from each degree to the number of nodes with it, which becomes a data frame directly. Heavy-tailed
+distributions, with a few nodes of very high degree, are best summarized in bins that double in
+width, here for the metabolic network of *C. elegans*:
+
+```{python}
+celegans = ec.celegans()
+distribution = celegans.get_degree_distribution()
+
+degrees = (
+    pl.DataFrame({"degree": list(distribution), "nodes": list(distribution.values())})
+    .group_by(low=(2 ** pl.col("degree").log(2).floor()).cast(pl.Int64))
+    .agg(pl.col("nodes").sum())
+    .sort("low")
+    .with_columns(
+        high=2 * pl.col("low") - 1,
+        share=pl.col("nodes") / pl.col("nodes").sum(),
+    )
+    .with_columns(cumulative=pl.col("share").cum_sum())
+    .select("low", "high", "nodes", "share", "cumulative")
+)
+degrees
+```
+
+Half of the nodes have 4 to 7 neighbors and more than nine in ten have fewer than 16, but eight
+nodes have 64 or more, and the largest hub has 239. A table like this states the shape of a
+heavy tail more precisely than a histogram, and the cumulative share answers questions such as how
+many nodes have a degree below a threshold.
+
+## Presenting tables with Great Tables
+
+A Polars data frame is the right form for further analysis, but not for a report: its numbers have
+too many digits, its column names are identifiers, and it has no title or notes. Great Tables builds
+a presentation table from a data frame, with formatting, labels, and styles added in a chain of
+method calls. `GT()` takes the data frame, and `rowname_col=` makes a column the row labels, or
+*stub*, of the table. For the comparison of networks:
+
+```{python}
+from great_tables import GT, loc, style
+
+(
+    GT(networks, rowname_col="network")
+    .tab_header(
+        title="Seven real-world networks",
+        subtitle="Size, cohesion, and distances of the EdgeCase example datasets",
+    )
+    .tab_spanner(label="Size", columns=["nodes", "edges", "density", "mean_degree"])
+    .tab_spanner(label="Structure", columns=["transitivity", "assortativity"])
+    .tab_spanner(label="Distance", columns=["diameter", "mean_distance"])
+    .cols_label(
+        nodes="Nodes",
+        edges="Edges",
+        density="Density",
+        mean_degree="Mean degree",
+        transitivity="Transitivity",
+        assortativity="Assortativity",
+        diameter="Diameter",
+        mean_distance="Mean",
+    )
+    .fmt_integer(columns=["nodes", "edges"])
+    .fmt_number(columns="density", decimals=4)
+    .fmt_number(
+        columns=["mean_degree", "transitivity", "assortativity", "mean_distance"], decimals=2
+    )
+    .tab_source_note("Distances are computed over the pairs of nodes that are connected.")
+)
+```
+
+`tab_spanner()` groups the columns under shared headings, `cols_label()` replaces the column names
+with readable labels, and the `fmt_*()` methods format the numbers, with `fmt_integer()` adding
+thousands separators. The data frame itself is unchanged, so the same data can feed further
+analysis and the presentation at once.
+
+### Coloring and highlighting
+
+`data_color()` fills cells with colors that follow their values, which makes patterns in a column
+visible at a glance. The community profile of *Les Misérables*, with the cohesion shaded from light
+to dark and formatted as a percentage:
+
+```{python}
+(
+    GT(communities, rowname_col="cmty_leiden")
+    .tab_header(
+        title="Communities of Les Misérables",
+        subtitle="Leiden partition of the character network",
+    )
+    .tab_stubhead(label="Community")
+    .cols_label(
+        size="Characters",
+        leading="Best-connected characters",
+        internal="Internal ties",
+        boundary="Boundary ties",
+        cohesion="Cohesion",
+    )
+    .fmt_percent(columns="cohesion", decimals=0)
+    .data_color(columns="cohesion", palette="Greens", domain=[0, 1])
+    .tab_source_note("Cohesion is the share of a community's ties that stay within it.")
+)
+```
+
+`domain=` fixes the range of the color scale, so that the same cohesion gets the same color in
+every table. `tab_style()` styles chosen cells, for example to set the two leaders of the karate
+club in bold in the table of central members:
+
+```{python}
+(
+    GT(leaders, rowname_col="label")
+    .tab_header(title="The most central members of the karate club")
+    .tab_stubhead(label="Member")
+    .tab_spanner(label="Centrality", columns=measures)
+    .cols_label(
+        role="Role",
+        faction="Faction",
+        degree_centrality="Degree",
+        betweenness_centrality="Betweenness",
+        closeness_centrality="Closeness",
+        pagerank="PageRank",
+    )
+    .fmt_number(columns=measures, decimals=3)
+    .tab_style(style=style.text(weight="bold"), locations=loc.body(rows=pl.col("role") != "Member"))
+)
+```
+
+`loc.body(rows=)` takes a Polars expression, evaluated on the data frame, which picks out the rows
+to style. Great Tables has many more options, for footnotes, row groups, column widths, and themes,
+which its own documentation describes.
+
+## Saving tables
+
+A summary table in Polars is saved with the data frame's own writers: `write_csv()` for a text file
+that any tool reads, `write_parquet()` for a compact, typed file, and `write_excel()` for a
+spreadsheet. A Great Tables table is saved as HTML with `write_raw_html()`, converted to LaTeX for a
+paper with `as_latex()`, or saved as an image with `save()`, which uses a web browser in the
+background to render it:
+
+```{python}
+#| eval: false
+networks.write_csv("networks.csv")
+
+table = GT(networks, rowname_col="network").fmt_number(columns="density", decimals=4)
+table.write_raw_html("networks.html")
+table.save("networks.png")
+latex = table.as_latex()
+```
+
+Since every table on this page is computed from the graph by code, a change to the data or the
+analysis updates the tables when the code runs again, and the code itself documents how each
+number was obtained.
+
+## Summary
+
+| Summary | Built with |
+|---|---|
+| One graph, at the console | `describe()`, with `describe_hook=` for extra measures |
+| Several graphs side by side | one dictionary of measures per graph, then `pl.DataFrame()` |
+| The most important nodes | `get_node_df()`, `select()`, `sort()`, and `rank()` for ranks |
+| The nodes of a selection | `get_node_df_ws()` |
+| Groups of nodes | `group_by()` on the node table |
+| Two partitions compared | `pivot()` on the node table, `attribute_mixing_matrix()` for edges |
+| Edges with readable endpoints | `replace_strict()` with a dictionary of labels |
+| Ties within and between groups | the edge table with the groups of both endpoints |
+| A distribution | `get_degree_distribution()`, binned with `group_by()` |
+| A presentation table | `GT()` from Great Tables, with `fmt_*()`, `cols_label()`, and `data_color()` |
+| A saved table | `write_csv()`, `write_parquet()`, or `write_raw_html()`, `as_latex()`, `save()` |
