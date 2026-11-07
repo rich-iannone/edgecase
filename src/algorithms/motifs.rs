@@ -1,8 +1,9 @@
 use crate::graph::Graph;
 use crate::utils::Seed;
 use pyo3::prelude::*;
+use pyo3::types::{IntoPyDict, PyDict};
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 fn adjacency_set(graph: &Graph) -> FxHashMap<u64, FxHashSet<u64>> {
     let directed = graph.is_directed();
@@ -213,10 +214,11 @@ fn motif_class_name(key: u64, size: usize, directed: bool) -> String {
     format!("motif_{}_{}", size, key)
 }
 
-/// Count occurrences of all non-isomorphic connected subgraphs of a given size.
+/// Count occurrences of all non-isomorphic connected subgraphs of a given size, keyed by
+/// class name in sorted order so the result doesn't depend on hashing.
 #[pyfunction]
 #[pyo3(signature = (graph, size))]
-pub fn motif_census(graph: &Graph, size: usize) -> PyResult<HashMap<String, u64>> {
+pub fn motif_census(graph: &Graph, size: usize) -> PyResult<BTreeMap<String, u64>> {
     if !(3..=4).contains(&size) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Motif size must be 3 or 4",
@@ -225,7 +227,7 @@ pub fn motif_census(graph: &Graph, size: usize) -> PyResult<HashMap<String, u64>
 
     let node_ids = graph.get_node_ids();
     if node_ids.len() < size {
-        return Ok(HashMap::new());
+        return Ok(BTreeMap::new());
     }
 
     let directed = graph.is_directed();
@@ -244,7 +246,7 @@ pub fn motif_census(graph: &Graph, size: usize) -> PyResult<HashMap<String, u64>
         }
     }
 
-    let mut result = HashMap::new();
+    let mut result = BTreeMap::new();
     for (key, count) in &counts {
         let name = motif_class_name(*key, size, directed);
         *result.entry(name).or_insert(0) += count;
@@ -254,14 +256,16 @@ pub fn motif_census(graph: &Graph, size: usize) -> PyResult<HashMap<String, u64>
 }
 
 /// Compare motif counts against degree-preserving random graphs to find significant motifs.
+/// Classes come in sorted order, each with its statistics in a fixed order.
 #[pyfunction]
 #[pyo3(signature = (graph, size, n_random=100, seed=None))]
-pub fn motif_significance(
+pub fn motif_significance<'py>(
+    py: Python<'py>,
     graph: &Graph,
     size: usize,
     n_random: usize,
     seed: Option<Seed>,
-) -> PyResult<HashMap<String, HashMap<String, f64>>> {
+) -> PyResult<BTreeMap<String, Bound<'py, PyDict>>> {
     let seed = seed.map(u64::from);
     use crate::algorithms::null_models::degree_preserving_rewire;
 
@@ -284,7 +288,7 @@ pub fn motif_significance(
     let mut all_classes: FxHashSet<String> = observed.keys().cloned().collect();
 
     // Generate random graphs and count motifs
-    let mut random_counts: Vec<HashMap<String, u64>> = Vec::with_capacity(n_random);
+    let mut random_counts: Vec<BTreeMap<String, u64>> = Vec::with_capacity(n_random);
     for i in 0..n_random {
         let rand_seed = seed.map(|s| s.wrapping_add(i as u64));
         let random_graph = degree_preserving_rewire(graph, None, rand_seed.map(Seed::from))?;
@@ -296,7 +300,7 @@ pub fn motif_significance(
     }
 
     // Compute z-scores for each motif class
-    let mut result: HashMap<String, HashMap<String, f64>> = HashMap::new();
+    let mut result = BTreeMap::new();
     let n_f = n_random as f64;
 
     for class in &all_classes {
@@ -325,13 +329,14 @@ pub fn motif_significance(
         // p-value: fraction of random graphs with count >= observed
         let p_value = rand_vals.iter().filter(|&&v| v >= obs).count() as f64 / n_f;
 
-        let mut entry = HashMap::new();
-        entry.insert("count".to_string(), obs);
-        entry.insert("mean_random".to_string(), mean);
-        entry.insert("std_random".to_string(), std_dev);
-        entry.insert("z_score".to_string(), z_score);
-        entry.insert("p_value".to_string(), p_value);
-
+        let entry = [
+            ("count", obs),
+            ("mean_random", mean),
+            ("std_random", std_dev),
+            ("z_score", z_score),
+            ("p_value", p_value),
+        ]
+        .into_py_dict(py)?;
         result.insert(class.clone(), entry);
     }
 
