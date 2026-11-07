@@ -1,0 +1,415 @@
+---
+title: Directed acyclic graphs
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A *directed acyclic graph*, or DAG, is a directed graph with no cycles: following its edges forward
+never leads back to the start. DAGs describe anything with an order of precedence. Tasks and their
+dependencies, courses and their prerequisites, the cells of a spreadsheet, packages in a build
+system, the commits of a version history, citations between papers, and causes and their effects
+all form DAGs, and the absence of cycles makes possible a family of methods that don't apply to
+graphs in general. This page covers those methods: ordering, scheduling and the critical path,
+ancestry and reachability, transitive closure and reduction, dominators, d-separation in causal
+diagrams, and the special case of trees.
+
+## A project as a DAG
+
+The examples in the first part of this page use the plan for building a house. Each task has a
+duration in days, and some tasks can't start until others are finished. An edge from one task to
+another means that the first must be done before the second can begin, and each edge is weighted
+by the duration of the task it leaves, so that the length of a path is the time it takes to work
+through it. A final `done` node marks the end of the project:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+durations = {
+    "survey": 3, "foundation": 5, "framing": 10, "plumbing": 4, "electrical": 5, "roof": 6,
+    "insulation": 3, "drywall": 7, "painting": 4, "landscaping": 6, "inspection": 1,
+}
+
+depends_on = [
+    ("survey", "foundation"), ("foundation", "framing"), ("foundation", "landscaping"),
+    ("framing", "plumbing"), ("framing", "electrical"), ("framing", "roof"),
+    ("plumbing", "insulation"), ("electrical", "insulation"), ("insulation", "drywall"),
+    ("roof", "drywall"), ("drywall", "painting"), ("painting", "inspection"),
+    ("landscaping", "inspection"), ("inspection", "done"),
+]
+
+house = ec.Graph.from_edges(
+    [(before, after, durations[before]) for before, after in depends_on],
+    directed=True,
+    graph_name="House",
+)
+house.is_dag()
+```
+
+[`is_dag()`](../reference/Graph.is_dag.qmd) confirms that the plan has no circular dependencies.
+As on other pages, a small helper turns node IDs into task names:
+
+```{python}
+def names(ids):
+    return [house.get_label_from_id(i) for i in ids]
+```
+
+## Ordering
+
+A *topological order* lists the nodes so that every edge points forward: each task comes after all
+the tasks it depends on. Every DAG has at least one, and a graph with a cycle has none.
+[`get_topological_sort_order()`](../reference/Graph.get_topological_sort_order.qmd) returns one:
+
+```{python}
+names(house.get_topological_sort_order())
+```
+
+Working through the tasks in this order never starts one before its prerequisites. A DAG usually
+has many topological orders, since tasks that don't depend on each other can be done in either
+order, and the one returned depends on how the graph was built.
+[`lexicographical_topological_sort()`](../reference/Graph.lexicographical_topological_sort.qmd)
+returns a canonical one, which at each step takes the available node with the smallest label (or
+the smallest value of `key=`), and so gives the same order however the graph was built.
+[`all_topological_sorts()`](../reference/Graph.all_topological_sorts.qmd) lists every order, of
+which this small plan has 64.
+
+[`topological_generations()`](../reference/Graph.topological_generations.qmd) groups the nodes
+into *generations* instead. The first holds the nodes with no predecessors, and each later
+generation holds the nodes whose predecessors all lie in earlier ones:
+
+```{python}
+[names(generation) for generation in house.topological_generations()]
+```
+
+The tasks in a generation don't depend on one another, so they can proceed at the same time: once
+the framing is up, the plumber, the electrician, and the roofers can all work at once. The
+generations are also a natural way to draw a DAG, in layers from left to right.
+[`layout_multipartite()`](../reference/Graph.layout_multipartite.qmd) places each generation in a
+column and stores the positions in a `pos` attribute:
+
+```{python}
+generations = house.topological_generations()
+house.layout_multipartite(subset_key=dict(enumerate(generations)))
+house.plot(layout="pos", label_by="label", node_size=10, width=700, height=300)
+```
+
+If the graph has a cycle, every ordering method raises a `ValueError`. Suppose a mistaken
+dependency makes the plumbing wait for the painting, which itself comes after the plumbing:
+
+```{python}
+broken = ec.Graph.from_edges(depends_on + [("painting", "plumbing")], directed=True)
+broken.is_dag(), [[broken.get_label_from_id(i) for i in cycle] for cycle in broken.simple_cycles()]
+```
+
+[`simple_cycles()`](../reference/Graph.simple_cycles.qmd) finds the offending loop, and
+[`minimum_feedback_edge_set()`](../reference/Graph.minimum_feedback_edge_set.qmd) finds the
+fewest (or, on a weighted graph, the lightest) edges whose removal would break every cycle. For a
+large graph with many cycles, [`condensation()`](../reference/Graph.condensation.qmd) collapses each
+strongly connected component into a single node, which leaves a DAG to which all of the methods on
+this page apply (see [Connectivity and flows](16-connectivity.qmd#directed-graphs)).
+
+## The critical path
+
+How long will the house take? Tasks in parallel overlap, so the answer isn't the sum of the
+durations but the length of the longest chain of dependent tasks, the *critical path*. Any delay to
+a task on that path delays the whole project. [`dag_longest_path()`](../reference/Graph.dag_longest_path.qmd)
+finds it, using the edge weights as lengths, and
+[`dag_longest_path_length()`](../reference/Graph.dag_longest_path_length.qmd) gives its length:
+
+```{python}
+names(house.dag_longest_path()), house.dag_longest_path_length()
+```
+
+The house takes 38 days, and the critical path runs through the electrical work rather than the
+plumbing or the roof. Longest paths are only well defined in a DAG, since in a graph with a cycle
+a path could go around it forever.
+
+A topological order makes it easy to work out more of the schedule by hand. Going forward through
+the order, each task can start as soon as all its predecessors have finished, which gives its
+earliest finish. Going backward, each task must finish in time for all its successors to start,
+which gives its latest finish. The difference is the task's *slack*, how long it can slip without
+delaying the project. [`get_predecessors()`](../reference/Graph.get_predecessors.qmd) and
+[`get_successors()`](../reference/Graph.get_successors.qmd) supply the neighbors:
+
+```{python}
+order = house.get_topological_sort_order()
+
+def duration(node):
+    return durations.get(house.get_label_from_id(node), 0)
+
+finish = {}
+for node in order:
+    start = max((finish[p] for p in house.get_predecessors(node)), default=0)
+    finish[node] = start + duration(node)
+
+project_end = max(finish.values())
+latest = {}
+for node in reversed(order):
+    latest[node] = min(
+        (latest[s] - duration(s) for s in house.get_successors(node)), default=project_end
+    )
+
+schedule = pl.DataFrame(
+    {
+        "task": names(order),
+        "start": [finish[n] - duration(n) for n in order],
+        "finish": [finish[n] for n in order],
+        "slack": [latest[n] - finish[n] for n in order],
+    }
+)
+schedule
+```
+
+The tasks with no slack are exactly those on the critical path. The plumbing can slip by a day and
+the roof by two without consequence, and the landscaping, which nothing else waits for until the
+final inspection, has more than three weeks to spare. Coloring the drawing by slack makes the
+critical path stand out:
+
+```{python}
+house.set_node_attrs(
+    "schedule",
+    {n: "critical" if latest[n] == finish[n] else "has slack" for n in order},
+)
+house.plot(layout="pos", color_by="schedule", label_by="label", node_size=10, width=700, height=300)
+```
+
+## Ancestors and descendants
+
+In a DAG, a node's *ancestors* are the nodes from which it can be reached, and its *descendants*
+the nodes it can reach. [`ancestors()`](../reference/Graph.ancestors.qmd) and
+[`descendants()`](../reference/Graph.descendants.qmd) return them, and in a project plan they answer
+two everyday questions: what must be finished before a task can start, and what a delay to a task
+could hold up:
+
+```{python}
+names(house.ancestors("drywall")), names(house.descendants("plumbing"))
+```
+
+Before the drywall goes up, every earlier task except the landscaping must be done, and a
+delay in the plumbing could affect the insulation and everything after it. Both methods work on
+any directed graph, not only on DAGs, and
+[`descendants_at_distance()`](../reference/Graph.descendants_at_distance.qmd) limits the search to
+nodes a given number of steps away.
+
+### Reachability queries
+
+Some applications ask whether one node can reach another many thousands of times on the same
+graph: whether one package depends on another, or whether one paper is in the citation history of
+another. [`has_path()`](../reference/Graph.has_path.qmd) runs a search for every question.
+[`reachability_index()`](../reference/Graph.reachability_index.qmd) does the work once, and
+returns a function that answers each question almost instantly by looking up two short lists:
+
+```{python}
+wiki = ec.wiki_vote()
+reaches = wiki.reachability_index()
+reaches(1, 2), reaches(2, 1)
+```
+
+The function takes node IDs or labels, and here shows that a chain of votes leads from node 2 to
+node 1 but not back. On the Wikipedia election network, the index takes a few milliseconds to build
+and then answers each query in about a microsecond, thousands of times faster than a search. The index is a
+snapshot, so rebuild it after changing the graph.
+
+### Lowest common ancestors
+
+The *lowest common ancestor* of two nodes is a node from which both can be reached and which is as
+close to them as possible. In a version history, where each commit points to the commits made on
+top of it, it is the *merge base*: the most recent commit that two branches share, which a version
+control system needs in order to merge them. Here is a history in which a feature branch
+(`f1`, `f2`) and a hotfix (`h1`) split off from the main line (`a1` to `a4`), and the feature was
+merged back in as `m`:
+
+```{python}
+history = ec.Graph.from_edges(
+    [
+        ("a1", "a2"), ("a2", "a3"), ("a3", "a4"), ("a2", "f1"), ("f1", "f2"),
+        ("a4", "m"), ("f2", "m"), ("a3", "h1"),
+    ],
+    directed=True,
+)
+[
+    history.get_label_from_id(history.lowest_common_ancestor(x, y))
+    for x, y in [("a4", "f2"), ("m", "h1")]
+]
+```
+
+The feature branch split off at `a2`, so that is the merge base of `a4` and `f2`. The merge `m`
+includes the main line up to `a4`, so its common ancestor with the hotfix is the later commit
+`a3`. [`lowest_common_ancestor()`](../reference/Graph.lowest_common_ancestor.qmd) returns one such
+node, [`all_lowest_common_ancestors()`](../reference/Graph.all_lowest_common_ancestors.qmd) returns
+them all (a DAG, unlike a tree, can have several), and
+[`all_pairs_lowest_common_ancestor()`](../reference/Graph.all_pairs_lowest_common_ancestor.qmd)
+answers many pairs at once.
+
+## Closure and reduction
+
+The *transitive closure* of a directed graph adds an edge from every node to every node it can
+reach, and the *transitive reduction* of a DAG goes the other way, removing every edge that is
+implied by a longer path. A dependency list often contains redundant entries, such as a note that
+the roof depends on the foundation when it already depends on the framing, which depends on the
+foundation. [`transitive_reduction()`](../reference/Graph.transitive_reduction.qmd) removes them:
+
+```{python}
+redundant = ec.Graph.from_edges(depends_on + [("foundation", "roof")], directed=True)
+redundant.count_edges(), redundant.transitive_reduction().count_edges()
+```
+
+The reduction is the smallest graph with the same reachability, and the clearest one to draw.
+[`transitive_closure()`](../reference/Graph.transitive_closure.qmd) makes every indirect dependency
+explicit, which for the house turns 14 edges into 55:
+
+```{python}
+house.transitive_closure().count_edges()
+```
+
+### Antichains
+
+An *antichain* is a set of nodes none of which can reach another, such as a set of tasks none of
+which has to wait for another. The largest antichain is the most work that could ever be in
+progress at once, and its size is the *width* of the DAG.
+[`antichain_width()`](../reference/Graph.antichain_width.qmd) computes it, and
+[`antichains()`](../reference/Graph.antichains.qmd) lists every antichain:
+
+```{python}
+width = house.antichain_width()
+width, [names(chain) for chain in house.antichains() if len(chain) == width]
+```
+
+At most four crews could ever work at once on the house: the landscapers alongside the plumber,
+the electrician, and the roofers. By Dilworth's theorem, the width is also the fewest chains
+(sequences of dependent tasks) that together cover every node, and so the fewest workers who could
+complete the project if each worked through one chain.
+
+## Dominators
+
+In a directed graph with a fixed starting node, a node `d` *dominates* a node `v` if every path
+from the start to `v` passes through `d`. The idea comes from compilers, which analyze programs as
+*control-flow graphs* of blocks of code, but it applies to any network with a source: a node's
+dominators are the points of failure that every route to it depends on. Here is the control flow
+of a simple loop, in which `test` decides whether to run the `body` again:
+
+```{python}
+program = ec.Graph.from_edges(
+    [
+        ("entry", "init"), ("init", "test"), ("test", "body"), ("body", "update"),
+        ("update", "test"), ("test", "exit"), ("body", "error"), ("error", "exit"),
+    ],
+    directed=True,
+)
+label = program.get_label_from_id
+{label(node): label(dom) for node, dom in program.immediate_dominators("entry").items()}
+```
+
+[`immediate_dominators()`](../reference/Graph.immediate_dominators.qmd) maps each node to its
+closest dominator, and these links form the *dominator tree*. Every run reaches `exit` through
+`test`, even though `exit` can also be reached through `error`, so `test` is its immediate
+dominator. The edge from `update` back to `test`, which leads to a node that dominates its own
+source, is a *back edge*, and it marks the loop. (This graph isn't a DAG; dominators are defined
+for any directed graph.) [`dominance_frontiers()`](../reference/Graph.dominance_frontiers.qmd)
+returns, for each node, the nodes where its dominance ends, which compilers use to decide where
+values from different branches must be merged.
+
+## Causal diagrams and d-separation
+
+In a causal diagram, or *Bayesian network*, the edges of a DAG point from causes to their effects.
+The structure of the graph alone then says which variables are independent of which, given others.
+The rule is called *d-separation*: a set of nodes `Z` d-separates `X` from `Y` if it blocks every
+path between them, where a path is blocked at a node that is in `Z` and passes the path along (a
+chain or a fork), or at a *collider*, a node into which both of the path's edges point, that is
+*not* in `Z` and has no descendant in `Z`. The standard example has the season influencing both the
+rain and whether the sprinkler is on, either of which makes the grass wet, which makes it slippery:
+
+```{python}
+lawn = ec.Graph.from_edges(
+    [
+        ("season", "rain"), ("season", "sprinkler"), ("rain", "wet"),
+        ("sprinkler", "wet"), ("wet", "slippery"),
+    ],
+    directed=True,
+)
+[
+    lawn.is_d_separator("rain", "sprinkler", given)
+    for given in [[], ["season"], ["season", "wet"], ["season", "slippery"]]
+]
+```
+
+[`is_d_separator()`](../reference/Graph.is_d_separator.qmd) shows the rules at work. Rain and
+the sprinkler are linked through the season, so they are dependent until the season is known.
+Knowing the season makes them independent. But learning that the grass is wet, or merely that it is
+slippery, makes them dependent again, since wet grass on a dry day suggests the sprinkler was on:
+`wet` is a collider, and conditioning on it, or on its descendant `slippery`, opens the path.
+
+These rules are the basis of choosing which variables to adjust for in causal inference.
+[`find_minimal_d_separator()`](../reference/Graph.find_minimal_d_separator.qmd) finds a set that
+separates two nodes and has no smaller subset that also does, optionally restricted to the
+variables that were actually measured (`restricted=`):
+
+```{python}
+[lawn.get_label_from_id(i) for i in lawn.find_minimal_d_separator("season", "slippery")]
+```
+
+Knowing both rain and sprinkler blocks every path from the season to slippery grass. So does
+knowing whether the grass is wet, a different minimal set; minimal means only that no member can
+be dropped, not that the set is the smallest possible.
+[`is_minimal_d_separator()`](../reference/Graph.is_minimal_d_separator.qmd) checks a given set.
+
+## Trees
+
+A *tree* is a connected graph without cycles, and so the simplest connected graph possible: it has
+exactly `n - 1` edges, and a single path between each pair of nodes. Its directed counterpart, an
+*arborescence*, has one root from which a unique directed path leads to every other node, like a
+family tree, an organization chart, or a file system. Trees appear throughout this guide, as
+search trees ([Traversals](09-traversals.qmd)), spanning trees
+([Connectivity and flows](16-connectivity.qmd#spanning-trees)), and Steiner trees
+([Paths and distances](12-paths.qmd#steiner-trees)), and many generators build them
+([Generators](05-generators.qmd)).
+
+[`is_tree()`](../reference/Graph.is_tree.qmd) and [`is_forest()`](../reference/Graph.is_forest.qmd)
+test undirected graphs, and [`is_arborescence()`](../reference/Graph.is_arborescence.qmd) and
+[`is_branching()`](../reference/Graph.is_branching.qmd) (a directed forest) test directed ones.
+A tree can also be encoded compactly. A *Prüfer sequence* encodes a labelled tree on `n` nodes as
+a list of `n - 2` node numbers, and a *nested tuple* encodes the shape of a rooted tree, with each
+node's children inside its own parentheses:
+
+```{python}
+tree = ec.Graph().add_balanced_tree(2, 2)
+tree.is_tree(), tree.to_prufer_sequence(), tree.to_nested_tuple(1)
+```
+
+This is a binary tree of height 2, with a root, two children, and four grandchildren.
+[`from_prufer_sequence()`](../reference/Graph.from_prufer_sequence.qmd) and
+[`from_nested_tuple()`](../reference/Graph.from_nested_tuple.qmd) rebuild a tree from its code,
+which is useful for generating trees systematically or storing many of them. Nested tuples in
+canonical form (`canonical_form=True`) are equal exactly when two rooted trees have the same shape.
+
+Other methods for trees and branchings are these:
+
+| Method | Does |
+|---|---|
+| [`maximum_branching()`](../reference/Graph.maximum_branching.qmd), [`minimum_branching()`](../reference/Graph.minimum_branching.qmd) | find the heaviest or lightest directed forest in a weighted directed graph (Edmonds' algorithm) |
+| [`dag_to_branching()`](../reference/Graph.dag_to_branching.qmd) | unfold a DAG into a forest of its root-to-leaf paths, copying shared nodes |
+| [`Graph.join_trees()`](../reference/Graph.join_trees.qmd) | join several rooted trees under a new common root |
+| [`add_prefix_tree()`](../reference/Graph.add_prefix_tree.qmd) | build the prefix tree (*trie*) of a list of sequences, such as words |
+| [`lukes_partitioning()`](../reference/Graph.lukes_partitioning.qmd) | split a tree into connected clusters of bounded size, cutting as little edge weight as possible |
+| [`tree_decomposition()`](../reference/Graph.tree_decomposition.qmd), [`junction_tree()`](../reference/Graph.junction_tree.qmd) | organize a general graph as a tree of overlapping groups of nodes, the basis of many exact algorithms and of inference in probabilistic models |
+
+## Summary
+
+| Question | Methods |
+|---|---|
+| Does the graph have cycles, and where? | `is_dag()`, `simple_cycles()`, `minimum_feedback_edge_set()` |
+| In what order can the nodes be processed? | `get_topological_sort_order()`, `lexicographical_topological_sort()`, `topological_generations()` |
+| How long is the longest chain of dependencies? | `dag_longest_path()`, `dag_longest_path_length()` |
+| What does a node depend on, and what depends on it? | `ancestors()`, `descendants()`, `reachability_index()` |
+| What do two nodes have in common? | `lowest_common_ancestor()`, `all_lowest_common_ancestors()` |
+| Which edges are redundant, and which are implied? | `transitive_reduction()`, `transitive_closure()` |
+| How much can happen in parallel? | `topological_generations()`, `antichain_width()` |
+| Which nodes must every route pass through? | `immediate_dominators()`, `dominance_frontiers()` |
+| Which variables are independent given others? | `is_d_separator()`, `find_minimal_d_separator()` |
