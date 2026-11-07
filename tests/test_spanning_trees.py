@@ -141,6 +141,34 @@ class TestSteinerTree:
         prizes = {"A": 5.0, "B": 5.0}
         assert p.prize_collecting_steiner_tree(prizes, weight_attr="weight").count_edges() == 0
 
+    @pytest.mark.parametrize("bad", [None, "cheap"])
+    def test_missing_or_non_numeric_weight_attr_raises(self, bad):
+        """A misspelled `weight_attr=` used to count every edge as 1.0 without a word."""
+        g = Graph().add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", {"cost": 1.0}), ("B", "C", {"cost": 2.0})])
+        g.add_edge("A", "C", attributes={"cost": 3.0} if bad is None else {"cost": bad})
+        attr = "wieght" if bad is None else "cost"
+        calls = [
+            lambda: g.steiner_tree(["A", "B", "C"], weight_attr=attr),
+            lambda: g.prize_collecting_steiner_tree({"A": 5.0, "C": 5.0}, weight_attr=attr),
+            lambda: g.all_spanning_trees(weight_attr=attr),
+            lambda: g.minimum_spanning_tree(weight_attr=attr),
+            lambda: g.maximum_spanning_tree(weight_attr=attr),
+            lambda: g.minimum_spanning_tree(weight_attr=attr, include=[("A", "B")]),
+            lambda: list(g.iter_spanning_trees(weight_attr=attr)),
+        ]
+        for call in calls:
+            with pytest.raises(ValueError, match=f"no numeric '{attr}' attribute"):
+                call()
+        d = Graph(directed=True).add_nodes(["R", "A"]).add_edge("R", "A")
+        with pytest.raises(ValueError, match="weight_attr='wieght'"):
+            d.directed_steiner_tree("R", ["A"], weight_attr="wieght")
+        # The nested form `attributes={...}` still counts, and "weight" still falls back to the
+        # weight field (1.0 on an unweighted graph)
+        if bad is None:
+            assert g.minimum_spanning_tree(weight_attr="cost").count_edges() == 2
+            assert g.minimum_spanning_tree(weight_attr="weight").count_edges() == 2
+
     def test_steiner_tree_directed_graph(self):
         """Test Steiner tree on directed graph."""
         g = Graph(directed=True, weighted=True)
