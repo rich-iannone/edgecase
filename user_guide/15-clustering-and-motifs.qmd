@@ -149,7 +149,8 @@ Several variants of clustering suit other questions:
 | [`generalized_degree()`](../reference/Graph.generalized_degree.qmd) | a node's edges, counted by how many triangles each belongs to |
 | [`latapy_clustering()`](../reference/Graph.latapy_clustering.qmd), [`robins_alexander_clustering()`](../reference/Graph.robins_alexander_clustering.qmd) | clustering for bipartite graphs |
 
-For directed graphs, `local_clustering_coefficient()` counts triangles among a node's successors.
+On a directed graph, the clustering methods use Fagiolo's definition, as NetworkX does: a
+triangle through a node counts whichever way its three arcs point.
 [Structural properties](11-structure.qmd#cliques) covers cliques, the extreme form of clustering.
 
 ## Motifs
