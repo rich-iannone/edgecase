@@ -124,7 +124,12 @@ fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f6
                         }
                     }
                 }
-                1.0
+                // Weighted graphs keep weights in the weight field, not as an attribute
+                if attr_name == "weight" {
+                    edge.weight.unwrap_or(1.0)
+                } else {
+                    1.0
+                }
             })
         } else {
             // Use default weight field
