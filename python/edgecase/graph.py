@@ -2753,7 +2753,7 @@ class Graph:
         """
         if id is not None:
             # Delete by edge ID
-            if not self._graph.has_edge_id(id):
+            if not self.has_edge_id(id):
                 raise EdgeNotFoundError(f"Edge with ID {id} does not exist")
             self._graph.delete_edge_by_id(id)
         elif source is not None and target is not None:
@@ -2816,8 +2816,9 @@ class Graph:
 
         Raises
         ------
-        KeyError
-            If no edge exists with the specified ID.
+        EdgeNotFoundError
+            If no edge exists with the specified ID. It is a subclass of both `KeyError` and
+            `ValueError`.
 
         Examples
         --------
@@ -2859,16 +2860,18 @@ class Graph:
         graph.get_edge_df()
         ```
 
-        An ID that doesn't belong to any edge raises a `KeyError`:
+        An ID that doesn't belong to any edge raises an `EdgeNotFoundError`:
 
         ```{python}
         try:
             graph.delete_edge_by_id(edge_id=999)
-        except KeyError as e:
+        except ec.EdgeNotFoundError as e:
             print(e)
         ```
 
         """
+        if not self.has_edge_id(edge_id):
+            raise EdgeNotFoundError(f"Edge with ID {edge_id} does not exist")
         src_label = tgt_label = None
         if self._recording_depth == 0:
             try:
@@ -9512,6 +9515,7 @@ class Graph:
         ]
         ```
         """
+        self._check_non_negative(n=n)
         with self._compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})"):
             if directed is not None and directed != self.is_directed():
                 # Generate with the requested directedness, then copy in
@@ -9622,6 +9626,7 @@ class Graph:
         directed.count_edges()
         ```
         """
+        self._check_non_negative(n=n, m=m)
         with self._compound("add_gnm_graph", f"G.add_gnm_graph(n={n}, m={m})"):
             if directed is not None and directed != self.is_directed():
                 # Generate with the requested directedness, then copy in
@@ -9745,6 +9750,7 @@ class Graph:
         tree.get_edges_str_repr()
         ```
         """
+        self._check_non_negative(n=n, m=m)
         with self._compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})"):
             self._graph.generate_pa_graph(n, m, seed)
         return self
@@ -9856,6 +9862,7 @@ class Graph:
         ```
 
         """
+        self._check_non_negative(n=n, k=k)
         with self._compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})"):
             self._graph.generate_smallworld_graph(n, k, p, seed)
         return self
@@ -9907,10 +9914,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `k=` > `n=`, or if one of the subset labels is already used in the graph (e.g. by
-            an earlier Johnson graph); nothing is added in that case.
-        OverflowError
-            If `n=` or `k=` is negative.
+            If `n=` or `k=` is negative, if `k=` > `n=`, or if one of the subset labels is already
+            used in the graph (e.g. by an earlier Johnson graph); nothing is added in that case.
 
         Properties
         ----------
@@ -10001,6 +10006,7 @@ class Graph:
         {johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)}
         ```
         """
+        self._check_non_negative(n=n, k=k)
         with self._compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})"):
             self._graph.generate_johnson_graph(n, k)
         return self
@@ -10160,6 +10166,7 @@ class Graph:
         ```
 
         """
+        self._check_non_negative(n=n, dim=dim)
         with self._compound(
             "add_random_geometric_graph",
             f"G.add_random_geometric_graph(n={n}, radius={radius}, dim={dim}, p_norm={p_norm})",
@@ -16796,7 +16803,8 @@ class Graph:
         ```
 
         """
-        edge = self._graph.get_edge(edge_id)
+        negative = isinstance(edge_id, int) and edge_id < 0  # pyo3 would raise OverflowError
+        edge = None if negative else self._graph.get_edge(edge_id)
         if edge is None:
             raise EdgeNotFoundError(f"Edge with ID {edge_id} does not exist")
         return edge
@@ -17048,6 +17056,8 @@ class Graph:
         ```
 
         """
+        if isinstance(edge_id, int) and edge_id < 0:
+            return None  # pyo3 would raise OverflowError
         return self._graph.get_edge_by_id(edge_id)
 
     def get_id_from_label(self, label: str) -> Optional[int]:
@@ -17910,6 +17920,8 @@ class Graph:
         graph.has_edge_id(edge_id=1), graph.get_edge_ids()
         ```
         """
+        if isinstance(edge_id, int) and edge_id < 0:
+            return False  # IDs are unsigned in Rust; pyo3 would raise OverflowError
         return self._graph.has_edge_id(edge_id)
 
     def find_edge_ids(self, source: Union[int, str], target: Union[int, str]) -> list[int]:
@@ -22067,6 +22079,7 @@ class Graph:
         directed_cycle.is_k_regular(1), directed_cycle.is_k_regular(2)
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import is_k_regular
 
         return is_k_regular(self._graph, k)
@@ -23588,7 +23601,7 @@ class Graph:
         ----------
         n
             Number of most recently created nodes to select. Must be a non-negative integer (a
-            negative value raises `OverflowError`). If `n` is larger than the number of nodes,
+            negative value raises `ValueError`). If `n` is larger than the number of nodes,
             every node is selected; `n=0` selects nothing.
         set_op
             How these nodes combine with the current node selection. `"union"` (default) adds them
@@ -23641,6 +23654,7 @@ class Graph:
         ```
 
         """
+        self._check_non_negative(n=n)
         self._select("nodes", set_op, lambda: self._graph.select_last_nodes_created(n))
 
         if self._recording_depth == 0:
@@ -23676,7 +23690,7 @@ class Graph:
         ----------
         n
             Number of most recently created edges to select. Must be a non-negative integer (a
-            negative value raises `OverflowError`). If `n` is larger than the number of edges,
+            negative value raises `ValueError`). If `n` is larger than the number of edges,
             every edge is selected; `n=0` selects nothing.
         set_op
             How these edges combine with the current edge selection. `"union"` (default) adds them
@@ -23732,6 +23746,7 @@ class Graph:
         ```
 
         """
+        self._check_non_negative(n=n)
         self._select("edges", set_op, lambda: self._graph.select_last_edges_created(n))
 
         if self._recording_depth == 0:
@@ -27185,7 +27200,8 @@ class Graph:
         -------
         pl.DataFrame
             A Polars DataFrame with mandatory columns 'id', 'label', 'type' (first three), followed
-            by other attributes and 'degree'. Empty DataFrame if graph has no nodes.
+            by other attributes and 'degree'. If the graph has no nodes, the frame has no rows but
+            still has the 'id', 'label', 'type' and 'degree' columns.
 
         Technical Notes
         ---------------
@@ -27261,7 +27277,9 @@ class Graph:
     def _node_df(self, node_ids: list[int]) -> pl.DataFrame:
         """The `get_node_df()` table for the given nodes."""
         if not node_ids:
-            return pl.DataFrame()
+            # no rows, but the mandatory columns, so selecting them works on an empty graph
+            schema = {"id": pl.Int64, "label": pl.String, "type": pl.Null, "degree": pl.Int64}
+            return pl.DataFrame(schema=schema)
 
         nodes = [self.get_node(nid) for nid in node_ids]
         attrs = [(node.attributes or {}) if node else {} for node in nodes]
@@ -27309,7 +27327,8 @@ class Graph:
             DataFrame with the mandatory columns `id`, `label`, and `type` first, followed by the
             other attributes found on the selected nodes (alphabetically) and `degree` last. Rows
             are sorted by `id`, and a node lacking an attribute has `None` in that column. If no
-            nodes are selected, an empty DataFrame (no rows, no columns) is returned.
+            nodes are selected, the DataFrame has no rows and just the `id`, `label`, `type` and
+            `degree` columns.
 
         Technical Notes
         ---------------
@@ -27387,8 +27406,9 @@ class Graph:
         Returns
         -------
         pl.DataFrame
-            A Polars DataFrame with edges sorted by `id`. Returns an empty DataFrame if the graph
-            has no edges.
+            A Polars DataFrame with edges sorted by `id`. If the graph has no edges, the frame has
+            no rows but still has the `id`, `source`, `target` and `rel` columns (and `weight` on
+            a weighted graph).
 
         Technical Notes
         ---------------
@@ -27455,7 +27475,11 @@ class Graph:
     def _edge_df(self, edge_ids: list[int]) -> pl.DataFrame:
         """The `get_edge_df()` table for the given edges."""
         if not edge_ids:
-            return pl.DataFrame()
+            # no rows, but the mandatory columns (and `weight` on a weighted graph)
+            schema = {"id": pl.Int64, "source": pl.Int64, "target": pl.Int64, "rel": pl.Null}
+            if self.is_weighted():
+                schema["weight"] = pl.Float64
+            return pl.DataFrame(schema=schema)
 
         edges = [self.get_edge(eid) for eid in edge_ids]
         endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
@@ -27518,7 +27542,8 @@ class Graph:
             - columns 5-N: other attributes, including `weight` when present (alphabetically
               sorted, `None` where an edge lacks the attribute)
 
-            Returns an empty DataFrame (no rows, no columns) if no edges are selected.
+            If no edges are selected, the DataFrame has no rows and just the `id`, `source`,
+            `target` and `rel` columns (and `weight` on a weighted graph).
 
         Technical Notes
         ---------------
@@ -28306,8 +28331,9 @@ class Graph:
 
         The computation first collects the common neighbors of `u` and `v`. It then looks at
         every pair `(s, t)` of those common neighbors and counts the pair as *dispersed* when
-        `s` and `t` are not adjacent and also have no neighbor in common other than `u` and `v`
-        (i.e., they are more than two hops apart once `u` and `v` are set aside). The raw
+        `s` and `t` are not adjacent and also have no common neighbor among the other neighbors
+        of `u` (i.e., they are more than two hops apart in `u`'s ego network once `u` and `v`
+        are set aside). The raw
         dispersion is the number of dispersed pairs; the normalized version divides it by the
         number of common neighbors.
 
@@ -28330,7 +28356,8 @@ class Graph:
             The first node of the pair, given as a node ID (`int`) or label (`str`).
         v
             The second node of the pair, given as a node ID (`int`) or label (`str`). The result
-            is symmetric in `u` and `v` for undirected graphs.
+            is not symmetric in `u` and `v`: distances are measured among `u`'s neighbors, so
+            swapping the two can change it.
         normalized
             If `True` (the default), divide the count of dispersed pairs by the number of common
             neighbors of `u` and `v` (their embeddedness), which makes scores easier to compare
@@ -30888,9 +30915,9 @@ class Graph:
         Parameters
         ----------
         weight
-            Edge attribute name to use as weight. If `None`, uses the default edge weight (or `1.0`
-            if edges don't have weights). The algorithm finds the basis that minimizes the sum of
-            cycle weights.
+            Edge attribute name to use as weight. If `None` or `"weight"`, uses the edge's weight
+            field (or `1.0` if edges don't have weights). The algorithm finds the basis that
+            minimizes the sum of cycle weights.
 
         Returns
         -------
@@ -36245,6 +36272,7 @@ class Graph:
         {g.get_label_from_id(n): c for n, c in sorted(groups.items())}
         ```
         """
+        self._check_non_negative(k=k, max_iter=max_iter)
         ids, labels = rust.fluid_communities(self._graph, k, max_iter, seed)
         params = {"k": k}
         if seed is not None:
@@ -36841,7 +36869,7 @@ class Graph:
             weighs 1).
         edge_weight
             Optional edge attribute with the value of keeping an edge inside a cluster
-            (default: every edge is worth 1).
+            (default: every edge is worth 1). `"weight"` names the weight field.
 
         Returns
         -------
@@ -36877,6 +36905,7 @@ class Graph:
         [sorted(path.get_label_from_id(n) for n in c) for c in path.lukes_partitioning(3)]
         ```
         """
+        self._check_non_negative(max_size=max_size)
         clusters, value = rust.lukes_partitioning(self._graph, max_size, node_weight, edge_weight)
         result = [set(c) for c in clusters]
         if self._recording_depth == 0:
@@ -40193,6 +40222,7 @@ class Graph:
         path.power(4).count_edges()
         ```
         """
+        self._check_non_negative(k=k)
         result = Graph._from_rust(rust.graph_power(self._graph, k))
         if self._recording_depth == 0:
             original = {tuple(sorted((s, t))) for _, s, t in self.get_edges_as_tuples() if s != t}
@@ -41869,6 +41899,7 @@ class Graph:
         [(d.get_label_from_id(node_id), gain) for node_id, gain in seeds]
         ```
         """
+        self._check_non_negative(k=k, n_simulations=n_simulations)
         from edgecase._core import influence_maximization as _influence_maximization
 
         result = _influence_maximization(self._graph, k, model, probability, n_simulations, seed)
@@ -42324,8 +42355,8 @@ class Graph:
             Maximum distance approximation factor. Must be ≥ `1.0`. Lower `stretch=` values give
             better approximations but more edges. Higher `stretch=` values create sparser spanners.
         weight
-            Edge attribute to use as distance/weight. If `None`, all edges have weight `1`
-            (unweighted graph).
+            Edge attribute to use as distance/weight; `"weight"` names the weight field. If `None`,
+            all edges have weight `1` (unweighted graph).
         seed
             Random seed for reproducibility. The algorithm has randomized components, so different
             seeds may produce different spanners with the same stretch guarantee.
@@ -48041,6 +48072,7 @@ class Graph:
         all three and agrees with an exhaustive search over every group; NetworkX also rounds the
         score to two decimals.
         """
+        self._check_non_negative(k=k)
         excl = self._group_ids(exclude) if exclude else []
         value, group = rust.prominent_group(
             self._graph, int(k), self._use_weights(weighted), excl, endpoints, normalized, greedy
@@ -50578,6 +50610,7 @@ class Graph:
         ec.Graph().add_path_graph(6).k_core(2).count_nodes()
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_core
 
         result = Graph._from_rust(k_core(self._graph, k))
@@ -50652,6 +50685,7 @@ class Graph:
         (shell_2.count_nodes(), shell_2.count_edges())
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_shell
 
         result = Graph._from_rust(k_shell(self._graph, k))
@@ -50729,6 +50763,7 @@ class Graph:
         (crust_3.count_nodes(), crust_3.count_edges())
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_crust
 
         result = Graph._from_rust(k_crust(self._graph, k))
@@ -50811,6 +50846,7 @@ class Graph:
         (sorted(truss_4.get_node_df()["label"].to_list()), truss_4.count_edges())
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_truss
 
         result = Graph._from_rust(k_truss(self._graph, k))
@@ -50891,6 +50927,7 @@ class Graph:
         corona_4.count_nodes()
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_corona
 
         result = Graph._from_rust(k_corona(self._graph, k))
@@ -51436,12 +51473,14 @@ class Graph:
         ![Girth](/assets/graphs/get-girth.light.svg){.lightbox fig-alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="100%"}
 
         The girth is the length of the shortest cycle in the graph. Returns `None` if the graph is
-        acyclic (a forest/tree). Uses BFS from each node to detect shortest cycles efficiently.
+        acyclic (a forest/tree, or a DAG). In a directed graph, cycles follow the edge directions.
+        Uses BFS from each node to detect shortest cycles efficiently.
 
         The implementation includes fast-path checks:
 
         - returns `1` for graphs with self-loops
-        - returns `2` for undirected graphs with multi-edges
+        - returns `2` for undirected graphs with multi-edges, or directed graphs with a pair of
+          opposite edges
         - returns `3` or more for cycles found via BFS
 
         Returns
@@ -51450,7 +51489,8 @@ class Graph:
             Length of shortest cycle, or `None` if acyclic.
 
             - 1: Graph contains a self-loop (edge from node to itself)
-            - 2: Undirected graph contains multi-edges (duplicate edges)
+            - 2: Undirected graph contains multi-edges (duplicate edges), or directed graph
+              contains edges both ways between two nodes
             - 3+: Shortest cycle length found via BFS
             - `None`: Graph is acyclic (tree/forest)
 
@@ -54061,7 +54101,9 @@ class Graph:
                 out.append(path[::-1])
                 continue
             for p in pred.get(node, []):
-                stack.append((p, path + [p]))
+                # Zero-weight edges can make predecessors mutual; keep paths simple
+                if p not in path:
+                    stack.append((p, path + [p]))
         return sorted(out)
 
     def single_source_all_shortest_paths(
@@ -54609,6 +54651,7 @@ class Graph:
         len(paths)
         ```
         """
+        self._check_non_negative(k=k)
         from edgecase._core import k_shortest_paths
 
         source_id = self._node_id_or_raise(source)
@@ -56861,6 +56904,7 @@ class Graph:
         Counter(graph.get_label_from_id(nid) for nid in path[1::2])
         ```
         """
+        self._check_non_negative(steps=steps)
         start_id = self._resolve_node_id(start, auto_create=False)
         walk_ids = self._graph.random_walk(
             start_id, steps, mode, stuck, seed, self._use_weights(weighted)
@@ -57038,6 +57082,7 @@ class Graph:
         Counter(edge_id for edge_id, _, _ in edges)
         ```
         """
+        self._check_non_negative(steps=steps)
         # An int is an ID and a str a label, as everywhere else (so label "10" isn't node 10)
         start_id = self._node_id_or_raise(start)
         edge_tuples = self._graph.random_edge_walk(start_id, steps, mode, stuck, seed)
@@ -68224,7 +68269,7 @@ class Graph:
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
             weight field is used (edges on an unweighted graph count as `1.0`, so any spanning
             tree is minimal). If a name is given, edges that lack the attribute, or hold a
-            non-numeric value, are treated as weight `1.0`.
+            non-numeric value, are treated as weight `1.0`; `"weight"` names the weight field.
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
@@ -68387,7 +68432,7 @@ class Graph:
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
             weight field is used (edges on an unweighted graph count as `1.0`, so any spanning
             tree is maximal). If a name is given, edges that lack the attribute, or hold a
-            non-numeric value, are treated as weight `1.0`.
+            non-numeric value, are treated as weight `1.0`; `"weight"` names the weight field.
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
@@ -68527,8 +68572,8 @@ class Graph:
             heaviest to lightest.
         weight_attr
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges every tree must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge between the two nodes, in either direction).
@@ -68718,7 +68763,7 @@ class Graph:
             Must contain at least 2 nodes.
         weight_attr
             Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
-            field. If the attribute doesn't exist on an edge, defaults to `1.0`.
+            field, as does `"weight"`. If the attribute doesn't exist on an edge, defaults to `1.0`.
         return_subgraph
             If `True`, returns a new Graph containing only the nodes and edges of the Steiner
             tree, with the same directedness and weighting and with their original IDs, labels,
@@ -68861,7 +68906,8 @@ class Graph:
         weight_attr
             Name of the edge attribute to use as edge cost. If `None` (the default), each edge's
             weight field is used (or `1.0` on an unweighted graph, so the tree minimizes the
-            number of edges). If a name is given, edges lacking a numeric value for it cost `1.0`.
+            number of edges), as it is for `"weight"`. If another name is given, edges lacking a
+            numeric value for it cost `1.0`.
         return_subgraph
             If `True` (the default), return a new directed `Graph` containing only the nodes and
             edges of the arborescence. If `False`, return the raw edge list instead.
@@ -68956,7 +69002,8 @@ class Graph:
             Multiplier applied to edge weights as costs. Higher values penalize longer paths more
             aggressively, producing smaller trees. Default `1.0`.
         weight_attr
-            Edge attribute to use for weights. If `None`, uses the edge's weight field.
+            Edge attribute to use for weights. If `None` or `"weight"`, uses the edge's weight
+            field.
         return_subgraph
             If `True` (default), returns a new Graph with the tree's nodes and edges, keeping
             their IDs, labels, weights and attributes. If `False`, returns
@@ -69152,8 +69199,8 @@ class Graph:
             Name of the edge attribute used for the weights reported in the results (the weight
             in each edge tuple, or the edge weight in each returned `Graph`). It does not affect
             which trees are found. If `None` (the default), each edge's weight field is used (or
-            `1.0` if the edge has none). If a name is given, edges lacking a numeric value for it
-            get `1.0`.
+            `1.0` if the edge has none), as it is for `"weight"`. If another name is given, edges
+            lacking a numeric value for it get `1.0`.
         return_subgraphs
             If `True` (the default), returns a list of `Graph` objects, each containing every node
             of the original graph and the edges of one spanning tree. If `False`, returns a list
@@ -69388,8 +69435,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69490,8 +69537,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69572,8 +69619,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69669,8 +69716,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69768,8 +69815,8 @@ class Graph:
             from heaviest to lightest.
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph). Edges that lack the attribute,
-            or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
+            lack the attribute, or hold a non-numeric value, count as `1.0`.
         include
             Edges every arborescence must contain, as edge IDs or `(u, v)` node pairs (a pair
             stands for every edge from `u` to `v`).
