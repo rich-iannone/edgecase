@@ -30460,7 +30460,8 @@ class Graph:
         Returns
         -------
         dict or Graph
-            A `{node_id: {node_id: tom_value}}` nested dictionary, or `self`.
+            A `{node_id: {node_id: tom_value}}` nested dictionary, both levels in the order of
+            `get_node_ids()`, or `self`.
 
         Examples
         --------
@@ -32818,9 +32819,9 @@ class Graph:
         Returns
         -------
         dict or Graph
-            If `return_dict=` is `True` (default): a `{motif_class: count}` dictionary. If the
-            graph has fewer than `size=` nodes, the dictionary is empty. If `return_dict=` is
-            `False`: `self` for chaining.
+            If `return_dict=` is `True` (default): a `{motif_class: count}` dictionary, with the
+            classes in sorted order of their names. If the graph has fewer than `size=` nodes,
+            the dictionary is empty. If `return_dict=` is `False`: `self` for chaining.
 
         Raises
         ------
@@ -33257,7 +33258,8 @@ class Graph:
             If `return_dict=` is `True`: a nested dictionary
             `{motif_class: {count, mean_random, std_random, z_score, p_value}}`. It includes every
             motif class seen in the observed graph or in any random graph (classes absent from the
-            observed graph have `count` `0.0`). `count` is the observed count, `mean_random` and
+            observed graph have `count` `0.0`), in sorted order of their names, and each holds its
+            statistics in the order shown. `count` is the observed count, `mean_random` and
             `std_random` summarize the random counts, and `z_score` is
             `(count - mean_random) / std_random`. When the random counts have no spread, the
             z-score is `0.0` if the observed count equals the mean and `inf`/`-inf` otherwise.
@@ -73671,7 +73673,8 @@ class Graph:
             Dictionary mapping node ID pairs to resistance distances. Both orientations of every
             pair are present (`(u, v)` and `(v, u)` hold the same value), as are the diagonal
             entries `(u, u)`, which are `0.0`. Pairs in different connected components hold
-            `float("inf")`. An empty graph gives an empty dictionary.
+            `float("inf")`. The keys run through `get_node_ids()` order, row by row. An empty
+            graph gives an empty dictionary.
 
         Raises
         ------
