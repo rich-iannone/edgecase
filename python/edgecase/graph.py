@@ -30906,39 +30906,47 @@ class Graph:
         A minimum cycle basis is a cycle basis where the sum of weights of all cycles is minimized.
         For unweighted graphs, this minimizes the sum of cycle lengths.
 
-        This implements a variant of Horton's algorithm:
-
-        1. for each edge `(u,v)`, find the shortest path from `u` to `v` not using `(u,v)`
-        2. this gives a candidate cycle for each edge
-        3. sort candidates by weight and greedily select linearly independent cycles
+        Self-loops and parallel edges count too: a self-loop is a one-node cycle `[u]` and two
+        parallel edges between `u` and `v` form the two-node cycle `[u, v]`. The basis always has
+        $E - V + C$ cycles, where $C$ is the number of connected components.
 
         Parameters
         ----------
         weight
             Edge attribute name to use as weight. If `None` or `"weight"`, uses the edge's weight
-            field (or `1.0` if edges don't have weights). The algorithm finds the basis that
-            minimizes the sum of cycle weights.
+            field (or `1.0` if edges don't have weights). Under any other name, every edge must
+            hold a number. The algorithm finds the basis that minimizes the sum of cycle weights.
+            Weights must be non-negative; zero is allowed.
 
         Returns
         -------
         list[list[int]]
-            A list of cycles forming a minimum weight cycle basis. Each cycle is a list of node IDs.
+            A list of cycles forming a minimum weight cycle basis, lightest first. Each cycle is
+            a list of node IDs in the order they are visited, starting from its smallest node ID.
 
         Raises
         ------
         ValueError
-            If called on a directed graph.
+            If called on a directed graph, if an edge weight is negative or NaN, or if `weight=`
+            names an attribute that an edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
-        Horton's algorithm (1987) generates a candidate cycle for every edge $e = (u, v)$
-        by routing the shortest $u \to v$ path in $G \setminus e$ back through $e$, then
-        greedily selects the lightest cycles that are linearly independent over
-        $\mathbb{F}_2$. That independence check is the expensive step and pushes the total
-        cost to $O(E \cdot V^2)$. The total *weight* of the resulting basis is unique even
-        when the basis itself is not: multiple bases can tie for minimum weight, and this
-        call returns one of them. Disconnected graphs are handled per component. When edge
-        weights are irrelevant, `cycle_basis()` is substantially faster.
+        This is Horton's algorithm (1987), with each cycle generated only from its smallest
+        vertex. For every vertex $r$, a shortest-path tree is grown over the vertices whose IDs
+        are not smaller than $r$'s; each edge outside the tree whose two tree paths meet only at
+        $r$ closes a candidate cycle. Every cycle of some minimum basis is among the candidates.
+        These are sorted by weight and kept greedily whenever they are linearly independent over
+        $\mathbb{F}_2$ of the cycles already kept, tested by Gaussian elimination on bit
+        vectors with one bit per edge outside a spanning forest. Paths and cycles are compared
+        by weight and then by number of edges, which keeps zero-weight edges from producing
+        degenerate cycles.
+
+        There are $O(V E)$ candidates, built in $O(V E \log V)$; the elimination is $O(N^2 / 64)$
+        per candidate in the worst case, with $N = E - V + C$, but the selection stops as soon
+        as $N$ cycles are kept. The total *weight* of the resulting basis is unique even when the
+        basis itself is not: multiple bases can tie for minimum weight, and this call returns
+        one of them. When edge weights are irrelevant, `cycle_basis()` is faster.
 
         Examples
         --------
@@ -33350,9 +33358,16 @@ class Graph:
 
         For undirected graphs: `C(v) = 2 * triangles(v) / (k * (k-1))`
 
-        For directed graphs: `C(v) = triangles(v) / (k_out * (k_out-1))`
+        For directed graphs, edgecase uses Fagiolo's (2007) definition, as `networkx.clustering()`
+        does. Two neighbors of `v` that are linked close a triangle whichever way its three arcs
+        point, so all four kinds of directed triangle count:
+        `C(v) = T(v) / (k_tot * (k_tot - 1) - 2 * k_recip)`, where `T(v)` is the number of
+        directed triangles through `v`, `k_tot` is its in-degree plus out-degree, and `k_recip`
+        is the number of neighbors it links to in both directions. Values lie in `[0, 1]`.
 
-        Nodes with fewer than 2 neighbors return `None` (clustering undefined).
+        Degrees count distinct neighbors other than the node itself, so parallel edges and
+        self-loops are ignored. Nodes with fewer than 2 neighbors return `None` (clustering
+        undefined).
 
         Time complexity: `O(m * d_max)` where `m` is edges and `d_max` is maximum degree.
 
@@ -34292,6 +34307,11 @@ class Graph:
         `C(v) = (number of edges between neighbors) / (number of possible edges between neighbors)
              = (2 × triangles through v) / (degree(v) × (degree(v) - 1))`
 
+        On a directed graph this is Fagiolo's directed clustering, which counts every directed
+        triangle through `v` whatever the directions of its arcs (see
+        `local_clustering_coefficient()` for the formula); it matches `networkx.clustering()`.
+        Parallel edges and self-loops are ignored.
+
         Returns `0.0` for nodes with degree < `2` (cannot form triangles).
 
         Range: `[0, 1]` where:
@@ -34574,7 +34594,8 @@ class Graph:
         clustered the graph is overall.
 
         Each node's local coefficient is the fraction of pairs of its neighbors that are
-        themselves connected (see `local_clustering_coefficient()`). Nodes with fewer than two
+        themselves connected (see `local_clustering_coefficient()`, which also gives the directed
+        definition, Fagiolo's, used on directed graphs). Nodes with fewer than two
         neighbors have no such pairs; they contribute `0.0` to the average but are still counted
         in the denominator, so graphs with many leaves or isolated nodes get a lower average. The
         result is a single number, nothing is stored on the graph.
@@ -36869,7 +36890,8 @@ class Graph:
             weighs 1).
         edge_weight
             Optional edge attribute with the value of keeping an edge inside a cluster
-            (default: every edge is worth 1). `"weight"` names the weight field.
+            (default: every edge is worth 1). Every edge must hold a number under it; `"weight"`
+            names the weight field.
 
         Returns
         -------
@@ -36879,8 +36901,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is not a tree, a node weight is not a non-negative integer, or a single
-            node weighs more than `max_size`.
+            If the graph is not a tree, a node weight is not a non-negative integer, a single node
+            weighs more than `max_size`, or `edge_weight=` names an attribute that an edge lacks or
+            holds as a non-number.
 
         Technical Notes
         ---------------
@@ -38573,11 +38596,13 @@ class Graph:
         every edge incident to $v$, and any $u$-$v$ edge becomes a self-loop on $u$ unless
         `self_loops=False` suppresses it. The traversal costs $O(E)$ time and produces a
         fresh graph, so the original is left intact. Node $u$ keeps its label and
-        attributes, and edge weights carry through unchanged; on multigraphs, parallel
-        edges arising from the merge may collapse depending on how the underlying edge set
-        is stored. Contraction is what drives the aggregation phase of Louvain community
-        detection and underpins the reduced graphs used in minor-based algorithms like
-        planarity testing.
+        attributes, and edge weights carry through unchanged. Edges at $u$ that end up
+        joining the same pair of nodes collapse into the first of them, which keeps its ID,
+        weight and attributes, so $u$ is left with at most one edge to each neighbor (one in
+        each direction on a directed graph) and at most one self-loop. Edges between other
+        nodes, parallel ones included, are kept as they are. Contraction is what drives the
+        aggregation phase of Louvain community detection and underpins the reduced graphs used in
+        minor-based algorithms like planarity testing.
 
         Examples
         --------
@@ -38662,9 +38687,10 @@ class Graph:
           by an edge
         - coarsening a graph step by step for multilevel layout or partitioning
 
-        After the merge, edges that would now connect the same pair of nodes are collapsed into
-        one (the first one found keeps its weight and attributes), so the result is a simple
-        graph apart from the optional self-loop. The remaining nodes keep their IDs, labels and
+        After the merge, edges at `u` that would now connect the same pair of nodes are collapsed
+        into one (the first one found keeps its weight and attributes), so `u` has at most one
+        edge to each neighbor and at most one self-loop. Edges between other nodes, parallel ones
+        included, are kept as they are. The remaining nodes keep their IDs, labels and
         attributes, and surviving edges keep their IDs. The original graph is not modified.
 
         Parameters
@@ -38789,9 +38815,10 @@ class Graph:
         - merging duplicate records of the same entity (entity resolution)
         - simplifying a dense cluster before layout or further analysis
 
-        Edges that end up connecting the same pair of nodes after merging are collapsed into one
-        (the first one found keeps its weight and attributes), and all edges inside the group
-        collapse into at most one self-loop. The remaining nodes keep their IDs, labels and
+        Edges at the merged node that end up connecting the same pair of nodes are collapsed into
+        one (the first one found keeps its weight and attributes), and all edges inside the group
+        collapse into at most one self-loop. Edges between other nodes, parallel ones included,
+        are kept as they are. The remaining nodes keep their IDs, labels and
         attributes, and surviving edges keep their IDs. The original graph is not modified. To
         collapse *every* group of a partition in one step, use `quotient_graph()`.
 
@@ -42355,8 +42382,9 @@ class Graph:
             Maximum distance approximation factor. Must be ≥ `1.0`. Lower `stretch=` values give
             better approximations but more edges. Higher `stretch=` values create sparser spanners.
         weight
-            Edge attribute to use as distance/weight; `"weight"` names the weight field. If `None`,
-            all edges have weight `1` (unweighted graph).
+            Edge attribute to use as distance/weight, which every edge must hold as a number;
+            `"weight"` names the weight field. If `None`, all edges have weight `1` (unweighted
+            graph).
         seed
             Random seed for reproducibility. The algorithm has randomized components, so different
             seeds may produce different spanners with the same stretch guarantee.
@@ -42370,7 +42398,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If stretch < `1.0` or if graph is directed.
+            If stretch < `1.0`, if graph is directed, or if `weight=` names an attribute that an
+            edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
@@ -44165,6 +44194,7 @@ class Graph:
         damping: float = 0.85,
         max_iter: int = 100,
         tol: float = 1e-6,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -44181,6 +44211,12 @@ class Graph:
         factor to model random jumps. Nodes with many incoming edges from high-ranking nodes receive
         higher scores.
 
+        On a weighted graph (`Graph(weighted=True)`), a node passes its rank along each outgoing
+        edge in proportion to the edge's weight, so weights act as tie strengths, as in
+        `networkx.pagerank()`. On an unweighted graph, or with `weighted=False`, every outgoing
+        edge gets an equal share. In an undirected graph each edge can be followed both ways.
+        Rank at a node with no outgoing edges is spread evenly over all nodes.
+
         Parameters
         ----------
         damping
@@ -44192,6 +44228,11 @@ class Graph:
         tol
             Convergence tolerance. The algorithm stops when the sum of absolute differences between
             iterations is less than this value.
+        weighted
+            Whether to split rank by edge weight. If `None` (default), follows the graph: weights
+            are used on a weighted graph (`Graph(weighted=True)`) and ignored otherwise. Pass
+            `True` or `False` to override. Edges without a weight count as `1.0`; weights must be
+            finite and non-negative.
         attr_name
             Column name to store PageRank scores in the node DataFrame. If `None` (default),
             automatically uses `pagerank`. Overwrites column if it already exists.
@@ -44204,6 +44245,11 @@ class Graph:
         Union[dict[int, float], Graph]
             If `return_dict` is `True`: dictionary mapping node IDs to PageRank scores (sum to
             `1.0`). If `return_dict` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If weights are used and an edge has a negative, infinite or NaN weight.
 
         Examples
         --------
@@ -44253,8 +44299,30 @@ class Graph:
             reverse=True,
         )
         ```
+
+        On a weighted graph, a strong tie passes on more rank than a weak one. Here B sends
+        most of its rank back to A, its heavy tie, and little to C; `weighted=False` treats the
+        two ties alike:
+
+        ```{python}
+        edges = [("A", "B", 10.0), ("B", "C", 1.0)]
+        weighted = ec.Graph(weighted=True).add_nodes(["A", "B", "C"]).add_edges(edges)
+
+        label = weighted.get_label_from_id
+        (
+            {label(n): round(s, 3) for n, s in weighted.pagerank(return_dict=True).items()},
+            {label(n): round(s, 3) for n, s in weighted.pagerank(
+                weighted=False, return_dict=True).items()},
+        )
+        ```
         """
-        result_ids = rust.pagerank(self._graph, damping=damping, max_iter=max_iter, tol=tol)
+        result_ids = rust.pagerank(
+            self._graph,
+            damping=damping,
+            max_iter=max_iter,
+            tol=tol,
+            weighted=self._use_weights(weighted),
+        )
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -44274,6 +44342,8 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
+        if weighted is not None:
+            params["weighted"] = weighted
         self._computations.append(("pagerank", params, attr_name))
 
         return self
@@ -45237,7 +45307,8 @@ class Graph:
     def load_centrality(
         self,
         normalized: bool = True,
-        cutoff: int = None,
+        cutoff: float | None = None,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
@@ -45259,14 +45330,28 @@ class Graph:
         different rankings that may be more intuitive for certain applications like network traffic
         analysis or identifying bottlenecks in routing systems.
 
+        On a weighted graph (`Graph(weighted=True)`), "shortest" means lowest total edge weight,
+        found with Dijkstra's algorithm, so that load agrees with `shortest_path()` and with
+        `networkx.load_centrality(G, weight="weight")`; on an unweighted graph it means fewest
+        hops. Parallel edges count as a single link. When a direct edge from the source ties
+        with a longer route of the same total weight, NetworkX may skip the longer route,
+        depending on the order it stores them in; edgecase always splits the load evenly
+        between them.
+
         Parameters
         ----------
         normalized
             If `True` (default), normalizes scores by dividing by `(n-1)(n-2)` where `n` is the
             number of nodes. If `False`, returns raw load counts.
         cutoff
-            Optional maximum path length to consider. Only paths of length ≤ cutoff are included.
-            If `None` (default), considers all path lengths.
+            Optional maximum path length to consider. Only paths of length ≤ cutoff are included:
+            the number of hops, or the total weight when weights are used. If `None` (default),
+            considers all path lengths.
+        weighted
+            Whether to measure distances by edge weight. If `None` (default), follows the graph:
+            weights are used on a weighted graph (`Graph(weighted=True)`) and hop counts
+            otherwise, the same rule `shortest_path()` uses. Pass `True` or `False` to override.
+            Edges without a weight count as `1.0`; weights must be non-negative.
         attr_name
             Column name to store load centrality scores in the node DataFrame. If `None` (default),
             automatically uses 'load_centrality'. Overwrites column if it already exists.
@@ -45279,6 +45364,11 @@ class Graph:
         Union[dict[int, float], Graph]
             If `return_dict=` is `True`: dictionary mapping node IDs to load centrality scores. If
             `return_dict=` is `False` (default): returns self for method chaining.
+
+        Raises
+        ------
+        ValueError
+            If weights are used and an edge has a negative weight.
 
         Examples
         --------
@@ -45336,7 +45426,12 @@ class Graph:
         ```
         """
         # Call Rust implementation
-        result_ids = rust.load_centrality(self._graph, normalized=normalized, cutoff=cutoff)
+        result_ids = rust.load_centrality(
+            self._graph,
+            normalized=normalized,
+            cutoff=cutoff,
+            weighted=self._use_weights(weighted),
+        )
 
         # Auto-generate attribute name if not provided
         if attr_name is None:
@@ -45349,9 +45444,10 @@ class Graph:
         self.set_node_attrs(attr_name, result_ids)
 
         # Track computation
-        self._computations.append(
-            ("load_centrality", {"normalized": normalized, "cutoff": cutoff}, attr_name)
-        )
+        params = {"normalized": normalized, "cutoff": cutoff}
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._computations.append(("load_centrality", params, attr_name))
 
         return self
 
@@ -50049,28 +50145,43 @@ class Graph:
     def laplacian_centrality(
         self,
         normalized: bool = True,
+        weighted: bool | None = None,
         attr_name: str | None = None,
         return_dict: bool = False,
     ) -> Union[dict[int, float], "Graph"]:
         r"""
         Compute Laplacian centrality for each node.
 
-        ![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03." width="100%"}
+        ![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.60, then D 0.46, B and E 0.43, while the pendant node G costs only 0.09." width="100%"}
 
         Laplacian centrality measures how much the overall connectivity of the network is disrupted
-        by removing a node. It uses a closed-form expression based on the Laplacian energy of the
-        graph:
+        by removing a node. The Laplacian energy of a graph is the sum of the squared eigenvalues of
+        its Laplacian matrix, and a node's score is the energy lost when that node is removed. With
+        $w_{uv}$ the weight between nodes $u$ and $v$ and $s(v)$ the strength of $v$ (the sum of
+        its edge weights), the drop has a closed form:
 
-        $$\Delta E(v) = d(v)^2 + d(v) + 2 \sum_{u \in N(v)} d(u)$$
+        $$\Delta E(v) = s(v)^2 + \sum_{u \in N(v)} w_{uv}^2 + 2 \sum_{u \in N(v)} s(u) w_{uv}$$
 
-        When normalized (the default), the score is divided by the total Laplacian energy of the
-        graph, so values sum to `1.0`.
+        On an unweighted simple graph every $w_{uv}$ is `1` and $s(v)$ is the degree, so this is
+        $d(v)^2 + d(v) + 2 \sum_{u \in N(v)} d(u)$. Parallel edges add their weights into one
+        link, self-loops are ignored (they don't change the Laplacian), and on a directed graph the
+        edge directions are ignored.
+
+        When normalized (the default), the drop is divided by the Laplacian energy of the whole
+        graph, $E = \sum_v s(v)^2 + 2 \sum_{u < v} w_{uv}^2$, so a score is the fraction of the
+        energy lost when the node goes. The scores don't sum to `1.0`, since every edge counts
+        toward the drop at both of its ends. On an undirected graph the results match
+        `networkx.laplacian_centrality`; NetworkX uses a different, random-walk Laplacian for
+        directed graphs.
 
         Parameters
         ----------
         normalized
-            If `True` (the default), normalize by total Laplacian energy so values sum to `1.0`. If
-            `False`, return raw energy-drop values.
+            If `True` (the default), divide each drop by the Laplacian energy of the graph. If
+            `False`, return the raw energy drops.
+        weighted
+            Whether to use edge weights. If `None` (the default), uses weights when the graph is
+            weighted. If `False`, every edge counts as `1`.
         attr_name
             Name for the node attribute to store results. If not provided, defaults to
             `"laplacian_centrality"`.
@@ -50083,6 +50194,11 @@ class Graph:
         Union[dict[int, float], Graph]
             If `return_dict=True`: dictionary mapping node IDs to Laplacian centrality scores.
             Otherwise returns self.
+
+        Raises
+        ------
+        ValueError
+            If weights are used and an edge has a negative or infinite weight.
 
         Examples
         --------
@@ -50097,10 +50213,25 @@ class Graph:
 
         g.laplacian_centrality(return_dict=True)
         ```
+
+        Removing the hub takes every edge with it, so its score is `1.0`: all of the energy is lost.
+
+        On a weighted graph, heavy edges carry more energy. Here `B` sits between a heavy edge and
+        a light one, and `A`, at the end of the heavy edge, outscores `C`:
+
+        ```{python}
+        w = ec.Graph(directed=False, weighted=True)
+        w.add_nodes(["A", "B", "C"])
+        w.add_edge("A", "B", weight=3.0).add_edge("B", "C", weight=1.0)
+
+        w.laplacian_centrality(return_dict=True)
+        ```
         """
         from edgecase._core import laplacian_centrality
 
-        result_ids = laplacian_centrality(self._graph, normalized=normalized)
+        result_ids = laplacian_centrality(
+            self._graph, normalized=normalized, weighted=self._use_weights(weighted)
+        )
 
         if return_dict:
             return result_ids
@@ -50111,9 +50242,10 @@ class Graph:
         self.set_node_attrs(attr_name, result_ids)
 
         if not return_dict:
-            self._computations.append(
-                ("laplacian_centrality", {"normalized": normalized}, attr_name)
-            )
+            params = {"normalized": normalized}
+            if weighted is not None:
+                params["weighted"] = weighted
+            self._computations.append(("laplacian_centrality", params, attr_name))
 
         return self
 
@@ -68268,8 +68400,8 @@ class Graph:
         weight_attr
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
             weight field is used (edges on an unweighted graph count as `1.0`, so any spanning
-            tree is minimal). If a name is given, edges that lack the attribute, or hold a
-            non-numeric value, are treated as weight `1.0`; `"weight"` names the weight field.
+            tree is minimal). If a name is given, every edge must hold a number under it;
+            `"weight"` names the weight field.
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
@@ -68294,9 +68426,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the included edges contain a cycle, an edge is both included and excluded, an
-            edge or node pair in `include=`/`exclude=` does not exist, or (with constraints) an
-            edge value is NaN.
+            If the included edges contain a cycle, an edge is both included and excluded, an edge or
+            node pair in `include=`/`exclude=` does not exist, (with constraints) an edge value is
+            NaN, or `weight_attr=` names an attribute that an edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
@@ -68431,8 +68563,8 @@ class Graph:
         weight_attr
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
             weight field is used (edges on an unweighted graph count as `1.0`, so any spanning
-            tree is maximal). If a name is given, edges that lack the attribute, or hold a
-            non-numeric value, are treated as weight `1.0`; `"weight"` names the weight field.
+            tree is maximal). If a name is given, every edge must hold a number under it;
+            `"weight"` names the weight field.
         return_subgraph
             If `True` (the default), returns a new `Graph` containing every node of the original
             graph and only the tree edges. If `False`, returns the IDs of the selected edges (as
@@ -68456,9 +68588,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the included edges contain a cycle, an edge is both included and excluded, an
-            edge or node pair in `include=`/`exclude=` does not exist, or (with constraints) an
-            edge value is NaN.
+            If the included edges contain a cycle, an edge is both included and excluded, an edge or
+            node pair in `include=`/`exclude=` does not exist, (with constraints) an edge value is
+            NaN, or `weight_attr=` names an attribute that an edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
@@ -68572,8 +68704,8 @@ class Graph:
             heaviest to lightest.
         weight_attr
             Name of the edge attribute to use as the weight. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges every tree must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge between the two nodes, in either direction).
@@ -68594,9 +68726,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is disconnected (it has no spanning tree), an edge value is NaN, an
-            edge is both included and excluded, or an edge or node pair in `include=` or
-            `exclude=` does not exist.
+            If the graph is disconnected (it has no spanning tree), an edge value is NaN, an edge is
+            both included and excluded, an edge or node pair in `include=` or `exclude=` does not
+            exist, or `weight_attr=` names an attribute that an edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
@@ -68763,7 +68895,7 @@ class Graph:
             Must contain at least 2 nodes.
         weight_attr
             Name of edge attribute to use for weights. If `None` (default), uses the edge's weight
-            field, as does `"weight"`. If the attribute doesn't exist on an edge, defaults to `1.0`.
+            field, as does `"weight"`. Under any other name, every edge must hold a number.
         return_subgraph
             If `True`, returns a new Graph containing only the nodes and edges of the Steiner
             tree, with the same directedness and weighting and with their original IDs, labels,
@@ -68780,7 +68912,8 @@ class Graph:
         ------
         ValueError
             If fewer than 2 terminal nodes are provided, if any terminal node doesn't exist in the
-            graph, or if the terminal nodes are not all connected.
+            graph, if the terminal nodes are not all connected, or if `weight_attr=` names an
+            attribute that an edge lacks or holds as a non-number.
 
         Technical Notes
         ---------------
@@ -68906,8 +69039,8 @@ class Graph:
         weight_attr
             Name of the edge attribute to use as edge cost. If `None` (the default), each edge's
             weight field is used (or `1.0` on an unweighted graph, so the tree minimizes the
-            number of edges), as it is for `"weight"`. If another name is given, edges lacking a
-            numeric value for it cost `1.0`.
+            number of edges), as it is for `"weight"`. Under any other name, every edge must hold
+            a number.
         return_subgraph
             If `True` (the default), return a new directed `Graph` containing only the nodes and
             edges of the arborescence. If `False`, return the raw edge list instead.
@@ -68926,7 +69059,8 @@ class Graph:
         ------
         ValueError
             If the graph is not directed, `terminal_nodes=` is empty, the root or a terminal is not
-            found, or a terminal is not reachable from the root.
+            found, a terminal is not reachable from the root, or `weight_attr=` names an attribute
+            that an edge lacks or holds as a non-number.
 
         Examples
         --------
@@ -69003,7 +69137,7 @@ class Graph:
             aggressively, producing smaller trees. Default `1.0`.
         weight_attr
             Edge attribute to use for weights. If `None` or `"weight"`, uses the edge's weight
-            field.
+            field. Under any other name, every edge must hold a number.
         return_subgraph
             If `True` (default), returns a new Graph with the tree's nodes and edges, keeping
             their IDs, labels, weights and attributes. If `False`, returns
@@ -69018,7 +69152,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If any prize node doesn't exist in the graph.
+            If any prize node doesn't exist in the graph, or `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number.
 
         Examples
         --------
@@ -69199,8 +69334,8 @@ class Graph:
             Name of the edge attribute used for the weights reported in the results (the weight
             in each edge tuple, or the edge weight in each returned `Graph`). It does not affect
             which trees are found. If `None` (the default), each edge's weight field is used (or
-            `1.0` if the edge has none), as it is for `"weight"`. If another name is given, edges
-            lacking a numeric value for it get `1.0`.
+            `1.0` if the edge has none), as it is for `"weight"`. Under any other name, every edge
+            must hold a number.
         return_subgraphs
             If `True` (the default), returns a list of `Graph` objects, each containing every node
             of the original graph and the edges of one spanning tree. If `False`, returns a list
@@ -69219,7 +69354,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is disconnected (no spanning tree exists).
+            If the graph is disconnected (no spanning tree exists), or `weight_attr=` names an
+            attribute that an edge lacks or holds as a non-number.
 
         Warnings
         --------
@@ -69435,8 +69571,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69452,8 +69588,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, or the included edges don't form a
-            branching (a node with two included in-edges, or an included cycle).
+            If the graph is undirected, an edge value is NaN, `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number, or the included edges don't form a branching (a
+            node with two included in-edges, or an included cycle).
 
         Technical Notes
         ---------------
@@ -69537,8 +69674,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69554,8 +69691,9 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, or the included edges don't form a
-            branching (a node with two included in-edges, or an included cycle).
+            If the graph is undirected, an edge value is NaN, `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number, or the included edges don't form a branching (a
+            node with two included in-edges, or an included cycle).
 
         Technical Notes
         ---------------
@@ -69619,8 +69757,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69636,9 +69774,10 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, no spanning arborescence
-            exists (no single node can reach all the others), or none uses every included
-            edge and avoids every excluded one.
+            If the graph is undirected, an edge value is NaN, `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number, no spanning arborescence exists (no single node
+            can reach all the others), or none uses every included edge and avoids every excluded
+            one.
 
         Technical Notes
         ---------------
@@ -69716,8 +69855,8 @@ class Graph:
         ----------
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges the result must contain, as edge IDs or `(u, v)` node pairs (a pair stands for
             every edge from `u` to `v`).
@@ -69733,9 +69872,10 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, no spanning arborescence
-            exists (no single node can reach all the others), or none uses every included
-            edge and avoids every excluded one.
+            If the graph is undirected, an edge value is NaN, `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number, no spanning arborescence exists (no single node
+            can reach all the others), or none uses every included edge and avoids every excluded
+            one.
 
         Technical Notes
         ---------------
@@ -69815,8 +69955,8 @@ class Graph:
             from heaviest to lightest.
         weight_attr
             Name of the edge attribute holding the weights. If `None` (the default), each edge's
-            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Edges that
-            lack the attribute, or hold a non-numeric value, count as `1.0`.
+            weight field is used (`1.0` on an unweighted graph), as it is for `"weight"`. Under any
+            other name, every edge must hold a number.
         include
             Edges every arborescence must contain, as edge IDs or `(u, v)` node pairs (a pair
             stands for every edge from `u` to `v`).
@@ -69836,9 +69976,10 @@ class Graph:
         Raises
         ------
         ValueError
-            If the graph is undirected, an edge value is NaN, the graph has no spanning
-            arborescence at all, an edge is both included and excluded, or an edge or node
-            pair in `include=` or `exclude=` does not exist.
+            If the graph is undirected, an edge value is NaN, `weight_attr=` names an attribute that
+            an edge lacks or holds as a non-number, the graph has no spanning arborescence at all,
+            an edge is both included and excluded, or an edge or node pair in `include=` or
+            `exclude=` does not exist.
 
         Technical Notes
         ---------------
