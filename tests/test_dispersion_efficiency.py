@@ -155,6 +155,34 @@ class TestDispersion:
 
         assert disp == 0.0
 
+    def test_shared_neighbor_outside_ego_network(self):
+        """A neighbor shared by s and t only counts if it is also a neighbor of u."""
+        graph = Graph().add_nodes(["a", "b", "s", "t", "x"])
+        graph.add_edges([("a", "s"), ("a", "t"), ("b", "s"), ("b", "t"), ("s", "x"), ("t", "x")])
+        assert graph.dispersion("a", "b") == 0.5
+        assert graph.dispersion("a", "b", normalized=False) == 1.0
+        graph.add_edge("a", "x")
+        assert graph.dispersion("a", "b") == 0.0
+        assert graph.dispersion("b", "a") == 0.5  # x is not a neighbor of b
+
+    def test_matches_networkx(self):
+        import random
+
+        import networkx as nx
+
+        for seed in range(40):
+            G = nx.gnp_random_graph(random.Random(seed).randint(4, 14), 0.4, seed=seed)
+            graph = Graph().add_nodes([str(n) for n in G])
+            graph.add_edges([(str(u), str(v)) for u, v in G.edges])
+            for u in G:
+                for v in G:
+                    if u == v:
+                        continue
+                    for normalized in (True, False):
+                        expected = nx.dispersion(G, u, v, normalized=normalized)
+                        got = graph.dispersion(str(u), str(v), normalized=normalized)
+                        assert got == pytest.approx(expected)
+
 
 class TestGlobalEfficiency:
     """Test global efficiency metric."""
