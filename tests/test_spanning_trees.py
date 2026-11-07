@@ -123,6 +123,24 @@ class TestSteinerTree:
         assert frozenset(["A", "B"]) in edges2
         assert frozenset(["B", "C"]) in edges2
 
+    def test_weight_attr_named_weight(self):
+        """`weight_attr="weight"` reads the weight field (it used to count every edge as 1.0)."""
+        g = Graph(weighted=True).add_nodes(["A", "B", "S", "C"])
+        g.add_edges([("S", "A", 1.0), ("S", "B", 1.0), ("S", "C", 1.0)])
+        g.add_edges([("A", "B", 5.0), ("B", "C", 5.0)])
+        hub = g.steiner_tree(["A", "B", "C"], return_subgraph=False)
+        assert {e[0] for e in hub} == {"S"}
+        assert g.steiner_tree(["A", "B", "C"], weight_attr="weight", return_subgraph=False) == hub
+
+        d = Graph(directed=True, weighted=True).add_nodes(["R", "X", "A", "B"])
+        d.add_edges([("R", "X", 1.0), ("X", "A", 1.0), ("X", "B", 1.0)])
+        d.add_edges([("R", "A", 5.0), ("R", "B", 5.0)])
+        assert d.directed_steiner_tree("R", ["A", "B"], weight_attr="weight").count_edges() == 3
+
+        p = Graph(weighted=True).add_nodes(["A", "B"]).add_edges([("A", "B", 10.0)])
+        prizes = {"A": 5.0, "B": 5.0}
+        assert p.prize_collecting_steiner_tree(prizes, weight_attr="weight").count_edges() == 0
+
     def test_steiner_tree_directed_graph(self):
         """Test Steiner tree on directed graph."""
         g = Graph(directed=True, weighted=True)
@@ -676,3 +694,7 @@ class TestRandomSpanningTree:
             ec.Graph(directed=True).add_nodes(["A"]).random_spanning_tree()
         with pytest.raises(ValueError, match="connected"):
             ec.Graph().add_nodes(["A", "B"]).random_spanning_tree()
+        inf = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+        inf.add_edges([("A", "B", float("inf")), ("B", "C", 1.0), ("C", "A", 1.0)])
+        with pytest.raises(ValueError, match="finite"):  # Wilson's walk used to hang
+            inf.random_spanning_tree(seed=1)
