@@ -259,3 +259,36 @@ def test_girth_vs_igraph(name, nx_graph, directed, expected_girth):
         )
 
     print(f"✅ {name}: girth={ec_girth} (PASS)")
+
+
+def _build(G, directed):
+    g = ec.Graph(directed=directed).add_nodes([str(n) for n in G])
+    g.add_edges([(str(u), str(v)) for u, v in G.edges()])
+    return g
+
+
+def test_girth_after_an_acyclic_bfs():
+    # A BFS that finds no cycle used to mark its nodes as done, so later searches skipped
+    # the triangle 0, 1, 3 and reported the 7-cycle walk instead
+    g = _build(nx.Graph([(0, 1), (0, 3), (1, 3), (2, 4), (3, 4), (4, 5)]), False)
+    assert g.get_girth() == 3
+
+
+def test_directed_girth():
+    # A diamond has no directed cycle; a <-> b is a 2-cycle
+    assert _build(nx.DiGraph([(0, 1), (0, 2), (1, 3), (2, 3)]), True).get_girth() is None
+    assert _build(nx.DiGraph([(0, 1), (1, 0)]), True).get_girth() == 2
+    assert _build(nx.DiGraph([(0, 1), (1, 2), (2, 0), (2, 3)]), True).get_girth() == 3
+
+
+@pytest.mark.parametrize("directed", [False, True])
+def test_random_girth_matches_networkx(directed):
+    for seed in range(300):
+        G = nx.gnp_random_graph(3 + seed % 8, (0.1, 0.2, 0.3, 0.5)[seed % 4], seed, directed)
+        if directed:
+            lengths = [len(c) for c in nx.simple_cycles(G)]
+            expected = min(lengths) if lengths else None
+        else:
+            expected = nx.girth(G)
+            expected = None if expected == float("inf") else expected
+        assert _build(G, directed).get_girth() == expected, list(G.edges())
