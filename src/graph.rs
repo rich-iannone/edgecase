@@ -99,6 +99,18 @@ impl Clone for Edge {
     }
 }
 
+/// Reject NaN edge weights: they compare false with everything, so sorting and best-choice
+/// steps in the algorithms would abort or loop. Infinite weights (such as unbounded
+/// capacities) are allowed.
+fn check_edge_weight(weight: Option<f64>) -> PyResult<()> {
+    match weight {
+        Some(w) if w.is_nan() => Err(pyo3::exceptions::PyValueError::new_err(
+            "Edge weight must not be NaN",
+        )),
+        _ => Ok(()),
+    }
+}
+
 #[pymethods]
 impl Edge {
     #[new]
@@ -512,6 +524,7 @@ impl Graph {
 
     /// Add an edge to the graph
     fn add_edge(&mut self, mut edge: Edge) -> PyResult<u64> {
+        check_edge_weight(edge.weight)?;
         // Ensure nodes exist
         if !self.nodes.contains_key(&edge.source) {
             return Err(pyo3::exceptions::PyValueError::new_err(format!(
@@ -1091,6 +1104,7 @@ impl Graph {
         if key == "weight" {
             // Try to extract as f64
             if let Ok(weight_val) = value.extract::<f64>(py) {
+                check_edge_weight(Some(weight_val))?;
                 edge.weight = Some(weight_val);
             } else if value.is_none(py) {
                 edge.weight = None;
@@ -2680,87 +2694,59 @@ impl Graph {
         }
 
         let mut min_cycle: Option<usize> = None;
-        let mut visited_global = FxHashSet::default();
+        let mut distances: FxHashMap<u64, usize> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut parent: FxHashMap<u64, u64> =
+            FxHashMap::with_capacity_and_hasher(n, Default::default());
+        let mut queue = std::collections::VecDeque::with_capacity(n);
 
-        // Try BFS from each node to find shortest cycle
+        // BFS from every node. Directed: a cycle through the start closes with an edge back
+        // to it, of length dist(u) + 1. Undirected (simple by now): a non-tree edge u-w closes
+        // a walk of length dist(u) + dist(w) + 1 containing a cycle, and from a node on a
+        // shortest cycle this is exact.
         for &start_node in self.nodes.keys() {
-            // Early termination: if we found a cycle of length k,
-            // we only need to search up to distance k/2 from unvisited nodes
-            if let Some(current_min) = min_cycle {
-                if visited_global.contains(&start_node) {
-                    continue; // Already part of a discovered component
-                }
-                // For very small cycles, we can stop early
-                if current_min == 3 {
-                    break; // Can't get smaller than a triangle
-                }
-            }
-
-            let mut distances: FxHashMap<u64, usize> =
-                FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut parent: FxHashMap<u64, Option<u64>> =
-                FxHashMap::with_capacity_and_hasher(n, Default::default());
-            let mut queue = std::collections::VecDeque::with_capacity(n);
-            let mut found_cycle_from_start = false;
-
+            distances.clear();
+            parent.clear();
+            queue.clear();
             distances.insert(start_node, 0);
-            parent.insert(start_node, None);
             queue.push_back(start_node);
 
             while let Some(current) = queue.pop_front() {
-                let current_dist = *distances.get(&current).unwrap();
-                let current_parent = *parent.get(&current).unwrap();
-
-                visited_global.insert(current);
-
-                // Early termination: if we already found a smaller cycle, stop this BFS
+                let current_dist = distances[&current];
+                // Cycles found from here are at least 2 * dist (undirected) or dist + 1
+                // (directed) long, so stop once they can't beat the best so far
                 if let Some(current_min) = min_cycle {
-                    if current_dist * 2 >= current_min {
+                    let lower = if self.directed {
+                        current_dist + 1
+                    } else {
+                        current_dist * 2
+                    };
+                    if lower >= current_min {
                         break;
                     }
                 }
-
-                if let Some(neighbors) = self.adjacency_list.get(&current) {
-                    for &neighbor in neighbors {
-                        if let Some(&neighbor_dist) = distances.get(&neighbor) {
-                            // Already visited - potential cycle
-                            // In undirected graphs, skip if neighbor is parent (back edge)
-                            if (!self.directed || Some(neighbor) != current_parent)
-                                && Some(neighbor) != current_parent
-                            {
-                                // Found a cycle
-                                let cycle_length = current_dist + neighbor_dist + 1;
-                                min_cycle = Some(match min_cycle {
-                                    None => cycle_length,
-                                    Some(prev) => prev.min(cycle_length),
-                                });
-                                found_cycle_from_start = true;
-                                // If we found a triangle, we can stop immediately
-                                if cycle_length == 3 {
-                                    return Some(3);
-                                }
-                            }
-                        } else {
-                            // Early termination within BFS
-                            if let Some(current_min) = min_cycle {
-                                // Don't explore beyond distance that could improve result
-                                if (current_dist + 1) * 2 >= current_min {
-                                    continue;
-                                }
-                            }
-                            distances.insert(neighbor, current_dist + 1);
-                            parent.insert(neighbor, Some(current));
-                            queue.push_back(neighbor);
+                let Some(neighbors) = self.adjacency_list.get(&current) else {
+                    continue;
+                };
+                for &neighbor in neighbors {
+                    let cycle_length = if self.directed {
+                        (neighbor == start_node).then_some(current_dist + 1)
+                    } else if parent.get(&current) == Some(&neighbor) {
+                        None
+                    } else {
+                        distances.get(&neighbor).map(|&d| current_dist + d + 1)
+                    };
+                    if let Some(len) = cycle_length {
+                        min_cycle = Some(min_cycle.map_or(len, |prev| prev.min(len)));
+                        // Nothing shorter is left: 2-cycles (directed) or triangles
+                        if len <= if self.directed { 2 } else { 3 } {
+                            return min_cycle;
                         }
+                    } else if !distances.contains_key(&neighbor) {
+                        distances.insert(neighbor, current_dist + 1);
+                        parent.insert(neighbor, current);
+                        queue.push_back(neighbor);
                     }
-                }
-            }
-
-            // If we didn't find any cycle from this node and it's a new component,
-            // we might be in a tree - mark all reachable nodes as visited
-            if !found_cycle_from_start {
-                for node in distances.keys() {
-                    visited_global.insert(*node);
                 }
             }
         }
@@ -4862,53 +4848,33 @@ impl Graph {
             }
         }
 
+        // The named attribute (1.0 if missing); "weight" also falls back to the weight field,
+        // where weighted graphs keep it
+        let edge_weight_of = |e: &Edge| -> f64 {
+            let Some(ref w) = weight else {
+                return 1.0;
+            };
+            e.attributes
+                .as_ref()
+                .and_then(|attrs| {
+                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
+                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
+                })
+                .or(if w == "weight" { e.weight } else { None })
+                .unwrap_or(1.0)
+        };
+
         // Collect and sort edges by weight
         let mut sorted_edges = Vec::with_capacity(self.edges.len());
         sorted_edges.extend(self.edges.iter());
-        sorted_edges.sort_by(|a, b| {
-            let w_a = if let Some(ref w) = weight {
-                a.attributes
-                    .as_ref()
-                    .and_then(|attrs| {
-                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                    })
-                    .unwrap_or(1.0)
-            } else {
-                1.0
-            };
-
-            let w_b = if let Some(ref w) = weight {
-                b.attributes
-                    .as_ref()
-                    .and_then(|attrs| {
-                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                    })
-                    .unwrap_or(1.0)
-            } else {
-                1.0
-            };
-
-            w_a.partial_cmp(&w_b).unwrap()
-        });
+        sorted_edges.sort_by(|a, b| edge_weight_of(a).total_cmp(&edge_weight_of(b)));
 
         // Greedy spanner: add edge if it improves stretch
         for edge in sorted_edges {
             let u = edge.source;
             let v = edge.target;
 
-            let edge_weight = if let Some(ref w) = weight {
-                edge.attributes
-                    .as_ref()
-                    .and_then(|attrs| {
-                        let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                        dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                    })
-                    .unwrap_or(1.0)
-            } else {
-                1.0
-            };
+            let edge_weight = edge_weight_of(edge);
 
             // Check if this edge is needed (distance in spanner > stretch * edge_weight)
             let current_dist = spanner_distances[&(u, v)];
@@ -8195,15 +8161,15 @@ impl Graph {
         for edge in &self.edges {
             let weight = if let Some(attr) = weight_attr {
                 // Get weight from custom attribute
-                if let Some(ref attrs) = edge.attributes {
-                    let dict = attrs.bind(py).downcast::<PyDict>()?;
-                    if let Some(val) = dict.get_item(attr)? {
-                        val.extract::<f64>().unwrap_or(1.0)
-                    } else {
-                        1.0
-                    }
-                } else {
-                    1.0
+                let value = match edge.attributes {
+                    Some(ref attrs) => attrs.bind(py).downcast::<PyDict>()?.get_item(attr)?,
+                    None => None,
+                };
+                match value {
+                    Some(val) => val.extract::<f64>().unwrap_or(1.0),
+                    // Weighted graphs keep weights in the weight field, not as an attribute
+                    None if attr == "weight" => edge.weight.unwrap_or(1.0),
+                    None => 1.0,
                 }
             } else {
                 // Use edge.weight field, default to 1.0
@@ -8216,9 +8182,9 @@ impl Graph {
         // Sort edges by weight
         weighted_edges.sort_by(|a, b| {
             if minimum {
-                a.0.partial_cmp(&b.0).unwrap_or(std::cmp::Ordering::Equal)
+                a.0.total_cmp(&b.0)
             } else {
-                b.0.partial_cmp(&a.0).unwrap_or(std::cmp::Ordering::Equal)
+                b.0.total_cmp(&a.0)
             }
         });
 
