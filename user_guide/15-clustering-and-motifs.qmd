@@ -1,0 +1,304 @@
+---
+title: Clustering and motifs
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Two of your friends are much more likely to know each other than two people chosen at random. This
+tendency, called *triadic closure*, fills social networks with triangles, and similar small
+patterns recur throughout networks of every kind: feed-forward loops in gene regulation, cycles in
+food webs, and chains of command in organizations. This page covers the measures of local
+structure: triangles and clustering coefficients, counts of small subgraphs called *motifs*, the
+triad census of directed graphs, and cycles.
+
+## Triangles
+
+A triangle is three nodes that are all linked to one another, the smallest possible group of mutual
+friends. [`count_triangles()`](../reference/Graph.count_triangles.qmd) returns the number of
+triangles each node belongs to, and [`list_triangles()`](../reference/Graph.list_triangles.qmd)
+lists them all as triples of node IDs:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+triangles = karate.count_triangles()
+len(karate.list_triangles()), triangles[1]
+```
+
+The karate club contains 45 triangles, and the instructor (ID 1) belongs to 18 of them. Since every
+triangle has three corners, the per-node counts add up to three times the total.
+
+## Clustering coefficients
+
+A node's *local clustering coefficient* is the fraction of pairs of its neighbors that are
+themselves linked, or equivalently the number of triangles it belongs to divided by the number it
+could belong to. A coefficient of 1 means that a node's neighbors form a clique, and 0 means that
+none of them know each other.
+
+Two methods compute it. [`clustering_coefficient()`](../reference/Graph.clustering_coefficient.qmd)
+gives nodes with fewer than two neighbors, which can't belong to any triangle, a coefficient of 0.
+[`local_clustering_coefficient()`](../reference/Graph.local_clustering_coefficient.qmd) leaves
+them undefined, as `None`, which keeps them out of averages:
+
+```{python}
+karate.clustering_coefficient().local_clustering_coefficient()
+(
+    karate.get_node_df()
+    .select("id", "label", "degree", "clustering_coefficient", "local_clustering_coefficient")
+    .filter(pl.col("id").is_in([1, 12, 34]))
+)
+```
+
+The two leaders have low clustering. The instructor's 16 friends could form 120 pairs, but only 18
+of those pairs are friends themselves; the leaders' circles span groups that don't otherwise mix.
+Member `"11"` (ID 12), with a single friend, has a coefficient of 0 or `None`, depending on the
+method.
+
+### Two global measures
+
+There are two common ways to summarize clustering for a whole graph, and they can differ a great
+deal. [`get_avg_clustering_coefficient()`](../reference/Graph.get_avg_clustering_coefficient.qmd)
+averages the local coefficients over the nodes, while
+[`get_transitivity()`](../reference/Graph.get_transitivity.qmd) is the fraction of all connected
+triples of nodes (paths of two edges) that are closed into triangles. Transitivity weights each
+node by the number of pairs of neighbors it has, so it is dominated by the hubs:
+
+```{python}
+round(karate.get_avg_clustering_coefficient(), 3), round(karate.get_transitivity(), 3)
+```
+
+In the karate club, the average is more than double the transitivity, because the many low-degree
+members have tightly knit neighborhoods while the two hubs do not. Report which measure you use,
+since both go by the name "clustering coefficient".
+
+The question that matters is usually whether clustering is *higher than expected*. A degree-
+preserving randomization, from [`random_reference()`](../reference/Graph.random_reference.qmd),
+keeps every node's degree but rewires the edges at random, and so shows how much clustering the
+degrees alone would produce. Comparing several networks with their randomized versions
+(simplified first, since some of the bundled networks contain duplicate edges; see
+[Datasets](06-datasets.qmd#networks-from-data-repositories)):
+
+```{python}
+networks = {
+    "karate club": karate,
+    "dolphins": ec.dolphins(),
+    "jazz musicians": ec.jazz().simplify(),
+    "power grid": ec.power_grid(),
+    "co-authorship (ca_grqc)": ec.ca_grqc().simplify(),
+    "Internet": ec.internet().simplify(),
+}
+pl.DataFrame(
+    [
+        {
+            "network": name,
+            "average": round(graph.get_avg_clustering_coefficient(), 3),
+            "transitivity": round(graph.get_transitivity(), 3),
+            "randomized": round(graph.random_reference(seed=1).get_transitivity(), 3),
+        }
+        for name, graph in networks.items()
+    ]
+)
+```
+
+The co-authorship network is the most strongly clustered: a paper with several authors creates a
+clique among them, and its transitivity of 0.63 is fifty times the randomized value. The power grid
+also has far more triangles than its degrees imply, a consequence of its geography. The Internet is
+the exception, and an instructive one. Its average clustering is high, but its transitivity is no
+higher than chance: the many small networks that connect to the same few providers form triangles
+with them, while the providers themselves, with thousands of neighbors, have almost none.
+
+### Clustering and degree
+
+In many networks, clustering falls as degree rises: low-degree nodes sit in small, tight groups,
+and high-degree nodes bridge between them. Grouping the node table by degree shows the pattern in
+the co-authorship network:
+
+```{python}
+coauthors = ec.ca_grqc().simplify().clustering_coefficient()
+(
+    coauthors.get_node_df()
+    .filter(pl.col("degree").is_between(2, 10))
+    .group_by("degree")
+    .agg(pl.col("clustering_coefficient").mean().round(3), authors=pl.len())
+    .sort("degree")
+)
+```
+
+Authors with two collaborators usually wrote one paper with both of them, so their clustering is
+close to 1. Authors with ten collaborators have worked with several separate groups, and only a
+third of their pairs of collaborators have written together. This decline is often taken as a sign
+of hierarchical organization, with small groups nested inside larger ones.
+
+### Other coefficients
+
+Several variants of clustering suit other questions:
+
+| Method | Measures |
+|---|---|
+| [`square_clustering()`](../reference/Graph.square_clustering.qmd) | the fraction of possible squares (four-cycles) through a node; useful in bipartite-like networks, which have no triangles |
+| [`get_edge_clustering_coefficient()`](../reference/Graph.get_edge_clustering_coefficient.qmd) | the triangles (or squares, with `k=4`) through an edge, relative to the fewest its endpoints allow |
+| [`generalized_degree()`](../reference/Graph.generalized_degree.qmd) | a node's edges, counted by how many triangles each belongs to |
+| [`latapy_clustering()`](../reference/Graph.latapy_clustering.qmd), [`robins_alexander_clustering()`](../reference/Graph.robins_alexander_clustering.qmd) | clustering for bipartite graphs |
+
+For directed graphs, `local_clustering_coefficient()` counts triangles among a node's successors.
+[Structural properties](11-structure.qmd#cliques) covers cliques, the extreme form of clustering.
+
+## Motifs
+
+Triangles are one of two shapes that three connected nodes can form; the other is a path, in which
+one pair is not linked. More generally, a *motif* is a small pattern of connections, and counting
+the motifs of a network gives a fingerprint of its local wiring.
+[`motif_census()`](../reference/Graph.motif_census.qmd) counts every connected group of three
+nodes (or four, with `size=4`) by its shape. The groups are *induced*, which means each is
+classified by all the edges among its nodes, so a triangle isn't also counted as a path:
+
+```{python}
+karate.motif_census()
+```
+
+On its own, a count says little. A network with high-degree nodes contains many triangles simply
+because hubs have many pairs of neighbors. The usual test compares the observed counts with those
+of many degree-preserving randomizations of the same network, and expresses the difference as a
+*z-score*: the number of standard deviations by which the observed count exceeds the randomized
+average. A short function does this with `random_reference()`:
+
+```{python}
+import statistics
+
+
+def motif_z_scores(graph, size=3, n_random=30):
+    observed = graph.motif_census(size=size)
+    randomized = [
+        graph.random_reference(niter=10, seed=seed).motif_census(size=size)
+        for seed in range(n_random)
+    ]
+    scores = {}
+    for shape, count in observed.items():
+        counts = [census.get(shape, 0) for census in randomized]
+        scores[shape] = round((count - statistics.mean(counts)) / statistics.stdev(counts), 1)
+    return scores
+
+
+dolphins = ec.dolphins()
+dolphins.motif_census(), motif_z_scores(dolphins)
+```
+
+The `niter=10` argument rewires each edge about ten times, enough to erase the original structure,
+and `census.get(shape, 0)` covers randomizations in which a shape doesn't occur at all. The
+dolphins form 95 triangles, where their degrees alone would give about 33, a difference of more
+than fourteen standard deviations. Associations among dolphins are strongly transitive. (The path
+score is the mirror image of the triangle score, because with every degree fixed, each extra
+triangle uses up three paths.) The same
+test on the karate club gives a z-score of only about 1.4, since its 45 triangles are not many more
+than the 39 or so its two hubs produce by themselves; this agrees with the modest gap between the
+karate club's transitivity and the randomized value in the table above.
+
+Motifs with large positive z-scores are a network's characteristic building blocks, and those with
+large negative ones are patterns it avoids. Four-node motifs reveal more, at a higher cost:
+
+```{python}
+motif_z_scores(dolphins, size=4)
+```
+
+The fully connected `"clique_4"`, and the `"near_clique_4"` that lacks a single edge, are far more
+common among the dolphins than chance would allow. The other four-node shapes have generated names,
+of the form `motif_4e<edges>_k<key>`, that give their number of edges and an internal code. Of the
+two with three edges, `motif_4e3_k591` is the star, one node linked to the other three, and
+`motif_4e3_k669` is the path; both are rarer than chance, because the dolphins' open triples tend to
+close. Of the two with four edges, `motif_4e4_k735` is a triangle with one extra node attached and
+`motif_4e4_k1782` is the square, a four-cycle without diagonals.
+
+[`motif_significance()`](../reference/Graph.motif_significance.qmd) packages the same kind of test,
+with `n_random=` randomizations, and reports a z-score and a p-value for each shape. Because every
+group of nodes must be examined, a census costs roughly `n³` operations for `size=3` and `n⁴` for
+`size=4`. Both are best kept to graphs of a few hundred nodes, and a significance test multiplies
+the cost by the number of randomizations.
+
+## Triads in directed graphs
+
+In a directed graph, each pair of nodes is linked in both directions, in one, or not at all, so
+three nodes can form 16 different *triads*. They are named with the standard MAN codes, three
+digits that count the **M**utual, **A**symmetric, and **N**ull pairs, and a letter to tell apart
+types with the same counts (**D**own, **U**p, **C**yclic, and **T**ransitive).
+[`triad_type()`](../reference/Graph.triad_type.qmd) classifies a single triad:
+
+```{python}
+small = ec.Graph.from_edges(
+    [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "A")], directed=True
+)
+small.triad_type(["A", "B", "C"]), small.triad_type(["A", "C", "D"]), small.triad_type(["B", "C", "D"])
+```
+
+`A`, `B`, and `C` form a *transitive* triad (`030T`), in which `A` reaches `C` both directly and
+by way of `B`. `A`, `C`, and `D` form a *cycle* (`030C`), and `B`, `C`, and `D` a chain (`021C`)
+with no edge between its ends.
+
+[`triadic_census()`](../reference/Graph.triadic_census.qmd) counts every triad in the graph. It
+only visits connected triads, so it runs quickly even on large sparse networks. For the Wikipedia
+election network, the comparison between transitive and cyclic triads is telling:
+
+```{python}
+census = ec.wiki_vote().triadic_census()
+census["030T"], census["030C"]
+```
+
+In a random directed graph, transitive triads would outnumber cyclic ones by about three to one,
+since there are three times as many ways to arrange three one-way edges transitively. In the
+election network the ratio is nearly seventy to one. Votes flow from less established users to
+more established ones, and rarely around a loop, which is the signature of a status hierarchy.
+[`triads_by_type()`](../reference/Graph.triads_by_type.qmd) lists the triads of each type, and
+[`all_triads()`](../reference/Graph.all_triads.qmd) lists every triad of a graph.
+
+## Cycles
+
+A cycle is a path that returns to its start without repeating a node. Triangles are the shortest
+possible cycles in a simple graph, and [`get_girth()`](../reference/Graph.get_girth.qmd) returns
+the length of a graph's shortest cycle, or `None` if it has none:
+
+```{python}
+karate.get_girth()
+```
+
+Listing every cycle is rarely practical, since their number grows exponentially with the size of
+a graph. A *cycle basis* is a small set of cycles from which every other cycle can be built, by
+combining cycles and cancelling out the edges they share. Every basis of a connected graph has
+`m - n + 1` cycles, where `m` is the number of edges and `n` the number of nodes, so this number,
+the *cyclomatic number*, measures how far a graph is from being a tree:
+
+```{python}
+basis = karate.cycle_basis()
+len(basis), karate.count_edges() - karate.count_nodes() + 1
+```
+
+[`cycle_basis()`](../reference/Graph.cycle_basis.qmd) finds a basis quickly, and
+[`minimum_cycle_basis()`](../reference/Graph.minimum_cycle_basis.qmd) finds one whose cycles are
+as short as possible, which is more useful for analysis, such as finding the rings of a molecule.
+The other cycle methods are these:
+
+| Method | Returns |
+|---|---|
+| [`simple_cycles()`](../reference/Graph.simple_cycles.qmd) | every cycle, optionally only those up to `length_bound=` nodes |
+| [`get_cycles()`](../reference/Graph.get_cycles.qmd) | every cycle of at least `min_length=` nodes (Johnson's algorithm) |
+| [`directed_cycle_basis()`](../reference/Graph.directed_cycle_basis.qmd) | a cycle basis that respects edge direction |
+| [`minimum_feedback_edge_set()`](../reference/Graph.minimum_feedback_edge_set.qmd) | the lightest set of edges whose removal leaves no cycles |
+| [`has_cycles()`](../reference/Graph.has_cycles.qmd), [`is_dag()`](../reference/Graph.is_dag.qmd) | whether a graph has any cycles, and whether a directed graph has none |
+
+In a directed graph, cycles must follow edge direction. The small graph above has two:
+
+```{python}
+[[small.get_label_from_id(node) for node in cycle] for cycle in small.simple_cycles()]
+```
+
+`C` leads to `D`, `D` to `A`, and `A` back to `C`, either directly or by way of `B`. Bounding the
+length keeps the enumeration manageable on larger graphs: in the karate club,
+`simple_cycles(length_bound=4)` finds the 199 cycles of three or four members. Directed graphs
+without any cycles are the subject of [Directed acyclic graphs](17-dags.qmd).
