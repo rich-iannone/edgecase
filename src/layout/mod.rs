@@ -4,6 +4,7 @@ pub mod force_directed;
 
 pub use force_directed::{ForceDirectedLayout, LayoutConfig};
 
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use std::collections::HashMap;
 
@@ -25,8 +26,9 @@ pub fn force_directed_layout_rust(
     edges: Vec<(usize, usize)>,
     iterations: usize,
     use_barnes_hut: Option<bool>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<HashMap<usize, (f64, f64)>> {
+    let seed = seed.map(u64::from);
     let use_bh = use_barnes_hut.unwrap_or(node_count > 100);
 
     let config = LayoutConfig {
