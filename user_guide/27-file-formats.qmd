@@ -1,0 +1,675 @@
+---
+title: File formats
+guide-section: "Interoperability"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+```{python}
+#| echo: false
+#| output: false
+import os
+import tempfile
+
+os.chdir(tempfile.mkdtemp())
+```
+
+Networks travel between programs as files. A protein interaction network arrives from a database
+as a tab-separated edge list, a social network drawn in Gephi is saved as GEXF, a citation graph
+comes from a collaborator as GraphML, and a figure for a paper needs TikZ code. EdgeCase reads and
+writes all of these, and more, with a pair of top-level functions for each format: `from_*()`
+reads a file into a new `Graph`, and `to_*()` writes a graph out.
+
+The formats differ mostly in how much of a graph they can hold. Some keep every node and edge
+attribute with its type, some keep only the structure, and the rest fall in between:
+
+| Format | Read | Write | Keeps | Common sources and uses |
+|---|---|---|---|---|
+| GraphML | `from_graphml()` | `to_graphml()` | everything, with types | NetworkX, igraph, Gephi, Cytoscape, yEd |
+| GEXF | `from_gexf()` | `to_gexf()` | everything, plus layout and colors | Gephi |
+| GML | `from_gml()` | `to_gml()` | everything, booleans as 0 and 1 | network science data collections |
+| Pajek | `from_pajek()` | `to_pajek()` | labels, weights, scalar attributes, coordinates | Pajek, older social network data |
+| LEDA | `from_leda()` | `to_leda()` | labels and weights | the LEDA library, graph benchmarks |
+| Edge list | `from_tsv_edge_list()` | `to_tsv_edge_list()` | edges and weights | BioGRID, STRING, spreadsheets |
+| SIF | `from_sif()` | `to_sif()` | edges and their interaction types | Cytoscape |
+| Matrix Market | `from_matrix_market()` | — | edges and weights | SuiteSparse, network repositories |
+| Adjacency list | `from_adjlist()`, `from_multiline_adjlist()` | `to_adjlist()`, `to_multiline_adjlist()` | structure, or edges with data | NetworkX |
+| Node-link JSON | `from_node_link()` | `to_node_link()` | everything | D3.js, NetworkX, web applications |
+| Cytoscape.js JSON | `from_cytoscape()` | `to_cytoscape()` | everything, plus positions | Cytoscape.js, Cytoscape desktop |
+| Adjacency JSON | `from_adjacency_data()` | `to_adjacency_data()` | everything | NetworkX |
+| Tree JSON | `from_tree_data()` | `to_tree_data()` | trees, with node attributes | D3.js hierarchies |
+| graph6, sparse6 | `from_graph6()`, `from_sparse6()` | `to_graph6()`, `to_sparse6()` | structure only | nauty, the House of Graphs |
+| DOT | `from_dot()` | `to_dot()` | everything, as strings | Graphviz, build and compiler tools |
+| TikZ | — | `to_latex()`, `to_latex_raw()` | a drawing | LaTeX documents |
+| Cypher | `from_cypher()` | `to_cypher()` | labels, types, properties | Neo4j, Memgraph |
+
+Each function takes a path as a string or a `pathlib.Path`. The text formats can also be read from
+a string holding the data itself, and their writers return the text when no path is given. This
+page goes through the formats in families, with an example of each, and ends with the general
+route for tabular files such as CSV and Parquet.
+
+## A graph to exchange
+
+The examples on this page use a small network of four researchers, who have written papers together
+and shared code, with a few attributes of different types on the nodes and the edges. `type` and
+`rel` are EdgeCase's built-in node types and relationship types (see
+[The graph model](03-graph-model.qmd)), and the weights count the joint papers:
+
+```{python}
+import edgecase as ec
+import polars as pl
+from pathlib import Path
+
+lab = ec.Graph(weighted=True, graph_name="lab")
+lab.add_node("Ada", type="faculty", since=2009, tenured=True)
+lab.add_node("Bo", type="postdoc", since=2021, tenured=False)
+lab.add_node("Cleo", type="student", since=2022, tenured=False)
+lab.add_node("Dev", type="student", since=2023, tenured=False)
+lab.add_edge("Ada", "Bo", weight=5.0, rel="coauthor")
+lab.add_edge("Ada", "Cleo", weight=2.0, rel="coauthor")
+lab.add_edge("Bo", "Cleo", weight=1.0, rel="code")
+lab.get_node_df()
+```
+
+Dev has no collaborations yet, which makes the network a good test of whether a format keeps
+isolated nodes. The edges:
+
+```{python}
+lab.get_edge_df()
+```
+
+## GraphML
+
+GraphML is an XML format and the most widely supported way of exchanging graphs with attributes.
+NetworkX, igraph, Gephi, Cytoscape, and yEd all read and write it, and many bioinformatics tools
+export it. Each attribute is declared once, with a name and a type, and then given for each node or
+edge that has it, so a file can be checked and read without guessing.
+
+[`to_graphml()`](../reference/to_graphml.qmd) writes a graph, and
+[`from_graphml()`](../reference/from_graphml.qmd) reads one back:
+
+```{python}
+ec.to_graphml(lab, "lab.graphml")
+print(Path("lab.graphml").read_text()[:1100])
+```
+
+Each node is written with its label as its GraphML `id`, so the files are readable and other tools
+show the right names. The attributes keep their types: booleans become `boolean`, integers `long`,
+other numbers `double`, and strings `string`. Lists, dictionaries, and attributes whose values have
+mixed types are stored as JSON strings and marked so that `from_graphml()` decodes them again. The
+graph's name, its direction, and the edge weights are kept as well. Reading the file back gives
+the same graph:
+
+```{python}
+lab2 = ec.from_graphml("lab.graphml")
+lab2.get_graph_name(), lab2.is_weighted(), lab2.get_node_df().equals(lab.get_node_df())
+```
+
+When reading a file written by another program, `from_graphml()` takes the direction from the
+file's `edgedefault` setting and treats the graph as weighted when the edges have a `weight` key.
+Both can be overridden with `directed=` and `weighted=`. A node key named `label`, as Gephi and
+Cytoscape write, supplies the node labels, and otherwise the GraphML `id` does. Only the first graph
+in a file is read.
+
+## GEXF
+
+GEXF is the native format of [Gephi](https://gephi.org), the desktop application for exploring and
+drawing large networks. Besides the attributes, it holds Gephi's *visualization data*: the position,
+color, and size of each node. [`to_gexf()`](../reference/to_gexf.qmd) writes a node's `pos`
+attribute, set by any of the `layout_*()` methods, as its position, a hex `color` attribute as its
+color, and a numeric `size` attribute as its size. A graph prepared in EdgeCase therefore opens in
+Gephi already laid out and colored. For the karate club, with its factions as colors, PageRank as
+the node size, and a ForceAtlas2 layout:
+
+```{python}
+karate = ec.karate_club()
+karate.layout_forceatlas2(linlog=True, seed=1)
+karate.colorize_node_attrs("faction", palette="Set2")
+karate.pagerank()
+karate.rescale_node_attrs("pagerank", range=[10, 40])
+
+ec.to_gexf(karate, "karate.gexf", description="Zachary's karate club", keywords=["social"])
+```
+
+The two `colorize_node_attrs()` and `rescale_node_attrs()` methods are described in
+[Aesthetics](24-aesthetics.qmd#visual-attributes-for-the-interactive-views). `description=` and
+`keywords=` fill in the file's metadata, which Gephi shows in its project overview. The work can
+also go the other way. [`from_gexf()`](../reference/from_gexf.qmd) reads Gephi's positions back into
+a `pos` attribute, and its colors and sizes into `color` and `size`, so a layout made by hand in
+Gephi can be drawn by `plot()`:
+
+```{python}
+from_gephi = ec.from_gexf("karate.gexf")
+from_gephi.plot(layout="pos", color_by="faction", show_labels=False, node_size=7)
+```
+
+`return_meta=True` also returns the file's metadata, such as its creator and description, as a
+dictionary. GEXF versions 1.1, 1.2, and 1.3 are read, and the time information of dynamic graphs is
+ignored. Since Gephi doesn't require node labels to be unique, a file whose labels repeat is read
+with the GEXF node IDs as labels, and the original labels are kept in a `name` attribute.
+
+## GML
+
+GML, the Graph Modelling Language, is a plain-text format of nested blocks. Many of the classic
+network science datasets, such as the collections of Mark Newman and of the Pajek project, are
+distributed as GML files. A file written by hand or by an older tool might look like this, with a
+nested `graphics` block holding drawing information and the edge weights given as `value`:
+
+```{python}
+gml_text = """
+graph [
+  directed 0
+  node [ id 0 label "Myriel" graphics [ x 12.5 y -3.0 fill "#ff7f0e" ] ]
+  node [ id 1 label "Napoleon" ]
+  node [ id 2 label "Mlle Baptistine" ]
+  edge [ source 1 target 0 value 1 ]
+  edge [ source 2 target 0 value 8 ]
+]
+"""
+Path("miserables.gml").write_text(gml_text)
+
+novel = ec.from_gml("miserables.gml")
+novel.get_node_df()
+```
+
+[`from_gml()`](../reference/from_gml.qmd) labels each node with its `label` key, and turns every
+other key into an attribute: numbers stay numbers, a key repeated within a block becomes a list,
+and a nested block such as `graphics` becomes a dictionary, which Polars shows as a struct column.
+The GML `id` values only connect the edges to the nodes; EdgeCase assigns its own IDs. Since no edge
+has a `weight` key, the `value` keys were taken as the weights:
+
+```{python}
+novel.get_edge_df()
+```
+
+[`to_gml()`](../reference/to_gml.qmd) writes all the attributes too. GML has no boolean type, so
+`True` and `False` are written as 1 and 0 and come back as integers, and an empty list has no GML
+representation and comes back as a missing value. A graph with parallel edges is marked as a
+multigraph, which NetworkX requires before it reads one.
+
+## Pajek and LEDA
+
+[Pajek](http://mrvar.fdv.uni-lj.si/pajek/) is a program for the analysis of large networks, and its
+`.net` format is a simple, line-based text format that many older social network datasets use.
+Vertices are numbered and listed with their labels, followed by the edges, under `*Edges` for an
+undirected graph or `*Arcs` for a directed one:
+
+```{python}
+ec.to_pajek(lab, "lab.net")
+print(Path("lab.net").read_text())
+```
+
+[`to_pajek()`](../reference/to_pajek.qmd) writes each attribute as a `key value` pair after its
+vertex or edge, and a `pos` attribute as the vertex coordinates. Pajek values are single words or
+numbers, so attributes holding lists or dictionaries are left out with a warning, and booleans
+become 1 and 0. [`from_pajek()`](../reference/from_pajek.qmd) reads all of this back, and two
+features of Pajek files in particular. In a two-mode network, declared as `*Vertices n n1`, the
+first `n1` vertices get a `part` attribute of 0 and the rest a `part` of 1, which suits
+[`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd). And a relation named in a section
+header, as in `*Arcs :2 "advice"`, becomes the `rel` of the edges in that section, so a file with
+several relations is read into one graph whose edges can be told apart.
+
+The native graph format of the LEDA C++ library is still used by graph algorithm benchmarks. It
+stores node labels and one value per edge. [`to_leda()`](../reference/to_leda.qmd) writes the edge
+weights as that value, and like several of the text writers, it returns the text when no path is
+given:
+
+```{python}
+print(ec.to_leda(lab))
+```
+
+The `-2` on the fourth line marks the graph as undirected.
+[`from_leda()`](../reference/from_leda.qmd) reads numeric edge values as weights, and any other edge
+values into a `label` attribute.
+
+## Edge lists
+
+The simplest way to store a network is a list of its edges, one per line. Interaction databases
+such as BioGRID, STRING, and IntAct export their data this way, often with extra columns of
+scores and evidence, and most spreadsheets and scripts can produce such a file.
+
+[`from_tsv_edge_list()`](../reference/from_tsv_edge_list.qmd) reads a delimited file, with the
+source, target, and an optional weight in the columns given by `source_col=`, `target_col=`, and
+`weight_col=`. These are column positions by default, counting from 0, and can be column names
+when the file has a header. A protein network downloaded from STRING, for example, is separated by
+spaces, has a header, and gives a confidence score for each interaction:
+
+```{python}
+string_text = """protein1 protein2 combined_score
+9606.TP53 9606.MDM2 999
+9606.TP53 9606.CDKN1A 987
+9606.MDM2 9606.MDM4 962
+9606.CDKN1A 9606.CDK2 941
+9606.TP53 9606.ATM 903
+"""
+Path("string.txt").write_text(string_text)
+
+p53 = ec.from_tsv_edge_list(
+    "string.txt",
+    delimiter=" ",
+    has_header=True,
+    source_col="protein1",
+    target_col="protein2",
+    weight_col="combined_score",
+)
+p53.get_edge_df()
+```
+
+Each protein becomes a node labelled with its STRING identifier, in order of first appearance, and
+the scores become weights, which makes the graph weighted. Lines starting with `comment=` (`#` by
+default) are skipped, `skip_rows=` skips a preamble, and `directed=True` reads the edges as
+directed. Lines with too few columns are skipped rather than raising an error, which copes with
+the stray blank or truncated lines that large downloads sometimes have, and an edge whose weight
+isn't a number is added without a weight.
+
+[`to_tsv_edge_list()`](../reference/to_tsv_edge_list.qmd) writes the labels of each edge's
+endpoints and, for a weighted graph, its weight, with a header line by default. An edge list holds
+edges and nothing else, so isolated nodes and attributes are lost:
+
+```{python}
+ec.to_tsv_edge_list(lab, "lab.tsv")
+print(Path("lab.tsv").read_text())
+```
+
+Dev, who has no edges, is not in the file. When isolated nodes or attributes matter, use a richer
+format, or write the node table as a second file as described in
+[Tables of nodes and edges](#tables-of-nodes-and-edges) below.
+
+### Simple Interaction Format
+
+SIF is the text format of [Cytoscape](https://cytoscape.org), the platform for visualizing
+biological networks. Each line holds a node, an interaction type, and one or more nodes it
+interacts with, and a node on a line by itself is an isolated node. The interaction type is kept
+in each edge's `rel`, so [`to_sif()`](../reference/to_sif.qmd) and
+[`from_sif()`](../reference/from_sif.qmd) preserve the kinds of relationship:
+
+```{python}
+ec.to_sif(lab, "lab.sif")
+print(Path("lab.sif").read_text())
+```
+
+Edges without a `rel` are written with the `interaction_type=` of the call, `"interacts_with"` by
+default. SIF has no place for weights or attributes. It also doesn't record whether a network is
+directed, so `from_sif()` reads an undirected graph unless `directed=True` is passed.
+
+### Matrix Market
+
+The Matrix Market format stores a sparse matrix as a list of its nonzero entries, and is the format
+of the SuiteSparse Matrix Collection and of several network repositories. Read as a graph, each
+entry is an edge, weighted by its value. EdgeCase stores its own datasets in this format (see
+[Datasets](06-datasets.qmd)). The header line says whether the matrix is `symmetric`, an undirected
+graph, or `general`, a directed one, and whether its entries are `real` or `integer` values or only
+a `pattern` of positions, which gives an unweighted graph:
+
+```{python}
+mtx_text = """%%MatrixMarket matrix coordinate real symmetric
+% a small weighted network
+4 4 4
+2 1 1.5
+3 2 2.0
+4 3 0.5
+4 1 3.0
+"""
+Path("ring.mtx").write_text(mtx_text)
+
+ring = ec.from_matrix_market("ring.mtx")
+ring.is_directed(), ring.get_node_df()["label"].to_list(), ring.get_edge_df()["weight"].to_list()
+```
+
+[`from_matrix_market()`](../reference/from_matrix_market.qmd) detects both properties from the
+header, and `directed=` and `weighted=` override them. Matrix Market numbers its rows and columns
+from 1, and the nodes are labelled from `"0"`, so row 1 becomes the node labelled `"0"`, the
+convention of the network repositories whose datasets EdgeCase includes. The format holds no node
+labels or attributes. There is no writer, since the formats above suit exchanging graphs better.
+
+## Adjacency lists
+
+An adjacency list gives each node on a line of its own, followed by its neighbors. It is the
+compact text format of NetworkX's `write_adjlist()`, and a convenient one for small graphs typed by
+hand. [`from_adjlist()`](../reference/from_adjlist.qmd) reads a file, a list of lines, or the text
+itself, when the string has at least one line break:
+
+```{python}
+road = ec.from_adjlist(
+    """
+    # each town and the towns it has a road to
+    Avon Bray Crewe
+    Bray Dover
+    Crewe Dover Ely
+    Fenwick
+    """
+)
+road.count_nodes(), road.count_edges(), road.get_node_df()["label"].to_list()
+```
+
+Every name becomes a node: first the towns that start a line, in order, then those that appear only
+as neighbors, such as Ely. Fenwick has a line of its own and no neighbors, so it is kept as an
+isolated node. Names are separated by whitespace, or by `delimiter=`, and a pair of nodes listed
+twice gives a single edge unless `parallel_edges=True`.
+[`to_adjlist()`](../reference/to_adjlist.qmd) writes the same layout, listing each undirected edge
+once. It keeps only the structure, and since the names are separated by spaces, it raises an error
+for labels that contain whitespace, the delimiter, or `#`.
+
+The *multiline* variant keeps the edge data as well. Each node's line gives its number of
+neighbors, and each neighbor follows on a line of its own, with the edge's data as a Python
+dictionary:
+
+```{python}
+print(ec.to_multiline_adjlist(lab))
+```
+
+[`from_multiline_adjlist()`](../reference/from_multiline_adjlist.qmd) reads the weights and
+attributes back. Neither variant holds node attributes.
+
+## JSON formats
+
+JSON is the natural format for graphs that travel to and from web applications and JavaScript
+libraries. EdgeCase reads and writes four JSON layouts. Each `to_*()` function returns the data as
+a Python dictionary, ready for `json.dumps()` or a web framework, and also writes it to a file when
+a path is given. Each `from_*()` function accepts a dictionary, a JSON string, or a path.
+
+### Node-link data
+
+The *node-link* layout, with a list of nodes and a list of edges, is the one that
+[D3.js](https://d3js.org) force layouts use, and NetworkX's `node_link_data()` writes.
+[`to_node_link()`](../reference/to_node_link.qmd) gives each node its label as its `id`, along
+with its attributes, and each edge its endpoints, its weight, and its attributes:
+
+```{python}
+import json
+
+data = ec.to_node_link(lab)
+print(json.dumps(data, indent=2)[:600])
+```
+
+The `directed` and `multigraph` fields describe the graph, and `graph` holds its name.
+[`from_node_link()`](../reference/from_node_link.qmd) reads this layout, and also the older one
+with `links` instead of `edges`, which D3 examples and earlier versions of NetworkX use. The
+round trip keeps everything:
+
+```{python}
+ec.from_node_link(data).get_edge_df().equals(lab.get_edge_df())
+```
+
+`to_node_link(edges="links")` writes the older layout for tools that expect it.
+
+### Cytoscape.js
+
+[Cytoscape.js](https://js.cytoscape.org) is a JavaScript library for interactive network
+visualization, used in many biological web applications.
+[`to_cytoscape()`](../reference/to_cytoscape.qmd) writes the `elements` it expects, which the
+Cytoscape desktop application can open as a `.cyjs` file as well:
+
+```{python}
+elements = ec.to_cytoscape(lab)
+elements["elements"]["nodes"][0], elements["elements"]["edges"][0]
+```
+
+Each element has its fields in a `data` dictionary, and each edge gets an `id` of its own. A node's
+`pos` attribute becomes its `position`, with the y axis flipped, since it points down on screen.
+[`from_cytoscape()`](../reference/from_cytoscape.qmd) reads the elements back, either as separate
+`nodes` and `edges` lists or as one flat list, and turns positions into a `pos` attribute, so a
+layout arranged in a Cytoscape application can be drawn with `plot(layout="pos")`.
+
+### Adjacency and tree data
+
+Two more layouts come from NetworkX. The *adjacency* layout of
+[`to_adjacency_data()`](../reference/to_adjacency_data.qmd) lists each node's edges under the node,
+which is convenient for code that walks the graph node by node, and
+[`from_adjacency_data()`](../reference/from_adjacency_data.qmd) reads it.
+
+The *tree* layout nests each node's children inside the node, the shape of a D3.js hierarchy, used
+by tree maps, sunbursts, and collapsible trees.
+[`from_tree_data()`](../reference/from_tree_data.qmd) builds a tree from the nested data, with edges
+from each parent to its children:
+
+```{python}
+taxonomy = {
+    "id": "Animals",
+    "children": [
+        {"id": "Mammals", "species": 6400, "children": [{"id": "Whales"}, {"id": "Bats"}]},
+        {"id": "Birds", "species": 11000},
+    ],
+}
+tree = ec.from_tree_data(taxonomy)
+tree.get_node_df()
+```
+
+The fields other than the ID and the children become node attributes, and the nodes are added in
+depth-first order. `ident=` and `children=` name the two special fields when the data uses others,
+such as `name` and `kids`. [`to_tree_data()`](../reference/to_tree_data.qmd) nests a tree again,
+starting from a given root:
+
+```{python}
+ec.to_tree_data(tree, root="Animals")
+```
+
+The graph must be a tree, and a directed one must have its edges pointing away from the root.
+
+### Dictionaries
+
+[`from_dict_of_dicts()`](../reference/from_dict_of_dicts.qmd) and
+[`from_dict_of_lists()`](../reference/from_dict_of_lists.qmd) build graphs from nested Python
+dictionaries, which is how graphs are often kept in plain Python code or loaded from JSON
+configuration files. In a dict of dicts, each node maps to its neighbors, and each neighbor to the
+data of the edge. In a dict of lists, each node maps to a list of its neighbors:
+
+```{python}
+flights = ec.from_dict_of_dicts(
+    {
+        "LHR": {"JFK": {"weight": 5540}, "CDG": {"weight": 344}},
+        "CDG": {"JFK": {"weight": 5837}},
+    },
+    directed=True,
+)
+flights.is_weighted(), flights.get_edge_df()["weight"].to_list()
+```
+
+A numeric `weight` in the edge data sets the edge weights and makes the graph weighted, and any
+other fields become edge attributes. [`to_dict_of_dicts()`](../reference/to_dict_of_dicts.qmd) and
+[`to_dict_of_lists()`](../reference/to_dict_of_lists.qmd) convert a graph the other way, keyed by
+node labels:
+
+```{python}
+ec.to_dict_of_lists(lab)
+```
+
+These dictionaries match the ones NetworkX produces and accepts, which is described further in
+[Other libraries](28-other-libraries.qmd).
+
+## graph6 and sparse6
+
+graph6 and sparse6 are the compact formats of [nauty](https://pallini.di.uniroma1.it), the program
+for graph isomorphism, and of the [House of Graphs](https://houseofgraphs.org), a database of
+interesting graphs. Each graph is a single line of printable characters. graph6 encodes the upper
+triangle of the adjacency matrix, which suits dense graphs, and sparse6 encodes the list of edges,
+which suits sparse ones. The Petersen graph, for example:
+
+```{python}
+petersen = ec.Graph().add_named_graph("petersen")
+ec.to_graph6(petersen), ec.to_sparse6(petersen)
+```
+
+The formats store nothing but the structure of an undirected graph: the order of the nodes is kept,
+but labels, weights, and attributes aren't, and writing a directed graph raises an error.
+[`from_graph6()`](../reference/from_graph6.qmd) and
+[`from_sparse6()`](../reference/from_sparse6.qmd) label the nodes `"1"` to `"n"`. A file or string
+with several lines, such as a download from the House of Graphs or the output of nauty's `geng`
+generator, gives a list of graphs. All three graphs on three nodes with at least one edge, read at
+once:
+
+```{python}
+small = ec.from_graph6("B_\nBg\nBw\n")
+[(graph.count_nodes(), graph.count_edges()) for graph in small]
+```
+
+Collections in this form make good test cases: they enumerate every graph of a given size, so an
+algorithm can be checked against all of them in a loop.
+
+## DOT
+
+DOT is the graph language of [Graphviz](https://graphviz.org), and many tools write it, including
+compilers, documentation generators, build systems, and infrastructure tools such as Terraform.
+[`from_dot()`](../reference/from_dot.qmd) reads the full language, including chains of edges,
+subgraphs, and default attributes for the nodes and edges that follow them:
+
+```{python}
+pipeline = ec.from_dot(
+    """
+    digraph build {
+        node [shape=box];
+        fetch -> {compile lint} -> package [color=gray];
+        package -> deploy;
+        lint [label="Static checks"];
+    }
+    """
+)
+pipeline.get_graph_name(), pipeline.count_nodes(), pipeline.count_edges()
+```
+
+The chain from `fetch` through `{compile lint}` to `package` makes four edges, one for each path
+through the braces, and each gets the `color` attribute given at the end of the chain. The `node
+[shape=box]` default gives every node a `shape` attribute:
+
+```{python}
+pipeline.get_edge_df()
+```
+
+Each node's DOT name becomes its label. A DOT `label` attribute, such as the "Static checks" of
+`lint`, is display text for Graphviz, and it is kept as an attribute that `to_dot()` writes back.
+DOT has only strings, so every attribute is read as a string, except that a numeric edge `weight`
+becomes the edge weight. Graph attributes, such as `rankdir=LR`, and the grouping of nodes into
+subgraphs are read but not kept. A file with several graphs gives a list of graphs.
+
+[`to_dot()`](../reference/to_dot.qmd) writes a graph as DOT, ready to be drawn by Graphviz with a
+command such as `dot -Tsvg build.dot -o build.svg`:
+
+```{python}
+print(ec.to_dot(pipeline))
+```
+
+Values are quoted only where DOT requires it. Since Graphviz interprets attributes such as
+`shape`, `color`, `label`, and `style`, setting them on a graph in EdgeCase is a way to control a
+Graphviz drawing, for example with a `color` attribute from `colorize_node_attrs()`.
+
+## LaTeX and TikZ
+
+[`to_latex()`](../reference/to_latex.qmd) writes LaTeX code that draws a graph with
+[TikZ](https://tikz.dev), for figures in papers and theses that match the fonts and style of the
+document. The nodes are placed at the positions in their `pos` attribute, so a `layout_*()` method
+comes first:
+
+```{python}
+lab.layout_kamada_kawai()
+print(
+    ec.to_latex(
+        lab,
+        tikz_options="[scale=2]",
+        default_node_options="[circle, draw]",
+        caption="Collaborations in the lab.",
+        latex_label="fig:lab",
+    )
+)
+```
+
+By default the result is a complete document that compiles as it is with `pdflatex`, and
+`as_document=False` gives only the `figure` environment, for pasting into an existing document.
+The layout positions are about 1 unit across, and TikZ units are centimeters, so `scale=` is
+usually needed to give the drawing a reasonable size. The look of the drawing is controlled with
+TikZ options: `default_node_options=` and `default_edge_options=` apply to all nodes and edges, and
+`node_options=`, `node_label=`, `edge_options=`, and `edge_label=` set them for individual nodes and
+edges, either from an attribute or from a dictionary:
+
+```{python}
+#| eval: false
+ec.to_latex(
+    lab,
+    tikz_options="[scale=2]",
+    default_node_options="[circle, draw, fill=white]",
+    node_options={"Ada": "fill=orange!30"},
+    edge_label={("Ada", "Bo"): "5 papers"},
+    edge_label_options={("Ada", "Bo"): "[above, sloped]"},
+    filepath="lab-figure.tex",
+)
+```
+
+A list of graphs gives a figure with one subfigure per graph, arranged in `n_rows=` rows, with
+`sub_captions=` for their captions, which suits a before-and-after comparison.
+[`to_latex_raw()`](../reference/to_latex_raw.qmd) gives the bare `tikzpicture` environment, for
+documents that place it themselves. The output matches that of NetworkX's functions of the same
+names.
+
+## Cypher
+
+[`from_cypher()`](../reference/from_cypher.qmd) reads the `CREATE` statements of the Cypher query
+language, and [`to_cypher()`](../reference/to_cypher.qmd) writes a graph as one, which moves graphs
+to and from graph databases such as Neo4j and Memgraph. Both are described in
+[Cypher queries](10-cypher.qmd#exchanging-graphs-with-cypher-databases).
+
+## Tables of nodes and edges
+
+Much network data lives in tables rather than in graph formats: CSV files, Parquet files,
+spreadsheets, and databases. Polars reads and writes all of these, so the general route is to go
+through the node and edge tables. [`get_node_df()`](../reference/Graph.get_node_df.qmd) and
+[`get_edge_df()`](../reference/Graph.get_edge_df.qmd) give the tables, which Polars can write in any
+of its formats. Parquet is a good choice, since it is compact and fast, and keeps the column types,
+including lists and structs:
+
+```{python}
+karate.get_node_df().write_parquet("karate-nodes.parquet")
+karate.get_edge_df().write_parquet("karate-edges.parquet")
+```
+
+The `Graph` constructor then builds the graph from the tables again (see
+[Building graphs](04-building-graphs.qmd#building-a-graph-from-dataframes)). It expects the edge
+endpoints in columns named `from` and `to`, so the `source` and `target` columns need renaming, and
+the `degree` column, which EdgeCase computes rather than stores, is best dropped:
+
+```{python}
+nodes = pl.read_parquet("karate-nodes.parquet").drop("degree")
+edges = pl.read_parquet("karate-edges.parquet").rename({"source": "from", "target": "to"})
+
+restored = ec.Graph(nodes_df=nodes, edges_df=edges)
+same_nodes = restored.get_node_df().equals(karate.get_node_df())
+same_edges = restored.get_edge_df().equals(karate.get_edge_df())
+same_nodes, same_edges
+```
+
+The restored graph is identical to the original, with every attribute, including the PageRank
+scores, the colors, and the layout positions. This works because the node table has both an `id`
+and a `label` column: the labels become the node labels, and the `from` and `to` values are looked
+up in the `id` column, so the edges connect the right nodes. For a weighted graph, pass
+`weighted=True` to the constructor so that the `weight` column sets the weights, and `directed=True`
+for a directed one.
+
+The same route reads tables that were never written by EdgeCase. An edge table from a database or a
+CSV file needs only its endpoint columns renamed to `from` and `to`, and a node table, if there is
+one, its identifier column to `id`; then the edge endpoints are matched against that column.
+
+## Choosing a format
+
+The choice of format usually follows from where the graph is going or where it came from. When the
+choice is open:
+
+| Need | Format |
+|---|---|
+| Keep everything, for any other tool | GraphML |
+| Lay out or explore the graph in Gephi | GEXF |
+| Analyze it in Cytoscape | GraphML, Cytoscape.js JSON, or SIF |
+| Draw it with D3.js or another web library | node-link JSON |
+| Draw it with Graphviz | DOT |
+| Put a figure in a LaTeX document | `to_latex()` |
+| Store it compactly, with all attributes and types | Parquet node and edge tables |
+| Share the edges with any program or spreadsheet | a TSV edge list |
+| Catalog many small unlabelled graphs | graph6 or sparse6 |
+| Load it into a graph database | Cypher |
+
+Whatever the format, a quick round trip, writing the graph and reading it back, followed by a
+comparison of `get_node_df()` and `get_edge_df()` with the originals, shows exactly what a format
+keeps for a particular graph.
