@@ -8,18 +8,23 @@ def to_igraph(graph):
     weights. Node names are stored as 'name' node attribute since igraph uses
     integer node indices internally.
 
+    Vertices are added in node ID order, each named by its label (or, if it has none, a string of
+    its ID). Because `name` holds the labels, a node attribute called `name` isn't written. Edges
+    are added in ID order, with the EdgeCase edge IDs in the `edgecase_edge_id` edge attribute,
+    and the graph name, if any, is stored as the graph attribute `name`.
+
     Parameters
-    ---
+    ----------
     graph
         The EdgeCase Graph object to convert.
 
     Returns
-    ---
+    -------
     igraph.Graph
         An igraph.Graph object with the same structure and attributes.
 
     Raises
-    ---
+    ------
     ImportError
         If igraph is not installed.
 
@@ -54,83 +59,45 @@ def to_igraph(graph):
             "igraph is required for graph conversion. Install it with: pip install igraph"
         )
 
+    from edgecase.io import _node_keys, _nodes_of
+
     # Create igraph graph with appropriate directionality
     ig_graph = ig.Graph(directed=graph.is_directed())
+    if graph.get_graph_name():
+        ig_graph["name"] = graph.get_graph_name()
 
-    # Get all node IDs and create a mapping
-    node_ids = list(graph.get_node_ids(limit=None))
-    n_nodes = len(node_ids)
+    # Nodes in ID order, each named by its label (or, if unlabeled, a string of its ID)
+    nodes = _nodes_of(graph)
+    names = _node_keys(nodes)
+    ig_graph.add_vertices(len(nodes))
+    ig_graph.vs["name"] = [names[node_id] for node_id, _, _ in nodes]
 
-    # Add vertices
-    ig_graph.add_vertices(n_nodes)
-
-    # Set node labels as "name" attribute (converting IDs to labels)
-    node_labels = [graph.get_label_from_id(node_id) for node_id in node_ids]
-    ig_graph.vs["name"] = node_labels
-
-    # Add node attributes
-    # First, collect all unique attribute names
-    all_node_attrs = set()
-    for node_id in node_ids:
-        node = graph.get_node(node_id)
-        if node and node.attributes:
-            all_node_attrs.update(node.attributes.keys())
-
-    # For each attribute, collect values for all nodes
-    for attr_name in all_node_attrs:
-        attr_values = []
-        for node_id in node_ids:
-            node = graph.get_node(node_id)
-            if node and node.attributes and attr_name in node.attributes:
-                attr_values.append(node.attributes[attr_name])
-            else:
-                attr_values.append(None)
-        ig_graph.vs[attr_name] = attr_values
+    # Add node attributes; `name` holds the labels, so an attribute of that name isn't written
+    node_attr_names = list(dict.fromkeys(k for _, _, attrs in nodes for k in attrs))
+    for attr_name in node_attr_names:
+        if attr_name != "name":
+            ig_graph.vs[attr_name] = [attrs.get(attr_name) for _, _, attrs in nodes]
 
     # Create node ID to index mapping for edge creation
-    node_to_idx = {node_id: idx for idx, node_id in enumerate(node_ids)}
+    node_to_idx = {node_id: idx for idx, (node_id, _, _) in enumerate(nodes)}
 
-    # Add edges
-    edges = graph.get_edges_as_tuples()  # Returns list of (id, source, target) tuples
+    # Edges in ID order, with their weights (or `weight` attributes) and their attributes
+    edges = sorted(graph.get_edges_as_tuples())  # (id, source, target) tuples
     edge_list = []
     edge_weights = []
     edge_ids = []
-
-    # Collect all edge attributes
-    all_edge_attrs = set()
+    edge_attrs = []
     for edge_id, source, target in edges:
         edge = graph.get_edge(edge_id)
-        if edge and edge.attributes:
-            all_edge_attrs.update(edge.attributes.keys())
-
-    # Prepare edge attribute storage
-    edge_attr_values = {attr: [] for attr in all_edge_attrs}
-
-    # Add edges and collect attributes
-    for edge_id, source, target in edges:
-        # Convert node IDs to indices
-        source_idx = node_to_idx[source]
-        target_idx = node_to_idx[target]
-        edge_list.append((source_idx, target_idx))
-
-        # Get edge object
-        edge = graph.get_edge(edge_id)
-
-        # Store weight
-        if edge and edge.weight is not None:
-            edge_weights.append(edge.weight)
-        else:
-            edge_weights.append(None)
-
-        # Store edge ID
+        attrs = dict(edge.attributes or {})
+        weight = attrs.pop("weight", None)
+        if edge.weight is not None:
+            weight = edge.weight
+        attrs.pop("edgecase_edge_id", None)
+        edge_list.append((node_to_idx[source], node_to_idx[target]))
+        edge_weights.append(weight)
         edge_ids.append(edge_id)
-
-        # Store other attributes
-        for attr_name in all_edge_attrs:
-            if edge and edge.attributes and attr_name in edge.attributes:
-                edge_attr_values[attr_name].append(edge.attributes[attr_name])
-            else:
-                edge_attr_values[attr_name].append(None)
+        edge_attrs.append(attrs)
 
     # Add all edges at once
     if edge_list:
@@ -144,8 +111,8 @@ def to_igraph(graph):
         ig_graph.es["edgecase_edge_id"] = edge_ids
 
         # Set other edge attributes
-        for attr_name, attr_vals in edge_attr_values.items():
-            ig_graph.es[attr_name] = attr_vals
+        for attr_name in dict.fromkeys(k for attrs in edge_attrs for k in attrs):
+            ig_graph.es[attr_name] = [attrs.get(attr_name) for attrs in edge_attrs]
 
     return ig_graph
 
@@ -157,13 +124,20 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
     attributes, and weights. Node names are taken from 'name' node attribute if
     present, otherwise node indices are used.
 
+    Every other vertex attribute is kept, including ones named `label` or `type`. If two vertices
+    share a name, every node is labeled with its index instead (with a warning) and the names are
+    kept in a `name` attribute. A numeric `weight` becomes the edge weight and every other edge
+    attribute is kept, except the `edgecase_edge_id` that `to_igraph()` adds. A graph attribute
+    `name` becomes the graph name. The graph is built as a single step.
+
     Parameters
     ----------
     ig_graph
         The igraph.Graph object to convert.
     weighted
         If `True`, create a weighted graph. If `None` (default), auto-detect
-        by checking if edges have a 'weight' attribute.
+        by checking if any edge has a numeric 'weight' attribute. If `False`, edge
+        weights are dropped.
 
     Returns
     -------
@@ -209,78 +183,40 @@ def from_igraph(ig_graph, weighted: Optional[bool] = None):
             "igraph is required for graph conversion. Install it with: pip install igraph"
         )
 
-    # Import EdgeCase Graph
-    from edgecase import Graph
+    from edgecase.io import _build_graph, _code, _numeric_weight
 
-    # Determine if graph is directed
-    directed = ig_graph.is_directed()
+    # Each vertex is labeled with its `name` if it has one, otherwise with its index; every other
+    # attribute is kept (igraph fills `None` for vertices without it, and those are dropped)
+    nodes = []
+    for vertex in ig_graph.vs:
+        attrs = vertex.attributes()
+        name = attrs.pop("name", None)
+        nodes.append((vertex.index, None if name is None else str(name), attrs))
+
+    # A numeric `weight` becomes the edge weight; the `edgecase_edge_id` that `to_igraph()` adds is
+    # dropped
+    edges = []
+    for edge in ig_graph.es:
+        attrs = edge.attributes()
+        attrs.pop("edgecase_edge_id", None)
+        weight = _numeric_weight(attrs.get("weight"))
+        if weight is not None:
+            del attrs["weight"]
+        edges.append((edge.source, edge.target, weight, attrs))
 
     # Auto-detect if graph is weighted
     if weighted is None:
-        weighted = False
-        if ig_graph.ecount() > 0 and "weight" in ig_graph.es.attributes():
-            weighted = True
+        weighted = any(weight is not None for _, _, weight, _ in edges)
 
-    # Create EdgeCase graph
-    graph = Graph(directed=directed, weighted=weighted)
-
-    # Determine node IDs
-    # If 'name' attribute exists, use it; otherwise use node indices
-    if "name" in ig_graph.vs.attributes():
-        node_ids = ig_graph.vs["name"]
-    else:
-        node_ids = [str(i) for i in range(ig_graph.vcount())]
-
-    # Get all node attribute names (excluding 'name' since we use it for node ID)
-    node_attrs = [attr for attr in ig_graph.vs.attributes() if attr != "name"]
-
-    # Add nodes with attributes
-    for idx, node_id in enumerate(node_ids):
-        # Convert node_id to string (EdgeCase uses string node IDs)
-        node_id_str = str(node_id)
-
-        # Collect node attributes
-        node_attributes = {}
-        for attr_name in node_attrs:
-            attr_value = ig_graph.vs[idx][attr_name]
-            if attr_value is not None:
-                node_attributes[attr_name] = attr_value
-
-        graph.add_node(label=node_id_str, **node_attributes)
-
-    # Get all edge attribute names
-    edge_attrs = ig_graph.es.attributes()
-
-    # Add edges with attributes
-    for edge in ig_graph.es:
-        # Get source and target node IDs
-        source_idx = edge.source
-        target_idx = edge.target
-        source_id = str(node_ids[source_idx])
-        target_id = str(node_ids[target_idx])
-
-        # Extract weight if present
-        weight = None
-        if "weight" in edge_attrs:
-            weight = edge["weight"]
-
-        # Extract edge ID if it was preserved from EdgeCase
-        edge_id = None
-        if "edgecase_edge_id" in edge_attrs:
-            edge_id = edge["edgecase_edge_id"]
-
-        # Collect other edge attributes
-        edge_attr_dict = {}
-        for attr_name in edge_attrs:
-            if attr_name not in ["weight", "edgecase_edge_id"]:
-                attr_value = edge[attr_name]
-                if attr_value is not None:
-                    edge_attr_dict[attr_name] = attr_value
-
-        # Add edge to graph
-        graph.add_edge(source_id, target_id, weight=weight, edge_id=edge_id, **edge_attr_dict)
-
-    return graph
+    name = ig_graph["name"] if "name" in ig_graph.attributes() else None
+    return _build_graph(
+        nodes,
+        edges,
+        ig_graph.is_directed(),
+        weighted,
+        name if isinstance(name, str) and name else None,
+        _code("from_igraph", ig_graph),
+    )
 
 
 __all__ = ["to_igraph", "from_igraph"]
