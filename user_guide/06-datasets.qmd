@@ -1,0 +1,204 @@
+---
+title: Datasets
+guide-section: "Building graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+EdgeCase comes with a collection of real networks. They range from classic examples of a few dozen
+nodes, small enough to draw and reason about by eye, to networks with hundreds of thousands of edges
+that are useful for checking how an analysis scales. Each loads with a single function call and
+needs no network connection, except for three very large graphs that are downloaded on first use.
+
+## Loading a dataset
+
+Every dataset has its own loader function, which returns a `Graph`:
+
+```{python}
+import edgecase as ec
+
+florentine = ec.florentine_families()
+florentine
+```
+
+The loaded graph is an ordinary `Graph`, with a name, labels, and any attributes the data includes.
+It can be analyzed, modified, and drawn like any other graph, and each call to the loader returns a
+fresh copy, so changes never carry over from one use to the next.
+
+## The classic networks
+
+These small networks appear throughout the network science literature, and each has become the
+standard example of some idea. Their nodes carry the names or attributes of the original data.
+
+| Loader | Nodes | Edges | Description |
+|---|---|---|---|
+| [`karate_club()`](../reference/karate_club.qmd) | 34 | 78 | Friendships among the members of a university karate club that split in two. Node attributes `faction` and `role`. |
+| [`florentine_families()`](../reference/florentine_families.qmd) | 15 | 20 | Marriage ties among the leading families of Renaissance Florence, labelled by family name. |
+| [`les_miserables()`](../reference/les_miserables.qmd) | 77 | 254 | Characters of Victor Hugo's novel, joined when they appear in the same chapter. Weighted by the number of shared chapters. |
+| [`davis_southern_women()`](../reference/davis_southern_women.qmd) | 32 | 89 | Eighteen women and the fourteen social events they attended. Bipartite, with a `bipartite` attribute of `0` for women and `1` for events. |
+
+The Florentine families are the textbook case for betweenness centrality. The Medici were neither
+the wealthiest nor the most powerful family in Florence, but they married into families that had
+no ties to one another, and so sat on most of the shortest paths through the network:
+
+```{python}
+(
+    florentine.betweenness_centrality()
+    .get_node_df()
+    .sort("betweenness_centrality", descending=True)
+    .head(4)
+)
+```
+
+The Medici's betweenness is double that of the next family, which is the network's account of how
+they rose to dominate the city.
+
+*Les Misérables* is weighted, and its communities match the novel's storylines. The weighted
+Louvain method finds them, and drawing the graph by community shows Valjean at the center, linked
+to almost everyone, with Myriel and his small circle of minor characters off to one side:
+
+```{python}
+les_mis = ec.les_miserables().cmty_louvain()
+les_mis.plot(color_by="cmty_louvain", size_by="degree", show_labels=False, seed=2)
+```
+
+The Southern Women data is the standard example of a *two-mode* network, in which edges only join
+nodes of different kinds. Projecting it onto the women gives a one-mode network in which two women
+are linked when they attended an event together, weighted by the number of events they shared:
+
+```{python}
+women = ec.davis_southern_women().bipartite_projection(which=0)
+women.get_edge_df().sort("weight", descending=True).head(3)
+```
+
+Evelyn Jefferson (ID 1) and Theresa Anderson (ID 3) attended seven events together, more than any
+other pair. [Network biology](31-network-biology.qmd) and the reference page for
+[`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) have more on two-mode
+networks.
+
+## Networks from data repositories
+
+The remaining datasets come from two widely used public collections, the
+[Stanford Large Network Dataset Collection](https://snap.stanford.edu/data/) (SNAP) and
+[Network Repository](https://networkrepository.com). They are distributed as edge lists, so their
+nodes have no attributes, and each node is labelled with its number in the original file.
+
+| Loader | Nodes | Edges | Directed | Description |
+|---|---|---|---|---|
+| [`dolphins()`](../reference/dolphins.qmd) | 62 | 159 | no | Frequent associations among bottlenose dolphins in Doubtful Sound, New Zealand |
+| [`football()`](../reference/football.qmd) | 35 | 119 | no | Games between American college football teams |
+| [`polbooks()`](../reference/polbooks.qmd) | 105 | 441 | no | Books about US politics frequently bought together on Amazon |
+| [`jazz()`](../reference/jazz.qmd) | 198 | 2,743 | no | Collaborations among jazz musicians |
+| [`celegans()`](../reference/celegans.qmd) | 453 | 2,041 | no | The metabolic network of the nematode *C. elegans* |
+| [`power_grid()`](../reference/power_grid.qmd) | 4,941 | 6,594 | no | The power grid of the western United States |
+| [`ca_grqc()`](../reference/ca_grqc.qmd) | 5,242 | 28,980 | no | Co-authorships in the general relativity section of arXiv |
+| [`internet()`](../reference/internet.qmd) | 6,474 | 13,895 | no | Links between autonomous systems of the Internet, January 2000 |
+| [`gnutella()`](../reference/gnutella.qmd) | 6,301 | 20,777 | yes | A snapshot of the Gnutella peer-to-peer network, August 2002 |
+| [`wiki_vote()`](../reference/wiki_vote.qmd) | 7,115 | 103,689 | yes | Votes in Wikipedia administrator elections |
+| [`pgp()`](../reference/pgp.qmd) | 10,680 | 24,340 | yes | The PGP web of trust |
+| [`physics()`](../reference/physics.qmd) | 12,008 | 237,010 | no | Co-authorships in the high energy physics (phenomenology) section of arXiv |
+| [`condmat()`](../reference/condmat.qmd) | 23,133 | 186,936 | no | Co-authorships in the condensed matter section of arXiv |
+| [`enron()`](../reference/enron.qmd) | 36,692 | 367,662 | yes | Email between Enron employees |
+
+All of these are shipped with EdgeCase in compressed form and load in at most a second or two. The
+larger ones are good for seeing how an algorithm behaves on a realistic, sparse network. The power
+grid, for example, is a *large-world* network. A grid spread across half a continent has few
+shortcuts, so its diameter and mean distance are long:
+
+```{python}
+grid = ec.power_grid()
+grid.get_diameter(), round(grid.get_mean_distance(), 2)
+```
+
+The farthest pair of nodes is 46 links apart and a typical pair about 19. Those distances are long
+for a network of under 5,000 nodes: the karate club and most other small social networks have mean
+distances of 2 to 3, and even the co-authorship networks, with thousands of authors, stay around 6.
+
+Because these nodes are labelled with numbers stored as strings, the usual rule about IDs and labels
+applies with full force: `grid.get_node(1)` is the node with ID 1, while `grid.get_node("1")` is the
+node that was numbered 1 in the source file. See [The graph model](03-graph-model.qmd#referring-to-nodes).
+
+The files are loaded as published, which means that some of these graphs aren't simple. The three
+co-authorship networks (`ca_grqc()`, `physics()`, and `condmat()`) list every collaboration in both
+directions, so each undirected edge appears twice, and a few datasets, notably `internet()`,
+contain self-loops. Their edge counts above include the duplicates. Measures such as degree and
+node-level clustering count every edge, so for most analyses it is best to
+[`simplify()`](../reference/Graph.simplify.qmd) these graphs first:
+
+```{python}
+coauthors = ec.ca_grqc()
+coauthors.is_simple(), coauthors.simplify().count_edges()
+```
+
+Once simplified, the general relativity network has 14,484 distinct collaborations.
+
+## Very large networks
+
+Three registered datasets are too large to ship with the package:
+
+| Name | Nodes | Edges | Directed | Download |
+|---|---|---|---|---|
+| `web_google` ([`web_google()`](../reference/web_google.qmd)) | 875,713 | 5,105,039 | yes | 10 MB |
+| `roadnet_pa` | 1,087,562 | 1,541,514 | no | 5 MB |
+| `soc_livejournal` ([`soc_livejournal()`](../reference/soc_livejournal.qmd)) | 4,847,571 | 68,993,773 | yes | 120 MB |
+
+The first call downloads the data and stores it in `~/.cache/edgecase/datasets/`, and later calls
+read it from there. Set the environment variable `EDGECASE_NO_DOWNLOAD=1` to turn downloading off,
+for example on a machine without network access; loading a dataset that isn't on disk then raises a
+`FileNotFoundError` instead.
+
+```python
+web = ec.web_google()   # downloads about 10 MB the first time
+```
+
+## The dataset registry
+
+The loaders are convenient wrappers around a registry of datasets, which can also be used directly.
+[`list_registered_datasets()`](../reference/list_registered_datasets.qmd) gives the names of the
+registered datasets:
+
+```{python}
+ec.list_registered_datasets()
+```
+
+Most names match their loader functions. The exceptions are `karate` (`karate_club()`), `ca_hepph`
+(`physics()`), and `ca_condmat` (`condmat()`).
+
+[`get_dataset_info()`](../reference/get_dataset_info.qmd) returns a dataset's metadata without
+loading it, including its size, source, and whether it is bundled or downloaded:
+
+```{python}
+ec.get_dataset_info("jazz")
+```
+
+and [`load_dataset()`](../reference/load_dataset.qmd) loads a dataset by name. Its `directed=`
+argument overrides the registry's setting, which is a way to load a directed network as an
+undirected one, and `weighted=True` keeps the weights of a weighted file:
+
+```{python}
+ec.load_dataset("wiki_vote", directed=False).is_directed()
+```
+
+The registry holds only the networks distributed as data files, so the four classic networks with
+attributes are available only through their own loaders. `load_dataset("karate")` loads the same
+friendships as `karate_club()`, but without the `faction` and `role` attributes.
+
+Datasets are stored in the Matrix Market format, and
+[`list_available_datasets()`](../reference/list_available_datasets.qmd) lists the files found on
+disk. To load your own Matrix Market files, use
+[`from_matrix_market()`](../reference/from_matrix_market.qmd), described in
+[File formats](27-file-formats.qmd).
+
+## Choosing a dataset
+
+For learning a method or checking that it behaves as expected, start with a classic network whose
+answer is known: the karate club for communities, the Florentine families for centrality, the
+Southern Women for bipartite methods, and *Les Misérables* for anything weighted. Move to the
+repository networks to see how a method copes with a larger, messier graph, and to
+[generators](05-generators.qmd) when you need a graph whose structure you control exactly.
