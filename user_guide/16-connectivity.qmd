@@ -1,0 +1,598 @@
+---
+title: Connectivity and flows
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Whether a network holds together, and how firmly, is one of the first things to ask of it. Can
+every node reach every other? Which single node or link, if it failed, would cut the network in
+two? How many independent routes join two places, and how much can flow between them at once? This
+page covers the methods that answer these questions: connected components, the weak points that
+hold a network together, measures of connectivity and minimum cuts, network flows, spanning trees,
+and simulations of how networks break apart under failure and attack.
+
+Many of the methods below return edge IDs. A small helper shows those edges with their endpoints'
+labels, which makes the results easier to read:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+
+def named_edges(graph, ids=None):
+    labels = dict(graph.get_node_df().select("id", "label").iter_rows())
+    edges = graph.get_edge_df()
+    if ids is not None:
+        edges = edges.filter(pl.col("id").is_in(ids))
+    return edges.with_columns(
+        pl.col("source", "target").replace_strict(labels, return_dtype=pl.String)
+    ).drop("rel")
+```
+
+## Connected components
+
+A graph is *connected* when there is a path between every pair of its nodes. A disconnected graph
+falls into *components*, groups of nodes that can reach one another but nothing outside the group.
+[`is_connected()`](../reference/Graph.is_connected.qmd) checks the first, and
+[`weakly_connected_components()`](../reference/Graph.weakly_connected_components.qmd) returns the
+components as sets of node IDs, largest first. (For undirected graphs the word "weakly" can be
+ignored; the distinction matters only for directed graphs, as the next section explains.)
+
+Most real networks consist of one *giant component*, holding most of the nodes, and many small
+fragments. The general relativity co-authorship network is typical:
+
+```{python}
+coauthors = ec.ca_grqc().simplify()
+components = coauthors.weakly_connected_components()
+
+coauthors.is_connected(), len(components), [len(c) for c in components[:5]]
+```
+
+Of 5,242 authors, 4,158 belong to one component, and the other 1,084 are spread over 354 small
+groups: researchers whose papers were written only with each other. The sizes of the fragments
+are easy to tabulate:
+
+```{python}
+(
+    pl.DataFrame({"size": [len(c) for c in components]})
+    .group_by("size")
+    .agg(components=pl.len())
+    .sort("size")
+    .head(6)
+)
+```
+
+Pairs of authors with a single joint paper are the most common fragment by far. Many measures,
+such as distances and closeness, are only meaningful within a component, so it is common to
+restrict an analysis to the giant component. [`subgraph()`](../reference/Graph.subgraph.qmd)
+extracts it from the list of its node IDs:
+
+```{python}
+giant = coauthors.subgraph(list(components[0]))
+giant.count_nodes(), giant.is_connected()
+```
+
+For a single node, [`node_connected_component()`](../reference/Graph.node_connected_component.qmd)
+returns the component it belongs to, and
+[`largest_component_size()`](../reference/Graph.largest_component_size.qmd) gives the size of the
+giant component without listing it. [`count_weakly_connected_components()`](../reference/Graph.count_weakly_connected_components.qmd)
+counts the components, and [`isolates()`](../reference/Graph.isolates.qmd) lists the nodes with no
+edges at all, each a component of its own.
+
+### Directed graphs
+
+In a directed graph, edges can only be followed one way, and connectivity comes in two strengths.
+A *weakly connected component* is a group of nodes that would be connected if the edge directions
+were ignored. A *strongly connected component* is a group in which every node can reach every other
+by following the edges forward. The Wikipedia election network, in which an edge runs from each
+voter to the candidate they voted on, shows how different the two can be:
+
+```{python}
+wiki = ec.wiki_vote()
+strong = wiki.strongly_connected_components()
+
+wiki.count_weakly_connected_components(), len(strong), max(len(c) for c in strong)
+```
+
+Nearly all of the 7,115 users fall into one weakly connected component, but there are 5,816
+strongly connected components. Only 1,300 users form a strongly connected core, in which a chain
+of votes leads from any member to any other; most other users are components of their own.
+
+The core organizes the rest of a directed network into what is often called a *bow tie*. The nodes
+that can reach the core but can't be reached from it form the *in-component*, and the nodes that
+can be reached from it but can't reach it form the *out-component*.
+[`ancestors()`](../reference/Graph.ancestors.qmd) and [`descendants()`](../reference/Graph.descendants.qmd)
+find both, starting from any member of the core:
+
+```{python}
+core = max(strong, key=len)
+member = next(iter(core))
+
+in_component = set(wiki.ancestors(member)) - core
+out_component = set(wiki.descendants(member)) - core
+len(core), len(in_component), len(out_component)
+```
+
+The in-component, with 3,858 users, is the largest part: users who voted, directly or through
+others, for candidates in the core, but who were never themselves voted on by anyone the core
+reaches. The 1,016 users of the out-component received votes from the core but cast none that lead
+back into it. The remaining 941 users, in tendrils and isolated pieces, are attached to the bow tie
+without passing through its core.
+
+[`condensation()`](../reference/Graph.condensation.qmd) shows the same structure as a graph, by
+collapsing each strongly connected component into a single node. The result has no cycles, since a
+cycle through several components would make them one component, and each node records its
+`members` and `size`:
+
+```{python}
+condensed = wiki.condensation()
+condensed.count_nodes(), condensed.is_dag()
+```
+
+A condensation is the standard way to apply the methods of
+[Directed acyclic graphs](17-dags.qmd), such as topological sorting, to a graph with cycles. The
+sinks of the condensation, components that no edge leaves, are returned by
+[`attracting_components()`](../reference/Graph.attracting_components.qmd). A random walk that
+enters one can never leave, which makes them important in the study of Markov chains and of web
+crawling. [`is_strongly_connected()`](../reference/Graph.is_strongly_connected.qmd),
+[`is_weakly_connected()`](../reference/Graph.is_weakly_connected.qmd), and
+[`is_semiconnected()`](../reference/Graph.is_semiconnected.qmd) test a directed graph's overall
+connectivity, the last of them checking whether, for every pair of nodes, at least one can reach
+the other.
+
+## Weak points
+
+A connected network may still hang together by a thread. A *bridge* is an edge whose removal
+disconnects the graph, and an *articulation point*, or cut node, is a node whose removal does.
+[`bridges()`](../reference/Graph.bridges.qmd) returns the IDs of the bridge edges and
+[`get_articulation_points()`](../reference/Graph.get_articulation_points.qmd) the IDs of the
+articulation points:
+
+```{python}
+karate = ec.karate_club()
+named_edges(karate, karate.bridges()), karate.get_articulation_points()
+```
+
+The karate club has one bridge, the only friendship of member `"11"`, and one articulation point,
+the instructor (ID 1). Removing the instructor would cut off more than member `"11"`, as the
+*biconnected components* show. These are the maximal pieces of a graph that survive the loss of
+any one node, and articulation points are the nodes they share.
+[`biconnected_components()`](../reference/Graph.biconnected_components.qmd) returns each as a list
+of node IDs:
+
+```{python}
+[[karate.get_label_from_id(node) for node in block] for block in karate.biconnected_components()]
+```
+
+The instructor belongs to all three. Besides the main block of 28 members and the bridge to member
+`"11"`, the instructor holds together a small group of five members (`"4"`, `"5"`, `"6"`, `"10"`,
+and `"16"`) whose only ties to the rest of the club pass through the instructor.
+
+Infrastructure networks tend to have many such weak points. In the western United States power
+grid, a quarter of the lines are bridges and a quarter of the stations are articulation points:
+
+```{python}
+grid = ec.power_grid()
+blocks = grid.biconnected_components()
+
+(
+    grid.count_edges(),
+    len(grid.bridges()),
+    grid.count_nodes(),
+    len(grid.get_articulation_points()),
+    max(len(block) for block in blocks),
+)
+```
+
+Only 3,040 of the 4,941 stations lie in the largest block, the part of the grid that every
+station can reach by two independent routes. The rest are attached through branches that a single
+failure would cut off. [`has_bridges()`](../reference/Graph.has_bridges.qmd) and
+[`is_biconnected()`](../reference/Graph.is_biconnected.qmd) answer the yes-or-no versions of these
+questions.
+
+### Local bridges
+
+An edge whose endpoints have no neighbor in common lies on no triangle, and removing it would
+lengthen the shortest path between them even if it wouldn't disconnect anything. Such an edge is a
+*local bridge*. [`local_bridges()`](../reference/Graph.local_bridges.qmd) returns each one's ID
+and *span*, the distance between its endpoints once the edge is removed. In sociology, local
+bridges are Granovetter's "weak ties", the links between separate social circles through which new
+information tends to arrive:
+
+```{python}
+spans = dict(karate.local_bridges())
+named_edges(karate, list(spans)).with_columns(
+    span=pl.col("id").replace_strict(spans, return_dtype=pl.Float64)
+)
+```
+
+The true bridge has an infinite span. The other ten local bridges are shortcuts whose removal
+would add one step between their endpoints, and seven of them join members of the two factions,
+which is just where weak ties should be found.
+
+## Measuring connectivity
+
+How well connected is a network, beyond being connected at all? The *node connectivity* of a graph
+is the fewest nodes whose removal disconnects it, and its *edge connectivity* the fewest edges.
+By Menger's theorem, the same numbers count independent routes: two nodes that it takes `k` node
+removals to separate are joined by `k` paths that share no intermediate node, and the same holds
+for edges and edge-disjoint paths (see
+[Paths and distances](12-paths.qmd#disjoint-paths)).
+
+For a whole graph, [`get_node_connectivity()`](../reference/Graph.get_node_connectivity.qmd) and
+[`get_edge_connectivity()`](../reference/Graph.get_edge_connectivity.qmd) give the two values,
+which are also called *cohesion* and *adhesion*
+([`get_cohesion()`](../reference/Graph.get_cohesion.qmd) and
+[`get_adhesion()`](../reference/Graph.get_adhesion.qmd)). For a single pair of nodes,
+[`get_node_connectivity_between()`](../reference/Graph.get_node_connectivity_between.qmd) and
+[`get_min_cut_between()`](../reference/Graph.get_min_cut_between.qmd) give the local values, and
+[`minimum_node_cut()`](../reference/Graph.minimum_node_cut.qmd) and
+[`minimum_edge_cut()`](../reference/Graph.minimum_edge_cut.qmd) return a smallest set that
+separates them:
+
+```{python}
+(
+    karate.get_node_connectivity(),
+    karate.get_node_connectivity_between(1, 34),
+    karate.minimum_node_cut(1, 34),
+    karate.get_min_cut_between(1, 34),
+)
+```
+
+The whole club has a connectivity of only 1, because of the bridge to member `"11"`. The two
+leaders, however, are far better connected than that. It would take the removal of six members, a
+set such as the one shown, or of ten friendships, to separate the instructor from the
+administrator, and there are six routes between them that share no member.
+
+This illustrates a general point. The connectivity of a whole network is limited by its least
+connected node, so in most real networks it is 1 or 2 and says little. The global minimum cut from
+[`stoer_wagner()`](../reference/Graph.stoer_wagner.qmd), which finds the lightest set of edges
+that splits a graph into two pieces, usually just cuts off a node of the lowest degree:
+
+```{python}
+karate.stoer_wagner()
+```
+
+Two other tools are more informative. The first looks for the parts of a network that are well
+connected internally. [`k_edge_components()`](../reference/Graph.k_edge_components.qmd) splits the
+nodes into groups that can't be separated by removing fewer than `k` edges of the graph:
+
+```{python}
+[len(group) for group in karate.k_edge_components(4) if len(group) > 1]
+```
+
+Sixteen members form the club's 4-edge-connected core, which includes both leaders and their
+closest associates; every other member is a group of their own.
+[`k_edge_subgraphs()`](../reference/Graph.k_edge_subgraphs.qmd) is the stricter version, in which
+the edges used must lie inside each group, and
+[`k_components()`](../reference/Graph.k_components.qmd) gives the node-connectivity version for
+every `k` at once. The last is the basis of Moody and White's *structural cohesion*, a hierarchy of
+ever more cohesive groups. In the Florentine marriage network, ten of the fifteen families form a
+2-connected core that survives the loss of any one family:
+
+```{python}
+florentine = ec.florentine_families()
+{
+    k: [[florentine.get_label_from_id(node) for node in group] for group in groups]
+    for k, groups in florentine.k_components().items()
+}
+```
+
+`k_components()` is expensive, since it computes many cuts, and is best kept to graphs with a few
+dozen nodes. The cheaper edge-based methods scale much further.
+
+The second tool is the [`gomory_hu_tree()`](../reference/Graph.gomory_hu_tree.qmd), a weighted
+tree on the same nodes from which the minimum cut between *any* pair can be read: it is the
+lightest edge on the tree path between them. Building the tree costs `n - 1` maximum-flow
+computations, after which every one of the `n(n - 1) / 2` pairwise cut values comes free. The
+heaviest edges of the tree join the most robustly connected pairs:
+
+```{python}
+named_edges(karate.gomory_hu_tree()).sort("weight", descending=True).head(4)
+```
+
+The administrator (`"33"`) and member `"32"` are joined by twelve edge-disjoint paths, the most of
+any pair, and the instructor and administrator by ten, as found above. The leaders and their
+closest allies form the most robustly connected part of the club.
+[`all_pairs_node_connectivity()`](../reference/Graph.all_pairs_node_connectivity.qmd) and
+[`average_node_connectivity()`](../reference/Graph.average_node_connectivity.qmd) compute the
+pairwise node connectivities directly, and [`all_node_cuts()`](../reference/Graph.all_node_cuts.qmd)
+lists every smallest set of nodes whose removal disconnects the graph.
+
+### Strengthening a network
+
+The reverse question is a design problem: which links should be added so that a network survives
+any `k - 1` link failures? [`k_edge_augmentation()`](../reference/Graph.k_edge_augmentation.qmd)
+returns a set of new edges that makes a graph `k`-edge-connected, as pairs of node IDs:
+
+```{python}
+karate.k_edge_augmentation(2)
+```
+
+One new friendship, between member `"11"` (ID 12) and member `"9"` (ID 10), would leave the karate
+club without a bridge. The `avail=` argument restricts the candidates to a list of possible edges,
+optionally with a cost for each, such as the cables that could actually be laid and what each
+would cost. [`is_k_edge_connected()`](../reference/Graph.is_k_edge_connected.qmd) checks the
+result.
+
+## Flows
+
+Connectivity counts routes; *flow* asks how much can travel along them. In a flow network, each
+edge has a *capacity*, the most it can carry, and the maximum flow from a source to a sink is the
+largest amount that can be sent while respecting every capacity and conserving flow at every node
+along the way. The applications include pipelines, traffic and data networks, and many assignment
+problems that can be phrased as flows.
+
+The flow methods read each edge's capacity from an edge attribute named `capacity`, or, if there is
+none, from its weight on a weighted graph, and otherwise give it a capacity of 1. Here is a small
+directed network of pipes:
+
+```{python}
+pipes = ec.Graph.from_edges(
+    [
+        ("s", "a", {"capacity": 16}), ("s", "b", {"capacity": 13}),
+        ("b", "a", {"capacity": 4}), ("a", "c", {"capacity": 12}),
+        ("c", "b", {"capacity": 9}), ("b", "d", {"capacity": 14}),
+        ("d", "c", {"capacity": 7}), ("c", "t", {"capacity": 20}),
+        ("d", "t", {"capacity": 4}),
+    ],
+    directed=True,
+)
+pipes.max_flow_value("s", "t")
+```
+
+[`max_flow_value()`](../reference/Graph.max_flow_value.qmd) gives the total, and
+[`max_flow()`](../reference/Graph.max_flow.qmd) returns how much each edge carries, as a dictionary
+from edge IDs to amounts. Edges that carry nothing are left out:
+
+```{python}
+flows = pipes.max_flow("s", "t")
+named_edges(pipes).with_columns(
+    flow=pl.col("id").replace_strict(flows, default=0.0, return_dtype=pl.Float64)
+)
+```
+
+Twenty-three units reach `t`, but the pipes out of `s` could carry 29. The limit lies elsewhere,
+and the *max-flow min-cut theorem* says where: the maximum flow equals the capacity of the
+narrowest *cut*, the set of edges leading from one side of a division of the nodes to the other.
+[`minimum_cut()`](../reference/Graph.minimum_cut.qmd) returns its value and the two sides:
+
+```{python}
+value, (source_side, sink_side) = pipes.minimum_cut("s", "t")
+value, [pipes.get_label_from_id(node) for node in sink_side]
+```
+
+The bottleneck is the three pipes that lead into `c` and `t` from the source side: `a` to `c`
+(12), `d` to `c` (7), and `d` to `t` (4), which together carry exactly 23 units, all of them full.
+Widening any other pipe would not increase the flow.
+
+Note that [`get_min_cut_between()`](../reference/Graph.get_min_cut_between.qmd) and
+[`minimum_edge_cut()`](../reference/Graph.minimum_edge_cut.qmd), from the previous section, count
+edges by default, and use capacities only when you name the attribute with `capacity=`.
+`max_flow()`, `max_flow_value()`, and `minimum_cut()` use the `capacity` attribute automatically:
+
+```{python}
+pipes.get_min_cut_between("s", "t"), pipes.get_min_cut_between("s", "t", capacity="capacity")
+```
+
+### The cheapest flow
+
+When edges also have a cost per unit of flow, the question becomes how to send a given amount as
+cheaply as possible. [`min_cost_flow()`](../reference/Graph.min_cost_flow.qmd) reads costs from a
+`cost` attribute and returns the amount sent, its total cost, and the flow on each edge. Consider a
+plant that ships goods to a market through two warehouses, with a link between the warehouses:
+
+```{python}
+shipping = ec.Graph.from_edges(
+    [
+        ("plant", "north", {"capacity": 15, "cost": 4}),
+        ("plant", "south", {"capacity": 10, "cost": 2}),
+        ("south", "north", {"capacity": 5, "cost": 1}),
+        ("north", "market", {"capacity": 12, "cost": 2}),
+        ("south", "market", {"capacity": 8, "cost": 5}),
+    ],
+    directed=True,
+)
+sent, cost, flows = shipping.min_cost_flow("plant", "market", demand=15)
+sent, cost
+```
+
+Shipping 15 units costs 88. The edge flows show the solution:
+
+```{python}
+named_edges(shipping).with_columns(
+    flow=pl.col("id").replace_strict(flows, default=0.0, return_dtype=pl.Float64)
+)
+```
+
+The cheapest route, through the south warehouse and across to the north (2 + 1 + 2 = 5 per unit),
+is used to its limit of five units. The direct route through the north warehouse, at 6 per unit,
+takes the next seven, until the link from north to market is full, and the last three units go by
+the most expensive route, through the south warehouse directly. Without `demand=`, the method
+sends as much as the network can carry, and finds the cheapest way of doing so.
+
+## Spanning trees
+
+A *spanning tree* of a connected graph is a tree that includes all of its nodes: the smallest set
+of edges that keeps everything connected. With edge weights, the *minimum spanning tree* is the
+lightest such tree, the cheapest way to connect every node. It answers design questions such as
+which roads to pave, or along which routes to lay cable, so that every town is served at the least
+total cost.
+
+The road network from [Paths and distances](12-paths.qmd) is a good example. Each road's weight is
+its length in kilometers, and each city has a `pos` attribute for drawing it as a map:
+
+```{python}
+cities = {
+    "Amsterdam": (52.37, 4.90), "Brussels": (50.85, 4.35), "Paris": (48.86, 2.35),
+    "Lyon": (45.76, 4.84), "Marseille": (43.30, 5.37), "Geneva": (46.20, 6.14),
+    "Zurich": (47.37, 8.54), "Milan": (45.46, 9.19), "Munich": (48.14, 11.58),
+    "Frankfurt": (50.11, 8.68), "Cologne": (50.94, 6.96), "Berlin": (52.52, 13.40),
+    "Prague": (50.08, 14.44), "Vienna": (48.21, 16.37),
+}
+
+roads = [
+    ("Amsterdam", "Brussels", 210), ("Amsterdam", "Cologne", 260), ("Amsterdam", "Berlin", 655),
+    ("Brussels", "Paris", 300), ("Brussels", "Cologne", 210), ("Paris", "Lyon", 465),
+    ("Paris", "Frankfurt", 570), ("Lyon", "Marseille", 315), ("Lyon", "Geneva", 150),
+    ("Geneva", "Zurich", 280), ("Geneva", "Milan", 320), ("Marseille", "Milan", 600),
+    ("Zurich", "Milan", 280), ("Zurich", "Munich", 315), ("Zurich", "Frankfurt", 410),
+    ("Cologne", "Frankfurt", 190), ("Frankfurt", "Munich", 390), ("Frankfurt", "Berlin", 545),
+    ("Berlin", "Prague", 350), ("Munich", "Prague", 380), ("Munich", "Vienna", 435),
+    ("Prague", "Vienna", 330), ("Munich", "Milan", 490),
+]
+
+places = [(city, {"pos": [lon, lat]}) for city, (lat, lon) in cities.items()]
+road_net = ec.Graph.from_edges(roads, nodes=places, graph_name="Roads")
+```
+
+[`minimum_spanning_tree()`](../reference/Graph.minimum_spanning_tree.qmd) returns the tree as a new
+graph, with the same nodes and the edges it keeps. Storing each road's length as an attribute lets
+the drawing label the roads:
+
+```{python}
+tree = road_net.minimum_spanning_tree()
+tree.set_edge_attrs("km", {e["id"]: int(e["weight"]) for e in tree.get_edge_df().iter_rows(named=True)})
+tree.plot(layout="pos", label_by="label", edge_label_by="km", node_size=10, height=480)
+```
+
+The tree uses 13 of the 23 roads, one fewer than the number of cities, and their total length is
+3,700 km:
+
+```{python}
+tree.count_edges(), tree.get_edge_df()["weight"].sum()
+```
+
+A minimum spanning tree is cheap but fragile, since every one of its edges is a bridge, and it can
+make journeys much longer. Amsterdam to Berlin is a direct road of 655 km, but in the tree the
+route runs south to Munich and back north through Prague:
+
+```{python}
+road_net.shortest_path_length("Amsterdam", "Berlin"), tree.shortest_path_length("Amsterdam", "Berlin")
+```
+
+The options of
+`minimum_spanning_tree()` adapt it to other uses. `include=` and `exclude=` force particular edges
+in or out of the tree, `weight_attr=` names another attribute to minimize, and
+`return_subgraph=False` returns the IDs of the tree's edges instead of a graph.
+
+The other spanning-tree methods are these:
+
+| Method | Returns |
+|---|---|
+| [`maximum_spanning_tree()`](../reference/Graph.maximum_spanning_tree.qmd) | the heaviest spanning tree, for example the strongest ties that connect a weighted social network |
+| [`number_of_spanning_trees()`](../reference/Graph.number_of_spanning_trees.qmd) | the number of spanning trees, by Kirchhoff's matrix-tree theorem |
+| [`random_spanning_tree()`](../reference/Graph.random_spanning_tree.qmd) | a spanning tree drawn at random, with probability proportional to the product of its weights |
+| [`iter_spanning_trees()`](../reference/Graph.iter_spanning_trees.qmd), [`all_spanning_trees()`](../reference/Graph.all_spanning_trees.qmd) | spanning trees in order of total weight, or all of them |
+| [`minimum_spanning_arborescence()`](../reference/Graph.minimum_spanning_arborescence.qmd), [`maximum_spanning_arborescence()`](../reference/Graph.maximum_spanning_arborescence.qmd) | the directed counterparts: trees with every edge pointing away from a root |
+
+The number of spanning trees measures how many different ways a network can be connected, and so
+how much redundancy it has. On a weighted graph, `number_of_spanning_trees()` sums the products of
+the weights instead, so pass `weighted=False` to count them:
+
+```{python}
+road_net.number_of_spanning_trees(weighted=False)
+```
+
+## Algebraic connectivity
+
+A spectral measure gives a finer reading of how well connected a graph is. The *algebraic
+connectivity*, from [`algebraic_connectivity()`](../reference/Graph.algebraic_connectivity.qmd), is
+the second-smallest eigenvalue of the graph's Laplacian matrix. It is 0 exactly when a graph is
+disconnected, and grows with how hard the graph is to cut into two large pieces: a network with a
+narrow bottleneck, or one that is long and thin, has a value near 0.
+
+```{python}
+networks = {
+    "roads": road_net,
+    "karate club": karate,
+    "dolphins": ec.dolphins(),
+    "power grid": grid,
+}
+{name: round(graph.algebraic_connectivity(weighted=False), 4) for name, graph in networks.items()}
+```
+
+The power grid's value is tiny, as befits a network spread across half a continent, and the
+dolphins, which live in two loosely linked groups, score well below the karate club. The weights
+of the road network are left out with `weighted=False`, since with lengths as weights a larger
+value would mean longer roads. The eigenvector that belongs to this eigenvalue, the *Fiedler
+vector* ([`fiedler_vector()`](../reference/Graph.fiedler_vector.qmd)), points to where the cut
+would fall, and [`spectral_bisection()`](../reference/Graph.spectral_bisection.qmd) uses it to
+split a graph in two (see [Communities](14-communities.qmd)).
+
+## Robustness
+
+How does a network degrade as its nodes fail? [`network_robustness()`](../reference/Graph.network_robustness.qmd)
+removes nodes one at a time and records the share of the original nodes that remain in the largest
+component. The `strategy=` argument sets the order: `"random"` models accidental failures, while
+`"degree"` and `"betweenness"` model a targeted attack on the most connected or most central
+nodes first. With `return_dict=True` it returns the curve as a list of
+`(fraction_removed, largest_component_fraction)` pairs.
+
+A famous result of network science is that networks with hubs, such as the Internet, are robust
+to random failure but fragile under attack. Comparing the Internet's autonomous systems with a
+random graph of the same size, from [`add_gnm_graph()`](../reference/Graph.add_gnm_graph.qmd),
+shows it:
+
+```{python}
+internet = ec.internet().simplify()
+random_net = ec.Graph().add_gnm_graph(internet.count_nodes(), internet.count_edges(), seed=1)
+
+rows = []
+for name, graph in {"Internet": internet, "random graph": random_net}.items():
+    n = graph.count_nodes()
+    for strategy in ["random", "degree"]:
+        curve = graph.network_robustness(strategy=strategy, steps=n // 10, seed=1, return_dict=True)
+        rows.append(
+            {"network": name, "strategy": strategy}
+            | {f"{share:.0%} removed": round(curve[round(share * n)][1], 3) for share in [0.01, 0.02, 0.05, 0.1]}
+        )
+pl.DataFrame(rows)
+```
+
+When nodes fail at random, the two networks behave alike: losing a tenth of the nodes costs the
+giant component little more than those nodes themselves. A targeted attack makes no difference to
+the random graph, whose nodes all have similar degrees, but it devastates the Internet. Removing
+the best-connected 1% of autonomous systems halves its giant component, and removing 5% shatters
+it, because nearly every route passes through the hubs. The `steps=` argument stops the simulation
+early, which saves time on large graphs when only the first removals are of interest.
+
+[`percolation_threshold_analysis()`](../reference/Graph.percolation_threshold_analysis.qmd) studies
+random failure more systematically. For a series of removal fractions it removes nodes at random,
+repeats each removal `trials=` times, and averages the share of the *surviving* nodes that remain
+in the largest component:
+
+```{python}
+{
+    name: [round(share, 2) for _, share in graph.percolation_threshold_analysis(steps=5, trials=5, seed=1)]
+    for name, graph in {"power grid": grid, "Internet": internet}.items()
+}
+```
+
+The values are for 0%, 20%, 40%, 60%, 80%, and 100% of the nodes removed. The power grid has few
+redundant routes, and once two fifths of its stations have failed, the survivors are scattered in
+small fragments. The Internet keeps half of its survivors together even with 60% of its nodes
+gone. [`node_percolation()`](../reference/Graph.node_percolation.qmd) and
+[`edge_percolation()`](../reference/Graph.edge_percolation.qmd) perform a single round of random
+removal and return the surviving graph, for experiments of your own. The spread of epidemics over
+networks, which is closely related to percolation, is covered in
+[Spreading and robustness](32-spreading.qmd).
+
+## Choosing a method
+
+| Question | Methods |
+|---|---|
+| Is the graph in one piece, and if not, what are the pieces? | `is_connected()`, `weakly_connected_components()`, `strongly_connected_components()`, `subgraph()` |
+| Which single node or edge would disconnect it? | `get_articulation_points()`, `bridges()`, `biconnected_components()` |
+| How many independent routes join two nodes? | `get_node_connectivity_between()`, `get_min_cut_between()`, `node_disjoint_paths()` |
+| Which parts are robustly connected? | `k_edge_components()`, `k_components()`, `gomory_hu_tree()` |
+| How much can flow from one node to another, and where is the bottleneck? | `max_flow()`, `minimum_cut()`, `min_cost_flow()` |
+| What is the cheapest way to connect everything? | `minimum_spanning_tree()` |
+| How does the network degrade under failure or attack? | `network_robustness()`, `percolation_threshold_analysis()` |
