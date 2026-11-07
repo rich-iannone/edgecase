@@ -2160,8 +2160,8 @@ def from_leda(
     Parameters
     ----------
     source
-        A path to the file, the text itself (a string with at least one newline), or a list of
-        lines.
+        A path to the file, the text itself (a string with at least one newline, or `""` for
+        no lines), or a list of lines.
     directed
         Whether to create a directed graph. If `None` (the default), taken from the file's
         direction line.
@@ -3947,10 +3947,10 @@ def from_pandas_edgelist(
 
 def _text_lines(source: Union[str, bytes, Path, Sequence[str]]) -> list[str]:
     """
-    The lines of a text format. A `Path`, or a string with no newline, is a file to read; a
-    string with a newline (or bytes) is the text itself; a list holds the lines.
+    The lines of a text format. A `Path`, or a nonempty string with no newline, is a file to
+    read; a string with a newline (or `""`, or bytes) is the text itself; a list holds the lines.
     """
-    if isinstance(source, Path) or (isinstance(source, str) and "\n" not in source):
+    if isinstance(source, Path) or (isinstance(source, str) and source and "\n" not in source):
         with open(Path(source), encoding="utf-8") as f:
             return f.read().splitlines()
     if isinstance(source, bytes):
@@ -4092,8 +4092,8 @@ def from_adjlist(
     Parameters
     ----------
     source
-        A path to the file, the text itself (a string with at least one newline), or a list of
-        lines.
+        A path to the file, the text itself (a string with at least one newline, or `""` for
+        no lines), or a list of lines.
     directed
         Whether to create a directed graph.
     delimiter
@@ -4260,8 +4260,8 @@ def from_multiline_adjlist(
     Parameters
     ----------
     source
-        A path to the file, the text itself (a string with at least one newline), or a list of
-        lines.
+        A path to the file, the text itself (a string with at least one newline, or `""` for
+        no lines), or a list of lines.
     directed
         Whether to create a directed graph.
     delimiter
