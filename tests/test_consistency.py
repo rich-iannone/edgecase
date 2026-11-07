@@ -94,6 +94,141 @@ class TestUnknownIdsRaiseLikeLabels:
             call(g)
         assert len(g.steps) == steps and g.count_nodes() == 2
 
+    def test_negative_degree_raises_value_error(self):
+        with pytest.raises(ValueError, match="degree_sequence must hold non-negative integers"):
+            ec.Graph().configuration_model([2, -1, 1])
+
+
+def _seeded_base():
+    return ec.Graph().add_connected_watts_strogatz_graph(16, 4, 0.3, seed=1)
+
+
+def _fingerprint(result):
+    if isinstance(result, ec.Graph):
+        return result.get_edges_str_repr(), result.get_node_df().to_dicts()
+    if isinstance(result, dict):  # some come from a Rust HashMap, in no fixed key order
+        return sorted((repr(k), _fingerprint(v)) for k, v in result.items())
+    if callable(result):  # alt_heuristic() returns the heuristic h(u, v)
+        return [result(1, v) for v in range(1, 17)]
+    return repr(result)
+
+
+_SEED_NO_ARGS = [
+    "alt_heuristic",
+    "approximate_current_flow_betweenness_centrality",
+    "cmty_fast_label_propagation",
+    "cmty_label_propagation",
+    "cmty_leiden",
+    "cmty_leiden_levels",
+    "cmty_louvain_levels",
+    "cmty_stochastic_block_model",
+    "degree_preserving_rewire",
+    "find_maximal_independent_sets",
+    "greedy_color",
+    "greedy_node_swap_bipartition",
+    "kernighan_lin_bisection",
+    "lattice_reference",
+    "layout_arf",
+    "layout_forceatlas2",
+    "layout_random",
+    "layout_spring",
+    "max_cut",
+    "maximal_independent_set",
+    "motif_significance",
+    "network_robustness",
+    "percolation_threshold_analysis",
+    "random_reference",
+    "random_spanning_tree",
+    "rich_club_coefficient",
+    "small_world_omega",
+    "small_world_sigma",
+    "traveling_salesman",
+]
+
+_SEED_CALLS = [
+    *[
+        pytest.param(lambda g, s, name=name: getattr(g, name)(seed=s), id=name)
+        for name in _SEED_NO_ARGS
+    ],
+    lambda g, s: g.add_bipartite_configuration_model([1, 1], [2], seed=s),
+    lambda g, s: g.add_bipartite_gnm_graph(3, 3, 4, seed=s),
+    lambda g, s: g.add_bipartite_gnp_graph(3, 3, 0.5, seed=s),
+    lambda g, s: g.add_bipartite_preferential_attachment_graph([1, 2, 1], 0.5, seed=s),
+    lambda g, s: g.add_connected_watts_strogatz_graph(10, 4, 0.3, seed=s),
+    lambda g, s: g.add_directed_configuration_model([1, 1, 0], [0, 1, 1], seed=s),
+    lambda g, s: g.add_dual_barabasi_albert_graph(10, 1, 2, 0.5, seed=s),
+    lambda g, s: g.add_duplication_divergence_graph(10, 0.5, seed=s),
+    lambda g, s: g.add_extended_barabasi_albert_graph(10, 1, 0.2, 0.2, seed=s),
+    lambda g, s: g.add_gaussian_random_partition_graph(20, 5, 2, 0.5, 0.1, seed=s),
+    lambda g, s: g.add_geographical_threshold_graph(10, 10, seed=s),
+    lambda g, s: g.add_gn_graph(10, seed=s),
+    lambda g, s: g.add_gnc_graph(10, seed=s),
+    lambda g, s: g.add_gnm_graph(10, 15, seed=s),
+    lambda g, s: g.add_gnp_graph(10, 0.3, seed=s),
+    lambda g, s: g.add_gnr_graph(10, 0.5, seed=s),
+    lambda g, s: g.add_joint_degree_graph(g.degree_mixing_dict(), seed=s),
+    lambda g, s: g.add_lfr_graph(n=100, mu=0.2, average_degree=6, seed=s),
+    lambda g, s: g.add_maybe_regular_expander(10, 4, seed=s),
+    lambda g, s: g.add_navigable_small_world_graph(4, seed=s),
+    lambda g, s: g.add_newman_watts_strogatz_graph(10, 2, 0.3, seed=s),
+    lambda g, s: g.add_pa_graph(10, seed=s),
+    lambda g, s: g.add_partial_duplication_graph(10, 3, 0.5, 0.5, seed=s),
+    lambda g, s: g.add_planted_partition_graph(2, 5, 0.8, 0.1, seed=s),
+    lambda g, s: g.add_powerlaw_cluster_graph(10, 2, 0.3, seed=s),
+    lambda g, s: g.add_random_clustered_graph([(1, 2)] * 6, seed=s),
+    lambda g, s: g.add_random_degree_sequence_graph([2, 2, 2, 2], seed=s),
+    lambda g, s: g.add_random_geometric_graph(10, 0.5, seed=s),
+    lambda g, s: g.add_random_internet_as_graph(30, seed=s),
+    lambda g, s: g.add_random_k_out_graph(10, 2, 1.0, seed=s),
+    lambda g, s: g.add_random_kernel_graph(10, lambda u, w, z: 5 * (z - w), seed=s),
+    lambda g, s: g.add_random_labeled_tree(10, seed=s),
+    lambda g, s: g.add_random_lobster(10, 0.5, 0.5, seed=s),
+    lambda g, s: g.add_random_partition_graph([3, 4], 0.8, 0.1, seed=s),
+    lambda g, s: g.add_random_powerlaw_tree(10, seed=s),
+    lambda g, s: g.add_random_regular_expander_graph(10, 4, seed=s),
+    lambda g, s: g.add_random_regular_graph(10, 3, seed=s),
+    lambda g, s: g.add_relaxed_caveman_graph(3, 4, 0.2, seed=s),
+    lambda g, s: g.add_scale_free_graph(10, seed=s),
+    lambda g, s: g.add_smallworld_graph(10, seed=s),
+    lambda g, s: g.add_soft_random_geometric_graph(10, 0.5, seed=s),
+    lambda g, s: g.add_waxman_graph(10, seed=s),
+    lambda g, s: g.cmty_fluid(2, seed=s),
+    lambda g, s: g.configuration_model([2, 2, 2], seed=s),
+    lambda g, s: g.edge_percolation(0.5, seed=s),
+    lambda g, s: g.expected_degree_graph([1, 2, 2, 1], seed=s),
+    lambda g, s: g.generate_random_paths(3, seed=s),
+    lambda g, s: g.generate_stochastic_block_model([3, 3], [0.8, 0.1, 0.1, 0.8], seed=s),
+    lambda g, s: g.influence_maximization(2, seed=s),
+    lambda g, s: g.node_percolation(0.5, seed=s),
+    lambda g, s: g.panther_similarity(1, seed=s),
+    lambda g, s: g.panther_vector_similarity(1, seed=s),
+    lambda g, s: g.random_edge_walk(1, 5, seed=s),
+    lambda g, s: g.random_k_lift(2, seed=s),
+    lambda g, s: g.random_walk(1, 5, seed=s),
+    lambda g, s: g.transform_with_spanner(3, seed=s),
+]
+
+
+@pytest.mark.parametrize("seed", [-1, -(2**70), 2**70])
+@pytest.mark.parametrize("call", _SEED_CALLS)
+def test_any_integer_seed_is_accepted(call, seed):
+    """Rust-backed methods raised OverflowError for a seed outside the u64 range."""
+    first = _fingerprint(call(_seeded_base(), seed))
+    assert _fingerprint(call(_seeded_base(), seed)) == first
+
+
+def test_seed_is_taken_modulo_2_64():
+    def walk(seed):
+        return _seeded_base().random_walk(1, 20, seed=seed, return_list=True)
+
+    assert walk(-1) == walk(2**64 - 1) == walk(2**65 - 1)
+    assert walk(-1) != walk(1)
+
+
+def test_non_integer_seed_still_raises_type_error():
+    with pytest.raises(TypeError):
+        _seeded_base().random_walk(1, 5, seed=1.5)
+
 
 class TestNoPartialWork:
     def test_select_by_id_is_atomic(self):
@@ -170,8 +305,16 @@ def _shifted_graph():
     for x in "ABCDEF":
         g.add_node(label=x, color=x.lower())
     g.delete_node("tmp")
-    edges = [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D"),
-             ("A", "D")]
+    edges = [
+        ("A", "B"),
+        ("B", "C"),
+        ("C", "A"),
+        ("C", "D"),
+        ("D", "E"),
+        ("E", "F"),
+        ("F", "D"),
+        ("A", "D"),
+    ]
     for i, (u, v) in enumerate(edges):
         g.add_edge(u, v, rel=f"e{i}")
     return g
@@ -223,7 +366,8 @@ class TestDerivedGraphsKeepIdsAndAttributes:
             assert h.get_node(nid).attributes == g.get_node(nid).attributes
         assert sorted(h.get_edge_ids()) == sorted(g.get_edge_ids())
         assert g.directed_steiner_tree("R", ["B"], return_subgraph=False) == [
-            ("A", "B", 1.0), ("R", "A", 1.0)
+            ("A", "B", 1.0),
+            ("R", "A", 1.0),
         ]
 
     def test_steiner_accepts_unlabelled_terminals(self):
@@ -304,8 +448,11 @@ class TestOptInWeights:
         g = self._graph().add_edge("A", "B", weight=2.0)
         G = nx.Graph()
         for _, s, t in g.get_edges_as_tuples():
-            G.add_edge(g.get_label_from_id(s), g.get_label_from_id(t),
-                       weight=g.get_edge(g.find_edge_ids(s, t)[0]).weight)
+            G.add_edge(
+                g.get_label_from_id(s),
+                g.get_label_from_id(t),
+                weight=g.get_edge(g.find_edge_ids(s, t)[0]).weight,
+            )
         # edgecase sums over ordered pairs, so on an undirected graph every pair counts twice
         want = nx.closeness_vitality(G, weight="weight")
         got = g.closeness_vitality(weighted=True, return_dict=True)
@@ -367,8 +514,9 @@ class TestRemainingDerivedGraphsKeepIds:
             lambda g: g.ego_graph("C"),
             lambda g: g.to_undirected(),
             lambda g: g.reverse(),
-            lambda g: g.select_nodes_by_id([g.get_id_from_label(x) for x in "ACD"])
-            .transform_to_subgraph_ws(),
+            lambda g: g.select_nodes_by_id(
+                [g.get_id_from_label(x) for x in "ACD"]
+            ).transform_to_subgraph_ws(),
             lambda g: g.select_edges_by_id(g.get_edge_ids()[:3]).transform_to_subgraph_ws(),
         ],
     )
@@ -545,7 +693,6 @@ class TestDegreesFromIndex:
         g = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "B"), ("A", "B"), ("B", "B")])
         assert g.get_degree("A") == 2 and g.get_degree("B") == 4
         assert g.degrees(return_dict=True) == {1: 2, 2: 4}
-
 
 
 class TestUniqueLabelsAndIds:
