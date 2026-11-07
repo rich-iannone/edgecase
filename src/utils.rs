@@ -10,6 +10,33 @@ pub fn validate_graph() -> PyResult<bool> {
     Ok(true)
 }
 
+/// A `seed=` argument. Any integer is accepted, taken modulo 2^64, so negative and very large
+/// seeds work as they do with Python's `random` instead of raising `OverflowError`.
+#[derive(Clone, Copy, Debug)]
+pub struct Seed(u64);
+
+impl From<u64> for Seed {
+    fn from(seed: u64) -> Seed {
+        Seed(seed)
+    }
+}
+
+impl From<Seed> for u64 {
+    fn from(seed: Seed) -> u64 {
+        seed.0
+    }
+}
+
+impl<'py> FromPyObject<'py> for Seed {
+    fn extract_bound(ob: &Bound<'py, PyAny>) -> PyResult<Self> {
+        if let Ok(v) = ob.extract::<u64>() {
+            return Ok(Seed(v));
+        }
+        let index = ob.py().import("operator")?.call_method1("index", (ob,))?;
+        Ok(Seed(index.call_method1("__and__", (u64::MAX,))?.extract()?))
+    }
+}
+
 /// The number an edge holds under the attribute `name`, also looked up in a nested
 /// `"attributes"` dict. `"weight"` falls back to the weight field, where weighted graphs keep
 /// it, and then to 1.0. `None` when the edge holds no such number.
