@@ -1,0 +1,524 @@
+---
+title: Similarity and link prediction
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Two nodes can be alike without being linked. Two customers who buy the same products, two papers
+that cite the same sources, or two proteins that bind the same partners are similar because of the
+company they keep. Measures of node similarity put a number on this idea, and they have a direct
+practical use: a pair of nodes with much in common but no link between them is a good candidate for
+a link that is missing or about to form. This page covers similarity between nodes, link
+prediction, the prediction of missing node attributes, and, at the end, the comparison of whole
+graphs: isomorphism, symmetry, pattern matching, and edit distance.
+
+## Neighborhood similarity
+
+The simplest measures compare the neighbors of two nodes. Taking the karate club's two leaders, the
+instructor (ID 1) and the administrator (ID 34), [`get_common_neighbors()`](../reference/Graph.get_common_neighbors.qmd)
+lists the members who are friends with both:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.get_common_neighbors(1, 34)
+```
+
+Four members are friends with both leaders. Whether four is many depends on how many friends each
+has, so most measures normalize the count. The *Jaccard coefficient* divides the number of shared
+neighbors by the number of distinct neighbors of either node, which gives a score between 0 (no
+neighbors in common) and 1 (identical neighborhoods).
+[`jaccard_coefficient()`](../reference/Graph.jaccard_coefficient.qmd) scores a list of pairs,
+given as IDs or labels, and returns `(u, v, score)` triples:
+
+```{python}
+karate.jaccard_coefficient([(1, 34), (1, 2), (33, 34)])
+```
+
+The two leaders share only 14% of their combined friends, while the instructor and member `"1"`
+(ID 2) share 39%. The administrator and member `"32"` (ID 33) are the most alike of the three
+pairs, with more than half of their friends in common.
+
+To compare every pair at once, [`get_jaccard_similarity()`](../reference/Graph.get_jaccard_similarity.qmd)
+returns a nested dictionary keyed by node ID. Sorting one node's row ranks the others by how much
+they resemble it:
+
+```{python}
+jaccard = karate.get_jaccard_similarity()
+ranked = sorted(jaccard[34].items(), key=lambda item: item[1], reverse=True)
+[(karate.get_label_from_id(node), round(score, 3)) for node, score in ranked[1:6]]
+```
+
+The first entry, the administrator's similarity of 1 with itself, is skipped. After member `"32"`
+comes member `"2"` (ID 3), who belongs to the instructor's faction but has many friends in the
+administrator's, then two members of the administrator's faction, and finally the instructor.
+
+Four neighborhood measures are available in this all-pairs form. They differ in how they normalize
+the number of shared neighbors, written here as `c` for two nodes with `k_u` and `k_v` neighbors:
+
+| Method | Score |
+|---|---|
+| [`get_jaccard_similarity()`](../reference/Graph.get_jaccard_similarity.qmd) | `c / (k_u + k_v - c)`, shared neighbors over all distinct neighbors |
+| [`get_dice_similarity()`](../reference/Graph.get_dice_similarity.qmd) | `2c / (k_u + k_v)` |
+| [`get_cosine_similarity()`](../reference/Graph.get_cosine_similarity.qmd) | `c / sqrt(k_u k_v)` |
+| [`get_overlap_similarity()`](../reference/Graph.get_overlap_similarity.qmd) | `c / min(k_u, k_v)`, which is 1 whenever one neighborhood contains the other |
+
+All four rank pairs in a similar order. The overlap coefficient stands apart, because it measures
+containment: a member with three friends, all of whom are also friends of a leader, has an overlap
+of 1 with that leader. For a matrix over a chosen set of nodes, in a known order,
+[`get_pairwise_similarity()`](../reference/Graph.get_pairwise_similarity.qmd) takes a list of nodes
+and a `method=` (`"jaccard"`, `"dice"`, `"cosine"`, or `"invlogweighted"`, the Adamic–Adar index
+described below):
+
+```{python}
+leaders = [1, 2, 33, 34]
+matrix = karate.get_pairwise_similarity(leaders, method="cosine")
+[[round(value, 2) for value in row] for row in matrix]
+```
+
+The matrix has two blocks. The instructor and member `"1"` resemble each other, as do the
+administrator and member `"32"`, but there is little resemblance across the two pairs.
+
+[`topological_overlap()`](../reference/Graph.topological_overlap.qmd) computes a related measure,
+the topological overlap used in gene co-expression analysis (WGCNA). It is close to the overlap
+coefficient, but also counts a direct link between the two nodes, and so suits networks in which
+linked nodes with shared neighbors form modules.
+
+### Structural equivalence
+
+Two nodes with exactly the same neighbors are *structurally equivalent*: they occupy the same
+position in the network, and any measure that depends only on the structure gives them the same
+value. A Jaccard similarity of 1 finds them:
+
+```{python}
+equivalent = [
+    (karate.get_label_from_id(u), karate.get_label_from_id(v))
+    for u, row in jaccard.items()
+    for v, score in row.items()
+    if u < v and score == 1.0
+]
+equivalent
+```
+
+Members `"14"`, `"15"`, `"18"`, `"20"`, and `"22"` are all friends with exactly the same two
+people, members `"32"` and `"33"`, and so are interchangeable; so are members `"17"` and `"21"`,
+whose only friends are the instructor and member `"1"`. Structural equivalence is strict, and most
+large networks contain few exactly equivalent pairs, which is why graded measures such as those
+above are used to find nodes that are *nearly* equivalent. The section on
+[symmetries](#symmetries) below describes a broader kind of equivalence.
+
+## Link prediction
+
+Link prediction asks which of the pairs that are not linked are most likely to be linked: friends
+that a social network should suggest, interactions that a biologist should test in the laboratory,
+or links in a partially observed network that are probably present but were missed. The usual
+approach scores every unlinked pair and ranks the pairs by score.
+
+EdgeCase has six scoring methods. Each takes an optional list of pairs as `ebunch=` and, when it is
+left out, scores every pair of nodes that are not already linked:
+
+| Method | Score for nodes `u` and `v` | Idea |
+|---|---|---|
+| [`common_neighbors()`](../reference/Graph.common_neighbors.qmd) | the number of shared neighbors | friends of friends become friends |
+| [`jaccard_coefficient()`](../reference/Graph.jaccard_coefficient.qmd) | shared neighbors over all distinct neighbors | normalizes for popularity |
+| [`adamic_adar_index()`](../reference/Graph.adamic_adar_index.qmd) | the sum of `1 / log(k)` over shared neighbors of degree `k` | a shared neighbor with few contacts is stronger evidence than a hub |
+| [`resource_allocation_index()`](../reference/Graph.resource_allocation_index.qmd) | the sum of `1 / k` over shared neighbors | like Adamic–Adar, with a steeper penalty for hubs |
+| [`preferential_attachment()`](../reference/Graph.preferential_attachment.qmd) | `k_u × k_v` | well-connected nodes attract new links |
+| [`common_neighbor_centrality()`](../reference/Graph.common_neighbor_centrality.qmd) | shared neighbors plus a bonus for nodes that are close | helps pairs with no shared neighbors |
+
+Applied to the karate club, the resource allocation index picks out these pairs as the most likely
+missing friendships:
+
+```{python}
+scores = karate.resource_allocation_index()
+top = sorted(scores, key=lambda triple: triple[2], reverse=True)[:5]
+[(karate.get_label_from_id(u), karate.get_label_from_id(v), round(score, 3)) for u, v, score in top]
+```
+
+The `scores` list holds all 483 unlinked pairs. At the top is member `"2"` and the administrator,
+the same pair that stood out in the Jaccard ranking above: member `"2"` has many friends in common
+with the administrator despite belonging to the other faction. Next come pairs that join each
+leader to a close associate of the other.
+
+The methods differ in what they reward, and the differences show at the top of their rankings. The
+Jaccard coefficient favors pairs of low-degree nodes whose few neighbors coincide, so its highest
+scores go to the structurally equivalent members found above, each pair sharing both of its two
+friends. The resource allocation index favors pairs that share many neighbors with few contacts of
+their own.
+
+### Evaluating predictors
+
+The way to choose among the methods for a particular network is to test them. A standard test
+hides some of the edges, scores the pairs of the remaining graph, and checks whether the hidden
+edges score higher than the pairs that were never linked. The jazz musicians network (simplified,
+since it has duplicate edges) is large enough for a meaningful test. Here 10% of its edges are held
+out at random:
+
+```{python}
+import random
+
+full = ec.jazz().simplify()
+edges = [(source, target) for _, source, target in full.get_edges_as_tuples()]
+held_out = random.Random(1).sample(edges, len(edges) // 10)
+
+train = ec.jazz().simplify()
+for source, target in held_out:
+    train.delete_edge(source, target)
+
+full.count_edges(), train.count_edges()
+```
+
+[`get_edges_as_tuples()`](../reference/Graph.get_edges_as_tuples.qmd) returns `(id, source,
+target)` triples, and the training graph is built by loading the network a second time and
+deleting the held-out edges with [`delete_edge()`](../reference/Graph.delete_edge.qmd).
+
+Two summaries of a ranking are common. The *AUC* is the probability that a randomly chosen
+held-out edge scores higher than a randomly chosen pair that was never linked; 0.5 is no better
+than chance and 1 is perfect. *Precision* is the fraction of the top-ranked pairs, as many as there
+are held-out edges, that really are held-out edges. A function that computes both from a list of
+scores, with the help of Polars:
+
+```{python}
+missing = pl.DataFrame(
+    {"u": [min(edge) for edge in held_out], "v": [max(edge) for edge in held_out], "missing": True}
+)
+
+
+def evaluate(scores):
+    table = (
+        pl.DataFrame(scores, schema=["u", "v", "score"], orient="row")
+        .with_columns(u=pl.min_horizontal("u", "v"), v=pl.max_horizontal("u", "v"))
+        .join(missing, on=["u", "v"], how="left")
+        .with_columns(pl.col("missing").fill_null(False))
+    )
+    n_pos = table["missing"].sum()
+    n_neg = table.height - n_pos
+    rank_sum = table["score"].rank("average").filter(table["missing"]).sum()
+    return {
+        "auc": round((rank_sum - n_pos * (n_pos + 1) / 2) / (n_pos * n_neg), 3),
+        "precision": round(table.sort("score", descending=True).head(n_pos)["missing"].mean(), 3),
+    }
+```
+
+Each pair is put in a standard order, smaller ID first, so that it can be matched against the
+held-out edges. The AUC comes from the ranks of the scores, which is equivalent to comparing every
+held-out edge with every unlinked pair, and ties count as half. Running each predictor on the
+training graph:
+
+```{python}
+predictors = [
+    "common_neighbors",
+    "jaccard_coefficient",
+    "adamic_adar_index",
+    "resource_allocation_index",
+    "preferential_attachment",
+]
+pl.DataFrame([{"method": name, **evaluate(getattr(train, name)())} for name in predictors])
+```
+
+The four methods based on shared neighbors all do well, with an AUC above 0.95. About half of their
+top 274 predictions are edges that were held out, against fewer than 2% for a random guess, since
+only 274 of the 17,035 unlinked pairs are held-out edges. The resource allocation index is
+slightly ahead, a result that holds in many studies of real networks. Preferential attachment is
+far behind: in this network, being popular says much less about whom a musician played with than
+having partners in common does.
+
+A few cautions apply to this kind of test. A single random split gives a noisy estimate, so repeat
+it with several seeds before drawing fine distinctions. Holding out edges can disconnect nodes, and
+an isolated node gets a score of zero with everyone. And when the network grows over time, holding
+out the most recent edges gives a more honest test than holding out random ones.
+
+### Using communities
+
+Links are more likely inside communities than between them, and three predictors use a community
+attribute to sharpen their scores. [`cn_soundarajan_hopcroft()`](../reference/Graph.cn_soundarajan_hopcroft.qmd)
+and [`ra_index_soundarajan_hopcroft()`](../reference/Graph.ra_index_soundarajan_hopcroft.qmd) give
+extra weight to shared neighbors in the pair's own community, and
+[`within_inter_cluster()`](../reference/Graph.within_inter_cluster.qmd) compares the shared
+neighbors inside the pair's community with those outside it. The communities are read from a node
+attribute, `community` by default, such as one written by a detection method (see
+[Community detection](14-communities.qmd)):
+
+```{python}
+train.cmty_louvain()
+
+community_predictors = [
+    "cn_soundarajan_hopcroft",
+    "ra_index_soundarajan_hopcroft",
+    "within_inter_cluster",
+]
+pl.DataFrame(
+    [
+        {"method": name, **evaluate(getattr(train, name)(community="cmty_louvain"))}
+        for name in community_predictors
+    ]
+)
+```
+
+On the jazz network the community information doesn't help. `ra_index_soundarajan_hopcroft()` and
+`within_inter_cluster()` give a score of zero to every pair that spans two communities, and many of
+the held-out edges do. `cn_soundarajan_hopcroft()`, which keeps the plain count for such pairs, does
+about as well as `common_neighbors()` but no better. Whether communities help
+depends on how sharply they divide a network, which is a good reason to run a test like this one
+before relying on any predictor.
+
+## Similarity from paths
+
+Neighborhood measures only see two steps from a node: pairs that share no neighbors all score
+zero. *SimRank* extends the idea recursively, with the rule that two nodes are similar if their
+neighbors are similar. [`simrank_similarity()`](../reference/Graph.simrank_similarity.qmd)
+returns the score of one pair when given two nodes, one node's scores against every other when
+given one, and the full table when given none:
+
+```{python}
+simrank = karate.simrank_similarity(source=34)
+ranked = sorted(simrank.items(), key=lambda item: item[1], reverse=True)
+[(karate.get_label_from_id(node), round(score, 3)) for node, score in ranked[1:6]]
+```
+
+Member `"32"` is again the administrator's closest match, followed by members whose friends
+resemble the administrator's friends. SimRank scores spread over a narrower range than Jaccard
+scores, because similarity propagates through the whole network, discounted at each step by the
+`importance_factor=` (0.9 by default). [`simrank_star_similarity()`](../reference/Graph.simrank_star_similarity.qmd)
+is a variant that counts paths of every length, which corrects SimRank's habit of scoring zero for
+nodes at an odd distance from one another in nearly bipartite graphs.
+
+SimRank compares every pair of nodes, which is costly on large graphs. *Panther* estimates
+similarity by sampling short random paths and counting how often two nodes appear on the same
+path, which makes it fast enough for large networks. [`panther_similarity()`](../reference/Graph.panther_similarity.qmd)
+returns the `k` nodes most similar to a source:
+
+```{python}
+panther = karate.panther_similarity(34, k=5, seed=1)
+{karate.get_label_from_id(node): round(score, 3) for node, score in panther.items()}
+```
+
+The scores are estimates, so use `seed=` for repeatable results; a different seed gives the same
+leader but can change the order further down. [`panther_vector_similarity()`](../reference/Graph.panther_vector_similarity.qmd)
+compares nodes by their profiles of path counts instead.
+
+## Predicting node attributes
+
+Similarity also helps to fill in missing node attributes. If only some nodes are labelled with a
+category, the categories of the rest can be inferred from their positions in the network, on the
+assumption that linked nodes tend to share a category. This is *semi-supervised* learning: a few
+labelled examples, together with the structure, guide the predictions for everything else.
+
+[`harmonic_function()`](../reference/Graph.harmonic_function.qmd) spreads the known categories
+through the network until each node's prediction agrees with those of its neighbors. As a test,
+suppose that only the two leaders' sides were known. The categories go into a node attribute that
+is set for those two nodes only:
+
+```{python}
+karate.set_node_attrs("side", {1: "instructor", 34: "administrator"})
+predicted = karate.harmonic_function(label_name="side")
+
+faction = karate.get_node_attrs("faction")
+correct = sum((predicted[node] == "instructor") == (faction[node] == 1) for node in predicted)
+correct, karate.count_nodes()
+```
+
+Nodes without a value for the attribute are treated as unlabelled, and `predicted` gives a category
+for every node. From the two leaders alone, the method assigns all 34 members to the faction they
+actually joined when the club split, which the `faction` attribute records.
+[`local_and_global_consistency()`](../reference/Graph.local_and_global_consistency.qmd) is a
+variant that allows the known categories to be overruled when the network strongly disagrees with
+them, which helps when some of the known labels may be wrong; its `alpha=` sets how much weight the
+network gets.
+
+## Comparing graphs
+
+The rest of this page compares whole graphs rather than nodes: whether two graphs have the same
+structure, where a pattern occurs in a graph, and how much two graphs differ.
+
+### Isomorphism
+
+Two graphs are *isomorphic* when their nodes can be matched up so that every edge of one becomes an
+edge of the other. They are then the same graph, drawn or numbered differently. The Petersen graph,
+for example, is also the *Kneser graph* K(5, 2), whose nodes are the pairs from a set of five
+items, linked when the pairs have no item in common.
+[`is_isomorphic()`](../reference/Graph.is_isomorphic.qmd) confirms it, and
+[`find_isomorphism()`](../reference/Graph.find_isomorphism.qmd) returns the correspondence, from
+node IDs of the first graph to node IDs of the second:
+
+```{python}
+petersen = ec.Graph().add_named_graph("petersen")
+kneser = ec.Graph().add_kneser_graph(n=5, k=2)
+
+mapping = petersen.find_isomorphism(kneser)
+pairs = {node: kneser.get_label_from_id(image) for node, image in mapping.items()}
+petersen.is_isomorphic(kneser), pairs
+```
+
+Each of the Kneser graph's nodes is labelled by its pair, so the mapping shows which pair each node
+of the Petersen graph corresponds to. Both methods take `node_attr=` and `edge_attr=`, which
+require matched nodes and edges to agree on the given attributes. That turns the question into
+whether two labelled structures, such as two molecules with atom types, are the same.
+
+Deciding isomorphism can be expensive in the worst case, and two cheaper checks help when many
+graphs must be compared. [`could_be_isomorphic()`](../reference/Graph.could_be_isomorphic.qmd)
+compares simple invariants, such as the degrees and triangle counts, and returns `False` when they
+rule an isomorphism out. [`weisfeiler_lehman_graph_hash()`](../reference/Graph.weisfeiler_lehman_graph_hash.qmd)
+computes a hash that isomorphic graphs always share, which makes it a fast way to group a large
+collection of graphs into candidate classes. The hash is not a proof, though: some graphs that are
+not isomorphic share it. The complete bipartite graph K(3, 3) and the triangular prism are both
+3-regular graphs on six nodes, and the hash can't tell them apart:
+
+```{python}
+k33 = ec.Graph().add_complete_bipartite_graph(n1=3, n2=3)
+prism = ec.Graph().add_prism_graph(n=3)
+
+(
+    k33.weisfeiler_lehman_graph_hash() == prism.weisfeiler_lehman_graph_hash(),
+    k33.could_be_isomorphic(prism),
+    k33.is_isomorphic(prism),
+)
+```
+
+The hashes agree, but the prism contains two triangles and K(3, 3) has none, which is enough for
+`could_be_isomorphic()` to rule out an isomorphism. A hash that matches always needs to be confirmed
+with `is_isomorphic()`. For an exact canonical form, [`canonical_labeling()`](../reference/Graph.canonical_labeling.qmd)
+numbers the nodes so that isomorphic graphs, renumbered, become identical.
+[`weisfeiler_lehman_subgraph_hashes()`](../reference/Graph.weisfeiler_lehman_subgraph_hashes.qmd)
+gives each node a hash of its neighborhood at each round, which serves as a set of structural
+features for machine learning.
+
+### Symmetries
+
+An isomorphism from a graph onto itself is an *automorphism*, a symmetry of the graph.
+[`automorphism_cosets()`](../reference/Graph.automorphism_cosets.qmd) describes them compactly: for
+each node, in ID order, it lists the nodes that the node can be sent to by a symmetry that keeps
+every smaller node in place. The product of the list lengths is the number of symmetries. The
+Petersen graph is famously symmetric:
+
+```{python}
+import math
+
+cosets = petersen.automorphism_cosets()
+math.prod(len(coset) for coset in cosets.values())
+```
+
+It has 120 symmetries, and since its first node can be sent to any of the ten, every node is
+equivalent to every other. Applied to the karate club, the cosets show which members are
+interchangeable:
+
+```{python}
+cosets = karate.automorphism_cosets()
+symmetries = math.prod(len(coset) for coset in cosets.values())
+interchangeable = [
+    [karate.get_label_from_id(node) for node in coset]
+    for coset in cosets.values()
+    if len(coset) > 1
+]
+symmetries, interchangeable
+```
+
+The 480 symmetries come from three groups of interchangeable members. Two are the groups of
+structurally equivalent members found earlier. The five members `"14"`, `"15"`, `"18"`, `"20"`, and
+`"22"` appear in a shrinking chain of lists: any of the five can take the first place, then any of
+the remaining four the second, and so on, for 5 × 4 × 3 × 2 = 120 orderings. Members `"17"` and
+`"21"` double that number. The third group, the pair `"4"` and `"10"`, is new and doubles it
+again. These two members don't have the same friends, so they aren't structurally
+equivalent, but swapping them along with their friends `"5"` and `"6"` leaves the network
+unchanged. Nodes related by a symmetry are *automorphically equivalent*, a weaker condition than
+structural equivalence.
+
+### Finding patterns
+
+[`subgraph_isomorphisms()`](../reference/Graph.subgraph_isomorphisms.qmd) finds the places where a
+small pattern graph occurs inside a larger one, and returns one mapping per occurrence, from
+pattern node IDs to node IDs of the larger graph. With `symmetry=True`, occurrences that differ
+only by a symmetry of the pattern, such as the six ways of matching the corners of a triangle, are
+reported once:
+
+```{python}
+square = ec.Graph().add_cycle_graph(n=4)
+
+induced = karate.subgraph_isomorphisms(square, symmetry=True)
+any_square = karate.subgraph_isomorphisms(square, induced=False, symmetry=True)
+len(induced), len(any_square)
+```
+
+By default the occurrences are *induced*: the four members must be linked around a square with no
+diagonal friendships, which happens 36 times. With `induced=False`, extra edges are allowed, and
+any four members with friendships around a square count, including those that also have one or
+both diagonals; there are 154 of these. `limit=` stops the search after a given number of
+occurrences, and [`is_subgraph_isomorphic()`](../reference/Graph.is_subgraph_isomorphic.qmd) only
+asks whether there is at least one. The same `node_attr=` and `edge_attr=` options make the search
+match attributes as well as structure, which is how a query such as "a person who works at a
+company that is based in Berlin" is matched in a knowledge graph.
+[`largest_common_subgraph()`](../reference/Graph.largest_common_subgraph.qmd) finds the largest
+induced subgraphs that two graphs share.
+
+### Measuring differences
+
+When two graphs describe the same nodes, such as two snapshots of a network or a network and a
+reconstruction of it, the question is how much they differ. As an example, here is a copy of the
+karate club with two friendships removed and one added:
+
+```{python}
+before = ec.karate_club()
+after = ec.karate_club()
+after.delete_edge("0", "1").delete_edge("32", "33").add_edge("0", "33")
+
+before.edge_overlap(after)
+```
+
+[`edge_overlap()`](../reference/Graph.edge_overlap.qmd) matches edges by the labels of their
+endpoints. The two graphs share 76 edges, two are only in the first, and one is only in the second,
+for a Jaccard index of 0.96. [`differential_edges()`](../reference/Graph.differential_edges.qmd)
+lists the edges that differ:
+
+```{python}
+before.differential_edges(after)
+```
+
+[`graph_edit_distance()`](../reference/Graph.graph_edit_distance.qmd) counts the node and edge
+insertions and deletions needed to turn one graph into the other. By default it also matches nodes
+by label, which makes it fast:
+
+```{python}
+before.graph_edit_distance(after)
+```
+
+When the nodes of the two graphs don't correspond, `exact=True` searches over all possible
+correspondences for the cheapest sequence of edits. A five-node cycle becomes a six-node path by
+deleting one edge and adding one node and one edge:
+
+```{python}
+cycle = ec.Graph().add_cycle_graph(n=5)
+path = ec.Graph().add_path_graph(n=6)
+cycle.graph_edit_distance(path, exact=True)["distance"]
+```
+
+The exact search grows quickly with the size of the graphs, and is practical only for graphs of up
+to a dozen or so nodes. The exact mode accepts functions that set the cost of each kind of edit,
+and `timeout=` and `upper_bound=` limit the search.
+[`optimize_graph_edit_distance()`](../reference/Graph.optimize_graph_edit_distance.qmd) yields
+better and better estimates as it runs, which is useful when an approximate answer is enough, and
+[`optimal_edit_paths()`](../reference/Graph.optimal_edit_paths.qmd) returns the edits themselves.
+
+## Choosing a method
+
+| Question | Methods |
+|---|---|
+| Which nodes have similar neighbors? | `get_jaccard_similarity()`, `get_cosine_similarity()`, `get_dice_similarity()`, `get_overlap_similarity()`, `get_pairwise_similarity()` |
+| Which nodes are similar beyond their immediate neighbors? | `simrank_similarity()`, `simrank_star_similarity()`, `panther_similarity()` |
+| Which missing links are most likely? | `resource_allocation_index()`, `adamic_adar_index()`, `common_neighbors()`, `jaccard_coefficient()`, and the community-aware variants |
+| What are the missing categories of some nodes? | `harmonic_function()`, `local_and_global_consistency()` |
+| Are two graphs the same? | `is_isomorphic()`, `find_isomorphism()`, `could_be_isomorphic()`, `weisfeiler_lehman_graph_hash()`, `canonical_labeling()` |
+| Which nodes are interchangeable? | `automorphism_cosets()`, a Jaccard similarity of 1 |
+| Where does a pattern occur? | `subgraph_isomorphisms()`, `is_subgraph_isomorphic()`, `motif_census()` |
+| How much do two graphs differ? | `edge_overlap()`, `differential_edges()`, `graph_edit_distance()` |
+
+Counting every small pattern in a graph, rather than searching for one, is the subject of
+[Clustering and motifs](15-clustering-and-motifs.qmd#motifs).
