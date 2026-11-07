@@ -1,0 +1,446 @@
+---
+title: Communities
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Most real networks are lumpy. Friends form circles, proteins form complexes, web pages cluster by
+topic, and scientists collaborate within fields. A *community* is a group of nodes that are more
+densely connected to one another than to the rest of the network, and *community detection* is
+the task of finding such groups from the edges alone. EdgeCase provides more than a dozen
+detection algorithms, along with tools for scoring a partition, comparing it with known groups,
+and summarizing the result. This page covers all of them.
+
+## A first example
+
+Zachary's karate club is the standard first test for community detection, because the club really
+did split in two, and the `faction` attribute records which side each member joined.
+[`cmty_louvain()`](../reference/Graph.cmty_louvain.qmd) runs the Louvain algorithm, the most widely
+used detection method, and stores each node's community in a `cmty_louvain` attribute:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club().cmty_louvain()
+karate.plot(color_by="cmty_louvain", label_by="label", seed=4)
+```
+
+The communities are numbered from 0. Louvain finds four of them, and a cross-tabulation against
+the factions shows how they relate to the real split:
+
+```{python}
+(
+    karate.get_node_df()
+    .group_by("cmty_louvain", "faction")
+    .len()
+    .sort("cmty_louvain", "faction")
+)
+```
+
+Each community falls almost entirely within one faction, so Louvain has divided each side of the
+split into two smaller groups: the instructor's core circle (community 0) and a cluster of five of
+their outlying friends (community 1), and on the administrator's side, a central group and a
+peripheral one. Only member `"9"` (ID 10) is placed with the instructor despite joining the
+administrator, and as a member with one friend on each side, it is a borderline case for any
+method.
+
+Like the centrality methods, every `cmty_*` method that assigns nodes to communities accepts
+`attr_name=` to choose the attribute's name and `return_dict=True` to return a dictionary from node
+ID to community number instead of storing it.
+
+## Detection algorithms
+
+The algorithms take different approaches to the problem, and they differ in what they can handle
+and how far they scale:
+
+| Method | Approach | Notes |
+|---|---|---|
+| [`cmty_louvain()`](../reference/Graph.cmty_louvain.qmd) | greedy modularity optimization with repeated aggregation | fast on very large graphs; uses edge weights |
+| [`cmty_leiden()`](../reference/Graph.cmty_leiden.qmd) | Louvain with a refinement step that guarantees connected communities | fast, usually the best default; uses edge weights; optional CPM objective |
+| [`cmty_fast_greedy()`](../reference/Graph.cmty_fast_greedy.qmd) | agglomerative modularity optimization (Clauset, Newman, and Moore) | fast |
+| [`cmty_l_eigenvec()`](../reference/Graph.cmty_l_eigenvec.qmd) | repeated splitting by the leading eigenvector of the modularity matrix | graphs of up to a couple of thousand nodes |
+| [`cmty_walktrap()`](../reference/Graph.cmty_walktrap.qmd) | merging nodes that short random walks connect | graphs of up to about a thousand nodes |
+| [`cmty_edge_btwns()`](../reference/Graph.cmty_edge_btwns.qmd), [`cmty_girvan_newman()`](../reference/Graph.cmty_girvan_newman.qmd) | repeatedly removing the edge of highest betweenness | slow; graphs of a few hundred nodes |
+| [`cmty_label_propagation()`](../reference/Graph.cmty_label_propagation.qmd), [`cmty_fast_label_propagation()`](../reference/Graph.cmty_fast_label_propagation.qmd), [`cmty_semisync_label_propagation()`](../reference/Graph.cmty_semisync_label_propagation.qmd) | nodes repeatedly adopting the community most common among their neighbors | very fast; accept directed graphs; results vary with `seed=` |
+| [`cmty_fluid()`](../reference/Graph.cmty_fluid.qmd) | `k` communities that expand and compete like fluids | the number of communities is fixed |
+| [`cmty_stochastic_block_model()`](../reference/Graph.cmty_stochastic_block_model.qmd) | fitting a stochastic block model by expectation-maximization | the number of blocks is fixed; finds any block structure, not only dense groups |
+| [`cmty_k_clique()`](../reference/Graph.cmty_k_clique.qmd) | percolation of adjacent `k`-cliques | overlapping communities |
+
+All of them except the label propagation methods and the stochastic block model require an
+undirected graph. For a directed network, either use one of those, or convert the graph with
+[`to_undirected()`](../reference/Graph.to_undirected.qmd), which returns an undirected copy and
+leaves the original unchanged:
+
+```{python}
+votes = ec.wiki_vote().to_undirected().cmty_leiden(seed=1)
+votes.get_node_df()["cmty_leiden"].n_unique()
+```
+
+Leiden divides the 7,115 users of the Wikipedia election network into 29 communities in a
+fraction of a second. Louvain and Leiden scale to graphs with millions of edges; at the other
+extreme, the methods based on edge betweenness recompute every shortest path after each removal,
+and are suited only to small graphs.
+
+## Measuring the quality of a partition
+
+A detection method always returns *some* partition, so it's important to be able to judge one.
+The standard score is *modularity*, which compares the fraction of edges that fall inside
+communities with the fraction expected if the edges were placed at random, keeping every node's
+degree. [`modularity()`](../reference/Graph.modularity.qmd) computes it for any partition, given
+as the name of a node attribute, as a dictionary of node IDs and communities, or as a list of node
+groups:
+
+```{python}
+round(karate.modularity("cmty_louvain"), 3), round(karate.modularity("faction"), 3)
+```
+
+Values between 0.3 and 0.7 are typical of clear community structure, and putting every node in a
+single community scores exactly 0. The Louvain partition scores higher than the real factions,
+which is no surprise: Louvain is designed to maximize modularity, and the factions weren't. A
+higher modularity means a partition fits the modularity criterion better, not that it is closer to
+the truth.
+
+[`partition_quality()`](../reference/Graph.partition_quality.qmd) returns two simpler scores.
+*Coverage* is the fraction of edges inside communities, and *performance* is the fraction of node
+pairs that the partition treats correctly: linked pairs in the same community, and unlinked pairs
+in different ones.
+
+```{python}
+karate.partition_quality("cmty_louvain"), karate.partition_quality("faction")
+```
+
+The two factions keep 87% of the friendships inside a group, against 73% for Louvain's four
+communities, but they put many unlinked pairs together, so their performance is lower. Coverage
+favors few, large communities and performance many small ones, so the two are best read together.
+
+### Scoring single communities
+
+[`conductance()`](../reference/Graph.conductance.qmd) scores one group of nodes: the number of
+edges leaving the group, divided by the total degree of the group (or of the rest of the graph,
+if that is smaller). A well-separated community has low conductance. Grouping the node table by
+community gives the lists of members:
+
+```{python}
+groups = (
+    karate.get_node_df()
+    .group_by("cmty_louvain")
+    .agg("id")
+    .sort("cmty_louvain")["id"]
+    .to_list()
+)
+[round(karate.conductance(group), 3) for group in groups]
+```
+
+The last community, the six members on the administrator's periphery, is the least self-contained:
+42% of its members' edges lead outside it. [`cut_size()`](../reference/Graph.cut_size.qmd),
+[`normalized_cut_size()`](../reference/Graph.normalized_cut_size.qmd),
+[`volume()`](../reference/Graph.volume.qmd), and
+[`boundary_expansion()`](../reference/Graph.boundary_expansion.qmd) measure related quantities.
+
+## Comparing with known groups
+
+When the true groups are known, as with the karate club's factions or a benchmark graph, the
+question is how well a method recovers them. EdgeCase doesn't provide a dedicated comparison
+measure, but the most widely used one, the *adjusted Rand index* (ARI), is short to compute from
+the node table. It counts the pairs of nodes on which two partitions agree, corrected for the
+agreement expected by chance, so it is 1 for identical partitions and close to 0 for unrelated
+ones:
+
+```{python}
+import math
+
+
+def adjusted_rand(graph, a, b):
+    df = graph.get_node_df()
+
+    def pairs(columns):
+        return sum(math.comb(count, 2) for count in df.group_by(columns).len()["len"])
+
+    both, in_a, in_b = pairs([a, b]), pairs(a), pairs(b)
+    expected = in_a * in_b / math.comb(df.height, 2)
+    return (both - expected) / ((in_a + in_b) / 2 - expected)
+```
+
+Running several methods and comparing each with the factions shows how differently they behave:
+
+```{python}
+methods = {
+    "cmty_louvain": {},
+    "cmty_leiden": {"seed": 1},
+    "cmty_fast_greedy": {},
+    "cmty_l_eigenvec": {},
+    "cmty_walktrap": {},
+    "cmty_edge_btwns": {},
+    "cmty_fluid": {"k": 2, "seed": 1},
+}
+for method, kwargs in methods.items():
+    getattr(karate, method)(**kwargs)
+
+pl.DataFrame(
+    {
+        "method": list(methods),
+        "communities": [karate.get_node_df()[m].n_unique() for m in methods],
+        "modularity": [round(karate.modularity(m), 3) for m in methods],
+        "ari": [round(adjusted_rand(karate, "faction", m), 3) for m in methods],
+    }
+)
+```
+
+The methods that choose the number of communities themselves find three to five, and so agree
+only partly with the two factions. [`cmty_fluid()`](../reference/Graph.cmty_fluid.qmd), told to find exactly
+two communities, recovers the factions perfectly. This is a common pattern: when the number of
+groups is known in advance, a method that takes it as an input often does better than one that
+must also choose it.
+
+### Randomness
+
+Several methods use random choices, and accept `seed=` to make them reproducible. The label
+propagation methods are the most sensitive to it, since a few early choices decide which labels
+spread:
+
+```{python}
+[
+    round(adjusted_rand(karate.cmty_label_propagation(seed=seed), "faction", "cmty_label_propagation"), 2)
+    for seed in range(8)
+]
+```
+
+Across eight seeds, the agreement with the factions ranges from near zero to perfect. For any
+randomized method, run it with several seeds and check that the conclusions hold; for a single
+reproducible answer, prefer Leiden.
+
+## When structure is hard to detect
+
+Community detection has limits, and a benchmark graph with planted communities shows them
+clearly. [`add_planted_partition_graph()`](../reference/Graph.add_planted_partition_graph.qmd)
+creates groups of nodes in which each pair within a group is linked with probability `p_in`, and
+each pair in different groups with probability `p_out`, and records each node's true group in a
+`community` attribute. Holding `p_out` fixed and lowering `p_in` makes the communities
+progressively harder to see:
+
+```{python}
+rows = []
+for p_in in [0.5, 0.3, 0.2, 0.15, 0.12, 0.1]:
+    planted = (
+        ec.Graph()
+        .add_planted_partition_graph(num_groups=4, group_size=50, p_in=p_in, p_out=0.05, seed=1)
+        .cmty_leiden(seed=1)
+    )
+    rows.append(
+        {
+            "p_in": p_in,
+            "found": planted.get_node_df()["cmty_leiden"].n_unique(),
+            "ari": round(adjusted_rand(planted, "community", "cmty_leiden"), 3),
+            "modularity_true": round(planted.modularity("community"), 3),
+            "modularity_found": round(planted.modularity("cmty_leiden"), 3),
+        }
+    )
+pl.DataFrame(rows)
+```
+
+While the groups are clearly denser inside than between, Leiden recovers them perfectly. Below
+`p_in = 0.2` it fails abruptly: it finds more communities than were planted, and they bear little
+relation to the true ones. Notice the last two columns. In the hard cases, the partition Leiden
+finds has a *higher* modularity than the true one, because in any random graph some groups of
+nodes happen to be a little denser than average, and modularity rewards them. Modularity values of
+0.25 or so can arise from noise alone, so a modest score is not, on its own, evidence of real
+community structure. [Graph generators](05-generators.qmd) describes
+[`add_lfr_graph()`](../reference/Graph.add_lfr_graph.qmd), a more realistic benchmark with
+skewed degrees and community sizes.
+
+## Resolution
+
+Modularity has a preferred scale. On large networks it tends to merge small communities that
+should be separate, a weakness known as the *resolution limit*. Louvain, Leiden, and fast greedy
+accept a `resolution=` argument that changes the scale: values above 1 favor more, smaller
+communities, and values below 1 fewer, larger ones.
+
+The Les Misérables character network, whose edges are weighted by the number of chapters in which
+two characters appear together, shows the effect. Note that the modularity column scores every
+partition at the standard resolution of 1, so that they can be compared:
+
+```{python}
+miserables = ec.les_miserables()
+pl.DataFrame(
+    [
+        {
+            "resolution": resolution,
+            "communities": len(set(partition.values())),
+            "modularity": round(miserables.modularity(partition), 3),
+        }
+        for resolution in [0.25, 0.5, 1.0, 1.5, 2.0, 4.0]
+        for partition in [miserables.cmty_leiden(resolution=resolution, seed=1, return_dict=True)]
+    ]
+)
+```
+
+The number of communities rises steadily with the resolution, from three to 18, and the standard
+modularity peaks at the default. There is no single correct resolution: a low one shows the
+novel's main storylines, and a high one its individual scenes and households. Choose it to suit
+the question.
+
+`cmty_leiden(objective="cpm")` optimizes the *Constant Potts Model* instead of modularity (see
+[`constant_potts_model()`](../reference/Graph.constant_potts_model.qmd)). Its resolution is a
+density threshold: communities end up denser inside than the threshold and sparser between. CPM
+has no resolution limit, so it can find small, dense groups in very large networks, but its
+resolution must be set to suit each graph, with the graph's density a natural starting point.
+
+### Hierarchies of communities
+
+Louvain and Leiden work in levels, merging nodes into small communities, then merging those into
+larger ones, and so on. [`cmty_louvain_levels()`](../reference/Graph.cmty_louvain_levels.qmd) and
+[`cmty_leiden_levels()`](../reference/Graph.cmty_leiden_levels.qmd) return the partition at every
+level, from finest to coarsest, as a list of dictionaries:
+
+```{python}
+levels = miserables.cmty_louvain_levels()
+[len(set(level.values())) for level in levels]
+```
+
+The first level groups the 77 characters into ten communities, and the second merges those into
+six. Each level is a partition in its own right, and can be scored with `modularity()` or stored as
+an attribute with [`set_node_attrs()`](../reference/Graph.set_node_attrs.qmd).
+
+## A fixed number of groups
+
+When the number of groups is known, or is part of the question, several methods take it as an
+input:
+
+| Method | Finds |
+|---|---|
+| [`cmty_fluid()`](../reference/Graph.cmty_fluid.qmd) | `k` communities of a connected graph |
+| [`cmty_stochastic_block_model()`](../reference/Graph.cmty_stochastic_block_model.qmd) | `k` blocks of nodes with similar connection patterns |
+| [`kernighan_lin_bisection()`](../reference/Graph.kernighan_lin_bisection.qmd) | two halves of equal size with few edges between them |
+| [`spectral_modularity_bipartition()`](../reference/Graph.spectral_modularity_bipartition.qmd) | two groups, from the leading eigenvector of the modularity matrix |
+| [`greedy_node_swap_bipartition()`](../reference/Graph.greedy_node_swap_bipartition.qmd) | two groups, by moving nodes one at a time to raise modularity |
+
+The bisection methods return the two groups as a pair of sets of node IDs:
+
+```{python}
+first, second = karate.spectral_modularity_bipartition()
+sorted(first)
+```
+
+The spectral split places 16 members with the instructor, and they are exactly the instructor's
+faction.
+
+The stochastic block model differs from the other methods in what it looks for. A block is a set
+of nodes that connect to the rest of the network *in the same way*, which may mean being densely
+linked to one another, but may also mean being linked to the same hub, or forming one side of a
+bipartite structure. That makes it suited to finding core-periphery structure and roles, as well
+as communities. The fit starts from a random assignment, so try several seeds. It stores its
+blocks in a `sbm_block` attribute by default.
+
+## Overlapping communities
+
+The methods so far place every node in exactly one community, but in many networks a node belongs
+to several: a person has a family, colleagues, and friends.
+[`cmty_k_clique()`](../reference/Graph.cmty_k_clique.qmd) finds overlapping communities by
+*clique percolation*. It builds every clique of `k` nodes, joins two cliques when they share
+`k - 1` nodes, and reports the nodes of each joined group as a community. It returns the
+communities as a list of lists of node IDs:
+
+```{python}
+karate.cmty_k_clique(k=4)
+```
+
+With `k=4`, the club has three communities, and the administrator (ID 34) and member `"32"`
+(ID 33) belong to two of them. Most members belong to none, since they aren't part of any
+four-node clique. Smaller values of `k` give larger, looser communities.
+[`overlapping_modularity()`](../reference/Graph.overlapping_modularity.qmd) scores an overlapping
+cover in which every node belongs to at least one community.
+
+## Local communities
+
+Sometimes only one community matters: the one around a particular node. Rather than partition the
+whole graph, [`greedy_source_expansion()`](../reference/Graph.greedy_source_expansion.qmd) grows a
+community outward from a source node, adding the neighbor that best improves the community's
+separation from the rest of the graph at each step, and returns its members as a set:
+
+```{python}
+sorted(karate.greedy_source_expansion(34))
+```
+
+The community grown from the administrator contains 17 members: 15 of the 18 members of the
+administrator's faction, and two of the instructor's, including their lieutenant (ID 3). A local method like this works on graphs too large to partition, since
+it only examines the neighborhood of the source.
+
+## Semi-supervised detection
+
+When the communities of a few nodes are known, [`label_propagation()`](../reference/Graph.label_propagation.qmd)
+spreads those labels to the rest of the graph: every unlabelled node repeatedly takes the label
+most common among its neighbors, while the known labels stay fixed. Given only the two leaders,
+it assigns the rest of the club:
+
+```{python}
+predicted = karate.label_propagation({1: 0, 34: 1}, return_dict=True)
+sum(predicted[node] != karate.get_node(node).attributes["faction"] - 1 for node in predicted)
+```
+
+Only one of the 34 members ends up on the wrong side. Unlike the `cmty_*` methods, this is a
+classification method: the labels come from you, and the graph only decides how far they spread.
+
+## Working with the results
+
+Since communities are stored as a node attribute, Polars does most of the work of summarizing
+them. Here, Leiden divides the Les Misérables characters into six communities, and grouping by
+community lists the best-connected characters of each:
+
+```{python}
+miserables = ec.les_miserables().cmty_leiden(seed=1)
+(
+    miserables.get_node_df()
+    .group_by("cmty_leiden")
+    .agg(
+        size=pl.len(),
+        main_characters=pl.col("label").sort_by("degree", descending=True).head(3),
+    )
+    .sort("cmty_leiden")
+)
+```
+
+The communities follow the novel's storylines: Bishop Myriel's household, Valjean and the main
+plot, Fantine and her circle, the Thénardiers, the trial of Champmathieu, and the students of the
+barricade. Drawing the network colored by community shows how they fit together:
+
+```{python}
+miserables.plot(color_by="cmty_leiden", size_by="degree", seed=6)
+```
+
+### A network of communities
+
+[`quotient_graph()`](../reference/Graph.quotient_graph.qmd) collapses each community into a single
+node, with an edge between two communities wherever any of their members are linked. It takes the
+partition as a list of node groups, and records each new node's original members in a `members`
+attribute:
+
+```{python}
+groups = (
+    miserables.get_node_df()
+    .group_by("cmty_leiden")
+    .agg("id")
+    .sort("cmty_leiden")["id"]
+    .to_list()
+)
+storylines = miserables.quotient_graph(groups)
+storylines.get_node_df().select("label", "degree")
+```
+
+The quotient shows the main plot (block 1) at the center of the novel, linked to every other
+storyline, while Myriel's household (block 0) connects only to it. For a closer look at one
+community, [`subgraph()`](../reference/Graph.subgraph.qmd) extracts its members as a new graph, and
+[Selections](08-selections.qmd) shows how to select a community with `select_nodes()` and act on
+it.
+
+Community structure feeds into many other analyses. [Similarity and link
+prediction](18-similarity.qmd) covers link predictors that use communities, [Clustering and
+motifs](15-clustering-and-motifs.qmd) the local density that communities are built from, and
+[Network biology](31-network-biology.qmd) the testing of communities for enrichment in annotations.
