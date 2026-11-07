@@ -2,6 +2,7 @@ import ast
 import html
 import json
 import math
+import numbers
 import os
 import re
 import warnings
@@ -333,6 +334,13 @@ def _has_parallel_edges(edges: list, directed: bool) -> bool:
 
 def _is_number(value: Any) -> bool:
     return isinstance(value, (int, float)) and not isinstance(value, bool)
+
+
+def _numeric_weight(value: Any) -> Optional[float]:
+    """`value` as a float if it's a real number (NumPy's too, `bool` excluded), else `None`."""
+    if isinstance(value, numbers.Real) and not isinstance(value, bool):
+        return float(value)
+    return None
 
 
 def _xy(value: Any) -> Optional[tuple[float, float]]:
@@ -1956,6 +1964,7 @@ def from_pajek(
     section: Optional[str] = None
     relation: dict = {}
     seen_network = False
+    has_arcs = False
 
     for number, raw in enumerate(lines, 1):
         line = raw.strip()
@@ -1980,6 +1989,7 @@ def from_pajek(
                 section = "vertices"
             elif head in ("arcs", "edges", "arcslist", "edgeslist"):
                 section = head
+                has_arcs = has_arcs or head in ("arcs", "arcslist")
                 relation = {}
                 tokens = _pajek_tokens(rest)
                 if tokens and tokens[0].startswith(":"):
@@ -2025,7 +2035,7 @@ def from_pajek(
             ) from None
 
     if directed is None:
-        directed = any(is_arc for *_, is_arc in rows)
+        directed = has_arcs
     if weighted is None:
         weighted = any(weight is not None for _, _, weight, _, _ in rows)
     if graph_name is None:
@@ -2048,11 +2058,17 @@ def from_pajek(
     return _build_graph(nodes, edges, directed, weighted, graph_name, _code("from_pajek", filepath))
 
 
+_PAJEK_LINE_BREAK = re.compile(r"\r\n|[\n\r\v\f\x1c-\x1e\x85\u2028\u2029]")
+
+
 def _pajek_quote(text: str, always: bool = False) -> str:
-    """A Pajek token; quoted when needed (Pajek has no escapes, so `"` becomes `'`)."""
-    text = " ".join(text.replace('"', "'").split()) if always or text.strip() != text else text
-    if always or not text or any(c.isspace() or c == '"' for c in text):
-        return '"' + text.replace('"', "'") + '"'
+    """
+    A Pajek token; quoted when needed. Pajek has no escapes, so `"` becomes `'` and a line break
+    becomes a space; any other whitespace is kept inside the quotes.
+    """
+    text = _PAJEK_LINE_BREAK.sub(" ", text.replace('"', "'"))
+    if always or not text or any(c.isspace() for c in text):
+        return f'"{text}"'
     return text
 
 
@@ -2064,11 +2080,11 @@ def to_pajek(
     Write a graph to a Pajek (.net) file.
 
     Vertices are numbered 1 to n in node ID order and written with their labels (quoted, with any
-    `"` replaced by `'`, since Pajek has no escapes). A node's `pos` attribute is written as its
-    coordinates, and its other attributes as `key value` parameters. Edges are written under
-    `*Arcs` (directed graphs) or `*Edges`, with their weights and attributes. Pajek parameters
-    hold single values, so attributes holding lists, dicts or `None` are left out, with a warning;
-    booleans are written as `1` and `0`.
+    `"` replaced by `'` and any line break by a space, since Pajek has no escapes). A node's `pos`
+    attribute is written as its coordinates, and its other attributes as `key value` parameters.
+    Edges are written under `*Arcs` (directed graphs) or `*Edges`, with their weights and
+    attributes. Pajek parameters hold single values, so attributes holding lists, dicts or `None`
+    are left out, with a warning; booleans are written as `1` and `0`.
 
     Parameters
     ----------
