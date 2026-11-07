@@ -1,0 +1,398 @@
+---
+title: Transforming graphs
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Many analyses start by turning one graph into another: extracting the part that matters, dropping
+edge directions, merging nodes that stand for the same thing, combining two data sources, or
+deriving a new kind of graph altogether, such as one whose nodes are the edges of the original.
+This page covers these transformations.
+
+Almost all of them return a *new* graph and leave the original unchanged, so the original remains
+available for comparison. The exceptions are the cleanup methods, such as `simplify()` and
+`relabel_nodes()`, which modify the graph in place like the other editing methods (see
+[The graph model](03-graph-model.qmd#methods-modify-the-graph-in-place)).
+
+## Extracting part of a graph
+
+### Subgraphs
+
+[`subgraph()`](../reference/Graph.subgraph.qmd) takes a list of node IDs and returns the *induced*
+subgraph: those nodes and every edge among them. Nodes and edges keep their IDs, labels, and
+attributes, so results computed on the subgraph can be matched back to the original. A list of IDs
+is easy to get from the node table with a Polars filter, here the administrator's faction in the
+karate club:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+members = karate.get_node_df().filter(pl.col("faction") == 2)["id"].to_list()
+faction = karate.subgraph(members)
+faction.count_nodes(), faction.count_edges()
+```
+
+The administrator's faction has 18 members and 35 friendships among them. The other 43 of the
+club's 78 friendships either lie within the instructor's faction or cross between the two.
+
+[`edge_subgraph()`](../reference/Graph.edge_subgraph.qmd) selects by edges instead, and keeps the
+given edges together with their endpoints. This is the way to filter a weighted network by the
+strength of its ties. In the *Les Misérables* network, the weight of an edge is the number of
+chapters in which two characters appear together. Keeping only the pairs that appear together in
+at least five chapters:
+
+```{python}
+miserables = ec.les_miserables()
+strong = miserables.get_edge_df().filter(pl.col("weight") >= 5)["id"].to_list()
+backbone = miserables.edge_subgraph(strong)
+backbone.count_nodes(), backbone.count_edges()
+```
+
+Only 51 of the 254 edges, among 26 of the 77 characters, are that strong. Apart from one pair of
+minor characters, they form a single component. Taking that component with `subgraph()` and
+drawing it shows the core relationships of the novel:
+
+```{python}
+main = backbone.subgraph(list(backbone.weakly_connected_components()[0]))
+main.plot(label_by="label", node_size=10, seed=3, width=700, height=500)
+```
+
+Valjean sits at the center, linked to Cosette, Fantine, Javert, and the bishop Myriel and his
+household. Marius connects Valjean's world to the students of the ABC society, the dense cluster on
+the right, and to his own family, the Gillenormands. The Thénardiers lead to their criminal
+associates at the top.
+
+The selection methods offer a second route to the same result: select nodes or edges by any
+criterion and call `transform_to_subgraph_ws()` (see [Selections](08-selections.qmd)). The
+k-core, k-truss, and related methods extract dense parts of a graph by a structural rule, and are
+described in [Structural properties](11-structure.qmd#cores-and-dense-regions).
+
+### Ego networks
+
+The *ego network* of a node is the subgraph made up of the node, its neighbors, and the edges among
+them. It is the basic unit of personal network analysis: who are this person's contacts, and how do
+they know each other? [`ego_graph()`](../reference/Graph.ego_graph.qmd) extracts it, and
+`radius=` widens it to the neighbors of neighbors and beyond:
+
+```{python}
+ego = karate.ego_graph(34)
+ego.count_nodes(), ego.count_edges(), karate.ego_graph(34, radius=2).count_nodes()
+```
+
+The administrator has 17 friends, and with them a neighborhood of 18 members. Within two steps,
+the neighborhood grows to 24 of the club's 34 members. With `center=False`, the ego network leaves
+out the central node itself, which shows how the contacts are linked without it:
+
+```{python}
+alters = karate.ego_graph(34, center=False)
+[len(component) for component in alters.weakly_connected_components()]
+```
+
+Without the administrator, 14 of the administrator's friends still form one group, while the other
+three know none of the rest. Those three depend on the administrator for any connection to the
+group, a position that the structural holes measures of [Centrality](13-centrality.qmd) quantify.
+On a directed graph, `mode=` chooses whether the neighborhood follows edges out of the node, into
+it, or both, and on a weighted graph the radius is a total edge weight rather than a number of
+steps.
+
+## Changing direction
+
+[`to_undirected()`](../reference/Graph.to_undirected.qmd) drops edge directions, which many
+algorithms require, and which suits relations whose direction doesn't matter for the question at
+hand. When a directed graph has edges in both directions between two nodes, they become a single
+undirected edge:
+
+```{python}
+votes = ec.wiki_vote()
+undirected = votes.to_undirected()
+votes.count_edges(), undirected.count_edges()
+```
+
+The election network has 2,927 pairs of users who voted for each other, and each pair becomes a
+single edge. The kept edge is the one that was added first, with its weight and attributes; the
+weight of the reverse edge is not added to it, so combine weights beforehand if that matters.
+
+[`to_directed()`](../reference/Graph.to_directed.qmd) goes the other way, and replaces each
+undirected edge with a pair of opposite directed edges, so that the karate club's 78 friendships
+become 156 directed ties:
+
+```{python}
+karate.to_directed().count_edges()
+```
+
+[`reverse()`](../reference/Graph.reverse.qmd) flips the direction of every edge, so that "cites"
+becomes "is cited by" and the nodes that a node can reach become the nodes that can reach it. It is
+the way to run a forward-only method, such as a traversal, against the direction of the edges.
+[`moral_graph()`](../reference/Graph.moral_graph.qmd) is a specialized conversion for Bayesian
+networks, which links the parents of each node before dropping the directions (see
+[Directed acyclic graphs](17-dags.qmd)).
+
+## Cleaning up
+
+[Building graphs](04-building-graphs.qmd#cleaning-up) describes the methods that
+remove self-loops and duplicate edges: `remove_selfloops()`, `remove_duplicate_edges()`, and
+`simplify()`, which does both. Unlike the transformations on this page, they modify the graph in
+place. To keep the original, take a copy first with a subgraph of all the nodes (`limit=None`
+lifts the default limit of 1,000 IDs from `get_node_ids()`):
+
+```{python}
+grqc = ec.ca_grqc()
+simple = grqc.subgraph(grqc.get_node_ids(limit=None)).simplify()
+grqc.count_edges(), simple.count_edges()
+```
+
+The co-authorship network records each pair of co-authors twice, once in each direction, so
+simplifying the copy roughly halves its edges and leaves the original intact.
+[`relabel_nodes()`](../reference/Graph.relabel_nodes.qmd), also in place, renames nodes without
+changing their IDs, as described in [The graph model](03-graph-model.qmd).
+
+## Merging nodes
+
+Two nodes sometimes stand for the same thing: two records of one person, two stops that are really
+one station, or two families joined by marriage that act as one. *Contracting* them replaces them
+with a single node that has the edges of both.
+[`contract_nodes()`](../reference/Graph.contract_nodes.qmd) merges its second node into its first.
+In the Florentine families network, the Tornabuoni were close allies of the Medici:
+
+```{python}
+florentine = ec.florentine_families()
+merged = florentine.contract_nodes("Medici", "Tornabuoni", self_loops=False)
+merged.count_nodes(), [merged.get_label_from_id(node) for node in merged.neighbors("Medici")]
+```
+
+The merged Medici node has taken over the Tornabuoni's marriage tie to the Guadagni, while the
+tie to the Ridolfi, which both families had, appears only once. The edge between the two merged
+nodes would become a self-loop; `self_loops=False` drops it.
+[`contracted_edge()`](../reference/Graph.contracted_edge.qmd) does the same but requires the two
+nodes to be linked, and [`contract_nodes_multi()`](../reference/Graph.contract_nodes_multi.qmd)
+merges a whole list of nodes into the first.
+
+[`quotient_graph()`](../reference/Graph.quotient_graph.qmd) collapses every group of a partition
+at once, giving a zoomed-out graph with one node per group and an edge wherever any edge ran
+between two groups. Collapsing the karate club by faction:
+
+```{python}
+by_faction = [
+    karate.get_node_df().filter(pl.col("faction") == value)["id"].to_list() for value in [1, 2]
+]
+quotient = karate.quotient_graph(by_faction)
+quotient.get_node_df()
+```
+
+The quotient nodes are labelled `"block_0"`, `"block_1"`, and so on, in the order of the groups,
+and the `members` attribute lists the original nodes of each. Quotient graphs are most useful with
+many groups, such as the communities found by a detection method, where they show which groups
+are linked to which; [Community detection](14-communities.qmd) has an example.
+[`condensation()`](../reference/Graph.condensation.qmd) is the special case for directed graphs
+that collapses each strongly connected component (see [Connectivity and flows](16-connectivity.qmd)).
+
+## Derived graphs
+
+Some transformations build a different kind of graph from the original.
+
+The *complement* links exactly the pairs that are not linked in the original. A clique in a graph
+is an independent set in its complement, so the complement turns problems about one into problems
+about the other. [`complement()`](../reference/Graph.complement.qmd) returns it:
+
+```{python}
+karate.complement().count_edges()
+```
+
+The complement of the karate club has 483 edges, one for each pair of members who are not friends.
+
+The *line graph* turns edges into nodes: each edge of the original becomes a node, and two nodes
+are linked when their edges share an endpoint. This lets any method for nodes be applied to edges,
+for example community detection to find overlapping communities, or centrality to find the most
+important links. [`line_graph()`](../reference/Graph.line_graph.qmd) labels each new node by the
+IDs of the original endpoints, and records the original edge in its attributes:
+
+```{python}
+line = karate.line_graph()
+line.get_node_df().sort("degree", descending=True).head(3)
+```
+
+The friendship between the administrator and member `"32"` (IDs 34 and 33) touches 27 other
+friendships, more than any other, since both of its ends are well connected. Line graphs can be
+much larger than the original graph: a node with `d` edges contributes `d(d - 1)/2` edges to the
+line graph, so the 78 friendships give 528 links.
+
+The *k-th power* of a graph links every pair of nodes within `k` steps of each other. The square
+of a social network links friends of friends, and in radio networks it describes which transmitters
+interfere through a shared neighbor. [`power()`](../reference/Graph.power.qmd) builds it:
+
+```{python}
+square = karate.power(2)
+square.count_edges(), karate.get_diameter(), square.get_diameter()
+```
+
+The square of the karate club has 343 edges, and its diameter falls from 5 steps to 3, since each
+step of the square covers two of the original.
+
+A *projection* turns a two-mode network, such as people and the events they attend, into a
+one-mode network of one kind of node, in which two nodes are linked when they share a neighbor of
+the other kind. [`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) weights each
+link by the number of shared neighbors. Projecting the Southern Women network onto its 14 events:
+
+```{python}
+events = ec.davis_southern_women().bipartite_projection(which=1)
+events.count_nodes(), events.count_edges()
+```
+
+The 14 events form 66 of the 91 possible pairs, linked by women who attended both. The projection
+onto the women is shown in [Datasets](06-datasets.qmd), and [Network biology](31-network-biology.qmd)
+covers projections of gene–disease and similar networks.
+
+### Spanners
+
+A *spanner* is a sparse subgraph that keeps distances approximately. With a stretch of `t`, the
+distance between any two nodes in the spanner is at most `t` times their distance in the original,
+so a spanner can stand in for a dense network when approximate distances are enough.
+[`transform_with_spanner()`](../reference/Graph.transform_with_spanner.qmd) builds one with a
+randomized algorithm:
+
+```{python}
+jazz = ec.jazz().simplify()
+spanner = jazz.transform_with_spanner(stretch=3, seed=1)
+(
+    spanner.count_edges(),
+    jazz.count_edges(),
+    round(jazz.get_mean_distance(), 2),
+    round(spanner.get_mean_distance(), 2),
+)
+```
+
+The spanner keeps 381 of the jazz network's 2,742 edges, 14% of them, and the mean distance between
+musicians rises from 2.24 steps to 3.43. Every distance at least stays within the guaranteed factor
+of three. The construction is fast on graphs of a few thousand edges but slows considerably on
+larger ones.
+
+## Combining graphs
+
+### Set operations
+
+Graphs that describe the same nodes can be combined edge by edge, like sets.
+[`union()`](../reference/Graph.union.qmd) keeps the edges of both graphs,
+[`intersection()`](../reference/Graph.intersection.qmd) the edges they share,
+[`difference()`](../reference/Graph.difference.qmd) the edges of the first that are not in the
+second, and [`symmetric_difference()`](../reference/Graph.symmetric_difference.qmd) the edges in
+exactly one of them. They are the natural tools for comparing snapshots of a network, or for
+merging data sources.
+
+These operations match nodes by **ID**, not by label. Two graphs built independently from edge
+lists number their nodes in the order they first appear, so the same person can get different IDs
+in each. The safe pattern is to build every graph on the same list of nodes, added in the same
+order, before adding its edges:
+
+```{python}
+people = ["Ana", "Ben", "Cleo", "Dev", "Eli"]
+
+
+def contacts(edges):
+    return ec.Graph().add_nodes(people).add_edges(edges)
+
+
+def named_edges(graph):
+    label = graph.get_label_from_id
+    return [(label(source), label(target)) for _, source, target in graph.get_edges_as_tuples()]
+
+
+march = contacts([("Ana", "Ben"), ("Ben", "Cleo"), ("Cleo", "Dev"), ("Ana", "Cleo")])
+june = contacts([("Ana", "Ben"), ("Ben", "Cleo"), ("Dev", "Eli"), ("Cleo", "Eli")])
+
+(
+    named_edges(march.intersection(june)),
+    named_edges(march.difference(june)),
+    named_edges(june.difference(march)),
+)
+```
+
+Two contacts lasted from March to June, two ended, and two began. The intersection and the
+differences drop nodes that are left without edges, while the union keeps every node of both
+graphs. Where both graphs give the same node or edge a label, an attribute, or a weight, `union()`
+keeps the value from the graph it is called on; [`compose()`](../reference/Graph.compose.qmd) is
+the same operation with the other graph's values taking precedence, which suits applying a batch of
+updates to a base network. [`union_all()`](../reference/Graph.union_all.qmd),
+[`compose_all()`](../reference/Graph.compose_all.qmd), and [`intersection_all()`](../reference/Graph.intersection_all.qmd)
+combine any number of graphs, given as a list, as in `ec.Graph.union_all([march, june])`.
+
+### Side by side
+
+[`disjoint_union()`](../reference/Graph.disjoint_union.qmd) puts two graphs side by side without
+merging any nodes. The second graph's IDs are shifted above the first's, and labels that would
+clash get a numeric suffix:
+
+```{python}
+pentagon = ec.Graph().add_cycle_graph(n=5)
+pentagon.disjoint_union(pentagon).get_node_df()["label"].to_list()
+```
+
+[`full_join()`](../reference/Graph.full_join.qmd) also keeps the two graphs separate, and then
+links every node of one to every node of the other. Joining a cycle to a single node makes a wheel:
+
+```{python}
+wheel = pentagon.full_join(ec.Graph().add_node("hub"))
+wheel.is_isomorphic(ec.Graph().add_wheel_graph(n=6))
+```
+
+### Products
+
+A *graph product* builds a graph whose nodes are pairs, one node from each factor. The products
+differ in which pairs they link. In the *Cartesian product*, two pairs are linked when they agree in
+one coordinate and are linked in the other, which builds familiar structures from simple pieces: a
+path times a path is a grid, a cycle times a cycle is a torus, and repeated products of a single
+edge are hypercubes:
+
+```{python}
+grid = ec.Graph().add_path_graph(n=3).cartesian_product(ec.Graph().add_path_graph(n=4))
+edge = ec.Graph().add_path_graph(n=2)
+cube = edge.cartesian_product(edge).cartesian_product(edge)
+
+(
+    grid.is_isomorphic(ec.Graph().add_grid_2d(rows=3, cols=4)),
+    cube.is_isomorphic(ec.Graph().add_hypercube_graph(3)),
+    grid.get_node_df()["label"].head(4).to_list(),
+)
+```
+
+The nodes of a product are labelled by their pairs of coordinates. A cycle times a path is a
+cylinder, a ring of rings:
+
+```{python}
+cylinder = ec.Graph().add_cycle_graph(n=8).cartesian_product(ec.Graph().add_path_graph(n=3))
+cylinder.plot(show_labels=False, seed=2, width=500, height=400)
+```
+
+Products also model systems made of independent parts: the joint states of two machines, each of
+which changes state one step at a time, form the Cartesian product of their state graphs. The other
+products are these:
+
+| Method | Two pairs `(g, h)` and `(g', h')` are linked when |
+|---|---|
+| [`cartesian_product()`](../reference/Graph.cartesian_product.qmd) | one coordinate is equal and the other is linked |
+| [`tensor_product()`](../reference/Graph.tensor_product.qmd) | both coordinates are linked |
+| [`strong_product()`](../reference/Graph.strong_product.qmd) | either of the above |
+| [`lexicographic_product()`](../reference/Graph.lexicographic_product.qmd) | `g` and `g'` are linked, or `g = g'` and `h` and `h'` are linked |
+| [`modular_product()`](../reference/Graph.modular_product.qmd) | both coordinates are linked, or neither is (used to find common subgraphs) |
+| [`corona_product()`](../reference/Graph.corona_product.qmd) | a copy of the second graph is attached to every node of the first |
+| [`rooted_product()`](../reference/Graph.rooted_product.qmd) | a copy of a rooted graph hangs from every node of the first |
+
+## Summary
+
+| Task | Methods |
+|---|---|
+| Keep part of a graph | `subgraph()`, `edge_subgraph()`, `ego_graph()`, `transform_to_subgraph_ws()`, `k_core()` |
+| Change direction | `to_undirected()`, `to_directed()`, `reverse()`, `moral_graph()` |
+| Clean up (in place) | `simplify()`, `remove_selfloops()`, `remove_duplicate_edges()`, `relabel_nodes()` |
+| Merge nodes | `contract_nodes()`, `contracted_edge()`, `contract_nodes_multi()`, `quotient_graph()`, `condensation()` |
+| Derive a new graph | `complement()`, `line_graph()`, `power()`, `bipartite_projection()`, `transform_with_spanner()`, `transitive_closure()`, `transitive_reduction()` |
+| Combine graphs over the same nodes | `union()`, `compose()`, `intersection()`, `difference()`, `symmetric_difference()` |
+| Combine separate graphs | `disjoint_union()`, `full_join()`, and the products |
