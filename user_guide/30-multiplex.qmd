@@ -1,0 +1,375 @@
+---
+title: Multiplex networks
+guide-section: "Specialized topics"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+The same set of people, places, or molecules is often linked in more than one way. Colleagues work
+together, ask each other for advice, and are friends; cities are joined by roads, railways, and
+flights; genes interact physically, are expressed together, and modify each other's effects. A
+network with several kinds of tie among the same nodes is a *multiplex* network, and each kind of
+tie forms one of its *layers*.
+
+Analyzing the layers separately misses how they combine, and merging them into a single network
+loses the differences between them. EdgeCase supports both views and the steps in between. A single
+graph can hold every layer at once, with the edge `rel` naming each edge's layer, and the
+[`MultiplexGraph`](../reference/MultiplexGraph.qmd) class holds the layers as separate graphs on a
+shared set of nodes, with methods that analyze them together. This page builds a small multiplex
+network and shows both.
+
+## A multiplex network
+
+Consider a small consultancy of twelve people in two teams, strategy and data, whose ties were
+recorded in a staff survey. The example is constructed for this page. Three kinds of tie were
+asked about: who worked on a project together in the past year, who are friends, and who regularly
+discuss work problems and ask each other for advice. The ties are recorded as mutual, so all three
+layers are undirected:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+staff = {
+    "Ana": "strategy", "Ben": "strategy", "Cara": "strategy",
+    "Dev": "strategy", "Eli": "strategy", "Fay": "strategy",
+    "Gus": "data", "Hana": "data", "Ivo": "data",
+    "Jun": "data", "Kai": "data", "Lea": "data",
+}
+
+ties = {
+    "project": [
+        ("Ana", "Ben"), ("Ana", "Cara"), ("Ben", "Cara"), ("Cara", "Dev"), ("Dev", "Eli"),
+        ("Eli", "Fay"), ("Dev", "Fay"), ("Ben", "Dev"), ("Gus", "Hana"), ("Gus", "Ivo"),
+        ("Hana", "Ivo"), ("Ivo", "Jun"), ("Jun", "Kai"), ("Kai", "Lea"), ("Jun", "Lea"),
+        ("Hana", "Jun"), ("Cara", "Hana"), ("Dev", "Ivo"),
+    ],
+    "friendship": [
+        ("Ben", "Cara"), ("Eli", "Fay"), ("Eli", "Kai"), ("Fay", "Kai"), ("Fay", "Lea"),
+        ("Kai", "Lea"), ("Jun", "Kai"), ("Ben", "Jun"), ("Hana", "Ivo"), ("Ana", "Gus"),
+        ("Dev", "Eli"),
+    ],
+    "advice": [
+        ("Ana", "Ben"), ("Ana", "Cara"), ("Ana", "Dev"), ("Ana", "Eli"), ("Ana", "Fay"),
+        ("Gus", "Hana"), ("Gus", "Ivo"), ("Gus", "Jun"), ("Gus", "Kai"), ("Gus", "Lea"),
+        ("Ana", "Gus"), ("Hana", "Cara"), ("Hana", "Dev"), ("Hana", "Ben"),
+    ],
+}
+```
+
+Ana leads the strategy team and Gus the data team, and Hana is the data team's most experienced
+analyst. The two representations are built from these dictionaries in turn.
+
+## One graph with typed edges
+
+The simplest representation is a single graph in which every tie is an edge, and the edge's `rel`
+records the layer it belongs to. [`add_edges()`](../reference/Graph.add_edges.qmd) sets the `rel`
+of a whole batch at once. Two people linked in several layers get several parallel edges, one per
+layer, which EdgeCase allows in any graph:
+
+```{python}
+office = ec.Graph(graph_name="office")
+for name, team in staff.items():
+    office.add_node(name, team=team)
+for layer, edges in ties.items():
+    office.add_edges(edges, rel=layer)
+
+office.count_nodes(), office.count_edges()
+```
+
+The 43 edges are the 18 project ties, 11 friendships, and 14 advice ties. The edge table shows the
+layer of each edge in its `rel` column, so a layer is a filter on that column, and the methods that
+accept a `rel` filter, as well as Cypher queries, can read one layer or combine several (see
+[Node and edge data](07-node-and-edge-data.qmd#types-and-relationship-types)):
+
+```{python}
+office.get_edge_df().group_by("rel", maintain_order=True).len()
+```
+
+Cypher patterns name relationship types directly, which makes questions across layers easy to ask.
+The pairs who work together and are also friends:
+
+```{python}
+office.match(
+    "MATCH (a)-[:project]-(b), (a)-[:friendship]-(b) WHERE a.name < b.name RETURN a.name, b.name"
+)
+```
+
+Six of the eighteen project partnerships are also friendships. The condition `a.name < b.name`
+keeps one row per pair, since an undirected pattern matches each pair in both directions.
+[Cypher queries](10-cypher.qmd) describes the query language.
+
+### Describing the layers together
+
+Multiplex networks have measures of their own, which describe how the layers relate. All of them
+can be computed from the edge table with Polars, once the endpoints are given as labels. The
+*multiplexity* of a pair is the number of layers in which the two are linked. Writing each pair
+with its two names in alphabetical order lets `group_by()` collect the layers of each pair:
+
+```{python}
+label_of = dict(office.get_node_df().select("id", "label").iter_rows())
+edges = office.get_edge_df().with_columns(
+    pl.col("source", "target").replace_strict(label_of, return_dtype=pl.String)
+)
+pairs = (
+    edges.with_columns(
+        a=pl.min_horizontal("source", "target"), b=pl.max_horizontal("source", "target")
+    )
+    .group_by("a", "b")
+    .agg(pl.col("rel").sort().alias("layers"), pl.len().alias("multiplexity"))
+    .sort("multiplexity", "a", "b", descending=[True, False, False])
+)
+pairs
+```
+
+The 43 ties link 31 different pairs. Twelve pairs are linked in two layers and none in all three,
+and the combinations show how the layers relate: work and friendship overlap among peers, such as
+Ben and Cara, while work and advice overlap where a leader works with a team member, such as Ana and
+Ben. The overlap between two layers can be measured directly with the Jaccard index of their sets
+of pairs, the share of the pairs linked in either layer that are linked in both:
+
+```{python}
+from itertools import combinations
+
+
+def pair_set(layer):
+    rows = edges.filter(pl.col("rel") == layer).select(
+        a=pl.min_horizontal("source", "target"), b=pl.max_horizontal("source", "target")
+    )
+    return set(rows.iter_rows())
+
+
+layer_pairs = {layer: pair_set(layer) for layer in ties}
+{
+    (x, y): round(len(layer_pairs[x] & layer_pairs[y]) / len(layer_pairs[x] | layer_pairs[y]), 3)
+    for x, y in combinations(ties, 2)
+}
+```
+
+Project work overlaps most with friendship and somewhat with advice, while friendship and advice
+share only a single pair, Ana and Gus. In this office, people ask advice of the team leaders and
+of Hana rather than of their friends.
+
+### Degrees by layer
+
+A node's degree can be counted in each layer separately. `pivot()` turns the endpoints of the edges
+into a table of degrees, with one row per person and one column per layer:
+
+```{python}
+ends = pl.concat(
+    [edges.select(node="source", layer="rel"), edges.select(node="target", layer="rel")]
+)
+degrees = (
+    ends.pivot(on="layer", index="node", values="layer", aggregate_function="len")
+    .fill_null(0)
+    .sort("node")
+)
+degrees
+```
+
+The table shows different roles at a glance. Ana and Gus have most of their ties in the advice
+layer, Kai's are mostly friendships, and Dev is the busiest collaborator. The *participation
+coefficient* summarizes how evenly a node's ties are spread over the layers. For *M* layers, it is
+*M* / (*M* − 1) times one minus the sum of the squared shares of the node's ties in each layer, so
+it is 0 for a node whose ties are all in one layer and 1 for a node whose ties are spread evenly
+over all of them:
+
+```{python}
+n_layers = len(ties)
+(
+    ends.group_by("node", "layer")
+    .len()
+    .with_columns(share=pl.col("len") / pl.col("len").sum().over("node"))
+    .group_by("node")
+    .agg(
+        ties=pl.col("len").sum(),
+        participation=n_layers / (n_layers - 1) * (1 - (pl.col("share") ** 2).sum()),
+    )
+    .sort("participation", descending=True)
+)
+```
+
+Ben, with three project ties, two friendships, and two advice ties, takes part most evenly in all
+three layers. The two team leaders have the lowest participation, since their roles concentrate
+their ties in a single layer. Measures like this distinguish people whom a single aggregated
+network would treat alike: Ana, Gus, and Hana all have nine ties, but of very different kinds.
+
+### Drawing the layers
+
+Layers are easiest to compare when they are drawn with the same positions for the nodes, so that
+each picture shows a different set of edges on the same map. A layout computed once for the whole
+office, stored in the `pos` attribute, can be given to every layer (see [Layouts](23-layouts.qmd)).
+The layers themselves are built as separate graphs, each with all twelve people:
+
+```{python}
+office.layout_spring(seed=3)
+positions = dict(office.get_node_df().select("label", "pos").iter_rows())
+
+
+def build_layer(edges):
+    layer = ec.Graph()
+    for name, team in staff.items():
+        layer.add_node(name, team=team)
+    layer.add_edges(edges)
+    layer.set_node_attrs("pos", positions)
+    return layer
+
+
+layers = {name: build_layer(edges) for name, edges in ties.items()}
+layers["project"].plot(
+    layout="pos", color_by="team", palette="Set2", label_by="label", node_size=11, height=340
+)
+```
+
+The project layer shows the two teams, each a dense cluster, linked by the two cross-team projects
+of Cara and Hana and of Dev and Ivo. The friendship layer, drawn on the same map, cuts across the
+teams:
+
+```{python}
+layers["friendship"].plot(
+    layout="pos", color_by="team", palette="Set2", label_by="label", node_size=11, height=340
+)
+```
+
+Five of the eleven friendships link the two teams: three within a group of friends around Kai, Fay,
+Eli, and Lea, one between Ben and Jun, and one between the two leaders, Ana and Gus. The advice
+layer, finally, is a pair of stars, centered on Ana and Gus, with Hana as a third source of advice
+for the strategy team:
+
+```{python}
+layers["advice"].plot(
+    layout="pos", color_by="team", palette="Set2", label_by="label", node_size=11, height=340
+)
+```
+
+## The MultiplexGraph class
+
+[`MultiplexGraph`](../reference/MultiplexGraph.qmd) holds a set of layers as separate `Graph`
+objects, keyed by layer name, and provides methods that analyze all of them at once. Every layer
+must contain exactly the same node labels, which is why each layer above has all twelve people,
+including those without ties in that layer. The layer graphs keep their own node and edge
+attributes:
+
+```{python}
+office_mpx = ec.MultiplexGraph(layers)
+office_mpx
+```
+
+`layer_names` lists the layers, `layers` returns the dictionary of layer graphs, `get_layer()`
+returns one layer by name, and `count_nodes()`, `count_layers()`, and `node_labels()` describe the
+shared nodes. Each layer is an ordinary graph, so every EdgeCase method works on it:
+
+```{python}
+office_mpx.get_layer("advice").pagerank(return_dict=True)[1]
+```
+
+The scores are keyed by node ID, and Ana is node 1. Her PageRank in the advice layer alone is
+about 0.2, more than twice the average of 1/12. Building a
+`MultiplexGraph` from layers whose node labels differ raises a `ValueError`, which catches layers
+built from inconsistent data before any analysis runs. A node that is missing from a layer should be
+added to it as an isolated node.
+
+### PageRank across layers
+
+`multiplex_pagerank()` ranks the nodes by all
+the layers together. It adds the layers into a single weighted network, in which each tie counts
+with the weight of its layer, and runs PageRank on the result. With `return_dict=True`, it returns
+the scores keyed by node label:
+
+```{python}
+combined = office_mpx.multiplex_pagerank(return_dict=True)
+sorted(combined.items(), key=lambda item: -item[1])[:4]
+```
+
+With all layers weighted equally, Gus, Ana, and Hana are almost tied at the top, each with nine
+ties in total, while Dev, the busiest collaborator, comes fourth. `layer_weights=` sets how much
+each layer counts, which turns the ranking into an answer to a specific question. Who matters most
+for getting work done, counting advice twice and ignoring friendship?
+
+```{python}
+work = office_mpx.multiplex_pagerank(
+    layer_weights={"project": 1.0, "friendship": 0.0, "advice": 2.0}, return_dict=True
+)
+sorted(work.items(), key=lambda item: -item[1])[:4]
+```
+
+The three sources of advice now pull clearly ahead, with scores between 0.12 and 0.15 against 0.095
+for Dev, since the advice ties that lead to them count twice and the friendships that spread the
+scores across the office don't count at all. A layer omitted from `layer_weights=` counts with
+weight 1. `damping=`, `max_iter=`, and `tol=` work as in
+[`pagerank()`](../reference/Graph.pagerank.qmd).
+
+### Communities across layers
+
+`multiplex_community_detection()`
+finds communities in the same weighted sum of the layers, with the Louvain method by default or
+Walktrap with `method="walktrap"`. The results are keyed by node label, so they can be stored on any
+of the layers, or on the office graph, with `set_node_attrs()`:
+
+```{python}
+groups = office_mpx.multiplex_community_detection(return_dict=True)
+office.set_node_attrs("multiplex_cmty", groups)
+office.get_node_df().group_by("multiplex_cmty").agg(pl.col("label")).sort("multiplex_cmty")
+```
+
+With every layer counted, the communities follow the teams, and each team splits into two working
+groups. Weighting the layers differently finds different structure. Counting only friendship, the
+communities are circles of friends instead, and the friends around Kai, Fay, Eli, and Lea form a
+community that spans both teams:
+
+```{python}
+friends = office_mpx.multiplex_community_detection(
+    layer_weights={"project": 0.0, "friendship": 1.0, "advice": 0.0}, return_dict=True
+)
+office.set_node_attrs("friend_cmty", friends)
+office.get_node_df().group_by("friend_cmty").agg(pl.col("label")).sort("friend_cmty")
+```
+
+`resolution=` controls the size of the Louvain communities, as in
+[`cmty_louvain()`](../reference/Graph.cmty_louvain.qmd), with higher values giving more and smaller
+communities. [Community detection](14-communities.qmd) describes both methods.
+
+## Flattening layers yourself
+
+Both `MultiplexGraph` methods work on the weighted sum of the layers. Building that sum directly,
+as an ordinary weighted graph, opens the rest of EdgeCase to the combined network. The multiplexity
+table computed above already has one row per pair and the number of layers linking it, which
+becomes the weight:
+
+```{python}
+flat = ec.from_pandas_edgelist(
+    pairs.rename({"multiplexity": "weight"}), source="a", target="b", edge_attr="weight"
+)
+flat.count_nodes(), flat.count_edges(), flat.is_weighted()
+```
+
+The 31 pairs become 31 weighted edges, and any method that reads weights as tie strengths, such
+as [`pagerank()`](../reference/Graph.pagerank.qmd) or the community detection methods, now treats a
+tie that spans two layers as twice as strong. For methods that read weights as distances, such as
+the shortest paths and betweenness, a stronger tie should be a shorter one, so the weight is better
+inverted first, as described in [Paths and distances](12-paths.qmd). A weighted sum with other
+layer weights is a `group_by()` on the edge table with a weight looked up for each `rel`.
+
+Flattening is also the route for large networks. The `MultiplexGraph` methods are implemented in
+Python, and suit networks of up to a few hundred nodes, while the flattened graph can use the Rust
+implementations of every EdgeCase method, at any size.
+
+## Summary
+
+| Task | Approach |
+|---|---|
+| Hold all layers in one graph | one edge per tie, with `rel` naming the layer, via `add_edges(rel=)` |
+| Query across layers | Cypher patterns with relationship types, such as `[:project]` and `[:friendship]` |
+| Multiplexity and layer overlap | `group_by()` on the edge table, with the pairs in a fixed order |
+| Degrees and participation by layer | `pivot()` and `group_by()` on the endpoints of the edges |
+| Compare layers visually | one layout, stored in `pos` and shared by every layer |
+| Hold layers as separate graphs | `MultiplexGraph({name: graph, ...})`, with identical node labels |
+| Rank nodes across layers | `multiplex_pagerank(layer_weights=)` |
+| Find communities across layers | `multiplex_community_detection(layer_weights=, method=)` |
+| Use any method on the combined network | a weighted graph of the pairs, with multiplexity as weight |
