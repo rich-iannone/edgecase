@@ -1,0 +1,335 @@
+---
+title: Graph generators
+guide-section: "Building graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Generators build graphs from a recipe instead of from data. A few parameters describe a whole
+family of graphs: a grid of a given size, a tree of a given depth, or a random network with a given
+number of nodes and a given chance of an edge between any two. Generated graphs are the standard
+material for testing algorithms, for teaching, for benchmarks, and for null models that tell you
+whether a pattern in real data is more than chance.
+
+EdgeCase has nearly a hundred generators. Most of them are `Graph` methods whose names start with
+`add_`, because they *add* the generated structure to the graph they are called on. On an empty
+graph that simply builds the structure, and on a graph that already has nodes, it adds a new
+component beside them.
+
+## The common pattern
+
+Calling a generator on an empty `Graph` is the usual way to start:
+
+```{python}
+import edgecase as ec
+
+grid = ec.Graph().add_grid_2d(rows=3, cols=4)
+grid
+```
+
+The deterministic generators share three optional arguments:
+
+- `type=` sets the `type` of every new node,
+- `rel=` sets the `rel` of every new edge, and
+- `label=` controls labels. By default each new node is labelled with its ID as a string (`"1"`,
+  `"2"`, and so on), or with a label that describes its position when the structure has a natural
+  one. `label=False` leaves the nodes unlabelled.
+
+The grid's nodes are labelled by their row and column:
+
+```{python}
+grid.get_node_df().head(5)
+```
+
+Because generators add to an existing graph, several can be combined in one graph. Here two cycles
+of different types sit side by side in one graph, each as its own component. Their labels are
+their IDs, so the two sets of labels don't collide:
+
+```{python}
+rings = (
+    ec.Graph()
+    .add_cycle_graph(n=4, type="small", rel="ring")
+    .add_cycle_graph(n=6, type="large", rel="ring")
+)
+rings.count_weakly_connected_components(), rings.get_node_df()["label"].to_list()
+```
+
+The graph has two components, and the six-node cycle's labels continue from 5, where the first
+cycle's left off.
+
+## Deterministic structures
+
+These generators always produce the same graph for the same arguments.
+
+| Family | Methods |
+|---|---|
+| Paths, cycles, stars, wheels | `add_path_graph()`, `add_cycle_graph()`, `add_star_graph()`, `add_wheel_graph()` |
+| Complete graphs | `add_full_graph()`, `add_complete_bipartite_graph()`, `add_complete_multipartite_graph()`, `add_turan_graph()` |
+| Trees | `add_balanced_tree()`, `add_binomial_tree()`, `add_full_rary_tree()` |
+| Lattices | `add_grid_2d()`, `add_grid_graph()` (any dimension, optionally periodic), `add_triangular_lattice_graph()`, `add_hexagonal_lattice_graph()`, `add_hypercube_graph()` |
+| Composite shapes | `add_barbell_graph()`, `add_lollipop_graph()`, `add_tadpole_graph()`, `add_windmill_graph()`, `add_ladder_graph()`, `add_prism_graph()` |
+| Algebraic families | `add_circulant_graph()`, `add_kneser_graph()`, `add_johnson_graph()`, `add_generalized_petersen_graph()`, `add_lcf_graph()`, `add_mycielski_graph()` |
+| Expanders | `add_margulis_gabber_galil_graph()`, `add_chordal_cycle_graph()`, `add_paley_graph()` |
+| Puzzles | `add_sudoku_graph()` |
+
+A balanced tree, for example, takes a branching factor `k` and a height `h`:
+
+```{python}
+tree = ec.Graph().add_balanced_tree(k=2, h=3)
+tree.count_nodes(), tree.is_tree()
+```
+
+The barbell graph, two complete graphs joined by a path, is a classic stress test for algorithms
+that rely on short paths: random walks get trapped in one bell or the other, and the nodes on the
+bar have high betweenness despite their low degree:
+
+```{python}
+ec.Graph().add_barbell_graph(m1=5, m2=3).plot(size_by="degree", seed=2, width=500, height=300)
+```
+
+Generators for bipartite and multipartite graphs record which part each node belongs to in a node
+attribute, `part` by default (change it with `part_attr=`):
+
+```{python}
+k34 = ec.Graph().add_complete_bipartite_graph(n1=3, n2=4)
+k34.get_node_df()
+```
+
+### Named graphs
+
+[`add_named_graph()`](../reference/Graph.add_named_graph.qmd) adds one of about thirty graphs that
+are famous enough to have names: the Platonic solids, the small cages, and standard examples and
+counterexamples. The Petersen graph is the most famous of all, a 3-regular graph on ten nodes that
+is a counterexample to many plausible-sounding conjectures:
+
+```{python}
+petersen = ec.Graph().add_named_graph("petersen")
+petersen.is_regular(), petersen.get_girth(), petersen.chromatic_number_upper_bound()
+```
+
+It is regular, its shortest cycle has length 5, and a greedy coloring colors it with three colors
+(which is optimal, since its 5-cycles rule out two). The Krackhardt kite is
+another useful one: a ten-node network built so that degree, betweenness, and closeness centrality
+each pick out a different most central node.
+
+```{python}
+ec.Graph().add_named_graph("krackhardt kite").plot(label_by="id", node_size=12, seed=4)
+```
+
+Names ignore case, and spaces or hyphens can stand in for underscores. The reference page lists
+every available name.
+
+### Every small graph
+
+Two methods enumerate graphs rather than build one. `atlas_graphs()` returns all 1,253 graphs on
+up to seven nodes from *An Atlas of Graphs*, in the book's order, and `add_atlas_graph()` adds
+one of them by index. `iter_nonisomorphic_trees()` yields every distinct tree with a given number
+of nodes, which is handy for testing an algorithm exhaustively on small inputs:
+
+```{python}
+trees = list(ec.Graph().iter_nonisomorphic_trees(order=6))
+len(trees), [max(t.degrees(return_dict=True).values()) for t in trees]
+```
+
+There are six trees on six nodes, from the path (maximum degree 2) to the star (maximum degree 5).
+
+## Random graphs
+
+Random generators take a `seed=` argument. With a seed, the same call gives the same graph every
+time, which is what you want in tests, documentation, and any analysis that needs to be
+reproducible. Without one, each call gives a different graph.
+
+```{python}
+a = ec.Graph().add_gnp_graph(n=30, p=0.1, seed=11)
+b = ec.Graph().add_gnp_graph(n=30, p=0.1, seed=11)
+a.get_edges_as_tuples() == b.get_edges_as_tuples()
+```
+
+Some of the older random generators (`add_gnp_graph()`, `add_gnm_graph()`, `add_pa_graph()`, and
+`add_smallworld_graph()`) leave their nodes unlabelled, so refer to their nodes by ID.
+
+### The classic models
+
+Each classic model explains a different feature of real networks:
+
+| Model | Method | What it produces |
+|---|---|---|
+| Erdős–Rényi G(n, p) | `add_gnp_graph()` | every possible edge present independently with probability `p` |
+| Erdős–Rényi G(n, m) | `add_gnm_graph()` | exactly `m` edges, placed uniformly at random |
+| Watts–Strogatz | `add_smallworld_graph()`, `add_newman_watts_strogatz_graph()`, `add_connected_watts_strogatz_graph()` | high clustering together with short paths (small worlds) |
+| Barabási–Albert | `add_pa_graph()`, `add_extended_barabasi_albert_graph()`, `add_dual_barabasi_albert_graph()` | a heavy-tailed degree distribution with a few large hubs (scale-free networks) |
+| Holme–Kim | `add_powerlaw_cluster_graph()` | hubs *and* high clustering |
+| Random regular | `add_random_regular_graph()` | every node with the same degree, otherwise random |
+| Random trees | `add_random_labeled_tree()`, `add_random_powerlaw_tree()`, `add_random_lobster()` | trees drawn at random |
+
+The difference between the models shows up clearly in their degree distributions. A preferential
+attachment graph grows by adding nodes that link preferentially to nodes that already have many
+links, which produces hubs far larger than anything an Erdős–Rényi graph of the same size and
+density would contain:
+
+```{python}
+pa = ec.Graph().add_pa_graph(n=500, m=2, seed=1)
+er = ec.Graph().add_gnm_graph(n=500, m=pa.count_edges(), seed=1)
+
+max(pa.degrees(return_dict=True).values()), max(er.degrees(return_dict=True).values())
+```
+
+Both graphs have 500 nodes and the same number of edges, but the largest hub of the preferential
+attachment graph has more than five times the degree of the busiest node in the random graph.
+
+A small-world graph starts as a ring in which each node is linked to its `k` nearest neighbors, and
+then rewires each edge with probability `p`. Even a little rewiring shortens paths dramatically
+while leaving most of the local clustering intact:
+
+```{python}
+for p in [0.0, 0.05, 0.5]:
+    sw = ec.Graph().add_smallworld_graph(n=200, k=6, p=p, seed=3)
+    print(f"p={p:<4}  clustering={sw.get_transitivity():.3f}  mean distance={sw.get_mean_distance():.2f}")
+```
+
+Rewiring 5% of the edges cuts the mean distance between nodes by more than two thirds, while the
+clustering barely changes. Rewiring half of them leaves a graph that is close to random, with short
+paths but little clustering.
+
+### Degree sequences
+
+Sometimes the degree of every node is known and everything else should be random. These
+generators realize a given degree sequence:
+
+- `configuration_model()` pairs up edge "stubs" at random. It can produce self-loops and parallel
+  edges, and it returns a new graph, with nodes labelled `"0"`, `"1"`, and so on.
+- `add_havel_hakimi_graph()` builds a simple graph deterministically, and
+  `add_random_degree_sequence_graph()` a simple graph at random.
+- `add_directed_configuration_model()` and `add_directed_havel_hakimi_graph()` take separate in-
+  and out-degree sequences.
+- `add_joint_degree_graph()` matches the number of edges between nodes of each pair of degrees,
+  and `expected_degree_graph()` matches degrees on average (the Chung–Lu model).
+
+```{python}
+sequence = [4, 3, 3, 2, 2, 1, 1]
+hh = ec.Graph().add_havel_hakimi_graph(sequence)
+sorted(hh.degrees(return_dict=True).values(), reverse=True)
+```
+
+### Null models from an existing graph
+
+A common question about a real network is whether some feature of it, such as its clustering or
+its number of triangles, is more than its degree sequence alone would produce.
+[`random_reference()`](../reference/Graph.random_reference.qmd) answers it by returning a
+randomized copy of a graph in which every node keeps its degree but the wiring is shuffled, by
+repeatedly swapping the endpoints of pairs of edges. Comparing the original with a few randomized
+copies gives the baseline:
+
+```{python}
+dolphins = ec.dolphins()
+shuffled = [dolphins.random_reference(niter=10, seed=s).get_transitivity() for s in range(5)]
+
+round(dolphins.get_transitivity(), 3), [round(t, 3) for t in shuffled]
+```
+
+The dolphins' transitivity (the fraction of connected triples that close into triangles) is more
+than double that of the randomized copies, so their associations close into triangles far more
+often than their degrees alone would explain. The `niter=` argument sets how many times, on
+average, each edge is rewired. By default `random_reference()` keeps the graph connected;
+[`degree_preserving_rewire()`](../reference/Graph.degree_preserving_rewire.qmd) performs a set
+number of swaps, `n_swaps=`, without that restriction.
+[Clustering and motifs](15-clustering-and-motifs.qmd#motifs) uses these randomizations to test the
+significance of triangles and other small patterns.
+
+### Spatial and growth models
+
+Some models place nodes in space and connect the nearby ones. `add_random_geometric_graph()` joins
+nodes within a given radius, and `add_waxman_graph()`, `add_soft_random_geometric_graph()`,
+`add_geographical_threshold_graph()`, and `add_navigable_small_world_graph()` are variations on the
+idea. Except for `add_random_geometric_graph()`, they store each node's coordinates in a `pos`
+attribute, which `plot(layout="pos")` can use to draw the graph in its own space (see
+[Layouts](23-layouts.qmd)):
+
+```{python}
+waxman = ec.Graph().add_waxman_graph(n=40, beta=0.6, alpha=0.15, seed=5)
+waxman.plot(layout="pos", show_labels=False, width=500, height=350)
+```
+
+Others grow a network one node at a time. `add_gn_graph()`, `add_gnr_graph()`, and
+`add_gnc_graph()` grow directed trees and networks, as citations or web links accumulate;
+`add_scale_free_graph()` grows a directed scale-free graph; and `add_duplication_divergence_graph()`
+and `add_partial_duplication_graph()` model the growth of protein interaction networks by gene
+duplication.
+
+### Bipartite models
+
+`add_bipartite_gnp_graph()`, `add_bipartite_gnm_graph()`, `add_bipartite_configuration_model()`,
+`add_bipartite_havel_hakimi_graph()`, and `add_bipartite_preferential_attachment_graph()` build
+random two-part graphs, such as people and the events they attend, and store each node's part in the
+`part` attribute.
+
+## Community benchmarks
+
+To test a community detection method, you need a graph whose communities are known. The benchmark
+generators plant communities and record each node's community in a node attribute, `community` by
+default (change it with `community_attr=`):
+
+| Method | Communities |
+|---|---|
+| `add_caveman_graph()` | disconnected cliques |
+| `add_connected_caveman_graph()`, `add_ring_of_cliques()` | cliques joined in a ring |
+| `add_relaxed_caveman_graph()` | cliques with a fraction of their edges rewired at random |
+| `add_planted_partition_graph()` | equal groups, with edge probabilities `p_in` inside and `p_out` between |
+| `add_random_partition_graph()` | groups of given sizes, with `p_in` and `p_out` |
+| `add_gaussian_random_partition_graph()` | groups of random, normally distributed sizes |
+| `add_lfr_graph()` | the LFR benchmark: power-law degrees and community sizes, with a mixing parameter `mu` |
+| `generate_stochastic_block_model()` | any matrix of edge probabilities between groups |
+
+The planted partition model is the simplest of these. Here are four groups of ten nodes, with
+edges much more likely inside groups than between them:
+
+```{python}
+planted = ec.Graph().add_planted_partition_graph(
+    num_groups=4, group_size=10, p_in=0.5, p_out=0.02, seed=8
+)
+planted.plot(color_by="community", show_labels=False, seed=8, width=500, height=350)
+```
+
+With the true communities stored, a detection method can be checked against them. Running Louvain
+and cross-tabulating its communities against the planted ones shows how well it recovered them:
+
+```{python}
+(
+    planted.cmty_louvain()
+    .get_node_df()
+    .group_by("community", "cmty_louvain")
+    .len()
+    .sort("community", "cmty_louvain")
+)
+```
+
+Each planted community maps onto exactly one detected community, so Louvain recovered the planted
+structure perfectly. Raising `p_out`, or the mixing parameter `mu` of the LFR benchmark, makes the
+communities harder to find. [Community detection](14-communities.qmd) has more on comparing
+methods.
+
+## Graphs from data
+
+A few generators turn other kinds of data into graphs:
+
+- `add_visibility_graph()` turns a time series into a graph in which two time points are joined
+  when the straight line between them passes above every point in between. The structure of the
+  graph reflects the structure of the series: periodic series give regular graphs, and fractal
+  series give scale-free ones.
+- `add_interval_graph()` joins intervals that overlap.
+- `add_prefix_tree()` builds a trie from a list of sequences.
+
+```{python}
+series = [3, 1, 2, 5, 1, 4]
+visibility = ec.Graph().add_visibility_graph(series)
+visibility.get_node_df()
+```
+
+The value of each time point is stored in the `value` attribute. The fourth point, the peak of the
+series at 5, can see every other point, so it has the highest degree.
