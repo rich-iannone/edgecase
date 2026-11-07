@@ -524,9 +524,10 @@ pub fn resistance_distance(graph: &Graph, source: u64, target: u64) -> PyResult<
 /// - For disconnected graphs, distances between components are infinite
 #[pyfunction]
 #[pyo3(signature = (graph))]
-pub fn resistance_distance_matrix(
+pub fn resistance_distance_matrix<'py>(
+    py: Python<'py>,
     graph: &Graph,
-) -> PyResult<std::collections::HashMap<(u64, u64), f64>> {
+) -> PyResult<Bound<'py, pyo3::types::PyDict>> {
     // Validate graph type
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -539,11 +540,9 @@ pub fn resistance_distance_matrix(
 
     // Every pair starts infinite (different components) and same-node pairs are zero;
     // pairs inside a component are filled in from that component's Γ
-    let mut result = std::collections::HashMap::with_capacity(n * n);
-    for (i, &node_i) in setup.node_ids.iter().enumerate() {
-        for (j, &node_j) in setup.node_ids.iter().enumerate() {
-            result.insert((node_i, node_j), if i == j { 0.0 } else { f64::INFINITY });
-        }
+    let mut matrix = vec![f64::INFINITY; n * n];
+    for i in 0..n {
+        matrix[i * n + i] = 0.0;
     }
 
     let mut labels: Vec<usize> = setup.component.clone();
@@ -560,12 +559,19 @@ pub fn resistance_distance_matrix(
             for (b, &j) in members.iter().enumerate() {
                 if a != b {
                     let resistance = (gamma[(a, a)] + gamma[(b, b)] - 2.0 * gamma[(a, b)]).max(0.0);
-                    result.insert((setup.node_ids[i], setup.node_ids[j]), resistance);
+                    matrix[i * n + j] = resistance;
                 }
             }
         }
     }
 
+    // Built in node order rather than from a HashMap, so the key order is the same every call
+    let result = pyo3::types::PyDict::new(py);
+    for (i, &node_i) in setup.node_ids.iter().enumerate() {
+        for (j, &node_j) in setup.node_ids.iter().enumerate() {
+            result.set_item((node_i, node_j), matrix[i * n + j])?;
+        }
+    }
     Ok(result)
 }
 
