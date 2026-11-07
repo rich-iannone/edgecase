@@ -134,9 +134,77 @@ class TestLaplacianCentrality:
         assert isinstance(result, dict)
         assert len(result) == 6
 
-    def test_normalized_sums_to_one(self, barbell):
-        result = barbell.laplacian_centrality(normalized=True, return_dict=True)
-        assert sum(result.values()) == pytest.approx(1.0)
+    def test_normalized_divides_by_laplacian_energy(self):
+        """Path a-b-c has energy 1 + 4 + 1 + 2 * 2 = 10; b's drop is all of it.
+
+        The old code divided by the sum of the drops (22), giving 3/11 and 5/11.
+        """
+        g = ec.Graph(directed=False).add_nodes(list("abc")).add_edges([("a", "b"), ("b", "c")])
+        result = _by_label(g, g.laplacian_centrality(return_dict=True))
+        assert result == pytest.approx({"a": 0.6, "b": 1.0, "c": 0.6})
+        raw = _by_label(g, g.laplacian_centrality(normalized=False, return_dict=True))
+        assert raw == pytest.approx({"a": 6.0, "b": 10.0, "c": 6.0})
+
+    def test_star_hub_takes_all_energy(self, star):
+        result = star.laplacian_centrality(return_dict=True)
+        assert result[star.get_id_from_label("hub")] == pytest.approx(1.0)
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_matches_networkx(self, normalized):
+        for G in _random_graphs(False):
+            g = _from_nx(G)
+            ours = _by_int_label(g, g.laplacian_centrality(normalized=normalized, return_dict=True))
+            if G.number_of_edges() == 0:
+                continue
+            ref = nx.laplacian_centrality(G, normalized=normalized, weight=None)
+            assert ours == pytest.approx(ref, abs=1e-9)
+
+    @pytest.mark.parametrize("normalized", [True, False])
+    def test_weighted_matches_networkx(self, normalized):
+        for G, g in _weighted_cases():
+            if G.is_directed():
+                continue
+            ours = _by_int_label(g, g.laplacian_centrality(normalized=normalized, return_dict=True))
+            ref = nx.laplacian_centrality(G, normalized=normalized, weight="weight")
+            assert ours == pytest.approx(ref, abs=1e-9)
+
+    def test_weighted_flag(self):
+        g = ec.Graph(directed=False, weighted=True).add_nodes(list("abc"))
+        g.add_edges([("a", "b", 3.0), ("b", "c", 1.0)])
+        # Strengths 3, 4, 1; energy 9 + 16 + 1 + 2 * (9 + 1) = 46
+        result = _by_label(g, g.laplacian_centrality(return_dict=True))
+        assert result == pytest.approx({"a": 42 / 46, "b": 1.0, "c": 10 / 46})
+        unweighted = _by_label(g, g.laplacian_centrality(weighted=False, return_dict=True))
+        assert unweighted == pytest.approx({"a": 0.6, "b": 1.0, "c": 0.6})
+        g.laplacian_centrality(weighted=False)
+        assert g._computations[-1] == (
+            "laplacian_centrality",
+            {"normalized": True, "weighted": False},
+            "laplacian_centrality",
+        )
+
+    def test_parallel_edges_sum_and_self_loops_ignored(self):
+        """Matches NetworkX on the multigraph, where parallel edges add into one Laplacian entry."""
+        edges = [(0, 1), (0, 1), (1, 2), (2, 2), (2, 3)]
+        g = ec.Graph(directed=False).add_nodes(["0", "1", "2", "3"])
+        g.add_edges([(str(u), str(v)) for u, v in edges])
+        ours = _by_int_label(g, g.laplacian_centrality(return_dict=True))
+        ref = nx.laplacian_centrality(nx.MultiGraph(edges), weight=None)
+        assert ours == pytest.approx(ref)
+
+    def test_directed_ignores_direction(self):
+        d = ec.Graph(directed=True).add_nodes(list("abc")).add_edges([("a", "b"), ("c", "b")])
+        u = ec.Graph(directed=False).add_nodes(list("abc")).add_edges([("a", "b"), ("b", "c")])
+        assert _by_label(d, d.laplacian_centrality(return_dict=True)) == pytest.approx(
+            _by_label(u, u.laplacian_centrality(return_dict=True))
+        )
+
+    def test_rejects_negative_weights(self):
+        g = ec.Graph(directed=False, weighted=True).add_nodes(list("ab"))
+        g.add_edge("a", "b", weight=-1.0)
+        with pytest.raises(ValueError, match="non-negative"):
+            g.laplacian_centrality()
+        assert g.laplacian_centrality(weighted=False, return_dict=True)
 
     def test_unnormalized_values(self, triangle):
         """For a triangle (all degree 2): ΔE(v) = 4 + 2 + 2*(2+2) = 14."""
@@ -1315,6 +1383,27 @@ class TestWeightedCentralitiesAgainstNetworkX:
             ref = nx.harmonic_centrality(G.reverse() if G.is_directed() else G, distance="weight")
             assert ours == pytest.approx(ref, abs=1e-12)
 
+    def test_pagerank(self):
+        for G, g in _weighted_cases():
+            ours = _by_int_label(g, g.pagerank(tol=1e-13, max_iter=1000, return_dict=True))
+            ref = nx.pagerank(G, tol=1e-15, max_iter=1000)
+            assert ours == pytest.approx(ref, abs=1e-9)
+
+    def test_load(self):
+        """Distinct random weights, so no shortest paths tie (see `test_load_ties_split_evenly`)."""
+        rnd = random.Random(4)
+        for seed in range(20):
+            G = nx.gnp_random_graph(14, 0.25, seed=seed, directed=seed % 2 == 1)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rnd.uniform(0.1, 5.0)
+            g = _build_in_order(G, True)
+            ours = _by_int_label(g, g.load_centrality(return_dict=True))
+            assert ours == pytest.approx(nx.load_centrality(G, weight="weight"), abs=1e-12)
+            cutoff = rnd.uniform(1.0, 6.0)
+            ours = _by_int_label(g, g.load_centrality(cutoff=cutoff, return_dict=True))
+            ref = nx.load_centrality(G, cutoff=cutoff, weight="weight")
+            assert ours == pytest.approx(ref, abs=1e-12)
+
 
 class TestCentralityWeightedFlag:
     def test_follows_graph_by_default_and_can_be_overridden(self):
@@ -1375,6 +1464,53 @@ class TestCentralityWeightedFlag:
         ):
             with pytest.raises(ValueError, match="non-negative"):
                 getattr(g, method)(return_dict=True)
+
+    def test_pagerank_reads_weights_as_tie_strengths(self):
+        """Path `a - b` (10), `b - c` (1) used to give `a` and `c` the same rank."""
+        g = ec.Graph(weighted=True).add_nodes(list("abc"))
+        g.add_edges([("a", "b", 10.0), ("b", "c", 1.0)])
+        ranks = g.pagerank(return_dict=True)
+        assert ranks[1] == pytest.approx(0.426, abs=5e-4)
+        assert ranks[3] == pytest.approx(0.088, abs=5e-4)
+        plain = g.pagerank(weighted=False, return_dict=True)
+        assert plain[1] == pytest.approx(plain[3])
+        assert g.pagerank(weighted=True, return_dict=True) == ranks
+
+    def test_load_follows_weights(self):
+        g = _triangle_detour()
+        b = g.get_id_from_label("B")
+        assert g.load_centrality(return_dict=True)[b] == 1.0
+        assert g.load_centrality(weighted=False, return_dict=True)[b] == 0.0
+        # A cutoff is a total weight: A -> B -> C costs 2
+        assert g.load_centrality(cutoff=1.5, return_dict=True)[b] == 0.0
+
+    def test_load_ties_split_evenly(self):
+        """Two equal routes from A to C, direct and through B: B gets half of each pair."""
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 2.0)])
+        raw = g.load_centrality(normalized=False, return_dict=True)
+        assert raw == {1: 0.0, 2: 1.0, 3: 0.0}
+
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_load_parallel_edges_count_once(self, weighted):
+        """A doubled `a - b` edge used to give `a` and `b` more load than `c` and `d`."""
+        g = ec.Graph(weighted=weighted).add_nodes(list("abcd"))
+        g.add_edges([("a", "b"), ("a", "b"), ("b", "d"), ("a", "c"), ("c", "d")])
+        assert g.load_centrality(return_dict=True) == pytest.approx(
+            {1: 1 / 6, 2: 1 / 6, 3: 1 / 6, 4: 1 / 6}
+        )
+
+    @pytest.mark.parametrize("bad", [-1.0, float("inf")])
+    def test_pagerank_rejects_bad_weights(self, bad):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=bad)
+        with pytest.raises(ValueError, match="non-negative"):
+            g.pagerank(return_dict=True)
+        assert len(g.pagerank(weighted=False, return_dict=True)) == 2
+
+    def test_load_rejects_negative_weights(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=-1.0)
+        with pytest.raises(ValueError, match="non-negative"):
+            g.load_centrality(return_dict=True)
 
     def test_harmonic_weights_argument_points_to_weighted(self):
         with pytest.raises(ValueError, match="weighted"):
