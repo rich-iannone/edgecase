@@ -552,6 +552,19 @@ class TestMatrixAccessors:
         with pytest.raises(ValueError, match="undirected"):
             ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B").bethe_hessian_matrix()
 
+    def test_spectra_of_empty_and_degenerate_graphs(self):
+        # Empty graphs used to abort the process (nalgebra on a 0 x 0 matrix)
+        assert ec.Graph().modularity_spectrum() == []
+        assert ec.Graph(directed=True).modularity_spectrum() == []
+        assert ec.Graph().bethe_hessian_spectrum(r=2) == []
+        assert ec.Graph(directed=True).magnetic_spectrum() == []
+        assert ec.Graph().spectral_bipartivity() == 1.0
+        # These directed modularity matrices used to hang the eigenvalue solver
+        cases = [[("a", "b"), ("c", "b")], [("a", "b")], [("a", "b"), ("a", "b"), ("b", "b")], []]
+        for edges in cases:
+            g = ec.Graph(directed=True).add_nodes(["a", "b", "c"]).add_edges(edges)
+            assert np.allclose(g.modularity_spectrum(), [0, 0, 0])
+
     def test_steps(self):
         g = _two_triangles()
         g.laplacian_matrix()
