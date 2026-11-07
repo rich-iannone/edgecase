@@ -938,6 +938,14 @@ class TestVoteRankAndTrophic:
                 [("A", "B"), ("B", "A")]
             ).trophic_levels()
 
+    def test_trophic_without_non_basal_nodes(self):
+        # Every node basal: the empty linear system used to abort the process
+        for nodes in ([], ["A"], ["A", "B", "C"]):
+            g = ec.Graph(directed=True).add_nodes(nodes)
+            assert g.trophic_levels(return_dict=True) == {n: 1.0 for n in g.get_node_ids()}
+            assert g.trophic_differences() == {}
+            assert g.trophic_incoherence_parameter() == 0.0
+
 
 class TestReachingSubsetStructuralHoles:
     def test_local_and_global_reaching(self):
