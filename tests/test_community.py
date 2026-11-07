@@ -304,6 +304,14 @@ class TestCommunityDetection:
         g.cmty_label_propagation(return_dict=True)
         assert len(g.steps) == n
 
+    def test_label_propagation_with_infinite_weights(self):
+        # inf - inf is NaN, which used to abort the tie filter
+        g = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        g.add_edges([("A", "B", float("inf")), ("B", "C", 1.0), ("C", "D", float("inf"))])
+        labels = g.cmty_label_propagation(return_dict=True, seed=1)
+        a, b, c, d = (labels[g.get_id_from_label(x)] for x in "ABCD")
+        assert a == b and c == d
+
     def test_player_serializes_groups_and_selection(self):
         g = _two_triangles().cmty_leiden(seed=1)
         g.all_shortest_paths("A", "F")
@@ -470,6 +478,14 @@ class TestMoreCommunityMethods:
             assert sorted(x for c in ours for x in c) == sorted(T)
         with pytest.raises(ValueError, match="tree"):
             ec.Graph().add_cycle_graph(4).lukes_partitioning(2)
+        # edge_weight="weight" reads the weight field (it used to count every edge as 1)
+        for heavy in ("A", "C"):
+            path = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
+            path.add_edges([("A", "B", 5.0 if heavy == "A" else 1.0)])
+            path.add_edges([("B", "C", 5.0 if heavy == "C" else 1.0)])
+            parts = path.lukes_partitioning(2, edge_weight="weight")
+            labels = sorted(sorted(path.get_label_from_id(x) for x in c) for c in parts)
+            assert sorted(["B", heavy]) in labels
 
     def test_greedy_source_expansion(self):
         G = nx.karate_club_graph()
