@@ -163,6 +163,91 @@ class TestGraphConversion:
 
         assert G.is_weighted()
 
+    def test_vertex_attribute_named_label(self):
+        """A vertex attribute `label` (or `type`) is kept as an attribute."""
+        ig_graph = ig.Graph(edges=[(0, 1)])
+        ig_graph.vs["name"] = ["a", "b"]
+        ig_graph.vs["label"] = ["Alice", "Bob"]
+        ig_graph.vs["type"] = ["person", None]
+
+        G = from_igraph(ig_graph)
+
+        assert G.get_node(G.get_id_from_label("a")).attributes == {
+            "label": "Alice",
+            "type": "person",
+        }
+        assert G.get_node(G.get_id_from_label("b")).attributes == {"label": "Bob"}
+
+    def test_round_trip_adds_no_edge_id_attribute(self):
+        G1 = ec.Graph(directed=True)
+        G1.add_node("A")
+        G1.add_node("B")
+        G1.add_edge("A", "B", kind="x")
+        G1.add_edge("A", "B", kind="y")
+
+        ig_graph = to_igraph(G1)
+        assert ig_graph.es["edgecase_edge_id"] == [1, 2]
+
+        G2 = from_igraph(ig_graph)
+        assert [G2.get_edge(eid).attributes for eid, _, _ in G2.get_edges_as_tuples()] == [
+            {"kind": "x"},
+            {"kind": "y"},
+        ]
+
+    def test_node_attribute_named_name_does_not_replace_labels(self):
+        G = ec.Graph()
+        G.add_node("a", name="Alice")
+        G.add_node("b", name="Bob")
+        G.add_edge("a", "b")
+
+        ig_graph = to_igraph(G)
+
+        assert ig_graph.vs["name"] == ["a", "b"]
+        G2 = from_igraph(ig_graph)
+        assert sorted(G2.get_label_from_id(nid) for nid in G2.get_node_ids(limit=None)) == [
+            "a",
+            "b",
+        ]
+
+    def test_unlabeled_nodes_round_trip(self):
+        G = ec.Graph()
+        G.add_node()
+        G.add_node()
+        G.add_node("x")
+        G.add_edge(1, 2)
+
+        ig_graph = to_igraph(G)
+
+        assert ig_graph.vs["name"] == ["1", "2", "x"]
+        G2 = from_igraph(ig_graph)
+        assert G2.count_nodes() == 3
+        assert G2.count_edges() == 1
+
+    def test_duplicate_vertex_names_fall_back_to_indices(self):
+        ig_graph = ig.Graph(edges=[(0, 1)])
+        ig_graph.vs["name"] = ["a", "a"]
+
+        with pytest.warns(UserWarning, match="'a' is used by more than one node"):
+            G = from_igraph(ig_graph)
+
+        df = G.get_node_df()
+        assert df["label"].to_list() == ["0", "1"]
+        assert df["name"].to_list() == ["a", "a"]
+
+    def test_graph_name_round_trips(self):
+        G = ec.Graph(graph_name="flows")
+        G.add_node("a")
+
+        ig_graph = to_igraph(G)
+
+        assert ig_graph["name"] == "flows"
+        assert from_igraph(ig_graph).get_graph_name() == "flows"
+
+    def test_built_as_a_single_step(self):
+        G = from_igraph(ig.Graph.Ring(4))
+
+        assert len(G.steps) == 1
+
 
 class TestBasicMetrics:
     """Test basic graph metrics against igraph."""
