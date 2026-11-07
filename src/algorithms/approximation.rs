@@ -71,7 +71,7 @@ fn dijkstra(adj: &[Vec<(usize, f64)>], s: usize) -> (Vec<f64>, Vec<usize>) {
     }
     impl Ord for Item {
         fn cmp(&self, o: &Self) -> std::cmp::Ordering {
-            o.0.partial_cmp(&self.0).unwrap().then(o.1.cmp(&self.1))
+            o.0.total_cmp(&self.0).then(o.1.cmp(&self.1))
         }
     }
     let n = adj.len();
@@ -136,7 +136,7 @@ fn christofides_tour(d: &[Vec<f64>]) -> Vec<usize> {
     for _ in 0..k {
         let u = (0..k)
             .filter(|&v| !in_tree[v])
-            .min_by(|&a, &b| best[a].partial_cmp(&best[b]).unwrap().then(a.cmp(&b)))
+            .min_by(|&a, &b| best[a].total_cmp(&best[b]).then(a.cmp(&b)))
             .unwrap();
         in_tree[u] = true;
         if parent[u] != usize::MAX {
@@ -1340,6 +1340,10 @@ pub fn max_cut(
         } else {
             1.0
         };
+        if w.is_infinite() {
+            // Flip gains would turn into inf - inf = NaN and the local search never settles
+            return value_err("max_cut() requires finite edge weights");
+        }
         adj[a].push((b, w));
         adj[b].push((a, w));
     }
