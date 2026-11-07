@@ -1,0 +1,363 @@
+---
+title: Layouts
+guide-section: "Visualization"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A graph has no shape of its own: its nodes and edges say what is linked to what, but not where
+anything should go on a page. A *layout* assigns each node a position, and the choice of layout
+largely decides what a drawing shows. A force-directed layout reveals clusters, a layered layout
+reveals a hierarchy, a circle makes every edge visible, and a map shows where things really are.
+
+[Static plots](22-plotting.qmd) introduced the three layouts built into `plot()`: `"force"`,
+`"circular"`, and `"random"`. This page covers the `layout_*()` methods, which offer many more
+algorithms and finer control, and shows how to draw nodes at coordinates that come with the data.
+
+## How layout methods work
+
+Every `layout_*()` method computes a position for each node and stores it as an `[x, y]` list in a
+node attribute, `"pos"` by default. Passing the name of that attribute to `plot()` as `layout=`
+draws the graph at those positions. The
+[Kamada–Kawai layout](../reference/Graph.layout_kamada_kawai.qmd) of the karate club:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.layout_kamada_kawai()
+karate.get_node_df().select("id", "label", "pos").head(3)
+```
+
+The positions are centered on the origin and scaled so that the largest coordinate is 1; `scale=`
+and `center=` change both. `plot()` then fits them to the canvas, keeping their proportions, with
+the `y` axis pointing up:
+
+```{python}
+karate.plot(layout="pos", label_by="label", node_size=10, height=500)
+```
+
+Since the positions are stored on the graph, the same layout can be drawn again and again, with
+different colors or labels, without being recomputed, and the drawings stay comparable. Positions
+given with `layout="pos"` are taken as they are, so `plot()` doesn't push overlapping nodes apart;
+a smaller `node_size=` is often needed to keep the nodes from touching.
+
+Two arguments are shared by all of the methods. `attr_name=` stores the positions under another
+name, so that several layouts can be kept side by side on one graph, and `return_dict=True`
+returns the positions as a dictionary from node ID to `(x, y)` instead of storing them, which is
+useful when the coordinates are needed for something other than drawing:
+
+```{python}
+positions = karate.layout_circular(return_dict=True)
+len(positions), [round(value, 3) for value in positions[2]]
+```
+
+The dictionary has an entry for each of the 34 members, and node 2 sits just counterclockwise of
+node 1, which the circular layout puts at the rightmost point of the circle.
+
+## Force-directed layouts
+
+Force-directed layouts treat the graph as a physical system. Linked nodes attract each other like
+the ends of a spring, all nodes repel each other like charged particles, and the layout is the
+state in which the forces balance. Closely knit groups pull together and loosely linked parts drift
+apart, which is why these layouts are the default choice for most networks. EdgeCase has four,
+which differ in the forces they use and so in the pictures they draw. The dolphin network, with its
+two loosely linked communities, shows the differences well.
+
+[`layout_spring()`](../reference/Graph.layout_spring.qmd) is the classic Fruchterman–Reingold
+algorithm, the same one behind `plot(layout="force")`. It spreads the nodes fairly evenly over the
+available space:
+
+```{python}
+dolphins = ec.dolphins()
+dolphins.layout_spring(seed=1, attr_name="spring")
+dolphins.plot(layout="spring", show_labels=False, node_size=6)
+```
+
+The two communities are visible on the left and the right, linked by a few animals. Like all layouts
+that start from random positions, it takes a `seed=` for a reproducible result. `k=` sets the ideal
+distance between linked nodes, and `iterations=` the number of steps, 50 by default, which is
+usually enough for a few hundred nodes.
+
+[`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) works differently. It tries
+to make the distance between every pair of nodes on the page proportional to their shortest-path
+distance in the graph, so that two nodes three steps apart are drawn three times as far apart as
+two neighbors:
+
+```{python}
+dolphins.layout_kamada_kawai(attr_name="kk")
+dolphins.plot(layout="kk", show_labels=False, node_size=6)
+```
+
+The result is more compact, with more uniform edge lengths. Distances on the page can be read as
+distances in the graph, which makes this layout a good choice for paths, trees, and grids, whose
+global shape it draws faithfully. It starts from a circle rather than from random positions, so it
+needs no seed and always gives the same drawing.
+
+[`layout_forceatlas2()`](../reference/Graph.layout_forceatlas2.qmd) is the ForceAtlas2 algorithm of
+the Gephi software, widely used for social networks. Its options correspond to the ones in Gephi.
+The most useful, `linlog=True`, weakens the attraction between distant nodes, which separates
+clusters much more sharply:
+
+```{python}
+dolphins.layout_forceatlas2(linlog=True, seed=1, attr_name="linlog")
+dolphins.plot(layout="linlog", show_labels=False, node_size=6)
+```
+
+The two communities are now clearly apart, joined by a narrow bridge of the few animals that move
+between them. This makes LinLog mode a natural companion to community detection. The other options
+of ForceAtlas2 are `gravity=`, which pulls everything toward the center and keeps disconnected
+pieces from drifting away, `dissuade_hubs=True`, which pushes hubs to the edges of their clusters,
+and `node_size=`, which keeps nodes of given sizes from overlapping.
+
+[`layout_arf()`](../reference/Graph.layout_arf.qmd), the *attractive and repulsive forces* layout,
+links every pair of nodes with a weak spring, and linked pairs with a stronger one:
+
+```{python}
+dolphins.layout_arf(seed=1, attr_name="arf")
+dolphins.plot(layout="arf", show_labels=False, node_size=6)
+```
+
+The weak springs hold the whole layout in an evenly filled disc without large gaps, at the cost of
+much of the visible community structure. It suits graphs without strong clusters, where the other
+layouts tend to leave holes.
+
+Every force-directed method costs time proportional to the square of the number of nodes at each
+step, so they are practical up to a few thousand nodes. `layout_spring()`, `layout_kamada_kawai()`,
+and `layout_forceatlas2()` take `weighted=` to use the edge weights: heavier edges pull harder in
+the spring and ForceAtlas2 layouts, while Kamada–Kawai treats weights as lengths, so heavier edges
+are drawn longer.
+
+## Layered layouts
+
+Hierarchies, pipelines, and two-mode networks are clearer when their nodes are drawn in layers.
+
+[`layout_bfs()`](../reference/Graph.layout_bfs.qmd) puts a start node in the first layer, its
+neighbors in the second, their neighbors in the third, and so on, so that each node's layer is its
+distance from the start. The small organization of [Static plots](22-plotting.qmd):
+
+```{python}
+org = ec.Graph(directed=True).add_edges(
+    [
+        ("Dana", "Eli"),
+        ("Dana", "Fay"),
+        ("Eli", "Gus"),
+        ("Eli", "Hal"),
+        ("Fay", "Ivy"),
+        ("Gus", "Hal"),
+        ("Fay", "Eli"),
+    ],
+    auto_create_nodes=True,
+)
+org.layout_bfs(start="Dana")
+org.plot(layout="pos", label_by="label", node_size=12, width=500, height=300)
+```
+
+Dana, at the top of the organization, is on the left, followed by the two managers that report to
+Dana and then the three people below them. The layers run from left to right; `align="horizontal"`
+stacks them from bottom to top instead. On a directed graph the search follows the edge
+directions, and every node must be reachable from the start node.
+
+[`layout_multipartite()`](../reference/Graph.layout_multipartite.qmd) takes the layers from a node
+attribute instead, which suits any graph whose nodes have a stage, a level, or a rank. A small
+neural network, with its three layers of units:
+
+```{python}
+layers = {"input": ["x1", "x2", "x3"], "hidden": ["h1", "h2", "h3", "h4"], "output": ["y1", "y2"]}
+net = ec.Graph(directed=True)
+for level, units in enumerate(layers.values()):
+    for unit in units:
+        net.add_node(unit, layer=level)
+
+inputs, hidden, outputs = layers.values()
+net.add_edges([(a, b) for a in inputs for b in hidden] + [(a, b) for a in hidden for b in outputs])
+net.layout_multipartite(subset_key="layer")
+net.plot(layout="pos", label_by="label", node_size=12, width=500, height=300)
+```
+
+The layers are drawn in sorted order of the attribute's values, and `subset_key=` can also be a
+dictionary from layer value to a list of nodes, when the layers aren't stored on the graph.
+
+[`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd) is the two-layer case, for
+affiliation networks of people and the groups or events they belong to. Its `nodes=` argument
+names the nodes of one side. In the Southern Women network, the `bipartite` attribute marks the
+women with 0 and the events with 1:
+
+```{python}
+davis = ec.davis_southern_women()
+women = davis.get_node_df().filter(pl.col("bipartite") == 0)["id"].to_list()
+davis.layout_bipartite(nodes=women)
+davis.plot(layout="pos", label_by="label", node_size=6, width=600, height=520)
+```
+
+The women are on the left and the fourteen social events on the right. Without `nodes=`, the
+method splits the graph into two sides itself, and raises an error if the graph is not bipartite.
+
+## Circles and shells
+
+[`layout_circular()`](../reference/Graph.layout_circular.qmd) places the nodes evenly around a
+circle in the order of their IDs. Since the edges play no part, the picture shows how the order
+relates to the structure. In the karate club, whose members are numbered in no meaningful order,
+the edges cross the circle in every direction:
+
+```{python}
+karate.layout_circular()
+karate.plot(layout="pos", color_by="faction", show_labels=False, node_size=8, width=400, height=400)
+```
+
+The nodes are colored by faction with `color_by=` (see [Aesthetics](24-aesthetics.qmd)), and the
+two factions are mixed all around the circle. A better order puts linked nodes next to each other.
+[`layout_shell()`](../reference/Graph.layout_shell.qmd) places the nodes on one or more circles,
+and takes the nodes of each circle in the order given, so a single circle in the
+[spectral order](21-spectral.qmd#ordering-nodes-with-the-fiedler-vector) of the club makes a much
+more readable drawing:
+
+```{python}
+karate.layout_shell(nlist=[karate.spectral_ordering()])
+karate.plot(layout="pos", color_by="faction", show_labels=False, node_size=8, width=400, height=400)
+```
+
+Each faction now occupies one half of the circle, most edges run between nearby nodes along the
+rim, and the few edges that cross the middle are the friendships between the factions.
+
+With several shells, `nlist=` lists them from the innermost outward, and a first shell with a
+single node puts that node at the center. This shows a node's neighborhood at a glance. For the
+Medici, with their marriage partners in the first ring and the other families in the second:
+
+```{python}
+florentine = ec.florentine_families()
+medici = florentine.get_node_df().filter(pl.col("label") == "Medici")["id"].item()
+partners = florentine.neighbors(medici)
+others = [node for node in florentine.get_node_df()["id"] if node != medici and node not in partners]
+
+florentine.layout_shell(nlist=[[medici], partners, others])
+florentine.plot(layout="pos", label_by="label", node_size=10, width=500, height=450)
+```
+
+Six of the fifteen families are married into the Medici directly, and most of the rest are only a
+step further out. `nlist=` can also name a node attribute, in which case nodes that share a value
+form a shell, in sorted order of the values. [`layout_spiral()`](../reference/Graph.layout_spiral.qmd)
+places the nodes along a spiral in ID order, which packs long sequences, such as a chain of events
+in time, more compactly than a circle.
+
+## Layouts from structure
+
+Two layouts derive the positions from a mathematical property of the graph.
+
+[`layout_spectral()`](../reference/Graph.layout_spectral.qmd) uses two eigenvectors of the
+Laplacian matrix as coordinates. It recovers the geometry of meshes and grids from their edges
+alone, but tends to squeeze social networks into a small area; [Matrices and spectra](21-spectral.qmd#spectral-layouts)
+has an example. [`layout_planar()`](../reference/Graph.layout_planar.qmd) draws a planar graph so
+that no two edges cross, which proves that the graph is planar, but the nodes are placed on a grid
+in a broad triangle and the drawing can be cramped. A force-directed layout often draws a planar
+graph without crossings as well, and looks better. Planarity itself is covered in
+[Coloring, matching, and covering](20-coloring-matching.qmd).
+
+[`layout_random()`](../reference/Graph.layout_random.qmd) scatters the nodes uniformly at random.
+It shows nothing of the structure, which makes it a useful baseline: a random drawing shows how
+much of the apparent structure in another layout is real.
+
+## Coordinates from the data
+
+Many networks come with positions of their own: stations and cities have coordinates, components
+of a circuit have places on a board, and cells of a tissue have places under a microscope. Such
+positions can be stored in a node attribute directly and drawn with `layout=`. A network of fast
+rail links between European cities, with each city at its longitude and latitude:
+
+```{python}
+cities = {
+    "London": (-0.13, 51.51), "Paris": (2.35, 48.86), "Brussels": (4.35, 50.85),
+    "Amsterdam": (4.90, 52.37), "Cologne": (6.96, 50.94), "Frankfurt": (8.68, 50.11),
+    "Lyon": (4.84, 45.76), "Zurich": (8.54, 47.37), "Milan": (9.19, 45.46),
+    "Munich": (11.58, 48.14), "Berlin": (13.40, 52.52),
+}
+links = [
+    ("London", "Paris"), ("London", "Brussels"), ("Paris", "Brussels"),
+    ("Brussels", "Amsterdam"), ("Brussels", "Cologne"), ("Amsterdam", "Cologne"),
+    ("Cologne", "Frankfurt"), ("Frankfurt", "Munich"), ("Frankfurt", "Berlin"),
+    ("Paris", "Lyon"), ("Paris", "Frankfurt"), ("Paris", "Zurich"), ("Zurich", "Milan"),
+    ("Lyon", "Milan"), ("Munich", "Berlin"), ("Zurich", "Munich"),
+]
+rail = ec.Graph().add_nodes(list(cities)).add_edges(links)
+rail.set_node_attrs("lonlat", {city: list(point) for city, point in cities.items()})
+rail.plot(layout="lonlat", label_by="label", node_size=6, width=500, height=450)
+```
+
+The dictionary passed to `set_node_attrs()` is keyed by labels, which EdgeCase resolves to node IDs.
+The map is recognizable, but stretched from east to west: a degree of longitude is shorter than a
+degree of latitude away from the equator, by a factor of the cosine of the latitude. Scaling the
+longitudes by the cosine of the map's central latitude, about 49°, gives a simple projection that
+is accurate enough for a map of this size:
+
+```{python}
+import math
+
+shrink = math.cos(math.radians(49))
+rail.set_node_attrs("map", {city: [lon * shrink, lat] for city, (lon, lat) in cities.items()})
+rail.plot(layout="map", label_by="label", node_size=6, width=500, height=450)
+```
+
+`plot()` fits any coordinates to the canvas, so they can be in degrees, meters, or pixels. To bring
+positions from elsewhere into the same frame as the `layout_*()` methods, centered on the origin
+with a largest coordinate of 1, [`rescale_layout()`](../reference/Graph.rescale_layout.qmd)
+centers and resizes them without changing their shape.
+
+### Filling in missing positions
+
+When only some of the nodes have known positions, a force-directed layout can place the rest.
+`initial=` gives the starting positions, either as a node attribute or a dictionary, and `fixed=`
+lists the nodes that must stay where they are. Adding Lille and Strasbourg to the rail network
+without coordinates, and letting `layout_spring()` place them among their neighbors:
+
+```{python}
+rail.add_nodes(["Lille", "Strasbourg"]).add_edges(
+    [
+        ("Lille", "London"), ("Lille", "Paris"), ("Lille", "Brussels"),
+        ("Strasbourg", "Paris"), ("Strasbourg", "Frankfurt"), ("Strasbourg", "Zurich"),
+    ]
+)
+rail.layout_spring(initial="map", fixed=list(cities), k=0.5, iterations=200, seed=1, attr_name="map")
+rail.plot(layout="map", label_by="label", node_size=6, width=500, height=450)
+```
+
+The two new cities settle between the cities they are linked to: Lille between London, Paris, and
+Brussels, and Strasbourg between Paris, Frankfurt, and Zurich, not far from where they really
+are. The ideal edge length `k=` needs attention here. By default it is set for a layout in a unit
+square, and with coordinates in degrees, the repulsion from all the fixed cities would push the new
+nodes far outside the map; a small `k=` lets the pull of their links dominate. With `fixed=`, the
+result is not rescaled, so the fixed nodes keep their exact coordinates.
+
+The same arguments refine a layout step by step. `initial="pos"` continues from an earlier layout
+rather than from random positions, which keeps a drawing stable when a few nodes or edges are
+added, and `initial=` combined with `fixed=` can pin a few landmark nodes, such as the leaders of
+two groups, to opposite sides of the drawing.
+
+## Choosing a layout
+
+| Method | Places nodes by | Suits |
+|---|---|---|
+| [`layout_spring()`](../reference/Graph.layout_spring.qmd) | springs and repulsion (Fruchterman–Reingold) | general networks |
+| [`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) | page distance matching graph distance | paths, trees, grids, small networks |
+| [`layout_forceatlas2()`](../reference/Graph.layout_forceatlas2.qmd) | ForceAtlas2, optionally LinLog | social networks with communities |
+| [`layout_arf()`](../reference/Graph.layout_arf.qmd) | springs between all pairs | graphs without strong clusters |
+| [`layout_bfs()`](../reference/Graph.layout_bfs.qmd) | distance from a start node | trees and hierarchies |
+| [`layout_multipartite()`](../reference/Graph.layout_multipartite.qmd) | a layer attribute | pipelines, staged processes |
+| [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd) | two sides | affiliation and user–item networks |
+| [`layout_circular()`](../reference/Graph.layout_circular.qmd) | ID order around a circle | rings, chord diagrams |
+| [`layout_shell()`](../reference/Graph.layout_shell.qmd) | concentric circles, in a given order | neighborhoods, groups, custom orders |
+| [`layout_spiral()`](../reference/Graph.layout_spiral.qmd) | ID order along a spiral | long sequences |
+| [`layout_spectral()`](../reference/Graph.layout_spectral.qmd) | Laplacian eigenvectors | meshes and grids |
+| [`layout_planar()`](../reference/Graph.layout_planar.qmd) | a crossing-free embedding | showing planarity |
+| [`layout_random()`](../reference/Graph.layout_random.qmd) | chance | a baseline |
+
+For a network that is new to you, a force-directed layout is the place to start. If the drawing is a
+tangle, `layout_forceatlas2(linlog=True)` often separates the groups, and if the graph has a known
+hierarchy, order, or geography, a layout that uses it will show more than any general-purpose
+algorithm can.
