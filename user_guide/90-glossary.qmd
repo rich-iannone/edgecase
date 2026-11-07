@@ -1,0 +1,1368 @@
+---
+title: Glossary
+guide-section: "Reference"
+---
+
+This page defines the terms used throughout the EdgeCase documentation, in alphabetical order. Most
+are standard terms of graph theory and network science; a few are specific to EdgeCase, such as
+**node ID**, **selection**, and **step log**. Where a term has a counterpart in EdgeCase's API, the
+relevant class, method, or function is shown in `code`. Terms in **bold** have their own entry on
+this page, and each "Learn more" link leads to the page of this guide that covers the term in
+depth.
+
+A\* search
+: A **shortest path** algorithm that steers its search toward the target with a *heuristic*, an
+  estimate of the remaining distance from each node, such as the straight-line distance between two
+  places on a map. With a heuristic that never overestimates, A* finds the same path as **Dijkstra's
+  algorithm** while exploring far fewer nodes. Available via `astar_path()` and
+  `astar_path_length()`, with `alt_heuristic()` building a heuristic from landmark distances. [Learn
+  more](12-paths.qmd#a-search).
+
+Adamic–Adar index
+: A **link prediction** score for a pair of nodes that counts their **common neighbors**, giving
+  each one a weight of $1 / \log k$, where $k$ is its **degree**. A shared friend with few other
+  friends says more about a pair than a shared celebrity. Available via `adamic_adar_index()`. See
+  also **resource allocation index**. [Learn more](18-similarity.qmd#link-prediction).
+
+Adjacency list
+: A representation of a graph that lists, for each node, the nodes it links to. It is compact for
+  **sparse graphs** and is a common plain-text file format. Available via `to_adjlist()` and
+  `from_adjlist()`. [Learn more](27-file-formats.qmd#adjacency-lists).
+
+Adjacency matrix
+: A square matrix $A$ with one row and one column per node, in which $A_{ij}$ is the **weight** of
+  the edge from node $i$ to node $j$ (1 in an unweighted graph) and 0 where there is no edge. An
+  **undirected graph** has a symmetric adjacency matrix. Matrix products of $A$ count **walks**: the
+  entries of $A^k$ count the walks of $k$ steps. Available via `adjacency_matrix()`,
+  `to_numpy_array()`, and `to_scipy_sparse_array()`, and read back with `from_numpy_array()` and
+  `from_scipy_sparse_array()`. See also **Laplacian matrix** and **spectrum**. [Learn
+  more](21-spectral.qmd#the-adjacency-matrix).
+
+Algebraic connectivity
+: The second-smallest eigenvalue of the **Laplacian matrix**. It is 0 exactly when the graph is
+  disconnected, and larger values mean a graph that is harder to cut into pieces. The eigenvector
+  that belongs to it is the **Fiedler vector**. Available via `algebraic_connectivity()`. [Learn
+  more](16-connectivity.qmd#algebraic-connectivity).
+
+Ancestor
+: In a **directed graph**, a node from which a given node can be reached along directed edges. The
+  nodes reachable *from* a node are its **descendants**. In a **DAG** of tasks, the ancestors of a
+  task are everything that must be done before it. Available via `ancestors()` and `descendants()`.
+  See also **lowest common ancestor**. [Learn more](17-dags.qmd#ancestors-and-descendants).
+
+Antichain
+: A set of nodes in a **DAG** of which no node is an **ancestor** of another, so that none of them
+  has to wait for the others. The largest antichain measures how much of the work can proceed in
+  parallel. Available via `antichains()` and `antichain_width()`. [Learn
+  more](17-dags.qmd#antichains).
+
+Arborescence
+: A **directed graph** that is a **tree** with all edges pointing away from a single root, so that
+  every other node has exactly one incoming edge. A *branching* is a collection of arborescences.
+  Available via `is_arborescence()`, `is_branching()`, and `minimum_spanning_arborescence()`. See
+  also **spanning tree**. [Learn more](17-dags.qmd#trees).
+
+Articulation point
+: A node whose removal disconnects the graph, or more generally increases its number of
+  **components**. Also called a *cut vertex*. A graph without articulation points is *biconnected*.
+  Available via `get_articulation_points()`, with the biconnected pieces from
+  `biconnected_components()`. See also **bridge**. [Learn more](16-connectivity.qmd#weak-points).
+
+Assortativity
+: The tendency of nodes to link to nodes that are similar to them. *Degree assortativity* is the
+  correlation between the **degrees** at the two ends of the edges: positive when hubs link to hubs,
+  as in many social networks, and negative when hubs link to poorly connected nodes, as in many
+  technological and biological networks. Assortativity by a categorical **attribute** measures
+  **homophily**. Available via `get_assortativity_degree()`, `get_assortativity()` for numeric
+  attributes, and `get_assortativity_nominal()` for categories. See also **mixing matrix**. [Learn
+  more](11-structure.qmd#mixing-patterns).
+
+Attribute
+: A named value stored on a node or an edge, such as an age, a category, or a score. Each attribute
+  is a column of the **node table** or the **edge table**. Attributes are set with `add_node()` and
+  `add_edge()` keyword arguments, `set_node_attrs()`, and `set_edge_attrs()`, and read with
+  `get_node_attrs()` and `get_edge_attrs()`. Most analysis methods also write their results to an
+  attribute (see **stored results**). Two attributes are special: the node **type** and the edge
+  **rel**. [Learn more](07-node-and-edge-data.qmd).
+
+Automorphism
+: An **isomorphism** of a graph with itself: a relabelling of the nodes that preserves every edge.
+  The automorphisms describe a graph's symmetries, and nodes that some automorphism maps onto each
+  other are structurally indistinguishable. Available via `automorphism_cosets()` and
+  `canonical_labeling()`. [Learn more](18-similarity.qmd#symmetries).
+
+Average degree
+: The mean **degree** of the nodes, $2m / n$ for an undirected graph with $n$ nodes and $m$ edges.
+  In a directed graph, the mean in-degree and the mean out-degree are both $m / n$. Available via
+  `get_average_degree()`. See also **density**. [Learn more](11-structure.qmd#degrees).
+
+Barabási–Albert model
+: See **preferential attachment**.
+
+Benchmark graph
+: A random graph generated with known communities, used to test **community detection** methods,
+  since the right answer is known. The *planted partition* model gives groups of equal size, and the
+  *LFR benchmark* gives heterogeneous degrees and community sizes, as in real networks. Available
+  via `add_planted_partition_graph()` and `add_lfr_graph()`. See also **stochastic block model**.
+  [Learn more](05-generators.qmd#community-benchmarks).
+
+Betweenness centrality
+: A **centrality** that scores a node by the share of **shortest paths** between other pairs of
+  nodes that pass through it. Nodes with high betweenness are brokers and bottlenecks, which link
+  parts of the network that would otherwise be far apart. *Edge betweenness* scores edges in the
+  same way. Available via `betweenness_centrality()` and `edge_betweenness_centrality()`, with group
+  and subset variants. See also **Girvan–Newman method**. [Learn
+  more](13-centrality.qmd#betweenness-centrality).
+
+Bipartite graph
+: A graph whose nodes divide into two sets, with every edge joining a node of one set to a node of
+  the other: people and the events they attend, or genes and the diseases they are linked to. Also
+  called *two-mode* data. A graph is bipartite exactly when it has no **cycle** of odd length.
+  EdgeCase marks the two sides with a `bipartite` attribute of 0 and 1, as NetworkX does. Available
+  via `is_bipartite()`, `bipartite_sets()`, `from_biadjacency_matrix()`, and `layout_bipartite()`.
+  See also **projection**. [Learn more](28-other-libraries.qmd#two-mode-data).
+
+Bond percolation
+: See **percolation**.
+
+Breadth-first search (BFS)
+: A **traversal** that visits a start node, then all of its neighbors, then all of their unvisited
+  neighbors, and so on, so that nodes are reached in order of their distance in steps. It finds
+  **shortest paths** in unweighted graphs. Available via `bfs()`, `bfs_edges()`, `bfs_layers()`, and
+  `bfs_tree()`. See also **depth-first search**. [Learn more](09-traversals.qmd#searching).
+
+Bridge
+: An edge whose removal disconnects the graph, or increases its number of **components**. A *local
+  bridge* is an edge whose endpoints have no **common neighbors**, so that removing it makes them
+  far apart without necessarily disconnecting them; local bridges are the "weak ties" that link
+  separate groups. Available via `bridges()`, `has_bridges()`, and `local_bridges()`. See also
+  **articulation point**. [Learn more](16-connectivity.qmd#weak-points).
+
+Brokerage
+: A node's position between others who are not themselves linked, which lets it pass on, or
+  withhold, what flows between them. Burt's measures of *structural holes* quantify it: the
+  *constraint* of a node is high when its contacts are all linked to each other, and its *effective
+  size* counts its non-redundant contacts. Available via `constraint()`, `local_constraint()`, and
+  `effective_size()`. See also **betweenness centrality**. [Learn
+  more](13-centrality.qmd#brokerage).
+
+Center
+: The nodes of smallest **eccentricity**, which are the closest to all others in the worst case. The
+  *periphery* is the nodes of largest eccentricity. Available via `get_center()` and
+  `get_periphery()`, with `get_barycenter()` for the nodes of smallest total distance. See also
+  **radius** and **diameter**. [Learn more](11-structure.qmd#distances).
+
+Centrality
+: Any measure of how important or prominent a node is, judged by its position in the network. Each
+  measure formalizes a different idea of importance: having many ties (**degree centrality**), being
+  close to everyone (**closeness centrality**), lying between others (**betweenness centrality**),
+  or being linked to other important nodes (**eigenvector centrality**, **PageRank**). EdgeCase's
+  centrality methods store their scores in a node attribute named after the method, or return them
+  with `return_dict=True` (see **stored results**), and `select_nodes_by_centrality()` selects the
+  most central nodes. [Learn more](13-centrality.qmd).
+
+Chaining
+: Writing several method calls one after another in a single expression, such as
+  `ec.karate_club().pagerank().cmty_louvain()`. Methods that build, change, or annotate a graph
+  return the graph itself, so a sequence of steps reads as a pipeline from top to bottom. Methods
+  that answer a question, such as `count_nodes()`, return the answer instead, and end a chain.
+  [Learn more](00-get-started.qmd#three-ideas-that-run-through-the-library).
+
+Chordal graph
+: A graph in which every **cycle** of four or more nodes has a *chord*, an edge joining two nodes
+  that are not next to each other on the cycle. Chordal graphs have efficient algorithms for
+  problems that are hard in general, such as **coloring** and finding the largest **clique**.
+  Available via `is_chordal()`, `chordal_graph_cliques()`, and `complete_to_chordal_graph()`. See
+  also **treewidth**. [Learn more](20-coloring-matching.qmd#chordal-graphs-and-treewidth).
+
+Clique
+: A set of nodes in which every pair is linked. A *maximal* clique can't be extended by another
+  node, and a *maximum* clique is a largest one; its size is the graph's *clique number*. Cliques
+  are the tightest possible groups, though in real networks they are usually small and overlap
+  heavily. Available via `find_cliques()`, `max_clique()`, `clique_number()`, and
+  `node_clique_number()`. See also **k-core** and **k-truss**. [Learn
+  more](11-structure.qmd#cliques).
+
+Closeness centrality
+: A **centrality** that scores a node by how near it is to all others: the reciprocal of its mean
+  **distance** to the nodes it can reach. Nodes with high closeness can reach the rest of the
+  network quickly. Available via `closeness_centrality()`. See also **harmonic centrality**. [Learn
+  more](13-centrality.qmd#closeness-and-harmonic-centrality).
+
+Clustering coefficient
+: A measure of how much the neighbors of a node are linked to each other. A node's *local*
+  clustering coefficient is the share of the pairs of its neighbors that are linked,
+  $2T / (k(k - 1))$ for a node of **degree** $k$ in $T$ **triangles**. The *average* clustering
+  coefficient is the mean over the nodes, and **transitivity** is a related global measure. High
+  clustering, far above that of a **random graph**, is a hallmark of social networks. Available via
+  `clustering_coefficient()`, `local_clustering_coefficient()`, and
+  `get_avg_clustering_coefficient()`. [Learn
+  more](15-clustering-and-motifs.qmd#clustering-coefficients).
+
+Co-expression network
+: A network of genes in which two genes are linked when their expression levels rise and fall
+  together across samples. The links are usually derived from correlations, either by keeping the
+  strong ones or, in *WGCNA* (weighted gene co-expression network analysis), by raising every
+  correlation to a power (see **soft thresholding**). Groups of co-expressed genes are found with
+  **topological overlap** and **community detection**. [Learn
+  more](31-network-biology.qmd#co-expression-networks).
+
+Coloring
+: An assignment of colors to the nodes so that no two linked nodes share a color. The fewest colors
+  possible is the graph's *chromatic number*. Coloring models scheduling and allocation problems in
+  which linked items conflict, such as exams that share students. An *edge coloring* colors the
+  edges so that no two edges at a node share a color. Available via `greedy_color()`,
+  `is_valid_coloring()`, `chromatic_number_upper_bound()`, and `edge_coloring()`. [Learn
+  more](20-coloring-matching.qmd#coloring).
+
+Common neighbors
+: The nodes linked to both nodes of a pair. Their number is the simplest **similarity** of two nodes
+  and the simplest **link prediction** score. Available via `get_common_neighbors()` and
+  `common_neighbors()`. See also **Jaccard similarity** and **Adamic–Adar index**. [Learn
+  more](18-similarity.qmd#neighborhood-similarity).
+
+Community
+: A group of nodes that are more densely linked to each other than to the rest of the network:
+  circles of friends, research fields, functional modules of proteins. There is no single
+  definition, and different **community detection** methods formalize the idea differently. A set of
+  communities that places every node in exactly one is a **partition**. See also **modularity** and
+  **conductance**. [Learn more](14-communities.qmd).
+
+Community detection
+: Finding the **communities** of a network from its edges alone. EdgeCase's methods share the prefix
+  `cmty_`, such as `cmty_louvain()`, `cmty_leiden()`, `cmty_walktrap()`, and
+  `cmty_label_propagation()`, and store each node's community number in an attribute named after the
+  method. See also **Louvain method**, **Leiden method**, **label propagation**, **resolution**, and
+  **stochastic block model**. [Learn more](14-communities.qmd).
+
+Complement
+: The graph on the same nodes that has an edge exactly where the original has none. Available via
+  `complement()`. [Learn more](19-transforming.qmd#derived-graphs).
+
+Complete graph
+: A graph in which every pair of nodes is linked. The complete graph on $n$ nodes, $K_n$, has
+  $n(n - 1)/2$ edges and a **density** of 1. Available via `add_full_graph()`. See also **clique**.
+
+Component
+: A maximal set of nodes that are all reachable from one another. A *connected* graph has a single
+  component. In a **directed graph**, a **strongly connected component** requires paths in both
+  directions, and a **weakly connected component** ignores edge directions. Available via
+  `weakly_connected_components()`, `node_connected_component()`, `is_connected()`, and
+  `largest_component_size()`. See also **giant component**. [Learn
+  more](16-connectivity.qmd#connected-components).
+
+Condensation
+: The **DAG** formed by collapsing each **strongly connected component** of a directed graph into a
+  single node. It shows the order in which the components can be reached. Available via
+  `condensation()`. [Learn more](16-connectivity.qmd#directed-graphs).
+
+Conductance
+: A score for a single **community**: the number of edges leaving it divided by the total **degree**
+  of its smaller side, so that a well-separated community has a low conductance. Available via
+  `conductance()`, with the related `cut_size()`, `normalized_cut_size()`, and `volume()`. See also
+  **modularity**. [Learn more](14-communities.qmd#scoring-single-communities).
+
+Configuration model
+: A **random graph** model that takes a **degree** sequence and links the nodes at random while
+  giving each node exactly its prescribed degree. It is the standard **null model** for asking which
+  properties of a network follow from its degrees alone. Available via `configuration_model()`, with
+  `add_havel_hakimi_graph()` for a deterministic graph with given degrees. See also **rewiring**.
+  [Learn more](05-generators.qmd#degree-sequences).
+
+Connectivity
+: The number of nodes (*node connectivity*) or edges (*edge connectivity*) that must be removed to
+  disconnect a graph, or to separate two given nodes. By Menger's theorem, it equals the number of
+  **disjoint paths** between them. A graph is *k-connected* when no fewer than $k$ removals
+  disconnect it. Available via `get_node_connectivity()`, `get_edge_connectivity()`,
+  `get_node_connectivity_between()`, and `k_components()`. See also **minimum cut**. [Learn
+  more](16-connectivity.qmd#measuring-connectivity).
+
+Coreness
+: The largest $k$ for which a node belongs to the **k-core**. Nodes of high coreness sit in the
+  dense center of a network, and coreness is often a better guide to a node's influence on
+  **spreading** than its **degree**. Available via `coreness()`. [Learn
+  more](11-structure.qmd#cores-and-dense-regions).
+
+Critical path
+: The longest path through a **DAG** of tasks weighted by their durations. It sets the shortest time
+  in which the whole project can finish, and a delay to any task on it delays the project. Available
+  via `dag_longest_path()` and `dag_longest_path_length()`. [Learn
+  more](17-dags.qmd#the-critical-path).
+
+Cycle
+: A **path** that returns to its start without repeating any other node. A graph without cycles is
+  *acyclic*: a **forest** if undirected, a **DAG** if directed. The length of the shortest cycle is
+  the graph's **girth**. Available via `has_cycles()`, `simple_cycles()`, `get_cycles()`, and
+  `cycle_basis()`. [Learn more](15-clustering-and-motifs.qmd#cycles).
+
+Cypher
+: The query language of the Neo4j graph database and the openCypher standard, which describes the
+  shapes to find in a graph as ASCII-art *patterns*, such as `(a:Person)-[:KNOWS]->(b)`. EdgeCase
+  implements a subset of it, with `MATCH`, `WHERE`, `WITH`, `RETURN`, aggregation, `ORDER BY`,
+  `SKIP`, and `LIMIT`. A node's **type** is read as its Cypher label and an edge's **rel** as its
+  relationship type. Available via `match()`, which returns the matches as a Polars DataFrame,
+  `count_matches()`, and `select_match()`, which turns the matches into a **selection**; graphs are
+  exchanged with Cypher databases via `to_cypher()` and `from_cypher()`. [Learn
+  more](10-cypher.qmd).
+
+d-separation
+: A criterion for reading conditional independence off a causal **DAG**: two sets of variables are
+  d-separated by a third when every path between them is blocked by it. It tells which variables
+  must be adjusted for to estimate a causal effect. Available via `is_d_separator()`,
+  `find_minimal_d_separator()`, and `moral_graph()`. [Learn
+  more](17-dags.qmd#causal-diagrams-and-d-separation).
+
+DAG
+: A *directed acyclic graph*, a **directed graph** without **cycles**. DAGs describe dependencies,
+  such as tasks and their prerequisites, packages and their requirements, or causes and their
+  effects, and their nodes can always be put in a **topological sort** order. Available via
+  `is_dag()`. See also **critical path**, **ancestor**, and **transitive reduction**. [Learn
+  more](17-dags.qmd).
+
+Dataset
+: One of the real-world networks that ship with EdgeCase or that it downloads on demand, from
+  classics such as the karate club to networks with millions of edges. Each has a loader function,
+  such as `karate_club()` or `power_grid()`, and the networks distributed as data files are also
+  listed in a *registry*, used with `list_registered_datasets()`, `get_dataset_info()`, and
+  `load_dataset()`. [Learn more](06-datasets.qmd).
+
+Degree
+: The number of edges at a node. In a **directed graph**, the *in-degree* counts incoming edges and
+  the *out-degree* outgoing ones. In a **weighted graph**, the sum of the weights of a node's edges
+  is its *strength*, or weighted degree. A **self-loop** adds 2 to the degree of its node. The node
+  table always ends with a `degree` column. Available via `get_degree()`, `get_in_degree()`,
+  `get_out_degree()`, and `degrees()`. [Learn more](11-structure.qmd#degrees).
+
+Degree centrality
+: A **centrality** that scores a node by its **degree**, divided by the largest possible degree,
+  $n - 1$. It measures direct influence or activity. Available via `degree_centrality()`. [Learn
+  more](13-centrality.qmd#degree-centrality).
+
+Degree distribution
+: The share of nodes with each **degree**. Many real networks have *heavy-tailed* degree
+  distributions, in which most nodes have few ties and a few **hubs** have very many; this shapes
+  their **robustness** and their **spreading** processes. Available via `get_degree_distribution()`.
+  See also **scale-free network**. [Learn more](11-structure.qmd#degrees).
+
+Density
+: The share of the possible edges that are present: $2m / (n(n - 1))$ for an undirected graph with
+  $n$ nodes and $m$ edges, and $m / (n(n - 1))$ for a directed one. Real networks are almost always
+  *sparse*, with a density far below 1, and their density falls as they grow. Available via
+  `get_density()`. [Learn more](11-structure.qmd#the-graph-at-a-glance).
+
+Depth-first search (DFS)
+: A **traversal** that follows one path as far as it goes before backing up to try the next. It
+  underlies algorithms for **cycles**, **topological sorts**, and **articulation points**. Available
+  via `dfs()`, `dfs_edges()`, `dfs_tree()`, and `dfs_postorder_nodes()`. See also **breadth-first
+  search**. [Learn more](09-traversals.qmd#searching).
+
+Descendant
+: See **ancestor**.
+
+Diameter
+: The largest **distance** between any two nodes of a connected graph, which is also the largest
+  **eccentricity**. Real networks have small diameters even when they are very large (see **small
+  world**). Available via `get_diameter()`. See also **radius** and **mean distance**. [Learn
+  more](11-structure.qmd#distances).
+
+Differential network
+: A comparison of two networks of the same nodes, such as the gene networks of healthy and diseased
+  tissue, that finds the edges present in one condition and absent in the other. Available via
+  `differential_edges()` and `edge_overlap()`. See also **graph edit distance**. [Learn
+  more](31-network-biology.qmd#differential-networks).
+
+Dijkstra's algorithm
+: The standard algorithm for **shortest paths** in a **weighted graph** with non-negative weights.
+  It settles the nodes in order of their distance from the source. Graphs with negative weights need
+  the Bellman–Ford algorithm instead. EdgeCase's `shortest_path()` uses Dijkstra's algorithm on
+  weighted graphs and **breadth-first search** on unweighted ones, while `bidirectional_dijkstra()`
+  and `bellman_ford_shortest_path()` choose an algorithm explicitly. [Learn
+  more](12-paths.qmd#choosing-an-algorithm).
+
+Directed graph
+: A graph whose edges have a direction, from a **source** node to a **target** node, as in
+  citations, web links, or the flow of money. Also called a *digraph*. A graph is created as
+  directed with `ec.Graph(directed=True)` and checked with `is_directed()`; `to_directed()`,
+  `to_undirected()`, and `reverse()` change the direction of a graph's edges. See also **undirected
+  graph** and **reciprocity**. [Learn more](03-graph-model.qmd#directed-and-undirected-graphs).
+
+Disease module
+: A connected region of a molecular interaction network that holds the genes associated with a
+  disease. Disease genes tend to cluster in the network, so the module can be grown from a few known
+  genes, or found by connecting the genes with high association scores. Available via
+  `expand_seed_set()` and `prize_collecting_steiner_tree()`. See also **network propagation** and
+  **enrichment**. [Learn more](31-network-biology.qmd#disease-modules).
+
+Disjoint paths
+: Paths between the same two nodes that share no edges (*edge-disjoint*) or no intermediate nodes
+  (*node-disjoint*). Their number measures how many independent routes connect the nodes, and equals
+  the **connectivity** between them. Available via `edge_disjoint_paths()` and
+  `node_disjoint_paths()`. [Learn more](12-paths.qmd#disjoint-paths).
+
+Distance
+: The length of a **shortest path** between two nodes: the number of edges in an unweighted graph,
+  or the sum of the edge **weights** in a weighted one. Nodes in different **components** are at
+  infinite distance. Available via `shortest_path_length()`, `all_pairs_shortest_path_length()`, and
+  `floyd_warshall()`. See also **eccentricity**, **mean distance**, and **resistance distance**.
+  [Learn more](12-paths.qmd).
+
+Dominating set
+: A set of nodes such that every other node is linked to at least one of them, as when choosing
+  sites for services that every neighborhood must be next to. Available via `dominating_set()`,
+  `min_weighted_dominating_set()`, and `is_dominating_set()`. [Learn
+  more](20-coloring-matching.qmd#dominating-sets).
+
+Dominator
+: In a directed graph with an entry node, a node $d$ *dominates* a node $v$ when every path from the
+  entry to $v$ passes through $d$. Dominators are the unavoidable checkpoints of a control-flow
+  graph or a supply chain. Available via `immediate_dominators()` and `dominance_frontiers()`.
+  [Learn more](17-dags.qmd#dominators).
+
+Eccentricity
+: The largest **distance** from a node to any other node. The graph's **radius** is the smallest
+  eccentricity and its **diameter** the largest. Available via `eccentricity()`. See also
+  **center**. [Learn more](11-structure.qmd#distances).
+
+Edge
+: A link between two nodes, joining a **source** to a **target**. Also called a *link*, *tie*, *arc*
+  (when directed), or *relationship*. Every edge in EdgeCase has an **edge ID**, a **rel**, an
+  optional **weight**, and any number of **attributes**. Edges are added with `add_edge()` and
+  `add_edges()`, and fetched as `Edge` objects with `get_edge()`. [Learn
+  more](03-graph-model.qmd#edges).
+
+Edge ID
+: The integer that EdgeCase assigns to each edge, starting from 1 in the order the edges are added.
+  Edge IDs tell **parallel edges** apart, which share their endpoints. Available via
+  `get_edge_ids()` and `find_edge_ids()`, which finds the IDs of the edges between two nodes, and
+  used by `get_edge()`, `get_edge_attrs_by_id()`, `select_edges_by_id()`, and `delete_edge_by_id()`.
+  See also **node ID**. [Learn more](03-graph-model.qmd#edges).
+
+Edge list
+: A table or file with one row per edge, giving its two endpoints and possibly its weight and other
+  attributes. It is the most common way that network data arrives. Available via
+  `Graph.from_edges()`, `from_pandas_edgelist()`, `from_tsv_edge_list()`, and
+  `to_pandas_edgelist()`, and the `Graph` constructor takes a Polars edge list with `edges_df=`.
+  [Learn more](04-building-graphs.qmd#building-a-graph-from-an-edge-list).
+
+Edge table
+: The Polars DataFrame with one row per edge returned by `get_edge_df()`. Its first columns are
+  `id`, `source`, `target`, and `rel`, followed by `weight` when any edge has one and then the other
+  edge **attributes**. The `source` and `target` columns hold **node IDs**. The table is a copy, so
+  changing it never changes the graph. `get_edge_df_ws()` gives the rows of the selected edges only.
+  See also **node table**. [Learn more](07-node-and-edge-data.qmd#the-node-and-edge-tables).
+
+Efficiency
+: The mean of the reciprocal **distances** between all pairs of nodes. Unlike the **mean distance**,
+  it stays finite when the graph is disconnected, since unreachable pairs contribute 0. *Local
+  efficiency* measures the efficiency of each node's neighborhood without the node itself. Available
+  via `global_efficiency()` and `local_efficiency()`. [Learn more](11-structure.qmd#distances).
+
+Ego network
+: The **subgraph** made up of one node (the *ego*), its neighbors (the *alters*), and the edges
+  among them, possibly extended to neighbors of neighbors. Ego networks are the standard unit of
+  personal network studies. Available via `ego_graph()`, whose `radius=` sets how many steps out to
+  go. [Learn more](19-transforming.qmd#ego-networks).
+
+Eigenvector centrality
+: A **centrality** in which a node is important when it is linked to other important nodes. The
+  scores are the entries of the leading eigenvector of the **adjacency matrix**. Available via
+  `eigen_centrality()`. See also **PageRank**, **Katz centrality**, and **hubs and authorities**.
+  [Learn more](13-centrality.qmd#spectral-centrality).
+
+Enrichment
+: A statistical test of whether a group of nodes, such as a **community** or a **disease module**,
+  contains more nodes of some category than chance would produce, usually with a hypergeometric
+  test. It is how modules of genes are linked to known biological functions. Available via
+  `subgraph_enrichment()` and `module_annotation_enrichment()`, which tests every community at once
+  with a correction for multiple testing. [Learn
+  more](31-network-biology.qmd#interpreting-modules-with-annotations).
+
+Epidemic threshold
+: The transmission rate below which an infection dies out and above which it can reach a sizable
+  share of a network. For the **SIR model** on a network of random structure, the threshold of the
+  transmissibility is $T_c = \langle k \rangle / (\langle k^2 \rangle - \langle k \rangle)$, where
+  $\langle k \rangle$ and $\langle k^2 \rangle$ are the mean **degree** and mean squared degree, so
+  networks with **hubs** have a much lower threshold. For SIS dynamics, the threshold is roughly the
+  reciprocal of the largest eigenvalue of the **adjacency matrix**. See also **percolation**. [Learn
+  more](32-spreading.qmd#the-epidemic-threshold).
+
+Erdős–Rényi model
+: See **random graph**.
+
+Eulerian path
+: A **trail** that uses every edge exactly once; an *Eulerian circuit* also ends where it starts. A
+  connected graph has an Eulerian circuit exactly when every node has even **degree**, as Euler
+  showed for the bridges of Königsberg. Available via `has_eulerian_path()`, `eulerian_path()`,
+  `is_eulerian()`, `eulerian_circuit()`, and `eulerize()`, which adds the fewest edges needed to
+  make a graph Eulerian. [Learn more](12-paths.qmd#eulerian-paths-and-circuits).
+
+Fiedler vector
+: The eigenvector of the **Laplacian matrix** that belongs to the **algebraic connectivity**. Its
+  entries place the nodes along a line so that linked nodes are close, and splitting the nodes by
+  its sign gives a good cut of the graph in two. Available via `fiedler_vector()`,
+  `spectral_ordering()`, and `spectral_bisection()`. [Learn
+  more](21-spectral.qmd#ordering-nodes-with-the-fiedler-vector).
+
+Flow
+: An assignment of amounts to the edges of a network with capacities, such as pipes or roads, that
+  respects each edge's capacity and conserves the amount at every node except a source and a sink.
+  The *maximum flow* is the most that can be sent from the source to the sink, and equals the
+  capacity of the **minimum cut** between them. A *minimum-cost flow* meets given demands at the
+  lowest cost. Available via `max_flow()`, `max_flow_value()`, and `min_cost_flow()`. [Learn
+  more](16-connectivity.qmd#flows).
+
+Force-directed layout
+: A **layout** that treats the edges as springs and the nodes as mutually repelling particles, and
+  lets the system settle. Linked nodes end up close and groups of densely linked nodes form visible
+  clusters. Available via `layout_spring()` (Fruchterman–Reingold), `layout_kamada_kawai()`, and
+  `layout_forceatlas2()`. [Learn more](23-layouts.qmd#force-directed-layouts).
+
+Forest
+: An undirected graph without **cycles**, so that each of its **components** is a **tree**.
+  Available via `is_forest()`. [Learn more](17-dags.qmd#trees).
+
+Generator
+: A method that adds a graph of a given structure or a random graph from a given model, such as a
+  grid, a tree, a **small world**, or a **stochastic block model**. EdgeCase's generators are
+  methods whose names start with `add_`, such as `add_grid_2d()`, `add_gnp_graph()`, and
+  `add_pa_graph()`, and they add to the graph they are called on, so several can be combined in one
+  graph. The random generators take `seed=` for reproducible results. [Learn
+  more](05-generators.qmd).
+
+Giant component
+: A **component** that holds a sizable share of all the nodes, as opposed to the many small
+  components that hold only a handful each. Its appearance as edges are added, or its collapse as
+  nodes and edges are removed, is a phase transition studied by **percolation** theory. Available
+  via `largest_component_size()`. See also **Molloy–Reed criterion**. [Learn
+  more](32-spreading.qmd#outbreaks-as-percolation).
+
+Girth
+: The length of the shortest **cycle** in a graph. A graph without cycles has infinite girth.
+  Available via `get_girth()`. [Learn more](15-clustering-and-motifs.qmd#cycles).
+
+Girvan–Newman method
+: A **community detection** method that repeatedly removes the edge of highest edge **betweenness
+  centrality**, the edges most likely to lie between communities, until the network falls apart into
+  groups. It is accurate but slow on large networks. Available via `cmty_girvan_newman()` and
+  `cmty_edge_btwns()`. [Learn more](14-communities.qmd#detection-algorithms).
+
+Graph
+: A set of **nodes** together with a set of **edges** that link pairs of them. Also called a
+  *network*, especially when it describes a real-world system. In EdgeCase, a graph is an `ec.Graph`
+  object, created empty with `ec.Graph()` and filled with nodes and edges, or built from data, a
+  **generator**, or a **dataset**. It can be directed or undirected, weighted or unweighted, and may
+  contain **parallel edges** and **self-loops**. Printing a graph shows a summary of its size and of
+  the results stored on it, and `describe()` prints a fuller overview. [Learn
+  more](03-graph-model.qmd).
+
+Graph edit distance
+: The smallest number of edits, such as adding or deleting nodes and edges, that turns one graph
+  into another. It measures how different two graphs are, but is expensive to compute exactly.
+  Available via `graph_edit_distance()` and `optimize_graph_edit_distance()`. [Learn
+  more](18-similarity.qmd#measuring-differences).
+
+Graph product
+: A way of combining two graphs into a larger one whose nodes are the pairs of their nodes. The
+  *Cartesian product* of two paths is a grid, and of two cycles a torus; the tensor, strong, and
+  lexicographic products link the pairs by other rules. Available via `cartesian_product()`,
+  `tensor_product()`, `strong_product()`, and `lexicographic_product()`. [Learn
+  more](19-transforming.qmd#products).
+
+Graph widget
+: An interactive view of a graph, drawn on an HTML canvas in a notebook, that can be dragged,
+  panned, and zoomed, with colors and sizes mapped from the data and tooltips on hover. Available
+  via `graph_widget()`, which returns a `GraphWidget`. See also **step player**. [Learn
+  more](25-interactive.qmd#the-graph-widget).
+
+Great Tables
+: A Python package, installed together with EdgeCase, that turns a data frame into a formatted,
+  publication-ready table. It is the natural way to present the **node table**, the **edge table**,
+  and summaries computed from them. [Learn more](29-tables.qmd#presenting-tables-with-great-tables).
+
+Harmonic centrality
+: A **centrality** that sums the reciprocal **distances** from a node to all others. It is a variant
+  of **closeness centrality** that handles disconnected graphs, since an unreachable node adds
+  nothing to the sum. Available via `harmonic_centrality()`. [Learn
+  more](13-centrality.qmd#closeness-and-harmonic-centrality).
+
+Heat diffusion
+: A **network propagation** method that places heat on seed nodes and lets it flow along the edges
+  for a time $t$, following the heat equation on the **Laplacian matrix**. Short times keep the heat
+  near the seeds, and longer times spread it further. Available via `heat_diffusion()`. See also
+  **random walk with restart**. [Learn more](31-network-biology.qmd#heat-diffusion).
+
+Homophily
+: The tendency of nodes to link to nodes that share their attributes, such as people of the same age
+  or the same opinions. It is measured by the **assortativity** of a categorical attribute or by a
+  **mixing matrix**. [Learn more](11-structure.qmd#mixing-patterns).
+
+Hub
+: A node of much higher **degree** than most, a common feature of networks with heavy-tailed
+  **degree distributions**. Hubs hold networks together, which makes them resilient to random
+  failures and fragile to targeted attacks (see **robustness**), and they speed up **spreading**.
+  See also **hubs and authorities**. [Learn more](32-spreading.qmd#two-networks).
+
+Hubs and authorities
+: A pair of scores for the nodes of a directed graph, computed by the HITS algorithm. A good
+  *authority* is pointed to by good hubs, and a good *hub* points to good authorities, as with the
+  reference pages and the review pages of the web. Available via `hub_centrality()` and
+  `authority_centrality()`. [Learn more](13-centrality.qmd#hubs-and-authorities).
+
+Immunization
+: Removing nodes from a network, as by vaccination, to stop an epidemic from spreading. *Random*
+  immunization needs a large share of the nodes on a network with **hubs**, *targeted* immunization
+  of the hubs needs far fewer, and *acquaintance* immunization, which immunizes a random neighbor of
+  each randomly chosen node, finds the hubs without knowing the network. See also **epidemic
+  threshold**. [Learn more](32-spreading.qmd#immunization).
+
+Incidence matrix
+: A matrix with one row per node and one column per edge, whose entries mark which nodes each edge
+  joins. Available via `incidence_matrix()`. See also **adjacency matrix**. [Learn
+  more](21-spectral.qmd#graphs-as-matrices).
+
+Independent cascade
+: A model of spreading in which each newly activated node gets a single chance to activate each of
+  its inactive neighbors, succeeding with a fixed probability. It is equivalent to edge
+  **percolation**: the final set of activated nodes is the **component** of the seeds in a graph
+  that keeps each edge with that probability. It underlies **influence maximization**. See also
+  **SIR model**. [Learn more](32-spreading.qmd#influential-spreaders).
+
+Independent set
+: A set of nodes of which no two are linked. A *maximal* independent set can't be extended, and a
+  *maximum* one is a largest; the complement of an independent set is a **vertex cover**. Available
+  via `maximal_independent_set()`, `maximum_independent_set()`, and `is_independent_set()`. [Learn
+  more](20-coloring-matching.qmd#vertex-covers-and-independent-sets).
+
+Induced subgraph
+: See **subgraph**.
+
+Influence maximization
+: Choosing a set of $k$ seed nodes that, when activated, spread an influence to as many nodes as
+  possible under a model such as the **independent cascade**. The greedy algorithm, which adds the
+  node that raises the expected spread the most at each step, is the standard method. Available via
+  `influence_maximization()`. See also **VoteRank**. [Learn
+  more](32-spreading.qmd#influential-spreaders).
+
+Isolate
+: A node without any edges, of **degree** 0. Available via `isolates()`. [Learn
+  more](16-connectivity.qmd#connected-components).
+
+Isomorphism
+: A one-to-one mapping between the nodes of two graphs that preserves every edge. Two graphs are
+  *isomorphic* when such a mapping exists, which means that they have the same structure under
+  different names. *Subgraph isomorphism* finds one graph as a part of another. Available via
+  `is_isomorphic()`, `find_isomorphism()`, `is_subgraph_isomorphic()`, `subgraph_isomorphisms()`,
+  and `weisfeiler_lehman_graph_hash()` for a quick fingerprint. See also **automorphism**. [Learn
+  more](18-similarity.qmd#isomorphism).
+
+Jaccard similarity
+: The **similarity** of two nodes measured as the number of their **common neighbors** divided by
+  the number of nodes linked to either of them. It runs from 0 (no shared neighbors) to 1 (identical
+  neighborhoods). Available via `get_jaccard_similarity()` and `jaccard_coefficient()`. See also
+  **structural equivalence**. [Learn more](18-similarity.qmd#neighborhood-similarity).
+
+k-core
+: The largest **subgraph** in which every node has **degree** at least $k$, found by repeatedly
+  removing the nodes of smaller degree. The cores are nested, and the innermost ones mark the dense
+  center of a network. Available via `k_core()`, with `k_shell()`, `k_crust()`, and `k_corona()` for
+  related parts. See also **coreness** and **k-truss**. [Learn
+  more](11-structure.qmd#cores-and-dense-regions).
+
+k-truss
+: The largest **subgraph** in which every edge lies in at least $k - 2$ **triangles**. It is a
+  stricter notion of a cohesive group than the **k-core**, and sits between the k-core and the
+  **clique**. Available via `k_truss()`. [Learn more](11-structure.qmd#cores-and-dense-regions).
+
+Katz centrality
+: A **centrality** that counts all the **walks** that end at a node, with longer walks counting less
+  by a factor $\alpha$ per step. Unlike **eigenvector centrality**, it gives every node some score,
+  which suits directed graphs. Available via `katz_centrality()`, with the related
+  `alpha_centrality()`. [Learn more](13-centrality.qmd#spectral-centrality).
+
+Label
+: The optional, human-readable string name of a node, such as `"Ada"` or `"BRCA1"`. Labels are
+  unique within a graph and always strings, so a node added as `add_node(7)` is labelled `"7"`.
+  Wherever a method takes a node, a `str` is read as a label and an `int` as a **node ID**. Labels
+  are changed with `relabel_nodes()`, and converted to and from IDs with `get_id_from_label()` and
+  `get_label_from_id()`. A *label* in Cypher is a different thing: Cypher reads a node's **type** as
+  its label. [Learn more](03-graph-model.qmd#labels).
+
+Label propagation
+: A fast **community detection** method in which every node repeatedly adopts the community most
+  common among its neighbors, until the communities stop changing. Its results vary from run to run.
+  Available via `cmty_label_propagation()`, `cmty_fast_label_propagation()`, and
+  `cmty_semisync_label_propagation()`. [Learn more](14-communities.qmd#detection-algorithms).
+
+Laplacian matrix
+: The matrix $L = D - A$, where $D$ holds the node **degrees** on its diagonal and $A$ is the
+  **adjacency matrix**. Its eigenvalues describe how well connected a graph is, how it can be cut,
+  and how processes such as diffusion spread on it; the number of zero eigenvalues is the number of
+  **components**. Available via `laplacian_matrix()`, `normalized_laplacian_matrix()`, and
+  `get_laplacian_spectrum()`. See also **algebraic connectivity** and **Fiedler vector**. [Learn
+  more](21-spectral.qmd#the-laplacian-and-its-relatives).
+
+Layer
+: See **multiplex network**.
+
+Layout
+: The positions of the nodes in a drawing. A layout method computes the positions and stores them in
+  the `pos` node attribute, which `plot(layout="pos")` reuses, so that several drawings can share
+  the same positions. Available via the `layout_*()` methods, such as `layout_spring()`,
+  `layout_circular()`, `layout_bipartite()`, and `layout_spectral()`. See also **force-directed
+  layout**. [Learn more](23-layouts.qmd).
+
+Leiden method
+: A **community detection** method that refines the **Louvain method** so that every community it
+  finds is internally connected. It optimizes **modularity** or the constant Potts model. Available
+  via `cmty_leiden()`, with `cmty_leiden_levels()` for the hierarchy of levels. [Learn
+  more](14-communities.qmd#detection-algorithms).
+
+Line graph
+: The graph whose nodes are the edges of another graph, with two of them linked when the edges share
+  an endpoint. It turns questions about edges into questions about nodes. Available via
+  `line_graph()`. [Learn more](19-transforming.qmd#derived-graphs).
+
+Link prediction
+: Estimating which missing edges are likely to exist or to form, from the structure of the edges
+  that are known. Most predictors score pairs of nodes by their **similarity**, such as their
+  **common neighbors**, **Jaccard similarity**, or **Adamic–Adar index**. Available via
+  `adamic_adar_index()`, `resource_allocation_index()`, `jaccard_coefficient()`, and
+  `preferential_attachment()`, among others. [Learn more](18-similarity.qmd#link-prediction).
+
+Local bridge
+: See **bridge**.
+
+Louvain method
+: A fast **community detection** method that maximizes **modularity** in passes: it moves single
+  nodes between communities while the modularity improves, then merges each community into a single
+  node and repeats on the smaller network. Its **resolution** sets the size of the communities.
+  Available via `cmty_louvain()`, with `cmty_louvain_levels()` for the hierarchy of levels. See also
+  **Leiden method**. [Learn more](14-communities.qmd#detection-algorithms).
+
+Lowest common ancestor
+: For two nodes of a **DAG** or a rooted **tree**, the common **ancestor** that is closest to them,
+  such as the most recent common ancestor of two species. Available via `lowest_common_ancestor()`
+  and `all_pairs_lowest_common_ancestor()`. [Learn more](17-dags.qmd#lowest-common-ancestors).
+
+Matching
+: A set of edges of which no two share a node, so that each node is paired with at most one other. A
+  *maximum* matching pairs as many nodes as possible, a *perfect* matching pairs them all, and a
+  maximum-weight matching maximizes the total **weight** of the pairs. In a **bipartite graph**,
+  matching solves assignment problems, such as workers to jobs. Available via
+  `max_weight_matching()`, `maximal_matching()`, `bipartite_maximum_matching()`, and
+  `bipartite_min_weight_full_matching()`. [Learn more](20-coloring-matching.qmd#matching).
+
+Maximum cut
+: A division of the nodes into two groups that maximizes the number, or the total weight, of the
+  edges between them. Available via `max_cut()`. See also **minimum cut**. [Learn
+  more](20-coloring-matching.qmd#maximum-cut).
+
+Mean distance
+: The mean **distance** over all pairs of nodes that are connected, also called the *average path
+  length*. It grows only slowly with the size of a network (see **small world**). Available via
+  `get_mean_distance()`. See also **diameter** and **efficiency**. [Learn
+  more](11-structure.qmd#distances).
+
+Minimum cut
+: The smallest set of edges (or nodes) whose removal separates two given nodes, or disconnects the
+  graph; in a **weighted graph**, the set of smallest total weight. Its size is the **connectivity**
+  between the nodes and equals the maximum **flow** between them. Available via `minimum_cut()`,
+  `minimum_edge_cut()`, `minimum_node_cut()`, `get_min_cut_between()`, and `stoer_wagner()` for the
+  global minimum cut of a weighted graph. [Learn more](16-connectivity.qmd#flows).
+
+Mixing matrix
+: A table that counts the share of edges between each pair of attribute values or degrees, such as
+  the share of friendships between members of two factions. Its pattern shows **homophily** and
+  **assortativity** in detail. Available via `attribute_mixing_matrix()` and
+  `degree_mixing_matrix()`. [Learn more](11-structure.qmd#mixing-patterns).
+
+Modularity
+: A score for a **partition** of the nodes into **communities**: the share of edges that fall within
+  communities minus the share expected if the edges were placed at random with the same **degrees**,
+
+  $$
+  Q = \frac{1}{2m} \sum_{ij} \left( A_{ij} - \gamma \frac{k_i k_j}{2m} \right) \delta(c_i, c_j),
+  $$
+
+  where $m$ is the number of edges, $k_i$ the degree of node $i$, $c_i$ its community, and $\gamma$
+  the **resolution**. Values above about 0.3 suggest clear community structure. Most community
+  detection methods try to maximize it. Available via `modularity()`, with `partition_quality()` for
+  two other scores. [Learn more](14-communities.qmd#measuring-the-quality-of-a-partition).
+
+Molloy–Reed criterion
+: The condition under which a network of random structure with a given **degree distribution** has a
+  **giant component**: $\langle k^2 \rangle / \langle k \rangle > 2$. Applied to random failures, it
+  predicts the share of nodes whose removal breaks the giant component, $1 - 1 / (\kappa - 1)$ with
+  $\kappa = \langle k^2 \rangle / \langle k \rangle$, which approaches 1 for networks with **hubs**.
+  See also **robustness** and **percolation**. [Learn
+  more](32-spreading.qmd#the-threshold-of-random-failure).
+
+Motif
+: A small pattern of connections, such as a triangle or a feed-forward loop, that occurs in a
+  network much more often than in comparable **random graphs**. Motifs are thought to be building
+  blocks with particular functions, especially in biological networks. Available via
+  `motif_census()`, which counts every pattern of a given size, and `motif_significance()`, which
+  compares the counts with a **null model**. See also **triad**. [Learn
+  more](15-clustering-and-motifs.qmd#motifs).
+
+Multigraph
+: A graph that may have several edges between the same pair of nodes. Any EdgeCase graph can hold
+  **parallel edges**, so there is no separate multigraph class. [Learn
+  more](03-graph-model.qmd#parallel-edges-and-self-loops).
+
+Multiplex network
+: A network in which the same nodes are linked by several kinds of tie, such as working together,
+  friendship, and advice among colleagues. Each kind of tie forms a *layer*. In EdgeCase, a
+  multiplex network can be one graph whose edge **rel** names each edge's layer, or a
+  `MultiplexGraph` that holds the layers as separate graphs on the same nodes, with
+  `multiplex_pagerank()` and `multiplex_community_detection()` analyzing the layers together. See
+  also **multiplexity**. [Learn more](30-multiplex.qmd).
+
+Multiplexity
+: The number of **layers** in which a pair of nodes is linked. Pairs with several kinds of tie are
+  usually closer and more stable than pairs with one. [Learn
+  more](30-multiplex.qmd#describing-the-layers-together).
+
+Neighbor
+: A node linked to a given node by an edge. In a **directed graph**, the nodes that an edge points
+  to are the node's *successors*, and those that point to it are its *predecessors*. The set of a
+  node's neighbors is its *neighborhood*. Available via `neighbors()`, `get_successors()`, and
+  `get_predecessors()`, with `select_nodes_in_neighborhood()` selecting a neighborhood. [Learn
+  more](09-traversals.qmd#neighbors).
+
+Network
+: See **graph**.
+
+Network propagation
+: A family of methods that spread scores from some nodes over a network, so that nodes near
+  high-scoring nodes score highly too. It is used to prioritize candidate disease genes from known
+  ones and to smooth noisy measurements, such as association scores, using the network as a guide.
+  Available via `random_walk_with_restart()`, `heat_diffusion()`, `personalized_pagerank()`, and
+  `network_smooth()`. [Learn more](31-network-biology.qmd#prioritizing-candidate-genes).
+
+Network proximity
+: The closeness of two sets of nodes in a network, such as the targets of a drug and the genes of a
+  disease, measured from the **distances** between them. A drug whose targets are closer to a
+  disease's genes than chance would place them is a candidate for treating it. Available via
+  `network_proximity()`. [Learn more](31-network-biology.qmd#network-proximity-of-drugs).
+
+Node
+: One of the objects that a graph links, such as a person, a web page, or a protein. Also called a
+  *vertex*, or an *actor* in social networks. Every node in EdgeCase has a **node ID**, an optional
+  **label**, an optional **type**, and any number of **attributes**. Nodes are added with
+  `add_node()` and `add_nodes()`, and fetched as `Node` objects with `get_node()`. Asking for a node
+  that doesn't exist raises a `NodeNotFoundError`. [Learn more](03-graph-model.qmd#nodes).
+
+Node ID
+: The positive integer that EdgeCase assigns to each node, starting from 1 in the order the nodes
+  are added. IDs are never reused, even after a node is deleted, so an ID always refers to the same
+  node. Methods that return nodes, such as `neighbors()` and `shortest_path()`, return IDs, and
+  methods with `return_dict=True` key their results by ID. Wherever a method takes a node, an `int`
+  is read as an ID and a `str` as a **label**. See also **edge ID**. [Learn
+  more](03-graph-model.qmd#ids).
+
+Node table
+: The Polars DataFrame with one row per node returned by `get_node_df()`. Its first columns are
+  `id`, `label`, and `type`, followed by the node **attributes** in alphabetical order and a
+  `degree` column computed on the spot. The table is a copy, so changing it never changes the graph;
+  results computed from it are written back with `set_node_attrs()`. `get_node_df_ws()` gives the
+  rows of the selected nodes only. See also **edge table**. [Learn
+  more](07-node-and-edge-data.qmd#the-node-and-edge-tables).
+
+Normalized mutual information (NMI)
+: A measure of the agreement between two **partitions** of the same nodes, such as detected
+  communities and known groups. It is 1 for identical partitions and close to 0 for unrelated ones.
+  [Learn more](14-communities.qmd#comparing-with-known-groups).
+
+Null model
+: A random graph that keeps some properties of a real network, such as its number of edges or its
+  **degrees**, and randomizes the rest. Comparing the network with its null model shows which of its
+  features are surprising and which follow from the properties kept. Available via
+  `random_reference()`, `lattice_reference()`, `configuration_model()`, and
+  `degree_preserving_rewire()`. See also **rewiring**. [Learn
+  more](05-generators.qmd#null-models-from-an-existing-graph).
+
+PageRank
+: A **centrality** that scores a node by the share of time a random surfer spends at it, where the
+  surfer follows a random outgoing edge with probability $d$ (the *damping factor*, 0.85 by default)
+  and jumps to a random node otherwise. Developed to rank web pages, it is a variant of
+  **eigenvector centrality** that works on directed graphs. Available via `pagerank()`. See also
+  **personalized PageRank**. [Learn more](13-centrality.qmd#pagerank).
+
+Parallel edges
+: Two or more edges that join the same pair of nodes (in the same direction, in a directed graph).
+  They represent repeated interactions or ties of different kinds, such as the layers of a
+  **multiplex network**. Every EdgeCase graph allows them, and **edge IDs** tell them apart.
+  Available via `count_multi_edges()` and `which_multiple()`, with `remove_duplicate_edges()` and
+  `simplify()` to remove them. See also **simple graph**. [Learn
+  more](03-graph-model.qmd#parallel-edges-and-self-loops).
+
+Partition
+: A division of the nodes into groups, with each node in exactly one group, such as the result of
+  **community detection**. EdgeCase stores a partition as a node attribute holding each node's group
+  number, and the methods that score partitions, such as `modularity()`, take the name of that
+  attribute, a dictionary of groups keyed by node, or a list of the groups. See also **quotient
+  graph**. [Learn more](14-communities.qmd#working-with-the-results).
+
+Path
+: A sequence of nodes in which each is linked to the next. In a *simple path*, no node appears
+  twice. More generally, a **walk** may repeat nodes and edges, and a **trail** may repeat nodes but
+  not edges. Available via `has_path()`, `shortest_path()`, `get_all_simple_paths()`, and
+  `is_simple_path()`. See also **shortest path** and **cycle**. [Learn more](12-paths.qmd).
+
+Percolation
+: The study of what remains connected when a random share of a network's edges (*bond* percolation)
+  or nodes (*site* percolation) is removed. As the share removed grows, the **giant component**
+  shrinks and then disappears at a *percolation threshold*. Percolation describes both the failure
+  of networks and the spread of epidemics, since an outbreak spreads over the edges that transmit.
+  Available via `edge_percolation()`, `node_percolation()`, and `percolation_threshold_analysis()`.
+  See also **robustness**, **epidemic threshold**, and **Molloy–Reed criterion**. [Learn
+  more](32-spreading.qmd#outbreaks-as-percolation).
+
+Personalized PageRank
+: A version of **PageRank** in which the random surfer jumps back to a chosen set of nodes rather
+  than to any node, so that the scores measure closeness to those nodes. It is the same idea as a
+  **random walk with restart**. Available via `personalized_pagerank()`. [Learn
+  more](13-centrality.qmd#pagerank).
+
+Planar graph
+: A graph that can be drawn in the plane without any edges crossing, such as a road network without
+  bridges or tunnels. Available via `is_planar()`, `check_planarity()`, and `layout_planar()`.
+  [Learn more](20-coloring-matching.qmd#planar-graphs).
+
+Polars
+: The DataFrame library that EdgeCase uses for its tables. The **node table** and the **edge table**
+  are Polars DataFrames, graphs can be built from Polars tables of nodes and edges, and Cypher
+  queries return their matches as Polars DataFrames. [Learn more](07-node-and-edge-data.qmd).
+
+Predecessor
+: See **neighbor**.
+
+Preferential attachment
+: A model of network growth in which each new node links to existing nodes with probabilities
+  proportional to their **degrees**, so that the well-connected get better connected. Its standard
+  form, the Barabási–Albert model, produces a **scale-free network** with **hubs**. Available via
+  `add_pa_graph()`, with variants such as `add_dual_barabasi_albert_graph()` and
+  `add_powerlaw_cluster_graph()`. As a **link prediction** score, *preferential attachment* is the
+  product of the two degrees, available via `preferential_attachment()`. [Learn
+  more](05-generators.qmd#the-classic-models).
+
+Prize-collecting Steiner tree
+: See **Steiner tree**.
+
+Projection
+: A one-mode network derived from a **bipartite graph** by linking two nodes of one side when they
+  share a neighbor on the other: two people who attended the same event, or two diseases linked to
+  the same gene. The edges are usually weighted by the number of shared neighbors. Available via
+  `bipartite_projection()`. [Learn more](19-transforming.qmd#derived-graphs).
+
+Quotient graph
+: The graph formed by collapsing each group of a **partition** into a single node, with an edge
+  between two groups when any of their members are linked. It gives a zoomed-out view of a network,
+  such as a network of communities. Available via `quotient_graph()`, with `contract_nodes()` for
+  merging a single group. [Learn more](14-communities.qmd#a-network-of-communities).
+
+Radius
+: The smallest **eccentricity** of any node, the distance from the **center** to the node farthest
+  from it. Available via `get_radius()`. See also **diameter**. [Learn
+  more](11-structure.qmd#distances).
+
+Random graph
+: A graph generated by a random process. In the Erdős–Rényi model, $G(n, p)$ links each pair of $n$
+  nodes independently with probability $p$, and $G(n, m)$ places $m$ edges among the pairs at
+  random. Such graphs have small distances but little clustering and no **hubs**, and serve as the
+  baseline against which real networks are compared. Available via `add_gnp_graph()` and
+  `add_gnm_graph()`. See also **configuration model**, **null model**, and **stochastic block
+  model**. [Learn more](05-generators.qmd#random-graphs).
+
+Random walk
+: A **walk** that moves from each node to a randomly chosen neighbor. Random walks underlie
+  **PageRank**, diffusion, the **resistance distance**, and community detection methods such as
+  Walktrap, which finds groups in which walks tend to stay. Available via `random_walk()` and
+  `random_edge_walk()`. [Learn more](12-paths.qmd#walks).
+
+Random walk with restart (RWR)
+: A **random walk** that returns to a set of seed nodes with a fixed probability at every step. The
+  share of time it spends at each node measures the node's closeness to the seeds, taking all paths
+  into account, and is used to prioritize candidate disease genes. Available via
+  `random_walk_with_restart()`, whose `restart_prob=` is 0.15 by default. See also **network
+  propagation** and **personalized PageRank**. [Learn
+  more](31-network-biology.qmd#random-walk-with-restart).
+
+Reachability
+: Whether a path leads from one node to another. In a **directed graph**, reachability need not be
+  symmetric. Available via `has_path()`, `descendants()`, and `reachability_index()`, which answers
+  many reachability queries quickly. See also **transitive closure**. [Learn
+  more](17-dags.qmd#reachability-queries).
+
+Reciprocity
+: The share of the edges of a **directed graph** whose reverse edge is also present, such as
+  friendship nominations that are returned. Available via `get_reciprocity()`, with `which_mutual()`
+  and `count_mutual_node_pairs()`. [Learn more](11-structure.qmd#reciprocity).
+
+Regular graph
+: A graph in which every node has the same **degree**, $k$ for a *k-regular* graph. Available via
+  `is_regular()`, `is_k_regular()`, and `add_random_regular_graph()`. [Learn
+  more](11-structure.qmd#properties).
+
+rel
+: The relationship type of an edge, such as `"friend"` or `"cites"`, stored in the `rel` column of
+  the **edge table**. Like the node **type**, it has a special role: **Cypher** queries read it as
+  the relationship type (as in `-[:friend]->`), many methods can filter on it, and it can record the
+  layer of each edge in a **multiplex network**. It is set with the `rel=` argument of `add_edge()`,
+  `add_edges()`, and the **generators**. [Learn
+  more](07-node-and-edge-data.qmd#types-and-relationship-types).
+
+Resistance distance
+: The **distance** between two nodes measured as the electrical resistance between them when every
+  edge is a one-ohm resistor. Unlike the **shortest path** distance, it falls when there are many
+  routes between the nodes, and it is related to **random walks**. Available via
+  `get_resistance_distance()`, `resistance_distance_matrix()`, and `get_kirchhoff_index()`, the sum
+  over all pairs. [Learn more](12-paths.qmd#resistance-distance).
+
+Resolution
+: A parameter of **modularity** and of the community detection methods that maximize it, written
+  $\gamma$, that sets the scale of the communities found. Values above 1 give more and smaller
+  communities, and values below 1 fewer and larger ones. Available as the `resolution=` argument of
+  `cmty_louvain()`, `cmty_leiden()`, and `modularity()`. [Learn
+  more](14-communities.qmd#resolution).
+
+Resource allocation index
+: A **link prediction** score for a pair of nodes that sums $1 / k$ over their **common neighbors**,
+  where $k$ is the neighbor's **degree**, imagining each neighbor dividing a resource among its
+  ties. It is similar to the **Adamic–Adar index** but penalizes hubs more. Available via
+  `resource_allocation_index()`. [Learn more](18-similarity.qmd#link-prediction).
+
+return_dict
+: The argument, accepted by the methods that compute a value for every node, that returns the
+  results as a dictionary keyed by **node ID** instead of storing them on the graph. See **stored
+  results**. [Learn more](00-get-started.qmd#three-ideas-that-run-through-the-library).
+
+Rewiring
+: Randomly swapping the endpoints of pairs of edges, so that the edges change but every node keeps
+  its **degree**. Repeated many times, it turns a network into a sample from its degree-preserving
+  **null model**. Available via `degree_preserving_rewire()` and `random_reference()`. See also
+  **configuration model**. [Learn more](05-generators.qmd#null-models-from-an-existing-graph).
+
+Rich club
+: The tendency of the high-degree nodes of a network to be densely linked to each other, as when the
+  most prominent scientists all collaborate. The *rich-club coefficient* is the **density** among
+  the nodes above each degree, best compared with that of a **null model**. Available via
+  `rich_club_coefficient()`. [Learn more](11-structure.qmd#rich-clubs).
+
+Robustness
+: How well a network stays connected as nodes or edges fail or are removed, usually measured by the
+  size of the **giant component** as more and more are removed. Networks with **hubs** are robust to
+  random failures but fragile to attacks on the hubs. The *robustness index* $R$ averages the share
+  of nodes in the giant component over all stages of the removal. Available via
+  `network_robustness()`, which removes nodes in order of **degree**, betweenness, or at random, and
+  `node_percolation()`. See also **percolation** and **Molloy–Reed criterion**. [Learn
+  more](32-spreading.qmd#robustness).
+
+Scale-free network
+: A network whose **degree distribution** follows a power law, $p(k) \propto k^{-\gamma}$, at least
+  in its tail, so that it has **hubs** of every size and no typical degree. Such networks arise from
+  **preferential attachment**. How common exact power laws are in real networks is debated, but
+  heavy-tailed degree distributions are widespread. Available via `add_pa_graph()` and
+  `add_scale_free_graph()`. [Learn more](05-generators.qmd#the-classic-models).
+
+Selection
+: A set of nodes, or a set of edges, that a graph holds as part of its state, so that a later call
+  can act on it. The `select_*()` methods build a selection, by attribute, degree, centrality,
+  pattern, or ID; the `trav_*()` methods move it along the edges; and the methods whose names end in
+  `_ws` ("with selection") act on it, such as `set_node_attrs_ws()` or `delete_nodes_ws()`. A graph
+  selects either nodes or edges, never both, and a selection persists until it is changed or cleared
+  with `clear_selection()`. See also **traversal**. [Learn more](08-selections.qmd).
+
+Self-loop
+: An edge that joins a node to itself. Self-loops represent, for example, a gene that regulates
+  itself. EdgeCase allows them in any graph. Available via `count_loops()`, `which_loops()`, and
+  `remove_selfloops()`. See also **simple graph**. [Learn
+  more](03-graph-model.qmd#parallel-edges-and-self-loops).
+
+Shortest path
+: A **path** between two nodes with the fewest edges, or in a **weighted graph** the smallest total
+  **weight**. Its length is the **distance** between the nodes, and there may be several shortest
+  paths of the same length. Available via `shortest_path()`, `shortest_path_length()`,
+  `all_shortest_paths()`, and `k_shortest_paths()` for the next-best alternatives. See also
+  **Dijkstra's algorithm** and **A\* search**. [Learn
+  more](12-paths.qmd#the-shortest-path-between-two-nodes).
+
+Similarity
+: A measure of how alike two nodes are, based on their positions in the network rather than their
+  attributes. Neighborhood measures, such as **Jaccard similarity** and cosine similarity, compare
+  the nodes' **neighbors**, and path-based measures, such as **SimRank**, take more distant
+  structure into account. Available via `get_jaccard_similarity()`, `get_cosine_similarity()`,
+  `get_dice_similarity()`, `get_pairwise_similarity()`, and `simrank_similarity()`. See also **link
+  prediction** and **structural equivalence**. [Learn more](18-similarity.qmd).
+
+Simple graph
+: A graph without **parallel edges** or **self-loops**. Many algorithms and file formats assume a
+  simple graph. Available via `is_simple()` and `simplify()`, which removes both. [Learn
+  more](03-graph-model.qmd#parallel-edges-and-self-loops).
+
+SimRank
+: A **similarity** in which two nodes are similar when their **neighbors** are similar, computed
+  recursively, with every node maximally similar to itself. Available via `simrank_similarity()`.
+  [Learn more](18-similarity.qmd#similarity-from-paths).
+
+SIR model
+: A model of an epidemic in which every node is *susceptible*, *infected*, or *recovered*. Each
+  infected node infects each susceptible neighbor with some probability, and then recovers and
+  cannot be infected again. Its final outbreak size relates to **percolation**, and its behavior
+  depends on whether the transmissibility is above the **epidemic threshold**. In the related SIS
+  model, recovered nodes become susceptible again. See also **independent cascade** and
+  **immunization**. [Learn more](32-spreading.qmd#simulating-an-epidemic).
+
+Site percolation
+: See **percolation**.
+
+Small world
+: A network in which most nodes can be reached from any other in a few steps, even though the
+  network is large and most nodes have few ties, as in the "six degrees of separation" of social
+  networks. The Watts–Strogatz model shows how a few random shortcuts give a clustered lattice small
+  distances. Small-world networks combine a high **clustering coefficient** with a short **mean
+  distance**. Available via `add_smallworld_graph()`, `small_world_sigma()`, and
+  `small_world_omega()`. [Learn more](11-structure.qmd#small-worlds).
+
+Soft thresholding
+: The step of **co-expression network** construction in WGCNA that raises the absolute correlations
+  between genes to a power $\beta$, so that weak correlations fade while strong ones are kept. The
+  power is chosen as the smallest one that makes the network approximately scale-free (see
+  **scale-free network**). Available via `soft_threshold_power()`. [Learn
+  more](31-network-biology.qmd#choosing-the-power).
+
+Source
+: The node at which an edge starts; the node at which it ends is its *target*. In a **directed
+  graph**, the edge points from the source to the target. In an **undirected graph**, the two are
+  interchangeable, but EdgeCase still records them in the order the endpoints were given. The
+  `source` and `target` columns of the **edge table** hold **node IDs**. [Learn
+  more](03-graph-model.qmd#edges).
+
+Spanning tree
+: A **tree** that includes every node of a connected graph and uses some of its edges. A *minimum
+  spanning tree* has the smallest total **weight**, the cheapest way to connect everything, as with
+  a network of cables. Available via `minimum_spanning_tree()`, `maximum_spanning_tree()`,
+  `number_of_spanning_trees()`, and `random_spanning_tree()`. See also **arborescence** and
+  **Steiner tree**. [Learn more](16-connectivity.qmd#spanning-trees).
+
+Sparse graph
+: See **density**.
+
+Spectrum
+: The eigenvalues of a matrix of a graph, usually the **adjacency matrix** or the **Laplacian
+  matrix**. The spectrum reflects many structural properties: the number of **components**, whether
+  it is a **bipartite graph**, how well the graph can be cut, and the number of communities.
+  Available via `get_spectrum()`, `get_laplacian_spectrum()`, `modularity_spectrum()`, and
+  `bethe_hessian_spectrum()`. [Learn more](21-spectral.qmd).
+
+Spreading
+: Any process by which something passes along the edges of a network: an infection, a rumor, a
+  behavior, or a failure. Its reach depends on the structure of the network, especially its
+  **hubs**. See also **SIR model**, **independent cascade**, **epidemic threshold**, and **influence
+  maximization**. [Learn more](32-spreading.qmd).
+
+Steiner tree
+: The smallest **tree** that connects a given set of *terminal* nodes, possibly through other nodes.
+  The *prize-collecting* variant gives each node a prize and each edge a cost, and finds the tree
+  that best trades off the prizes collected against the costs paid; it is used to extract **disease
+  modules** from gene scores. Available via `steiner_tree()`, `prize_collecting_steiner_tree()`, and
+  `directed_steiner_tree()`. See also **spanning tree**. [Learn more](12-paths.qmd#steiner-trees).
+
+Step
+: A single entry of the **step log**, recorded for each call that builds, changes, analyzes, or
+  traverses a graph. A step holds the method that was called, a snippet of code that shows the call,
+  a narration, the nodes and edges it affected, and its *kind*, such as `"build_nodes"`, `"metric"`,
+  or `"select"`. A traversal is recorded as one step with a *sub-step* for every node it visited.
+  [Learn more](26-step-log.qmd#steps-in-detail).
+
+Step log
+: The record of everything that has been done to a graph, kept automatically as a list of **steps**.
+  It serves as an audit trail, can be exported as a table to document a pipeline, and can be
+  replayed as an animation. Available via the `steps` property, `print_steps()`, `note()` for adding
+  narration to the next step, `play()`, and `clear_steps()`. [Learn more](26-step-log.qmd).
+
+Step player
+: An animation with controls to step forward and back, play and pause, and jump to any frame. The
+  player returned by `play()` rebuilds a graph from its **step log** one step at a time, with the
+  code and narration of each step below the drawing; `plot_traversal()` and `record_traversal()`
+  animate a search through a graph. Both produce a `StepPlayer`, which can be saved as a standalone
+  HTML file. [Learn more](26-step-log.qmd#replaying-with-play).
+
+Stochastic block model (SBM)
+: A **random graph** model in which the nodes belong to groups and the probability of an edge
+  depends only on the groups of its two endpoints. With high probabilities within groups, it
+  generates communities; with other patterns, it generates core–periphery structure or
+  disassortative groups. Fitting an SBM to a network is a principled form of **community
+  detection**. Available via `generate_stochastic_block_model()` and
+  `cmty_stochastic_block_model()`. See also **benchmark graph**. [Learn
+  more](14-communities.qmd#a-fixed-number-of-groups).
+
+Stored results
+: EdgeCase's convention that a method that computes a value for every node, such as a **centrality**
+  or a **community**, writes it to a node attribute named after the method (for example `pagerank`
+  or `cmty_louvain`) and returns the graph, so that the results appear as columns of the **node
+  table** and calls can be chained (see **chaining**). `attr_name=` stores the results under another
+  name, and `return_dict=True` returns them as a dictionary keyed by **node ID** and leaves the
+  graph unchanged. [Learn more](07-node-and-edge-data.qmd#attributes-written-by-algorithms).
+
+Strongly connected component
+: A maximal set of nodes of a **directed graph** in which every node can be reached from every other
+  along directed edges. Available via `strongly_connected_components()`,
+  `count_strongly_connected_components()`, and `is_strongly_connected()`. See also **weakly
+  connected component** and **condensation**. [Learn more](16-connectivity.qmd#directed-graphs).
+
+Structural equivalence
+: The property of two nodes that have exactly the same **neighbors**, and so occupy the same
+  position in the network. Approximate structural equivalence is measured by neighborhood
+  **similarity**. [Learn more](18-similarity.qmd#structural-equivalence).
+
+Subgraph
+: A graph made of some of the nodes and edges of another. The subgraph *induced* by a set of nodes
+  contains those nodes and every edge among them. Available via `subgraph()` for the subgraph
+  induced by a list of nodes, `edge_subgraph()` for a set of edges, and `transform_to_subgraph_ws()`
+  for the current **selection**. See also **ego network**. [Learn
+  more](19-transforming.qmd#subgraphs).
+
+Successor
+: See **neighbor**.
+
+Target
+: See **source**.
+
+Topological overlap
+: A **similarity** of two nodes that combines whether they are linked with how many **neighbors**
+  they share, normalized by the smaller of their **degrees**. In **co-expression networks**, the
+  topological overlap matrix (TOM) is the basis for finding modules of genes. Available via
+  `topological_overlap()`. [Learn more](31-network-biology.qmd#finding-modules).
+
+Topological sort
+: An ordering of the nodes of a **DAG** in which every edge points from an earlier node to a later
+  one, such as an order in which tasks can be done that respects their prerequisites. A DAG usually
+  has many. *Topological generations* group the nodes into stages that can proceed in parallel.
+  Available via `get_topological_sort_order()`, `all_topological_sorts()`,
+  `lexicographical_topological_sort()`, and `topological_generations()`. [Learn
+  more](17-dags.qmd#ordering).
+
+Trail
+: A **walk** that doesn't repeat any edge, although it may revisit nodes. See also **Eulerian
+  path**. Available via `count_trails()` and `enumerate_trails()`. [Learn more](12-paths.qmd#walks).
+
+Transitive closure
+: The graph that adds an edge from every node to every node it can reach, making all
+  **reachability** explicit. Its opposite, the *transitive reduction*, removes every edge that is
+  implied by a longer path, leaving the fewest edges with the same reachability, which gives the
+  cleanest drawing of a **DAG** of dependencies. Available via `transitive_closure()` and
+  `transitive_reduction()`. [Learn more](17-dags.qmd#closure-and-reduction).
+
+Transitive reduction
+: See **transitive closure**.
+
+Transitivity
+: The share of the connected triples of nodes (paths of two edges) that are closed into
+  **triangles**, $3 \times \text{triangles} / \text{connected triples}$. It measures the tendency of
+  the friends of a friend to be friends, over the whole graph. Also called the *global clustering
+  coefficient*. Available via `get_transitivity()`. See also **clustering coefficient**. [Learn
+  more](15-clustering-and-motifs.qmd#two-global-measures).
+
+Traveling salesperson problem
+: Finding the shortest route that visits every node once and returns to the start. It is hard to
+  solve exactly for large graphs, so it is usually solved approximately. Available via
+  `traveling_salesman()`. [Learn more](12-paths.qmd#the-traveling-salesperson-problem).
+
+Traversal
+: Visiting the nodes of a graph by following its edges, as in a **breadth-first search** or a
+  **depth-first search**. In EdgeCase, the term also covers moving a **selection** along the edges:
+  `trav_out()`, `trav_in()`, and `trav_both()` replace the selected nodes with their neighbors in
+  the given direction, `trav_out_edge()` and `trav_in_edge()` move from nodes to edges, and
+  `trav_out_until()` repeats until a condition holds. [Learn more](09-traversals.qmd).
+
+Tree
+: A connected graph without **cycles**, in which every pair of nodes is joined by exactly one path.
+  A tree on $n$ nodes has $n - 1$ edges. A *rooted* tree has a distinguished root node, from which
+  the others descend. Available via `is_tree()`, `add_balanced_tree()`, and
+  `from_prufer_sequence()`. See also **forest**, **arborescence**, and **spanning tree**. [Learn
+  more](17-dags.qmd#trees).
+
+Treewidth
+: A measure of how close a graph is to a **tree**: trees have treewidth 1, and denser graphs higher
+  values. Many problems that are hard in general become easy on graphs of small treewidth. Available
+  via `tree_decomposition()` and `chordal_graph_treewidth()`. See also **chordal graph**. [Learn
+  more](20-coloring-matching.qmd#chordal-graphs-and-treewidth).
+
+Triad
+: A set of three nodes and the edges among them. A directed graph has sixteen types of triad, from
+  three unlinked nodes to three nodes linked in both directions, and the *triad census* counts each
+  type; it is a classic summary of social networks. Available via `triadic_census()`,
+  `triad_type()`, and `triads_by_type()`. See also **motif**. [Learn
+  more](15-clustering-and-motifs.qmd#triads-in-directed-graphs).
+
+Triangle
+: Three nodes that are all linked to each other, the smallest **clique** of more than two nodes.
+  Triangles are the basis of the **clustering coefficient** and **transitivity**. Available via
+  `count_triangles()` and `list_triangles()`. [Learn more](15-clustering-and-motifs.qmd#triangles).
+
+type
+: The kind of a node, such as `"person"` or `"place"`, stored in the `type` column of the **node
+  table**. It is an **attribute** with a special role: **Cypher** queries read it as the node's
+  label (as in `(p:person)`), and many methods can filter on it. It is set with the `type=` argument
+  of `add_node()`, `add_nodes()`, and the **generators**. See also **rel**. [Learn
+  more](03-graph-model.qmd#types-and-attributes).
+
+Undirected graph
+: A graph whose edges have no direction, so that an edge from $a$ to $b$ is the same as one from $b$
+  to $a$, as in friendships or collaborations. EdgeCase graphs are undirected unless created with
+  `directed=True`, and an undirected edge still records which endpoint was given as its **source**
+  and which as its **target**. See also **directed graph**. [Learn
+  more](03-graph-model.qmd#directed-and-undirected-graphs).
+
+Vertex
+: See **node**.
+
+Vertex cover
+: A set of nodes that touches every edge, as when placing guards at intersections so that every
+  street is watched. The complement of a vertex cover is an **independent set**. Available via
+  `min_weighted_vertex_cover()`, `bipartite_vertex_cover()`, and `is_vertex_cover()`. [Learn
+  more](20-coloring-matching.qmd#vertex-covers-and-independent-sets).
+
+VoteRank
+: A method for choosing a set of influential spreaders by rounds of voting: every node votes for its
+  neighbors, the node with the most votes is chosen, and the neighbors of each chosen node lose
+  voting power, so that the chosen nodes are spread across the network rather than clustered
+  together. Available via `voterank()`. See also **influence maximization**. [Learn
+  more](32-spreading.qmd#influential-spreaders).
+
+Walk
+: A sequence of nodes in which each is linked to the next, with nodes and edges allowed to repeat.
+  The number of walks of length $k$ between two nodes is an entry of the $k$-th power of the
+  **adjacency matrix**. Available via `count_walks()`. See also **path**, **trail**, and **random
+  walk**. [Learn more](12-paths.qmd#walks).
+
+Walktrap
+: A **community detection** method based on **random walks**: short walks tend to stay within
+  communities, so nodes are grouped by the similarity of where walks starting from them go.
+  Available via `cmty_walktrap()`. [Learn more](14-communities.qmd#detection-algorithms).
+
+Weakly connected component
+: A maximal set of nodes of a **directed graph** that are connected when the edge directions are
+  ignored. Available via `weakly_connected_components()`, `count_weakly_connected_components()`, and
+  `is_weakly_connected()`. See also **strongly connected component**. [Learn
+  more](16-connectivity.qmd#directed-graphs).
+
+Weight
+: A number attached to an edge, such as a distance, a cost, a capacity, or the strength of a tie,
+  stored in the `weight` column of the **edge table**. Whether a larger weight means a stronger or a
+  weaker connection depends on the method: **shortest paths** and **betweenness centrality** read
+  weights as distances, while **PageRank** and **community detection** read them as strengths. See
+  also **weighted graph**. [Learn more](03-graph-model.qmd#weighted-graphs).
+
+Weighted graph
+: A graph whose edges carry **weights**. A graph is weighted when it is created with
+  `weighted=True`, and conversions such as `from_networkx()` and `from_numpy_array()` detect weights
+  in the data. Methods that accept weights use them by default on a weighted graph. Available via
+  `is_weighted()`. [Learn more](03-graph-model.qmd#weighted-graphs).
+
+Wiener index
+: The sum of the **distances** between all pairs of nodes, a classic descriptor of molecular graphs
+  in chemistry. Available via `get_wiener_index()`, with `get_hyper_wiener_index()` for a variant.
+  See also **mean distance**. [Learn more](12-paths.qmd#distance-based-indices).
