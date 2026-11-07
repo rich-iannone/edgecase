@@ -12,7 +12,8 @@ use crate::graph::{Edge, Graph, Node};
 /// Contract two nodes into one, merging v into u.
 ///
 /// All edges incident to v are redirected to u, and v is removed from the graph.
-/// Self-loops may be created if there was an edge between u and v.
+/// Self-loops may be created if there was an edge between u and v. Edges at u
+/// that end up joining the same pair of nodes are collapsed into the first one.
 ///
 /// # Arguments
 /// * `graph` - The graph to modify
@@ -88,18 +89,19 @@ pub fn contract_nodes(
             continue;
         }
 
-        // For undirected graphs, normalize edge direction for deduplication
-        let edge_key = if !graph.is_directed() && source > target {
-            (target, source)
-        } else {
-            (source, target)
-        };
-
-        // Avoid duplicate edges (simple graph behavior)
-        if added_edges.contains(&edge_key) {
-            continue;
+        // Edges at u that now join the same pair collapse into one; edges between
+        // other nodes, parallel ones included, are left as they are
+        if source == u || target == u {
+            // For undirected graphs, normalize edge direction for deduplication
+            let edge_key = if !graph.is_directed() && source > target {
+                (target, source)
+            } else {
+                (source, target)
+            };
+            if !added_edges.insert(edge_key) {
+                continue;
+            }
         }
-        added_edges.insert(edge_key);
 
         // Create new edge, keeping the ID of the edge it came from
         let new_edge = Edge {
