@@ -1,0 +1,327 @@
+---
+title: Static plots
+guide-section: "Visualization"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Looking at a network is often the quickest way to understand it: a drawing shows at a glance
+whether a graph falls apart into groups, has a few dominant hubs, or is a long chain. EdgeCase draws
+graphs with `plot()`, which computes a layout and renders the graph as a self-contained SVG image.
+The image needs no JavaScript to display, so it works the same in a Jupyter notebook, a Quarto
+document, a web page, or a file on disk.
+
+This page covers the mechanics of `plot()`: what it returns, how to save a drawing, and how to
+control its size, labels, edges, and theme. The pages that follow go further:
+[Layouts](23-layouts.qmd) describes the algorithms that place the nodes,
+[Aesthetics](24-aesthetics.qmd) maps colors and sizes to data, and
+[Interactive widgets](25-interactive.qmd) covers the zoomable, draggable alternatives.
+
+## A first plot
+
+With no arguments, `plot()` places the nodes with a force-directed layout and draws every node and
+edge. The karate club makes a good first example. `label_by="label"` shows the node labels, the
+member numbers `"0"` to `"33"`, instead of the internal node IDs, and `seed=` fixes the random
+starting positions of the layout so that the picture is the same every time:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.plot(label_by="label", seed=1)
+```
+
+The layout treats the edges as springs that pull linked nodes together and the nodes as charges
+that push each other apart, so closely knit groups end up near each other. The two halves of the
+club are already visible: the instructor, `"0"`, sits among one group on the right, and the
+administrator, `"33"`, among the other on the left. Before the drawing is rendered, nodes that would
+overlap are pushed apart, and straight edges that would pass through a node are bent around it.
+
+The image is not entirely static: in a notebook or a web page, hovering over a node or an edge shows
+a tooltip with its attributes, which makes it easy to identify a node of interest without labelling
+every one.
+
+## Displaying and saving plots
+
+`plot()` returns a `StepPlayer` object, the same kind of object that the traversal and step
+replays return (see [Traversals](09-traversals.qmd) and [The step log](26-step-log.qmd)). Notebooks
+and Quarto documents display it automatically when it is the last expression of a cell. Elsewhere,
+its `svg` property holds the raw SVG markup as a string:
+
+```{python}
+player = karate.plot(seed=1)
+player, player.svg[:60]
+```
+
+There are two ways to save a drawing to a file. The `output=` argument saves it as part of the call,
+and the `save()` method saves an existing plot. In both cases, a path ending in `.html` writes a
+small web page that keeps the hover tooltips, and any other extension writes the plain SVG, which
+can be opened by vector graphics editors and placed in documents and slides:
+
+```{python}
+#| eval: false
+karate.plot(label_by="label", seed=1, output="karate.svg")
+
+player = karate.plot(label_by="label", seed=1)
+player.save("karate.html")
+```
+
+The plot is returned either way, so `output=` can be used in a notebook cell that also displays the
+plot.
+
+## Canvas and node size
+
+The canvas is 600 by 400 pixels by default, and `width=` and `height=` change it. The force and
+random layouts spread the nodes over the whole canvas, so a wide canvas gives a wide drawing, while
+positions from a layout method keep their proportions (see [Layouts](23-layouts.qmd)).
+
+The node radius is chosen automatically from the canvas area and the number of nodes, from 16 pixels
+on small graphs down to 3.5 pixels on large ones, and edge widths likewise shrink as the graph grows.
+The defaults, `node_size=16` and `edge_width=1.2`, stand for "automatic"; any other value is used as
+given. Smaller nodes leave more room for the edges, which helps on graphs where the structure of the
+links matters more than the individual nodes. The 62 bottlenose dolphins of Doubtful Sound, drawn
+with small nodes and no labels:
+
+```{python}
+dolphins = ec.dolphins()
+dolphins.plot(show_labels=False, node_size=7, seed=1)
+```
+
+The drawing shows the two communities of the dolphin population, linked by only a few animals.
+`edge_opacity=`, 0.4 by default, controls how transparent the edges are. Translucent edges keep
+dense regions readable, since areas where many edges cross appear darker rather than solid.
+
+## Node labels
+
+The text drawn on each node is chosen by `label_by=`:
+
+- `"id"` shows the node IDs, which is the default
+- `"label"` shows the node labels, or the ID of nodes without a label
+- the name of a node attribute shows its value, or the ID of nodes without the attribute
+- `"degree"` shows the number of edges of each node
+
+`show_labels=False` turns the text off altogether, which suits graphs with more than a few dozen
+nodes, where labels would cover each other. A name that no node has is an error rather than being
+silently ignored, so a misspelled attribute is caught immediately:
+
+```{python}
+try:
+    karate.plot(label_by="faktion")
+except ValueError as error:
+    print(error)
+```
+
+Passing `label_by=` on every call gets repetitive when a graph should always be shown with its
+labels. [`set_node_attr_to_display()`](../reference/Graph.set_node_attr_to_display.qmd) records a
+preference on the graph itself, which `plot()` then uses whenever `label_by=` isn't given:
+
+```{python}
+florentine = ec.florentine_families()
+florentine.set_node_attr_to_display("label")
+florentine.plot(seed=1)
+```
+
+The marriage network of the Florentine families of the fifteenth century shows the Medici at its
+center, linked to families that are mostly not linked to each other: a position that let the Medici
+broker between the other families, as discussed in [Centrality](13-centrality.qmd). The display
+preference is stored with the graph, so it applies to every later plot until it is changed, and
+`set_node_attr_to_display()` without an argument clears it.
+
+## Directed graphs and multigraphs
+
+A directed graph is drawn with an arrowhead at the target end of each edge. Graphs with parallel
+edges, reciprocal edges, and self-loops need some care, since a straight line can show only one edge
+between two nodes; `plot()` fans parallel and reciprocal edges out as separate curves, and draws a
+self-loop as a small loop above its node. A small supply network has all three:
+
+```{python}
+supply = ec.Graph(directed=True).add_edges(
+    [
+        ("Farm", "Mill"),
+        ("Farm", "Mill"),
+        ("Mill", "Bakery"),
+        ("Mill", "Cafe"),
+        ("Bakery", "Cafe"),
+        ("Cafe", "Bakery"),
+        ("Cafe", "Cafe"),
+    ],
+    auto_create_nodes=True,
+)
+supply.plot(label_by="label", seed=1, width=500, height=350)
+```
+
+The two deliveries from the farm to the mill appear as two curves side by side, the bakery's
+deliveries to the café and the café's orders to the bakery as two curves in opposite directions, and
+the café's own coffee roasting as a loop. Only the edges are drawn differently; the layout itself
+ignores edge directions and multiplicities.
+
+## Edge labels
+
+`edge_label_by=` names an edge attribute to write along each edge, which is useful when the edges
+are of several kinds or carry a value worth reading. Edges without the attribute are left
+unlabelled. In a small organization, some edges record who manages whom and others who mentors whom:
+
+```{python}
+org = ec.Graph(directed=True).add_edges(
+    [
+        ("Dana", "Eli"),
+        ("Dana", "Fay"),
+        ("Eli", "Gus"),
+        ("Eli", "Hal"),
+        ("Fay", "Ivy"),
+        ("Gus", "Hal"),
+        ("Fay", "Eli"),
+    ],
+    auto_create_nodes=True,
+)
+org.set_edge_attrs("rel", "manages", edge_ids=[1, 2, 3, 4, 5])
+org.set_edge_attrs("rel", "mentors", edge_ids=[6, 7])
+org.plot(label_by="label", edge_label_by="rel", seed=1, width=500, height=350)
+```
+
+Edge labels are drawn small, at the middle of each edge, so they work best on small graphs whose
+edges are reasonably long. The edge weight is not an edge attribute in this sense, since it is
+stored separately from the other attributes (see [The graph model](03-graph-model.qmd)); to show
+weights or other numbers, copy them to an attribute first, as the road network examples of
+[Paths and distances](12-paths.qmd) do with their distances.
+
+## Choosing a layout
+
+The `layout=` argument chooses how the nodes are placed:
+
+- `"force"`, the default, is a force-directed layout that places linked nodes near each other
+- `"circular"` places the nodes evenly around a circle
+- `"random"` scatters the nodes uniformly over the canvas
+- any other string names a node attribute that holds `(x, y)` coordinates
+
+The circular layout ignores the structure of the graph entirely, which is sometimes the point: it
+shows every edge as a chord of the circle, so dense and sparse patterns are easy to compare, and the
+positions don't depend on a random seed:
+
+```{python}
+florentine.plot(layout="circular")
+```
+
+The order of the nodes around the circle follows the graph's internal storage order. A
+deliberate order, in which linked nodes sit close together, concentrates the edges along the rim
+and makes the drawing much easier to read; [Layouts](23-layouts.qmd#circles-and-shells) shows how
+to arrange the circle in a chosen order. The fourth option is the most flexible. The `layout_*()` methods, such as
+[`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) or
+[`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd), compute positions with more
+specialized algorithms and store them in the `"pos"` node attribute, which `layout="pos"` then
+draws. Positions that come with the data, such as geographic coordinates, can be stored and drawn
+the same way. [Layouts](23-layouts.qmd) describes all of them.
+
+### Reproducible drawings
+
+The force and random layouts start from random positions, so two calls give different pictures
+unless `seed=` is passed. The same seed on the same graph always gives the same picture, which is
+what a document or a report needs: the text can then refer to the left or the right of the drawing.
+Different seeds give drawings that are rotated, reflected, or arranged differently, and it is
+worth trying a few seeds when a drawing will be published, since some arrangements show the
+structure more clearly than others.
+
+## Curved edges
+
+`curved_edges=True` draws every edge as a gentle curve rather than a straight line. Curves make it
+easier to follow individual edges where many of them meet at a node, and give a softer look:
+
+```{python}
+florentine.plot(curved_edges=True, seed=1)
+```
+
+With curved edges, the edges are no longer routed around the nodes, and parallel edges between the
+same two nodes are drawn along the same curve, so straight edges are the better choice for
+multigraphs.
+
+## Overlaps and edge routing
+
+Two adjustments are made after the layout and before drawing, and both can be turned off or tuned.
+
+`node_overlap=` controls overlapping nodes. The default, `"remove"`, pushes nodes apart until they
+are at least 2 pixels from each other, and a number sets a different minimum gap. `"allow"` keeps
+the positions exactly as the layout computed them. The adjustment applies to the force and random
+layouts, and not to positions given by a `"pos"` attribute, which are taken to be meaningful.
+
+`edge_routing=` controls edges that pass through nodes. The default, `"around"`, bends such an edge
+so that it clears the nodes in its way by 3 pixels, and a number sets the clearance. `"straight"`
+draws every edge as a direct line. Turning both adjustments off shows the raw layout of the dolphin
+network:
+
+```{python}
+dolphins.plot(show_labels=False, node_size=7, node_overlap="allow", edge_routing="straight", seed=1)
+```
+
+The positions are the same as in the earlier dolphin plot, but the nodes in the dense center now
+overlap, and some edges run underneath nodes that they don't belong to. The raw layout is faster to
+compute, and it is the faithful choice when the distances between nodes are meant to be read,
+since overlap removal moves nodes slightly.
+
+## Themes
+
+`theme="dark"` draws the graph on a dark background with light labels and tooltips, to suit
+dark-mode notebooks and presentation slides. The co-appearance network of the characters of *Les
+Misérables*:
+
+```{python}
+miserables = ec.les_miserables()
+miserables.plot(theme="dark", show_labels=False, seed=2)
+```
+
+The bishop Myriel and the minor characters of his story form the fan on the left, linked to the
+rest of the novel only through Myriel himself. Valjean is the hub at the center, and the dense
+cluster to the lower right holds Marius and the students of the ABC society. The theme changes only the background, the default node and edge colors, and
+the text; the palettes for colored nodes are described in [Aesthetics](24-aesthetics.qmd).
+
+## Larger graphs
+
+`plot()` works well up to a few hundred nodes and a few thousand edges. Beyond that, two things go
+wrong. The drawing becomes a dense ball in which little can be seen, and the force-directed layout,
+which considers every pair of nodes, becomes slow: the 4,941 nodes of the power grid network take
+about twenty seconds. For the 198 musicians and 2,743 collaborations of the jazz network, small
+nodes, no labels, and faint edges are already needed:
+
+```{python}
+jazz = ec.jazz()
+jazz.plot(show_labels=False, node_size=4, edge_opacity=0.15, edge_routing="straight", seed=1)
+```
+
+A dense core of musicians who played with many others is surrounded by a sparser periphery. Edge
+routing is turned off here: in a dense graph almost every edge passes some node, and the detours
+make the drawing busier and the SVG several times larger without making it clearer. For graphs of
+this size and larger, several strategies help:
+
+- draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
+  the methods of [Transforming graphs](19-transforming.qmd)
+- collapse groups of nodes into single nodes with `quotient_graph()`, so that the drawing shows how
+  the groups are linked
+- color the nodes by community or size them by centrality, so that the structure stands out even
+  when individual nodes can't be told apart (see [Aesthetics](24-aesthetics.qmd))
+- use `plot_cosmo()`, which lays out and draws graphs of hundreds of thousands of nodes on the GPU
+  in the browser (see [Interactive widgets](25-interactive.qmd))
+
+## Summary
+
+| Argument | Controls | Default |
+|---|---|---|
+| `layout=` | node placement: `"force"`, `"circular"`, `"random"`, or a position attribute | `"force"` |
+| `seed=` | the random start of the force and random layouts | `None` |
+| `width=`, `height=` | canvas size in pixels | `600`, `400` |
+| `node_size=`, `edge_width=` | node radius and edge width, automatic at their defaults | `16`, `1.2` |
+| `edge_opacity=` | edge transparency, from 0 to 1 | `0.4` |
+| `label_by=`, `show_labels=` | the node text | `None`, `True` |
+| `edge_label_by=` | an edge attribute to write along the edges | `None` |
+| `curved_edges=` | curved rather than straight edges | `False` |
+| `node_overlap=`, `edge_routing=` | overlap removal and routing around nodes | `"remove"`, `"around"` |
+| `theme=` | `"light"` or `"dark"` | `"light"` |
+| `output=` | a path to save to, as `.svg` or `.html` | `None` |
+
+The arguments for colors and sizes, `color_by=`, `size_by=`, `edge_color_by=`, `palette=`, and
+`cross_community_color=`, are covered in [Aesthetics](24-aesthetics.qmd).
