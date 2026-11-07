@@ -1,0 +1,319 @@
+---
+title: The step log
+guide-section: "Visualization"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Every EdgeCase graph keeps a record of what has been done to it. Each call that builds, changes,
+analyzes, or traverses the graph appends a *step* to the graph's *step log*, with the method that
+was called, a snippet of code that shows the call, a short narration, and a list of the nodes and
+edges it affected. Recording is always on and needs no setup.
+
+The log serves three purposes. It is an audit trail, which answers the question of how a graph came
+to be the way it is. It can be exported as a table, to document a data-preparation pipeline next to
+its results. And it can be replayed as an animation with `play()`, which shows the graph growing
+and changing one step at a time, together with the code behind each step. This makes the log a tool
+for teaching graph algorithms, for explaining an analysis to others, and for checking that a
+sequence of edits did what was intended.
+
+## Reading the log
+
+A small book club makes a good example. Four friends start the club, two colleagues join at the
+second meeting, and one member leaves. `note()` attaches a narration of our own to the next step,
+which explains the reason for a step rather than its mechanics:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+club = (
+    ec.Graph()
+    .note("Four friends start a book club.")
+    .add_nodes(["Ana", "Ben", "Cy", "Dee"])
+    .add_edges([("Ana", "Ben"), ("Ben", "Cy"), ("Cy", "Dee"), ("Dee", "Ana")])
+    .note("At the second meeting, Cy brings two colleagues, Eve and Fay.")
+    .add_nodes(["Eve", "Fay"])
+    .add_edges([("Cy", "Eve"), ("Cy", "Fay"), ("Eve", "Fay")])
+    .note("Ben moves away and leaves the club.")
+    .delete_node("Ben")
+)
+club.degree_centrality()
+club.bfs(start="Ana")
+club.count_nodes(), club.count_edges()
+```
+
+The club ends with five members and five friendships. The `steps` property returns the log. It
+prints as a numbered list with the kind of each step and the method that made it:
+
+```{python}
+club.steps
+```
+
+There are seven steps, one for each call that changed or analyzed the graph. The breadth-first
+search is a single step with five *sub-steps*, one for each node it visited. Read-only calls, such
+as the `count_nodes()` and `count_edges()` above, `get_node_df()`, or `neighbors()`, are not
+recorded, so the log stays focused on the operations that matter. `print_steps()` prints the same
+summary without the list brackets, which suits scripts and logs:
+
+```{python}
+club.print_steps()
+```
+
+### Steps in detail
+
+The log is a `StepList`, a Python list with a few extra methods, and each of its entries is a `Step`
+object. A step's `code` shows the call that made it, written with `G` standing for the graph, and
+its `narration` describes it in words. The narration comes from `note()` when one was given, and is
+generated automatically otherwise:
+
+```{python}
+[(step.code, step.narration) for step in club.steps[:2]]
+```
+
+The second step had no note, so EdgeCase described it as four edges that connect four nodes.
+Long arguments, such as the dictionary of values passed to `set_node_attrs()`, are abbreviated in
+the code, so the snippets are a readable record rather than a script to run.
+
+Each step also has a `delta`, which lists exactly what the step changed. Nodes and edges are given
+by their labels, or by their IDs when they have no label:
+
+```{python}
+removal = club.steps[4]
+removal.delta.nodes_removed, removal.narration
+```
+
+The delta has fields for added, removed, and modified nodes and edges, for the attributes that were
+changed, for the nodes and edges a selection picked out, and for the scores and groups computed by
+an analysis. For the degree centrality step, the scores themselves are kept:
+
+```{python}
+club.steps[5].delta.metric_values
+```
+
+Cy, linked to three of the four other members, has the highest centrality. A traversal's
+sub-steps are steps too, so the order of the search can be read from their code:
+
+```{python}
+[sub.code for sub in club.steps[6].sub_steps]
+```
+
+The search starts at Ana, reaches Cy through Dee now that Ben has gone, and then reaches the two
+newcomers from Cy. A step's `result` holds the value that the method returned, such as the visit
+order of the search as node IDs, and `index` holds its position in the log, counted from 0, though
+the printed lists number the steps from 1.
+
+### Kinds of steps
+
+The `kind` of a step places it in one of a few broad categories, which are useful for filtering:
+
+| Kind | Recorded for |
+|---|---|
+| `"build_nodes"`, `"build_edges"` | `add_node()`, `add_nodes()`, `add_edge()`, `add_edges()`, and loading a dataset |
+| `"generate"` | the generators, such as `add_path_graph()` or `add_grid_2d()` |
+| `"remove"` | `delete_node()`, `delete_edge()`, `remove_selfloops()`, and other deletions |
+| `"mutate"` | attribute updates, `relabel_nodes()`, and the `layout_*()` methods |
+| `"metric"` | centrality measures and community detection that score or group the nodes |
+| `"select"` | the `select_*`, `trav_*`, `deselect_*`, and `invert_*` methods and `clear_selection()` |
+| `"traverse"` | `bfs()`, `dfs()`, and other traversals, with one sub-step per visited node |
+| `"query"`, `"transform"` | queries and in-place transformations |
+| `"annotate"` | a `note()` that no operation used, recorded as a step of its own |
+
+Some analysis methods store their results with `set_node_attrs()` and are logged as the `"mutate"`
+step of that call, under the name `set_node_attrs`, with the attribute that was written. A graph
+loaded from a dataset, such as `karate_club()`, starts with a single step that adds all of its
+nodes and edges at once. Methods that return a new graph, such as `k_core()` or `subgraph()`,
+give the new graph a log of its own, which starts empty.
+
+## Narrating with note()
+
+`note()` holds a narration until the next operation that records a step, and that step then takes
+the note instead of its automatic narration. Since `note()` returns the graph, it slots into a
+method chain just before the step it describes, as in the book club example. Two details are worth
+knowing. A note that no operation uses before the next `note()` call becomes a step of its own, of
+kind `"annotate"`, so a sequence of notes can tell a story between operations. And a note still
+pending when `play()` is called appears as a final annotation at the end of the replay:
+
+```{python}
+club.note("The club now meets monthly.").note("Who should organize the next meeting?")
+club.steps[-1].kind, club.steps[-1].narration
+```
+
+The first note was flushed as an annotation step when the second was given, and the second stays
+pending for the next operation, or for the end of a replay.
+
+## Filtering and exporting
+
+The `StepList` methods make it easy to pick out parts of a long log. `filter()` keeps the steps of
+the given kinds or methods, each of which can be a single name or a list:
+
+```{python}
+club.steps.filter(kind=["build_nodes", "build_edges"])
+```
+
+`involves=` keeps the steps that touched any of the given nodes, by label, which traces the history
+of a single node through a long session:
+
+```{python}
+club.steps.filter(involves="Eve")
+```
+
+Eve was added in step 3, linked in step 4, and visited in the traversal of step 7. `negate=True`
+inverts any filter, so `filter(kind="select", negate=True)` drops the selection steps. Slicing a
+`StepList`, and its `head()` and `tail()` methods, return `StepList` objects as well, so the methods
+can be chained. `select()` extracts a few fields from each step as a list of dictionaries:
+
+```{python}
+club.steps.tail(3).select("method", "narration")
+```
+
+To keep the log alongside other results, `to_polars()` and `to_pandas()` convert it to a data
+frame with one row per step, `to_dicts()` to a list of dictionaries, and `to_json()` to a JSON
+string. The tables include the code, the narration, the nodes and edges added and removed, the
+selections, the number of sub-steps, and a timestamp for each step:
+
+```{python}
+club.steps.to_polars().select("index", "kind", "method", "narration")
+```
+
+A table like this, written to a file next to the cleaned data, documents what was done to a network
+before it was analyzed.
+
+## Replaying with play()
+
+`play()` turns the log into a *step player*: an animation of the graph, rebuilt step by step from
+an empty graph, with the code and narration of each step below the drawing. For the book club:
+
+```{python}
+club.play()
+```
+
+The player opens on an empty graph. Each step then shows the graph as it was after that step, with
+its changes highlighted: new nodes and edges glow green when they appear, removed ones are shown
+faded in red, nodes whose attributes changed are outlined in amber, and selected ones are
+highlighted. Nodes scored by an analysis are sized and colored by their scores, and the groups found
+by community detection get a color each. A traversal is expanded into one frame per visited node,
+which marks the current node, the nodes already visited, and the frontier of nodes about to be
+reached. A last frame summarizes the finished graph.
+
+The controls below the drawing step backward and forward, play and pause the animation, and set its
+speed, and the slider jumps to any step. The player also responds to the keyboard: the arrow keys
+step through the frames, the space bar plays and pauses, Home and End jump to the first and last
+frames, and `L` shows a list of all the steps from which any one can be picked. Hovering over a
+node shows its label and its state in the current frame.
+
+### Options
+
+`play()` shares many of its options with `plot()`: `layout=` chooses between `"force"`,
+`"circular"`, and `"random"`, `theme=` between `"light"` and `"dark"`, and `width=`, `height=`,
+`node_size=`, `edge_width=`, and `show_labels=` work as in [Static plots](22-plotting.qmd). The
+canvas is 700 by 500 pixels by default. Three options are particular to the player:
+
+- `auto_play=True` starts the animation as soon as the player is displayed
+- `speed=` sets the initial speed, as a multiple of the default of about 1.2 seconds per step
+- `layout_mode=` controls how the positions change from step to step
+
+The default `layout_mode="progressive"` lays out the graph as it is at each step, starting from the
+positions of the step before, and moves the nodes smoothly between frames, so the drawing grows
+and reshapes as the graph does. `layout_mode="stable"` computes a single layout of every node that
+ever appears, so nodes never move, which is easier to follow when the structure stays the same and
+something else changes, as in a traversal. Graphs of more than 300 nodes always use the stable mode.
+
+### Teaching an algorithm
+
+The step log makes it easy to build an animation that explains an algorithm. The idea is to build
+the graph, clear the log so that the construction is not part of the story, and then run the
+algorithm. Comparing a breadth-first and a depth-first search on the same small graph:
+
+```{python}
+paths = ec.Graph().add_nodes(list("ABCDEFGH")).add_edges(
+    [
+        ("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"),
+        ("C", "F"), ("E", "G"), ("F", "G"), ("G", "H"),
+    ]
+)
+paths.clear_steps()
+paths.note("Breadth-first: finish each level before going deeper.").bfs(start="A")
+paths.note("Depth-first: follow one path as far as it goes, then back up.").dfs(start="A")
+paths.play(layout_mode="stable", speed=2.0)
+```
+
+`clear_steps()` empties the log but keeps the graph, and remembers which nodes and edges existed at
+that point, so the replay shows them from the first frame instead of starting from an empty graph.
+With the stable layout, the two searches run over the same picture: the breadth-first search spreads
+out from A level by level, reaching B and C before any of their neighbors, while the depth-first
+search visits D, backs up to follow the long path from B through E and G to F and C, and only then
+backs up again to reach H. The sub-step code of each traversal confirms the two orders:
+
+```{python}
+[[sub.code for sub in step.sub_steps] for step in paths.steps]
+```
+
+### Replaying part of the log
+
+For a long session, only part of the log may be worth replaying. There are two ways to choose the
+steps, which differ in how the graph is rebuilt.
+
+Calling `play()` on a filtered `StepList` replays only the chosen steps, but on top of the full
+history: the graph at each frame includes everything done before, so a replay of the selection
+steps shows the selections on the complete graph. `play(steps=)` instead rebuilds the graph from the
+given steps alone, which suits a prefix of the log, such as the steps that built the club before
+anyone left:
+
+```{python}
+club.play(steps=club.steps[:4], layout_mode="stable")
+```
+
+A subset passed to `steps=` that skips the steps creating some nodes doesn't show those nodes, so
+for anything other than a prefix, filtering the `StepList` is usually the better choice:
+
+```{python}
+#| eval: false
+club.steps.filter(kind="traverse").play()
+```
+
+### Saving a replay
+
+Like the other step players, the result of `play()` is a `StepPlayer`, which displays itself in
+notebooks and rendered documents. `output=` saves it as the replay is made, and the `save()` method
+saves it afterwards. A path ending in `.html` writes the complete player, with its controls, to a
+self-contained web page that can be shared or embedded, and any other extension writes the SVG of
+the final frame:
+
+```{python}
+#| eval: false
+paths.play(layout_mode="stable", output="bfs-vs-dfs.html")
+```
+
+## Managing the log
+
+The log is part of the graph, so it lives as long as the graph does, and it grows with every
+recorded operation. For most graphs this is negligible, but a long-running script that edits a graph
+in a loop can accumulate many thousands of steps. `clear_steps()` resets the log at any point, for
+example after the setup of an analysis, so that only the later steps are kept. It discards a pending
+note as well, and it changes nothing about the graph itself:
+
+```{python}
+club.clear_steps()
+len(club.steps), club.count_nodes()
+```
+
+The steps recorded after a reset are numbered from the beginning again.
+
+## Summary
+
+| Task | Method |
+|---|---|
+| See the log | `steps`, `print_steps()` |
+| Narrate the next step | `note()` |
+| Pick out steps | `steps.filter(kind=, method=, involves=, negate=)`, `head()`, `tail()`, slicing |
+| Export the log | `steps.select()`, `to_dicts()`, `to_json()`, `to_polars()`, `to_pandas()` |
+| Replay the log | `play()`, `steps.filter(...).play()`, `play(steps=)` |
+| Save a replay | `play(output=)`, `save()` |
+| Reset the log | `clear_steps()` |
