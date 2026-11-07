@@ -14,6 +14,7 @@
 //!   Journal of Mathematical Sociology, 25(2), 163-177.
 
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
@@ -327,7 +328,8 @@ fn compute_percolation_from_source(
 /// ```
 #[pyfunction]
 #[pyo3(signature = (graph, q, seed=None))]
-pub fn node_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Graph> {
+pub fn node_percolation(graph: &Graph, q: f64, seed: Option<Seed>) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     // Validate q
     if !(0.0..=1.0).contains(&q) {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -412,7 +414,8 @@ pub fn node_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Gr
 /// ```
 #[pyfunction]
 #[pyo3(signature = (graph, q, seed=None))]
-pub fn edge_percolation(graph: &Graph, q: f64, seed: Option<u64>) -> PyResult<Graph> {
+pub fn edge_percolation(graph: &Graph, q: f64, seed: Option<Seed>) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     // Validate q
     if !(0.0..=1.0).contains(&q) {
         return Err(pyo3::exceptions::PyValueError::new_err(
@@ -592,8 +595,9 @@ pub fn percolation_threshold_analysis(
     graph: &Graph,
     steps: usize,
     trials: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<(f64, f64)>> {
+    let seed = seed.map(u64::from);
     let n = graph.get_node_ids().len();
 
     if n == 0 {
@@ -620,7 +624,7 @@ pub fn percolation_threshold_analysis(
             // Generate a trial-specific seed from the main RNG
             let trial_seed: u64 = rng.gen();
 
-            let percolated = node_percolation(graph, q, Some(trial_seed))?;
+            let percolated = node_percolation(graph, q, Some(Seed::from(trial_seed)))?;
             let gcc_size = largest_component_size(&percolated)?;
 
             // Relative size (fraction of surviving nodes)
@@ -779,7 +783,7 @@ mod tests {
     #[test]
     fn test_node_percolation_q_zero() {
         let graph = create_complete_graph(5);
-        let result = node_percolation(&graph, 0.0, Some(42)).unwrap();
+        let result = node_percolation(&graph, 0.0, Some(Seed::from(42))).unwrap();
 
         // q=0 means no removal, all nodes should survive
         assert_eq!(result.get_node_ids().len(), 5);
@@ -788,7 +792,7 @@ mod tests {
     #[test]
     fn test_node_percolation_q_one() {
         let graph = create_complete_graph(5);
-        let result = node_percolation(&graph, 1.0, Some(42)).unwrap();
+        let result = node_percolation(&graph, 1.0, Some(Seed::from(42))).unwrap();
 
         // q=1 means all removed
         assert_eq!(result.get_node_ids().len(), 0);
@@ -798,8 +802,8 @@ mod tests {
     fn test_node_percolation_reproducible() {
         let graph = create_complete_graph(10);
 
-        let result1 = node_percolation(&graph, 0.5, Some(123)).unwrap();
-        let result2 = node_percolation(&graph, 0.5, Some(123)).unwrap();
+        let result1 = node_percolation(&graph, 0.5, Some(Seed::from(123))).unwrap();
+        let result2 = node_percolation(&graph, 0.5, Some(Seed::from(123))).unwrap();
 
         // Same seed should give same result
         let nodes1: Vec<u64> = result1.get_node_ids();
@@ -813,7 +817,7 @@ mod tests {
         let graph = create_path_graph(5);
 
         // Remove 60% of nodes (3 nodes)
-        let result = node_percolation(&graph, 0.6, Some(42)).unwrap();
+        let result = node_percolation(&graph, 0.6, Some(Seed::from(42))).unwrap();
 
         // Should have 2 nodes remaining
         assert_eq!(result.get_node_ids().len(), 2);
@@ -831,7 +835,7 @@ mod tests {
     #[test]
     fn test_edge_percolation_q_zero() {
         let graph = create_complete_graph(4);
-        let result = edge_percolation(&graph, 0.0, Some(42)).unwrap();
+        let result = edge_percolation(&graph, 0.0, Some(Seed::from(42))).unwrap();
 
         // q=0 means no removal, all edges should survive
         // K4 has 6 edges
@@ -841,7 +845,7 @@ mod tests {
     #[test]
     fn test_edge_percolation_q_one() {
         let graph = create_complete_graph(4);
-        let result = edge_percolation(&graph, 1.0, Some(42)).unwrap();
+        let result = edge_percolation(&graph, 1.0, Some(Seed::from(42))).unwrap();
 
         // q=1 means all edges removed
         assert_eq!(result.get_edges_internal().len(), 0);
@@ -853,8 +857,8 @@ mod tests {
     fn test_edge_percolation_reproducible() {
         let graph = create_complete_graph(6);
 
-        let result1 = edge_percolation(&graph, 0.5, Some(456)).unwrap();
-        let result2 = edge_percolation(&graph, 0.5, Some(456)).unwrap();
+        let result1 = edge_percolation(&graph, 0.5, Some(Seed::from(456))).unwrap();
+        let result2 = edge_percolation(&graph, 0.5, Some(Seed::from(456))).unwrap();
 
         // Same seed should give same result
         let edges1 = result1.get_edges_internal();
@@ -928,7 +932,7 @@ mod tests {
     fn test_percolation_threshold_analysis() {
         let graph = create_complete_graph(10);
 
-        let results = percolation_threshold_analysis(&graph, 5, 3, Some(42)).unwrap();
+        let results = percolation_threshold_analysis(&graph, 5, 3, Some(Seed::from(42))).unwrap();
 
         // Should have 6 data points (0%, 20%, 40%, 60%, 80%, 100%)
         assert_eq!(results.len(), 6);
@@ -948,7 +952,7 @@ mod tests {
         // Remove the center (node 1) by setting high q
         // With seed 42 on a 6-node graph, removing 1 node (q~0.17)
         // may or may not hit the center
-        let result_edge = edge_percolation(&graph, 0.8, Some(42)).unwrap();
+        let result_edge = edge_percolation(&graph, 0.8, Some(Seed::from(42))).unwrap();
 
         // Edge percolation should preserve nodes
         assert_eq!(result_edge.get_node_ids().len(), 6);
@@ -958,10 +962,10 @@ mod tests {
     fn test_node_percolation_invalid_q() {
         let graph = create_complete_graph(5);
 
-        let result = node_percolation(&graph, 1.5, Some(42));
+        let result = node_percolation(&graph, 1.5, Some(Seed::from(42)));
         assert!(result.is_err());
 
-        let result = node_percolation(&graph, -0.1, Some(42));
+        let result = node_percolation(&graph, -0.1, Some(Seed::from(42)));
         assert!(result.is_err());
     }
 
@@ -969,10 +973,10 @@ mod tests {
     fn test_edge_percolation_invalid_q() {
         let graph = create_complete_graph(5);
 
-        let result = edge_percolation(&graph, 1.5, Some(42));
+        let result = edge_percolation(&graph, 1.5, Some(Seed::from(42)));
         assert!(result.is_err());
 
-        let result = edge_percolation(&graph, -0.1, Some(42));
+        let result = edge_percolation(&graph, -0.1, Some(Seed::from(42)));
         assert!(result.is_err());
     }
 }

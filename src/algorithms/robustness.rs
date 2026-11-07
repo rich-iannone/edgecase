@@ -1,4 +1,5 @@
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -60,8 +61,9 @@ pub fn network_robustness(
     graph: &Graph,
     strategy: &str,
     steps: Option<usize>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<(f64, f64)>> {
+    let seed = seed.map(u64::from);
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
     if n == 0 {

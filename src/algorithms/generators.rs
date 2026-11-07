@@ -12,6 +12,7 @@
 //! The random, degree-sequence, directed, and geometric models live in
 //! `random_models`, which shares the helpers below.
 
+use crate::utils::Seed;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rand::prelude::*;
@@ -116,8 +117,9 @@ pub fn random_partition_edges(
     p_in: f64,
     p_out: f64,
     directed: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p_in", p_in)?;
     check_probability("p_out", p_out)?;
     let mut rng = make_rng(seed);
@@ -145,8 +147,9 @@ pub fn gaussian_random_partition(
     p_in: f64,
     p_out: f64,
     directed: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<usize>, EdgeList)> {
+    let seed = seed.map(u64::from);
     if !(mean.is_finite() && mean >= 1.0) {
         return Err(PyValueError::new_err(format!(
             "mean block size must be at least 1, got {}",
@@ -185,7 +188,8 @@ pub fn gaussian_random_partition(
 /// adjacent to it, so the edge count never changes.
 #[pyfunction]
 #[pyo3(signature = (l, k, p, seed=None))]
-pub fn relaxed_caveman_edges(l: usize, k: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn relaxed_caveman_edges(l: usize, k: usize, p: f64, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p", p)?;
     let mut rng = make_rng(seed);
     let n = l * k;
@@ -405,8 +409,9 @@ pub fn lfr_benchmark(
     tau2: f64,
     min_community: Option<usize>,
     max_community: Option<usize>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(EdgeList, Vec<usize>)> {
+    let seed = seed.map(u64::from);
     check_probability("mu", mu)?;
     for (name, tau) in [("tau1", tau1), ("tau2", tau2)] {
         if !(tau.is_finite() && tau >= 0.0) {

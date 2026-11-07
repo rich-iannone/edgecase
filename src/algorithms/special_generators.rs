@@ -18,6 +18,7 @@
 //!   `adjacency_second_eigenvalue`
 //! - deterministic: `sudoku_edges`, `visibility_edges`, `interval_edges`
 
+use crate::utils::Seed;
 use std::collections::BTreeSet;
 
 use nalgebra::{DMatrix, SymmetricEigen};
@@ -85,8 +86,9 @@ fn round_half_even(x: f64) -> f64 {
 pub fn bipartite_configuration_edges(
     aseq: Vec<i64>,
     bseq: Vec<i64>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let (a, b) = bipartite_sequences(&aseq, &bseq)?;
     let lena = a.len();
     let mut astubs: Vec<usize> = (0..lena)
@@ -197,8 +199,9 @@ pub fn bipartite_havel_hakimi_edges(
 pub fn bipartite_preferential_attachment_edges(
     aseq: Vec<i64>,
     p: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(usize, EdgeList)> {
+    let seed = seed.map(u64::from);
     let a = degree_list("aseq", &aseq)?;
     check_probability("p", p)?;
     let mut rng = make_rng(seed);
@@ -231,8 +234,9 @@ pub fn bipartite_gnp_edges(
     m: usize,
     p: f64,
     directed: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p", p)?;
     let mut rng = make_rng(seed);
     let mut edges = Vec::new();
@@ -251,7 +255,13 @@ pub fn bipartite_gnp_edges(
 /// them if `k >= n * m`), sorted.
 #[pyfunction]
 #[pyo3(signature = (n, m, k, seed=None))]
-pub fn bipartite_gnmk_edges(n: usize, m: usize, k: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn bipartite_gnmk_edges(
+    n: usize,
+    m: usize,
+    k: usize,
+    seed: Option<Seed>,
+) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let total = n
         .checked_mul(m)
         .ok_or_else(|| PyValueError::new_err("n * m is too large"))?;
@@ -278,8 +288,9 @@ pub fn partial_duplication_edges(
     n_initial: usize,
     p: f64,
     q: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p", p)?;
     check_probability("q", q)?;
     if n_initial > n {
@@ -326,7 +337,8 @@ pub fn partial_duplication_edges(
 /// with probability `p`; a copy that keeps no edge is discarded and the step retried.
 #[pyfunction]
 #[pyo3(signature = (n, p, seed=None))]
-pub fn duplication_divergence_edges(n: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn duplication_divergence_edges(n: usize, p: f64, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p", p)?;
     if n < 2 {
         return value_error(format!("n must be at least 2, got {}", n));
@@ -376,7 +388,8 @@ pub fn duplication_divergence_edges(n: usize, p: f64, seed: Option<u64>) -> PyRe
 /// triples. Self-loops and parallel edges are possible.
 #[pyfunction]
 #[pyo3(signature = (joint, seed=None))]
-pub fn random_clustered_edges(joint: Vec<(i64, i64)>, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_clustered_edges(joint: Vec<(i64, i64)>, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let mut ilist = Vec::new();
     let mut tlist = Vec::new();
     for (v, &(e, t)) in joint.iter().enumerate() {
@@ -607,7 +620,8 @@ impl AsGraph {
 /// here the M and CP counts are capped so there are always exactly `n`.
 #[pyfunction]
 #[pyo3(signature = (n, seed=None))]
-pub fn internet_as_graph(n: usize, seed: Option<u64>) -> PyResult<AsGraphParts> {
+pub fn internet_as_graph(n: usize, seed: Option<Seed>) -> PyResult<AsGraphParts> {
+    let seed = seed.map(u64::from);
     let mut rng = make_rng(seed);
     let nf = n as f64;
     let n_t = n.min(round_half_even(rng.gen::<f64>() * 2.0 + 4.0) as usize);
@@ -801,8 +815,9 @@ pub fn maybe_regular_expander_edges(
     n: usize,
     d: usize,
     max_tries: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_expander_args(n, d)?;
     match union_of_cycles(&mut make_rng(seed), n, d, max_tries) {
         Some(edges) => Ok(edges),
@@ -854,8 +869,9 @@ pub fn random_regular_expander_edges(
     d: usize,
     epsilon: f64,
     max_tries: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_expander_args(n, d)?;
     if epsilon.is_nan() || epsilon < 0.0 {
         return value_error(format!("epsilon must be non-negative, got {}", epsilon));
@@ -1027,7 +1043,7 @@ mod tests {
 
     #[test]
     fn expander_union_is_regular() {
-        let edges = maybe_regular_expander_edges(20, 4, 100, Some(3)).unwrap();
+        let edges = maybe_regular_expander_edges(20, 4, 100, Some(Seed::from(3))).unwrap();
         let mut degree = [0; 20];
         for (u, v) in edges {
             degree[u] += 1;
@@ -1039,7 +1055,7 @@ mod tests {
     #[test]
     fn internet_as_has_n_nodes() {
         for n in [0, 1, 4, 7, 50, 300] {
-            let (kinds, _) = internet_as_graph(n, Some(1)).unwrap();
+            let (kinds, _) = internet_as_graph(n, Some(Seed::from(1))).unwrap();
             assert_eq!(kinds.len(), n);
         }
     }

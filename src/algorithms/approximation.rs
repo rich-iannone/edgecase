@@ -7,6 +7,7 @@
 
 use crate::algorithms::matching_cover::blossom_matching;
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
@@ -797,12 +798,13 @@ pub fn traveling_salesman(
     cycle: bool,
     method: &str,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     max_iterations: usize,
     n_inner: usize,
     move_kind: &str,
     temperature: Option<f64>,
 ) -> PyResult<(Vec<u64>, f64)> {
+    let seed = seed.map(u64::from);
     let (ids, idx) = sorted_ids(graph);
     let targets: Vec<usize> = match nodes {
         Some(list) => {
@@ -1323,10 +1325,11 @@ pub fn max_cut(
     graph: &Graph,
     method: &str,
     initial: Option<Vec<u64>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     weighted: bool,
     p: f64,
 ) -> PyResult<(f64, Vec<u64>, Vec<u64>)> {
+    let seed = seed.map(u64::from);
     let (ids, idx) = sorted_ids(graph);
     let n = ids.len();
     let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];

@@ -10,6 +10,7 @@
 //! nodes both appear on, with the weighted random walks it samples.
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use nalgebra::DMatrix;
 use pyo3::prelude::*;
 use rand::{Rng, SeedableRng};
@@ -517,9 +518,10 @@ pub fn generate_random_paths(
     sample_size: usize,
     path_length: usize,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     source: Option<u64>,
 ) -> PyResult<Vec<Vec<u64>>> {
+    let seed = seed.map(u64::from);
     let (ids, idx, out) = walk_table(graph, weighted)?;
     if ids.is_empty() {
         return if sample_size == 0 {
@@ -645,8 +647,9 @@ pub fn panther_similarity(
     delta: f64,
     eps: Option<f64>,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(usize, Vec<(u64, f64)>)> {
+    let seed = seed.map(u64::from);
     let sample = panther_sample(graph, source, path_length, c, delta, eps, weighted, seed)?;
     let (n, src, r_total) = (sample.ids.len(), sample.src, sample.paths.len());
     let mut common = vec![0usize; n];
@@ -688,8 +691,9 @@ pub fn panther_vector_similarity(
     delta: f64,
     eps: Option<f64>,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<(u64, f64)>> {
+    let seed = seed.map(u64::from);
     let err = |msg: String| Err(pyo3::exceptions::PyValueError::new_err(msg));
     if dimensions == 0 {
         return err("D must be a positive integer".to_string());

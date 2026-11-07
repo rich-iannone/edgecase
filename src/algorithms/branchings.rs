@@ -7,6 +7,7 @@
 //! except that `"weight"` falls back to the weight field, as in `minimum_spanning_tree()`.
 
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use nalgebra as na;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
@@ -957,8 +958,9 @@ fn det_mod(a: &[Vec<i128>], p: u64) -> u64 {
 pub fn random_spanning_tree(
     graph: &Graph,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<u64>> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return value_err("random_spanning_tree() requires an undirected graph");
     }
@@ -1048,7 +1050,8 @@ fn wilson(mut adj: Vec<Vec<(usize, u64, f64)>>, rng: &mut ChaCha8Rng) -> Vec<u64
 /// resistors, read off the inverse of the grounded Laplacian. Returns edge IDs.
 #[pyfunction]
 #[pyo3(signature = (graph, seed=None))]
-pub fn random_spanning_tree_additive(graph: &Graph, seed: Option<u64>) -> PyResult<Vec<u64>> {
+pub fn random_spanning_tree_additive(graph: &Graph, seed: Option<Seed>) -> PyResult<Vec<u64>> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return value_err("random_spanning_tree() requires an undirected graph");
     }

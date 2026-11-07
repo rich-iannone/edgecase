@@ -5,6 +5,7 @@
 //! as 1.0) and every edge counts 1.0 otherwise. Parallel edges add up.
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::{Rng, SeedableRng};
@@ -716,11 +717,12 @@ fn leiden_run(
 pub fn leiden(
     graph: &Graph,
     resolution: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     max_iter: usize,
     objective: &str,
     theta: f64,
 ) -> PyResult<FxHashMap<u64, usize>> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Leiden algorithm requires an undirected graph",
@@ -813,8 +815,9 @@ pub fn community_levels(
     graph: &Graph,
     leiden: bool,
     resolution: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<u64>, Vec<Vec<usize>>)> {
+    let seed = seed.map(u64::from);
     if leiden && graph.is_directed() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Leiden algorithm requires an undirected graph",
@@ -881,9 +884,10 @@ pub fn community_levels(
 #[pyo3(signature = (graph, seed=None, max_iter=100))]
 pub fn label_propagation_communities(
     graph: &Graph,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     max_iter: usize,
 ) -> PyResult<FxHashMap<u64, usize>> {
+    let seed = seed.map(u64::from);
     let (g, ids) = WGraph::from_graph(graph);
     let n = g.n();
     let mut rng = rng_from(seed);

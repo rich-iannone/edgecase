@@ -9,6 +9,7 @@
 //! edge that comes from a pair of edges (tensor-type) gets the product of their weights.
 
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyTuple};
 use rand::seq::SliceRandom;
@@ -451,7 +452,8 @@ pub fn graph_power(py: Python, graph: &Graph, k: usize) -> PyResult<Graph> {
 /// lifts).
 #[pyfunction]
 #[pyo3(signature = (graph, k, seed=None))]
-pub fn random_k_lift(py: Python, graph: &Graph, k: usize, seed: Option<u64>) -> PyResult<Graph> {
+pub fn random_k_lift(py: Python, graph: &Graph, k: usize, seed: Option<Seed>) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     if k == 0 {
         return value_err("k must be a positive integer");
     }

@@ -21,6 +21,7 @@
 //! - geometric: `waxman_edges`, `soft_random_geometric_edges`,
 //!   `geographical_threshold_edges`, `navigable_small_world_edges`
 
+use crate::utils::Seed;
 use std::cmp::Reverse;
 use std::collections::{BTreeMap, BTreeSet, BinaryHeap};
 
@@ -218,7 +219,7 @@ fn is_graphical(degrees: &[usize]) -> bool {
 }
 
 /// Validate a degree sequence given as Python integers.
-fn degree_list(name: &str, seq: &[i64]) -> PyResult<Vec<usize>> {
+pub(crate) fn degree_list(name: &str, seq: &[i64]) -> PyResult<Vec<usize>> {
     seq.iter()
         .map(|&d| {
             usize::try_from(d).map_err(|_| {
@@ -240,7 +241,8 @@ fn degree_list(name: &str, seq: &[i64]) -> PyResult<Vec<usize>> {
 /// the leftover stubs can't form any new edge, and the whole construction restarts.
 #[pyfunction]
 #[pyo3(signature = (n, d, seed=None))]
-pub fn random_regular_edges(n: usize, d: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_regular_edges(n: usize, d: usize, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if (n * d) % 2 != 0 {
         return value_error(format!("n * d must be even, got n={} and d={}", n, d));
     }
@@ -303,7 +305,13 @@ fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(us
 /// Edges are returned as `(new node, target)`, like `Graph.add_pa_graph()`.
 #[pyfunction]
 #[pyo3(signature = (n, m, p, seed=None))]
-pub fn powerlaw_cluster_edges(n: usize, m: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn powerlaw_cluster_edges(
+    n: usize,
+    m: usize,
+    p: f64,
+    seed: Option<Seed>,
+) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if m < 1 || n < m {
         return value_error(format!(
             "m must be at least 1 and at most n, got n={} and m={}",
@@ -365,8 +373,9 @@ pub fn newman_watts_strogatz_edges(
     n: usize,
     k: usize,
     p: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if k > n {
         return value_error(format!("k must be at most n, got n={} and k={}", n, k));
     }
@@ -448,8 +457,9 @@ pub fn connected_watts_strogatz_edges(
     k: usize,
     p: f64,
     tries: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if k >= n {
         return value_error(format!("k must be less than n, got n={} and k={}", n, k));
     }
@@ -486,8 +496,9 @@ pub fn extended_barabasi_albert_edges(
     m: usize,
     p: f64,
     q: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if m < 1 || m >= n {
         return value_error(format!(
             "m must be at least 1 and less than n, got n={} and m={}",
@@ -611,8 +622,9 @@ pub fn dual_barabasi_albert_edges(
     m1: usize,
     m2: usize,
     p: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     for (name, m) in [("m1", m1), ("m2", m2)] {
         if m < 1 || m >= n {
             return value_error(format!(
@@ -654,8 +666,9 @@ pub fn random_lobster_edges(
     n: usize,
     p1: f64,
     p2: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(usize, EdgeList)> {
+    let seed = seed.map(u64::from);
     for (name, p) in [("p1", p1), ("p2", p2)] {
         if !(0.0..1.0).contains(&p) {
             return value_error(format!(
@@ -712,7 +725,8 @@ fn prufer_tree(n: usize, seq: &[usize]) -> EdgeList {
 /// Uniformly random labeled tree on `n` nodes, from a uniformly random Prüfer sequence.
 #[pyfunction]
 #[pyo3(signature = (n, seed=None))]
-pub fn random_labeled_tree_edges(n: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn random_labeled_tree_edges(n: usize, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if n == 0 {
         return value_error("a tree needs at least 1 node, got n=0");
     }
@@ -736,8 +750,9 @@ pub fn random_powerlaw_tree_edges(
     n: usize,
     gamma: f64,
     tries: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if n == 0 {
         return value_error("a tree needs at least 1 node, got n=0");
     }
@@ -849,8 +864,9 @@ pub fn havel_hakimi_edges(degree_sequence: Vec<i64>) -> PyResult<EdgeList> {
 pub fn directed_configuration_edges(
     in_degree_sequence: Vec<i64>,
     out_degree_sequence: Vec<i64>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let ins = degree_list("in_degree_sequence", &in_degree_sequence)?;
     let outs = degree_list("out_degree_sequence", &out_degree_sequence)?;
     let (sum_in, sum_out) = (ins.iter().sum::<usize>(), outs.iter().sum::<usize>());
@@ -965,8 +981,9 @@ pub fn directed_havel_hakimi_edges(
 pub fn random_degree_sequence_edges(
     degree_sequence: Vec<i64>,
     tries: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let degree = degree_list("degree_sequence", &degree_sequence)?;
     if !is_graphical(&degree) {
         return value_error("degree_sequence is not graphical: no simple graph has these degrees");
@@ -1178,8 +1195,9 @@ impl<'a> BksAttempt<'a> {
 #[pyo3(signature = (joint_degrees, seed=None))]
 pub fn joint_degree_edges(
     joint_degrees: BTreeMap<usize, BTreeMap<usize, usize>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(usize, EdgeList)> {
+    let seed = seed.map(u64::from);
     let entry = |k: usize, l: usize| {
         joint_degrees
             .get(&k)
@@ -1363,7 +1381,8 @@ fn neighbor_switch(
 /// kernel (probability proportional to degree). Edges point from the new node.
 #[pyfunction]
 #[pyo3(signature = (n, kernel=None, seed=None))]
-pub fn gn_edges(n: usize, kernel: Option<Vec<f64>>, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn gn_edges(n: usize, kernel: Option<Vec<f64>>, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if let Some(table) = &kernel {
         if let Some(bad) = table.iter().find(|w| !(w.is_finite() && **w >= 0.0)) {
             return value_error(format!(
@@ -1407,7 +1426,8 @@ pub fn gn_edges(n: usize, kernel: Option<Vec<f64>>, seed: Option<u64>) -> PyResu
 /// target instead.
 #[pyfunction]
 #[pyo3(signature = (n, p, seed=None))]
-pub fn gnr_edges(n: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn gnr_edges(n: usize, p: f64, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     check_probability("p", p)?;
     let mut rng = make_rng(seed);
     let mut successor = vec![0usize; n];
@@ -1427,7 +1447,8 @@ pub fn gnr_edges(n: usize, p: f64, seed: Option<u64>) -> PyResult<EdgeList> {
 /// uniformly random existing node and to every node that one links to.
 #[pyfunction]
 #[pyo3(signature = (n, seed=None))]
-pub fn gnc_edges(n: usize, seed: Option<u64>) -> PyResult<EdgeList> {
+pub fn gnc_edges(n: usize, seed: Option<Seed>) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     let mut rng = make_rng(seed);
     let mut successors: Vec<Vec<usize>> = vec![Vec::new(); n];
     let mut edges = Vec::new();
@@ -1458,8 +1479,9 @@ pub fn scale_free_edges(
     gamma: f64,
     delta_in: f64,
     delta_out: f64,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if n < 3 {
         return value_error(format!(
             "n must be at least 3 (growth starts from a 3-cycle), got {}",
@@ -1525,8 +1547,9 @@ pub fn random_k_out_edges(
     k: usize,
     alpha: f64,
     self_loops: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if !(alpha.is_finite() && alpha > 0.0) {
         return value_error(format!("alpha must be positive, got {}", alpha));
     }
@@ -1581,8 +1604,9 @@ pub fn waxman_edges(
     alpha: f64,
     l: Option<f64>,
     domain: (f64, f64, f64, f64),
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Positions, EdgeList)> {
+    let seed = seed.map(u64::from);
     if !(beta > 0.0 && beta <= 1.0) {
         return value_error(format!(
             "beta must be greater than 0 and at most 1, got {}",
@@ -1654,8 +1678,9 @@ pub fn soft_random_geometric_edges(
     dim: usize,
     p_norm: f64,
     p_dist: Option<Bound<'_, PyAny>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Positions, EdgeList)> {
+    let seed = seed.map(u64::from);
     if radius.is_nan() || radius < 0.0 {
         return value_error(format!("radius must be non-negative, got {}", radius));
     }
@@ -1693,8 +1718,9 @@ pub fn geographical_threshold_edges(
     dim: usize,
     p_norm: f64,
     p_dist: Option<Bound<'_, PyAny>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Positions, Vec<f64>, EdgeList)> {
+    let seed = seed.map(u64::from);
     if theta.is_nan() {
         return value_error("theta must be a number");
     }
@@ -1734,8 +1760,9 @@ pub fn navigable_small_world_edges(
     r: f64,
     dim: usize,
     directed: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<EdgeList> {
+    let seed = seed.map(u64::from);
     if p < 1 {
         return value_error("p must be at least 1");
     }

@@ -7,6 +7,7 @@
 //! - Maximum independent sets: largest possible independent sets (NP-hard, uses heuristics)
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::seq::SliceRandom;
 use rand::SeedableRng;
@@ -64,8 +65,9 @@ fn undirected_neighbors(graph: &Graph) -> FxHashMap<u64, Vec<u64>> {
 pub fn maximal_independent_set(
     graph: &Graph,
     nodes: Option<Vec<u64>>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<u64>> {
+    let seed = seed.map(u64::from);
     let all_nodes: Vec<u64> = graph.get_node_ids();
 
     if all_nodes.is_empty() {
@@ -271,8 +273,9 @@ pub fn maximum_independent_set(graph: &Graph) -> PyResult<Vec<u64>> {
 pub fn find_maximal_independent_sets(
     graph: &Graph,
     count: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<Vec<u64>>> {
+    let seed = seed.map(u64::from);
     let mut results: Vec<Vec<u64>> = Vec::with_capacity(count);
     let mut seen: FxHashSet<Vec<u64>> = FxHashSet::default();
 
@@ -290,7 +293,7 @@ pub fn find_maximal_independent_sets(
             None
         };
 
-        let mis = maximal_independent_set(graph, None, current_seed)?;
+        let mis = maximal_independent_set(graph, None, current_seed.map(Seed::from))?;
 
         if !seen.contains(&mis) {
             seen.insert(mis.clone());
@@ -352,7 +355,7 @@ mod tests {
     #[test]
     fn test_maximal_independent_set() {
         let graph = create_test_graph();
-        let mis = maximal_independent_set(&graph, None, Some(42)).unwrap();
+        let mis = maximal_independent_set(&graph, None, Some(Seed::from(42))).unwrap();
 
         // Should be an independent set
         assert!(is_independent_set(&graph, mis.clone()).unwrap());
@@ -379,7 +382,7 @@ mod tests {
         let graph = create_test_graph();
 
         // Start with node 1
-        let mis = maximal_independent_set(&graph, Some(vec![1]), Some(42)).unwrap();
+        let mis = maximal_independent_set(&graph, Some(vec![1]), Some(Seed::from(42))).unwrap();
 
         assert!(mis.contains(&1));
         assert!(is_independent_set(&graph, mis).unwrap());
@@ -390,7 +393,7 @@ mod tests {
         let graph = create_test_graph();
 
         // Starting with adjacent nodes should fail
-        let result = maximal_independent_set(&graph, Some(vec![1, 2]), Some(42));
+        let result = maximal_independent_set(&graph, Some(vec![1, 2]), Some(Seed::from(42)));
         assert!(result.is_err());
     }
 }

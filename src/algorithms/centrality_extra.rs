@@ -6,6 +6,7 @@
 //! (1.0 if missing) is used; otherwise every edge counts 1.0. Node orderings are by ID.
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use nalgebra as na;
 use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -1061,9 +1062,10 @@ pub fn approximate_current_flow_betweenness_centrality(
     weighted: bool,
     epsilon: f64,
     kmax: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     sample_weight: f64,
 ) -> PyResult<FxHashMap<u64, f64>> {
+    let seed = seed.map(u64::from);
     use rand::{Rng, SeedableRng};
     let (ids, edges) = electrical_network(
         graph,

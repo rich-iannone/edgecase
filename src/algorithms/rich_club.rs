@@ -6,6 +6,7 @@
 //! coefficient averaged over degree-preserving randomizations of the graph.
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
 use rand::prelude::*;
@@ -47,9 +48,10 @@ pub fn rich_club_coefficient(
     graph: &Graph,
     normalized: bool,
     q: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
     n_samples: usize,
 ) -> PyResult<FxHashMap<usize, f64>> {
+    let seed = seed.map(u64::from);
     let rc = raw_rich_club(graph);
     if !normalized {
         return Ok(rc);

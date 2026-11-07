@@ -10,6 +10,7 @@
 //! - `is_valid_coloring`: Verify a coloring is valid
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rustc_hash::{FxHashMap, FxHashSet};
@@ -85,8 +86,9 @@ pub fn greedy_color(
     graph: &Graph,
     strategy: Option<String>,
     interchange: Option<bool>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Py<PyDict>> {
+    let seed = seed.map(u64::from);
     let strat = match strategy {
         Some(s) => ColoringStrategy::from_str(&s)?,
         None => ColoringStrategy::Arbitrary,

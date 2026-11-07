@@ -5,6 +5,7 @@
 
 use crate::algorithms::approximation::Dinic;
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::{Rng, SeedableRng};
 use rand_chacha::ChaCha8Rng;
@@ -895,8 +896,9 @@ pub fn reference_graph(
     niter: usize,
     lattice: bool,
     connectivity: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     let (ids, g) = simple_from(graph)?;
     let mut rng = rng_from(seed);
     let r = rewire(&g, niter, lattice, connectivity, &mut rng);
@@ -944,8 +946,9 @@ pub fn small_world(
     kind: &str,
     niter: usize,
     nrand: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(f64, (f64, f64, f64, f64))> {
+    let seed = seed.map(u64::from);
     let (_, g) = simple_from(graph)?;
     if nrand < 1 {
         return value_err("nrand must be at least 1");

@@ -1,4 +1,5 @@
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashMap;
@@ -259,8 +260,9 @@ pub fn motif_significance(
     graph: &Graph,
     size: usize,
     n_random: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<HashMap<String, HashMap<String, f64>>> {
+    let seed = seed.map(u64::from);
     use crate::algorithms::null_models::degree_preserving_rewire;
 
     if !(3..=4).contains(&size) {
@@ -285,7 +287,7 @@ pub fn motif_significance(
     let mut random_counts: Vec<HashMap<String, u64>> = Vec::with_capacity(n_random);
     for i in 0..n_random {
         let rand_seed = seed.map(|s| s.wrapping_add(i as u64));
-        let random_graph = degree_preserving_rewire(graph, None, rand_seed)?;
+        let random_graph = degree_preserving_rewire(graph, None, rand_seed.map(Seed::from))?;
         let rc = motif_census(&random_graph, size)?;
         for k in rc.keys() {
             all_classes.insert(k.clone());

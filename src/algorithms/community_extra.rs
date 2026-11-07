@@ -4,6 +4,7 @@
 //! classifiers.
 
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use pyo3::types::PyDict;
 use rand::seq::SliceRandom;
@@ -102,8 +103,9 @@ pub fn fluid_communities(
     graph: &Graph,
     k: usize,
     max_iter: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<u64>, Vec<usize>)> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return value_err("fluid communities require an undirected graph");
     }
@@ -197,8 +199,9 @@ pub fn kernighan_lin(
     initial: Option<Vec<u64>>,
     max_iter: usize,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<u64>, Vec<u64>)> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return value_err("Kernighan-Lin bisection requires an undirected graph");
     }
@@ -308,8 +311,9 @@ pub fn greedy_node_swap_bipartition(
     initial: Option<Vec<u64>>,
     max_iter: usize,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<u64>, Vec<u64>, f64)> {
+    let seed = seed.map(u64::from);
     if graph.is_directed() {
         return value_err("greedy_node_swap_bipartition() requires an undirected graph");
     }
@@ -426,8 +430,9 @@ pub fn greedy_node_swap_bipartition(
 pub fn fast_label_propagation(
     graph: &Graph,
     weighted: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<(Vec<u64>, Vec<usize>)> {
+    let seed = seed.map(u64::from);
     let adj = Adj::new(graph, weighted, false);
     let n = adj.n();
     let mut rng = rng_from(seed);

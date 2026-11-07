@@ -1,4 +1,5 @@
 use crate::graph::Graph;
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::Rng;
 use rand::SeedableRng;
@@ -36,8 +37,9 @@ pub fn influence_maximization(
     model: &str,
     probability: f64,
     n_simulations: usize,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Vec<(u64, f64)>> {
+    let seed = seed.map(u64::from);
     if model != "independent_cascade" {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
             "Unknown model '{}'. Use 'independent_cascade'.",

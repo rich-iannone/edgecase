@@ -5,7 +5,9 @@
 //! - `expected_degree_graph`: Chung-Lu model with expected degree sequence
 //! - `generate_stochastic_block_model`: SBM graph from block sizes and probability matrix
 
+use crate::algorithms::random_models::degree_list;
 use crate::graph::{Edge, Graph, Node};
+use crate::utils::Seed;
 use pyo3::prelude::*;
 use rand::prelude::*;
 use rand_chacha::ChaCha8Rng;
@@ -18,10 +20,12 @@ use rustc_hash::FxHashSet;
 #[pyfunction]
 #[pyo3(signature = (degree_sequence, directed=false, seed=None))]
 pub fn configuration_model(
-    degree_sequence: Vec<usize>,
+    degree_sequence: Vec<i64>,
     directed: bool,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
+    let degree_sequence = degree_list("degree_sequence", &degree_sequence)?;
     let n = degree_sequence.len();
     if n == 0 {
         return Ok(Graph::new_rust(directed, false));
@@ -114,8 +118,9 @@ pub fn configuration_model(
 pub fn degree_preserving_rewire(
     graph: &Graph,
     n_swaps: Option<usize>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     let mut rng = match seed {
         Some(s) => ChaCha8Rng::seed_from_u64(s),
         None => ChaCha8Rng::from_entropy(),
@@ -241,7 +246,8 @@ pub fn degree_preserving_rewire(
 /// `w_i * w_j / sum(w)`, where `w` is the weight vector.
 #[pyfunction]
 #[pyo3(signature = (weights, seed=None))]
-pub fn expected_degree_graph(weights: Vec<f64>, seed: Option<u64>) -> PyResult<Graph> {
+pub fn expected_degree_graph(weights: Vec<f64>, seed: Option<Seed>) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     let n = weights.len();
     if n == 0 {
         return Ok(Graph::new_rust(false, false));
@@ -311,8 +317,9 @@ pub fn expected_degree_graph(weights: Vec<f64>, seed: Option<u64>) -> PyResult<G
 pub fn generate_stochastic_block_model(
     sizes: Vec<usize>,
     p_matrix: Vec<f64>,
-    seed: Option<u64>,
+    seed: Option<Seed>,
 ) -> PyResult<Graph> {
+    let seed = seed.map(u64::from);
     let k = sizes.len();
     if k == 0 {
         return Ok(Graph::new_rust(false, false));
