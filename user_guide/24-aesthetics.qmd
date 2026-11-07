@@ -1,0 +1,246 @@
+---
+title: Aesthetics
+guide-section: "Visualization"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A drawing becomes far more informative when its colors and sizes carry data. Coloring nodes by
+community shows how a network divides, sizing them by centrality shows where its influence lies,
+and coloring edges by whether they stay within a group or cross between groups shows how the
+groups are linked. These *aesthetic mappings* translate node attributes into visual properties.
+
+`plot()` has three of them: `color_by=` for node colors, `size_by=` for node sizes, and
+`edge_color_by=` for edge colors. Each takes the name of a node attribute, so anything stored on
+the nodes can drive the drawing, whether it came with the data, was set with `set_node_attrs()`, or
+was computed by an analysis method such as `pagerank()` or `cmty_louvain()`. This page shows how to
+use them, how to choose a palette, and how to prepare visual attributes for the interactive views.
+
+## Coloring nodes by category
+
+`color_by=` gives each distinct value of an attribute its own color. The karate club records which
+faction each member joined when the club split:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.plot(color_by="faction", label_by="label", seed=1)
+```
+
+The two factions occupy the two sides of the drawing, as expected from a network that split along
+its weakest links. Edges between two members of the same faction take the faction's color, while
+edges between the factions keep the neutral edge color, so the few ties that cross the divide stand
+out as the gray lines in the middle.
+
+The mapping is categorical: each distinct value gets the next color of the palette, in the order
+in which the values are first met among the nodes. Nodes that lack the attribute are grouped
+together and get a color of their own. Any kind of value works, including strings, integers, and
+booleans. The `role` attribute picks out the club's two leaders:
+
+```{python}
+karate.plot(color_by="role", label_by="label", seed=1)
+```
+
+### Coloring by computed results
+
+Analysis methods that assign nodes to groups store their results as node attributes, which
+`color_by=` can then use directly. The most common case is community detection. Running
+[`cmty_louvain()`](../reference/Graph.cmty_louvain.qmd) on the dolphin network stores each animal's
+community in the `cmty_louvain` attribute:
+
+```{python}
+dolphins = ec.dolphins()
+dolphins.cmty_louvain()
+dolphins.plot(color_by="cmty_louvain", palette="Set2", show_labels=False, node_size=7, seed=1)
+```
+
+The Louvain method finds five communities. The two large groups of the population, at the top
+and the bottom of the drawing, correspond to the two main communities the researchers observed,
+and the method splits the lower group further into smaller circles of associates. Plotting a
+community detection result like this is the quickest check of whether the groups it found make
+sense. [Community detection](14-communities.qmd) describes the methods.
+
+### Deriving categories with Polars
+
+When the categories to show aren't stored on the graph, they can be computed from the node table
+with Polars and written back with `set_node_attrs()`. Suppose the question is which members were
+friends with both leaders, and so stood between the two camps:
+
+```{python}
+both_leaders = set(karate.neighbors(1)) & set(karate.neighbors(34))
+
+positions = karate.get_node_df().select(
+    "id",
+    pl.when(pl.col("role") != "Member")
+    .then(pl.col("role"))
+    .when(pl.col("id").is_in(list(both_leaders)))
+    .then(pl.lit("Friend of both"))
+    .otherwise(pl.lit("Other"))
+    .alias("position"),
+)
+karate.set_node_attrs("position", dict(positions.iter_rows()))
+karate.plot(color_by="position", label_by="label", seed=1)
+```
+
+Four members, `"8"`, `"13"`, `"19"`, and `"31"`, were friends with both the instructor and the
+administrator, and they sit in the middle of the drawing, between the two camps. The pattern of a
+Polars expression followed by `set_node_attrs()` works for any categorization, such as binning a
+numeric score into "low", "medium", and "high"; [Node and edge data](07-node-and-edge-data.qmd)
+describes it in more detail.
+
+## Palettes
+
+`palette=` chooses the colors that `color_by=` and `edge_color_by=` use. The default is
+`"tableau"`, and [`list_palettes()`](../reference/list_palettes.qmd) lists the others:
+
+```{python}
+from edgecase import colors
+
+colors.list_palettes()
+```
+
+The palettes fall into three families:
+
+- **qualitative** palettes, such as `"tableau"`, `"Set1"`, `"Set2"`, `"Dark2"`, `"Paired"`, and
+  `"Accent"`, have colors that are distinct but not ordered, which suits categories such as
+  communities, types, or factions
+- **sequential** palettes, such as `"Blues"`, `"Greens"`, `"YlOrRd"`, and the perceptually uniform
+  `"viridis"`, `"magma"`, `"inferno"`, `"plasma"`, and `"cividis"`, run from light to dark
+- **diverging** palettes, such as `"RdBu"`, `"PiYG"`, and `"Spectral"`, run between two contrasting
+  colors through a neutral middle
+
+The `get_palette()` function returns the colors of a palette as hex strings, which is useful for
+matching other figures or legends to a plot:
+
+```{python}
+colors.get_palette("Set2")
+```
+
+Most qualitative palettes have 8 to 12 colors, and when an attribute has more distinct values than
+the palette has colors, the colors are reused from the start, so two groups can end up with the
+same color. `"Paired"` and `"Set3"` have the most colors, twelve each. For attributes with many
+values, it is usually better to color only the few largest groups and merge the rest into an
+"other" category.
+
+Since `color_by=` assigns colors in order of first appearance rather than in sorted order of the
+values, a sequential palette does not produce a gradient that follows the values. For ordered
+categories, choose a qualitative palette, and for numeric values, use `size_by=`, described next.
+The colorblind-safe palettes include `"Dark2"`, `"Set2"`, `"Paired"`, and the viridis family.
+
+## Sizing nodes by value
+
+`size_by=` maps a numeric attribute to the node radius. The values are scaled linearly so that the
+smallest value gets half the base `node_size=` and the largest twice it, and nodes with a missing
+or non-numeric value keep the base size. `"degree"` is always available. Sizing by
+[`pagerank()`](../reference/Graph.pagerank.qmd), with the factions as colors:
+
+```{python}
+karate.pagerank()
+karate.plot(color_by="faction", size_by="pagerank", label_by="label", seed=1)
+```
+
+The administrator, `"33"`, and the instructor, `"0"`, are by far the largest nodes, followed by the
+members closest to them, such as `"32"`, `"2"`, and `"1"`. Since the scale runs from the smallest
+value to the largest, differences in size reflect differences in value, but not their ratios: a
+node twice the size of another doesn't have twice the score. A single extreme value
+compresses all the other nodes toward the small end, which is often the case for betweenness, where
+a few bridges have most of the total.
+
+## Coloring edges by group
+
+`edge_color_by=` colors the edges by the groups of their endpoints, independently of the node
+colors. An edge whose two endpoints share a value gets that group's color, and an edge between two
+different groups gets the `cross_community_color=`, a muted red by default. This turns the edges
+between groups into the focus of the drawing:
+
+```{python}
+karate.plot(
+    color_by="faction",
+    edge_color_by="faction",
+    cross_community_color="crimson",
+    edge_opacity=0.6,
+    label_by="label",
+    seed=1,
+)
+```
+
+The ten friendships that crossed the divide are drawn in crimson. Half of them involve a single
+member, `"2"`, who was friends with five members of the administrator's faction, and most of the
+rest involve the instructor or the members who were friends with both leaders. Raising
+`edge_opacity=` from its default of 0.4 makes the edge colors easier to see. `edge_color_by=` can
+use a different attribute from `color_by=`, for example nodes colored by a detected community and
+edges colored by the known factions, which shows where the two partitions disagree.
+`cross_community_color=` takes any color that SVG understands, a name such as `"crimson"` or a hex
+code such as `"#999999"`.
+
+## Putting it together
+
+The mappings combine freely, and they work with both themes. The *Les Misérables* network, with
+nodes colored by their [Leiden](../reference/Graph.cmty_leiden.qmd) community and sized by
+[betweenness](../reference/Graph.betweenness_centrality.qmd), on a dark background:
+
+```{python}
+miserables = ec.les_miserables()
+miserables.cmty_leiden().betweenness_centrality()
+miserables.plot(
+    theme="dark",
+    color_by="cmty_leiden",
+    size_by="betweenness_centrality",
+    palette="Set3",
+    show_labels=False,
+    seed=2,
+)
+```
+
+The largest node by far is Valjean, who connects almost every part of the novel. The other large
+nodes, Gavroche, Javert, Myriel, Thénardier, and Fantine, are the characters who link a storyline
+to the rest: Myriel, for example, is the only link between the fan of minor characters on the left
+and the rest of the cast. The drawing shows in
+one picture both how the cast divides into storylines and which characters hold them together.
+
+## Visual attributes for the interactive views
+
+`plot()` computes its colors and sizes from the mappings at drawing time. The interactive views of
+[Interactive widgets](25-interactive.qmd) work differently: they read visual properties stored on
+the nodes themselves, a `color` attribute holding a color string and a `size` attribute holding a
+number. Two methods prepare these attributes.
+
+[`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) maps a categorical attribute
+to colors and writes them to the `color` attribute. Unlike `color_by=`, it sorts the distinct
+values before assigning colors, so the same values always get the same colors.
+[`rescale_node_attrs()`](../reference/Graph.rescale_node_attrs.qmd) maps a numeric attribute
+linearly onto a range and writes the results to the `size` attribute:
+
+```{python}
+karate.colorize_node_attrs("faction", palette="Set2")
+karate.rescale_node_attrs("pagerank", range=[10, 40])
+karate.get_node_df().select("label", "faction", "color", "pagerank", "size").head(4)
+```
+
+Both methods modify the graph in place, and `node_attr_to=` writes to an attribute other than
+`color` or `size`. `colorize_node_attrs()` also accepts a list of colors instead of a palette name,
+and `alpha=` adds transparency. Both record the mapping on the graph, and
+[`describe()`](../reference/Graph.describe.qmd) lists the recorded mappings under "Node
+aesthetics", which documents how a figure was made. The stored colors are used by
+[`plot_vis()`](25-interactive.qmd) and the graph widget; `plot()` itself ignores them and uses its
+own mappings.
+
+## Summary
+
+| Argument or method | Maps | Notes |
+|---|---|---|
+| `color_by=` | a categorical node attribute to node colors | edges within a group take its color |
+| `palette=` | the colors used by `color_by=` and `edge_color_by=` | see `list_palettes()` |
+| `size_by=` | a numeric node attribute, or `"degree"`, to node size | half to twice `node_size=` |
+| `edge_color_by=` | a node attribute to edge colors, by endpoint group | cross-group edges get `cross_community_color=` |
+| `edge_opacity=` | edge transparency | default `0.4` |
+| `colorize_node_attrs()` | a categorical attribute to stored `color` values | for the interactive views |
+| `rescale_node_attrs()` | a numeric attribute to stored `size` values | for the interactive views |
