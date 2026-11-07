@@ -334,6 +334,15 @@ class TestMinimumCycleBasisWeighted:
         assert sorted(map(len, basis)) == [3, 4]
         assert basis == g.minimum_cycle_basis()
 
+    def test_missing_weight_attribute_raises(self):
+        """`weight="cots"` used to count every edge as 1.0."""
+        g = Graph().add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", {"cost": 1.0}), ("B", "C", {"cost": 1.0}), ("C", "A")])
+        with pytest.raises(ValueError, match="no numeric 'cots' attribute, which weight='cots'"):
+            g.minimum_cycle_basis(weight="cots")
+        with pytest.raises(ValueError, match="no numeric 'cost' attribute"):
+            g.minimum_cycle_basis(weight="cost")
+
 
 class TestMinimumCycleBasisComplexGraphs:
     """Tests on more complex graph structures."""
@@ -402,6 +411,70 @@ class TestMinimumCycleBasisComplexGraphs:
 
         # 3x3 grid: V=9, E=12, cyclomatic = 12 - 9 + 1 = 4
         assert len(basis) == 4
+
+
+class TestMinimumCycleBasisCorrectness:
+    """Size and total weight of the basis, checked against NetworkX."""
+
+    def test_isolated_node_does_not_drop_a_cycle(self):
+        """An isolated node made E < V, which used to return no cycles at all."""
+        g = Graph().add_nodes(list("ABCDEFG"))
+        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("D", "E"), ("E", "F"), ("F", "D")])
+        assert g.minimum_cycle_basis() == [[1, 3, 2], [4, 6, 5]]
+
+    def test_dependent_cycles_are_rejected(self):
+        """Used to return 3 cycles, one the sum of two others, instead of 4 independent ones."""
+        g = Graph().add_nodes([str(i) for i in range(5)])
+        pairs = [(0, 1), (0, 2), (0, 3), (0, 4), (1, 2), (1, 3), (1, 4), (2, 3)]
+        g.add_edges([(str(a), str(b)) for a, b in pairs])
+        assert g.minimum_cycle_basis() == [[1, 3, 2], [1, 4, 2], [1, 5, 2], [1, 4, 3]]
+
+    def test_self_loops_and_parallel_edges(self):
+        """A self-loop is a one-node cycle and a parallel pair a two-node one."""
+        g = Graph().add_nodes(list("ABC"))
+        g.add_edges([("A", "B"), ("A", "B"), ("B", "C"), ("C", "A"), ("C", "C")])
+        assert g.minimum_cycle_basis() == [[3], [1, 2], [1, 3, 2]]
+
+    def test_zero_weights(self):
+        """Zero-weight edges still give simple cycles, shortest first."""
+        g = Graph(weighted=True).add_nodes(list("ABCD"))
+        g.add_edges([("A", "B", 0.0), ("B", "C", 0.0), ("C", "A", 0.0), ("A", "D", 0.0)])
+        g.add_edge("D", "C", weight=0.0)
+        assert g.minimum_cycle_basis() == [[1, 3, 2], [1, 3, 4]]
+
+    @pytest.mark.parametrize("bad", [-1.0, float("nan")])
+    def test_negative_or_nan_weight_raises(self, bad):
+        """Negative weights have no minimum basis; NaN ones can't be compared."""
+        g = Graph().add_nodes(list("ABC"))
+        g.add_edge("A", "B", cost=1.0).add_edge("B", "C", cost=bad).add_edge("C", "A", cost=1.0)
+        with pytest.raises(ValueError, match="non-negative"):
+            g.minimum_cycle_basis(weight="cost")
+
+    @pytest.mark.parametrize("weighted", [False, True])
+    def test_matches_networkx(self, weighted):
+        """Same number of cycles and same total weight as `nx.minimum_cycle_basis`."""
+        nx = pytest.importorskip("networkx")
+        import random
+
+        rng = random.Random(7)
+        for seed in range(60):
+            n = rng.randint(2, 14)
+            G = nx.gnm_random_graph(n, rng.randint(0, 3 * n), seed=seed)
+            for u, v in G.edges:
+                G[u][v]["weight"] = rng.choice([0, 0.5, 1, 2, 5]) if weighted else 1
+            g = Graph(weighted=weighted).add_nodes([str(i) for i in range(n)])
+            for u, v, w in G.edges(data="weight"):
+                g.add_edge(str(u), str(v), **({"weight": w} if weighted else {}))
+            basis = g.minimum_cycle_basis(weight="weight")
+
+            def total(cycles):
+                return sum(G[c[i - 1]][c[i]]["weight"] for c in cycles for i in range(len(c)))
+
+            ours = [[int(g.get_node(x).label) for x in c] for c in basis]
+            assert all(c[0] == min(c) for c in basis)
+            size = G.number_of_edges() - n + nx.number_connected_components(G)
+            assert len(basis) == size
+            assert total(ours) == total(nx.minimum_cycle_basis(G, weight="weight"))
 
 
 class TestCycleBasisComparison:
