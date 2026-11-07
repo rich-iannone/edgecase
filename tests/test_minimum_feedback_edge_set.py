@@ -213,6 +213,10 @@ class TestValidationAndSteps:
     @pytest.mark.parametrize("directed", [True, False])
     @pytest.mark.parametrize("bad", [-1.0, float("nan")])
     def test_bad_weights(self, directed, bad):
+        if bad != bad:
+            with pytest.raises(ValueError, match="NaN"):  # rejected on entry
+                _graph([(0, 1, bad), (1, 0, 1.0)], directed=directed, weighted=True)
+            return
         g = _graph([(0, 1, bad), (1, 0, 1.0)], directed=directed, weighted=True)
         with pytest.raises(ValueError, match="non-negative"):
             g.minimum_feedback_edge_set()
