@@ -1,0 +1,278 @@
+---
+title: Node and edge data
+guide-section: "Working with graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+A graph's structure is only half of most analyses. The other half is the data attached to its nodes
+and edges: the ages of people in a social network, the capacities of pipes in a supply network, the
+scores computed by an algorithm. EdgeCase stores this data as named attributes on each node and
+edge, and offers three ways to work with it: as dictionaries keyed by ID, as Polars DataFrames, and
+through selections. This page covers the first two; [Selections](08-selections.qmd) covers the
+third.
+
+| Task | Methods |
+|---|---|
+| Read everything as a table | [`get_node_df()`](../reference/Graph.get_node_df.qmd), [`get_edge_df()`](../reference/Graph.get_edge_df.qmd) |
+| Read one attribute | [`get_node_attrs()`](../reference/Graph.get_node_attrs.qmd), [`get_edge_attrs()`](../reference/Graph.get_edge_attrs.qmd), [`get_edge_attrs_by_id()`](../reference/Graph.get_edge_attrs_by_id.qmd) |
+| Read one node or edge | [`get_node()`](../reference/Graph.get_node.qmd), [`get_edge()`](../reference/Graph.get_edge.qmd) |
+| Write one attribute | [`set_node_attrs()`](../reference/Graph.set_node_attrs.qmd), [`set_edge_attrs()`](../reference/Graph.set_edge_attrs.qmd) |
+| Map values to visual properties | [`rescale_node_attrs()`](../reference/Graph.rescale_node_attrs.qmd), [`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) |
+
+## The node and edge tables
+
+[`get_node_df()`](../reference/Graph.get_node_df.qmd) returns one row per node as a Polars
+DataFrame. Its layout is always the same, so code that reads it never has to guess:
+
+- the `id`, `label`, and `type` columns come first,
+- the node's attributes follow, in alphabetical order, and
+- a `degree` column, computed on the spot, comes last.
+
+The rows are sorted by ID. The Florentine families dataset makes a good running example:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+florentine = ec.florentine_families()
+florentine.get_node_df().head(5)
+```
+
+[`get_edge_df()`](../reference/Graph.get_edge_df.qmd) is the edge counterpart. Its first columns
+are `id`, `source`, `target`, and `rel`, followed by `weight` when any edge has one, and then the
+other edge attributes in alphabetical order:
+
+```{python}
+florentine.get_edge_df().head(5)
+```
+
+Both tables are fresh copies. Changing a DataFrame never changes the graph, so filter, sort, and
+reshape them freely; writing results back into the graph is a separate step, shown below.
+
+A Polars column holds values of one data type, so when an attribute's values differ in type from
+node to node, the table reconciles them: integers beside floats become floats, and a single value
+beside lists becomes a one-item list. Other mixtures, such as strings beside numbers, give a column
+of Python objects that holds the values unchanged. Storing each attribute with one consistent type
+keeps the tables easy to work with.
+
+## Reading attributes
+
+To read a single attribute, [`get_node_attrs()`](../reference/Graph.get_node_attrs.qmd) is lighter
+than building a whole table. It returns a dictionary from node ID to value, and leaves out the nodes
+that don't have the attribute. Its `nodes=` argument narrows the result to some nodes:
+
+```{python}
+karate = ec.karate_club()
+karate.get_node_attrs("role", nodes=[1, 2, 34])
+```
+
+The edge equivalent, [`get_edge_attrs()`](../reference/Graph.get_edge_attrs.qmd), returns a
+dictionary keyed by edge ID. Its `sources=` and `targets=` arguments keep only the edges that leave
+or enter particular nodes, and `"weight"` reads the edge weights:
+
+```{python}
+les_mis = ec.les_miserables()
+les_mis.get_edge_attrs("weight", sources=["Valjean"])
+```
+
+In an undirected graph, `sources=` and `targets=` match an edge in either orientation, so this
+returns every edge that touches Valjean, whichever way round it was recorded. Valjean has 36 of
+them. When the edge IDs are already known, from `find_edge_ids()` or a selection,
+[`get_edge_attrs_by_id()`](../reference/Graph.get_edge_attrs_by_id.qmd) reads them directly.
+
+For everything about a single node or edge, `get_node()` and `get_edge()` return objects with the
+ID, the label or endpoints, and a dictionary of all attributes, as described in
+[The graph model](03-graph-model.qmd#types-and-attributes).
+
+## Writing attributes
+
+[`set_node_attrs()`](../reference/Graph.set_node_attrs.qmd) writes one attribute, creating it if it
+doesn't exist and overwriting it if it does. Its `values=` argument takes one of three forms:
+
+- **a single value**, written to every target node,
+- **a list**, paired by position with the nodes in `nodes=`, or
+- **a dictionary** from node IDs or labels to values, which updates only the nodes it names.
+
+`nodes=` chooses the target nodes, and defaults to all of them. A single value is the way to tag a
+group of nodes:
+
+```{python}
+florentine.set_node_attrs("faction", "Medici", nodes=["Medici", "Tornabuoni", "Ridolfi"])
+florentine.get_node_attrs("faction")
+```
+
+A dictionary is the way to bring in data from outside the graph. Here are the families' net
+worths in 1427, in thousands of lira, from the tax records that John Padgett gathered alongside the
+marriage data:
+
+```{python}
+wealth = {
+    "Acciaiuoli": 10, "Albizzi": 36, "Barbadori": 55, "Bischeri": 44, "Castellani": 20,
+    "Ginori": 32, "Guadagni": 8, "Lamberteschi": 42, "Medici": 103, "Pazzi": 48,
+    "Peruzzi": 49, "Ridolfi": 27, "Salviati": 10, "Strozzi": 146, "Tornabuoni": 48,
+}
+florentine.set_node_attrs("wealth", wealth).get_node_attrs("wealth", nodes=["Medici", "Strozzi"])
+```
+
+Since `set_node_attrs()` returns the graph, the call chains straight into a check of two of the new
+values.
+
+Lists are paired with `nodes=` by position. Always pass `nodes=` with a list, since without it the
+list is paired with the nodes in the graph's internal order, which isn't necessarily the order in
+which they were added.
+
+### Setting edge attributes
+
+[`set_edge_attrs()`](../reference/Graph.set_edge_attrs.qmd) accepts the same three forms of
+`values=`, with dictionaries keyed by edge ID. The edges to update can be chosen in four ways:
+
+| Argument | Chooses |
+|---|---|
+| `edge_ids=` | edges by ID |
+| `edges=` | every edge between each `(source, target)` pair, including parallel edges |
+| `sources=`, `targets=` | edges that leave or enter the given nodes (both, when combined) |
+| none of these | every edge |
+
+Two attribute names are special. Setting `"weight"` sets the edge's weight, the value that weighted
+algorithms read, and setting `"rel"` sets its relationship type:
+
+```{python}
+florentine.set_edge_attrs("rel", "marriage")
+florentine.set_edge_attrs("rel", "medici_marriage", sources=["Medici"])
+florentine.get_edge_df().head(5)
+```
+
+The second call overwrote the `rel` of every edge touching the Medici, which in an undirected graph
+includes edges in which they are listed as the target.
+
+## Moving data between the graph and Polars
+
+The node table and the dictionary form of `set_node_attrs()` make a natural round trip: read the
+table, compute with Polars, and write the result back. Here a column is derived from two others,
+then stored as a new attribute:
+
+```{python}
+florentine.betweenness_centrality()
+
+table = florentine.get_node_df().with_columns(
+    (pl.col("betweenness_centrality") / pl.col("wealth")).alias("brokerage_per_lira")
+)
+florentine.set_node_attrs("brokerage_per_lira", dict(zip(table["id"], table["brokerage_per_lira"])))
+
+(
+    florentine.get_node_df()
+    .select("label", "wealth", "betweenness_centrality", "brokerage_per_lira")
+    .sort("betweenness_centrality", descending=True)
+    .head(5)
+)
+```
+
+The Strozzi were by far the richest family, worth nearly half as much again as the Medici, yet the
+Medici's position in the marriage network gave them twice the betweenness of anyone else. The
+Guadagni, among the poorest families, were the second most important brokers, so they get by far
+the most brokerage per lira. The same
+pattern works for joining external data: read your data into a DataFrame, join it to the node table
+on `label`, and write the new columns back with `dict(zip(...))`.
+
+## Attributes written by algorithms
+
+Most algorithms that compute one value per node or per edge follow the same convention:
+
+- By default, they store their result as an attribute named after the method, such as
+  `pagerank` or `betweenness_centrality`, and return the graph, so calls chain.
+- `attr_name=` stores the result under a different name, which allows several runs with different
+  settings to sit side by side.
+- `return_dict=True` returns the result as a dictionary instead, and leaves the graph unchanged.
+
+```{python}
+karate.pagerank().pagerank(damping=0.5, attr_name="pagerank_d50")
+karate.get_node_df().select("label", "pagerank", "pagerank_d50").head(3)
+```
+
+```{python}
+scores = karate.pagerank(return_dict=True)
+max(scores, key=scores.get)
+```
+
+The dictionary form suits code that consumes the scores directly, and it pairs with
+`set_node_attrs()` when you want to store the result after all, or store a transformed version of
+it. Algorithms that return a single number (such as `get_transitivity()`) or a structure (such as
+`shortest_path()`) don't store anything.
+
+The graph keeps a record of the computations whose results it stores, and lists them in its summary,
+along with the attribute each one wrote:
+
+```{python}
+karate
+```
+
+## Types and relationship types
+
+Node `type` and edge `rel` are ordinary attributes in most respects, and both can be set with
+`set_node_attrs()` and `set_edge_attrs()`. They get special treatment in three places:
+
+- they always have their own column in the node and edge tables, even when no node or edge has one;
+- Cypher queries read them as node labels and relationship types, so `(p:person)-[:knows]->()`
+  matches on them (see [Cypher queries](10-cypher.qmd)); and
+- many methods accept them as filters, and generators set them through `type=` and `rel=`.
+
+A node can have more than one type, given as a list, which the node table shows as a list column:
+
+```{python}
+roles = (
+    ec.Graph()
+    .add_node("Ruth", type=["person", "author"])
+    .add_node("Sam", type="person")
+)
+roles.get_node_df()
+```
+
+Filtering the table by type is a job for Polars. With list types, test membership with
+`list.contains()`:
+
+```{python}
+roles.get_node_df().filter(pl.col("type").list.contains("author"))
+```
+
+## Visual attributes
+
+Two methods turn attribute values into visual properties and store them as new attributes, for use
+by the interactive [graph widget](25-interactive.qmd) or any other renderer.
+[`rescale_node_attrs()`](../reference/Graph.rescale_node_attrs.qmd) maps a numeric attribute onto a
+range of sizes, and [`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) maps a
+categorical attribute onto a color palette:
+
+```{python}
+(
+    karate
+    .cmty_louvain()
+    .rescale_node_attrs("pagerank", range=[0.3, 1.0])
+    .colorize_node_attrs("cmty_louvain", palette="Set2")
+    .get_node_df()
+    .select("label", "pagerank", "size", "cmty_louvain", "color")
+    .head(4)
+)
+```
+
+The static [`plot()`](22-plotting.qmd) method doesn't need these, since its `color_by=` and
+`size_by=` arguments read the attributes directly; see [Aesthetics](24-aesthetics.qmd).
+
+## Things to know
+
+- **Attributes can't currently be removed.** Setting an attribute to `None` stores `None`, which
+  shows as `null` in the tables but still appears in `get_node_attrs()`. To drop an attribute
+  completely, rebuild the graph from its tables without that column.
+- **Some column names are reserved.** In the node table, `id`, `label`, and `degree` always hold
+  the node's ID, label, and degree. An attribute with one of those names (such as the `degree`
+  that `degrees()` stores) is left out of the table, so read it with `get_node_attrs()`. Likewise,
+  `id`, `source`, and `target` are reserved in the edge table.
+- **Changes are logged.** Each `set_node_attrs()` and `set_edge_attrs()` call appears in the
+  graph's [step log](26-step-log.qmd), which also records the attribute updates made by
+  algorithms.
