@@ -1,0 +1,344 @@
+---
+title: Building graphs
+guide-section: "Building graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+EdgeCase offers several ways to put nodes and edges into a graph, from adding them one at a time to
+building a whole graph from a table in one call. This page covers each of them, along with the
+methods for deleting nodes and edges and for cleaning up a graph once it's built.
+
+| Task | Methods |
+|---|---|
+| Add one node or edge | [`add_node()`](../reference/Graph.add_node.qmd), [`add_edge()`](../reference/Graph.add_edge.qmd) |
+| Add many nodes or edges | [`add_nodes()`](../reference/Graph.add_nodes.qmd), [`add_edges()`](../reference/Graph.add_edges.qmd) |
+| Add edges between node IDs | [`add_edge_by_id()`](../reference/Graph.add_edge_by_id.qmd), [`add_edges_by_id()`](../reference/Graph.add_edges_by_id.qmd) |
+| Build a graph from an edge list | [`Graph.from_edges()`](../reference/Graph.from_edges.qmd) |
+| Build a graph from DataFrames | [`Graph(nodes_df=, edges_df=)`](../reference/Graph.qmd) |
+| Remove nodes or edges | [`delete_node()`](../reference/Graph.delete_node.qmd), [`delete_edge()`](../reference/Graph.delete_edge.qmd), [`delete_edge_by_id()`](../reference/Graph.delete_edge_by_id.qmd) |
+| Make a graph simple | [`remove_selfloops()`](../reference/Graph.remove_selfloops.qmd), [`remove_duplicate_edges()`](../reference/Graph.remove_duplicate_edges.qmd), [`simplify()`](../reference/Graph.simplify.qmd) |
+
+Every one of these methods changes the graph in place and returns it, so they chain freely, and
+each call is recorded as a step in the graph's [step log](26-step-log.qmd).
+
+## Adding nodes
+
+### One at a time
+
+[`add_node()`](../reference/Graph.add_node.qmd) adds a single node. Its first argument is the
+label, `type=` sets the node's type, and any other keyword argument becomes an attribute:
+
+```{python}
+import edgecase as ec
+
+lab = (
+    ec.Graph()
+    .add_node("Curie", type="scientist", field="chemistry", born=1867)
+    .add_node("Bohr", type="scientist", field="physics", born=1885)
+    .add_node("Solvay 1911", type="conference")
+)
+lab.get_node_df()
+```
+
+`add_node()` can also connect the new node to an existing one as it is created. Note the direction
+of the two arguments, which is easy to get backwards: `from_node=` makes an edge *from the new
+node to* the given node, and `to_node=` makes an edge *from the given node to* the new one. In an
+undirected graph the direction doesn't matter:
+
+```{python}
+tree = (
+    ec.Graph(directed=True)
+    .add_node("root")
+    .add_node("child", to_node="root")
+    .add_node("grandchild", to_node="child")
+)
+tree.get_edges_str_repr()
+```
+
+Each string in the result reads `source->target` with node IDs, so the edges run from the root
+(ID 1) to the child (ID 2), and from the child to the grandchild (ID 3).
+
+### Many at once
+
+[`add_nodes()`](../reference/Graph.add_nodes.qmd) takes a list (or any iterable) of labels. A
+`type=` or other keyword argument given to it applies to every node in the call:
+
+```{python}
+team = ec.Graph().add_nodes(["Ines", "Jon", "Kai"], type="engineer", team="platform")
+team.get_node_df()
+```
+
+When some nodes need their own values, give those nodes as `(label, attributes)` tuples. The
+dictionary is merged over the shared attributes, and may include a `"type"` key:
+
+```{python}
+team.add_nodes(
+    ["Lena", ("Max", {"team": "data"}), ("Nia", {"type": "manager"})],
+    type="engineer",
+    team="platform",
+)
+team.get_node_df()
+```
+
+A dictionary from labels to attribute dictionaries works too, which is a natural fit for data
+loaded from JSON. Use `None` for a node with no attributes:
+
+```{python}
+ec.Graph().add_nodes({"x": {"size": 3}, "y": {"size": 5}, "z": None}).get_node_df()
+```
+
+A `range` adds nodes labelled with numbers, converted to strings:
+
+```{python}
+ec.Graph().add_nodes(range(1, 4)).get_node_df()
+```
+
+## Adding edges
+
+### One at a time
+
+[`add_edge()`](../reference/Graph.add_edge.qmd) joins a source to a target, given as labels or
+IDs. `rel=` sets the relationship type, `weight=` the weight, and other keywords become edge
+attributes:
+
+```{python}
+lab.add_edge("Curie", "Solvay 1911", rel="attended")
+lab.add_edge("Bohr", "Curie", rel="corresponded", weight=3, topic="radioactivity")
+lab.get_edge_df()
+```
+
+By default, both endpoints must already exist, which catches typos in labels. Pass
+`auto_create_nodes=True` to have `add_edge()` create any missing node (given as a label) on the
+spot:
+
+```{python}
+lab.add_edge("Einstein", "Solvay 1911", rel="attended", auto_create_nodes=True)
+lab.get_node_df()
+```
+
+Einstein was created without a type or any other attributes, which can be set afterwards with
+the methods in [Node and edge data](07-node-and-edge-data.qmd).
+
+### Many at once
+
+[`add_edges()`](../reference/Graph.add_edges.qmd) takes a list of edges, each of which can have one
+of four shapes:
+
+| Shape | Meaning |
+|---|---|
+| `(source, target)` | a plain edge |
+| `(source, target, weight)` | an edge with a weight |
+| `(source, target, attrs)` | an edge with attributes, where `attrs` may include `"rel"` and `"weight"` |
+| `(source, target, weight, attrs)` | both |
+
+The shapes can be mixed in one list. As with `add_nodes()`, keyword arguments set values shared by
+every edge, which an edge's own dictionary overrides:
+
+```{python}
+flights = (
+    ec.Graph(directed=True, weighted=True)
+    .add_nodes(["YVR", "SEA", "SFO", "LAX"])
+    .add_edges(
+        [
+            ("YVR", "SEA", 190),
+            ("SEA", "SFO", 1093),
+            ("SFO", "LAX", 543, {"airline": "Alaska"}),
+            ("YVR", "LAX", {"weight": 1745, "rel": "nonstop"}),
+        ],
+        rel="route",
+        airline="United",
+    )
+)
+flights.get_edge_df()
+```
+
+The weights here are distances in kilometers, so on this weighted graph the shortest route from
+Vancouver to Los Angeles is the nonstop flight, at 1745 km, rather than the 1826 km of hops down
+the coast:
+
+```{python}
+flights.shortest_path_length("YVR", "LAX")
+```
+
+### Edges between node IDs
+
+`add_edge()` and `add_edges()` accept IDs as well as labels, following the usual rule that an `int`
+is an ID and a `str` a label. When edges come from code that works with IDs, such as the `id`
+column of a node table or the result of an algorithm,
+[`add_edge_by_id()`](../reference/Graph.add_edge_by_id.qmd) and
+[`add_edges_by_id()`](../reference/Graph.add_edges_by_id.qmd) are a stricter choice: they accept
+only integers, and raise a `TypeError` if a label slips in.
+
+```{python}
+ring = ec.Graph().add_nodes(["a", "b", "c", "d"])
+ids = ring.get_node_df()["id"].to_list()
+
+ring.add_edges_by_id([(ids[i], ids[(i + 1) % len(ids)]) for i in range(len(ids))])
+ring.get_edges_str_repr()
+```
+
+## Building a graph from an edge list
+
+Often the edges are all there is: a list of pairs read from a file or produced by another program.
+[`Graph.from_edges()`](../reference/Graph.from_edges.qmd) builds a whole graph from such a list in
+one call. Every endpoint becomes a node, in order of first appearance, so there's no need to create
+the nodes first:
+
+```{python}
+citations = ec.Graph.from_edges(
+    [("paper_a", "paper_b"), ("paper_a", "paper_c"), ("paper_b", "paper_c"), ("paper_d", "paper_a")],
+    directed=True,
+    graph_name="Citations",
+)
+citations
+```
+
+The edge tuples take the same four shapes as in `add_edges()`. The graph is made weighted
+automatically when any edge has a weight, unless `weighted=` says otherwise.
+
+Every endpoint is read as a label, even when it's a number: `from_edges([(0, 1), (1, 2)])` gives
+nodes labelled `"0"`, `"1"` and `"2"`, with IDs 1, 2 and 3. Use `nodes=` to add nodes that have no
+edges, to give nodes attributes, or to control which IDs the nodes receive. It takes any of the
+forms that `add_nodes()` accepts, and its nodes are created first:
+
+```{python}
+ec.Graph.from_edges(
+    [(1, 2), (2, 3)],
+    nodes=[("0", {"isolated": True}), "1", "2", "3"],
+).get_node_df()
+```
+
+## Building a graph from DataFrames
+
+Tabular data maps onto a graph naturally: one table of nodes and one of edges. The `Graph`
+constructor accepts both as Polars DataFrames.
+
+- In `nodes_df=`, the `id` column holds each node's label (the node IDs are still assigned by
+  EdgeCase). If the table also has a `label` column, that column is used for the labels instead. A
+  `type` column sets node types, and every other column becomes an attribute.
+- In `edges_df=`, the `from` and `to` columns hold the labels of each edge's endpoints. A `weight`
+  column sets weights, a `rel` column sets relationship types, and every other column becomes an
+  attribute.
+
+```{python}
+import polars as pl
+
+stations = pl.DataFrame({
+    "id": ["Central", "Harbour", "Museum", "Park"],
+    "type": ["interchange", "terminal", "stop", "stop"],
+    "zone": [1, 1, 1, 2],
+})
+
+lines = pl.DataFrame({
+    "from": ["Central", "Central", "Museum"],
+    "to": ["Harbour", "Museum", "Park"],
+    "rel": ["blue_line", "red_line", "red_line"],
+    "weight": [4.0, 2.5, 6.0],
+})
+
+transit = ec.Graph(nodes_df=stations, edges_df=lines, weighted=True, graph_name="Transit")
+transit.get_node_df()
+```
+
+```{python}
+transit.get_edge_df()
+```
+
+`nodes_df=` can be left out, in which case the nodes are created from the endpoints in
+`edges_df=`. Including it is the way to add isolated nodes and node attributes.
+
+Since Polars reads CSV, Parquet, JSON, databases, and much more, this is the general route for
+loading a graph from any tabular source. A typical pattern renames the source's columns to the ones
+EdgeCase expects:
+
+```python
+edges = pl.read_csv("interactions.csv").rename({"protein_a": "from", "protein_b": "to"})
+graph = ec.Graph(edges_df=edges)
+```
+
+For graph file formats such as GraphML, GML, or Pajek, see [File formats](27-file-formats.qmd), and
+for other libraries' graph objects, see [Other libraries](28-other-libraries.qmd).
+
+## Deleting nodes and edges
+
+[`delete_node()`](../reference/Graph.delete_node.qmd) removes a node along with every edge that
+touches it:
+
+```{python}
+transit.delete_node("Park")
+transit.get_edge_df()
+```
+
+[`delete_edge()`](../reference/Graph.delete_edge.qmd) removes an edge, given by its endpoints or by
+its ID (`id=`), and leaves both endpoints in place. When several parallel edges join the same two
+nodes, deleting by endpoints removes only the first of them, so use
+[`delete_edge_by_id()`](../reference/Graph.delete_edge_by_id.qmd) to remove a particular one:
+
+```{python}
+transit.delete_edge("Central", "Harbour")
+transit.get_edges_str_repr()
+```
+
+To delete many nodes or edges that meet some condition, select them first and then call
+`delete_nodes_ws()` or `delete_edges_ws()`, as shown in [Selections](08-selections.qmd).
+
+## Cleaning up
+
+Graphs built from raw data often contain self-loops and repeated edges, either by accident or
+because the data records repeated events. Some algorithms assume a simple graph, and repeated edges
+inflate degrees and other counts. Here is a graph with both problems:
+
+```{python}
+messy = (
+    ec.Graph()
+    .add_nodes(["A", "B", "C"])
+    .add_edges([("A", "B"), ("A", "B"), ("B", "B"), ("B", "C")])
+)
+messy.which_multiple(), messy.which_loops()
+```
+
+[`which_multiple()`](../reference/Graph.which_multiple.qmd) returns the IDs of the parallel edges
+and [`which_loops()`](../reference/Graph.which_loops.qmd) the IDs of the self-loops, which helps to
+inspect them before removing anything. Three methods do the removal:
+
+- [`remove_selfloops()`](../reference/Graph.remove_selfloops.qmd) deletes every self-loop.
+- [`remove_duplicate_edges()`](../reference/Graph.remove_duplicate_edges.qmd) keeps the first edge
+  (the one with the lowest ID) between each pair of nodes. With `keep_distinct_attributes=True`,
+  it only merges edges whose attributes are all equal.
+- [`simplify()`](../reference/Graph.simplify.qmd) does both.
+
+```{python}
+messy.simplify()
+messy.is_simple(), messy.get_edges_str_repr()
+```
+
+In a directed graph, `A -> B` and `B -> A` are different pairs, so reciprocal edges survive
+`remove_duplicate_edges()`. To turn them into a single undirected edge, convert the graph with
+`to_undirected()`, described in [Transforming graphs](19-transforming.qmd).
+
+## Combining construction methods
+
+The methods on this page compose with the generators of the next page, which also add to an
+existing graph rather than creating a new one. This builds a small graph by hand, adds a ring of
+generated nodes, and wires the two together:
+
+```{python}
+combined = (
+    ec.Graph()
+    .add_node("center")
+    .add_cycle_graph(n=5, label=False)
+    .add_edges_by_id([(1, node) for node in range(2, 7)])
+)
+combined.plot(label_by="id", seed=3)
+```
+
+The cycle's five nodes were created without labels (`label=False`) and received IDs 2 to 6, after
+the hub's ID 1, so `add_edges_by_id()` can join them to the hub by ID. The result is a wheel. The
+[generators](05-generators.qmd) page has much more on building graphs like this.
