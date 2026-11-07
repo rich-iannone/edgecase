@@ -496,6 +496,54 @@ class TestDirectedTransitivity:
                 assert result == pytest.approx(expected)
 
 
+class TestDirectedClustering:
+    """Directed clustering is Fagiolo's, as in `nx.clustering`."""
+
+    @staticmethod
+    def _build(n, edges):
+        return ec.Graph(directed=True).add_nodes([str(i) for i in range(n)]).add_edges(
+            [(str(u), str(v)) for u, v in edges]
+        )
+
+    def test_feed_forward_triangle(self):
+        """`0 -> 1, 1 -> 2, 0 -> 2` used to give 0 for every node."""
+        g = self._build(3, [(0, 1), (1, 2), (0, 2)])
+        assert g.clustering_coefficient(return_dict=True) == {1: 0.5, 2: 0.5, 3: 0.5}
+        assert g.local_clustering_coefficient(return_dict=True) == {1: 0.5, 2: 0.5, 3: 0.5}
+
+    def test_never_above_one(self):
+        """Node 0 here used to score 1.5."""
+        edges = [(0, 1), (0, 3), (1, 0), (1, 5), (2, 0), (2, 3), (3, 0), (3, 1), (3, 5)]
+        edges += [(3, 6), (4, 0), (4, 5), (5, 0)]
+        local = self._build(7, edges).local_clustering_coefficient(return_dict=True)
+        assert local[1] == pytest.approx(11 / 38)
+
+    def test_single_reciprocated_neighbor_is_undefined(self):
+        """`A <-> B` gives A one distinct neighbor, so no pair to close."""
+        g = self._build(2, [(0, 1), (1, 0)])
+        assert g.local_clustering_coefficient(return_dict=True) == {1: None, 2: None}
+        assert g.clustering_coefficient(return_dict=True) == {1: 0.0, 2: 0.0}
+
+    def test_matches_networkx(self):
+        """Random digraphs, with parallel arcs and self-loops added on our side only."""
+        rng = random.Random(11)
+        for _ in range(200):
+            n = rng.randint(1, 12)
+            edges = [(rng.randrange(n), rng.randrange(n)) for _ in range(rng.randint(0, 4 * n))]
+            G = nx.DiGraph()
+            G.add_nodes_from(range(n))
+            G.add_edges_from((u, v) for u, v in edges if u != v)
+            g = self._build(n, edges)
+
+            expected = nx.clustering(G)
+            ours = g.clustering_coefficient(return_dict=True)
+            local = g.local_clustering_coefficient(return_dict=True)
+            for i in range(n):
+                assert ours[i + 1] == pytest.approx(expected[i])
+                assert (local[i + 1] or 0.0) == pytest.approx(expected[i])
+            assert g.get_avg_clustering_coefficient() == pytest.approx(nx.average_clustering(G))
+
+
 class TestParallelEdgesAndSelfLoops:
     """Triangle-based measures are computed on the simple graph."""
 
