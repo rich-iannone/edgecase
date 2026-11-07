@@ -863,6 +863,31 @@ class TestPajekDetails:
         assert not g.is_directed() and not g.is_weighted()
         assert pairs(g) == [("1", "2"), ("1", "3"), ("2", "3")]
 
+    def test_empty_arcs_section_is_directed(self, tmp):
+        (tmp / "e.net").write_text("*Vertices 2\n*Arcs\n")
+        assert ec.from_pajek(tmp / "e.net").is_directed()
+        (tmp / "l.net").write_text("*Vertices 2\n*Arcslist\n*Edges\n1 2\n")
+        assert ec.from_pajek(tmp / "l.net").is_directed()
+
+    def test_directed_graph_without_edges_round_trips(self, tmp):
+        g = ec.Graph(directed=True)
+        g.add_node(label="a")
+        g.add_node(label="b")
+        ec.to_pajek(g, tmp / "d.net")
+        h = ec.from_pajek(tmp / "d.net")
+        assert h.is_directed() and h.count_nodes() == 2 and h.count_edges() == 0
+
+    def test_whitespace_in_labels_is_kept(self, tmp):
+        g = ec.Graph()
+        g.add_node(label="tab\tx")
+        g.add_node(label=" two  spaces ")
+        g.add_node(label="line\nbreak")
+        g.add_edge(1, 2, note="a\tb")
+        ec.to_pajek(g, tmp / "s.net")
+        h = ec.from_pajek(tmp / "s.net")
+        assert [label for label, _ in nodes_of(h)] == ["tab\tx", " two  spaces ", "line break"]
+        assert edges_of(h) == [("tab\tx", " two  spaces ", None, {"note": "a\tb"})]
+
     def test_only_first_network(self, tmp):
         (tmp / "two.paj").write_text(
             "*Network one\n*Vertices 2\n*Edges\n1 2\n*Network two\n*Vertices 3\n*Edges\n1 3\n"
