@@ -443,76 +443,84 @@ fn canonicalize_cycle(cycle: &[u64], node_to_idx: &FxHashMap<u64, usize>) -> Vec
 // Cycle Basis Algorithms
 // ============================================================================
 
-/// Entry for priority queue in shortest path algorithm
-#[derive(Clone)]
-struct PathEntry {
-    distance: f64,
-    node: u64,
+/// Path cost for `minimum_cycle_basis`: total weight, then number of edges.
+///
+/// Comparing the edge count after the weight makes every edge cost more than
+/// none, so zero-weight edges still give simple shortest paths.
+#[derive(Clone, Copy)]
+struct BasisCost {
+    weight: f64,
+    hops: u32,
 }
 
-impl PartialEq for PathEntry {
+impl BasisCost {
+    const ZERO: BasisCost = BasisCost {
+        weight: 0.0,
+        hops: 0,
+    };
+
+    fn plus(self, weight: f64) -> BasisCost {
+        BasisCost {
+            weight: self.weight + weight,
+            hops: self.hops + 1,
+        }
+    }
+
+    fn join(self, other: BasisCost) -> BasisCost {
+        BasisCost {
+            weight: self.weight + other.weight,
+            hops: self.hops + other.hops,
+        }
+    }
+
+    fn order(&self, other: &BasisCost) -> Ordering {
+        self.weight
+            .total_cmp(&other.weight)
+            .then(self.hops.cmp(&other.hops))
+    }
+}
+
+/// Min-heap entry for the shortest-path trees in `minimum_cycle_basis`
+struct BasisHeapEntry {
+    cost: BasisCost,
+    node: u32,
+}
+
+impl PartialEq for BasisHeapEntry {
     fn eq(&self, other: &Self) -> bool {
-        self.distance == other.distance && self.node == other.node
+        self.cmp(other) == Ordering::Equal
     }
 }
 
-impl Eq for PathEntry {}
+impl Eq for BasisHeapEntry {}
 
-impl Ord for PathEntry {
+impl Ord for BasisHeapEntry {
     fn cmp(&self, other: &Self) -> Ordering {
-        // Reverse ordering for min-heap (smaller distances have higher priority)
+        // Reversed for a min-heap; ties go to the smaller node index
         other
-            .distance
-            .partial_cmp(&self.distance)
-            .unwrap_or(Ordering::Equal)
-            .then_with(|| self.node.cmp(&other.node))
+            .cost
+            .order(&self.cost)
+            .then_with(|| other.node.cmp(&self.node))
     }
 }
 
-impl PartialOrd for PathEntry {
+impl PartialOrd for BasisHeapEntry {
     fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
         Some(self.cmp(other))
     }
 }
 
-/// Get edge weight from graph, using the weight field or custom attribute
-fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f64 {
-    if let Some(edge) = graph.get_edge(edge_id) {
-        if let Some(attr_name) = weight_attr {
-            // Try to get weight from attributes with GIL
-            Python::with_gil(|py| {
-                if let Some(attrs) = &edge.attributes {
-                    let attrs_bound = attrs.bind(py);
-                    // First try direct access
-                    if let Ok(Some(val)) = attrs_bound.get_item(attr_name) {
-                        if let Ok(f) = val.extract::<f64>() {
-                            return f;
-                        }
-                    }
-                    // Then try nested under "attributes" key (EdgeCase convention)
-                    if let Ok(Some(nested)) = attrs_bound.get_item("attributes") {
-                        if let Ok(nested_dict) = nested.downcast::<pyo3::types::PyDict>() {
-                            if let Ok(Some(val)) = nested_dict.get_item(attr_name) {
-                                if let Ok(f) = val.extract::<f64>() {
-                                    return f;
-                                }
-                            }
-                        }
-                    }
-                }
-                // Weighted graphs keep weights in the weight field, not as an attribute
-                if attr_name == "weight" {
-                    edge.weight.unwrap_or(1.0)
-                } else {
-                    1.0
-                }
-            })
-        } else {
-            // Use default weight field
-            edge.weight.unwrap_or(1.0)
-        }
-    } else {
-        1.0
+/// Get edge weight from graph, using the weight field or the attribute named by `weight=`,
+/// which every edge must hold as a number (`"weight"` falls back to the weight field)
+fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> PyResult<f64> {
+    let Some(edge) = graph.get_edge(edge_id) else {
+        return Ok(1.0);
+    };
+    match weight_attr {
+        Some(attr_name) => Python::with_gil(|py| {
+            crate::utils::require_named_edge_weight(py, &edge, attr_name, "weight")
+        }),
+        None => Ok(edge.weight.unwrap_or(1.0)),
     }
 }
 
@@ -711,13 +719,18 @@ pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> 
 /// cycles is minimized. For unweighted graphs, this minimizes the sum of
 /// cycle lengths.
 ///
-/// This implements Horton's algorithm:
-/// 1. For each edge (u,v), find the shortest path from u to v not using (u,v)
-/// 2. This gives a candidate cycle for each edge
-/// 3. Sort candidates by weight and greedily select linearly independent ones
+/// This implements Horton's algorithm, with each cycle generated only from its
+/// smallest vertex:
+/// 1. For each vertex r, grow a shortest-path tree over the vertices not smaller
+///    than r. Every edge (a, b) outside the tree whose tree paths from r meet
+///    only at r closes a candidate cycle r..a, b..r.
+/// 2. Sort the candidates by weight and keep each one that is linearly
+///    independent (over GF(2)) of those already kept, until the basis has
+///    E - V + C cycles.
 ///
-/// For simplicity, this implementation uses a greedy approach based on
-/// shortest paths from each node, which gives good results for most graphs.
+/// Cycles are compared by total weight and then by number of edges, so
+/// zero-weight edges are allowed. Self-loops give one-node cycles and
+/// parallel edges give two-node cycles.
 ///
 /// # Arguments
 /// * `graph` - The undirected graph to find minimum cycle basis for
@@ -725,10 +738,11 @@ pub fn cycle_basis(graph: &Graph, root: Option<u64>) -> PyResult<Vec<Vec<u64>>> 
 ///              the default edge weight (or 1.0 if not set).
 ///
 /// # Returns
-/// A vector of cycles forming a minimum weight cycle basis.
+/// A vector of cycles forming a minimum weight cycle basis. Each cycle starts
+/// at its smallest node ID.
 ///
 /// # Errors
-/// Returns an error if the graph is directed.
+/// Returns an error if the graph is directed or an edge weight is negative or NaN.
 #[pyfunction]
 #[pyo3(signature = (graph, weight=None))]
 pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Vec<Vec<u64>>> {
@@ -738,250 +752,268 @@ pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Ve
         ));
     }
 
-    let node_ids: Vec<u64> = graph.get_node_ids();
-    let n = node_ids.len();
+    const NONE: u32 = u32::MAX;
 
-    if n == 0 {
-        return Ok(Vec::new());
-    }
+    let mut node_ids: Vec<u64> = graph.get_node_ids();
+    node_ids.sort_unstable();
+    let n = node_ids.len();
+    let index: FxHashMap<u64, u32> = node_ids
+        .iter()
+        .enumerate()
+        .map(|(i, &id)| (id, i as u32))
+        .collect();
 
     let weight_attr = weight.as_deref();
+    let mut edges = graph.edges();
+    edges.sort_unstable_by_key(|&(edge_id, _, _)| edge_id);
+    let m = edges.len();
 
-    // Build adjacency list with edge info
-    // For undirected graphs, we store both directions
-    let mut adj_with_edges: FxHashMap<u64, Vec<(u64, u64)>> =
-        FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-    for &node_id in &node_ids {
-        adj_with_edges.insert(node_id, Vec::new());
+    // Edge endpoints and weights, indexed by position in `edges`
+    let mut ends: Vec<(u32, u32)> = Vec::with_capacity(m);
+    let mut weights: Vec<f64> = Vec::with_capacity(m);
+    for &(edge_id, source, target) in &edges {
+        let w = get_edge_weight(graph, edge_id, weight_attr)?;
+        if w.is_nan() || w < 0.0 {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "minimum_cycle_basis() requires non-negative edge weights, \
+                 but edge {} has weight {}",
+                edge_id, w
+            )));
+        }
+        ends.push((index[&source], index[&target]));
+        // Adding 0.0 turns -0.0 into 0.0, so total_cmp treats them alike
+        weights.push(w + 0.0);
     }
 
-    // Collect all edges
-    let edge_ids = graph.edge_ids();
-    let mut edges_info: Vec<(u64, u64, u64, f64)> = Vec::with_capacity(edge_ids.len()); // (edge_id, source, target, weight)
-
-    for edge_id in edge_ids {
-        if let Some(edge) = graph.get_edge(edge_id) {
-            let w = get_edge_weight(graph, edge_id, weight_attr);
-            edges_info.push((edge_id, edge.source, edge.target, w));
-
-            // Add to adjacency (both directions for undirected)
-            adj_with_edges
-                .entry(edge.source)
-                .or_default()
-                .push((edge.target, edge_id));
-            adj_with_edges
-                .entry(edge.target)
-                .or_default()
-                .push((edge.source, edge_id));
+    // Adjacency as (neighbor, edge) pairs, without self-loops
+    let mut adj: Vec<Vec<(u32, u32)>> = vec![Vec::new(); n];
+    for (e, &(a, b)) in ends.iter().enumerate() {
+        if a != b {
+            adj[a as usize].push((b, e as u32));
+            adj[b as usize].push((a, e as u32));
         }
     }
 
-    // Calculate cyclomatic complexity for each connected component
-    // Total cycles needed = E - V + C (where C is number of components)
-    let num_edges = edges_info.len();
-    let num_nodes = n;
-
-    // Find number of connected components
-    let mut component_count = 0;
-    let mut component_visited: FxHashSet<u64> = FxHashSet::default();
-
-    for &start in &node_ids {
-        if component_visited.contains(&start) {
+    // A spanning forest. Every other edge (self-loops included) is a chord, and
+    // the chords a cycle uses identify it in the cycle space, which has one
+    // dimension per chord (E - V + C).
+    let mut in_forest = vec![false; m];
+    let mut seen = vec![false; n];
+    let mut queue = VecDeque::new();
+    for start in 0..n {
+        if seen[start] {
             continue;
         }
-        component_count += 1;
-
-        let mut queue = VecDeque::new();
+        seen[start] = true;
         queue.push_back(start);
-        component_visited.insert(start);
-
-        while let Some(node) = queue.pop_front() {
-            if let Some(neighbors) = adj_with_edges.get(&node) {
-                for &(neighbor, _) in neighbors {
-                    if !component_visited.contains(&neighbor) {
-                        component_visited.insert(neighbor);
-                        queue.push_back(neighbor);
-                    }
+        while let Some(u) = queue.pop_front() {
+            for &(v, e) in &adj[u] {
+                if !seen[v as usize] {
+                    seen[v as usize] = true;
+                    in_forest[e as usize] = true;
+                    queue.push_back(v as usize);
                 }
             }
         }
     }
-
-    let target_cycles = if num_edges >= num_nodes {
-        num_edges - num_nodes + component_count
-    } else {
-        0
-    };
-
-    if target_cycles == 0 {
+    let mut chord = vec![NONE; m];
+    let mut num_chords = 0usize;
+    for e in 0..m {
+        if !in_forest[e] {
+            chord[e] = num_chords as u32;
+            num_chords += 1;
+        }
+    }
+    if num_chords == 0 {
         return Ok(Vec::new());
     }
 
-    // Generate candidate cycles using Horton's algorithm
-    // For each edge, find the shortest cycle containing it
-    let mut candidate_cycles: Vec<(f64, Vec<u64>)> = Vec::new();
-
-    for &(edge_id, u, v, edge_weight) in &edges_info {
-        // Find shortest path from u to v NOT using this edge
-        if let Some((path_weight, path)) =
-            shortest_path_excluding_edge(&adj_with_edges, u, v, edge_id, graph, weight_attr)
-        {
-            // The cycle is: path from u to v + direct edge back
-            let cycle_weight = path_weight + edge_weight;
-            if path.len() >= 2 {
-                candidate_cycles.push((cycle_weight, path));
-            }
+    // Candidate cycles as (cost, root, closing edge). A cycle is generated only
+    // from its smallest vertex, using paths that avoid smaller vertices, so each
+    // cycle appears at most once.
+    let mut candidates: Vec<(BasisCost, u32, u32)> = Vec::new();
+    for (e, &(a, b)) in ends.iter().enumerate() {
+        if a == b {
+            candidates.push((BasisCost::ZERO.plus(weights[e]), a, e as u32));
         }
     }
 
-    // Sort candidates by weight (ascending)
-    candidate_cycles.sort_by(|a, b| a.0.partial_cmp(&b.0).unwrap_or(Ordering::Equal));
-
-    // Greedily select independent cycles
-    // Use edge-incidence vectors for independence check
-    let mut selected_cycles: Vec<Vec<u64>> = Vec::new();
-    let mut edge_space: Vec<FxHashSet<(u64, u64)>> = Vec::new();
-
-    for (_, cycle) in candidate_cycles {
-        if selected_cycles.len() >= target_cycles {
-            break;
-        }
-
-        // Get edge set for this cycle (normalized)
-        let edge_set = cycle_to_edge_set(&cycle);
-
-        // Check if this cycle is independent of already selected cycles
-        // A cycle is independent if its edge set cannot be expressed as XOR of selected edge sets
-        if is_independent_cycle(&edge_set, &edge_space) {
-            // Add to edge space
-            edge_space.push(edge_set);
-            selected_cycles.push(cycle);
-        }
-    }
-
-    Ok(selected_cycles)
-}
-
-/// Find shortest path from source to target, excluding a specific edge
-fn shortest_path_excluding_edge(
-    adj_with_edges: &FxHashMap<u64, Vec<(u64, u64)>>,
-    source: u64,
-    target: u64,
-    excluded_edge: u64,
-    graph: &Graph,
-    weight_attr: Option<&str>,
-) -> Option<(f64, Vec<u64>)> {
-    let mut distances: FxHashMap<u64, f64> = FxHashMap::default();
-    let mut predecessors: FxHashMap<u64, u64> = FxHashMap::default();
+    // Shortest-path tree of each root r: the tree edge into each vertex r..n
+    let mut trees: Vec<Vec<u32>> = vec![Vec::new(); n];
+    let mut dist = vec![BasisCost::ZERO; n];
+    let mut pred = vec![NONE; n];
+    let mut branch = vec![NONE; n];
+    let mut reached = vec![false; n];
+    let mut settled = vec![false; n];
+    let mut touched: Vec<u32> = Vec::new();
     let mut heap = BinaryHeap::new();
+    let other_end = |e: u32, v: u32| {
+        let (a, b) = ends[e as usize];
+        if a == v {
+            b
+        } else {
+            a
+        }
+    };
 
-    distances.insert(source, 0.0);
-    heap.push(PathEntry {
-        distance: 0.0,
-        node: source,
-    });
-
-    while let Some(PathEntry { distance, node }) = heap.pop() {
-        if node == target {
-            // Reconstruct path
-            let mut path = vec![target];
-            let mut current = target;
-            while let Some(&pred) = predecessors.get(&current) {
-                path.push(pred);
-                current = pred;
-            }
-            path.reverse();
-            return Some((distance, path));
+    for r in 0..n as u32 {
+        for &v in &touched {
+            reached[v as usize] = false;
+            settled[v as usize] = false;
+            pred[v as usize] = NONE;
+        }
+        touched.clear();
+        if adj[r as usize].is_empty() {
+            continue;
         }
 
-        // Skip if we've found a better path already
-        if let Some(&d) = distances.get(&node) {
-            if distance > d {
+        reached[r as usize] = true;
+        dist[r as usize] = BasisCost::ZERO;
+        touched.push(r);
+        heap.push(BasisHeapEntry {
+            cost: BasisCost::ZERO,
+            node: r,
+        });
+        while let Some(BasisHeapEntry { cost, node: u }) = heap.pop() {
+            let ui = u as usize;
+            if settled[ui] {
                 continue;
             }
-        }
-
-        if let Some(neighbors) = adj_with_edges.get(&node) {
-            for &(neighbor, edge_id) in neighbors {
-                // Skip the excluded edge
-                if edge_id == excluded_edge {
+            settled[ui] = true;
+            // The child of r that the tree path to u goes through
+            branch[ui] = if u == r {
+                r
+            } else {
+                let parent = other_end(pred[ui], u);
+                if parent == r {
+                    u
+                } else {
+                    branch[parent as usize]
+                }
+            };
+            for &(v, e) in &adj[ui] {
+                let vi = v as usize;
+                if v < r || settled[vi] {
                     continue;
                 }
-
-                let edge_weight = get_edge_weight(graph, edge_id, weight_attr);
-                let new_dist = distance + edge_weight;
-
-                let is_better = distances
-                    .get(&neighbor)
-                    .map(|&d| new_dist < d)
-                    .unwrap_or(true);
-
-                if is_better {
-                    distances.insert(neighbor, new_dist);
-                    predecessors.insert(neighbor, node);
-                    heap.push(PathEntry {
-                        distance: new_dist,
-                        node: neighbor,
-                    });
+                let c = cost.plus(weights[e as usize]);
+                if !reached[vi] || c.order(&dist[vi]) == Ordering::Less {
+                    if !reached[vi] {
+                        reached[vi] = true;
+                        touched.push(v);
+                    }
+                    dist[vi] = c;
+                    pred[vi] = e;
+                    heap.push(BasisHeapEntry { cost: c, node: v });
                 }
             }
         }
-    }
 
-    None
-}
-
-/// Convert cycle (list of nodes) to set of edges (normalized pairs)
-fn cycle_to_edge_set(cycle: &[u64]) -> FxHashSet<(u64, u64)> {
-    let mut edges = FxHashSet::default();
-    let n = cycle.len();
-
-    for i in 0..n {
-        let u = cycle[i];
-        let v = cycle[(i + 1) % n];
-        let edge = if u < v { (u, v) } else { (v, u) };
-        edges.insert(edge);
-    }
-
-    edges
-}
-
-/// Check if a cycle (represented as edge set) is linearly independent
-/// of the existing edge space (using GF(2) / XOR arithmetic)
-fn is_independent_cycle(
-    new_edges: &FxHashSet<(u64, u64)>,
-    edge_space: &[FxHashSet<(u64, u64)>],
-) -> bool {
-    if edge_space.is_empty() {
-        return true;
-    }
-
-    // Simple check: if the new cycle shares no edges with any existing cycle,
-    // it's definitely independent. More sophisticated Gaussian elimination
-    // would be needed for complete independence check, but this greedy
-    // approach works well in practice.
-    //
-    // For a complete implementation, we would use Gaussian elimination
-    // over GF(2), but the greedy weight-sorted approach typically produces
-    // a valid minimum basis.
-
-    // Check if this edge set is a subset or superset of any existing
-    for existing in edge_space {
-        // Check if XOR would be empty (meaning same cycle)
-        let xor_result: FxHashSet<(u64, u64)> =
-            new_edges.symmetric_difference(existing).cloned().collect();
-
-        if xor_result.is_empty() {
-            return false; // Same cycle
+        let before = candidates.len();
+        for &a in &touched {
+            for &(b, e) in &adj[a as usize] {
+                // Visit each edge once, from its source end
+                if ends[e as usize].0 != a || !reached[b as usize] {
+                    continue;
+                }
+                let (ai, bi) = (a as usize, b as usize);
+                if pred[ai] == e || pred[bi] == e || branch[ai] == branch[bi] {
+                    continue;
+                }
+                let cost = dist[ai].join(dist[bi]).plus(weights[e as usize]);
+                candidates.push((cost, r, e));
+            }
+        }
+        if candidates.len() > before {
+            trees[r as usize] = pred[r as usize..].to_vec();
         }
     }
 
-    // Additional check: try to express new_edges as XOR of existing edge sets
-    // This is a simplified version - full Gaussian elimination would be more complete
-    // but this heuristic works well for most practical graphs
+    candidates.sort_unstable_by(|x, y| x.0.order(&y.0).then(x.1.cmp(&y.1)).then(x.2.cmp(&y.2)));
 
-    true
+    // Greedy selection, with Gaussian elimination over GF(2) on chord vectors.
+    // `pivots[p]` holds the kept vector whose lowest set bit is p.
+    let words = (num_chords + 63) / 64;
+    let mut pivots: Vec<Option<Vec<u64>>> = vec![None; num_chords];
+    let mut basis: Vec<Vec<u64>> = Vec::with_capacity(num_chords);
+
+    for &(_, r, e) in &candidates {
+        let (a, b) = ends[e as usize];
+        let mut bits = vec![0u64; words];
+        let mut toggle = |edge: u32| {
+            let c = chord[edge as usize];
+            if c != NONE {
+                bits[c as usize / 64] ^= 1u64 << (c % 64);
+            }
+        };
+        toggle(e);
+        let tree = &trees[r as usize];
+        // Tree path from `end` back to r, excluding r
+        let path_to_root = |end: u32| {
+            let mut path = Vec::new();
+            let mut v = end;
+            while v != r {
+                path.push(v);
+                v = other_end(tree[(v - r) as usize], v);
+            }
+            path
+        };
+        let (path_a, path_b) = if a == b {
+            (Vec::new(), Vec::new())
+        } else {
+            (path_to_root(a), path_to_root(b))
+        };
+        for &v in path_a.iter().chain(&path_b) {
+            toggle(tree[(v - r) as usize]);
+        }
+
+        if !insert_independent(&mut bits, &mut pivots) {
+            continue;
+        }
+
+        // r, the path down to b, then the path back up from a
+        let cycle: Vec<u64> = if a == b {
+            vec![node_ids[a as usize]]
+        } else {
+            std::iter::once(r)
+                .chain(path_b.into_iter().rev())
+                .chain(path_a)
+                .map(|v| node_ids[v as usize])
+                .collect()
+        };
+        basis.push(cycle);
+        if basis.len() == num_chords {
+            break;
+        }
+    }
+
+    Ok(basis)
+}
+
+/// Reduce `bits` against the kept vectors and keep it if anything is left.
+/// Returns whether `bits` was independent of them.
+fn insert_independent(bits: &mut Vec<u64>, pivots: &mut [Option<Vec<u64>>]) -> bool {
+    let mut w = 0;
+    while w < bits.len() {
+        if bits[w] == 0 {
+            w += 1;
+            continue;
+        }
+        let p = w * 64 + bits[w].trailing_zeros() as usize;
+        match pivots[p].as_ref() {
+            // The row's lowest bit is p, so only bits from word w up change
+            Some(row) => {
+                for i in w..bits.len() {
+                    bits[i] ^= row[i];
+                }
+            }
+            None => {
+                pivots[p] = Some(std::mem::take(bits));
+                return true;
+            }
+        }
+    }
+    false
 }
 
 /// Find all elementary cycles in the graph using Johnson's algorithm
