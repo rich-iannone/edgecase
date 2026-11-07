@@ -349,6 +349,41 @@ class TestMultiplexPageRankEdgeCases:
         result = mpx.multiplex_pagerank(return_dict=True)
         assert result == {"A": 1.0}
 
+    def test_dangling_rank_is_spread(self):
+        """Rank at nodes without out-edges used to be dropped, giving c 0.5766 here."""
+        x = ec.Graph(directed=True).add_nodes(list("abcde"))
+        x.add_edges([("a", "b"), ("b", "c"), ("d", "a"), ("e", "c")])
+        y = ec.Graph(directed=True).add_nodes(list("abcde"))
+        y.add_edges([("a", "c"), ("d", "e")])
+        result = MultiplexGraph({"x": x, "y": y}).multiplex_pagerank(return_dict=True)
+        assert result["c"] == pytest.approx(0.4339, abs=1e-4)
+
+    def test_edge_weights_count(self):
+        """Edge weights used to be ignored, leaving b and c tied."""
+        g = ec.Graph(directed=True, weighted=True).add_nodes(list("abc"))
+        g.add_edges([("a", "b", 10.0), ("a", "c", 1.0)])
+        result = MultiplexGraph({"x": g}).multiplex_pagerank(return_dict=True)
+        assert result["b"] > result["c"]
+
+    def test_matches_networkx_on_the_aggregate(self):
+        """Layer weight times edge weight, summed, then standard PageRank."""
+        nx = pytest.importorskip("networkx")
+        und = ec.Graph(weighted=True).add_nodes(list("abcd"))
+        und.add_edges([("a", "b", 2.0), ("b", "c", 1.0), ("c", "c", 3.0)])
+        dir_ = ec.Graph(directed=True).add_nodes(list("abcd"))
+        dir_.add_edges([("a", "d"), ("d", "b")])
+        mpx = MultiplexGraph({"u": und, "d": dir_})
+        result = mpx.multiplex_pagerank(
+            layer_weights={"u": 1.0, "d": 0.5}, tol=1e-12, return_dict=True
+        )
+        agg = nx.DiGraph()
+        agg.add_weighted_edges_from(
+            [("a", "b", 2), ("b", "a", 2), ("b", "c", 1), ("c", "b", 1), ("c", "c", 3)]
+            + [("a", "d", 0.5), ("d", "b", 0.5)]
+        )
+        expected = nx.pagerank(agg, tol=1e-12)
+        assert result == pytest.approx(expected, abs=1e-9)
+
 
 # ===========================================================================
 # multiplex_community_detection — basic
@@ -438,6 +473,23 @@ class TestMultiplexCommunityWeights:
             layer_weights={"layer1": 1.0, "layer2": 0.0}, return_dict=True
         )
         assert len(result) == 8
+
+    def test_aggregate_sums_both_directions_and_edge_weights(self, monkeypatch):
+        """`A -> B` (1) and `B -> A` (3) used to become one edge of weight 1."""
+        seen = {}
+
+        def capture(self, **kwargs):
+            seen["edges"] = self.get_edge_df().select("source", "target", "weight").rows()
+            return {nid: 0 for nid in self.get_node_ids()}
+
+        monkeypatch.setattr(ec.Graph, "cmty_louvain", capture)
+        g = ec.Graph(directed=True, weighted=True).add_nodes(list("ABC"))
+        g.add_edges([("A", "B", 1.0), ("B", "A", 3.0), ("C", "B", 2.0)])
+        h = ec.Graph().add_nodes(list("ABC")).add_edge("A", "B")
+        MultiplexGraph({"g": g, "h": h}).multiplex_community_detection(
+            layer_weights={"h": 0.5}, return_dict=True
+        )
+        assert seen["edges"] == [(1, 2, 4.5), (2, 3, 2.0)]
 
 
 # ===========================================================================
