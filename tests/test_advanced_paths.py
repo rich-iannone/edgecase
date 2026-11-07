@@ -1032,6 +1032,33 @@ class TestPathExtras:
                 list(nx.all_simple_edge_paths(G, a, b))
             )
 
+    def test_all_shortest_paths_with_zero_weights(self):
+        # Zero-weight edges make predecessors mutual (a <- b and b <- a); this used to hang
+        g = ec.Graph(weighted=True).add_nodes(["a", "b", "c"])
+        g.add_edges([("a", "b", {"weight": 0.0}), ("b", "c", {"weight": 1.0})])
+        lab = g.get_label_from_id
+        paths = {lab(t): [[lab(x) for x in p] for p in ps]
+                 for t, ps in g.single_source_all_shortest_paths("c").items()}  # fmt: skip
+        assert paths == {"a": [["c", "b", "a"]], "b": [["c", "b"]], "c": [["c"]]}
+        rnd = random.Random(5)
+        for directed in (False, True):
+            for _ in range(30):
+                G = nx.gnp_random_graph(7, 0.4, seed=rnd.randrange(10**6), directed=directed)
+                for u, v in G.edges:
+                    G[u][v]["weight"] = float(rnd.choice([0, 0, 1, 2]))
+                g = ec.Graph(directed=directed, weighted=True).add_nodes([str(n) for n in G])
+                g.add_edges([(str(u), str(v), {"weight": w}) for u, v, w in G.edges(data="weight")])
+                lab = g.get_label_from_id
+                ours = g.all_pairs_all_shortest_paths()
+                for s, row in nx.all_pairs_all_shortest_paths(G, weight="weight"):
+                    mine = ours[g.get_id_from_label(str(s))]
+                    for t, ps in row.items():
+                        got = mine[g.get_id_from_label(str(t))]
+                        # NetworkX can repeat a path when the source sits on a zero-weight cycle
+                        assert sorted(tuple(int(lab(x)) for x in p) for p in got) == sorted(
+                            set(map(tuple, ps))
+                        )
+
     def test_astar(self):
         G = nx.grid_2d_graph(7, 7)
         rnd = random.Random(1)
