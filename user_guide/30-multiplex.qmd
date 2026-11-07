@@ -279,8 +279,8 @@ added to it as an isolated node.
 
 `multiplex_pagerank()` ranks the nodes by all
 the layers together. It adds the layers into a single weighted network, in which each tie counts
-with the weight of its layer, and runs PageRank on the result. With `return_dict=True`, it returns
-the scores keyed by node label:
+with its own weight (1 if it has none) times the weight of its layer, and runs PageRank on the
+result. With `return_dict=True`, it returns the scores keyed by node label:
 
 ```{python}
 combined = office_mpx.multiplex_pagerank(return_dict=True)
