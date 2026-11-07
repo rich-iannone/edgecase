@@ -225,3 +225,13 @@ class TestTOMEdgeCases:
             g.add_edge(source=str(i), target=str(i + 1))
         tom = g.topological_overlap(return_dict=True)
         assert len(tom) == 30
+
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_key_order_follows_node_ids(self, directed):
+        # Both levels came from Rust HashMaps, so the key order changed from call to call
+        g = ec.Graph(directed=directed).add_gnp_graph(10, 0.3, seed=2)
+        ids = g.get_node_ids()
+        for _ in range(5):
+            tom = g.topological_overlap(return_dict=True)
+            assert list(tom) == ids
+            assert all(list(row) == ids for row in tom.values())
