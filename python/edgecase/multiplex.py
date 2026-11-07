@@ -131,6 +131,30 @@ class MultiplexGraph:
     # Supra-adjacency helpers
     # ------------------------------------------------------------------
 
+    def _layer_edges(
+        self,
+        layer_weights: Optional[dict[str, float]] = None,
+    ):
+        """
+        Yield `(source_label, target_label, weight, directed)` for every edge of every layer.
+
+        The weight is the layer weight times the edge's own weight (`1.0` if it has none).
+        """
+        if layer_weights is None:
+            layer_weights = {}
+
+        for name, g in self._layers.items():
+            w = layer_weights.get(name, 1.0)
+            directed = g.is_directed()
+            for _, s, t, edge_weight in g._graph._weighted_edges():
+                s_label = g.get_label_from_id(s)
+                t_label = g.get_label_from_id(t)
+                if s_label is None:
+                    s_label = str(s)
+                if t_label is None:
+                    t_label = str(t)
+                yield s_label, t_label, w * (1.0 if edge_weight is None else edge_weight), directed
+
     def _build_supra_adjacency(
         self,
         layer_weights: Optional[dict[str, float]] = None,
@@ -138,29 +162,16 @@ class MultiplexGraph:
         """
         Build a weighted supra-adjacency structure from all layers.
 
-        Returns (labels_list, adj) where adj[u][v] = aggregated weight.
+        Returns (labels_list, adj) where adj[u][v] = aggregated weight. Undirected edges count in
+        both directions, except self-loops, which count once.
         """
         labels = sorted(self.node_labels())
-
-        if layer_weights is None:
-            layer_weights = {name: 1.0 for name in self._layers}
-
         adj: dict[str, dict[str, float]] = {lbl: {} for lbl in labels}
 
-        for name, g in self._layers.items():
-            w = layer_weights.get(name, 1.0)
-            edges = g._graph.edges()
-            for _, s, t in edges:
-                s_label = g.get_label_from_id(s)
-                t_label = g.get_label_from_id(t)
-                if s_label is None:
-                    s_label = str(s)
-                if t_label is None:
-                    t_label = str(t)
-
-                adj[s_label][t_label] = adj[s_label].get(t_label, 0.0) + w
-                if not g.is_directed():
-                    adj[t_label][s_label] = adj[t_label].get(s_label, 0.0) + w
+        for s_label, t_label, w, directed in self._layer_edges(layer_weights):
+            adj[s_label][t_label] = adj[s_label].get(t_label, 0.0) + w
+            if not directed and s_label != t_label:
+                adj[t_label][s_label] = adj[t_label].get(s_label, 0.0) + w
 
         return labels, adj
 
@@ -179,8 +190,11 @@ class MultiplexGraph:
         """
         Compute PageRank across all layers with configurable layer weights.
 
-        Builds a supra-adjacency representation that aggregates edges from every layer (each
-        weighted by its layer weight), then runs power-iteration PageRank on the aggregate.
+        Builds a supra-adjacency representation that aggregates edges from every layer, then runs
+        power-iteration PageRank on the aggregate. Each edge counts with its own weight (`1.0` if
+        it has none) times its layer's weight, and an undirected edge counts in both directions.
+        The rank of a node with no out-going weight is spread evenly over all nodes, as in
+        `Graph.pagerank()`, so the result matches standard PageRank on the aggregate graph.
 
         Parameters
         ----------
@@ -234,18 +248,19 @@ class MultiplexGraph:
                 return {}
             return self
 
+        out_weight = {src: sum(adj[src].values()) for src in labels}
         scores = {lbl: 1.0 / n for lbl in labels}
 
         for _ in range(max_iter):
-            new_scores: dict[str, float] = {}
-            for lbl in labels:
-                rank = (1.0 - damping) / n
-                for src in labels:
-                    if lbl in adj.get(src, {}):
-                        out_weight = sum(adj[src].values())
-                        if out_weight > 0:
-                            rank += damping * scores[src] * adj[src][lbl] / out_weight
-                new_scores[lbl] = rank
+            # Rank at nodes without out-going weight is spread over all nodes
+            dangling = sum(scores[src] for src in labels if out_weight[src] <= 0)
+            base = (1.0 - damping) / n + damping * dangling / n
+            new_scores = {lbl: base for lbl in labels}
+            for src in labels:
+                if out_weight[src] > 0:
+                    share = damping * scores[src] / out_weight[src]
+                    for tgt, weight in adj[src].items():
+                        new_scores[tgt] += share * weight
 
             # Normalize
             total = sum(new_scores.values())
@@ -273,8 +288,9 @@ class MultiplexGraph:
         Detect communities considering all layers simultaneously.
 
         Builds an aggregate weighted graph from all layers, then runs a community detection
-        algorithm on it. The aggregation sums edge weights across layers (scaled by
-        `layer_weights`).
+        algorithm on it. The aggregation sums edge weights (`1.0` for an edge without one) across
+        layers, each scaled by its layer's weight. The aggregate is undirected: the edges between
+        two nodes, in either direction, add up to one edge.
 
         Parameters
         ----------
@@ -330,24 +346,24 @@ class MultiplexGraph:
         if method not in ("louvain", "walktrap"):
             raise ValueError(f"Unknown method '{method}'; use 'louvain' or 'walktrap'")
 
-        labels, adj = self._build_supra_adjacency(layer_weights)
+        labels = sorted(self.node_labels())
         if not labels:
             if return_dict:
                 return {}
             return self
 
+        # Sum each pair's weights, in both directions, into one undirected edge
+        pair_weights: dict[tuple[str, str], float] = {}
+        for s_label, t_label, w, _ in self._layer_edges(layer_weights):
+            key = (min(s_label, t_label), max(s_label, t_label))
+            pair_weights[key] = pair_weights.get(key, 0.0) + w
+
         # Build an aggregate Graph with weighted edges
         agg = Graph(weighted=True)
         for lbl in labels:
             agg.add_node(label=lbl)
-
-        seen_edges: set[tuple[str, str]] = set()
-        for src, targets in adj.items():
-            for tgt, weight in targets.items():
-                edge_key = (min(src, tgt), max(src, tgt))
-                if edge_key not in seen_edges:
-                    agg.add_edge(source=src, target=tgt, weight=weight)
-                    seen_edges.add(edge_key)
+        for (src, tgt), weight in sorted(pair_weights.items()):
+            agg.add_edge(source=src, target=tgt, weight=weight)
 
         if method == "louvain":
             communities_by_id = agg.cmty_louvain(resolution=resolution, return_dict=True)
