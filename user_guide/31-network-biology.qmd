@@ -1,0 +1,763 @@
+---
+title: Network biology
+guide-section: "Specialized topics"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Networks are one of the main ways of organizing molecular data. Proteins that bind each other form
+protein–protein interaction networks, genes whose expression rises and falls together form
+co-expression networks, and genes linked to the diseases they cause form gene–disease networks. The
+methods of network biology rest on a simple observation: genes that work together tend to sit
+close together in these networks, and so do the genes behind a common disease. A gene with an
+unknown role is therefore likely to share the roles of its neighbors, and the candidates for a
+disease are most likely to be found near the genes already known to cause it.
+
+EdgeCase has a group of methods built for these analyses: diffusion and random walks that score
+genes by their proximity to known ones, the smoothing of noisy association scores over the
+network, the extraction of disease modules, enrichment tests that interpret modules with
+annotations, the network proximity of drug targets, and the construction and comparison of
+co-expression networks. This page works through them on simulated data, in which the true disease
+genes and modules are known, so that each method's result can be checked against the truth.
+
+## An interaction network
+
+Real interaction networks are assembled from databases such as STRING, BioGRID, or IntAct, which
+provide an edge list of interacting proteins that can be read with the functions of [File
+formats](27-file-formats.qmd) or built from a data frame as in [Building
+graphs](04-building-graphs.qmd). For this page, a network of 180 proteins is simulated instead.
+Each protein belongs to one of six pathways, and proteins of the same pathway interact far more
+often than proteins of different ones. Each protein also has a *propensity* to interact, drawn from
+a heavy-tailed distribution, so that a few proteins become hubs with many partners, as in real
+interactomes:
+
+```{python}
+import edgecase as ec
+import numpy as np
+import polars as pl
+
+rng = np.random.default_rng(3)
+pathways = [
+    "DNA repair", "cell cycle", "apoptosis", "immune response", "lipid metabolism", "transport",
+]
+genes = [f"G{i:03d}" for i in range(1, 181)]
+block = np.repeat(np.arange(6), 30)
+
+propensity = rng.pareto(2.5, size=180) + 1
+propensity /= propensity.mean()
+same_pathway = block[:, None] == block[None, :]
+prob = np.where(same_pathway, 0.15, 0.012) * np.outer(propensity, propensity)
+pairs = np.argwhere(np.triu(rng.random((180, 180)) < prob, k=1))
+
+ppi = ec.Graph(graph_name="interactome")
+ppi.add_nodes({gene: {"pathway": pathways[b]} for gene, b in zip(genes, block)})
+ppi.add_edges([(genes[i], genes[j]) for i, j in pairs])
+ppi.count_nodes(), ppi.count_edges(), ppi.is_connected()
+```
+
+The genes are named `G001` to `G180`, with the first thirty in DNA repair, the next thirty in the
+cell cycle, and so on. The 552 interactions give a mean degree of about six, and the network is
+connected. A real interactome usually isn't, and analyses are then restricted to its largest
+connected component, as described in [Connectivity](16-connectivity.qmd). Drawn with the pathways
+in color, the network shows its modular structure. ForceAtlas2 separates the pathways more clearly
+than the default layout of `plot()` for a network of this size and density (see
+[Layouts](23-layouts.qmd)):
+
+```{python}
+ppi.layout_forceatlas2(seed=1)
+ppi.plot(layout="pos", color_by="pathway", palette="Set2", show_labels=False, node_size=6)
+```
+
+Each pathway forms a cluster of its own, and the clusters are joined by the interactions between
+pathways, which make up nearly a third of the total. The pathways are clear in the picture but far
+from separate, as in a real interactome.
+
+### The disease genes
+
+Suppose that a disease is caused by defects in a group of twelve genes, ten in DNA repair and two
+in the cell cycle, which lie close together in the network. In practice only some of a disease's
+genes are known. Here six of the twelve are treated as known, and the other six are hidden, to be
+found by the methods that follow:
+
+```{python}
+disease_genes = [
+    "G002", "G004", "G006", "G010", "G012", "G015",
+    "G016", "G017", "G022", "G023", "G046", "G052",
+]
+known = ["G004", "G010", "G012", "G016", "G023", "G046"]
+hidden = [gene for gene in disease_genes if gene not in known]
+
+ppi.set_node_attrs("disease_gene", {gene: gene in disease_genes for gene in genes})
+hidden
+```
+
+The `disease_gene` attribute records the truth, which a real analysis wouldn't have, and is used
+only to judge the results.
+
+## Prioritizing candidate genes
+
+The first task is *prioritization*: ranking every other gene by how likely it is to belong to the
+disease, given the known genes. Network methods do this by spreading a score from the known genes,
+the *seeds*, over the network, so that genes close to many seeds, along many short paths, score
+highest.
+
+### Random walk with restart
+
+[`random_walk_with_restart()`](../reference/Graph.random_walk_with_restart.qmd) imagines a walker
+that moves from gene to gene along the interactions and, at every step, jumps back to one of the
+seeds with a fixed probability. The share of time the walker spends at each gene is its score. The
+seeds are given as a dictionary from node ID to weight, here equal weights for the six known genes:
+
+```{python}
+seeds = {ppi.get_id_from_label(gene): 1.0 for gene in known}
+ppi.random_walk_with_restart(seeds)
+
+candidates = ppi.get_node_df().filter(~pl.col("label").is_in(known))
+candidates.sort("rwr", descending=True).select("label", "pathway", "degree", "rwr", "disease_gene")
+```
+
+The scores are stored in the `rwr` column, and the known genes are left out of the ranking, since
+they are already known. Seven of the ten best candidates are DNA repair genes, and four of those are
+hidden disease genes. The restart probability, `restart_prob=`, is 0.15 by default; higher values
+keep the walker closer to the seeds and favor the nearest neighbors. The method is the same
+computation as [`personalized_pagerank()`](../reference/Graph.personalized_pagerank.qmd), with
+an interface suited to seed genes.
+
+A small helper turns a ranking into the positions of the hidden genes, which makes the methods
+easy to compare:
+
+```{python}
+def ranks_of_hidden(score):
+    return (
+        ppi.get_node_df()
+        .filter(~pl.col("label").is_in(known))
+        .sort(score, descending=True)
+        .with_row_index("rank", offset=1)
+        .filter(pl.col("label").is_in(hidden))["rank"]
+        .to_list()
+    )
+
+
+ranks_of_hidden("rwr")
+```
+
+Five of the six hidden genes are among the twelve best of 174 candidates. A random ranking would
+place them, on average, around position 87.
+
+### The degree bias
+
+The table of candidates also shows three cell cycle genes, `G059`, `G057`, and `G047`, with no link
+to the disease. They are hubs, with 18 to 22 partners each, and a random walk visits hubs often
+whatever its seeds, simply because so many paths lead through them. This *degree bias* is a known
+weakness of random-walk scores. A simple correction divides each score by the gene's degree, and
+`sort()` accepts the expression directly:
+
+```{python}
+ranks_of_hidden(pl.col("rwr") / pl.col("degree"))
+```
+
+The corrected ranking moves the hidden genes up, overall, as the hubs fall back. A more rigorous
+correction compares each gene's score with its scores from many random sets of seeds, which the
+speed of the method makes practical even for large networks.
+
+### Heat diffusion
+
+[`heat_diffusion()`](../reference/Graph.heat_diffusion.qmd) places heat on the seeds and lets it
+flow along the interactions for a time `t=`, as described in [Matrices and
+spectra](21-spectral.qmd). Unlike a random walk, whose visits pile up at hubs, heat evens out over
+the network as time passes, so diffusion is less drawn to hubs:
+
+```{python}
+ppi.heat_diffusion(seeds, t=1.0)
+ranks_of_hidden("heat")
+```
+
+Diffusion ranks three of the hidden genes in the top three and all six in the top eighteen. The
+diffusion time sets the reach of the scores: a short time keeps the heat near the seeds, and a long
+one spreads it over the whole network until every gene is equally warm. The numerical scheme takes
+`max_iter=` steps, which should be at least `t=` times the largest degree for stable results; the
+default of 50 is enough here, with `t=1.0` and a largest degree of 23.
+
+The candidates can be drawn in their network context. The subgraph of the known genes and the
+twenty best candidates by heat, sized by heat and colored by their status, shows how the
+candidates cluster around the seeds:
+
+```{python}
+candidates = ppi.get_node_df().filter(~pl.col("label").is_in(known))
+top = candidates.sort("heat", descending=True).head(20)["label"].to_list()
+status = {
+    gene: "known" if gene in known else "hidden" if gene in hidden else "other" for gene in genes
+}
+ppi.set_node_attrs("status", status)
+
+neighborhood = ppi.subgraph([ppi.get_id_from_label(gene) for gene in known + top])
+neighborhood.plot(color_by="status", size_by="heat", label_by="label", seed=2)
+```
+
+The known genes, in red, hold the most heat, since it starts on them, and `G010` keeps the most of
+all, having the fewest partners to pass it on to. The hidden genes, in blue, are all direct
+neighbors of known genes, five of them of `G012`, and most of the other candidates, in orange, are
+DNA repair genes that a follow-up study would examine next.
+
+## Smoothing association scores
+
+Prioritization from known genes is one source of evidence. Another is a genetic study, such as a
+genome-wide association study (GWAS), which gives every gene an association score, typically
+`-log10(p)` for the p-value of its association with the disease. These scores are noisy: some
+disease genes have weak scores by chance, and some unrelated genes have strong ones. Network
+smoothing uses the interactions to reduce the noise, on the reasoning that a true disease gene
+tends to have neighbors with elevated scores too, while a chance hit usually doesn't.
+
+The simulated study gives every gene a z-score from a normal distribution, shifted up by 1.5 for
+the twelve disease genes, and converts it into a two-sided p-value:
+
+```{python}
+from math import erfc, sqrt
+
+z = np.random.default_rng(3).normal(size=180) + np.where(np.isin(genes, disease_genes), 1.5, 0.0)
+ppi.set_node_attrs("gwas", {gene: -np.log10(erfc(abs(v) / sqrt(2))) for gene, v in zip(genes, z)})
+ppi.get_node_df().sort("gwas", descending=True).select("label", "pathway", "gwas", "disease_gene")
+```
+
+The strongest association belongs to a disease gene, `G010`, but the next ones are a mix of disease
+genes and unrelated genes from other pathways.
+[`network_smooth()`](../reference/Graph.network_smooth.qmd) replaces each gene's score with a blend
+of its own score and the scores passed on by its neighbors, repeated until the scores settle.
+`alpha=` sets the weight of the neighbors, from 0, which keeps the scores unchanged, to 1:
+
+```{python}
+gwas = dict(ppi.get_node_df().select("id", "gwas").iter_rows())
+ppi.network_smooth(gwas, alpha=0.5, attr_name="smoothed")
+ppi.get_node_df().sort("smoothed", descending=True).select(
+    "label", "pathway", "gwas", "smoothed", "disease_gene"
+)
+```
+
+Two disease genes with weak scores of their own, `G012` and `G015`, rise to third and fourth place,
+carried by the scores of their neighbors, while `G037`, a strong but isolated hit in the cell cycle,
+falls behind them. The quality of a ranking as a whole can be summarized by the area under the ROC
+curve (AUC): the probability that a randomly chosen disease gene ranks above a randomly chosen other
+gene, which is 0.5 for a random ranking and 1 for a perfect one. It follows from the ranks of the
+disease genes:
+
+```{python}
+def auc(column):
+    nodes = ppi.get_node_df().select(pl.col(column).rank(), "disease_gene")
+    hits = nodes.filter(pl.col("disease_gene"))[column]
+    n_hits, n_other = hits.len(), nodes.height - hits.len()
+    return round((hits.sum() - n_hits * (n_hits + 1) / 2) / (n_hits * n_other), 3)
+
+
+auc("gwas"), auc("smoothed")
+```
+
+Smoothing raises the AUC from 0.76 to 0.82. Among the twenty best genes, it raises the number of
+disease genes from four to six. The improvement depends on how strongly the disease genes cluster
+in the network: smoothing helps when they are neighbors, as here, and can hurt when they are
+scattered. Values of `alpha=` around 0.5 are a common starting point, and larger values let the
+neighbors dominate. The smoothed values are on a different scale from the raw ones, and are meant
+for ranking rather than to be read as p-values.
+
+## Disease modules
+
+A ranked list of genes is a starting point, but the mechanisms of a disease are better described
+by a *disease module*: a connected group of interacting genes that together carry the signal.
+EdgeCase extracts modules in two ways, by growing them from seeds or by connecting high-scoring
+genes.
+
+### Growing a module from seeds
+
+[`expand_seed_set()`](../reference/Graph.expand_seed_set.qmd) starts from the seeds and repeatedly
+adds the neighbor most tightly linked to the module so far, measured by the share of its
+interactions that lead into the module. This share penalizes hubs, whose many interactions mostly
+lead elsewhere, and favors genes whose few interactions all lead into the module:
+
+```{python}
+module = ppi.expand_seed_set(known, max_size=15)
+[ppi.get_label_from_id(node) for node in module]
+```
+
+The seeds can be given as labels, and the module is returned as a sorted list of node IDs. Grown to
+fifteen genes, it holds five of the six hidden disease genes, and only four genes that don't belong
+to the disease. `max_size=` limits the size of the module, three times the number of seeds by
+default, and `min_score=` stops the growth when no candidate has more than the given share of its
+interactions in the module.
+
+[`subgraph_enrichment()`](../reference/Graph.subgraph_enrichment.qmd) tests whether a set of nodes
+holds more nodes of a category than chance would give. It treats the network as an urn: of the 180
+genes, 30 belong to DNA repair, and the question is how surprising it is to find so many of them
+among fifteen genes drawn at random. The answer is the p-value of a hypergeometric test:
+
+```{python}
+result = ppi.subgraph_enrichment(module, "pathway", target_value="DNA repair")
+{key: result[key] for key in ["k", "n", "K", "N", "fold_enrichment", "p_value"]}
+```
+
+Twelve of the fifteen genes of the module are in DNA repair (`k` of `n`), against thirty of all
+180 genes (`K` of `N`). The module holds 4.8 times as many DNA repair genes as expected, and a
+random set would do this with a probability of about two in a hundred million. Without
+`target_value=`, every value of the attribute is tested, and the result is a dictionary with one
+entry per value.
+
+### Connecting high-scoring genes
+
+The GWAS gives another route to a module: connecting the genes with the strongest association
+scores. A *prize-collecting Steiner tree* chooses a connected tree of genes that collects as much
+score as possible while using as few interactions as possible. Each gene has a *prize*, its score,
+and each interaction a cost, and the tree maximizes the total prize minus the total cost. Genes
+with weak scores can still join the tree as connectors, if they link high-scoring genes cheaply.
+[`prize_collecting_steiner_tree()`](../reference/Graph.prize_collecting_steiner_tree.qmd) takes
+the prizes as a dictionary, here for the seventeen genes that pass the nominal threshold of
+p < 0.05:
+
+```{python}
+hits = ppi.get_node_df().filter(pl.col("gwas") > -np.log10(0.05))
+prizes = dict(hits.select("label", "gwas").iter_rows())
+
+tree = ppi.prize_collecting_steiner_tree(prizes, edge_penalty=1.0)
+tree.get_node_df().select("label", "pathway", "gwas", "disease_gene")
+```
+
+From seventeen scattered hits, the tree keeps a module of six genes, five of them disease genes. One
+of these, `G012`, has a weak association score of 0.6 and isn't among the hits at all: it joins as
+the connector between the high-scoring genes around it, which is how network methods recover genes
+that a study missed. Every interaction here costs 1, since the network is unweighted; in a weighted
+network, the weights are the costs, which suits confidence scores turned into distances.
+
+`edge_penalty=` multiplies the costs and so sets the size of the tree. At 0.75, the tree grows to
+twenty genes, reaching hits in other pathways. At higher values, the tree shrinks, and when no
+interaction is worth its cost the result is an empty graph, since a tree of a single gene has no
+edges to return. [`steiner_tree()`](../reference/Graph.steiner_tree.qmd), described in [Paths and
+distances](12-paths.qmd), instead connects a given set of genes, all of which must be included.
+
+## Interpreting modules with annotations
+
+Modules can also be found without any disease data, by community detection, and then interpreted
+with annotations. Each community is tested for over-representation of each annotation, such as
+pathways or Gene Ontology terms, which says what the community *is about*. Louvain finds seven
+communities in the interactome:
+
+```{python}
+ppi.cmty_louvain()
+ppi.get_node_df().pivot(
+    on="cmty_louvain", index="pathway", values="id", aggregate_function="len", sort_columns=True
+).fill_null(0)
+```
+
+Six of the communities follow the pathways closely, and the seventh is a small group of seven genes
+from five pathways.
+[`module_annotation_enrichment()`](../reference/Graph.module_annotation_enrichment.qmd) tests every
+pathway in every community at once. It takes the communities as a dictionary from node ID to
+community, and corrects the p-values for the number of tests, here with the Benjamini–Hochberg false
+discovery rate:
+
+```{python}
+communities = dict(ppi.get_node_df().select("id", "cmty_louvain").iter_rows())
+enrichment = ppi.module_annotation_enrichment(communities, "pathway", correction="fdr")
+
+pl.DataFrame(
+    [
+        {"community": community, **test}
+        for community, tests in enrichment.items()
+        for test in tests.values()
+    ]
+).filter(pl.col("p_adjusted") < 0.05).sort("community").select(
+    "community", "value", "k", "n", "fold_enrichment", "p_adjusted"
+)
+```
+
+The result is a dictionary of dictionaries, one test per community and pathway, which flattens
+into a data frame of 42 tests. Six of them are significant after correction: each of the six large
+communities is enriched for one pathway, about five-fold, while the small mixed community is
+enriched for none. With `correction="bonferroni"`, the default, the p-values are multiplied by the
+number of tests, which is stricter. With real annotations, which overlap and are incomplete, a
+community is often enriched for several related terms, and the table of significant tests is the
+usual summary of a module analysis.
+
+### A complete pipeline
+
+[`gwas_pipeline()`](../reference/Graph.gwas_pipeline.qmd) combines the steps for association data
+in a single call. It smooths the scores, detects communities, ranks the communities by their mean
+smoothed score, and, given a set of known disease genes, reports the fold enrichment of each
+community for them:
+
+```{python}
+result = ppi.gwas_pipeline(gwas, enrichment_attr="disease_gene")
+best = next(iter(result["module_scores"]))
+best, round(result["module_scores"][best], 3), result["enrichment"][best]
+```
+
+The module scores are sorted from the highest, so the first is the most strongly associated
+community. It is community 0, the DNA repair community, which holds ten of the twelve disease genes,
+five times as many as expected. The result also holds the smoothed scores and the members of every
+community, and nothing is written to the graph. `smooth_alpha=`, `community_method=`, and
+`community_resolution=` adjust the steps, and each step can be run on its own with
+`network_smooth()` and the community detection methods of [Community detection](14-communities.qmd)
+for finer control.
+
+## Network proximity of drugs
+
+The same reasoning applies to drugs. A drug acts on its *targets*, and a drug whose targets lie
+close to a disease's genes is more likely to affect the disease. Measuring this closeness is the
+basis of network-based drug repurposing, the search for existing drugs that might treat other
+diseases. [`network_proximity()`](../reference/Graph.network_proximity.qmd) measures the distance
+between two sets of nodes, summarized in one of four ways. For two hypothetical drugs, one with
+three targets in DNA repair and one with three in lipid metabolism:
+
+```{python}
+disease_ids = [ppi.get_id_from_label(gene) for gene in disease_genes]
+drugs = {"drug A": ["G009", "G018", "G027"], "drug B": ["G125", "G131", "G136"]}
+
+proximity = {
+    drug: ppi.network_proximity(
+        [ppi.get_id_from_label(gene) for gene in targets], disease_ids, method="shortest"
+    )["proximity"]
+    for drug, targets in drugs.items()
+}
+proximity
+```
+
+With `method="shortest"`, the proximity is the mean distance from the targets to the disease
+genes: 2.25 steps for drug A and 3.14 for drug B. `"closest"` gives the smallest distance between
+the sets, `"kernel"` the mean of `exp(-d)`, which is larger for closer sets, and `"separation"` the
+separation measure of Menche and colleagues, which compares the distance between the sets with
+the distances within each of them and is negative when two modules overlap.
+
+A distance on its own is hard to judge, since it depends on the size and density of the network.
+The usual remedy is a comparison with random sets of targets of the same size, which gives a
+z-score:
+
+```{python}
+rng = np.random.default_rng(0)
+all_ids = ppi.get_node_df()["id"].to_list()
+null = np.array(
+    [
+        ppi.network_proximity(
+            rng.choice(all_ids, size=3, replace=False).tolist(), disease_ids, method="shortest"
+        )["proximity"]
+        for _ in range(1000)
+    ]
+)
+{drug: round(float((value - null.mean()) / null.std()), 2) for drug, value in proximity.items()}
+```
+
+Random sets of three genes lie on average 3.04 steps from the disease genes, with a standard
+deviation of 0.36. Drug A's targets are more than two standard deviations closer than that, which
+makes it a candidate for the disease, while drug B's are no closer than random genes. Hubs lie close
+to everything, so studies with real interactomes usually draw the random sets with degrees matched
+to the real targets, which is a stricter test.
+
+## Co-expression networks
+
+A co-expression network links genes whose expression levels are correlated across samples, such
+as the tissue samples of a patient cohort. Co-expressed genes are often regulated together or work
+in the same process, so the modules of a co-expression network point to biological programs. The
+widely used WGCNA approach (weighted gene co-expression network analysis) builds such a network in
+three steps: it computes the correlations between all pairs of genes, raises their absolute values
+to a power to suppress weak correlations, and finds modules in the result.
+
+The simulated data are the expression of 150 genes in 50 samples. Five groups of genes, of 40 to 10
+genes, follow a shared factor each, with a different strength for each gene, and 35 genes follow no
+factor. A helper simulates a matrix with one row per gene and one column per sample, and another
+turns it into a matrix of absolute correlations. Each factor is standardized within its samples, so
+that two simulated conditions differ only where a factor is deliberately switched off:
+
+```{python}
+sizes = {"M1": 40, "M2": 30, "M3": 20, "M4": 15, "M5": 10}
+probes = [f"X{i:03d}" for i in range(1, 151)]
+true_module = [name for name, size in sizes.items() for _ in range(size)] + ["none"] * 35
+
+rng = np.random.default_rng(8)
+loading = np.concatenate([rng.uniform(0.6, 1.5, size=115), np.zeros(35)])
+
+
+def simulate_expression(n_samples, silenced=None):
+    factors = {name: rng.normal(size=n_samples) for name in sizes}
+    factors = {name: (f - f.mean()) / f.std() for name, f in factors.items()}
+    factors["none"] = np.zeros(n_samples)
+    if silenced:
+        factors[silenced] = np.zeros(n_samples)
+    signal = np.array([factors[name] for name in true_module]) * loading[:, None]
+    return signal + rng.normal(size=(150, n_samples))
+
+
+def similarity(expression):
+    corr = np.abs(np.corrcoef(expression))
+    corr = (corr + corr.T) / 2
+    np.fill_diagonal(corr, 0.0)
+    return corr
+
+
+sim = similarity(simulate_expression(50))
+coexpression = ec.from_numpy_array(sim, node_labels=probes)
+coexpression.count_nodes(), coexpression.count_edges()
+```
+
+Every pair of genes has some correlation, so the network is complete, with all 11,175 pairs linked
+and weighted by their absolute correlation. `silenced=` is used in the next section. The
+symmetrizing step guards against rounding differences between the two halves of the matrix, which
+[`from_numpy_array()`](../reference/from_numpy_array.qmd) would reject (see [Other
+libraries](28-other-libraries.qmd)).
+
+### Choosing the power
+
+Raising the correlations to a power β keeps the strong correlations and pushes the weak ones toward
+zero. WGCNA chooses β by the *scale-free topology criterion*: the smallest power at which the
+distribution of the genes' connectivities, their sums of weights, is close to a power law, as
+measured by the R² of a straight-line fit on logarithmic axes.
+[`soft_threshold_power()`](../reference/Graph.soft_threshold_power.qmd) evaluates a range of powers:
+
+```{python}
+fit = coexpression.soft_threshold_power(return_dict=True)
+pl.DataFrame(
+    {key: fit[key] for key in ["powers", "signed_r_squared", "slope", "mean_connectivity"]}
+).head(8)
+```
+
+The signed R² is the R² of the fit, negated when the slope is positive, since a power law of
+connectivities needs a falling slope. It passes the cutoff of 0.8 first at β = 6, which is the
+recommended power, while the mean connectivity falls from 24 to 0.6. `r_squared_cutoff=` sets the
+cutoff, and `powers=` the candidates:
+
+```{python}
+beta = fit["recommended_power"]
+beta
+```
+
+### Finding modules
+
+The network with the weights raised to the chosen power is built from the matrix directly, and
+Louvain finds its modules:
+
+```{python}
+network = ec.from_numpy_array(sim**beta, node_labels=probes)
+network.set_node_attrs("true_module", dict(zip(probes, true_module)))
+network.cmty_louvain()
+network.get_node_df().pivot(
+    on="cmty_louvain", index="true_module", values="id", aggregate_function="len", sort_columns=True
+).fill_null(0)
+```
+
+All five simulated modules are recovered exactly, each as one community. The 35 genes that follow
+no factor are scattered over the communities, since community detection places every node
+somewhere. WGCNA sets such genes aside in an unassigned module, and the same can be done here by
+their weak ties to the rest of their community, as shown below.
+
+The power matters. On the raw correlations, the many weak correlations between unrelated genes add
+up, and Louvain merges the two smallest modules with most of the unrelated genes into a single
+community. Raised to the sixth power, a correlation of 0.2 shrinks to 0.00006, while a correlation
+of 0.7 keeps a weight of 0.12, so only the strong correlations within the modules still count.
+
+The genes most strongly tied to their module, its *hub genes*, are often its key regulators. The
+*intramodular connectivity* of a gene is the sum of its weights to the other members of its
+module, which the edge table gives directly:
+
+```{python}
+module_of = dict(network.get_node_df().select("id", "cmty_louvain").iter_rows())
+within = network.get_edge_df().filter(
+    pl.col("source").replace_strict(module_of) == pl.col("target").replace_strict(module_of)
+)
+connectivity = (
+    pl.concat([within.select(id="source", w="weight"), within.select(id="target", w="weight")])
+    .group_by("id")
+    .agg(k_within=pl.col("w").sum())
+)
+(
+    network.get_node_df()
+    .join(connectivity, on="id", how="left")
+    .with_columns(pl.col("k_within").fill_null(0.0))
+    .with_columns(scaled=pl.col("k_within") / pl.col("k_within").max().over("cmty_louvain"))
+    .group_by("true_module")
+    .agg(pl.col("scaled").median().alias("median_scaled_connectivity"))
+    .sort("true_module")
+)
+```
+
+Scaled by the largest value in each community, the connectivity separates the genes: the genes of
+the simulated modules have median values between 0.3 and 0.55, while the genes that follow no
+factor have a median below 0.01. A cutoff on the scaled connectivity sets them aside, and the genes
+at the top of each module are its hubs.
+
+The topological overlap of WGCNA, which compares the neighborhoods of two genes, is computed by
+[`topological_overlap()`](../reference/Graph.topological_overlap.qmd), described in
+[Similarity](18-similarity.qmd). It counts shared neighbors without weights, so it is applied to
+a thresholded network, in which only the strong correlations are edges, rather than to the
+complete weighted one.
+
+## Differential networks
+
+Comparing the networks of two conditions, such as healthy and diseased tissue, shows which
+relationships a disease disrupts. A gene whose expression level is unchanged can still lose its
+coordination with its partners, which a comparison of expression levels misses but a comparison of
+networks finds. In the simulated disease samples, the factor that drives module `M2` is switched
+off, and everything else is the same. Each condition is turned into a network of the strong
+correlations, above 0.4, from 200 samples:
+
+```{python}
+def correlation_network(expression, cutoff=0.4):
+    adjacency = np.where(similarity(expression) > cutoff, 1.0, 0.0)
+    return ec.from_numpy_array(adjacency, node_labels=probes)
+
+
+healthy = correlation_network(simulate_expression(200))
+diseased = correlation_network(simulate_expression(200, silenced="M2"))
+healthy.count_edges(), diseased.count_edges()
+```
+
+[`differential_edges()`](../reference/Graph.differential_edges.qmd) lists the edges gained and lost
+between the two networks, matched by the labels of their endpoints. Tallying them by the module of
+their endpoints shows where the changes are:
+
+```{python}
+diff = healthy.differential_edges(diseased)
+module_by_label = dict(zip(probes, true_module))
+
+
+def tally(edges):
+    return (
+        pl.DataFrame(edges, schema=["a", "b"], orient="row")
+        .select(
+            module=pl.when(
+                pl.col("a").replace_strict(module_by_label)
+                == pl.col("b").replace_strict(module_by_label)
+            )
+            .then(pl.col("a").replace_strict(module_by_label))
+            .otherwise(pl.lit("between"))
+        )
+        .group_by("module")
+        .len()
+    )
+
+
+(
+    tally(diff["removed"])
+    .rename({"len": "removed"})
+    .join(tally(diff["added"]).rename({"len": "added"}), on="module", how="full", coalesce=True)
+    .fill_null(0)
+    .sort("module")
+)
+```
+
+Module `M2` loses 370 edges and gains none: its genes no longer move together, and all of its
+internal correlations are gone. The other modules both lose and gain edges, `M1` as many as 69 and
+77, because correlations close to the cutoff cross it in one direction or the other by chance from
+one set of samples to the next. A one-sided change, concentrated in one module, is the signature of
+a real difference, while changes in both directions are what sampling noise looks like. The overall
+similarity of two networks is given by [`edge_overlap()`](../reference/Graph.edge_overlap.qmd),
+described in [Similarity](18-similarity.qmd).
+
+## Gene–disease networks
+
+A gene–disease network is bipartite: it links each disease to the genes associated with it, and
+genes are never linked to genes, nor diseases to diseases. The table below is a small, simplified
+selection of well-established associations, from hereditary cancer syndromes to single-gene
+disorders:
+
+```{python}
+associations = {
+    "BRCA1": ["breast cancer", "ovarian cancer"],
+    "BRCA2": ["breast cancer", "ovarian cancer", "pancreatic cancer"],
+    "PALB2": ["breast cancer", "pancreatic cancer"],
+    "TP53": ["breast cancer", "colorectal cancer", "Li-Fraumeni syndrome"],
+    "APC": ["colorectal cancer"],
+    "MLH1": ["colorectal cancer", "endometrial cancer"],
+    "MSH2": ["colorectal cancer", "endometrial cancer"],
+    "KRAS": ["colorectal cancer", "pancreatic cancer", "lung cancer"],
+    "EGFR": ["lung cancer"],
+    "BRAF": ["colorectal cancer", "melanoma"],
+    "CDKN2A": ["melanoma", "pancreatic cancer"],
+    "LDLR": ["familial hypercholesterolemia"],
+    "APOB": ["familial hypercholesterolemia"],
+    "PCSK9": ["familial hypercholesterolemia"],
+    "APP": ["Alzheimer disease"],
+    "PSEN1": ["Alzheimer disease"],
+    "APOE": ["Alzheimer disease"],
+    "CFTR": ["cystic fibrosis"],
+    "HBB": ["sickle cell disease", "beta thalassemia"],
+}
+diseases = list(dict.fromkeys(d for linked in associations.values() for d in linked))
+
+genetics = ec.Graph(graph_name="gene-disease")
+genetics.add_nodes(list(associations), type="gene")
+genetics.add_nodes(diseases, type="disease")
+genetics.add_edges([(gene, d) for gene, linked in associations.items() for d in linked])
+genetics.count_nodes(), genetics.count_edges(), genetics.is_bipartite()
+```
+
+The node `type` records the two kinds of node. The 19 genes and 13 diseases are joined by 32
+associations, and the graph is bipartite, as it must be.
+
+### The disease network
+
+[`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) turns the two-mode network
+into a network of one kind of node, linking two nodes when they share a neighbor of the other
+kind (see [Transforming graphs](19-transforming.qmd)). Projected onto the diseases, it links two
+diseases that share a gene, which is the idea behind the *human disease network* of Goh and
+colleagues. `which=` chooses the side: 0 is the side holding the lowest node ID of each connected
+component, here always a gene, since the genes were added first, and 1 is the other side:
+
+```{python}
+disease_net = genetics.bipartite_projection(which=1)
+label_of = dict(disease_net.get_node_df().select("id", "label").iter_rows())
+[sorted(label_of[node] for node in c) for c in disease_net.weakly_connected_components()]
+```
+
+The cancers form one connected group, linked by genes such as `TP53`, `KRAS`, and `BRCA2` that
+are involved in several of them, while hypercholesterolemia, Alzheimer disease, and cystic fibrosis
+stand alone, and the two blood disorders are linked by `HBB`, the gene of hemoglobin's beta chain.
+This mirrors the large-scale finding that diseases sharing genes tend to be related in their
+mechanisms, while many single-gene disorders sit apart. The edge weights count the shared genes:
+
+```{python}
+(
+    disease_net.get_edge_df()
+    .with_columns(pl.col("source", "target").replace_strict(label_of, return_dtype=pl.String))
+    .sort("weight", descending=True)
+    .select("source", "target", "weight")
+    .head(4)
+)
+```
+
+Breast and ovarian cancer share two genes, `BRCA1` and `BRCA2`, as do breast and pancreatic cancer,
+through `BRCA2` and `PALB2`, and colorectal and endometrial cancer, through the mismatch-repair
+genes `MLH1` and `MSH2` of Lynch syndrome.
+
+### The gene network
+
+Projected onto the genes, the network links two genes that share a disease. Genes linked this way
+are candidates for a shared function, and a gene with many links, involved in many diseases, is
+often a central regulator:
+
+```{python}
+gene_net = genetics.bipartite_projection(which=0, weighting="jaccard")
+gene_net.get_node_df().sort("degree", descending=True).select("label", "degree").head(5)
+```
+
+`KRAS` and `TP53`, two of the most frequently altered genes in cancer, have the most links,
+followed by `BRAF`. `weighting="jaccard"` weights each link by the share of the two genes'
+diseases that they have in common, rather than by the plain count, which keeps the genes of many
+diseases from dominating the weights; `"overlap"` and `"collaboration"` are the other choices.
+With real data, such as the thousands of associations of a curated database, the same steps give
+networks large enough for the centrality and community methods of the earlier pages.
+
+## Summary
+
+| Task | Method |
+|---|---|
+| Score genes by proximity to known disease genes | `random_walk_with_restart()`, `heat_diffusion()`, `personalized_pagerank()` |
+| Reduce noise in per-gene association scores | `network_smooth()` |
+| Grow a disease module from seed genes | `expand_seed_set()` |
+| Connect high-scoring genes into a module | `prize_collecting_steiner_tree()`, `steiner_tree()` |
+| Test a set of genes for an annotation | `subgraph_enrichment()` |
+| Test every community for every annotation | `module_annotation_enrichment()` |
+| Smooth, detect, and rank modules in one call | `gwas_pipeline()` |
+| Measure how close drug targets are to a disease | `network_proximity()`, with random sets for a z-score |
+| Choose the power of a co-expression network | `soft_threshold_power()` |
+| Compare the networks of two conditions | `differential_edges()`, `edge_overlap()` |
+| Turn gene–disease data into one-mode networks | `bipartite_projection(which=, weighting=)` |
