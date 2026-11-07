@@ -242,7 +242,7 @@ pub fn kernighan_lin(
         let take = |s: bool, d: &[f64], locked: &[bool], side: &[bool]| -> Option<usize> {
             (0..n)
                 .filter(|&u| side[u] == s && !locked[u])
-                .max_by(|&x, &y| d[x].partial_cmp(&d[y]).unwrap().then(y.cmp(&x)))
+                .max_by(|&x, &y| d[x].total_cmp(&d[y]).then(y.cmp(&x)))
         };
         loop {
             let Some(a) = take(false, &d, &locked, &side) else {
@@ -618,7 +618,10 @@ pub fn lukes_partitioning(
             return value_err("Lukes partitioning requires a tree");
         }
         let w = match edge_weight {
-            Some(attr) => attr_f64(py, &e.attributes, attr)?.unwrap_or(1.0),
+            // "weight" also falls back to the weight field, where weighted graphs keep it
+            Some(attr) => attr_f64(py, &e.attributes, attr)?
+                .or(if attr == "weight" { e.weight } else { None })
+                .unwrap_or(1.0),
             None => 1.0,
         };
         adj[a].push((b, w));
@@ -691,7 +694,7 @@ pub fn lukes_partitioning(
     let mut cluster_of = vec![usize::MAX; n];
     let mut clusters: Vec<Vec<usize>> = Vec::new();
     let root_best = (0..=k)
-        .max_by(|&a, &b| dp[0][a].partial_cmp(&dp[0][b]).unwrap())
+        .max_by(|&a, &b| dp[0][a].total_cmp(&dp[0][b]))
         .unwrap();
     let total = dp[0][root_best];
     let mut stack: Vec<(usize, usize, usize)> = vec![(0, root_best, usize::MAX)]; // node, weight, cluster

@@ -909,7 +909,8 @@ pub fn label_propagation_communities(
             let mut best: Vec<usize> = touched
                 .iter()
                 .copied()
-                .filter(|&l| (freq[l] - top).abs() <= 1e-12 * top.max(1.0))
+                // `==` first: with an infinite weight, inf - inf is NaN
+                .filter(|&l| freq[l] == top || (freq[l] - top).abs() <= 1e-12 * top.max(1.0))
                 .collect();
             if !best.contains(&label[v]) {
                 best.sort_unstable();
