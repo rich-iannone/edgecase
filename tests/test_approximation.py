@@ -267,6 +267,10 @@ class TestMaxCut:
             ring.max_cut(method="goemans_williamson")
         with pytest.raises(ValueError, match="between 0 and 1"):
             ring.max_cut(method="randomized", p=1.5)
+        inf = ec.Graph(weighted=True).add_nodes(list("ABCD"))
+        inf.add_edges([("A", "B", float("inf")), ("B", "C", 1.0), ("C", "D", float("inf"))])
+        with pytest.raises(ValueError, match="finite"):  # the local search used to hang
+            inf.max_cut(seed=1)
 
 
 class TestApproximationStepHooks:
