@@ -480,6 +480,21 @@ class TestBranchings:
         assert tree.get_node_ids(limit=None) == g.get_node_ids(limit=None)
         assert g.count_edges() == 3
 
+    def test_missing_weight_attr_raises(self):
+        """A misspelled `weight_attr=` used to count every edge as 1.0."""
+        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        g.add_edges([("A", "B", {"score": 1.0}), ("C", "B", {"score": "high"}), ("A", "C")])
+        calls = [
+            lambda attr: g.maximum_branching(weight_attr=attr),
+            lambda attr: g.minimum_spanning_arborescence(weight_attr=attr),
+            lambda attr: list(g.iter_spanning_arborescences(weight_attr=attr)),
+        ]
+        for call in calls:
+            for attr in ("wieght", "score"):
+                with pytest.raises(ValueError, match=f"no numeric '{attr}' attribute"):
+                    call(attr)
+            assert call("weight") is not None
+
     def test_errors(self):
         with pytest.raises(ValueError, match="directed"):
             ec.Graph().add_path_graph(3).maximum_branching()
