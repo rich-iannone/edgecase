@@ -619,9 +619,7 @@ pub fn lukes_partitioning(
         }
         let w = match edge_weight {
             // "weight" also falls back to the weight field, where weighted graphs keep it
-            Some(attr) => attr_f64(py, &e.attributes, attr)?
-                .or(if attr == "weight" { e.weight } else { None })
-                .unwrap_or(1.0),
+            Some(attr) => crate::utils::require_named_edge_weight(py, e, attr, "edge_weight")?,
             None => 1.0,
         };
         adj[a].push((b, w));
