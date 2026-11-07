@@ -542,10 +542,32 @@ class TestMotifSignificanceEdgeCases:
         assert isinstance(result, dict)
         assert len(result) > 0
 
+    @pytest.mark.parametrize("directed", [False, True])
+    def test_key_order_is_fixed(self, directed):
+        # Both levels came from Rust HashMaps, so the key order changed from call to call
+        g = ec.Graph(directed=directed).add_gnp_graph(14, 0.3, seed=2)
+        results = [g.motif_significance(n_random=5, seed=1) for _ in range(5)]
+        assert list(results[0]) == sorted(results[0])
+        for result in results:
+            assert list(result) == list(results[0])
+            for stats in result.values():
+                assert list(stats) == ["count", "mean_random", "std_random", "z_score", "p_value"]
+
 
 # ===========================================================================
 # motif_census — larger graphs
 # ===========================================================================
+
+
+class TestMotifCensusKeyOrder:
+    @pytest.mark.parametrize("directed", [False, True])
+    @pytest.mark.parametrize("size", [3, 4])
+    def test_classes_in_sorted_order(self, directed, size):
+        # The census came from a Rust HashMap, so the key order changed from call to call
+        g = ec.Graph(directed=directed).add_gnp_graph(12, 0.3, seed=2)
+        for _ in range(5):
+            census = g.motif_census(size=size)
+            assert len(census) > 1 and list(census) == sorted(census)
 
 
 class TestMotifCensusLarger:
