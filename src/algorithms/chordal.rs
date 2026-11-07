@@ -471,7 +471,7 @@ pub fn max_weight_clique(
         // greedy coloring: each color class is an independent set, so a clique takes at most
         // one node per class; the bound sums the class maxima
         let mut order = cands.clone();
-        order.sort_by(|&a, &b| w[b].partial_cmp(&w[a]).unwrap().then(a.cmp(&b)));
+        order.sort_by(|&a, &b| w[b].total_cmp(&w[a]).then(a.cmp(&b)));
         let mut classes: Vec<Vec<usize>> = Vec::new();
         for &v in &order {
             match classes
