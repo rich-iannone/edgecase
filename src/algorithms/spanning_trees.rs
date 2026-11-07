@@ -98,45 +98,16 @@ impl UnionFind {
     }
 }
 
-/// Get edge weight from graph, optionally using custom attribute
+/// Get edge weight from graph, optionally using custom attribute. The public functions check
+/// `weight_attr` up front (`check_named_edge_weights`), so the 1.0 fallback is never reached
+/// for a named attribute.
 fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> f64 {
-    if let Some(edge) = graph.get_edge(edge_id) {
-        if let Some(attr_name) = weight_attr {
-            // Try to get weight from attributes with GIL
-            Python::with_gil(|py| {
-                if let Some(attrs) = &edge.attributes {
-                    let attrs_bound = attrs.bind(py);
-                    // First try direct access
-                    if let Ok(Some(val)) = attrs_bound.get_item(attr_name) {
-                        if let Ok(f) = val.extract::<f64>() {
-                            return f;
-                        }
-                    }
-                    // Then try nested under "attributes" key (EdgeCase convention)
-                    if let Ok(Some(nested)) = attrs_bound.get_item("attributes") {
-                        // Use downcast_bound to get it as a dict and call get_item on that
-                        if let Ok(nested_dict) = nested.downcast::<pyo3::types::PyDict>() {
-                            if let Ok(Some(val)) = nested_dict.get_item(attr_name) {
-                                if let Ok(f) = val.extract::<f64>() {
-                                    return f;
-                                }
-                            }
-                        }
-                    }
-                }
-                // Weighted graphs keep weights in the weight field, not as an attribute
-                if attr_name == "weight" {
-                    edge.weight.unwrap_or(1.0)
-                } else {
-                    1.0
-                }
-            })
-        } else {
-            // Use default weight field
-            edge.weight.unwrap_or(1.0)
-        }
-    } else {
-        1.0
+    match (graph.get_edge(edge_id), weight_attr) {
+        (Some(edge), Some(attr_name)) => Python::with_gil(|py| {
+            crate::utils::named_edge_weight(py, &edge, attr_name).unwrap_or(1.0)
+        }),
+        (Some(edge), None) => edge.weight.unwrap_or(1.0),
+        (None, _) => 1.0,
     }
 }
 
@@ -279,6 +250,7 @@ pub fn steiner_tree(
     }
 
     let weight_attr_ref = weight_attr.as_deref();
+    crate::utils::check_named_edge_weights(graph, weight_attr_ref, "weight_attr")?;
 
     // Special case: if only 2 terminals, just find shortest path
     if terminal_ids.len() == 2 {
@@ -471,6 +443,7 @@ pub fn all_spanning_trees(
     }
 
     let weight_attr_ref = weight_attr.as_deref();
+    crate::utils::check_named_edge_weights(graph, weight_attr_ref, "weight_attr")?;
 
     // Get edges using public API
     let all_edges: Vec<(u64, u64, u64)> = graph.edges();
@@ -581,6 +554,7 @@ pub fn prize_collecting_steiner_tree(
     }
 
     let weight_attr_ref = weight_attr.as_deref();
+    crate::utils::check_named_edge_weights(graph, weight_attr_ref, "weight_attr")?;
 
     // Prizes are keyed by node ID
     if let Some(missing) = prizes.keys().find(|&&id| !graph.has_node_id(id)) {
@@ -836,6 +810,7 @@ pub fn directed_steiner_tree(
     terminal_ids.dedup();
 
     let weight_attr_ref = weight_attr.as_deref();
+    crate::utils::check_named_edge_weights(graph, weight_attr_ref, "weight_attr")?;
 
     // Edge cost overrides: edge_id -> 0.0 (for already-used edges)
     let mut cost_overrides: FxHashMap<u64, f64> = FxHashMap::default();
