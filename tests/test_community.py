@@ -486,6 +486,11 @@ class TestMoreCommunityMethods:
             parts = path.lukes_partitioning(2, edge_weight="weight")
             labels = sorted(sorted(path.get_label_from_id(x) for x in c) for c in parts)
             assert sorted(["B", heavy]) in labels
+        # A missing edge attribute raises, as a missing node attribute does
+        path = ec.Graph().add_nodes(["A", "B", "C"])
+        path.add_edges([("A", "B", {"e": 1.0}), ("B", "C")])
+        with pytest.raises(ValueError, match="no numeric 'e' attribute, which edge_weight='e'"):
+            path.lukes_partitioning(2, edge_weight="e")
 
     def test_greedy_source_expansion(self):
         G = nx.karate_club_graph()
