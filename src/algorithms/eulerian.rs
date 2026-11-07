@@ -508,11 +508,7 @@ fn min_cost_pairing(cost: &[Vec<f64>]) -> Vec<(usize, usize)> {
             cand.push((cost[i][j], i, j));
         }
     }
-    cand.sort_by(|a, b| {
-        a.0.partial_cmp(&b.0)
-            .unwrap()
-            .then((a.1, a.2).cmp(&(b.1, b.2)))
-    });
+    cand.sort_by(|a, b| a.0.total_cmp(&b.0).then((a.1, a.2).cmp(&(b.1, b.2))));
     let mut taken = vec![false; k];
     let mut pairs: Vec<(usize, usize)> = Vec::new();
     for (_, i, j) in cand {
@@ -590,6 +586,12 @@ pub fn eulerize(py: Python, graph: &Graph, weighted: bool) -> PyResult<(Graph, V
     if weight_of.values().any(|&w| w < 0.0) {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "eulerize() requires non-negative edge weights",
+        ));
+    }
+    // An infinite path cost leaves the matching (and its traceback) undefined
+    if weight_of.values().any(|&w| w.is_infinite()) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "eulerize() requires finite edge weights",
         ));
     }
     let odd: Vec<usize> = (0..n)
