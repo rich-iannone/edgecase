@@ -106,7 +106,7 @@ def _seeded_base():
 def _fingerprint(result):
     if isinstance(result, ec.Graph):
         return result.get_edges_str_repr(), result.get_node_df().to_dicts()
-    if isinstance(result, dict):  # some come from a Rust HashMap, in no fixed key order
+    if isinstance(result, dict):  # compared regardless of key order
         return sorted((repr(k), _fingerprint(v)) for k, v in result.items())
     if callable(result):  # alt_heuristic() returns the heuristic h(u, v)
         return [result(1, v) for v in range(1, 17)]
