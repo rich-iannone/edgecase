@@ -16188,9 +16188,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `directed=` is `False` and the degree sequence has an odd sum.
-        OverflowError
-            If the degree sequence contains a negative number.
+            If the degree sequence contains a negative number, or if `directed=` is `False`
+            and the sequence has an odd sum.
 
         Examples
         --------
