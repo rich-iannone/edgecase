@@ -301,7 +301,11 @@ pub fn degree_pairs(
         }
     }
     let mut out: Vec<(f64, f64, u64)> = counts.into_values().collect();
-    out.sort_by(|a, b| a.partial_cmp(b).unwrap());
+    out.sort_by(|a, b| {
+        a.0.total_cmp(&b.0)
+            .then(a.1.total_cmp(&b.1))
+            .then(a.2.cmp(&b.2))
+    });
     Ok(out)
 }
 
