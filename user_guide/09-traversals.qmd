@@ -1,0 +1,410 @@
+---
+title: Traversals
+guide-section: "Working with graphs"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Many questions about a graph are questions about moving through it. What does this course lead
+to? Whose friends are my friends' friends? Which services fail if this one goes down? EdgeCase
+answers them at three levels:
+
+- **neighbor lookups** return the nodes next to a node,
+- **searches** such as breadth-first and depth-first search explore everything a node can reach,
+  and
+- **selection traversals** move the graph's current [selection](08-selections.qmd) along its
+  edges, one step at a time, so that the nodes or edges reached can be acted on.
+
+This page covers all three, and ends with ways of drawing a search or traversal step by step.
+
+## A running example
+
+Directed graphs are where traversals are most interesting, since the direction of each edge
+matters. The examples on this page use a small graph of course prerequisites, in which an edge
+from one course to another means that the first must be taken before the second:
+
+```{python}
+import edgecase as ec
+
+courses = ec.Graph.from_edges(
+    [
+        ("Calculus I", "Calculus II"),
+        ("Calculus II", "Multivariable Calculus"),
+        ("Calculus II", "Probability"),
+        ("Linear Algebra", "Machine Learning"),
+        ("Probability", "Statistics"),
+        ("Statistics", "Machine Learning"),
+        ("Programming", "Data Structures"),
+        ("Data Structures", "Algorithms"),
+        ("Data Structures", "Machine Learning"),
+        ("Multivariable Calculus", "Machine Learning"),
+        ("Algorithms", "Capstone"),
+        ("Machine Learning", "Capstone"),
+    ],
+    directed=True,
+    graph_name="Prerequisites",
+)
+courses
+```
+
+The traversal methods return node IDs, which are compact but hard to read. A small helper turns a
+list of IDs into course names:
+
+```{python}
+def names(ids):
+    return [courses.get_label_from_id(i) for i in ids]
+```
+
+A drawing helps to follow the examples. Since a prerequisite graph has no cycles, its courses can
+be arranged in levels, with each course above everything it depends on.
+[`topological_generations()`](../reference/Graph.topological_generations.qmd) computes the levels,
+and [`layout_multipartite()`](../reference/Graph.layout_multipartite.qmd) stacks them:
+
+```{python}
+generations = courses.topological_generations()
+courses.set_node_attrs("level", {node: i for i, gen in enumerate(generations) for node in gen})
+courses.layout_multipartite(subset_key="level", align="horizontal")
+courses.plot(layout="pos", label_by="label", node_size=10, height=450)
+```
+
+The introductory courses with no prerequisites (Calculus I, Linear Algebra, and Programming) sit at
+the bottom, and the Capstone, which depends directly or indirectly on everything, sits at the top.
+[Layouts](23-layouts.qmd) has more on positioning nodes this way.
+
+## Neighbors
+
+[`neighbors()`](../reference/Graph.neighbors.qmd) returns the IDs of the nodes adjacent to a node.
+In a directed graph, `mode=` chooses the direction: `"out"` (the default) follows edges forward to
+a node's successors, `"in"` follows them backward to its predecessors, and `"all"` does both:
+
+```{python}
+names(courses.neighbors("Data Structures", mode="out")), names(courses.neighbors("Data Structures", mode="in"))
+```
+
+Data Structures leads to Algorithms and Machine Learning, and requires Programming. In an undirected
+graph the three modes give the same result.
+
+For directed graphs, [`get_successors()`](../reference/Graph.get_successors.qmd) and
+[`get_predecessors()`](../reference/Graph.get_predecessors.qmd) are dedicated alternatives. They
+return each neighbor once, even when parallel edges join two nodes, and `get_predecessors()` is
+faster than `neighbors(mode="in")` on large graphs. Machine Learning is the course with the most
+prerequisites:
+
+```{python}
+names(courses.get_predecessors("Machine Learning"))
+```
+
+Two more lookups compare neighborhoods.
+[`get_common_neighbors()`](../reference/Graph.get_common_neighbors.qmd) returns the nodes adjacent
+to both of two nodes, ignoring direction, and
+[`get_non_neighbors()`](../reference/Graph.get_non_neighbors.qmd) returns every node that isn't
+adjacent to a given node. Both are building blocks for link prediction, where the nodes that share
+many neighbors but aren't yet joined are the likeliest new links. In the karate club, the
+instructor (ID 1) and the administrator (ID 34) aren't friends, but they have four friends in
+common:
+
+```{python}
+karate = ec.karate_club()
+karate.get_common_neighbors(1, 34)
+```
+
+## Searching
+
+A search starts at a node and explores everything reachable from it.
+[`bfs()`](../reference/Graph.bfs.qmd) does a breadth-first search, which visits all of a node's
+neighbors before any of theirs, and so works outward in rings of increasing distance.
+[`dfs()`](../reference/Graph.dfs.qmd) does a depth-first search, which follows each path as far as
+it goes before backing up. With `return_list=True`, both return the nodes in the order they were
+visited:
+
+```{python}
+names(courses.bfs("Calculus I", return_list=True))
+```
+
+```{python}
+names(courses.dfs("Calculus I", return_list=True))
+```
+
+Both searches reach the same seven courses, but in different orders. The breadth-first search
+visits Multivariable Calculus and Probability, the two courses that Calculus II leads to, one after
+the other. The depth-first search goes straight from Multivariable Calculus up through Machine
+Learning to the Capstone, and only then backs up to visit Probability and Statistics.
+
+Without `return_list=True`, the methods follow the convention of the other algorithms and store
+their result as a node attribute: `bfs_order` or `dfs_order`, holding each node's position in the
+visit order, counted from 0. The four courses that Calculus I doesn't lead to are left without a
+value, and sort to the end:
+
+```{python}
+courses.bfs("Calculus I").get_node_df().select("label", "bfs_order").sort("bfs_order", nulls_last=True)
+```
+
+### Distances from a source
+
+[`bfs_layers()`](../reference/Graph.bfs_layers.qmd) groups the nodes a breadth-first search reaches
+by their distance from the start: the first list holds the start itself, the second its neighbors,
+the third the nodes two steps away, and so on:
+
+```{python}
+[names(layer) for layer in courses.bfs_layers("Calculus I")]
+```
+
+Machine Learning is three steps from Calculus I, by way of Multivariable Calculus, and the
+Capstone four. Statistics is also three steps away, but the longer route from it to Machine
+Learning doesn't matter: each node belongs to the layer of its shortest distance. When only one ring is needed,
+[`descendants_at_distance()`](../reference/Graph.descendants_at_distance.qmd) returns it as a set.
+Its `mode=` argument works as in `neighbors()`, so in the karate club, where the default `"out"`
+is the same as `"all"`, this gives the friends of the instructor's friends who aren't friends of
+the instructor:
+
+```{python}
+len(karate.descendants_at_distance(1, distance=2))
+```
+
+Nine members are exactly two steps from the instructor.
+
+### Everything upstream and downstream
+
+[`descendants()`](../reference/Graph.descendants.qmd) returns every node reachable from a node, and
+[`ancestors()`](../reference/Graph.ancestors.qmd) every node that can reach it. For the prerequisite
+graph, these answer the two most common questions: what does a course open up, and what does it
+require?
+
+```{python}
+names(sorted(courses.descendants("Calculus II")))
+```
+
+```{python}
+names(sorted(courses.ancestors("Machine Learning")))
+```
+
+Machine Learning builds, directly or indirectly, on eight of the other ten courses. Neither result
+includes the course itself.
+
+These methods follow edge direction. To ignore it, and find every node in the same weakly connected
+component, use [`get_all_connected_nodes()`](../reference/Graph.get_all_connected_nodes.qmd). For a
+question about one pair of nodes, [`has_path()`](../reference/Graph.has_path.qmd) answers it
+directly, and when the same fixed graph must answer many such questions,
+[`reachability_index()`](../reference/Graph.reachability_index.qmd) builds an index once and then
+answers each query without searching:
+
+```{python}
+reaches = courses.reachability_index()
+reaches("Programming", "Capstone"), reaches("Probability", "Algorithms")
+```
+
+Programming is a prerequisite, through Data Structures, for the Capstone, but Probability has
+nothing to do with Algorithms. Build the index after the graph is complete, since it doesn't see
+later changes.
+
+### Search trees and edge orders
+
+A search does more than visit nodes: each node it reaches is discovered along one particular edge.
+Those edges form a tree, and following it from the root gives a fewest-steps path to every node the
+search reached. [`bfs_edges()`](../reference/Graph.bfs_edges.qmd) returns the tree's edges as
+`(parent, child)` pairs, and [`bfs_tree()`](../reference/Graph.bfs_tree.qmd) and
+[`dfs_tree()`](../reference/Graph.dfs_tree.qmd) return the whole tree as a new directed graph:
+
+```{python}
+tree = courses.bfs_tree("Calculus I")
+tree.count_nodes(), tree.count_edges(), tree.is_arborescence()
+```
+
+The tree has the seven courses reachable from Calculus I and one edge into each of them except the
+root, which makes it an *arborescence*, a directed tree in which every edge points away from the
+root. (`is_tree()` is for undirected trees, and returns `False` for any directed graph.) The edge from Statistics to Machine Learning is missing: the search reached Machine Learning
+first from Multivariable Calculus, so that is the edge the tree keeps.
+
+A few more methods expose other parts of a search, mostly for building algorithms of your own:
+
+| Method | Returns |
+|---|---|
+| [`bfs_predecessors()`](../reference/Graph.bfs_predecessors.qmd), [`bfs_successors()`](../reference/Graph.bfs_successors.qmd) | each node's parent, or each node's children, in the BFS tree |
+| [`dfs_postorder_nodes()`](../reference/Graph.dfs_postorder_nodes.qmd) | the nodes in the order a depth-first search finishes with them |
+| [`dfs_labeled_edges()`](../reference/Graph.dfs_labeled_edges.qmd) | every step of a depth-first search, labelled `"forward"`, `"nontree"`, or `"reverse"` |
+| [`edge_bfs()`](../reference/Graph.edge_bfs.qmd), [`edge_dfs()`](../reference/Graph.edge_dfs.qmd) | every reachable *edge*, each visited once, as `(source, target, edge_id)` |
+| [`bfs_beam_edges()`](../reference/Graph.bfs_beam_edges.qmd) | the edges of a beam search, which keeps only the best few nodes at each level |
+
+## Traversing selections
+
+Searches return results. *Selection traversals* move the graph's current selection instead, which
+makes them a natural partner for the `_ws` methods: select a starting point, traverse to the nodes
+or edges of interest, and then tag, delete, or extract them.
+
+| Method | Moves the selection |
+|---|---|
+| [`trav_out()`](../reference/Graph.trav_out.qmd) | from the selected nodes to their successors |
+| [`trav_in()`](../reference/Graph.trav_in.qmd) | from the selected nodes to their predecessors |
+| [`trav_both()`](../reference/Graph.trav_both.qmd) | from the selected nodes to all their neighbors |
+| [`trav_out_edge()`](../reference/Graph.trav_out_edge.qmd) | from the selected nodes to their outgoing edges |
+| [`trav_in_edge()`](../reference/Graph.trav_in_edge.qmd) | from the selected nodes to their incoming edges |
+| [`trav_reverse_edge()`](../reference/Graph.trav_reverse_edge.qmd) | from the selected edges to the edges running the opposite way |
+| [`trav_out_until()`](../reference/Graph.trav_out_until.qmd), [`trav_in_until()`](../reference/Graph.trav_in_until.qmd) | forward or backward, step by step, until nodes meet a condition |
+
+Each node traversal *replaces* the selection with the nodes it reaches, so the starting nodes drop
+out unless they are reached themselves. Chaining traversals walks the selection through the graph
+one step at a time. Here it starts at Programming and takes two steps forward:
+
+```{python}
+courses.select_nodes_by_id([courses.get_id_from_label("Programming")], set_op="replace")
+names(sorted(courses.trav_out().get_selected_node_ids()))
+```
+
+```{python}
+names(sorted(courses.trav_out().get_selected_node_ids()))
+```
+
+One step leads to Data Structures, and the next to the two courses that build on it. In an
+undirected graph, `trav_out()`, `trav_in()`, and `trav_both()` all move to every neighbor.
+
+### From nodes to edges
+
+`trav_out_edge()` and `trav_in_edge()` move from a node selection to an edge selection. Continuing
+from the previous example, this selects the edges into Algorithms and Machine Learning, which are
+every prerequisite link those two courses have, and marks them in the edge table:
+
+```{python}
+(
+    courses
+    .trav_in_edge()
+    .set_edge_attrs_ws(rel="required_for_advanced")
+    .clear_selection()
+    .get_edge_df()
+    .filter(rel="required_for_advanced")
+)
+```
+
+Of the five edges, four lead into Machine Learning and one into Algorithms.
+
+`trav_reverse_edge()` works on edge selections only. For each selected edge from `A` to `B`, it
+selects the edges from `B` back to `A`, which is how to find reciprocated relationships, such as
+mutual follows or two-way trade, in a directed graph. A prerequisite graph has no reciprocated
+edges, so it would select nothing here.
+
+### Multi-hop patterns
+
+Chained traversals express multi-hop questions compactly. In the karate club, these are the
+members who are within two steps of the instructor (ID 1) but not friends of the instructor:
+
+```{python}
+(
+    karate
+    .select_nodes_by_id([1], set_op="replace")
+    .trav_both()
+    .trav_both()
+    .select_nodes_in_neighborhood(1, k=1, set_op="difference")
+    .count_selected_nodes()
+)
+```
+
+The two traversals reach the nodes two steps from the instructor. The second step also comes back
+to the instructor and to those of their friends who are friends with one another, so the final
+selector subtracts the instructor and all of their friends. The count matches the `descendants_at_distance()` result above.
+
+### Traversing until a condition holds
+
+`trav_out_until()` and `trav_in_until()` take repeated steps until they reach nodes that satisfy a
+condition. The condition is a Python function that receives a node ID and returns `True` or `False`.
+Each selected node advances one step at a time, and stops when it reaches a node that satisfies
+the condition; that node then becomes part of the result.
+
+To use the course levels for this, give each course a number in the usual university style, where
+100-level courses are introductory and 400-level the most advanced:
+
+```{python}
+course_level = {
+    "Calculus I": 100, "Linear Algebra": 100, "Programming": 100,
+    "Calculus II": 200, "Data Structures": 200,
+    "Multivariable Calculus": 300, "Probability": 300, "Statistics": 300, "Algorithms": 300,
+    "Machine Learning": 400, "Capstone": 400,
+}
+courses.set_node_attrs("course_level", course_level)
+
+
+def advanced(level):
+    return lambda node: courses.get_node(node).attributes["course_level"] >= level
+```
+
+This finds the first upper-level course on each path out of Calculus I and Programming:
+
+```{python}
+(
+    courses
+    .select_nodes_by_id([1, 8], set_op="replace")
+    .trav_out_until(advanced(300))
+)
+names(sorted(courses.get_selected_node_ids()))
+```
+
+The paths from Calculus I end at Multivariable Calculus and Probability, and the paths from
+Programming at Algorithms and Machine Learning (since Machine Learning, at the 400 level, also
+passes the test). Data Structures and Calculus II, at the 200 level, were passed over on the way.
+
+Two arguments change what ends up selected. `add_to_selection=True` keeps the starting nodes, and
+`exclude_unmatched=False` keeps every node visited along the way, rather than only those that
+satisfy the condition. Together they select a whole route, here every course on the way from
+Calculus I to the first 400-level course:
+
+```{python}
+(
+    courses
+    .select_nodes_by_id([1], set_op="replace")
+    .trav_out_until(advanced(400), add_to_selection=True, exclude_unmatched=False)
+)
+names(sorted(courses.get_selected_node_ids()))
+```
+
+The search stops after `max_steps=` steps (30 by default), which guards against running forever
+around a cycle in which no node matches.
+
+## Drawing a search
+
+Two methods draw a search or traversal as an animation, which helps with teaching, with explaining
+an analysis, and with checking that a traversal does what was intended. Both return a step player,
+an interactive drawing with controls for stepping forward and back through the search. In a
+notebook or a rendered document it displays itself, and its `save()` method writes it to an HTML
+file.
+
+`plot_traversal()` animates a breadth-first or depth-first search. Given only a `start=` node, it
+runs a breadth-first search from it, and lights up the nodes in the order they are reached:
+
+```{python}
+courses.clear_selection().plot_traversal(start="Calculus I", algorithm="BFS")
+```
+
+To animate another search, pass its visit order as `visit_order=`, and optionally its tree edges as
+`tree_edges=` (as `(parent, child)` pairs, such as those from `bfs_edges()`).
+
+`record_traversal()` records a sequence of selection operations instead. It returns a recorder that
+offers the same `select_*`, `trav_*`, `deselect_*`, `invert_*`, and `clear_selection()` methods as
+the graph. Each call is applied to the graph and logged, and the recorder's `plot()` method replays
+the log, highlighting the selection after each step:
+
+```{python}
+recorder = courses.record_traversal()
+(
+    recorder
+    .select_nodes_by_id([courses.get_id_from_label("Programming")])
+    .trav_out()
+    .trav_out()
+    .trav_out()
+)
+[step["ids"] for step in recorder.steps]
+```
+
+The `steps` attribute holds the log as a list of dictionaries, one per operation, each with the
+operation's name and the IDs selected after it. The three steps out of Programming reach Data
+Structures, then Algorithms and Machine Learning, and finally the Capstone:
+
+```{python}
+recorder.plot(node_size=12)
+```
+
+The graph's [step log](26-step-log.qmd) offers a broader record of the same kind, covering every
+change made to a graph rather than one traversal.
