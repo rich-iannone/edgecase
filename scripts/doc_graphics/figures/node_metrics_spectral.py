@@ -82,11 +82,11 @@ def bonacich_power_centrality(s: Scene) -> None:
 @figure("laplacian_centrality", "node-metrics", "Laplacian centrality",
         "The shared seven-node graph shaded by Laplacian centrality, the share of the "
         "graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, "
-        "0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03.")
+        "0.60, then D 0.46, B and E 0.43, while the pendant node G costs only 0.09.")
 def laplacian_centrality(s: Scene) -> None:
     _metric(s, "g.laplacian_centrality()", "score",
-            {"A": 0.1149, "B": 0.1724, "C": 0.2414, "D": 0.1839, "E": 0.1724, "F": 0.0805,
-             "G": 0.03448})
+            {"A": 0.2857, "B": 0.4286, "C": 0.6, "D": 0.4571, "E": 0.4286, "F": 0.2,
+             "G": 0.08571})
 
 
 @figure("domirank_centrality", "node-metrics", "DomiRank centrality",
