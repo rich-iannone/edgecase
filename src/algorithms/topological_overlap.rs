@@ -1,5 +1,6 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
+use pyo3::types::PyDict;
 use rustc_hash::FxHashSet;
 use std::collections::HashMap;
 
@@ -12,10 +13,13 @@ use std::collections::HashMap;
 ///
 /// where a_ij = 1 if (i,j) is an edge and k_i is the degree of node i.
 ///
-/// Returns a nested dict: result[node_i][node_j] = TOM value.
+/// Returns a nested dict: result[node_i][node_j] = TOM value, both levels in node order.
 #[pyfunction]
 #[pyo3(signature = (graph,))]
-pub fn topological_overlap_matrix(graph: &Graph) -> PyResult<HashMap<u64, HashMap<u64, f64>>> {
+pub fn topological_overlap_matrix<'py>(
+    py: Python<'py>,
+    graph: &Graph,
+) -> PyResult<Bound<'py, PyDict>> {
     let node_ids = graph.get_node_ids();
     let n = node_ids.len();
 
@@ -41,17 +45,17 @@ pub fn topological_overlap_matrix(graph: &Graph) -> PyResult<HashMap<u64, HashMa
         neighbor_sets.insert(nid, s);
     }
 
-    let mut result: HashMap<u64, HashMap<u64, f64>> = HashMap::new();
+    let result = PyDict::new(py);
 
     for i in 0..n {
         let ni = node_ids[i];
         let set_i = &neighbor_sets[&ni];
         let ki = set_i.len();
-        let mut row: HashMap<u64, f64> = HashMap::new();
+        let row = PyDict::new(py);
 
         for &nj in &node_ids[..n] {
             if ni == nj {
-                row.insert(nj, 1.0);
+                row.set_item(nj, 1.0)?;
                 continue;
             }
 
@@ -73,9 +77,9 @@ pub fn topological_overlap_matrix(graph: &Graph) -> PyResult<HashMap<u64, HashMa
                 0.0
             };
 
-            row.insert(nj, tom);
+            row.set_item(nj, tom)?;
         }
-        result.insert(ni, row);
+        result.set_item(ni, row)?;
     }
 
     Ok(result)
