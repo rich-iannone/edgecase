@@ -401,6 +401,17 @@ class TestAdjlist:
         with pytest.raises(FileNotFoundError):
             ec.from_adjlist("a b c")
 
+    def test_empty_graph_round_trip(self):
+        # "" used to be read as the path "." (IsADirectoryError)
+        for write, read in [
+            (ec.to_adjlist, ec.from_adjlist),
+            (ec.to_multiline_adjlist, ec.from_multiline_adjlist),
+        ]:
+            text = write(ec.Graph())
+            assert text == ""
+            g = read(text)
+            assert g.count_nodes() == 0 and g.count_edges() == 0
+
     @pytest.mark.parametrize("label", ["has space", "hash#tag", "tab\there", ""])
     def test_bad_labels(self, label):
         g = ec.Graph().add_nodes(["ok", label])
