@@ -325,6 +325,15 @@ class TestMinimumCycleBasisWeighted:
 
         assert len(basis) == 2
 
+    def test_weight_named_weight_reads_weight_field(self):
+        """`weight="weight"` used to count every edge as 1.0 and pick the two triangles."""
+        g = Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
+        g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0), ("D", "A", 1.0)])
+        g.add_edge("A", "C", weight=100.0)
+        basis = g.minimum_cycle_basis(weight="weight")
+        assert sorted(map(len, basis)) == [3, 4]
+        assert basis == g.minimum_cycle_basis()
+
 
 class TestMinimumCycleBasisComplexGraphs:
     """Tests on more complex graph structures."""
