@@ -739,7 +739,7 @@ pub fn panther_vector_similarity(
             (sample.ids[j], d, 1.0 / d.max(f64::EPSILON))
         })
         .collect();
-    out.sort_by(|a, b| a.1.partial_cmp(&b.1).unwrap().then(a.0.cmp(&b.0)));
+    out.sort_by(|a, b| a.1.total_cmp(&b.1).then(a.0.cmp(&b.0)));
     Ok(out.into_iter().map(|(id, _, score)| (id, score)).collect())
 }
 
