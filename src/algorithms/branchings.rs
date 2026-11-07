@@ -30,13 +30,18 @@ fn value_err<T>(msg: impl Into<String>) -> PyResult<T> {
 fn edge_value(py: Python, e: &Edge, weight_attr: Option<&str>) -> PyResult<f64> {
     Ok(match weight_attr {
         None => e.weight.unwrap_or(1.0),
-        Some(attr) => match &e.attributes {
-            Some(d) => match d.bind(py).downcast::<PyDict>()?.get_item(attr)? {
+        Some(attr) => {
+            let value = match &e.attributes {
+                Some(d) => d.bind(py).downcast::<PyDict>()?.get_item(attr)?,
+                None => None,
+            };
+            match value {
                 Some(v) => v.extract::<f64>().unwrap_or(1.0),
+                // Weighted graphs keep weights in the weight field, not as an attribute
+                None if attr == "weight" => e.weight.unwrap_or(1.0),
                 None => 1.0,
-            },
-            None => 1.0,
-        },
+            }
+        }
     })
 }
 
@@ -981,8 +986,9 @@ pub fn random_spanning_tree(
         } else {
             1.0
         };
-        if !(w >= 0.0) {
-            return value_err("edge weights must be non-negative");
+        if !(0.0..f64::INFINITY).contains(&w) {
+            // An infinite weight swamps the walk's cumulative sampling, so it never ends
+            return value_err("edge weights must be finite and non-negative");
         }
         if w == 0.0 {
             continue;
