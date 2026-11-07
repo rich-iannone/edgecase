@@ -1,0 +1,520 @@
+---
+title: Centrality
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Which nodes matter most? The question sounds simple, but "matter" can mean many things: having the
+most connections, being close to everyone else, sitting on the routes between others, or being
+connected to other important nodes. Each meaning leads to a different *centrality measure*, and
+EdgeCase implements several dozen of them. This page explains the main families, shows how to
+compute and compare them, and points out the cases where the choice of measure changes the answer.
+
+The main families, and the methods that implement them, are these:
+
+| Family | Asks | Methods |
+|---|---|---|
+| Degree | How many neighbors does a node have? | [`degree_centrality()`](../reference/Graph.degree_centrality.qmd) |
+| Distance | How close is a node to all the others? | [`closeness_centrality()`](../reference/Graph.closeness_centrality.qmd), [`harmonic_centrality()`](../reference/Graph.harmonic_centrality.qmd), [`current_flow_closeness_centrality()`](../reference/Graph.current_flow_closeness_centrality.qmd) |
+| Betweenness | How often does a node lie on the routes between others? | [`betweenness_centrality()`](../reference/Graph.betweenness_centrality.qmd), [`edge_betweenness_centrality()`](../reference/Graph.edge_betweenness_centrality.qmd), [`load_centrality()`](../reference/Graph.load_centrality.qmd), [`current_flow_betweenness_centrality()`](../reference/Graph.current_flow_betweenness_centrality.qmd) |
+| Spectral | Is a node connected to other central nodes? | [`eigen_centrality()`](../reference/Graph.eigen_centrality.qmd), [`katz_centrality()`](../reference/Graph.katz_centrality.qmd), [`pagerank()`](../reference/Graph.pagerank.qmd), [`personalized_pagerank()`](../reference/Graph.personalized_pagerank.qmd) |
+| Hubs and authorities | Does a node point to good sources, or is it pointed to by good hubs? | [`hub_centrality()`](../reference/Graph.hub_centrality.qmd), [`authority_centrality()`](../reference/Graph.authority_centrality.qmd) |
+| Brokerage | Does a node bridge otherwise separate contacts? | [`constraint()`](../reference/Graph.constraint.qmd), [`effective_size()`](../reference/Graph.effective_size.qmd) |
+| Spreading | Which nodes would spread something furthest? | [`voterank()`](../reference/Graph.voterank.qmd), [`percolation_centrality()`](../reference/Graph.percolation_centrality.qmd) |
+
+## How the centrality methods work
+
+Every centrality method that scores the nodes follows the convention set out in
+[Get started](00-get-started.qmd#three-ideas-that-run-through-the-library). It stores the scores in
+a node attribute named after the method, and returns the graph so that calls can be chained:
+
+```{python}
+import edgecase as ec
+import polars as pl
+
+karate = ec.karate_club()
+karate.betweenness_centrality()
+karate.get_node_df().select("id", "label", "faction", "betweenness_centrality").head(3)
+```
+
+Two arguments, accepted by all of them, change this. `attr_name=` stores the scores under another
+name, which is how to keep two variants of the same measure side by side, and `return_dict=True`
+returns the scores as a dictionary keyed by node ID, leaving the graph unchanged:
+
+```{python}
+scores = karate.closeness_centrality(return_dict=True)
+round(scores[1], 3)
+```
+
+Because the scores are stored as columns of the node table, Polars is the natural tool for ranking
+and comparing them. Computing seven measures in one chain and sorting by one of them gives a
+first look at the club's most central members:
+
+```{python}
+measures = [
+    "degree_centrality",
+    "closeness_centrality",
+    "harmonic_centrality",
+    "betweenness_centrality",
+    "eigen_centrality",
+    "pagerank",
+    "katz_centrality",
+]
+
+(
+    karate
+    .degree_centrality()
+    .closeness_centrality()
+    .harmonic_centrality()
+    .eigen_centrality()
+    .pagerank()
+    .katz_centrality()
+)
+
+karate.get_node_df().select("label", *measures).sort("pagerank", descending=True)
+```
+
+The instructor (label `"0"`) and the administrator (label `"33"`) lead on nearly every measure, as
+the two people the club eventually split around. Below them, the measures begin to disagree, and
+the rest of this page explains why.
+
+## Degree centrality
+
+The simplest measure is a node's degree. [`degree_centrality()`](../reference/Graph.degree_centrality.qmd)
+divides it by `n - 1`, the largest degree possible, so that the score is the fraction of the other
+nodes that a node is linked to:
+
+```{python}
+karate.get_degree(1), round(karate.get_node(1).attributes["degree_centrality"], 3)
+```
+
+The instructor has 16 friends among the 33 other members, a degree centrality of 0.485. In a
+directed graph, `mode=` chooses what to count: `"in"` for incoming edges, `"out"` for outgoing
+ones, and `"all"` (the default) for both. Use `attr_name=` to keep the variants apart, as in
+`degree_centrality(mode="in", attr_name="in_degree")`.
+
+Degree is cheap to compute and often a good first approximation, but it is purely local. A node
+with many neighbors in a remote corner of the network scores as highly as a node with the same
+number of neighbors at its heart.
+
+## Closeness and harmonic centrality
+
+The distance family scores a node by how near it is to everyone else.
+[`closeness_centrality()`](../reference/Graph.closeness_centrality.qmd) is the reciprocal of the
+mean distance from a node to the others, so a node that is one step from everyone scores 1. The
+instructor is again the most central member of the club, but the administrator's lieutenant (ID 3,
+label `"2"`) comes second, ahead of the administrator. They have only ten friends, but those friends
+are spread across both factions:
+
+```{python}
+(
+    karate.get_node_df()
+    .select("id", "label", "degree", "closeness_centrality")
+    .sort("closeness_centrality", descending=True)
+    .head(5)
+)
+```
+
+Closeness has a well-known weakness: in a disconnected graph, some distances are infinite. EdgeCase
+follows the usual remedy, computing each node's closeness over the nodes it can reach and then
+scaling it by the fraction of the graph that is. This correction, due to Wasserman and Faust, is
+on by default and controlled by `wf_improved=`. Its effect is easiest to see on a graph of two
+separate paths, one of four nodes and one of two:
+
+```{python}
+two_paths = ec.Graph().add_path_graph(n=4).add_path_graph(n=2)
+(
+    two_paths.closeness_centrality(return_dict=True),
+    two_paths.closeness_centrality(wf_improved=False, return_dict=True),
+)
+```
+
+Without the correction, the two nodes of the short path (IDs 5 and 6) score a perfect 1, since each
+is one step from everything *it can reach*. With it, they score lowest, since they can reach only
+one of the five other nodes.
+
+[`harmonic_centrality()`](../reference/Graph.harmonic_centrality.qmd) avoids the problem
+altogether by summing the *reciprocals* of the distances, so that an unreachable node simply
+contributes 0. Its raw value is a sum rather than an average, and `normalized=True` divides it by
+`n - 1` to give a score between 0 and 1:
+
+```{python}
+harmonic = karate.harmonic_centrality(normalized=True, return_dict=True)
+round(karate.get_node(1).attributes["harmonic_centrality"], 2), round(harmonic[1], 3)
+```
+
+Both measures accept `mode=` for directed graphs (`"out"` measures distances from a node, `"in"`
+distances to it) and `weighted=` for weighted graphs, in which distances are total edge weights.
+[`current_flow_closeness_centrality()`](../reference/Graph.current_flow_closeness_centrality.qmd),
+also called information centrality, is a variant that treats the graph as an electrical network,
+and so counts every path between two nodes rather than only the shortest.
+
+## Betweenness centrality
+
+[`betweenness_centrality()`](../reference/Graph.betweenness_centrality.qmd) measures how often a
+node lies on the shortest paths between other nodes. A node with high betweenness controls the
+flow of whatever travels along shortest paths, whether information, goods, or influence, and its
+removal lengthens many routes. The scores are normalized to lie between 0 and 1, where 1 would mean
+that a node lies on every shortest path between every other pair.
+
+The classic illustration is the marriage network of Renaissance Florence. The Medici were not the
+wealthiest family, nor the best connected by marriage, yet they came to dominate the city.
+Betweenness suggests why:
+
+```{python}
+florentine = ec.florentine_families().degrees().betweenness_centrality()
+(
+    florentine.get_node_df()
+    .select("label", "degree", "betweenness_centrality")
+    .sort("betweenness_centrality", descending=True)
+    .head(6)
+)
+```
+
+The Medici lie on more than half of all the shortest paths between other families, twice the share
+of the next family. Their six marriages linked families that were otherwise poorly connected to one
+another, which made the Medici the indispensable intermediaries of Florentine politics. The
+Salviati, with only two marriages, rank fourth: they are the only link between the Pazzi and the
+rest of the network.
+
+### Weighted betweenness
+
+On a weighted graph, betweenness follows the weighted shortest paths, which treat each weight as a
+*length*. That is right for distances and travel times, but many networks have weights that
+measure the *strength* of a tie, such as the number of messages exchanged or the number of
+meetings. A shortest path that prefers weak ties makes little sense for those.
+
+The Les Misérables network is an example. Its weights count the chapters in which two characters
+appear together, so a high weight means a close relationship:
+
+```{python}
+miserables = ec.les_miserables()
+
+def top_five(graph, scores):
+    ranked = sorted(scores, key=scores.get, reverse=True)
+    return [graph.get_label_from_id(node) for node in ranked[:5]]
+
+top_five(miserables, miserables.betweenness_centrality(return_dict=True))
+```
+
+Taken as lengths, the co-occurrence counts route shortest paths through the characters who share
+few scenes. The usual remedy is to invert the weights, so that strong ties become short:
+
+```{python}
+miserables.set_edge_attrs(
+    "weight",
+    {edge["id"]: 1 / edge["weight"] for edge in miserables.get_edge_df().iter_rows(named=True)},
+)
+top_five(miserables, miserables.betweenness_centrality(return_dict=True))
+```
+
+Valjean still comes first, but Marius, Fantine, and the student Courfeyrac, whose strong ties bind
+the novel's storylines together, now replace Gavroche, Javert, and Thénardier. For comparison,
+`weighted=False` ignores the weights altogether. Whichever choice you make, make it deliberately:
+EdgeCase can't tell whether a weight is a length or a strength.
+
+### Edge betweenness
+
+[`edge_betweenness_centrality()`](../reference/Graph.edge_betweenness_centrality.qmd) applies the
+same idea to edges, and stores its scores as an edge attribute. Edges with high betweenness are the
+bridges between groups, which is why repeatedly removing them is one way of finding communities
+(see [Communities](14-communities.qmd)). In the karate club, the edge with the highest betweenness
+joins the instructor to member `"31"`, who belongs to the other faction:
+
+```{python}
+karate.edge_betweenness_centrality()
+top_edge = karate.get_edge_df().sort("edge_betweenness_centrality", descending=True).row(0, named=True)
+[
+    (karate.get_label_from_id(top_edge[end]), karate.get_node(top_edge[end]).attributes["faction"])
+    for end in ("source", "target")
+]
+```
+
+Only ten friendships cross between the factions, and many of the shortest paths from the
+instructor's circle to the members around `"31"` run along this one, so it carries more traffic
+than any other edge.
+
+### Variants
+
+Several variants of betweenness change what counts as a route:
+
+| Method | Counts |
+|---|---|
+| [`load_centrality()`](../reference/Graph.load_centrality.qmd) | flow split equally at each branch of the shortest paths, rather than across them |
+| [`current_flow_betweenness_centrality()`](../reference/Graph.current_flow_betweenness_centrality.qmd) | every path, weighted as current in an electrical network (also called random-walk betweenness) |
+| [`approximate_current_flow_betweenness_centrality()`](../reference/Graph.approximate_current_flow_betweenness_centrality.qmd) | the same, estimated from a sample of pairs |
+| [`communicability_betweenness_centrality()`](../reference/Graph.communicability_betweenness_centrality.qmd) | walks of every length, with longer walks counting for less |
+| [`betweenness_centrality_subset()`](../reference/Graph.betweenness_centrality_subset.qmd) | only the paths from given sources to given targets |
+| [`edge_load_centrality()`](../reference/Graph.edge_load_centrality.qmd), [`edge_current_flow_betweenness_centrality()`](../reference/Graph.edge_current_flow_betweenness_centrality.qmd) | edge versions of load and current-flow betweenness |
+
+### Groups of nodes
+
+Sometimes the question is about a set of nodes rather than one: what share of the network's
+traffic would a team of monitors see between them?
+[`group_betweenness_centrality()`](../reference/Graph.group_betweenness_centrality.qmd) answers it
+for a group you choose, counting the shortest paths that pass through *at least one* member:
+
+```{python}
+round(karate.group_betweenness_centrality([1, 34]), 3)
+```
+
+The instructor and the administrator together lie on about 69% of the shortest paths between the
+other members. [`prominent_group()`](../reference/Graph.prominent_group.qmd) searches for the best
+group of a given size, and returns its score and members:
+
+```{python}
+karate.prominent_group(3)
+```
+
+Adding member `"32"` (ID 33) raises the share to 81%. The best group of `k` isn't always the `k`
+individually most central nodes, since two nodes on the same routes see the same traffic; on large
+graphs, `greedy=True` trades optimality for speed.
+[`group_closeness_centrality()`](../reference/Graph.group_closeness_centrality.qmd) and
+[`group_degree_centrality()`](../reference/Graph.group_degree_centrality.qmd) are the closeness and
+degree equivalents.
+
+## Spectral centrality
+
+The spectral measures rest on a recursive idea: a node is important if it is linked to other
+important nodes. Solving that circular definition requires the eigenvectors of the adjacency
+matrix, from which the family takes its name.
+
+[`eigen_centrality()`](../reference/Graph.eigen_centrality.qmd) applies the idea directly: each
+node's score is proportional to the sum of its neighbors' scores. It rewards a node for being
+connected to the well-connected, so in the karate club it ranks the administrator first, since
+their friends include the members with the most friends. One point to note for directed graphs:
+EdgeCase sums the scores of a node's *successors*, so a node is central if it points to central
+nodes. NetworkX sums those of its predecessors instead.
+
+[`katz_centrality()`](../reference/Graph.katz_centrality.qmd) adds a baseline score, `beta=`, to
+every node, so that nodes with no central neighbors, and nodes in directed graphs that nothing
+points to, still receive credit. Its `alpha=` sets how quickly the influence of distant nodes
+fades. The calculation only converges when `alpha` is below the reciprocal of the adjacency
+matrix's largest eigenvalue (about 0.149 for the karate club), and EdgeCase emits a
+`RuntimeWarning` when it isn't. The default of 0.1 is safe for most sparse networks, but dense
+graphs may need a smaller value. [`alpha_centrality()`](../reference/Graph.alpha_centrality.qmd)
+and [`bonacich_power_centrality()`](../reference/Graph.bonacich_power_centrality.qmd) are close
+relatives.
+
+### PageRank
+
+[`pagerank()`](../reference/Graph.pagerank.qmd) is the measure Google used to rank web pages. It
+models a reader who follows links at random and, with probability `1 - damping` at each step,
+jumps to a random page instead. A node's PageRank is the fraction of time the reader spends there,
+so the scores sum to 1. The random jumps make PageRank well defined on any directed graph, even
+one with nodes that have no outgoing links.
+
+PageRank is most interesting in directed networks, where it differs most from simply counting
+incoming links. In Wikipedia's administrator elections, an edge from one user to another is a vote:
+
+```{python}
+votes = ec.wiki_vote().pagerank().degree_centrality(mode="in", attr_name="in_degree")
+(
+    votes.get_node_df()
+    .select("label", "pagerank", "in_degree")
+    .sort("pagerank", descending=True)
+    .head(5)
+)
+```
+
+The top two users are also the two who received the most votes. User `"6633"` is different: they
+rank third by PageRank with less than half the votes of the leader, because their votes came from
+users who themselves received many votes. In-degree counts the votes; PageRank also weighs them.
+
+[`personalized_pagerank()`](../reference/Graph.personalized_pagerank.qmd) makes every random jump
+land on a chosen set of nodes, given as a dictionary of node IDs and weights. The result measures
+importance *from the point of view of* those nodes, which makes it useful for recommendations and
+for finding the nodes most relevant to a seed. From member `"11"` (ID 12), whose only friend is the
+instructor, the instructor's circle dominates:
+
+```{python}
+personal = karate.personalized_pagerank({12: 1.0}, return_dict=True)
+[(node, round(score, 3)) for node, score in sorted(personal.items(), key=lambda x: -x[1])[:5]]
+```
+
+The instructor scores even higher than member `"11"` themselves. The administrator (ID 34), who
+leads the club-wide ranking, comes fifth.
+
+## Hubs and authorities
+
+Kleinberg's HITS algorithm gives each node of a directed graph two scores. A good *authority* is
+pointed to by many good hubs, and a good *hub* points to many good authorities.
+[`authority_centrality()`](../reference/Graph.authority_centrality.qmd) and
+[`hub_centrality()`](../reference/Graph.hub_centrality.qmd) compute the two scores, and the
+distinction suits the election network well: authorities are the candidates whom respected voters
+supported, and hubs are the voters who supported respected candidates.
+
+```{python}
+votes.hub_centrality().authority_centrality()
+(
+    votes.get_node_df()
+    .select("label", "hub_centrality", "authority_centrality")
+    .sort("hub_centrality", descending=True)
+    .head(3)
+)
+```
+
+The leading hubs have authority scores of zero: they cast many votes for successful candidates but
+received none themselves. In an undirected graph, hubs and authorities coincide, and both equal
+eigenvector centrality.
+
+## Brokerage
+
+Ronald Burt's theory of *structural holes* holds that a person whose contacts don't know one
+another is well placed to broker between them, and to learn things the others don't. Two measures
+capture this.
+
+[`constraint()`](../reference/Graph.constraint.qmd) measures how much a node's contacts are
+connected to one another, and so how little room they leave it to broker. Lower values mean more
+brokerage opportunity. [`effective_size()`](../reference/Graph.effective_size.qmd) counts a node's
+contacts, discounted for the ties among them, so a node whose contacts are all strangers to one
+another has an effective size equal to its degree.
+
+```{python}
+karate.constraint().effective_size()
+(
+    karate.get_node_df()
+    .select("id", "label", "degree", "constraint", "effective_size")
+    .sort("constraint")
+    .head(5)
+)
+```
+
+The instructor and the administrator are the least constrained members, with effective sizes of
+about 14 and 15: nearly all their friends are separate contacts. At the other extreme, member
+`"11"` has a constraint of 1, the maximum, since their single friend is their only link to the
+club. [`local_constraint()`](../reference/Graph.local_constraint.qmd) breaks a node's constraint
+down by contact, and [`dispersion()`](../reference/Graph.dispersion.qmd) scores a single tie by how
+poorly connected the two nodes' mutual friends are to one another, which has been used to identify
+romantic partners in social networks.
+
+## Spreaders
+
+Some measures are designed for spreading processes, such as an epidemic or the adoption of a new
+idea. [`voterank()`](../reference/Graph.voterank.qmd) picks a set of spreaders one at a time. Each
+node votes for its neighbors, the node with the most votes is chosen, and then its neighbors' votes
+are weakened, so that the next choice tends to lie elsewhere in the network. It returns the chosen
+node IDs in order:
+
+```{python}
+karate.voterank(count=4)
+```
+
+[`percolation_centrality()`](../reference/Graph.percolation_centrality.qmd) generalizes
+betweenness to a network in which each node has a *state* between 0 and 1, such as its level of
+infection, and weights the paths from each source by its state. With every state equal, it reduces
+to betweenness. [Spreading and robustness](32-spreading.qmd) covers the simulation of spreading
+processes in full.
+
+## Comparing measures
+
+Different measures often broadly agree, and it is worth checking how far. A Spearman rank
+correlation compares the orders in which two measures rank the nodes, and Polars computes it
+directly from the node table:
+
+```{python}
+node_df = karate.get_node_df()
+pl.DataFrame(
+    {
+        "measure": measures,
+        **{
+            other: [
+                round(node_df.select(pl.corr(m, other, method="spearman")).item(), 2)
+                for m in measures
+            ]
+            for other in ["degree_centrality", "betweenness_centrality", "pagerank"]
+        },
+    }
+)
+```
+
+The measures are strongly correlated in the karate club, as they usually are in small, connected
+social networks. Degree and PageRank are almost interchangeable here, while eigenvector centrality
+agrees least with the others: it rewards a node for the company it keeps, so two members with the
+same number of friends can score very differently depending on whether those friends are hubs.
+When the measures disagree, the disagreement itself is informative, and it is worth looking at the
+nodes responsible.
+
+A drawing is often the quickest comparison. Sizing the nodes by betweenness and coloring them by
+faction shows the two leaders, and the members between the factions, such as `"2"` and `"31"`,
+who also carry much of the club's traffic:
+
+```{python}
+karate.plot(
+    size_by="betweenness_centrality", color_by="faction", label_by="label", seed=4
+)
+```
+
+[Aesthetics](24-aesthetics.qmd) has more on mapping attributes to sizes and colors.
+
+### Selecting the most central nodes
+
+To act on the most central nodes, rather than just list them,
+[`select_nodes_by_centrality()`](../reference/Graph.select_nodes_by_centrality.qmd) computes a
+measure and selects the `k` highest-scoring nodes in one step. It supports `"degree"`,
+`"in_degree"`, `"out_degree"`, `"pagerank"`, and `"betweenness"`, and stores no attribute. The
+selection can then be passed to any `_ws` method (see [Selections](08-selections.qmd)), here to
+tag the five members with the highest betweenness:
+
+```{python}
+(
+    karate
+    .select_nodes_by_centrality(measure="betweenness", k=5, set_op="replace")
+    .set_node_attrs_ws(type="broker")
+    .clear_selection()
+    .get_node_df()
+    .filter(type="broker")
+    .select("id", "label", "betweenness_centrality")
+)
+```
+
+`include_ties=True` selects every node tied at the cut-off, so the result may hold more than `k`
+nodes.
+
+## Performance
+
+The measures differ greatly in cost. Degree is computed in a single pass over the edges, and the
+spectral measures (eigenvector, Katz, PageRank, HITS) need a few dozen passes, so all of them are
+fast on graphs with millions of edges. Closeness, harmonic, and betweenness centrality require a
+shortest-path search from every node, so their cost grows with the product of the numbers of
+nodes and edges. EdgeCase runs these searches in parallel in its Rust core, and computes
+betweenness for the 5,000-node power grid in about half a second, but on graphs with hundreds of
+thousands of nodes they become slow. The current-flow measures, which solve systems of linear
+equations, are the most expensive, and are best kept to graphs of a few thousand nodes.
+
+For large graphs, prefer the cheap measures for exploration, and use
+[`approximate_current_flow_betweenness_centrality()`](../reference/Graph.approximate_current_flow_betweenness_centrality.qmd)
+or `prominent_group(greedy=True)` where an approximation will do.
+
+## More measures
+
+EdgeCase implements many more centrality measures, each designed for a particular question. They
+follow the same conventions as the measures above:
+
+| Method | Measures |
+|---|---|
+| [`subgraph_centrality()`](../reference/Graph.subgraph_centrality.qmd) | the closed walks through a node, with longer walks counting for less |
+| [`laplacian_centrality()`](../reference/Graph.laplacian_centrality.qmd) | the drop in the graph's Laplacian energy when a node is removed |
+| [`second_order_centrality()`](../reference/Graph.second_order_centrality.qmd) | the variability of a random walk's return times to a node; *lower* values are more central |
+| [`closeness_vitality()`](../reference/Graph.closeness_vitality.qmd), [`get_node_vitality()`](../reference/Graph.get_node_vitality.qmd) | the increase in the total distance between all pairs when a node is removed |
+| [`leverage_centrality()`](../reference/Graph.leverage_centrality.qmd) | how a node's degree compares with its neighbors' degrees |
+| [`radiality()`](../reference/Graph.radiality.qmd) | how close a node is to the others, relative to the graph's diameter |
+| [`bridging_centrality()`](../reference/Graph.bridging_centrality.qmd) | betweenness combined with a coefficient for lying between dense regions |
+| [`domirank_centrality()`](../reference/Graph.domirank_centrality.qmd) | dominance over neighbors, from competition between nodes |
+| [`knotty_centrality()`](../reference/Graph.knotty_centrality.qmd) | membership of the network's densely connected, high-betweenness core |
+| [`local_reaching_centrality()`](../reference/Graph.local_reaching_centrality.qmd), [`global_reaching_centrality()`](../reference/Graph.global_reaching_centrality.qmd) | how much of a directed graph a node can reach, and how hierarchical the graph is |
+| [`incremental_closeness_centrality()`](../reference/Graph.incremental_closeness_centrality.qmd) | closeness after adding or removing a single edge, without recomputing from scratch |
+| [`bipartite_degree_centrality()`](../reference/Graph.bipartite_degree_centrality.qmd), [`bipartite_closeness_centrality()`](../reference/Graph.bipartite_closeness_centrality.qmd), [`bipartite_betweenness_centrality()`](../reference/Graph.bipartite_betweenness_centrality.qmd), [`birank()`](../reference/Graph.birank.qmd) | centrality in bipartite graphs, normalized by the size of each side |
+
+Choosing among them is a matter of matching the measure to the process of interest. If influence
+travels along shortest paths, use betweenness or closeness; if it travels by every route, as rumors
+and infections do, use a current-flow or spectral measure; and if only direct contact matters, use
+degree. [Communities](14-communities.qmd) takes the next step, from important nodes to important
+groups of nodes.
