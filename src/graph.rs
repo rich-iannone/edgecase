@@ -3614,7 +3614,7 @@ impl Graph {
 
     /// Compute local clustering coefficient for each node
     /// For undirected graphs: C(v) = 2 * triangles(v) / (degree(v) * (degree(v) - 1))
-    /// For directed graphs: C(v) = triangles(v) / (out_degree(v) * (out_degree(v) - 1))
+    /// For directed graphs: Fagiolo's directed clustering, as in `networkx.clustering`
     ///
     /// Returns None for nodes with degree < 2 (no triangles possible)
     ///
@@ -4848,20 +4848,14 @@ impl Graph {
             }
         }
 
-        // The named attribute (1.0 if missing); "weight" also falls back to the weight field,
-        // where weighted graphs keep it
+        // The named attribute, which every edge must hold ("weight" falls back to the weight
+        // field, where weighted graphs keep it); 1.0 for every edge without `weight=`
+        crate::utils::check_named_edge_weights(self, weight.as_deref(), "weight")?;
         let edge_weight_of = |e: &Edge| -> f64 {
-            let Some(ref w) = weight else {
-                return 1.0;
-            };
-            e.attributes
-                .as_ref()
-                .and_then(|attrs| {
-                    let dict = attrs.bind(py).downcast::<PyDict>().ok()?;
-                    dict.get_item(w).ok().flatten()?.extract::<f64>().ok()
-                })
-                .or(if w == "weight" { e.weight } else { None })
-                .unwrap_or(1.0)
+            match weight {
+                Some(ref w) => crate::utils::named_edge_weight(py, e, w).unwrap_or(1.0),
+                None => 1.0,
+            }
         };
 
         // Collect and sort edges by weight
@@ -8160,17 +8154,8 @@ impl Graph {
 
         for edge in &self.edges {
             let weight = if let Some(attr) = weight_attr {
-                // Get weight from custom attribute
-                let value = match edge.attributes {
-                    Some(ref attrs) => attrs.bind(py).downcast::<PyDict>()?.get_item(attr)?,
-                    None => None,
-                };
-                match value {
-                    Some(val) => val.extract::<f64>().unwrap_or(1.0),
-                    // Weighted graphs keep weights in the weight field, not as an attribute
-                    None if attr == "weight" => edge.weight.unwrap_or(1.0),
-                    None => 1.0,
-                }
+                // Every edge must hold the attribute; "weight" falls back to the weight field
+                crate::utils::require_named_edge_weight(py, edge, attr, "weight_attr")?
             } else {
                 // Use edge.weight field, default to 1.0
                 edge.weight.unwrap_or(1.0)
