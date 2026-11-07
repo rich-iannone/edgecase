@@ -1,0 +1,202 @@
+---
+title: Quick start
+guide-section: "Getting started"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+This page is a short tour of EdgeCase. It builds a small graph by hand, analyzes a real social
+network, draws it, and queries it. Each step takes only a few lines, and each is covered in depth
+later in the guide.
+
+## Build a graph
+
+The quickest way to make a graph is from a list of edges. Each pair names two nodes by label, and
+any node that doesn't exist yet is created along the way:
+
+```{python}
+import edgecase as ec
+
+friends = ec.Graph.from_edges(
+    [
+        ("Ana", "Ben"), ("Ana", "Cleo"), ("Ben", "Cleo"),
+        ("Cleo", "Dev"),
+        ("Dev", "Eli"), ("Dev", "Finn"), ("Eli", "Finn"),
+    ],
+    graph_name="Friends",
+)
+friends
+```
+
+The summary shows that the graph has six nodes and seven edges, that it is undirected (the default),
+and that it is connected. These are two triangles of friends joined by a single friendship between
+Cleo and Dev.
+
+Every node received an integer ID, in the order it first appeared. The node table shows the IDs
+next to the labels, along with each node's degree:
+
+```{python}
+friends.get_node_df()
+```
+
+The edge table lists each edge with its own ID and the IDs of its two endpoints:
+
+```{python}
+friends.get_edge_df()
+```
+
+## Ask questions about it
+
+Methods that answer a question return the answer directly. Here is the shortest path from Ana to
+Finn, as a list of node IDs, and then translated back to labels:
+
+```{python}
+path = friends.shortest_path("Ana", "Finn", return_list=True)
+[friends.get_label_from_id(node) for node in path]
+```
+
+The path has to cross the Cleo–Dev edge, which suggests that Cleo and Dev are the most important
+brokers in this little network. Betweenness centrality measures exactly that: the share of shortest
+paths that pass through each node. Rather than returning the scores, it stores them in a node
+attribute and returns the graph, so the result appears as a new column of the node table:
+
+```{python}
+friends.betweenness_centrality().get_node_df()
+```
+
+Cleo and Dev each score 0.6, and everyone else scores zero, since every other node can be bypassed.
+
+## Analyze a real network
+
+EdgeCase includes several well-known networks. Zachary's karate club records the friendships among
+34 members of a university karate club, which split into two factions after a dispute between the
+instructor and the club's administrator:
+
+```{python}
+karate = ec.karate_club()
+karate
+```
+
+Because computations store their results and return the graph, several of them can be chained. This
+detects communities with the Louvain method and computes PageRank for every member:
+
+```{python}
+karate = karate.cmty_louvain().pagerank()
+karate
+```
+
+The summary now lists both computations and the attributes that hold them. With the results in the
+node table, Polars does the rest. Here are the five most central members:
+
+```{python}
+karate.get_node_df().sort("pagerank", descending=True).head(5)
+```
+
+The administrator (label `"33"`) and the instructor (label `"0"`) come out on top, as the two
+leaders of the factions should. Grouping by community shows how the members were divided:
+
+```{python}
+karate.get_node_df().group_by("cmty_louvain").len().sort("cmty_louvain")
+```
+
+## Draw it
+
+`plot()` draws the graph as an SVG image. Mapping the community to color and PageRank to size
+makes the structure plain to see, and a fixed `seed=` makes the layout the same on every run:
+
+```{python}
+karate.plot(color_by="cmty_louvain", size_by="pagerank", label_by="label", seed=7)
+```
+
+Edges inside a community take its color, while edges between communities are drawn in a neutral
+gray. The two largest nodes are the instructor and the administrator, each at the center of their
+own group.
+
+## Select and act
+
+Many operations work on a *selection* of nodes or edges. A `select_*` method chooses the nodes, and
+the methods whose names end in `_ws` ("with selection") act on them. This selects the three members
+with the highest PageRank, marks them as hubs, and shows only the selected rows:
+
+```{python}
+(
+    karate
+    .select_nodes_by_centrality(measure="pagerank", k=3)
+    .set_node_attrs_ws(hub=True)
+    .get_node_df_ws()
+)
+```
+
+The `hub` attribute now exists on those three nodes, and is `null` for all the others. A selection
+persists until it is changed, so call `clear_selection()` when you're done with it, to keep it from
+carrying over into the next operation:
+
+```{python}
+karate.clear_selection().count_selected_nodes()
+```
+
+## Query it
+
+For questions about the *shape* of connections, EdgeCase reads a subset of Cypher, the query
+language of graph databases. This query finds every friendship that crosses from one faction to the
+other and counts them by community pair:
+
+```{python}
+karate.match("""
+    MATCH (a)--(b)
+    WHERE a.faction = 1 AND b.faction = 2
+    RETURN a.cmty_louvain AS from_cmty, b.cmty_louvain AS to_cmty, count(*) AS n
+    ORDER BY n DESC
+""")
+```
+
+Ten friendships cross the faction line, and nine of them join community 0 to one of the
+communities on the administrator's side. The result is a Polars DataFrame, ready to join, filter,
+or plot.
+
+## Review the history
+
+Every change to a graph is recorded in its step log. The `steps` property shows what has been done
+to the karate graph so far:
+
+```{python}
+karate.steps
+```
+
+Each row is one step: the loading of the graph, the two attribute updates made by the
+computations, the selection and the attribute set on it, the clearing of the selection, and the
+query. The log can be filtered, exported to a DataFrame, or replayed as an animation, which is
+useful for explaining an analysis or checking how a graph came to be.
+
+## Save it
+
+Finally, graphs can be written to many file formats and converted to other libraries' graph
+objects. This writes the karate graph, with all of its computed attributes, to GraphML, a format
+that Gephi, Cytoscape, and NetworkX all read:
+
+```{python}
+import os
+import tempfile
+
+path = os.path.join(tempfile.mkdtemp(), "karate.graphml")
+ec.to_graphml(karate, path)
+ec.from_graphml(path).get_node_df()
+```
+
+Reading the file back gives the same 34 nodes, with the community, PageRank, and hub columns
+intact.
+
+## Where to go next
+
+- [The graph model](03-graph-model.qmd) explains IDs, labels, types, and attributes in detail.
+- [Building graphs](04-building-graphs.qmd) covers every way of adding and removing nodes and edges.
+- [Selections](08-selections.qmd) and [traversals](09-traversals.qmd) explain the select-and-act
+  style shown above.
+- The **Analysis** pages, starting with [structure and properties](11-structure.qmd), work
+  through the algorithms.
