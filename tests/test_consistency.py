@@ -46,6 +46,54 @@ class TestUnknownIdsRaiseLikeLabels:
             g.select_edges_by_node([1, 999])
         assert g.get_selected_edge_ids() == []
 
+    @pytest.mark.parametrize("bad", [999, -1])
+    def test_unknown_edge_ids(self, bad):
+        # negative IDs used to raise OverflowError, and delete_edge_by_id() a plain KeyError
+        g = _dir_ab()
+        assert g.has_edge_id(bad) is False
+        assert g.get_node_ids_by_edge_id(bad) is None
+        for call in (g.get_edge, g.delete_edge_by_id, lambda x: g.delete_edge(id=x)):
+            with pytest.raises(ec.EdgeNotFoundError, match=f"Edge with ID {bad} does not exist"):
+                call(bad)
+        assert g.count_edges() == 2
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda g: g.k_core(-1),
+            lambda g: g.k_shell(-1),
+            lambda g: g.k_crust(-1),
+            lambda g: g.k_corona(-1),
+            lambda g: g.k_truss(-1),
+            lambda g: g.is_k_regular(-1),
+            lambda g: g.k_shortest_paths("A", "B", -1),
+            lambda g: g.power(-1),
+            lambda g: g.random_walk("A", -1),
+            lambda g: g.random_edge_walk("A", -1),
+            lambda g: g.select_last_nodes_created(-1),
+            lambda g: g.select_last_edges_created(-1),
+            lambda g: g.cmty_fluid(-1),
+            lambda g: g.cmty_fluid(1, max_iter=-1),
+            lambda g: g.lukes_partitioning(-1),
+            lambda g: g.influence_maximization(-1),
+            lambda g: g.influence_maximization(1, n_simulations=-1),
+            lambda g: g.prominent_group(-1),
+            lambda g: g.add_gnp_graph(-1, 0.5),
+            lambda g: g.add_gnm_graph(3, -1),
+            lambda g: g.add_pa_graph(-1),
+            lambda g: g.add_smallworld_graph(-1),
+            lambda g: g.add_random_geometric_graph(5, 0.5, dim=-1),
+            lambda g: g.add_johnson_graph(4, -1),
+        ],
+    )
+    def test_negative_counts_raise_value_error(self, call):
+        # pyo3 used to raise OverflowError converting them to unsigned integers
+        g = ec.Graph().add_nodes(["A", "B"]).add_edge("A", "B")
+        steps = len(g.steps)
+        with pytest.raises(ValueError, match="must be non-negative"):
+            call(g)
+        assert len(g.steps) == steps and g.count_nodes() == 2
+
 
 class TestNoPartialWork:
     def test_select_by_id_is_atomic(self):
@@ -611,3 +659,28 @@ def test_delete_edge_with_no_edge_between_nodes():
         g.delete_edge("B", "A")
     with pytest.raises(KeyError):
         g.delete_edge("B", "A")
+
+
+class TestNaNWeightsRejected:
+    """A NaN weight compares false with everything, so sorting and best-choice steps aborted
+    the process (label propagation, Kernighan-Lin, degree mixing) or looped (eulerize). NaN
+    weights are now rejected where they enter; infinite weights are still allowed."""
+
+    @pytest.mark.parametrize(
+        "call",
+        [
+            lambda g: g.add_edge("A", "B", weight=float("nan")),
+            lambda g: g.add_edges([("A", "B", {"weight": float("nan")})]),
+            lambda g: g.set_edge_attrs("weight", float("nan")),
+            lambda g: g.set_edge_attrs("weight", {1: float("nan")}),
+        ],
+    )
+    def test_nan_weight_raises(self, call):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"]).add_edge("B", "C", weight=1.0)
+        with pytest.raises(ValueError, match="NaN"):
+            call(g)
+        assert [g.get_edge(e).weight for e in g.get_edge_ids()] == [1.0]
+
+    def test_infinite_weight_allowed(self):
+        g = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=float("inf"))
+        assert g.get_edge(g.get_edge_ids()[0]).weight == float("inf")
