@@ -380,10 +380,17 @@ pub fn bethe_hessian_matrix(
 #[pyfunction]
 #[pyo3(signature = (graph, weighted=false))]
 pub fn modularity_spectrum(py: Python, graph: &Graph, weighted: bool) -> PyResult<PyObject> {
-    let (_, idx) = sorted_ids(graph);
+    let (ids, idx) = sorted_ids(graph);
+    if ids.is_empty() {
+        // nalgebra's decompositions abort on a 0 × 0 matrix
+        return Ok(pyo3::types::PyList::empty(py).into());
+    }
     let b = modularity_dense(graph, &idx, weighted);
     if graph.is_directed() {
-        let mut vals: Vec<na::Complex<f64>> = b.complex_eigenvalues().iter().copied().collect();
+        // nalgebra's `complex_eigenvalues()` never converges on some of these matrices
+        // (an edgeless digraph's zero matrix among them), so use the EISPACK-style solver
+        let mut vals = crate::algorithms::eigen::general_eigenvalues(&b)
+            .ok_or_else(|| err("Eigenvalue computation failed to converge for directed graph"))?;
         vals.sort_by(|x, y| x.re.total_cmp(&y.re).then(x.im.total_cmp(&y.im)));
         let list = pyo3::types::PyList::empty(py);
         for v in vals {
@@ -405,8 +412,11 @@ pub fn modularity_spectrum(py: Python, graph: &Graph, weighted: bool) -> PyResul
 #[pyfunction]
 #[pyo3(signature = (graph, r=None, weighted=false))]
 pub fn bethe_hessian_spectrum(graph: &Graph, r: Option<f64>, weighted: bool) -> PyResult<Vec<f64>> {
-    let (_, idx) = sorted_ids(graph);
+    let (ids, idx) = sorted_ids(graph);
     let (h, _) = bethe_dense(graph, &idx, r, weighted)?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut vals: Vec<f64> = na::SymmetricEigen::new(h)
         .eigenvalues
         .iter()
@@ -561,8 +571,11 @@ pub fn magnetic_spectrum(
     normalized: bool,
     weighted: bool,
 ) -> PyResult<Vec<f64>> {
-    let (_, idx) = sorted_ids(graph);
+    let (ids, idx) = sorted_ids(graph);
     let l = magnetic_dense(graph, &idx, q, normalized, weighted)?;
+    if ids.is_empty() {
+        return Ok(Vec::new());
+    }
     let mut vals: Vec<f64> = na::SymmetricEigen::new(l)
         .eigenvalues
         .iter()
@@ -779,6 +792,9 @@ pub fn exp_cosh_diagonals(
     let (ids, idx) = sorted_ids(graph);
     let a = dense_adjacency(graph, &idx, weighted);
     let n = ids.len();
+    if n == 0 {
+        return Ok((ids, Vec::new(), Vec::new()));
+    }
     let eig = na::SymmetricEigen::new(a);
     let mut cosh = vec![0.0; n];
     let mut exp = vec![0.0; n];
