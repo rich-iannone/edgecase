@@ -1,0 +1,620 @@
+---
+title: Coloring, matching, and covering
+guide-section: "Analysis"
+---
+
+```{python}
+#| echo: false
+#| output: false
+import great_docs as gd
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+```
+
+Many practical problems turn into a question about choosing nodes or edges under a rule. Exams
+that share a student can't be held at the same time. Each worker takes one task. Every link of a
+network must be watched by a monitor at one of its ends. These are the classic problems of
+*coloring*, *matching*, and *covering*, and this page shows how to state them as graphs and solve
+them with EdgeCase.
+
+Several of these problems are NP-hard: no known method solves them exactly and quickly on large
+graphs. For those, EdgeCase provides fast heuristics, some with guaranteed bounds, and this page
+shows how to judge the quality of an answer. Every kind of solution also has a checker, such as
+`is_valid_coloring()` or `is_vertex_cover()`, which tests an answer from any source. The last
+section covers structural tests (bipartite, planar, chordal) that tell when a hard problem becomes
+easy.
+
+## Coloring
+
+### Scheduling with colors
+
+A *coloring* gives each node a color so that no two linked nodes share one. If the nodes are exams
+and the edges join exams that some student must take both of, then each color is a time slot in
+which the exams can run together without a clash. The fewest colors that work, the *chromatic
+number*, is the shortest possible exam timetable.
+
+The conflict graph is built from the enrollments, with an edge for each pair of courses that a
+student takes together. `simplify()` then merges the edges that several students produce:
+
+```{python}
+import edgecase as ec
+import polars as pl
+from itertools import combinations
+
+enrollments = {
+    "Avery": ["Algebra", "Biology", "Chemistry"],
+    "Blake": ["Algebra", "Drama"],
+    "Casey": ["Biology", "Economics", "French"],
+    "Devon": ["Chemistry", "French"],
+    "Emery": ["Drama", "Geography", "History"],
+    "Finley": ["Economics", "History"],
+    "Harper": ["Algebra", "French", "Geography"],
+    "Jordan": ["Biology", "History"],
+}
+
+conflicts = ec.Graph()
+for courses in enrollments.values():
+    conflicts.add_edges(list(combinations(courses, 2)), auto_create_nodes=True)
+conflicts.simplify()
+conflicts.count_nodes(), conflicts.count_edges()
+```
+
+Eight courses have 16 conflicting pairs.
+[`greedy_color()`](../reference/Graph.greedy_color.qmd) colors the nodes and returns a dictionary
+from node ID to color, numbered from 0. Grouping the courses by color gives the timetable:
+
+```{python}
+slots = conflicts.greedy_color()
+
+timetable = {}
+for node, slot in sorted(slots.items(), key=lambda item: item[1]):
+    timetable.setdefault(slot, []).append(conflicts.get_label_from_id(node))
+timetable
+```
+
+Four slots are enough. Storing the colors as a node attribute and plotting by it shows that no
+edge joins two nodes of the same color:
+
+```{python}
+conflicts.set_node_attrs("slot", slots)
+conflicts.plot(color_by="slot", label_by="label", seed=2, width=500, height=400)
+```
+
+[`is_valid_coloring()`](../reference/Graph.is_valid_coloring.qmd) checks the rule for any coloring,
+such as one edited by hand to suit a constraint the graph doesn't capture.
+
+### How good is a coloring?
+
+The greedy algorithm visits the nodes one at a time and gives each the smallest color that none of
+its neighbors has. The result is always valid, but it may use more colors than necessary, so its
+count is an *upper bound* on the chromatic number.
+[`chromatic_number_upper_bound()`](../reference/Graph.chromatic_number_upper_bound.qmd) returns the
+number of colors in a coloring.
+
+A *lower bound* comes from cliques. The members of a clique are all linked to each other, so each
+needs its own color, and the chromatic number is at least the size of the largest clique. When the
+two bounds meet, the coloring is optimal:
+
+```{python}
+(
+    conflicts.chromatic_number_upper_bound(slots),
+    conflicts.clique_number(),
+    [conflicts.get_label_from_id(node) for node in conflicts.max_clique()],
+)
+```
+
+Algebra, Biology, Chemistry, and French conflict pairwise, since every pair of them shares a
+student, so no timetable can have fewer than four slots, and the greedy one is optimal.
+
+The clique bound is not always tight. The *Mycielski graphs* have no triangles at all, so their
+largest clique has only two nodes, yet they need ever more colors. The fourth of them, the
+Grötzsch graph, needs four:
+
+```{python}
+grotzsch = ec.Graph().add_mycielski_graph(n=4)
+grotzsch.clique_number(), grotzsch.chromatic_number_upper_bound()
+```
+
+When the bounds differ, the true chromatic number lies between them, and finding it exactly is
+NP-hard. Without a coloring argument, `chromatic_number_upper_bound()` colors the graph itself with
+the default greedy strategy.
+
+### Coloring strategies
+
+The order in which the greedy algorithm visits the nodes decides how many colors it uses, and
+`strategy=` chooses the order. The default, `"largest_first"`, colors high-degree nodes first,
+since they are the hardest to fit in later. `"dsatur"` picks, at each step, the node whose
+neighbors already use the most distinct colors, and usually does best. On a random graph of 200
+nodes:
+
+```{python}
+random_graph = ec.Graph().add_gnp_graph(n=200, p=0.1, seed=2)
+strategies = ["largest_first", "smallest_last", "dsatur", "independent_set", "random"]
+{
+    strategy: random_graph.chromatic_number_upper_bound(
+        random_graph.greedy_color(strategy=strategy, seed=1)
+    )
+    for strategy in strategies
+}
+```
+
+DSATUR and the independent-set strategy, which builds one color class at a time, use eight colors,
+while a random order needs eleven. With `interchange=True`, the greedy algorithm tries to avoid
+opening a new color by swapping two existing colors along a chain of nodes, which often closes much
+of the gap:
+
+```{python}
+random_graph.chromatic_number_upper_bound(random_graph.greedy_color(interchange=True))
+```
+
+Since the strategies are fast, the practical approach on a hard instance is to try several and
+keep the coloring with the fewest colors.
+
+### Coloring intervals
+
+Some graphs are easy to color exactly. In an *interval graph*, each node is a span of time, and
+two nodes are linked when their spans overlap. A day of meetings is one: each color is a meeting
+room, and the chromatic number is the number of rooms the day needs.
+[`add_interval_graph()`](../reference/Graph.add_interval_graph.qmd) builds the graph from the
+intervals, which are closed, so two meetings that merely touch (one ending at 11:00 and the next
+starting at 11:00) count as overlapping:
+
+```{python}
+meetings = {
+    "Standup": (9.0, 9.25),
+    "Design review": (9.5, 11.0),
+    "Hiring panel": (10.0, 12.0),
+    "Budget": (10.5, 11.5),
+    "Planning": (11.75, 13.0),
+    "Lunch talk": (12.25, 13.25),
+    "One-on-one": (13.5, 14.5),
+    "Retro": (14.0, 15.0),
+}
+day = ec.Graph().add_interval_graph(list(meetings.values()))
+day.relabel_nodes(dict(enumerate(meetings, start=1)))
+
+rooms = {}
+for node, room in sorted(day.greedy_color(strategy="dsatur").items(), key=lambda item: item[1]):
+    rooms.setdefault(room, []).append(day.get_label_from_id(node))
+rooms, day.clique_number()
+```
+
+Three rooms are enough, and three are needed, since the design review, the hiring panel, and the
+budget meeting are all in progress between 10:30 and 11:00. For interval graphs the two bounds
+always meet: the chromatic number equals the size of the largest clique, which is the greatest
+number of intervals that overlap at any moment. This makes interval graphs an example of the
+*perfect* graphs described [below](#graph-classes).
+
+### Edge coloring
+
+An *edge coloring* colors the edges instead, so that the edges at each node all differ. Each color
+is then a set of edges with no node in common, which can all happen at once. In a round-robin
+tournament, the teams are nodes, the games are edges, and each color is a round in which every team
+plays at most once. [`edge_coloring()`](../reference/Graph.edge_coloring.qmd) maps each edge ID to
+a color:
+
+```{python}
+teams = ["Ajax", "Benfica", "Celtic", "Dynamo", "Everton"]
+league = ec.Graph().add_nodes(teams).add_edges(list(combinations(teams, 2)))
+
+label = league.get_label_from_id
+games = {edge: (label(home), label(away)) for edge, home, away in league.get_edges_as_tuples()}
+
+schedule = {}
+for edge, matchday in sorted(league.edge_coloring().items(), key=lambda item: item[1]):
+    schedule.setdefault(matchday, []).append(games[edge])
+schedule
+```
+
+The ten games fit into five rounds of two games, and in each round the fifth team rests. A node
+with `d` edges needs `d` colors around it, so at least as many colors as the highest degree are
+needed. The method always uses at most one more than that; with five teams of degree four, five
+rounds is the best possible, since an odd number of teams can't all play in the same round.
+[`is_valid_edge_coloring()`](../reference/Graph.is_valid_edge_coloring.qmd) checks an edge
+coloring.
+
+## Matching
+
+### Pairs of nodes
+
+A *matching* is a set of edges with no node in common, so that each node is paired with at most one
+partner. Pairing students for a project, donors with recipients, or players into doubles teams are
+all matching problems, where the edges say which pairs are possible. A *maximal* matching can't be
+extended by another edge, while a *maximum* matching has the most edges of any matching. The two
+differ, as the karate club shows:
+
+```{python}
+karate = ec.karate_club()
+best = karate.max_weight_matching()
+quick = karate.maximal_matching()
+len(best), len(quick), karate.is_perfect_matching(best)
+```
+
+[`maximal_matching()`](../reference/Graph.maximal_matching.qmd) takes edges greedily and stops at
+11 pairs of friends, but [`max_weight_matching()`](../reference/Graph.max_weight_matching.qmd)
+finds 13. That still leaves 8 of the 34 members without a partner, so the club has no *perfect*
+matching, one that pairs everyone. Half of the members have three friends or fewer, and most of
+those friendships lead to the same few central members, such as the instructor, the administrator,
+and member `"32"`. Each of them can be in only one pair, so many of their friends are left out.
+
+On a weighted graph, `max_weight_matching()` maximizes the total weight of the pairs. In the
+*Les Misérables* network, the weight of an edge is the number of chapters in which two characters
+appear together, so the matching pairs characters by the strength of their ties:
+
+```{python}
+miserables = ec.les_miserables()
+pairs = miserables.max_weight_matching()
+
+label = miserables.get_label_from_id
+(
+    miserables.get_edge_df()
+    .filter(pl.col("id").is_in(pairs))
+    .sort("weight", descending=True)
+    .select(
+        pl.col("source").map_elements(label, return_dtype=pl.String),
+        pl.col("target").map_elements(label, return_dtype=pl.String),
+        "weight",
+    )
+)
+```
+
+The strongest pairs are Marius and Cosette, Javert and Valjean, and the Thénardiers. Valjean's
+strongest tie is with Cosette, but she is better paired with Marius, and the matching gives Valjean
+to Javert instead: it maximizes the total, not each pair. By default the matching ignores the
+number of pairs. With `maxcardinality=True`, it first pairs as many nodes as possible and only then
+maximizes the weight:
+
+```{python}
+def total_weight(graph, edges):
+    return graph.get_edge_df().filter(pl.col("id").is_in(edges))["weight"].sum()
+
+
+widest = miserables.max_weight_matching(maxcardinality=True)
+len(pairs), total_weight(miserables, pairs), len(widest), total_weight(miserables, widest)
+```
+
+Pairing six more characters costs a third of the total weight, since many of the remaining
+characters have only weak ties to anyone still free.
+[`min_weight_matching()`](../reference/Graph.min_weight_matching.qmd) is the opposite problem, the
+cheapest of the matchings with the most pairs, for weights that are costs. `method="greedy"` gives
+a faster approximate matching for very large graphs.
+
+### Assignment
+
+In a *bipartite* graph, the nodes fall into two groups and every edge joins the two, as with
+workers and tasks. Finding the cheapest way to give each task its own worker is the *assignment
+problem*, and [`bipartite_min_weight_full_matching()`](../reference/Graph.bipartite_min_weight_full_matching.qmd)
+solves it. The edges are the pairings that are allowed, weighted by their cost, here the hours that
+each translator needs for each part of a project:
+
+```{python}
+hours = [
+    ("Ana", "Translation", 9),
+    ("Ana", "Editing", 4),
+    ("Ana", "Layout", 6),
+    ("Ben", "Translation", 5),
+    ("Ben", "Editing", 7),
+    ("Ben", "Layout", 8),
+    ("Cleo", "Translation", 7),
+    ("Cleo", "Editing", 3),
+    ("Cleo", "Layout", 5),
+    ("Dev", "Editing", 6),
+    ("Dev", "Layout", 2),
+]
+project = ec.Graph(weighted=True).add_edges(hours, auto_create_nodes=True)
+assigned = project.bipartite_min_weight_full_matching()
+
+label = project.get_label_from_id
+[
+    (label(source), label(target))
+    for edge, source, target in project.get_edges_as_tuples()
+    if edge in assigned
+], total_weight(project, assigned)
+```
+
+The work takes 10 hours with Ben translating, Cleo editing, and Dev on layout. Every node on the
+smaller side, here the three tasks, gets a partner, so Ana is left without a task. The graph must be
+created with `weighted=True`, otherwise every pairing would count as equally costly (see
+[The graph model](03-graph-model.qmd)). To maximize a total score instead of minimizing a cost,
+negate the weights.
+
+### Why a matching can't be larger
+
+Without weights, [`bipartite_maximum_matching()`](../reference/Graph.bipartite_maximum_matching.qmd)
+finds the most pairs with the fast Hopcroft-Karp algorithm. Suppose five students list the
+projects they would accept:
+
+```{python}
+choices = {
+    "Ana": ["Robotics", "Vision"],
+    "Ben": ["Robotics", "Vision"],
+    "Cleo": ["Robotics", "Vision"],
+    "Dev": ["Vision", "Compilers", "Databases"],
+    "Eli": ["Compilers"],
+}
+projects = ec.Graph().add_edges(
+    [(student, choice) for student, options in choices.items() for choice in options],
+    auto_create_nodes=True,
+)
+students = list(choices)
+
+label = projects.get_label_from_id
+placed = projects.bipartite_maximum_matching(top_nodes=students)
+cover = projects.bipartite_vertex_cover(top_nodes=students)
+len(placed), [label(node) for node in cover]
+```
+
+At most four students can be placed. The reason is in the *vertex cover*, a set of nodes that
+touches every edge, returned by
+[`bipartite_vertex_cover()`](../reference/Graph.bipartite_vertex_cover.qmd). Every acceptable
+pairing involves Robotics, Vision, Dev, or Eli, and each of these four can be in only one pair, so
+no matching can have more than four pairs. By König's theorem, in a bipartite graph the largest
+matching and the smallest vertex cover always have the same size, so the cover is a certificate
+that the matching can't be improved. Here it points at the bottleneck: Ana, Ben, and Cleo compete
+for two projects. `top_nodes=` names one side of the graph; without it, the sides are found
+automatically.
+
+## Covers, independent sets, and dominating sets
+
+A small family of problems asks for a set of nodes that relates to the rest of the graph in a
+particular way:
+
+| Problem | The chosen nodes must | Example |
+|---|---|---|
+| Vertex cover | touch every edge | monitors that watch every link |
+| Independent set | include no two linked nodes | a committee with no conflicts of interest |
+| Dominating set | be linked to every node not chosen | facilities within reach of every town |
+
+All three are NP-hard in general. EdgeCase provides fast heuristics, and checkers that test any
+candidate set.
+
+### Vertex covers and independent sets
+
+[`min_weighted_vertex_cover()`](../reference/Graph.min_weighted_vertex_cover.qmd) finds a vertex
+cover that is guaranteed to be at most twice the size of the smallest. With `weight_attr=`, it
+minimizes the total of a node attribute, such as the cost of installing a monitor at each node,
+instead of the number of nodes. An *independent set* is the opposite: a set of nodes with no edges
+among them. [`maximum_independent_set()`](../reference/Graph.maximum_independent_set.qmd) finds a
+large one by taking low-degree nodes first:
+
+```{python}
+cover = karate.min_weighted_vertex_cover()
+independent = karate.maximum_independent_set()
+len(cover), karate.is_vertex_cover(cover), len(independent), karate.is_independent_set(independent)
+```
+
+The two problems are two views of one. If a set of nodes is independent, every edge has at least
+one end outside it, so the nodes outside it form a vertex cover. The 20 independent members
+therefore give a cover of 14, better than the 17 found directly:
+
+```{python}
+others = [node for node in range(1, 35) if node not in independent]
+len(others), karate.is_vertex_cover(others)
+```
+
+Comparing heuristics in this way, and checking the result with
+[`is_vertex_cover()`](../reference/Graph.is_vertex_cover.qmd) or
+[`is_independent_set()`](../reference/Graph.is_independent_set.qmd), is good practice whenever an
+exact answer is out of reach. On a bipartite graph, `bipartite_vertex_cover()` finds the exact
+minimum, as in the previous section.
+
+A *maximal* independent set can't be extended, but may be much smaller than the largest.
+[`maximal_independent_set()`](../reference/Graph.maximal_independent_set.qmd) builds one in a
+random order, and
+[`find_maximal_independent_sets()`](../reference/Graph.find_maximal_independent_sets.qmd) builds
+several, which shows how much they vary:
+
+```{python}
+[len(group) for group in karate.find_maximal_independent_sets(count=10, seed=1)]
+```
+
+The ten sets range from 15 to 20 members. Random restarts like these are a simple way to search for
+a larger set.
+
+[`min_edge_cover()`](../reference/Graph.min_edge_cover.qmd) is the edge version of a cover: the
+fewest edges that touch every node. It is exact, and it is closely tied to matching: the karate
+club's 13 pairs cover 26 members with 13 edges, and each of the other 8 members needs one more edge,
+for 21 in all:
+
+```{python}
+len(karate.min_edge_cover())
+```
+
+### Dominating sets
+
+A *dominating set* is a set of nodes such that every other node is linked to at least one of them,
+like a set of stations within one step of every town, or a few members who can pass a message
+directly to everyone else in the club.
+[`min_weighted_dominating_set()`](../reference/Graph.min_weighted_dominating_set.qmd) looks for a
+small one, preferring nodes that cover many others, while the simpler
+[`dominating_set()`](../reference/Graph.dominating_set.qmd) sweeps the nodes in ID order:
+
+```{python}
+hubs = karate.min_weighted_dominating_set()
+len(karate.dominating_set()), [karate.get_label_from_id(node) for node in hubs]
+```
+
+The sweep needs 13 members, but four are enough: the instructor (`"0"`), the administrator
+(`"33"`), and members `"5"` and `"24"`, who reach the members that neither leader knows.
+[`is_dominating_set()`](../reference/Graph.is_dominating_set.qmd) confirms the result, and the plot
+shows that every other member is next to one of the four:
+
+```{python}
+karate.set_node_attrs("dominating", {node: node in hubs for node in range(1, 35)})
+karate.plot(color_by="dominating", label_by="label", seed=1)
+```
+
+With `weight_attr=`, the method minimizes a total cost instead, for example when some sites are
+more expensive to build on than others.
+
+## Maximum cut
+
+The *maximum cut* splits the nodes into two sides so that as many edges as possible cross between
+them. It models dividing people into two teams so that rivals end up on opposite sides, or
+assigning the parts of a circuit to two layers so that as few wires as possible stay within one.
+It is the opposite of community detection, which looks for groups with few edges between them.
+[`max_cut()`](../reference/Graph.max_cut.qmd) returns the number of crossing edges (or their total
+weight) and the two sides:
+
+```{python}
+cut_size, (side_a, side_b) = karate.max_cut(seed=1)
+
+faction_1 = set(karate.get_node_df().filter(pl.col("faction") == 1)["id"].to_list())
+across_factions = sum(
+    (source in faction_1) != (target in faction_1)
+    for _, source, target in karate.get_edges_as_tuples()
+)
+cut_size, len(side_a), len(side_b), across_factions
+```
+
+The cut found by the method has 61 of the club's 78 friendships crossing between a side of 9
+members and a side of 25. The split into the two factions, by contrast, has only 10 friendships
+across it, which is why it is a good community structure and a poor cut. Max-cut is NP-hard, and
+the default method, a local search that moves one node at a time while that improves the cut, is
+guaranteed to cut at least half of the edges. `method="randomized"` assigns the sides at random,
+and is mainly useful as a baseline.
+
+## Graph classes
+
+Some kinds of graphs make hard problems easy, so it pays to know whether a graph belongs to one.
+EdgeCase has tests for the most useful classes.
+
+### Bipartite graphs
+
+A graph is *bipartite* when its nodes can be split into two sides with every edge between them,
+which is the same as being colorable with two colors, or having no cycle of odd length.
+[`is_bipartite()`](../reference/Graph.is_bipartite.qmd) tests this, and
+[`bipartite_sets()`](../reference/Graph.bipartite_sets.qmd) returns the two sides:
+
+```{python}
+women_events = ec.davis_southern_women()
+women, events = women_events.bipartite_sets()
+women_events.is_bipartite(), len(women), len(events), karate.is_bipartite()
+```
+
+The Southern Women network splits into its 18 women and 14 events. The karate club is not
+bipartite, since any triangle of friends is an odd cycle. The bipartite matching and cover methods
+above require a bipartite graph, and [Transforming graphs](19-transforming.qmd#derived-graphs) shows
+how to project one onto either side.
+
+### Planar graphs
+
+A graph is *planar* when it can be drawn on a page with no edges crossing, which matters for
+circuit layout, for maps (where countries that share a border form a planar graph), and for the
+many algorithms that are faster on planar inputs.
+[`check_planarity()`](../reference/Graph.check_planarity.qmd) returns the answer together with the
+evidence. For a planar graph, the evidence is an *embedding*: the neighbors of each node in
+clockwise order around it. The cube is planar:
+
+```{python}
+cube = ec.Graph().add_hypercube_graph(3)
+is_planar, embedding = cube.check_planarity()
+is_planar, embedding[1], cube.planar_faces()
+```
+
+In the drawing described by the embedding, the edges divide the page into *faces*, and
+[`planar_faces()`](../reference/Graph.planar_faces.qmd) lists the nodes around each. The cube has
+six, its six sides, including the outer face that surrounds the drawing. Euler's formula ties the
+counts together for any connected planar graph: nodes minus edges plus faces is 2, here
+`8 - 12 + 6`.
+
+For a graph that is not planar, `counterexample=True` returns the evidence of that: a *Kuratowski
+subgraph*, a copy of one of the two smallest non-planar graphs (five nodes all linked, or three
+nodes each linked to three others) with some edges possibly divided into paths:
+
+```{python}
+petersen = ec.Graph().add_named_graph("petersen")
+is_planar, witness = petersen.check_planarity(counterexample=True)
+is_planar, witness.count_nodes(), witness.count_edges(), witness.get_node_df()["degree"].to_list()
+```
+
+The Petersen graph is not planar. The witness has six nodes of degree three, which are the two
+groups of three in the second pattern, and three nodes of degree two that lie on the subdivided
+edges. Finding the witness reruns the test once for each edge, so it is slower than the plain
+check; [`is_planar()`](../reference/Graph.is_planar.qmd) gives only the answer.
+[`layout_planar()`](../reference/Graph.layout_planar.qmd) computes positions with no crossings
+for a planar graph (see [Layouts](23-layouts.qmd)).
+
+### Chordal graphs and treewidth
+
+A graph is *chordal* when every cycle of four or more nodes has a *chord*, an edge between two of
+its nodes that aren't next to each other on the cycle. Interval graphs, such as the meetings above,
+are chordal, as are trees. Chordal graphs have few maximal cliques, at most one per node, and
+[`chordal_graph_cliques()`](../reference/Graph.chordal_graph_cliques.qmd) lists them in linear
+time:
+
+```{python}
+day.is_chordal(), [[day.get_label_from_id(node) for node in clique] for clique in day.chordal_graph_cliques()]
+```
+
+Each clique of the meeting graph is a set of meetings in progress at the same moment.
+
+Most graphs are not chordal, but every graph can be made chordal by adding edges, and how few
+are needed measures how far the graph is from being a tree. That measure is the *treewidth*. A tree
+has treewidth 1, a cycle 2, and a complete graph of `n` nodes `n - 1`. Many NP-hard problems,
+including coloring, independent sets, and inference in probabilistic models, can be solved
+quickly on graphs of small treewidth, by dynamic programming over a *tree decomposition*: a tree
+whose nodes are overlapping groups of the original nodes, called *bags*.
+[`tree_decomposition()`](../reference/Graph.tree_decomposition.qmd) builds one with a heuristic and
+returns its width, the size of its largest bag minus one, which is an upper bound on the treewidth:
+
+```{python}
+width, decomposition = karate.tree_decomposition()
+width, decomposition.count_nodes(), decomposition.get_node_df()["label"].head(3).to_list()
+```
+
+The karate club has a decomposition of width 5, made of 29 bags, each labelled with its members.
+The width stays small even on much larger sparse networks. The US power grid has 4,941 nodes but a
+decomposition of width at most 19:
+
+```{python}
+ec.power_grid().tree_decomposition()[0]
+```
+
+`heuristic="min_degree"` uses a different elimination rule that is sometimes better.
+[`complete_to_chordal_graph()`](../reference/Graph.complete_to_chordal_graph.qmd) adds a minimal set
+of edges that makes a graph chordal, and
+[`chordal_graph_treewidth()`](../reference/Graph.chordal_graph_treewidth.qmd) gives the exact
+treewidth of a chordal graph. The junction trees used for exact inference in Bayesian networks are
+tree decompositions of the moral graph (see [Directed acyclic graphs](17-dags.qmd)).
+
+### Perfect graphs and cographs
+
+A graph is *perfect* when, in it and in every induced subgraph, the chromatic number equals the size
+of the largest clique, so the clique bound from the start of this page is always exact. Bipartite
+graphs, interval graphs, and chordal graphs are all perfect, and on perfect graphs the coloring,
+clique, and independent set problems can all be solved in polynomial time.
+[`is_perfect_graph()`](../reference/Graph.is_perfect_graph.qmd) tests the property:
+
+```{python}
+day.is_perfect_graph(), cube.is_perfect_graph(), grotzsch.is_perfect_graph()
+```
+
+The meeting graph and the cube are perfect. The Grötzsch graph is not, since its chromatic number
+of four is above its clique number of two.
+
+*Cographs* are the graphs that can be built from single nodes by repeatedly taking disjoint unions
+and complements, and equivalently those with no induced path on four nodes.
+[`is_cograph()`](../reference/Graph.is_cograph.qmd) tests for them, and
+[`modular_decomposition()`](../reference/Graph.modular_decomposition.qmd) returns the tree that
+describes how any graph breaks down into *modules*, groups of nodes that all have the same
+neighbors outside the group.
+
+## Summary
+
+| Problem | Methods | Exact? |
+|---|---|---|
+| Node coloring | `greedy_color()`, `chromatic_number_upper_bound()`, `is_valid_coloring()` | Heuristic; check against `clique_number()` |
+| Edge coloring | `edge_coloring()`, `is_valid_edge_coloring()` | At most one color above the optimum |
+| Matching | `max_weight_matching()`, `min_weight_matching()`, `maximal_matching()`, `is_matching()`, `is_perfect_matching()` | Exact (except `maximal_matching()` and `method="greedy"`) |
+| Bipartite matching | `bipartite_maximum_matching()`, `bipartite_min_weight_full_matching()` | Exact |
+| Vertex cover | `min_weighted_vertex_cover()`, `bipartite_vertex_cover()`, `is_vertex_cover()` | Within a factor of two; exact on bipartite graphs |
+| Edge cover | `min_edge_cover()`, `is_edge_cover()` | Exact |
+| Independent set | `maximum_independent_set()`, `maximal_independent_set()`, `find_maximal_independent_sets()`, `is_independent_set()` | Heuristic |
+| Dominating set | `min_weighted_dominating_set()`, `dominating_set()`, `is_dominating_set()` | Heuristic |
+| Maximum cut | `max_cut()` | Heuristic; at least half the edges |
+| Graph classes | `is_bipartite()`, `check_planarity()`, `is_chordal()`, `is_perfect_graph()`, `is_cograph()` | Exact |
+| Treewidth | `tree_decomposition()`, `chordal_graph_treewidth()` | Upper bound; exact on chordal graphs |
+
+The problems of finding routes through every node or edge (the traveling salesman problem, Euler
+tours, and Steiner trees) are covered in [Paths and distances](12-paths.qmd).
