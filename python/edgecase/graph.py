@@ -45716,7 +45716,8 @@ class Graph:
         -------
         dict[int, dict[int, float]]
             Nested dictionary where `result[u][v]` is the communicability between nodes `u` and `v`.
-            Values are always positive.
+            Values are positive between nodes in the same connected component and exactly `0`
+            between nodes in different components, which no walk joins.
 
         Raises
         ------
@@ -45800,6 +45801,10 @@ class Graph:
         - `G_{pq} = exp(A)_{pq}` is the communicability between p and q
         - `G_{prq}` is the decrease in communicability when node r is removed
         - `C = (n-1)^2 - (n-1)` is a normalization factor
+
+        On a disconnected graph, pairs in different components have no communicability to lose
+        and count `0`, so each component scores as it would alone, rescaled by its share of
+        `C`. NetworkX divides `0 / 0` for those pairs and returns `nan` for every node.
 
         Parameters
         ----------
