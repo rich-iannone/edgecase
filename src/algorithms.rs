@@ -69,12 +69,3 @@ pub mod structure_basics;
 pub mod topological_overlap;
 pub mod traversal;
 pub mod wgcna;
-
-#[cfg(test)]
-mod tests {
-    #[test]
-    fn test_algorithms_module() {
-        // Placeholder test for module structure
-        assert!(true);
-    }
-}
