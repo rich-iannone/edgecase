@@ -1,0 +1,53 @@
+<svg xmlns="http://www.w3.org/2000/svg" width="640" height="451" viewBox="48.1 19.5 536.9 378.5" style="font-family: -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif;">
+<rect x="48.1" y="19.5" width="536.9" height="378.5" fill="#0d1117"/>
+<line x1="529.5" y1="133.6" x2="472.1" y2="140.3" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="11-10-0" data-attrs='{}'/>
+<line x1="153.5" y1="66.7" x2="109.5" y2="102.7" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="3-4-1" data-attrs='{}'/>
+<line x1="160.4" y1="70.5" x2="154.9" y2="117.0" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="3-5-2" data-attrs='{}'/>
+<line x1="172.1" y1="61.2" x2="250.8" y2="70.2" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="3-6-3" data-attrs='{}'/>
+<line x1="352.9" y1="332.9" x2="323.1" y2="275.9" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="14-9-4" data-attrs='{}'/>
+<line x1="271.5" y1="80.5" x2="317.8" y2="129.0" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="6-2-5" data-attrs='{}'/>
+<line x1="318.9" y1="242.8" x2="332.6" y2="183.3" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="9-2-6" data-attrs='{}'/>
+<line x1="297.1" y1="260.9" x2="233.5" y2="263.5" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="9-13-7" data-attrs='{}'/>
+<line x1="390.4" y1="84.2" x2="358.9" y2="126.4" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="1-2-8" data-attrs='{}'/>
+<line x1="123.6" y1="184.7" x2="105.0" y2="117.1" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="12-4-9" data-attrs='{}'/>
+<line x1="131.6" y1="185.2" x2="148.8" y2="141.5" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="12-5-10" data-attrs='{}'/>
+<line x1="137.1" y1="204.9" x2="198.3" y2="252.3" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="12-13-11" data-attrs='{}'/>
+<line x1="110.9" y1="111.9" x2="141.7" y2="124.8" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="4-5-12" data-attrs='{}'/>
+<line x1="191.3" y1="332.0" x2="207.6" y2="283.1" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="15-13-13" data-attrs='{}'/>
+<line x1="261.1" y1="148.8" x2="307.9" y2="150.8" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="7-2-14" data-attrs='{}'/>
+<line x1="234.9" y1="145.7" x2="165.9" y2="132.1" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="7-5-15" data-attrs='{}'/>
+<line x1="252.5" y1="160.6" x2="264.0" y2="191.3" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="7-8-16" data-attrs='{}'/>
+<line x1="443.2" y1="143.3" x2="371.7" y2="149.4" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="10-2-17" data-attrs='{}'/>
+<line x1="313.7" y1="170.6" x2="278.2" y2="195.7" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="2-8-18" data-attrs='{}'/>
+<line x1="226.9" y1="249.6" x2="260.2" y2="211.9" stroke="#4b5563" stroke-width="2.1" stroke-opacity="0.4" stroke-linecap="round" data-edge="13-8-19" data-attrs='{}'/>
+<circle cx="537.4" cy="132.6" r="8.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="11" data-attrs='{"id": "11", "betweenness_centrality": 0.0}' />
+<circle cx="161.7" cy="60.0" r="10.5" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="3" data-attrs='{"id": "3", "betweenness_centrality": 0.05494505494505495}' />
+<circle cx="356.6" cy="340.0" r="8.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="14" data-attrs='{"id": "14", "betweenness_centrality": 0.0}' />
+<circle cx="263.0" cy="71.6" r="12.3" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="6" data-attrs='{"id": "6", "betweenness_centrality": 0.09340659340659341}' />
+<circle cx="314.8" cy="260.1" r="17.8" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="9" data-attrs='{"id": "9", "betweenness_centrality": 0.21245421245421245}' />
+<circle cx="395.2" cy="77.7" r="8.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="1" data-attrs='{"id": "1", "betweenness_centrality": 0.0}' />
+<circle cx="127.0" cy="197.1" r="12.8" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="12" data-attrs='{"id": "12", "betweenness_centrality": 0.1043956043956044}' />
+<circle cx="102.6" cy="108.4" r="9.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="4" data-attrs='{"id": "4", "betweenness_centrality": 0.02197802197802198}' />
+<circle cx="188.8" cy="339.6" r="8.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="15" data-attrs='{"id": "15", "betweenness_centrality": 0.0}' />
+<circle cx="247.8" cy="148.3" r="13.2" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="7" data-attrs='{"id": "7", "betweenness_centrality": 0.11355311355311357}' />
+<circle cx="457.7" cy="142.0" r="14.6" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="10" data-attrs='{"id": "10", "betweenness_centrality": 0.14285714285714288}' />
+<circle cx="339.9" cy="152.1" r="32.0" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="2" data-attrs='{"id": "2", "betweenness_centrality": 0.521978021978022}' />
+<circle cx="213.9" cy="264.4" r="19.7" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="13" data-attrs='{"id": "13", "betweenness_centrality": 0.2545787545787546}' />
+<circle cx="153.4" cy="129.7" r="12.7" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="5" data-attrs='{"id": "5", "betweenness_centrality": 0.10256410256410256}' />
+<circle cx="268.3" cy="202.7" r="12.2" fill="#4e79a7" stroke="#365474" stroke-width="1.5" stroke-opacity="0.3" data-node="8" data-attrs='{"id": "8", "betweenness_centrality": 0.09157509157509157}' />
+<text x="537.4" y="153.8" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Pazzi</text>
+<text x="161.7" y="83.7" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Castellani</text>
+<text x="356.6" y="361.2" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Ginori</text>
+<text x="263.0" y="97.1" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Barbadori</text>
+<text x="314.8" y="291.1" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Albizzi</text>
+<text x="395.2" y="98.9" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Acciaiuoli</text>
+<text x="127.0" y="223.1" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Bischeri</text>
+<text x="102.6" y="130.6" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Peruzzi</text>
+<text x="188.8" y="360.8" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Lamberteschi</text>
+<text x="247.8" y="174.7" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Ridolfi</text>
+<text x="457.7" y="169.8" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Salviati</text>
+<text x="339.9" y="197.3" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Medici</text>
+<text x="213.9" y="297.3" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Guadagni</text>
+<text x="153.4" y="155.6" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Strozzi</text>
+<text x="268.3" y="228.1" text-anchor="middle" font-family="-apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, 'Helvetica Neue', Arial, sans-serif" font-size="11.2" fill="#d1d5db" pointer-events="none">Tornabuoni</text>
+</svg>

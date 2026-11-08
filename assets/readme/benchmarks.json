@@ -1,0 +1,73 @@
+{
+  "meta": {
+    "machine": "Apple M3 Pro",
+    "python": "3.13.12",
+    "networkx": "3.5",
+    "igraph": "1.0.0"
+  },
+  "rows": [
+    {
+      "task": "Build from an edge list",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.23011070798384026,
+      "networkx": 0.06718508299672976,
+      "igraph": 0.007255542033817619
+    },
+    {
+      "task": "Connected components",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.002678625052794814,
+      "networkx": 0.013365833961870521,
+      "igraph": 0.0024872919893823564
+    },
+    {
+      "task": "PageRank",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.013080500008072704,
+      "networkx": 0.08307324995985255,
+      "igraph": 0.0294146669912152
+    },
+    {
+      "task": "Distances from one node",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.012944249960128218,
+      "networkx": 0.01445470901671797,
+      "igraph": 0.0026020000223070383
+    },
+    {
+      "task": "Triangles per node",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.011276167002506554,
+      "networkx": 0.10689087503124028,
+      "igraph": 0.024670584010891616
+    },
+    {
+      "task": "Average clustering",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.015142625023145229,
+      "networkx": 0.40882270800648257,
+      "igraph": 0.006562167021911591
+    },
+    {
+      "task": "k-core decomposition",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.021696666022762656,
+      "networkx": 0.0660059999790974,
+      "igraph": 0.0021696669864468277
+    },
+    {
+      "task": "Louvain communities",
+      "graph": "condmat (23,133 nodes, 93,439 edges)",
+      "edgecase": 0.023585250019095838,
+      "networkx": 1.4008044170332141,
+      "igraph": 0.14627174998167902
+    },
+    {
+      "task": "Exact betweenness",
+      "graph": "power_grid (4,941 nodes, 6,594 edges)",
+      "edgecase": 0.526107374986168,
+      "networkx": 36.64363633398898,
+      "igraph": 0.5292539169895463
+    }
+  ]
+}
