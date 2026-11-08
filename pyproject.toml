@@ -23,6 +23,7 @@ classifiers = [
     "Programming Language :: Python :: 3.11",
     "Programming Language :: Python :: 3.12",
     "Programming Language :: Python :: 3.13",
+    "Programming Language :: Python :: 3.14",
     "Programming Language :: Rust",
     "Topic :: Scientific/Engineering",
     "Topic :: Scientific/Engineering :: Bio-Informatics",
@@ -30,19 +31,28 @@ classifiers = [
 ]
 
 dependencies = [
-    "polars>=0.20.0",
+    "polars>=1.2.0",
     "great-tables>=0.10.0",
-    "typing-extensions>=4.5.0",
     "anywidget>=0.9.0",
 ]
 
 [project.optional-dependencies]
-dev = [
+test = [
     "pytest>=7.4.0",
-    "pytest-cov>=4.1.0",
     "pytest-benchmark>=4.0.0",
     "pytest-xdist>=3.3.0",  # parallel test execution
     "hypothesis>=6.82.0",  # property-based testing
+    # reference implementations and converters that the tests check against
+    "networkx>=3.0",
+    "igraph>=0.11",
+    "numpy>=1.24",
+    "scipy>=1.11.0",
+    "pandas>=2.0",
+    "ipython>=8.0",
+]
+dev = [
+    "edgecase[test]",
+    "pytest-cov>=4.1.0",
     "ruff>=0.9.9",
     "maturin>=1.4.0",
 ]
@@ -63,7 +73,7 @@ all = [
 [project.urls]
 Homepage = "https://github.com/rich-iannone/edgecase"
 Repository = "https://github.com/rich-iannone/edgecase"
-Documentation = "https://github.com/rich-iannone/edgecase"
+Documentation = "https://rich-iannone.github.io/edgecase/"
 Issues = "https://github.com/rich-iannone/edgecase/issues"
 
 [tool.maturin]
@@ -72,6 +82,20 @@ module-name = "edgecase._core"
 features = ["pyo3/extension-module"]
 include = [
     "python/edgecase/static/*",
+    "python/edgecase/data/*.mtx.gz",
+]
+# Keep the docs site, its render cache and the figure scripts out of the sdist
+exclude = [
+    { path = "_freeze/**/*", format = "sdist" },
+    { path = "assets/**/*", format = "sdist" },
+    { path = "data/**/*", format = "sdist" },
+    { path = "great-docs/**/*", format = "sdist" },
+    { path = "great-docs.yml", format = "sdist" },
+    { path = "scripts/**/*", format = "sdist" },
+    { path = "user_guide/**/*", format = "sdist" },
+    { path = "edgecase-show.png", format = "sdist" },
+    { path = "Makefile", format = "sdist" },
+    { path = ".vscode/**/*", format = "sdist" },
 ]
 
 [tool.pytest.ini_options]
