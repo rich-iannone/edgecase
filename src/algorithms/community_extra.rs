@@ -247,10 +247,7 @@ pub fn kernighan_lin(
                 .filter(|&u| side[u] == s && !locked[u])
                 .max_by(|&x, &y| d[x].total_cmp(&d[y]).then(y.cmp(&x)))
         };
-        loop {
-            let Some(a) = take(false, &d, &locked, &side) else {
-                break;
-            };
+        while let Some(a) = take(false, &d, &locked, &side) {
             if take(true, &d, &locked, &side).is_none() {
                 break;
             }
