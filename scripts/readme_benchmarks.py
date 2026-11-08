@@ -126,7 +126,7 @@ def main() -> int:
     run(
         "Average clustering",
         name,
-        lambda: g.get_avg_clustering_coefficient(),
+        lambda: g.average_clustering_coefficient(),
         lambda: nx.average_clustering(n),
         lambda: i.transitivity_avglocal_undirected(mode="zero"),
     )

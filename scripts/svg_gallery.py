@@ -102,7 +102,7 @@ class MockGraph:
     def is_directed(self) -> bool:
         return self._directed
 
-    def neighbors(self, nid: str) -> List[str]:
+    def get_neighbors(self, nid: str) -> List[str]:
         return self._adj.get(nid, [])
 
     def find_edge_ids(self, src: str, tgt: str) -> List:
@@ -640,7 +640,7 @@ def _generate_code(item: "GalleryItem") -> str:
         start = node_ids[0] if node_ids else "1"
         kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
         extra = f", {kw_str}" if kw_str else ""
-        lines.append(f'G.plot_traversal(start={start!r}, algorithm="{algo.upper()}"{extra})')
+        lines.append(f'G.plot_traversal(source={start!r}, algorithm="{algo.upper()}"{extra})')
     else:
         kw_str = ", ".join(f"{k}={v!r}" for k, v in rk.items() if v is not None and v is not False)
         lines.append(f"G.plot({kw_str})" if kw_str else "G.plot()")
@@ -2859,7 +2859,7 @@ def build_gallery_items() -> List[GalleryItem]:
             .add_edge("B", "E")
             .add_edge("C", "F")
             .add_edge("D", "E")
-            .bfs(start=1)
+            .bfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -2884,7 +2884,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    .add_edge('A', 'B').add_edge('A', 'C')\n"
                 "    .add_edge('B', 'D').add_edge('B', 'E')\n"
                 "    .add_edge('C', 'F').add_edge('D', 'E')\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play()"
             ),
@@ -2908,7 +2908,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    .add_edge('A', 'B').add_edge('A', 'C')\n"
                 "    .add_edge('B', 'D').add_edge('B', 'E')\n"
                 "    .add_edge('C', 'F').add_edge('D', 'E')\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play(theme='dark')"
             ),
@@ -3088,7 +3088,7 @@ def build_gallery_items() -> List[GalleryItem]:
             .add_edge("A", "B").add_edge("A", "C")
             .add_edge("B", "D").add_edge("B", "E")
             .add_edge("C", "F")
-            .dfs(start=1)
+            .dfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3113,7 +3113,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    .add_edge('A', 'B').add_edge('A', 'C')\n"
                 "    .add_edge('B', 'D').add_edge('B', 'E')\n"
                 "    .add_edge('C', 'F')\n"
-                "    .dfs(start=1)\n"
+                "    .dfs(source=1)\n"
                 ")\n"
                 "G.play(theme='dark')"
             ),
@@ -3172,7 +3172,7 @@ def build_gallery_items() -> List[GalleryItem]:
         G = (
             ec.Graph()
             .add_star_graph(n=8)
-            .bfs(start=1)
+            .bfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3193,7 +3193,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "G = (\n"
                 "    ec.Graph()\n"
                 "    .add_star_graph(n=8)\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play(theme='dark')"
             ),
@@ -3238,7 +3238,7 @@ def build_gallery_items() -> List[GalleryItem]:
         G = (
             ec.Graph()
             .add_grid_2d(rows=3, cols=3)
-            .dfs(start=1)
+            .dfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3259,7 +3259,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "G = (\n"
                 "    ec.Graph()\n"
                 "    .add_grid_2d(rows=3, cols=3)\n"
-                "    .dfs(start=1)\n"
+                "    .dfs(source=1)\n"
                 ")\n"
                 "G.play(theme='dark')"
             ),
@@ -3434,7 +3434,7 @@ def build_gallery_items() -> List[GalleryItem]:
         G = (
             ec.Graph()
             .add_balanced_tree(k=2, h=3)
-            .bfs(start=1)
+            .bfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3455,7 +3455,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "G = (\n"
                 "    ec.Graph()\n"
                 "    .add_balanced_tree(k=2, h=3)\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play()"
             ),
@@ -3523,7 +3523,7 @@ def build_gallery_items() -> List[GalleryItem]:
             .add_edge("A", "C").add_edge("B", "C")
             .add_edge("B", "D").add_edge("C", "E")
             .add_edge("D", "E")
-            .bfs(start=1)
+            .bfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3549,7 +3549,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    .add_edge('A', 'C').add_edge('B', 'C')\n"
                 "    .add_edge('B', 'D').add_edge('C', 'E')\n"
                 "    .add_edge('D', 'E')\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play()"
             ),
@@ -3565,7 +3565,7 @@ def build_gallery_items() -> List[GalleryItem]:
             .add_edge("R", "A").add_edge("R", "B")
             .add_edge("A", "C").add_edge("A", "D")
             .add_edge("B", "D").add_edge("D", "E")
-            .dfs(start=1)
+            .dfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3590,7 +3590,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "    .add_edge('R', 'A').add_edge('R', 'B')\n"
                 "    .add_edge('A', 'C').add_edge('A', 'D')\n"
                 "    .add_edge('B', 'D').add_edge('D', 'E')\n"
-                "    .dfs(start=1)\n"
+                "    .dfs(source=1)\n"
                 ")\n"
                 "G.play(theme='dark')"
             ),
@@ -3791,7 +3791,7 @@ def build_gallery_items() -> List[GalleryItem]:
         G = (
             ec.Graph(directed=True)
             .add_star_graph(n=7)
-            .bfs(start=1)
+            .bfs(source=1)
         )
         kw = {k: v for k, v in kwargs.items() if k in (
             "theme", "width", "height", "node_size", "edge_width",
@@ -3812,7 +3812,7 @@ def build_gallery_items() -> List[GalleryItem]:
                 "G = (\n"
                 "    ec.Graph(directed=True)\n"
                 "    .add_star_graph(n=7)\n"
-                "    .bfs(start=1)\n"
+                "    .bfs(source=1)\n"
                 ")\n"
                 "G.play()"
             ),
@@ -4315,7 +4315,7 @@ def build_gallery_items() -> List[GalleryItem]:
             ("C", "F"), ("C", "G"), ("E", "F"),
         ]:
             G.add_edge(s, t)
-        G.bfs(start="A")
+        G.bfs(source="A")
         kw = {k: v for k, v in kwargs.items() if k in _play_kw}
         return G.play(layout_mode="progressive", **kw)
 
@@ -4331,7 +4331,7 @@ def build_gallery_items() -> List[GalleryItem]:
             code=(
                 "G = ec.Graph()\n"
                 "# ... add nodes A–G and edges ...\n"
-                "G.bfs(start='A')\n"
+                "G.bfs(source='A')\n"
                 "G.play(layout_mode='progressive')"
             ),
         )
