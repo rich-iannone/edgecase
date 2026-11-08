@@ -21,7 +21,7 @@ This guide helps you download small to medium-sized datasets (100-4000 nodes) fo
 ### Option 1: Using NetworkRepository (Recommended)
 
 ```bash
-cd data/
+cd python/edgecase/data/
 
 # Dolphins
 curl -O http://networkrepository.com/soc-dolphins.mtx
@@ -74,7 +74,7 @@ Some datasets are available from SNAP:
 
 ```bash
 # If the above don't work, try SNAP:
-cd data/
+cd python/edgecase/data/
 
 # Download and convert to Matrix Market format
 # (SNAP uses edge list format, need conversion)
@@ -93,7 +93,7 @@ If NetworkRepository links are broken, try:
 After downloading, verify file sizes:
 
 ```bash
-cd data/
+cd python/edgecase/data/
 ls -lh *.mtx.gz
 
 # Expected compressed sizes:
