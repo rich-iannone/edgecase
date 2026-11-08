@@ -1,0 +1,181 @@
+name: Release
+
+# Pushing a `v*` tag builds the wheels and the sdist, publishes them to PyPI and drafts a GitHub
+# release. Running the workflow by hand builds the same files and publishes them to TestPyPI
+# instead, as a dry run.
+on:
+  push:
+    tags: ["v*"]
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  check-version:
+    name: Check the version
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      # A tag that doesn't match pyproject.toml would publish files under a different version
+      # from the one the tag names
+      - name: Match the tag against pyproject.toml
+        if: startsWith(github.ref, 'refs/tags/')
+        run: |
+          python - <<'EOF'
+          import os
+          import tomllib
+
+          tag = os.environ["GITHUB_REF_NAME"]
+          with open("pyproject.toml", "rb") as f:
+              version = tomllib.load(f)["project"]["version"]
+          if tag != f"v{version}":
+              raise SystemExit(f"Tag {tag} doesn't match the version in pyproject.toml ({version})")
+          print(f"Releasing {version}")
+          EOF
+
+  wheels:
+    name: Wheel (${{ matrix.platform.name }})
+    runs-on: ${{ matrix.platform.runner }}
+    strategy:
+      fail-fast: false
+      matrix:
+        # The extension uses the stable ABI (abi3-py310), so one wheel per platform covers
+        # every supported Python. The Intel macOS wheel is cross-compiled on an Apple silicon
+        # runner, so it's the only one not tested here.
+        platform:
+          - { name: linux-x86_64, runner: ubuntu-latest, target: x86_64, test: true }
+          - { name: linux-aarch64, runner: ubuntu-24.04-arm, target: aarch64, test: true }
+          - { name: macos-x86_64, runner: macos-latest, target: x86_64, test: false }
+          - { name: macos-arm64, runner: macos-latest, target: aarch64, test: true }
+          - { name: windows-x86_64, runner: windows-latest, target: x64, test: true }
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build the wheel
+        uses: PyO3/maturin-action@v1
+        with:
+          target: ${{ matrix.platform.target }}
+          args: --release --out dist
+          manylinux: auto
+
+      # The published wheels use the release profile's fat LTO, which the CI test builds turn
+      # off, so run the suite once more against the exact files going out
+      - name: Test the wheel
+        if: matrix.platform.test
+        shell: bash
+        run: |
+          python -m pip install "$(ls dist/*.whl)[test]"
+          python -m pytest -q -n auto tests --ignore=tests/benchmarks -p no:cacheprovider
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-${{ matrix.platform.name }}
+          path: dist
+
+  sdist:
+    name: Source distribution
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v6
+
+      - uses: actions/setup-python@v6
+        with:
+          python-version: "3.12"
+
+      - name: Build the sdist
+        uses: PyO3/maturin-action@v1
+        with:
+          command: sdist
+          args: --out dist
+
+      - name: Check the metadata
+        run: |
+          python -m pip install twine
+          twine check --strict dist/*
+
+      - uses: actions/upload-artifact@v7
+        with:
+          name: dist-sdist
+          path: dist
+
+  publish-pypi:
+    name: Publish to PyPI
+    needs: [check-version, wheels, sdist]
+    if: startsWith(github.ref, 'refs/tags/v')
+    runs-on: ubuntu-latest
+    environment:
+      name: pypi
+      url: https://pypi.org/p/edgecase
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.PYPI_API_TOKEN }}
+
+  publish-testpypi:
+    name: Publish to TestPyPI
+    needs: [check-version, wheels, sdist]
+    if: github.event_name == 'workflow_dispatch'
+    runs-on: ubuntu-latest
+    environment:
+      name: testpypi
+      url: https://test.pypi.org/p/edgecase
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      # TestPyPI won't take a version twice, so a repeat dry run skips the files already there
+      - uses: pypa/gh-action-pypi-publish@release/v1
+        with:
+          user: __token__
+          password: ${{ secrets.TEST_PYPI_API_TOKEN }}
+          repository-url: https://test.pypi.org/legacy/
+          skip-existing: true
+
+  github-release:
+    name: Draft the GitHub release
+    needs: publish-pypi
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v7
+        with:
+          pattern: dist-*
+          path: dist
+          merge-multiple: true
+
+      # A draft, so the notes can be written before it goes public (the docs changelog is
+      # built from the published releases)
+      - name: Create the draft release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          gh release create "$GITHUB_REF_NAME" dist/* \
+            --repo "$GITHUB_REPOSITORY" \
+            --verify-tag \
+            --draft \
+            --title "$GITHUB_REF_NAME" \
+            --generate-notes
