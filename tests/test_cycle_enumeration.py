@@ -1,36 +1,27 @@
-import pytest
 import edgecase as ec
 
-# get_cycles() is deprecated in favor of simple_cycles(); these tests keep it working until 1.0
-pytestmark = pytest.mark.filterwarnings("ignore:Graph.get_cycles:DeprecationWarning")
 
 class TestCycleEnumeration:
-    """Test find_cycles() method using Johnson's algorithm."""
+    """Test simple_cycles() on directed graphs (Johnson's algorithm)."""
 
     def test_empty_graph(self):
         """Empty graph has no cycles."""
         G = ec.Graph(directed=True)
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 0
 
     def test_single_node_no_loop(self):
         """Single node without self-loop has no cycles."""
         G = ec.Graph(directed=True).add_node("A")
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 0
 
     def test_self_loop(self):
         """Self-loop creates a 1-node cycle."""
         G = ec.Graph(directed=True).add_node("A").add_edge("A", "A")
-        cycles = G.get_cycles(min_length=1)
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 1  # Self-loop is a single node
-
-    def test_self_loop_min_length_filter(self):
-        """Self-loop filtered out by min_length=2."""
-        G = ec.Graph(directed=True).add_node("A").add_edge("A", "A")
-        cycles = G.get_cycles(min_length=2)
-        assert len(cycles) == 0
 
     def test_simple_triangle_cycle(self):
         """A -> B -> C -> A forms one 3-node cycle."""
@@ -43,7 +34,7 @@ class TestCycleEnumeration:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 3
         # Check all three node IDs are in the cycle
@@ -59,7 +50,7 @@ class TestCycleEnumeration:
             .add_edge("A", "B")
             .add_edge("B", "A")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 2
         # Check both node IDs are in the cycle
@@ -81,7 +72,7 @@ class TestCycleEnumeration:
             .add_edge("C", "D")
             .add_edge("D", "C")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 2
         # Both cycles should be length 2
         assert all(len(cycle) == 2 for cycle in cycles)
@@ -100,13 +91,13 @@ class TestCycleEnumeration:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 2
         cycle_lengths = sorted([len(c) for c in cycles])
         assert cycle_lengths == [2, 3]
 
-    def test_min_length_filtering(self):
-        """min_length parameter filters short cycles."""
+    def test_length_bound_filtering(self):
+        """length_bound parameter drops longer cycles."""
         G = (
             ec.Graph(directed=True)
             .add_node("A")
@@ -121,13 +112,13 @@ class TestCycleEnumeration:
         )
 
         # All cycles
-        all_cycles = G.get_cycles()
+        all_cycles = G.simple_cycles()
         assert len(all_cycles) == 2
 
-        # Only cycles of length 3+
-        long_cycles = G.get_cycles(min_length=3)
-        assert len(long_cycles) == 1
-        assert len(long_cycles[0]) == 3
+        # Only cycles of length 2 or less
+        short_cycles = G.simple_cycles(length_bound=2)
+        assert len(short_cycles) == 1
+        assert len(short_cycles[0]) == 2
 
     def test_dag_no_cycles(self):
         """Directed acyclic graph has no cycles."""
@@ -139,14 +130,8 @@ class TestCycleEnumeration:
             .add_edge("A", "B")
             .add_edge("B", "C")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 0
-
-    def test_undirected_raises_error(self):
-        """Undirected graphs should raise ValueError."""
-        G = ec.Graph(directed=False).add_node("A").add_node("B").add_edge("A", "B")
-        with pytest.raises(ValueError, match="requires a directed graph"):
-            G.get_cycles()
 
     def test_complex_graph_multiple_cycles(self):
         """Complex graph with multiple overlapping cycles."""
@@ -163,7 +148,7 @@ class TestCycleEnumeration:
             .add_edge("C", "D")
             .add_edge("D", "A")  # Closes multiple cycles
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         # Should find: A->B->D->A, A->C->D->A
         assert len(cycles) >= 2
 
@@ -178,7 +163,7 @@ class TestCycleEnumeration:
             .add_edge("B", "C", weight=2.0)
             .add_edge("C", "A", weight=3.0)
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         # Check all three node IDs are in the cycle
         node_ids = G.get_node_ids(limit=None)
@@ -193,25 +178,9 @@ class TestCycleEnumeration:
             .add_edge("A", "B")
             .add_edge("B", "A")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 2
-
-    def test_standalone_function_min_length(self):
-        """Method accepts min_length parameter."""
-        G = (
-            ec.Graph(directed=True)
-            .add_node("A")
-            .add_node("B")
-            .add_node("C")
-            .add_edge("A", "B")
-            .add_edge("B", "A")
-            .add_edge("B", "C")
-            .add_edge("C", "A")
-        )
-        cycles = G.get_cycles(min_length=3)
-        assert len(cycles) == 1
-        assert len(cycles[0]) == 3
 
     def test_large_cycle(self):
         """Long cycle is detected correctly."""
@@ -224,7 +193,7 @@ class TestCycleEnumeration:
         for i in range(len(nodes)):
             G.add_edge(nodes[i], nodes[(i + 1) % len(nodes)])
 
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 1
         assert len(cycles[0]) == 10
 
@@ -245,7 +214,7 @@ class TestCycleEnumeration:
             .add_edge("D", "E")
             .add_edge("E", "C")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 2
         cycle_lengths = sorted([len(c) for c in cycles])
         assert cycle_lengths == [2, 3]
@@ -271,7 +240,7 @@ class TestCycleEnumeration:
             .add_edge("B3", "B4")
             .add_edge("B4", "B1")
         )
-        cycles = G.get_cycles()
+        cycles = G.simple_cycles()
         assert len(cycles) == 2
         cycle_lengths = sorted([len(c) for c in cycles])
         assert cycle_lengths == [3, 4]
