@@ -1,9 +1,3 @@
-import sys
-from pathlib import Path
-
-# Add python package to path
-sys.path.insert(0, str(Path(__file__).parent.parent / "python"))
-
 import pytest
 from edgecase import Graph, Node, Edge
 import polars as pl
