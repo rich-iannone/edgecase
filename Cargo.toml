@@ -15,7 +15,7 @@ name = "edgecase_core"
 crate-type = ["cdylib"]
 
 [dependencies]
-pyo3 = { version = "0.23", features = ["abi3-py39"] }
+pyo3 = { version = "0.23", features = ["abi3-py310"] }
 rayon = "1.10"  # Parallel iterators
 petgraph = "0.8"  # Graph data structures
 ahash = "0.8"  # Fast hashing
@@ -31,7 +31,7 @@ nalgebra = "0.33"  # Linear algebra with eigensolvers
 [dev-dependencies]
 # Rust unit tests run without a host Python process, so let pyo3 start an
 # embedded interpreter on first use (e.g. in Node/Edge Clone impls).
-pyo3 = { version = "0.23", features = ["abi3-py39", "auto-initialize"] }
+pyo3 = { version = "0.23", features = ["abi3-py310", "auto-initialize"] }
 criterion = { version = "0.5", features = ["html_reports"] }
 proptest = "1.4"  # Property-based testing
 quickcheck = "1.0"
