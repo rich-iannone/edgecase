@@ -443,12 +443,6 @@ A few notes, to be fair to everyone:
   same graphs.
 - **Property-based tests** with [Hypothesis](https://hypothesis.readthedocs.io), which generate
   random graphs and Cypher queries and check invariants that must always hold.
-- **Metamorphic sweeps**: every method was rerun after changes that must not alter its answer
-  (shuffled node and edge order, gaps in node IDs, scaled weights, a disjoint copy added
-  alongside) or must alter it in a known way. Every issue the sweeps found has been fixed and
-  covered by a regression test.
-- **Failures leave no trace**: over 1,400 calls that raise errors were checked to leave the
-  graph, its attributes and its step log unchanged.
 
 ## Works with what you have
 
@@ -457,7 +451,7 @@ EdgeCase has 28 readers (`from_*()`) and 28 writers (`to_*()`):
 | Kind            | Formats                                                                                   |
 | :-------------- | :---------------------------------------------------------------------------------------- |
 | Libraries       | NetworkX, igraph, Cytoscape (JSON)                                                         |
-| Arrays & frames | NumPy, SciPy sparse, pandas (edge lists and adjacency), Polars (native)                    |
+| Arrays & frames | NumPy, SciPy sparse, Pandas (edge lists and adjacency), Polars (native)                    |
 | Graph files     | GraphML, GEXF, GML, DOT, Pajek, LEDA, graph6, sparse6, SIF, TSV edge lists, Matrix Market (read), LaTeX/TikZ (write) |
 | Structured data | Cypher (`CREATE` statements), node-link and adjacency JSON, tree data, dicts of dicts and lists, adjacency lists |
 
@@ -477,7 +471,7 @@ flights = pl.DataFrame({
 routes = ec.from_pandas_edgelist(flights, source="from", target="to", edge_attr="minutes")
 ```
 
-`from_pandas_edgelist()` takes Polars DataFrames as well as pandas ones.
+`from_pandas_edgelist()` takes Polars DataFrames as well as Pandas ones.
 
 ## What's inside
 
