@@ -1033,7 +1033,7 @@ impl Graph {
         self.adjacency_list.remove(&node_id);
 
         // Remove the deleted node from all other nodes' adjacency lists
-        for (_, neighbors) in self.adjacency_list.iter_mut() {
+        for neighbors in self.adjacency_list.values_mut() {
             neighbors.retain(|&n| n != node_id);
         }
 
