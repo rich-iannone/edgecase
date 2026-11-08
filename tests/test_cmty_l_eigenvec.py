@@ -384,6 +384,21 @@ class TestLeadingEigenvectorEdgeCases:
         assert communities[a_id] != communities[d_id]
         assert communities[d_id] != communities[g_id]
 
+    def test_isolated_nodes_are_singletons(self):
+        """An isolated node gets its own community instead of joining one it has no edge to."""
+        G = ec.Graph(directed=False).add_nodes(["z", "A", "B", "C", "D", "E", "F", "w"])
+        G.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        G.add_edges([("D", "E"), ("E", "F"), ("F", "D")])
+
+        communities = G.cmty_l_eigenvec(return_dict=True)
+        by_label = {G.get_label_from_id(n): c for n, c in communities.items()}
+
+        # Matches igraph: the triangles split at the bridge, z and w are alone
+        assert by_label["A"] == by_label["B"] == by_label["C"]
+        assert by_label["D"] == by_label["E"] == by_label["F"]
+        assert len({by_label[x] for x in ["A", "D", "z", "w"]}) == 4
+        assert sorted(communities.values()) == [0, 0, 0, 1, 1, 1, 2, 3]
+
     def test_cycle_graph(self):
         """Cycle graph (ring)."""
         G = ec.Graph(directed=False)
