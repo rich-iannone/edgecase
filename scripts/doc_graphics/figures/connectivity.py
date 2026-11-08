@@ -900,9 +900,8 @@ TRI_EDGES = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("C", "
         "dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The "
         "card lists the three cuts.")
 def all_node_cuts(s: Scene) -> None:
-    from core import R_SMALL, SIZE_CARD
-
     import edgecase as ec
+    from core import R_SMALL, SIZE_CARD
 
     g = ec.Graph().add_nodes(list(TRI)).add_edges(TRI_EDGES)
     cuts = [[g.get_label_from_id(n) for n in c] for c in g.all_node_cuts()]

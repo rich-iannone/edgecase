@@ -13,7 +13,16 @@ import re
 from dataclasses import dataclass
 
 from core import (
-    CAPTION_Y, CONTENT_BOTTOM, H, MARGIN, TEXT_SIZES, W, BBox, Scene, Text, text_width,
+    CAPTION_Y,
+    CONTENT_BOTTOM,
+    MARGIN,
+    TEXT_SIZES,
+    BBox,
+    H,
+    Scene,
+    Text,
+    W,
+    text_width,
 )
 
 BANNED_NUMBERS = re.compile(r"(?<![\d.])42(?![\d])")

@@ -18,10 +18,9 @@ from pathlib import Path
 HERE = Path(__file__).resolve().parent
 sys.path.insert(0, str(HERE))
 
-from PIL import Image, ImageDraw, ImageFont  # noqa: E402
-
 from build import ROOT, load_figures  # noqa: E402
 from core import THEMES  # noqa: E402
+from PIL import Image, ImageDraw, ImageFont  # noqa: E402
 
 PER_SHEET = 8
 
