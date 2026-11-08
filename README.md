@@ -1,7 +1,7 @@
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/hero.dark.svg">
-    <img src="assets/readme/hero.light.svg" width="100%" alt="The Les Misérables character network drawn by EdgeCase: 77 characters in six colored Leiden communities, with each node sized by its betweenness centrality. Valjean is the largest node, at the center of the network.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/hero.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/hero.light.svg" width="100%" alt="The Les Misérables character network drawn by EdgeCase: 77 characters in six colored Leiden communities, with each node sized by its betweenness centrality. Valjean is the largest node, at the center of the network.">
   </picture>
 </p>
 
@@ -159,8 +159,8 @@ karate.plot(color_by="cmty_louvain", size_by="pagerank", label_by="label")
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/karate.dark.svg">
-    <img src="assets/readme/karate.light.svg" width="760" alt="The karate club network with nodes in four community colors. Nodes 0 and 33, the instructor and the administrator, are the largest, each at the center of its own side of the club.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/karate.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/karate.light.svg" width="760" alt="The karate club network with nodes in four community colors. Nodes 0 and 33, the instructor and the administrator, are the largest, each at the center of its own side of the club.">
   </picture>
 </p>
 
@@ -206,8 +206,8 @@ average, more than half of the shortest paths between two other families run thr
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/florentine.dark.svg">
-    <img src="assets/readme/florentine.light.svg" width="560" alt="The Florentine families network with nodes sized by betweenness. The Medici node is by far the largest and sits at the hub joining the rest of the network.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/florentine.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/florentine.light.svg" width="560" alt="The Florentine families network with nodes sized by betweenness. The Medici node is by far the largest and sits at the hub joining the rest of the network.">
   </picture>
 </p>
 
@@ -272,8 +272,8 @@ ring = """
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/payments.dark.svg">
-    <img src="assets/readme/payments.light.svg" width="560" alt="The payment network with arrows for payments. The accounts in the two rings, Ana, Ben and Cruz on one side and Finn, Gus and Hal on the other, are red, and the two ordinary accounts in the middle, Dee and Eve, are blue.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/payments.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/payments.light.svg" width="560" alt="The payment network with arrows for payments. The accounts in the two rings, Ana, Ben and Cruz on one side and Finn, Gus and Hal on the other, are red, and the two ordinary accounts in the middle, Dee and Eve, are blue.">
   </picture>
 </p>
 
@@ -320,8 +320,8 @@ betweenness: 52% of the grid still connected after losing 5% of substations
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/robustness.dark.svg">
-    <img src="assets/readme/robustness.light.svg" width="760" alt="A line chart of the share of the power grid in its largest connected component as substations are removed, up to 30 percent. Under random failure the share falls slowly, to 92 percent at 5 percent removed and about a third at 30 percent. Attacks by degree and by betweenness fall to 52 percent at 5 percent removed and below 5 percent by 15 percent removed.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/robustness.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/robustness.light.svg" width="760" alt="A line chart of the share of the power grid in its largest connected component as substations are removed, up to 30 percent. Under random failure the share falls slowly, to 92 percent at 5 percent removed and about a third at 30 percent. Attacks by degree and by betweenness fall to 52 percent at 5 percent removed and below 5 percent by 15 percent removed.">
   </picture>
 </p>
 
@@ -348,26 +348,26 @@ graph. There are 709 of them, each in a light and a dark version. A few:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/cmty-louvain.dark.svg">
-    <img src="assets/graphs/cmty-louvain.light.svg" width="100%" alt="Diagram for cmty_louvain(): a triangle and a four-node cluster joined by one edge, each placed in its own community.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/cmty-louvain.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/cmty-louvain.light.svg" width="100%" alt="Diagram for cmty_louvain(): a triangle and a four-node cluster joined by one edge, each placed in its own community.">
   </picture>
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/betweenness-centrality.dark.svg">
-    <img src="assets/graphs/betweenness-centrality.light.svg" width="100%" alt="Diagram for betweenness_centrality(): a seven-node strip of triangles with a tail, shaded by betweenness. Bridge node E tops the table at 0.53, ahead of C and F at 0.33.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/betweenness-centrality.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/betweenness-centrality.light.svg" width="100%" alt="Diagram for betweenness_centrality(): a seven-node strip of triangles with a tail, shaded by betweenness. Bridge node E tops the table at 0.53, ahead of C and F at 0.33.">
   </picture>
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/maximum-flow.dark.svg">
-    <img src="assets/graphs/maximum-flow.light.svg" width="100%" alt="Diagram for maximum_flow(): a network from S to T with each edge labeled flow over capacity, and a card listing the flow on each edge, with a total of 5.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/maximum-flow.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/maximum-flow.light.svg" width="100%" alt="Diagram for maximum_flow(): a network from S to T with each edge labeled flow over capacity, and a card listing the flow on each edge, with a total of 5.">
   </picture>
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/match.dark.svg">
-    <img src="assets/graphs/match.light.svg" width="100%" alt="Diagram for match(): a directed six-node graph where the query MATCH (a)-->(b)-->(a) finds the 2-cycles, shown as a table with one row per match.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/match.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/match.light.svg" width="100%" alt="Diagram for match(): a directed six-node graph where the query MATCH (a)-->(b)-->(a) finds the 2-cycles, shown as a table with one row per match.">
   </picture>
 </p>
 
@@ -376,20 +376,20 @@ graph. There are 709 of them, each in a light and a dark version. A few:
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/greedy-color.dark.svg">
-    <img src="assets/graphs/greedy-color.light.svg" width="100%" alt="Diagram for greedy_color(): a strip of four triangles colored with three colors so that no edge joins two nodes of the same color.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/greedy-color.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/greedy-color.light.svg" width="100%" alt="Diagram for greedy_color(): a strip of four triangles colored with three colors so that no edge joins two nodes of the same color.">
   </picture>
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/k-core.dark.svg">
-    <img src="assets/graphs/k-core.light.svg" width="100%" alt="Diagram for k_core(): an eight-node graph whose 3-core, the dense cluster A, B, C, D, is highlighted while the rest is peeled away.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/k-core.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/k-core.light.svg" width="100%" alt="Diagram for k_core(): an eight-node graph whose 3-core, the dense cluster A, B, C, D, is highlighted while the rest is peeled away.">
   </picture>
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/minimum-spanning-tree.dark.svg">
-    <img src="assets/graphs/minimum-spanning-tree.light.svg" width="100%" alt="Diagram for minimum_spanning_tree(): a five-node weighted graph with the four tree edges highlighted, for a total weight of 12.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/minimum-spanning-tree.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/graphs/minimum-spanning-tree.light.svg" width="100%" alt="Diagram for minimum_spanning_tree(): a five-node weighted graph with the four tree edges highlighted, for a total weight of 12.">
   </picture>
 </p>
 
@@ -404,8 +404,8 @@ best of several runs, with results returned to Python.
 
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/readme/benchmarks.dark.svg">
-    <img src="assets/readme/benchmarks.light.svg" width="760" alt="A bar chart of speed-up over NetworkX on a log scale for EdgeCase and igraph across nine tasks. EdgeCase is 0.3 times as fast as NetworkX at building a graph, 1.1 to 9.5 times faster on components, PageRank, distances, triangles and k-cores, 27 times faster on average clustering, 59 times faster on Louvain and 70 times faster on exact betweenness.">
+    <source media="(prefers-color-scheme: dark)" srcset="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/benchmarks.dark.svg">
+    <img src="https://raw.githubusercontent.com/rich-iannone/edgecase/main/assets/readme/benchmarks.light.svg" width="760" alt="A bar chart of speed-up over NetworkX on a log scale for EdgeCase and igraph across nine tasks. EdgeCase is 0.3 times as fast as NetworkX at building a graph, 1.1 to 9.5 times faster on components, PageRank, distances, triangles and k-cores, 27 times faster on average clustering, 59 times faster on Louvain and 70 times faster on exact betweenness.">
   </picture>
 </p>
 
@@ -507,4 +507,5 @@ EdgeCase is in alpha, and its API may change before 1.0.
 
 ## License
 
-EdgeCase is licensed under the MIT License. See [LICENSE](LICENSE) for details.
+EdgeCase is licensed under the MIT License. See
+[LICENSE](https://github.com/rich-iannone/edgecase/blob/main/LICENSE) for details.
