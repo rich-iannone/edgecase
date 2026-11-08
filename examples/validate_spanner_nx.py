@@ -5,7 +5,7 @@ from edgecase import Graph
 def networkx_to_edgecase(nx_graph):
     """Convert NetworkX graph to EdgeCase graph."""
     g = Graph()
-    for node in nx_graph.get_node_ids(limit=None):
+    for node in nx_graph.nodes():
         g.add_node(label=str(node))
     for u, v in nx_graph.edges():
         g.add_edge(str(u), str(v))
@@ -135,7 +135,7 @@ def test_comparison_5():
     ec_g.add_edge("2", "3", weight=1.0)
     ec_g.add_edge("0", "3", weight=5.0)
 
-    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight="weight", seed=23)
+    ec_spanner = ec_g.transform_with_spanner(stretch=3.0, weight_attr="weight", seed=23)
 
     print(f"NetworkX: {len(nx_g.edges())} edges -> {len(nx_spanner.edges())} spanner edges")
     print(f"EdgeCase:  {ec_g.count_edges()} edges -> {ec_spanner.count_edges()} spanner edges")
