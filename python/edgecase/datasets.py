@@ -7,8 +7,8 @@ import polars as pl
 from edgecase.graph import Graph
 from edgecase.io import _build_graph, from_matrix_market
 
-# Path to data directory (relative to this file)
-DATA_DIR = Path(__file__).parent.parent.parent / "data"
+# Path to the bundled data directory (shipped inside the package)
+DATA_DIR = Path(__file__).parent / "data"
 
 # Cache directory for downloaded datasets
 CACHE_DIR = Path.home() / ".cache" / "edgecase" / "datasets"
@@ -137,7 +137,7 @@ DATASET_REGISTRY = {
         "compressed_kb": 279,
     },
     "ca_hepph": {
-        "filename": "ca_hepph.mtx",
+        "filename": "physics.mtx",
         "name": "High Energy Physics Collaboration Network",
         "nodes": 12008,
         "edges": 237010,
@@ -145,7 +145,7 @@ DATASET_REGISTRY = {
         "description": "Collaboration network from arXiv High Energy Physics - Phenomenology",
         "source": "SNAP",
         "location": "bundled",
-        "compressed_bundled": "ca_hepph.mtx.gz",
+        "compressed_bundled": "physics.mtx.gz",
         "size_kb": 1900,
         "compressed_kb": 774,
     },
@@ -176,7 +176,7 @@ DATASET_REGISTRY = {
         "compressed_kb": 39,
     },
     "ca_condmat": {
-        "filename": "ca_condmat.mtx",
+        "filename": "condmat.mtx",
         "name": "Condensed Matter Collaboration Network",
         "nodes": 23133,
         "edges": 186936,
@@ -184,7 +184,7 @@ DATASET_REGISTRY = {
         "description": "Collaboration network from arXiv Condensed Matter category",
         "source": "SNAP",
         "location": "bundled",
-        "compressed_bundled": "ca_condmat.mtx.gz",
+        "compressed_bundled": "condmat.mtx.gz",
         "size_kb": 1600,
         "compressed_kb": 694,
     },
