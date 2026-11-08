@@ -25,7 +25,7 @@ outside nodes are `accent` (degree) or carry their distance to the group as a
 badge (closeness).
 
 Single-node getters (`get_degree`, `get_in_degree`, `get_out_degree`,
-`get_node_vitality`) show the queried node `soft`, the counted elements
+`node_vitality`) show the queried node `soft`, the counted elements
 `accent`, and a card with the value. Every number is what edgecase returns
 for the depicted graph (rounded to 2 decimals).
 
@@ -266,12 +266,12 @@ def get_out_degree(s: Scene) -> None:
               ["to          B, D", ("out-degree  2", "accent")])
 
 
-@figure("get_node_vitality", "node-metrics", "Node vitality",
+@figure("node_vitality", "node-metrics", "Node vitality",
         "The shared seven-node graph with the queried hub C outlined and its four edges "
         "dashed, as if removed. The neighbors can still reach each other around C, so the "
         "total pairwise distance only drops from 82 to 70 and the card reads vitality 12.")
-def get_node_vitality(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_node_vitality("C")')
+def node_vitality(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.node_vitality("C")')
     pos = place(STRIP_COORDS, left, unit=UNIT)
     s.graph(pos, [(a, b, {"style": "removed"}) if "C" in (a, b) else (a, b)
                   for a, b in STRIP_EDGES], styles={"C": "soft"})
@@ -306,12 +306,12 @@ def edge_betweenness_centrality(s: Scene) -> None:
 
 
 
-@figure("get_edge_clustering_coefficient", "node-metrics", "Edge clustering coefficient",
+@figure("edge_clustering_coefficient", "node-metrics", "Edge clustering coefficient",
         "The shared seven-node graph with edge C-D in accent and the two triangles through "
         "it, B-C-D and C-D-E, shaded. With endpoint degrees 4 and 3 at most 2 triangles are "
         "possible, so the default score is (2 + 1) / 2 = 1.5, shown in the card.")
-def get_edge_clustering_coefficient(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_edge_clustering_coefficient()")
+def edge_clustering_coefficient(s: Scene) -> None:
+    left, right = compute(s, "g", "g.edge_clustering_coefficient()")
     pos = place(STRIP_COORDS, left, unit=UNIT)
     s.hull(["B", "C", "D"])
     s.hull(["C", "D", "E"])

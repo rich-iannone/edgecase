@@ -44,7 +44,7 @@ antichain on the card. colliders and v_structures draw named causal graphs:
 the collider in accent, and on the v_structures side a shielded collider
 muted with its shielding edge left in ink. lexicographical_topological_sort
 gives the getting-dressed DAG filled order badges, like
-get_topological_sort_order. all_pairs_lowest_common_ancestor draws its
+topological_sort. all_pairs_lowest_common_ancestor draws its
 taxonomy top down, the queried species `soft`, one answer (and the edges
 down to its pair) in accent and the other in g2, matching the card.
 
@@ -97,7 +97,7 @@ def _search(s: Scene, call: str, order: str, tree: set) -> dict:
         "before starting the next, and the search tree's edges are in the accent color. "
         "The result card lists the order A, B, C, D, E, F.")
 def bfs(s: Scene) -> None:
-    pos = _search(s, 'g.bfs(start="A", return_list=True)', "ABCDEF",
+    pos = _search(s, 'g.bfs(source="A", return_list=True)', "ABCDEF",
                   {("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"), ("D", "F")})
     for depth, k in enumerate("ABDF"):
         s.text(pos[k][0], 20, f"d={depth}", size=SIZE_NOTE, opacity=0.55)
@@ -109,7 +109,7 @@ def bfs(s: Scene) -> None:
         "the accent edges form a single long path. The result card lists the order A, B, "
         "D, F, E, C.")
 def dfs(s: Scene) -> None:
-    _search(s, 'g.dfs(start="A", return_list=True)', "ABDFEC",
+    _search(s, 'g.dfs(source="A", return_list=True)', "ABDFEC",
             {("A", "B"), ("B", "D"), ("D", "F"), ("E", "F"), ("C", "E")})
 
 
@@ -241,13 +241,13 @@ def _query(s: Scene, call: str, found: str, edges: set, title: str) -> None:
     s.card_centered(right, [("  ".join(found), "accent")], title=title)
 
 
-@figure("neighbors", "traversal", "Neighbors",
+@figure("get_neighbors", "traversal", "Neighbors",
         "A seven-node directed graph with the query node C outlined. With mode all, every "
         "node joined to C by an edge in either direction is returned, so B, D, A, and E and "
         "their edges to C are in the accent color. The card lists B, D, A, E: successors "
         "first, then predecessors.")
-def neighbors(s: Scene) -> None:
-    _query(s, 'g.neighbors("C", mode="all")', "BDAE",
+def get_neighbors(s: Scene) -> None:
+    _query(s, 'g.get_neighbors("C", mode="all")', "BDAE",
            {("A", "C"), ("C", "B"), ("C", "D"), ("E", "C")}, "neighbors of C")
 
 
@@ -279,12 +279,12 @@ def get_non_neighbors(s: Scene) -> None:
 # --- reachability and ordering ----------------------------------------------
 
 
-@figure("get_all_connected_nodes", "traversal", "All connected nodes",
+@figure("reachable_nodes", "traversal", "All connected nodes",
         "A directed graph in two pieces, with the start node A outlined. Ignoring arrow "
         "direction, A reaches B, C, and D, shown in the accent color with the edges used; "
         "the separate pair E and F is not reached. The card lists B, C, D, without A itself.")
-def get_all_connected_nodes(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_all_connected_nodes("A")')
+def reachable_nodes(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.reachable_nodes("A")')
     coords = {"A": (0, 0), "B": (1.4, 0), "C": (1.4, 1.6), "D": (2.8, 1.6),
               "E": (4.2, 0), "F": (4.2, 1.6)}
     pos = place(coords, left, unit=UNIT)
@@ -294,12 +294,12 @@ def get_all_connected_nodes(s: Scene) -> None:
     s.card_centered(right, [("B  C  D", "accent")], title="connected to A")
 
 
-@figure("get_topological_sort_order", "traversal", "Topological sort",
+@figure("topological_sort", "traversal", "Topological sort",
         "A six-node directed acyclic graph laid out left to right. Numbered badges give the "
         "topological order, in which every node comes after all nodes with arrows into it. "
         "The result card lists A, B, D, C, E, F.")
-def get_topological_sort_order(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_topological_sort_order()")
+def topological_sort(s: Scene) -> None:
+    left, right = compute(s, "g", "g.topological_sort()")
     coords = {"A": (0, 0), "B": (0, 1.6), "C": (1.4, 1.6), "D": (1.4, 0), "E": (2.8, 0.8),
               "F": (4.2, 0.8)}
     pos = place(coords, left, unit=UNIT)
@@ -1221,7 +1221,7 @@ def generic_bfs_edges(s: Scene) -> None:
     g, lab = _labelled(REV, REV_EDGES)
 
     def rev(node):
-        return sorted(g.neighbors(node), key=lab, reverse=True)
+        return sorted(g.get_neighbors(node), key=lab, reverse=True)
 
     tree = [(lab(u), lab(v)) for u, v in g.generic_bfs_edges("A", neighbors=rev)]
     assert tree == [("A", "D"), ("A", "C"), ("A", "B"), ("D", "F"), ("C", "E")]

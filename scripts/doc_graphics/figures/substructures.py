@@ -32,9 +32,9 @@ queried triples in accent and g2; triads_by_type and all_triads stack one
 miniature per returned triple in a 2 x 2 grid, labeled with the type or ids.
 The later clique variants rebuild their docstring examples in edgecase and
 assert the results: enumerate_all_cliques stacks mini triangles in rows by
-clique size; max_weight_clique shows node weights as ink badges;
+clique size; maximum_weight_clique shows node weights as ink badges;
 node_clique_number / number_of_cliques draw the paw's two maximal cliques as
-hulls with node-metrics heat and a sorted table; make_max_clique_graph is a
+hulls with node-metrics heat and a sorted table; clique_graph is a
 `transform` whose clique nodes keep their hull colors. The chordal methods
 (chordal_graph_cliques, chordal_graph_treewidth, find_induced_nodes) share the
 diamond-plus-pendant graph or the path A–D of their docstrings;
@@ -213,24 +213,24 @@ def maximal_matching(s: Scene) -> None:
                             "size      1 (maximum 2)"])
 
 
-# max_weight_matching docstring: the heavy middle edge B–C is a trap.
+# maximum_weight_matching docstring: the heavy middle edge B–C is a trap.
 TRAP = {"A": (0, 0), "B": (1, 0), "C": (2, 0), "D": (3, 0)}
 TRAP_EDGES = [("A", "B", 4), ("B", "C", 5), ("C", "D", 4)]
 
 
-@figure("max_weight_matching", "substructures", "Maximum weight matching",
+@figure("maximum_weight_matching", "substructures", "Maximum weight matching",
         "A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two "
         "outer edges A–B and C–D, in the accent color with their endpoints, for a total "
         "weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the "
         "greedy method would lock in B–C first and stop at a total of 5.")
-def max_weight_matching(s: Scene) -> None:
+def maximum_weight_matching(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", "g.max_weight_matching()")
+    left, right = compute(s, "g", "g.maximum_weight_matching()")
     g = ec.Graph(weighted=True).add_nodes(list(TRAP))
     g.add_edges([(a, b, float(w)) for a, b, w in TRAP_EDGES])
-    exact = _id_edges(g, g.max_weight_matching())
-    greedy = _id_edges(g, g.max_weight_matching(method="greedy"))
+    exact = _id_edges(g, g.maximum_weight_matching())
+    greedy = _id_edges(g, g.maximum_weight_matching(method="greedy"))
     ex_on = {_key(a, b) for a, b, _ in exact}
     assert ex_on == {("A", "B"), ("C", "D")}
     assert [_key(a, b) for a, b, _ in greedy] == [("B", "C")]
@@ -296,13 +296,13 @@ def dominating_set(s: Scene) -> None:
     s.card_centered(right, [("nodes  [1, 3, 5]", "accent"), "size   3"])
 
 
-@figure("min_weighted_dominating_set", "substructures", "Minimum weighted dominating set",
+@figure("minimum_weighted_dominating_set", "substructures", "Minimum weighted dominating set",
         "The same seven-node graph, with each node's weight w in a badge: the hubs 2 and 5 "
         "cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 "
         "(accent), with an accent edge from each other node to the member that dominates "
         "it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3.")
-def min_weighted_dominating_set(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.min_weighted_dominating_set("w")')
+def minimum_weighted_dominating_set(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.minimum_weighted_dominating_set("w")')
     witness = {("1", "2"), ("3", "4"), ("4", "5"), ("6", "7")}
     s.graph(place(DOM, left, unit=UNIT), _edges(DOM_EDGES, witness),
             styles={"1": "accent", "4": "accent", "6": "accent"})
@@ -331,12 +331,12 @@ def find_cliques(s: Scene) -> None:
                  "[" + ", ".join(c) + "]") for c in cliques])
 
 
-@figure("max_clique", "substructures", "Maximum clique",
+@figure("maximum_clique", "substructures", "Maximum clique",
         "The same five-node graph. The triangle 2, 3, 5, in the accent color, is the "
         "largest set of nodes that are all pairwise connected. The card shows the result "
         "[2, 3, 5], size 3.")
-def max_clique(s: Scene) -> None:
-    left, right = compute(s, "g", "g.max_clique()")
+def maximum_clique(s: Scene) -> None:
+    left, right = compute(s, "g", "g.maximum_clique()")
     s.graph(place(BULL, left, unit=UNIT),
             _edges(BULL_EDGES, {("2", "3"), ("2", "5"), ("3", "5")}, off="default"),
             styles={"2": "accent", "3": "accent", "5": "accent"})
@@ -425,24 +425,24 @@ def enumerate_all_cliques(s: Scene) -> None:
             i += 1
 
 
-# max_weight_clique docstring: triangle A, B, C plus B–D, node weights in "w".
+# maximum_weight_clique docstring: triangle A, B, C plus B–D, node weights in "w".
 MWC = {"A": (0, 1.2), "B": (0.7, 0), "C": (1.4, 1.2), "D": (2.1, 0)}
 MWC_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("B", "D")]
 MWC_W = {"A": 1, "B": 2, "C": 1, "D": 5}
 
 
-@figure("max_weight_clique", "substructures", "Maximum weight clique",
+@figure("maximum_weight_clique", "substructures", "Maximum weight clique",
         "Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C "
         "has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent "
         "color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7.")
-def max_weight_clique(s: Scene) -> None:
+def maximum_weight_clique(s: Scene) -> None:
     import edgecase as ec
 
     g = ec.Graph().add_nodes([(k, {"w": w}) for k, w in MWC_W.items()])
     g.add_edges(MWC_EDGES)
-    nodes, weight = g.max_weight_clique(weight_attr="w")
+    nodes, weight = g.maximum_weight_clique(node_weight_attr="w")
     assert _lab(g, nodes) == ["B", "D"] and weight == 7
-    left, right = compute(s, "g", 'g.max_weight_clique(weight_attr="w")')
+    left, right = compute(s, "g", 'g.maximum_weight_clique("w")')
     s.graph(place(MWC, left, unit=UNIT), _edges(MWC_EDGES, {("B", "D")}, off="default"),
             styles={"B": "accent", "D": "accent"})
     where = {"A": "s", "B": "n", "C": "s", "D": "n"}
@@ -498,7 +498,7 @@ def number_of_cliques(s: Scene) -> None:
     _clique_metric(s, "g.number_of_cliques()", "cliques", scores)
 
 
-# make_max_clique_graph docstring: triangles A, B, C and C, E, F sharing C,
+# clique_graph docstring: triangles A, B, C and C, E, F sharing C,
 # plus the tail C–D. Each maximal clique gets a group color in both panels.
 BOWTIE = {"A": (0, 0), "B": (0, 1.2), "C": (1, 0.6), "E": (2, 0), "F": (2, 1.2),
           "D": (1, 1.75)}
@@ -507,18 +507,18 @@ BOWTIE_EDGES = [("A", "B"), ("B", "C"), ("A", "C"), ("C", "E"), ("E", "F"), ("C"
 BOWTIE_CLIQUES = [("ABC", "accent"), ("CD", "g2"), ("CEF", "g3")]
 
 
-@figure("make_max_clique_graph", "substructures", "Maximal clique graph",
+@figure("clique_graph", "substructures", "Maximal clique graph",
         "Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the "
         "three maximal cliques are tinted regions in the accent color, teal and violet, "
         "all overlapping at C. Right: the clique graph has one node per clique, labeled "
         "{A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that "
         "shares a node: all three pairs share C, named on each edge, so 3 edges.")
-def make_max_clique_graph(s: Scene) -> None:
+def clique_graph(s: Scene) -> None:
     g = _ec_graph(list("ABCDEF"), BOWTIE_EDGES)
-    cg = g.make_max_clique_graph()
+    cg = g.clique_graph()
     labels = sorted(cg.get_label_from_id(n) for n in cg.get_node_ids(limit=None))
     assert labels == ["{A,B,C}", "{C,D}", "{C,E,F}"] and cg.count_edges() == 3
-    left, right = transform(s, "g", "g.make_max_clique_graph()")
+    left, right = transform(s, "g", "g.clique_graph()")
     color = {k: c for members, c in BOWTIE_CLIQUES for k in members}
     # C is in all three cliques, so it stays ink inside the overlap
     s.graph(place(BOWTIE, left, unit=UNIT),
@@ -1474,24 +1474,24 @@ def _labels(g, ids) -> list[str]:
     return [g.get_label_from_id(n) for n in ids]
 
 
-# min_weight_matching docstring: four drivers paired into two teams.
+# minimum_weight_matching docstring: four drivers paired into two teams.
 TEAMS = {"A": (0, 0), "B": (1.6, 0), "C": (0, 1.2), "D": (1.6, 1.2)}
 TEAMS_EDGES = [("A", "B", 2), ("C", "D", 3), ("A", "C", 1), ("B", "D", 6), ("A", "D", 4)]
 
 
-@figure("min_weight_matching", "substructures", "Minimum weight matching",
+@figure("minimum_weight_matching", "substructures", "Minimum weight matching",
         "Four drivers A, B, C, D with the extra driving time of each possible pair as edge "
         "weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that "
         "pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; "
         "the other edges are faded. The card notes that taking the cheapest edge A–C (1) "
         "would force B–D (6), a total of 7.")
-def min_weight_matching(s: Scene) -> None:
+def minimum_weight_matching(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", "g.min_weight_matching()")
+    left, right = compute(s, "g", "g.minimum_weight_matching()")
     g = ec.Graph(weighted=True).add_nodes(list(TEAMS))
     g.add_edges([(a, b, float(w)) for a, b, w in TEAMS_EDGES])
-    got = _id_edges(g, g.min_weight_matching())
+    got = _id_edges(g, g.minimum_weight_matching())
     on = {_key(a, b) for a, b, _ in got}
     assert on == {("A", "B"), ("C", "D")}
     s.graph(place(TEAMS, left, unit=UNIT), _edges(TEAMS_EDGES, on),
@@ -1529,27 +1529,27 @@ def bipartite_maximum_matching(s: Scene) -> None:
                     title="matched pairs")
 
 
-# bipartite_min_weight_full_matching docstring: couriers and delivery times.
+# bipartite_minimum_weight_full_matching docstring: couriers and delivery times.
 COURIERS = ["Ana", "Ben", "Cho"]
 DROPS = ["d1", "d2", "d3"]
 COST = {"Ana": (2, 3, 8), "Ben": (3, 7, 9), "Cho": (6, 4, 5)}
 
 
-@figure("bipartite_min_weight_full_matching", "substructures",
+@figure("bipartite_minimum_weight_full_matching", "substructures",
         "Bipartite minimum weight full matching",
         "Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three "
         "deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is "
         "Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table "
         "of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, "
         "even though Ana's nearest delivery is d1 (2).")
-def bipartite_min_weight_full_matching(s: Scene) -> None:
+def bipartite_minimum_weight_full_matching(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", "g.bipartite_min_weight_full_matching()")
+    left, right = compute(s, "g", "g.bipartite_minimum_weight_full_matching()")
     g = ec.Graph(weighted=True).add_nodes(COURIERS + DROPS)
     arcs = [(c, d, COST[c][j]) for c in COURIERS for j, d in enumerate(DROPS)]
     g.add_edges([(a, b, float(w)) for a, b, w in arcs])
-    got = _id_edges(g, g.bipartite_min_weight_full_matching(top_nodes=COURIERS))
+    got = _id_edges(g, g.bipartite_minimum_weight_full_matching(top_nodes=COURIERS))
     pick = {a: b for a, b, _ in got}
     assert pick == {"Ana": "d2", "Ben": "d1", "Cho": "d3"}
     coords = {c: (0, i) for i, c in enumerate(COURIERS)} | {d: (2.4, i) for i, d in
@@ -1593,26 +1593,26 @@ def bipartite_vertex_cover(s: Scene) -> None:
                             f"size      {len(cover)} = {len(match)}"])
 
 
-# min_weighted_vertex_cover docstring: a star whose hub costs 10.
+# minimum_weighted_vertex_cover docstring: a star whose hub costs 10.
 HUBSTAR = {"a": (0, 0), "b": (2, 0), "hub": (1, 0.6), "c": (0, 1.2), "d": (2, 1.2)}
 
 
-@figure("min_weighted_vertex_cover", "substructures", "Minimum weighted vertex cover",
+@figure("minimum_weighted_vertex_cover", "substructures", "Minimum weighted vertex cover",
         "A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the "
         "hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the "
         "method takes the four leaves instead, in the accent color. The card shows the cover "
         "[a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub.")
-def min_weighted_vertex_cover(s: Scene) -> None:
+def minimum_weighted_vertex_cover(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", 'g.min_weighted_vertex_cover("cost")')
+    left, right = compute(s, "g", 'g.minimum_weighted_vertex_cover("cost")')
     leaves = ["a", "b", "c", "d"]
     g = ec.Graph().add_nodes(["hub"] + leaves)
     g.add_edges([("hub", x) for x in leaves])
     g.set_node_attrs("cost", {g.get_id_from_label("hub"): 10.0})
-    cover = _labels(g, g.min_weighted_vertex_cover(weight_attr="cost"))
+    cover = _labels(g, g.minimum_weighted_vertex_cover(node_weight_attr="cost"))
     assert cover == leaves
-    assert _labels(g, g.min_weighted_vertex_cover()) == ["hub"]
+    assert _labels(g, g.minimum_weighted_vertex_cover()) == ["hub"]
     s.graph(place(HUBSTAR, left, unit=UNIT), [("hub", x) for x in leaves],
             styles={k: "accent" for k in cover})
     s.badge("hub", "10", where="n", color="ink")
@@ -1623,24 +1623,24 @@ def min_weighted_vertex_cover(s: Scene) -> None:
                             "hub    10"])
 
 
-# min_edge_cover docstring: a five-node path.
+# minimum_edge_cover docstring: a five-node path.
 PATH5 = {k: (i, 0) for i, k in enumerate("ABCDE")}
 PATH5_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
 
 
-@figure("min_edge_cover", "substructures", "Minimum edge cover",
+@figure("minimum_edge_cover", "substructures", "Minimum edge cover",
         "A path of five nodes, A to E. A maximum matching covers four nodes with two edges, "
         "and one more edge is needed for the fifth, so the minimum edge cover has three "
         "edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a "
         "chosen edge. The card lists the three edges and the count 5 − 2 = 3.")
-def min_edge_cover(s: Scene) -> None:
+def minimum_edge_cover(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", "g.min_edge_cover()")
+    left, right = compute(s, "g", "g.minimum_edge_cover()")
     g = ec.Graph().add_nodes(list(PATH5))
     g.add_edges(PATH5_EDGES)
-    got = {_key(a, b) for a, b, _ in _id_edges(g, g.min_edge_cover())}
-    nu = len(g.max_weight_matching())
+    got = {_key(a, b) for a, b, _ in _id_edges(g, g.minimum_edge_cover())}
+    nu = len(g.maximum_weight_matching())
     assert got == {("A", "B"), ("B", "C"), ("D", "E")} and len(got) == len(PATH5) - nu
     s.graph(place(PATH5, left, unit=UNIT), _edges(PATH5_EDGES, got),
             styles={k: "accent" for k in PATH5})

@@ -11,11 +11,11 @@ Most siblings share one base graph: two diamonds sharing the hub D. Its edge
 cuts have size 2 (B–D, C–D) but its node cut has size 1 (D), so the edge and
 node variants visibly disagree. Pairwise variants all use the pair B, E.
 Exceptions: bridges/articulation points use two triangles strung on a path
-(the base graph has no bridges); `max_flow` uses a small directed network;
+(the base graph has no bridges); `maximum_flow` uses a small directed network;
 `node_percolation` returns a Graph, so it is a `transform` (before → after).
 
-Later additions follow the same rules: `max_flow_value` and `min_cost_flow`
-reuse the `max_flow` network; `edge_percolation` mirrors `node_percolation`;
+Later additions follow the same rules: `maximum_flow_value` and `minimum_cost_flow`
+reuse the `maximum_flow` network; `edge_percolation` mirrors `node_percolation`;
 `network_robustness` and `percolation_threshold_analysis` return a curve, so
 the card becomes a small line chart (accent line and dots, ink axes) beside
 the base graph.
@@ -101,12 +101,12 @@ def _base(s: Scene, box, *, edges: set = frozenset(), nodes: set = frozenset(),
 # --- critical elements -----------------------------------------------------
 
 
-@figure("get_articulation_points", "connectivity", "Articulation points",
+@figure("articulation_points", "connectivity", "Articulation points",
         "Two triangles joined by the path C, D, E. The nodes C, D, and E are in the accent "
         "color: removing any one of them splits the graph. The card lists the articulation "
         "points C, D, E.")
-def get_articulation_points(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_articulation_points()")
+def articulation_points(s: Scene) -> None:
+    left, right = compute(s, "g", "g.articulation_points()")
     s.graph(place(CHAIN, left, unit=UNIT), CHAIN_EDGES, styles={k: "accent" for k in "CDE"})
     s.card_centered(right, [("[C, D, E]", "accent")], title="articulation points")
 
@@ -126,44 +126,44 @@ def bridges(s: Scene) -> None:
 # --- global connectivity numbers -------------------------------------------
 
 
-@figure("get_edge_connectivity", "connectivity", "Edge connectivity",
+@figure("edge_connectivity", "connectivity", "Edge connectivity",
         "Two diamonds that share the hub node D. The two accent edges B–D and C–D form a "
         "smallest edge cut: removing both disconnects the graph and no single edge does. "
         "The card shows that cut and the edge connectivity 2.")
-def get_edge_connectivity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_edge_connectivity()")
+def edge_connectivity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.edge_connectivity()")
     _base(s, left, edges=EDGE_CUT)
     s.card_centered(right, ["cut    B–D, C–D", ("value  2", "accent")])
 
 
-@figure("get_node_connectivity", "connectivity", "Node connectivity",
+@figure("node_connectivity", "connectivity", "Node connectivity",
         "Two diamonds that share the hub node D, drawn in the accent color. Removing D alone "
         "disconnects the graph, so the node connectivity is 1, smaller than the edge "
         "connectivity of 2. The card shows the cut D and the value 1.")
-def get_node_connectivity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_node_connectivity()")
+def node_connectivity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.node_connectivity()")
     _base(s, left, nodes=NODE_CUT)
     s.card_centered(right, ["cut    D", ("value  1", "accent")])
 
 
-@figure("get_adhesion", "connectivity", "Adhesion",
+@figure("adhesion", "connectivity", "Adhesion",
         "Two diamonds that share the hub node D. The two accent edges B–D and C–D form a "
         "smallest edge cut, so the adhesion (edge connectivity) is 2. The card shows that "
         "cut and the value 2.")
-def get_adhesion(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_adhesion()")
+def adhesion(s: Scene) -> None:
+    left, right = compute(s, "g", "g.adhesion()")
     _base(s, left, edges=EDGE_CUT)
     s.card_centered(right, ["cut    B–D, C–D", ("value  2", "accent")])
 
 
-@figure("get_cohesion", "connectivity", "Cohesion",
+@figure("cohesion", "connectivity", "Cohesion",
         "Two triangles joined through the two middle nodes D and E, drawn in the accent "
         "color. No single node disconnects the graph, but removing D and E together does, "
         "so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2.")
-def get_cohesion(s: Scene) -> None:
+def cohesion(s: Scene) -> None:
     # A 2-connected example, so this alias doesn't just repeat the node
     # connectivity figure (which shows the base graph's single cut node).
-    left, right = compute(s, "g", "g.get_cohesion()")
+    left, right = compute(s, "g", "g.cohesion()")
     coords = {"A": (0, 0.6), "B": (1, 0), "C": (1, 1.2), "D": (2, 0), "E": (2, 1.2), "F": (3, 0),
               "G": (3, 1.2), "H": (4, 0.6)}
     edges = [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "E"), ("D", "E"), ("D", "F"),
@@ -175,12 +175,12 @@ def get_cohesion(s: Scene) -> None:
 # --- pairwise (s, t) versions: always B and E on the base graph -------------
 
 
-@figure("get_min_cut_between", "connectivity", "Minimum cut between two nodes",
+@figure("minimum_cut_value", "connectivity", "Minimum cut between two nodes",
         "Two diamonds that share the hub node D, with B and E outlined as source and sink. "
         "The two accent edges B–D and C–D are a smallest set of edges whose removal "
         "separates B from E. The card shows that cut and its size 2.")
-def get_min_cut_between(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_min_cut_between("B", "E")')
+def minimum_cut_value(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.minimum_cut_value("B", "E")')
     _base(s, left, edges=EDGE_CUT, pair=True)
     s.card_centered(right, ["cut    B–D, C–D", ("value  2", "accent")])
 
@@ -205,12 +205,12 @@ def minimum_node_cut(s: Scene) -> None:
     s.card_centered(right, [("{D}", "accent")], title="nodes")
 
 
-@figure("get_node_connectivity_between", "connectivity", "Node connectivity between two nodes",
+@figure("node_connectivity_between", "connectivity", "Node connectivity between two nodes",
         "Two diamonds that share the hub node D, with B and E outlined as source and target. "
         "Every path from B to E passes through the accent hub D, so one node removal "
         "separates them. The card shows the cut D and the value 1.")
-def get_node_connectivity_between(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_node_connectivity_between("B","E")')
+def node_connectivity_between(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.node_connectivity_between("B","E")')
     _base(s, left, nodes=NODE_CUT, pair=True)
     s.card_centered(right, ["cut    D", ("value  1", "accent")])
 
@@ -218,12 +218,12 @@ def get_node_connectivity_between(s: Scene) -> None:
 # --- flow ------------------------------------------------------------------
 
 
-@figure("max_flow", "connectivity", "Maximum flow",
+@figure("maximum_flow", "connectivity", "Maximum flow",
         "A directed network from source S to sink T through A and B. Each edge is labeled "
         "flow over capacity, and every edge carries flow, drawn in the accent color with "
         "width growing with the flow. The card lists the flow per edge, which totals 5.")
-def max_flow(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.max_flow("S", "T")')
+def maximum_flow(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.maximum_flow("S", "T")')
     coords = {"S": (0, 0.8), "A": (1.5, 0), "B": (1.5, 1.6), "T": (3, 0.8)}
     # (from, to, capacity, flow) as returned by edgecase for this network
     net = [("S", "A", 4, 3), ("S", "B", 2, 2), ("A", "B", 2, 1), ("A", "T", 2, 2), ("B", "T", 3, 3)]
@@ -253,17 +253,17 @@ def node_percolation(s: Scene) -> None:
 
 # --- later additions: flow variants ----------------------------------------
 
-# The max_flow network: (from, to, capacity).
+# The maximum_flow network: (from, to, capacity).
 FLOW = {"S": (0, 0.8), "A": (1.5, 0), "B": (1.5, 1.6), "T": (3, 0.8)}
 FLOW_NET = [("S", "A", 4), ("S", "B", 2), ("A", "B", 2), ("A", "T", 2), ("B", "T", 3)]
 
 
-@figure("max_flow_value", "connectivity", "Maximum flow value",
-        "The directed network from the max_flow figure, each edge labeled with its capacity. "
+@figure("maximum_flow_value", "connectivity", "Maximum flow value",
+        "The directed network from the maximum_flow figure, each edge labeled with its capacity. "
         "The accent edges A→T and B→T form a minimum cut separating source S from sink T, "
         "with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0.")
-def max_flow_value(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.max_flow_value("S", "T")')
+def maximum_flow_value(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.maximum_flow_value("S", "T")')
     cut = {("A", "T"), ("B", "T")}  # S-side {S, A, B}: the only cut of capacity 5
     s.graph(place(FLOW, left, unit=UNIT),
             [(a, b, {"style": "accent", "weight": c}) if (a, b) in cut else (a, b, {"weight": c})
@@ -272,14 +272,14 @@ def max_flow_value(s: Scene) -> None:
     s.card_centered(right, ["cut    A→T, B→T", ("value  2 + 3 = 5.0", "accent")])
 
 
-@figure("min_cost_flow", "connectivity", "Minimum cost flow",
-        "The max_flow network with a per-unit cost on each edge, labeled flow/capacity "
+@figure("minimum_cost_flow", "connectivity", "Minimum cost flow",
+        "The maximum_flow network with a per-unit cost on each edge, labeled flow/capacity "
         "then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then "
         "splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B "
         "stays unused and faded. The card lists flow times cost per edge and the totals: "
         "flow 4, cost 14.")
-def min_cost_flow(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.min_cost_flow("S", "T", demand=4)')
+def minimum_cost_flow(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.minimum_cost_flow("S", "T", demand=4)')
     # (from, to, capacity, cost, flow) as returned by edgecase for demand=4
     net = [("S", "A", 4, 1, 4), ("S", "B", 2, 4, 0), ("A", "B", 2, 1, 2), ("A", "T", 2, 3, 2),
            ("B", "T", 3, 1, 2)]
@@ -661,25 +661,25 @@ def spectral_bisection(s: Scene) -> None:
 
 # --- later additions: maximum cut ------------------------------------------
 #
-# max_cut rebuilds its docstring example in edgecase and asserts the result.
+# maximum_cut rebuilds its docstring example in edgecase and asserts the result.
 # The sides of a 6-cycle alternate, so they are node colors (g2 / g3) rather
 # than hulls; the cut edges are `accent`, and here every edge crosses.
 HEX = ring(list("ABCDEF"), radius=1.0)
 HEX_EDGES = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")]
 
 
-@figure("max_cut", "connectivity", "Maximum cut",
+@figure("maximum_cut", "connectivity", "Maximum cut",
         "A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E "
         "on side S (teal) and B, D, F on side T (violet). Every one of the six edges then "
         "runs between the two sides, so all six are cut edges in the accent color. The card "
         "gives the cut value 6.0 and the two sides.")
-def max_cut(s: Scene) -> None:
+def maximum_cut(s: Scene) -> None:
     import edgecase as ec
 
-    left, right = compute(s, "g", "g.max_cut(seed=1)")
+    left, right = compute(s, "g", "g.maximum_cut(seed=1)")
     g = ec.Graph().add_nodes(list(HEX))
     g.add_edges(HEX_EDGES)
-    value, (S, T) = g.max_cut(seed=1)
+    value, (S, T) = g.maximum_cut(seed=1)
     side_s = sorted(g.get_label_from_id(n) for n in S)
     side_t = sorted(g.get_label_from_id(n) for n in T)
     assert value == 6.0 and side_s == ["A", "C", "E"] and side_t == ["B", "D", "F"]
@@ -805,7 +805,7 @@ def is_k_edge_connected(s: Scene) -> None:
     g = ec.Graph().add_nodes(list(HEX))
     g.add_edges(HEX_EDGES)
     assert g.is_k_edge_connected(2) is True and g.is_k_edge_connected(3) is False
-    assert g.get_edge_connectivity() == len(HEX_CUT)
+    assert g.edge_connectivity() == len(HEX_CUT)
     left, right = contrast(s, "g.is_k_edge_connected(2)", "g.is_k_edge_connected(3)")
     for box, p, note, cut in ((left, "l.", "any 1 edge can go", set()),
                               (right, "r.", "2 edges cut it in two", HEX_CUT)):

@@ -220,14 +220,14 @@ def layout_multipartite(s: Scene) -> None:
 
 @figure("layout_bfs", "layout", "BFS layout",
         "On the left, an eight-node graph scattered at random, node 1 outlined as the start. "
-        "On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other "
+        "On the right, layout_bfs(source=1) puts node 1 in the leftmost column and every other "
         "node in a column by its distance from node 1, so the graph reads as layers of a "
         "breadth-first search.")
 def layout_bfs(s: Scene) -> None:
     g = _graph("add_nodes(['1', '2', '3', '4', '5', '6', '7', '8'])")
     g.add_edges([("1", "2"), ("1", "3"), ("1", "4"), ("2", "5"), ("3", "5"), ("3", "6"),
                  ("4", "6"), ("5", "7"), ("6", "8"), ("7", "8")])
-    _before_after(s, "layout_bfs", g, "layout_bfs(start=1)", styles={"1": "soft"})
+    _before_after(s, "layout_bfs", g, "layout_bfs(source=1)", styles={"1": "soft"})
 
 
 @figure("layout_spectral", "layout", "Spectral layout",

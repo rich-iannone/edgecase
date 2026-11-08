@@ -206,12 +206,12 @@ def k_shortest_paths(s: Scene) -> None:
                     title="(path, cost), cheapest first")
 
 
-@figure("get_all_simple_paths", "paths", "All simple paths",
+@figure("all_simple_paths", "paths", "All simple paths",
         "A directed graph with three routes from A to F, none repeating a node. All three "
         "simple paths are returned and drawn in their own colors: A, B, C, F in the accent "
         "color, A, D, F in teal, and A, E, F in violet, matching the card.")
-def get_all_simple_paths(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_all_simple_paths("A", "F")')
+def all_simple_paths(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.all_simple_paths("A", "F")')
     sp_panel(s, left, [TOP, MID, LOW], weights=False)
     s.card_centered(right, [("A → B → C → F", "accent"), ("A → D → F", "g2"),
                             ("A → E → F", "g3")], title="simple paths")
@@ -377,18 +377,6 @@ def _house(s: Scene, box: Box, cycles: list[list[str]], *, directed: bool = Fals
            closed=True, rest="default", ends=ends)
 
 
-@figure("get_cycles", "paths", "Elementary cycles (directed)",
-        "A directed graph shaped like a house. Johnson's algorithm finds the two cycles that "
-        "follow the edge directions: the triangle C, A, B in the accent color and the outer "
-        "loop C, A, B, D, E in teal. The square B, C, E, D is not a directed cycle.")
-def get_cycles(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_cycles()")
-    _house(s, left, [list("CAB"), list("CABDE")], directed=True,
-           edges=[("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "E"), ("E", "C")])
-    s.card_centered(right, [(bracket(list("CAB")), "accent"), (bracket(list("CABDE")), "g2")],
-                    title="directed cycles")
-
-
 @figure("simple_cycles", "paths", "Simple cycles",
         "An undirected house-shaped graph: a triangle on top of a square. It has three simple "
         "cycles, each drawn in its own color: the triangle C, A, B (accent color), the outer "
@@ -424,16 +412,16 @@ def minimum_cycle_basis(s: Scene) -> None:
                             "total          7"], title="cycle, length")
 
 
-@figure("get_girth", "paths", "Girth",
+@figure("girth", "paths", "Girth",
         "The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the "
         "triangle A, B, C, drawn in the accent color, so the girth is 3.")
-def get_girth(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_girth()")
+def girth(s: Scene) -> None:
+    left, right = compute(s, "g", "g.girth()")
     _house(s, left, [list("ABC")])
     s.card_centered(right, ["shortest  [A, B, C]", ("girth     3", "accent")])
 
 
-# The house with directed edges, as in get_cycles (one strongly connected component).
+# The house with directed edges (one strongly connected component).
 DHOUSE_EDGES = [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "E"), ("E", "C")]
 
 

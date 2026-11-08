@@ -124,45 +124,45 @@ def jaccard_coefficient(s: Scene) -> None:
                      highlight={(1, j): "accent" for j in range(4)})
 
 
-@figure("get_jaccard_similarity", "similarity", "Jaccard similarity",
+@figure("jaccard_similarity", "similarity", "Jaccard similarity",
         "Nodes B and E are outlined in the accent color with their shared neighbors C and "
         "D filled in accent; A, F, and G each touch only one side. The card divides the 2 "
         "shared neighbors by the 5 distinct neighbors: Jaccard similarity 0.4.")
-def get_jaccard_similarity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_jaccard_similarity()")
+def jaccard_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.jaccard_similarity()")
     _shared(s, left)
     s.card_centered(right, ["|N(B) ∩ N(E)| = 2", "|N(B) ∪ N(E)| = 5", ("jaccard = 0.4", "accent")],
                     w=CARD_W, title="sim[B][E]")
 
 
-@figure("get_dice_similarity", "similarity", "Dice similarity",
+@figure("dice_similarity", "similarity", "Dice similarity",
         "Nodes B and E are outlined in the accent color with their shared neighbors C and "
         "D filled in accent. The card doubles the 2 shared neighbors to 4 and divides by "
         "the summed degrees 3 + 4 = 7: Dice similarity 0.571.")
-def get_dice_similarity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_dice_similarity()")
+def dice_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.dice_similarity()")
     _shared(s, left)
     s.card_centered(right, ["2·|N(B) ∩ N(E)| = 4", "|N(B)| + |N(E)| = 7", ("dice = 0.571", "accent")],
                     w=CARD_W, title="sim[B][E]")
 
 
-@figure("get_cosine_similarity", "similarity", "Cosine similarity",
+@figure("cosine_similarity", "similarity", "Cosine similarity",
         "Nodes B and E are outlined in the accent color with their shared neighbors C and "
         "D filled in accent. The card divides the 2 shared neighbors by the square root of "
         "3 times 4, about 3.464: cosine similarity 0.577.")
-def get_cosine_similarity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_cosine_similarity()")
+def cosine_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.cosine_similarity()")
     _shared(s, left)
     s.card_centered(right, ["|N(B) ∩ N(E)| = 2", "√(|N(B)|·|N(E)|) = 3.464",
                             ("cosine = 0.577", "accent")], w=CARD_W, title="sim[B][E]")
 
 
-@figure("get_overlap_similarity", "similarity", "Overlap similarity",
+@figure("overlap_similarity", "similarity", "Overlap similarity",
         "Nodes B and E are outlined in the accent color with their shared neighbors C and "
         "D filled in accent. The card divides the 2 shared neighbors by the smaller "
         "neighborhood, B with 3: overlap coefficient 0.667.")
-def get_overlap_similarity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_overlap_similarity()")
+def overlap_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.overlap_similarity()")
     _shared(s, left)
     s.card_centered(right, ["|N(B) ∩ N(E)| = 2", "min(|N(B)|, |N(E)|) = 3",
                             ("overlap = 0.667", "accent")], w=CARD_W, title="sim[B][E]")
@@ -214,12 +214,12 @@ def preferential_attachment(s: Scene) -> None:
 # --- many pairs at once ----------------------------------------------------
 
 
-@figure("get_pairwise_similarity", "similarity", "Pairwise similarity matrix",
+@figure("pairwise_similarity", "similarity", "Pairwise similarity matrix",
         "Four requested nodes B, C, D, and E are outlined in the accent color. A 4 by 4 "
         "table gives their Jaccard similarities, with 1 on the diagonal; the B, E cells "
         "read 0.4 and C, D is the most similar pair at 0.67.")
-def get_pairwise_similarity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_pairwise_similarity(nodes)")
+def pairwise_similarity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.pairwise_similarity(nodes)")
     _shared(s, left, witnesses=False, accent_edges=set(), styles={"C": "soft", "D": "soft"})
     ids = list("BCDE")
     m = {("B", "E"): "0.4", ("C", "D"): "0.67", ("C", "E"): "0.17"}
@@ -274,12 +274,12 @@ RING = {"A": (0, 1), "C": (1.5, 0), "D": (0.8, 2), "E": (2.2, 2), "B": (3, 1)}
 RING_EDGES = [("A", "C"), ("C", "B"), ("A", "D"), ("D", "E"), ("E", "B")]
 
 
-@figure("get_resistance_distance", "similarity", "Resistance distance",
+@figure("resistance_distance", "similarity", "Resistance distance",
         "Nodes A and B are outlined in the accent color and joined by two routes drawn in "
         "accent, A–C–B and A–D–E–B, with each edge a 1 ohm resistor. The card combines the "
         "2 and 3 ohm routes in parallel, 2·3 / (2+3), for a resistance of 1.2.")
-def get_resistance_distance(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_resistance_distance("A", "B")')
+def resistance_distance(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.resistance_distance("A", "B")')
     s.graph(place(RING, left, unit=UNIT), [(a, b, {"style": "accent"}) for a, b in RING_EDGES],
             styles={"A": "soft", "B": "soft"})
     # the call is too long for the caption with literal labels; the card names them
@@ -306,7 +306,7 @@ def resistance_distance_matrix(s: Scene) -> None:
 
 
 def _sub_table(s: Scene, box, vals: dict, note: str) -> None:
-    """4 × 4 table over B, C, D, E (like get_pairwise_similarity), B–E highlighted."""
+    """4 × 4 table over B, C, D, E (like pairwise_similarity), B–E highlighted."""
     ids = list("BCDE")
     val = lambda a, b: "1" if a == b else vals.get((a, b)) or vals[(b, a)]  # noqa: E731
     rows = [[""] + ids] + [[a] + [val(a, b) for b in ids] for a in ids]
@@ -872,9 +872,9 @@ def panther_similarity(s: Scene) -> None:
 def panther_vector_similarity(s: Scene) -> None:
     g = _link_graph(list(TWIN), TWIN_EDGES)
     got = {g.get_label_from_id(n): round(v, 3)
-           for n, v in g.panther_vector_similarity("a", D=4, k=3, eps=0.05, seed=1).items()}
+           for n, v in g.panther_vector_similarity("a", D=4, k=3, epsilon=0.05, seed=1).items()}
     assert got == {"b": 349.736, "y": 39.073, "z": 38.719}
-    left, right = compute(s, "g,  kw = dict(D=4, k=3, eps=0.05, seed=1)",
+    left, right = compute(s, "g,  kw = dict(D=4, k=3, epsilon=0.05, seed=1)",
                           'g.panther_vector_similarity("a", **kw)')
     s.graph(place(TWIN, left, unit=UNIT), TWIN_EDGES,
             styles={"a": "soft"} | dict.fromkeys(got, "accent"))

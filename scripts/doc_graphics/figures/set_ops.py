@@ -363,7 +363,7 @@ def modular_product(s: Scene) -> None:
     g = _factor(list("ABCD"), paw_edges)
     h = ec.Graph().add_cycle_graph(4)
     product = g.modular_product(h)
-    clique = {product.get_label_from_id(n) for n in product.max_clique()}
+    clique = {product.get_label_from_id(n) for n in product.maximum_clique()}
     assert product.count_nodes() == 16 and product.count_edges() == 40
     assert clique == {"(D, 1)", "(C, 2)", "(B, 3)"}
     sq_edges = [("1", "2"), ("2", "3"), ("3", "4"), ("1", "4")]

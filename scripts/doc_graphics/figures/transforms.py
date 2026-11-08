@@ -519,7 +519,7 @@ def _reference(s: Scene, call: str, before, after) -> None:
         s.graph(place(SW, gbox, unit=UNIT, r=R_SMALL),
                 [(a, b, {"style": "accent"}) if frozenset((a, b)) in hot else (a, b)
                  for a, b in pairs], r=R_SMALL, prefix=p)
-        c = f"clustering {g.get_avg_clustering_coefficient():.3f}"
+        c = f"clustering {g.average_clustering_coefficient():.3f}"
         lines = [(c, "accent"), "degrees kept"] if p == "r." else [c, "degree 4 or 2"]
         s.card(gbox.x1, box.cy - 28, box.x1 - gbox.x1, lines)
 
@@ -535,8 +535,8 @@ def random_reference(s: Scene) -> None:
     r = g.random_reference(seed=8)
     assert _edge_set(r) == {frozenset(e) for e in SW_RANDOM}
     assert _degrees_of(r) == _degrees_of(g) and r.is_connected()
-    assert round(g.get_avg_clustering_coefficient(), 3) == 0.667
-    assert round(r.get_avg_clustering_coefficient(), 3) == 0.229
+    assert round(g.average_clustering_coefficient(), 3) == 0.667
+    assert round(r.average_clustering_coefficient(), 3) == 0.229
     _reference(s, "g.random_reference(seed=8)", g, r)
 
 
@@ -551,7 +551,7 @@ def lattice_reference(s: Scene) -> None:
     lat = g.lattice_reference(seed=1)
     assert _edge_set(lat) == {frozenset(e) for e in SW_EDGES}
     assert _degrees_of(lat) == _degrees_of(g)
-    assert round(lat.get_avg_clustering_coefficient(), 3) == 0.667
+    assert round(lat.average_clustering_coefficient(), 3) == 0.667
     _reference(s, "g.lattice_reference(seed=1)", g, lat)
 
 

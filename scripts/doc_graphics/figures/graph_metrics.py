@@ -23,7 +23,7 @@ Siblings share a few base graphs so they can be compared directly:
           input teams as `g2` / `g3` and the cross edge in accent; matrices
           are small tables with their row/column labels in a note line above
 - `STAR`  a hub with three leaves and a three-node tail, where the
-          center and the barycenter differ (get_barycenter; badges give each
+          center and the barycenter differ (barycenter; badges give each
           node's total distance)
 
 Directed hierarchy scalars borrow graphs from node_metrics_local.py so the
@@ -39,7 +39,7 @@ swap the card for a labelled matrix table (`_matrix`) with the formula in a
 note line; the Laplacian family uses TRI with degree badges, modularity uses
 PAIR (two triangles), whose positive cells form one block per triangle. The
 modularity and Bethe Hessian spectra are bar charts on PAIR, like
-`get_spectrum`. `algebraic_connectivity` and `kemeny_constant` use `contrast`
+`adjacency_spectrum`. `algebraic_connectivity` and `kemeny_constant` use `contrast`
 on six nodes: the cycle beside the path (its closing edge accent / removed)
 and the complete graph beside the cycle (the added chords accent).
 
@@ -53,7 +53,7 @@ random_reference and lattice_reference on the same ring.
 `maximal_extendability` draws the six-node cycle as a ring with a matching
 that cannot be extended (accent) and the two nodes it strands (`g2`).
 
-`get_hyper_wiener_index` sits beside the Wiener index on DIST, its card
+`hyper_wiener_index` sits beside the Wiener index on DIST, its card
 grouping the pairs by distance with ½ d (d + 1) per pair. The magnetic
 Laplacian and its spectrum use a directed triangle: the matrix (complex
 entries, `−0.5i` on each arc's cell in accent and its conjugate `0.5i` in
@@ -159,12 +159,12 @@ def _bars(s: Scene, box: Box, values: list[float], labels: list[str], ticks: lis
 # --- density & degree --------------------------------------------------------
 
 
-@figure("get_density", "graph-metrics", "Graph density",
+@figure("density", "graph-metrics", "Graph density",
         "A five-node graph with four edges drawn solid and the six missing node pairs "
         "drawn as faint dashed lines. The result card reads 4 of 10 possible edges, "
         "density 0.4.")
-def get_density(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_density()")
+def density(s: Scene) -> None:
+    left, right = compute(s, "g", "g.density()")
     ids = list("ABCDE")
     pos = place(ring(ids), left, unit=UNIT)
     present = [("A", "B"), ("B", "C"), ("C", "D"), ("A", "E")]
@@ -175,57 +175,57 @@ def get_density(s: Scene) -> None:
     s.card_centered(right, ["edges     4", "possible  10", ("density   0.4", "accent")])
 
 
-@figure("get_average_degree", "graph-metrics", "Average degree",
+@figure("average_degree", "graph-metrics", "Average degree",
         "A five-node undirected graph with each node's degree in a badge: A 2, B 3, C 3, "
         "D 3, E 1. The card adds the degrees to 12, divides by 5 nodes, and gives the "
         "average degree 2.4.")
-def get_average_degree(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_average_degree()")
+def average_degree(s: Scene) -> None:
+    left, right = compute(s, "g", "g.average_degree()")
     _undirected(s, TRI, TRI_EDGES, left)
     _badges(s, TRI_DEG)
     s.card_centered(right, ["Σ degree  12", "nodes     5", ("average   2.4", "accent")])
 
 
-@figure("get_agg_degree_in", "graph-metrics", "Aggregate in-degree",
+@figure("aggregate_in_degree", "graph-metrics", "Aggregate in-degree",
         "A five-node directed graph with each node's in-degree in a badge. Node C receives "
         "three arcs, drawn in the accent color, more than any other node. The card lists "
         "the in-degrees 1, 1, 3, 1, 1 and their max, 3.0.")
-def get_agg_degree_in(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_agg_degree_in("max")')
+def aggregate_in_degree(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.aggregate_in_degree("max")')
     _directed(s, left, accent={("A", "C"), ("B", "C"), ("D", "C")}, styles={"C": "accent"})
     _badges(s, {"A": 1, "B": 1, "C": 3, "D": 1, "E": 1})
     s.card_centered(right, ["in-degree  1 1 3 1 1", ("max        3.0", "accent")])
 
 
-@figure("get_agg_degree_out", "graph-metrics", "Aggregate out-degree",
+@figure("aggregate_out_degree", "graph-metrics", "Aggregate out-degree",
         "The same five-node directed graph with each node's out-degree in a badge: A 2, "
         "B 2, C 1, D 2, E 0. The card sums them to 7 over 5 nodes and gives the mean "
         "out-degree 1.4.")
-def get_agg_degree_out(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_agg_degree_out("mean")')
+def aggregate_out_degree(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.aggregate_out_degree("mean")')
     _directed(s, left)
     _badges(s, {"A": 2, "B": 2, "C": 1, "D": 2, "E": 0})
     s.card_centered(right, ["out-degree  2 2 1 2 0", "sum / n     7 / 5",
                             ("mean        1.4", "accent")])
 
 
-@figure("get_agg_degree_total", "graph-metrics", "Aggregate total degree",
+@figure("aggregate_degree", "graph-metrics", "Aggregate total degree",
         "The same five-node directed graph with each node's total degree (in plus out) in "
         "a badge: A 3, B 3, C 4, D 3, E 1. The card sorts them as 1, 3, 3, 3, 4 and gives "
         "the median, 3.0.")
-def get_agg_degree_total(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_agg_degree_total("median")')
+def aggregate_degree(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.aggregate_degree("median")')
     _directed(s, left)
     _badges(s, {"A": 3, "B": 3, "C": 4, "D": 3, "E": 1})
     s.card_centered(right, ["sorted  1 3 3 3 4", ("median  3.0", "accent")])
 
 
-@figure("get_degree_distribution", "graph-metrics", "Degree distribution",
+@figure("degree_distribution", "graph-metrics", "Degree distribution",
         "A five-node graph with each node's degree in a badge, and a bar chart of how many "
         "nodes have each degree: one node of degree 1, one of degree 2, and three of "
         "degree 3.")
-def get_degree_distribution(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_degree_distribution()")
+def degree_distribution(s: Scene) -> None:
+    left, right = compute(s, "g", "g.degree_distribution()")
     _undirected(s, TRI, TRI_EDGES, left)
     _badges(s, TRI_DEG)
     _bars(s, right, [1, 1, 3], ["1", "1", "3"], ["deg 1", "deg 2", "deg 3"],
@@ -257,23 +257,23 @@ def count_triangles(s: Scene) -> None:
     s.table_centered(right, rows, [56, 84])
 
 
-@figure("get_transitivity", "graph-metrics", "Transitivity",
+@figure("transitivity", "graph-metrics", "Transitivity",
         "A five-node graph with two triangles in the accent color. Badges count the "
         "connected triples centered on each node (1, 3, 3, 3, 0), ten in all. The card "
         "computes 3 times 2 triangles over 10 triples, transitivity 0.6.")
-def get_transitivity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_transitivity()")
+def transitivity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.transitivity()")
     _undirected(s, TRI, TRI_EDGES, left, accent=TRI_ABC | TRI_BCD)
     _badges(s, {"A": 1, "B": 3, "C": 3, "D": 3, "E": 0})
     s.card_centered(right, ["triangles  2", "triples    10", ("3·2 / 10   0.6", "accent")])
 
 
-@figure("get_avg_clustering_coefficient", "graph-metrics", "Average clustering coefficient",
+@figure("average_clustering_coefficient", "graph-metrics", "Average clustering coefficient",
         "A five-node graph with two triangles in the accent color. Badges give each node's "
         "local clustering coefficient: A 1, B 0.67, C 0.67, D 0.33, E 0. The card sums "
         "them to 2.667 over 5 nodes, an average of 0.533.")
-def get_avg_clustering_coefficient(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_avg_clustering_coefficient()")
+def average_clustering_coefficient(s: Scene) -> None:
+    left, right = compute(s, "g", "g.average_clustering_coefficient()")
     _undirected(s, TRI, TRI_EDGES, left, accent=TRI_ABC | TRI_BCD)
     _badges(s, {"A": "1", "B": ".67", "C": ".67", "D": ".33", "E": "0"})
     s.card_centered(right, ["Σ C(v)   2.667", "nodes    5", ("average  0.533", "accent")])
@@ -322,23 +322,23 @@ def rich_club_coefficient(s: Scene) -> None:
 TRI_EIG = [2.641, 0.724, -0.589, -1.0, -1.776]
 
 
-@figure("get_spectrum", "graph-metrics", "Adjacency spectrum",
+@figure("adjacency_spectrum", "graph-metrics", "Adjacency spectrum",
         "A five-node graph and a bar chart of its five adjacency eigenvalues, sorted from "
         "largest to smallest: 2.641, 0.724, -0.589, -1.000, and -1.776. The largest "
         "eigenvalue is in the accent color.")
-def get_spectrum(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_spectrum()")
+def adjacency_spectrum(s: Scene) -> None:
+    left, right = compute(s, "g", "g.adjacency_spectrum()")
     _undirected(s, TRI, TRI_EDGES, left)
     _bars(s, right, TRI_EIG, [f"{v:.3f}" for v in TRI_EIG], None, accent={0},
           bar_w=30, gap=14, scale=26, base_y=104)
 
 
-@figure("get_estrada_index", "graph-metrics", "Estrada index",
+@figure("estrada_index", "graph-metrics", "Estrada index",
         "A five-node graph and a card that exponentiates each of its five adjacency "
         "eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds "
         "them to the Estrada index 17.18.")
-def get_estrada_index(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_estrada_index()")
+def estrada_index(s: Scene) -> None:
+    left, right = compute(s, "g", "g.estrada_index()")
     _undirected(s, TRI, TRI_EDGES, left)
     terms = ["14.03", "2.06", "0.55", "0.37", "0.17"]
     lines = [f"e^{v:<8.3f}{t}" for v, t in zip(TRI_EIG, terms)]
@@ -348,69 +348,47 @@ def get_estrada_index(s: Scene) -> None:
 # --- distances ---------------------------------------------------------------
 
 
-@figure("get_diameter", "graph-metrics", "Diameter",
+@figure("diameter", "graph-metrics", "Diameter",
         "A six-node graph: a four-node cycle with a tail on each side. The longest "
         "shortest path runs from A to F in four hops (shown in the accent color along one "
         "of the two equal routes), so the diameter is 4.")
-def get_diameter(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_diameter()")
+def diameter(s: Scene) -> None:
+    left, right = compute(s, "g", "g.diameter()")
     path = {("A", "B"), ("B", "C"), ("C", "E"), ("E", "F")}
     _undirected(s, DIST, DIST_EDGES, left, accent=path,
                 styles={"A": "accent", "F": "accent"})
     s.card_centered(right, ["farthest  A, F", "hops      4", ("diameter  4", "accent")])
 
 
-@figure("get_max_eccentricity", "graph-metrics", "Maximum eccentricity",
-        "A six-node graph with each node's eccentricity in a badge: A 4, B 3, C 2, D 2, "
-        "E 3, F 4. The end nodes A and F have the largest value and are drawn in the "
-        "accent color; the card gives the maximum eccentricity 4.")
-def get_max_eccentricity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_max_eccentricity()")
-    _undirected(s, DIST, DIST_EDGES, left, styles={"A": "accent", "F": "accent"})
-    _badges(s, DIST_ECC)
-    s.card_centered(right, ["ecc      2, 3, 4", ("max ecc  4", "accent")])
-
-
-@figure("get_min_eccentricity", "graph-metrics", "Minimum eccentricity",
-        "A six-node graph with each node's eccentricity in a badge: A 4, B 3, C 2, D 2, "
-        "E 3, F 4. The middle nodes C and D have the smallest value and are drawn in the "
-        "accent color; the card gives the minimum eccentricity 2.")
-def get_min_eccentricity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_min_eccentricity()")
-    _undirected(s, DIST, DIST_EDGES, left, styles={"C": "accent", "D": "accent"})
-    _badges(s, DIST_ECC)
-    s.card_centered(right, ["ecc      2, 3, 4", ("min ecc  2", "accent")])
-
-
-@figure("get_radius", "graph-metrics", "Radius",
+@figure("radius", "graph-metrics", "Radius",
         "A six-node graph with each node's eccentricity in a badge. The center nodes C and "
         "D, drawn in the accent color, reach every other node within 2 hops, so the "
         "radius is 2.")
-def get_radius(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_radius()")
+def radius(s: Scene) -> None:
+    left, right = compute(s, "g", "g.radius()")
     _undirected(s, DIST, DIST_EDGES, left, styles={"C": "accent", "D": "accent"})
     _badges(s, DIST_ECC)
     s.card_centered(right, ["center  C, D", "ecc     2", ("radius  2", "accent")])
 
 
-@figure("get_periphery", "graph-metrics", "Periphery",
+@figure("periphery", "graph-metrics", "Periphery",
         "A six-node graph with each node's eccentricity in a badge. The end nodes A and F "
         "have the maximum eccentricity 4 and are drawn in the accent color. The card "
         "returns their node ids, 1 and 6.")
-def get_periphery(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_periphery()")
+def periphery(s: Scene) -> None:
+    left, right = compute(s, "g", "g.periphery()")
     _undirected(s, DIST, DIST_EDGES, left, styles={"A": "accent", "F": "accent"})
     _badges(s, DIST_ECC)
     s.card_centered(right, ["max ecc  4", "nodes    A, F", ("ids      [1, 6]", "accent")])
 
 
-@figure("get_center", "graph-metrics", "Center",
+@figure("center", "graph-metrics", "Center",
         "A six-node graph with each node's eccentricity in a badge. The middle nodes C and D "
         "have the minimum eccentricity 2 and are drawn in the accent color. The card returns "
         "their node ids, 3 and 4.")
-def get_center(s: Scene) -> None:
-    # The mirror image of get_periphery: same graph, badges, and card layout.
-    left, right = compute(s, "g", "g.get_center()")
+def center(s: Scene) -> None:
+    # The mirror image of periphery: same graph, badges, and card layout.
+    left, right = compute(s, "g", "g.center()")
     _undirected(s, DIST, DIST_EDGES, left, styles={"C": "accent", "D": "accent"})
     _badges(s, DIST_ECC)
     s.card_centered(right, ["min ecc  2", "nodes    C, D", ("ids      [3, 4]", "accent")])
@@ -425,35 +403,35 @@ STAR_EDGES = [("A", "D"), ("B", "D"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", 
 STAR_SUM = {"A": 14, "B": 14, "C": 14, "D": 9, "E": 10, "F": 13, "G": 18}
 
 
-@figure("get_barycenter", "graph-metrics", "Barycenter",
+@figure("barycenter", "graph-metrics", "Barycenter",
         "A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its "
         "total distance to all the others. D has the smallest total, 9, so it is the "
         "barycenter, in the accent color; the card returns its id 4. The center, which "
         "minimizes the farthest distance instead, is E, one step down the tail.")
-def get_barycenter(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_barycenter()")
+def barycenter(s: Scene) -> None:
+    left, right = compute(s, "g", "g.barycenter()")
     _undirected(s, STAR, STAR_EDGES, left, styles={"D": "accent"})
     _badges(s, STAR_SUM, where={"A": "n", "B": "w", "C": "s"})
     s.card_centered(right, ["min Σd   9", "nodes    D", ("ids      [4]", "accent"),
                             "center   E (ecc 2)"])
 
 
-@figure("get_wiener_index", "graph-metrics", "Wiener index",
+@figure("wiener_index", "graph-metrics", "Wiener index",
         "A six-node graph and a card that groups its 15 node pairs by shortest-path "
         "distance: 6 pairs at distance 1, 6 at 2, 2 at 3, and 1 at 4. Weighting each "
         "group by its distance sums to the Wiener index 28.0.")
-def get_wiener_index(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_wiener_index()")
+def wiener_index(s: Scene) -> None:
+    left, right = compute(s, "g", "g.wiener_index()")
     _undirected(s, DIST, DIST_EDGES, left)
     s.card_centered(right, ["d=1  6 × 1    6", "d=2  6 × 2    12", "d=3  2 × 3    6",
                             "d=4  1 × 4    4", ("Σ d           28.0", "accent")])
 
 
-@figure("get_mean_distance", "graph-metrics", "Mean distance",
+@figure("mean_distance", "graph-metrics", "Mean distance",
         "A six-node graph and a card that adds the shortest-path distances of all 15 node "
         "pairs to 28 and divides by the 15 pairs, giving a mean distance of 1.867.")
-def get_mean_distance(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_mean_distance()")
+def mean_distance(s: Scene) -> None:
+    left, right = compute(s, "g", "g.mean_distance()")
     _undirected(s, DIST, DIST_EDGES, left)
     s.card_centered(right, ["Σ d    28", "pairs  15", ("mean   1.867", "accent")])
 
@@ -469,13 +447,13 @@ def global_efficiency(s: Scene) -> None:
                             "d=4  1 × 1/4    0.25", ("9.917 / 15      0.661", "accent")])
 
 
-@figure("get_kirchhoff_index", "graph-metrics", "Kirchhoff index",
+@figure("kirchhoff_index", "graph-metrics", "Kirchhoff index",
         "A six-node graph labeled with the resistance distance across each edge: 1 on the "
         "two tail edges, but 0.75 on the four cycle edges (accent), where a second route "
         "runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index "
         "21.0.")
-def get_kirchhoff_index(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_kirchhoff_index()")
+def kirchhoff_index(s: Scene) -> None:
+    left, right = compute(s, "g", "g.kirchhoff_index()")
     cycle = {("B", "C"), ("B", "D"), ("C", "E"), ("D", "E")}
     weights = {e: ".75" if e in cycle else "1" for e in DIST_EDGES}
     _undirected(s, DIST, DIST_EDGES, left, accent=cycle, weights=weights)
@@ -486,34 +464,34 @@ def get_kirchhoff_index(s: Scene) -> None:
 # --- directed & assortativity ------------------------------------------------
 
 
-@figure("get_reciprocity", "graph-metrics", "Reciprocity",
+@figure("reciprocity", "graph-metrics", "Reciprocity",
         "A five-node directed graph with seven arcs. The two reciprocal pairs, A and B and "
         "C and D, are drawn in the accent color: four of the seven arcs have a partner "
         "pointing back, so reciprocity is 4 / 7 = 0.571.")
-def get_reciprocity(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_reciprocity()")
+def reciprocity(s: Scene) -> None:
+    left, right = compute(s, "g", "g.reciprocity()")
     _directed(s, left, accent=DIR_MUTUAL)
     s.card_centered(right, ["arcs          7", "reciprocated  4", ("4 / 7         0.571", "accent")])
 
 
-@figure("get_assortativity_degree", "graph-metrics", "Degree assortativity",
+@figure("assortativity_degree", "graph-metrics", "Degree assortativity",
         "Two hubs C and D, each with degree 3, linked to each other and to two leaves of "
         "degree 1 apiece. Four of the five edges join a high-degree node to a low-degree "
         "one (accent), so mixing is disassortative and r = -0.667.")
-def get_assortativity_degree(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_assortativity_degree()")
+def assortativity_degree(s: Scene) -> None:
+    left, right = compute(s, "g", "g.assortativity_degree()")
     edges = [("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", "F")]
     _undirected(s, PAIR, edges, left, accent={e for e in edges if e != ("C", "D")})
     _badges(s, {"A": 1, "B": 1, "C": 3, "D": 3, "E": 1, "F": 1})
     s.card_centered(right, ["hub–leaf  4 edges", "hub–hub   1 edge", ("r         -0.667", "accent")])
 
 
-@figure("get_assortativity", "graph-metrics", "Numeric assortativity",
+@figure("assortativity", "graph-metrics", "Numeric assortativity",
         "Two triangles joined by one edge, each node shaded by a numeric attribute shown "
         "in its badge: 1, 2, 3 on the left and 7, 8, 9 on the right. Low values link to "
         "low and high to high, so the correlation across edges is positive, r = 0.774.")
-def get_assortativity(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_assortativity("age")')
+def assortativity(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.assortativity("age")')
     vals = {"A": 1, "B": 2, "C": 3, "D": 7, "E": 8, "F": 9}
     _undirected(s, PAIR, PAIR_EDGES, left, heat={k: v / 9 for k, v in vals.items()})
     _badges(s, vals)
@@ -521,12 +499,12 @@ def get_assortativity(s: Scene) -> None:
                             ("r          0.774", "accent")])
 
 
-@figure("get_assortativity_nominal", "graph-metrics", "Nominal assortativity",
+@figure("assortativity_nominal", "graph-metrics", "Nominal assortativity",
         "Two triangles joined by one edge, with the nodes split into two categories: A, B, "
         "C in the accent color and D, E, F in teal. Six of the seven edges join nodes of "
         "the same category, so mixing is assortative and r = 0.714.")
-def get_assortativity_nominal(s: Scene) -> None:
-    left, right = compute(s, "g", 'g.get_assortativity_nominal("tag")')
+def assortativity_nominal(s: Scene) -> None:
+    left, right = compute(s, "g", 'g.assortativity_nominal("tag")')
     grp = {**{k: "accent" for k in "ABC"}, **{k: "g2" for k in "DEF"}}
     pos = place(PAIR, left, unit=UNIT)
     s.graph(pos, [(a, b, {"style": grp[a]} if grp[a] == grp[b] else {}) for a, b in PAIR_EDGES],
@@ -540,13 +518,13 @@ def get_assortativity_nominal(s: Scene) -> None:
 TRI_LAP = [0.0, 0.830, 2.689, 4.0, 4.481]  # L = D − A, ascending
 
 
-@figure("get_laplacian_spectrum", "graph-metrics", "Laplacian spectrum",
+@figure("laplacian_spectrum", "graph-metrics", "Laplacian spectrum",
         "A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart "
         "of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. "
         "The single zero means the graph is connected, and the second-smallest eigenvalue, "
         "the algebraic connectivity 0.830, is in the accent color.")
-def get_laplacian_spectrum(s: Scene) -> None:
-    left, right = compute(s, "g", "g.get_laplacian_spectrum()")
+def laplacian_spectrum(s: Scene) -> None:
+    left, right = compute(s, "g", "g.laplacian_spectrum()")
     _undirected(s, TRI, TRI_EDGES, left)
     _bars(s, right, TRI_LAP, [f"{v:.3f}" for v in TRI_LAP], [f"λ{i}" for i in range(1, 6)],
           accent={1}, bar_w=30, gap=14, scale=26, base_y=160)
@@ -590,7 +568,7 @@ def trophic_incoherence_parameter(s: Scene) -> None:
 # --- degree and attribute mixing -------------------------------------------------
 
 # Degree mixing reuses the hub-and-leaf variant of PAIR from
-# get_assortativity_degree (hubs C, D of degree 3, four leaves of degree 1), so
+# assortativity_degree (hubs C, D of degree 3, four leaves of degree 1), so
 # the dict, matrix, k_nn table and Pearson r all describe that one picture.
 HUB_EDGES = [("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", "F")]
 HUB_DEG = {"A": 1, "B": 1, "C": 3, "D": 3, "E": 1, "F": 1}
@@ -744,7 +722,7 @@ def generalized_degree(s: Scene) -> None:
 # diagonal, positive pairs), and negative entries that matter are tinted g2.
 # The Laplacian family (L, normalized L, Bethe Hessian) shares TRI with degree
 # badges, so the diagonal can be read off the graph and matches
-# get_laplacian_spectrum; modularity uses PAIR (two triangles), whose positive
+# laplacian_spectrum; modularity uses PAIR (two triangles), whose positive
 # cells form one block per triangle.
 
 
@@ -1121,18 +1099,18 @@ def maximal_extendability(s: Scene) -> None:
 # Each figure computes its numbers with edgecase and asserts them.
 
 
-@figure("get_hyper_wiener_index", "graph-metrics", "Hyper-Wiener index",
+@figure("hyper_wiener_index", "graph-metrics", "Hyper-Wiener index",
         "The six-node graph of the Wiener index figure and a card that groups its 15 node "
         "pairs by shortest-path distance, each pair adding half of d times d plus one: 6 "
         "pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The "
         "sum is the hyper-Wiener index 46.0, against a Wiener index of 28.")
-def get_hyper_wiener_index(s: Scene) -> None:
+def hyper_wiener_index(s: Scene) -> None:
     import edgecase as ec
 
     g = ec.Graph().add_nodes(list(DIST))
     g.add_edges(DIST_EDGES)
-    assert (g.get_hyper_wiener_index(), g.get_wiener_index()) == (46.0, 28.0)
-    left, right = compute(s, "g", "g.get_hyper_wiener_index()")
+    assert (g.hyper_wiener_index(), g.wiener_index()) == (46.0, 28.0)
+    left, right = compute(s, "g", "g.hyper_wiener_index()")
     _undirected(s, DIST, DIST_EDGES, left)
     s.card_centered(right, ["d=1  6 × 1     6", "d=2  6 × 3     18", "d=3  2 × 6     12",
                             "d=4  1 × 10    10", ("Σ ½d(d+1)      46.0", "accent")])
