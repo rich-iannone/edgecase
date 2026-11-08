@@ -168,8 +168,9 @@ class TestFromCypher:
         g = ec.from_cypher(path, graph_name="small")
         assert g.get_edges_str_repr(use_labels=True) == ["a->b"]
         assert g.get_graph_name() == "small"
-        # a string is always the text, never a file name
-        with pytest.raises(ValueError, match="unexpected character '/'"):
+        # a string is always the text, never a file name (the path's first separator is `/`, or
+        # `\` on Windows)
+        with pytest.raises(ValueError, match="Cypher: unexpected character"):
             ec.from_cypher(str(path))
 
     def test_steps(self):
