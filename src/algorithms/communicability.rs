@@ -73,14 +73,9 @@ pub fn communicability(graph: &Graph) -> PyResult<FxHashMap<u64, FxHashMap<u64, 
         }
     }
 
-    // Compute eigendecomposition of adjacency matrix
-    let eigen = SymmetricEigen::new(adj_matrix);
-    let eigenvalues = &eigen.eigenvalues;
-    let eigenvectors = &eigen.eigenvectors;
-
-    // Compute matrix exponential using spectral decomposition:
-    // exp(A) = V * diag(exp(λ)) * V^T
-    // For entry (u, v): exp(A)_{uv} = Σ_j φ_j(u) * φ_j(v) * exp(λ_j)
+    // Matrix exponential via spectral decomposition:
+    // exp(A)_{uv} = Σ_j φ_j(u) * φ_j(v) * exp(λ_j)
+    let exp_a = matrix_exp_symmetric(&adj_matrix);
 
     let mut result: FxHashMap<u64, FxHashMap<u64, f64>> = FxHashMap::default();
 
@@ -89,18 +84,7 @@ pub fn communicability(graph: &Graph) -> PyResult<FxHashMap<u64, FxHashMap<u64, 
         let mut inner_map: FxHashMap<u64, f64> = FxHashMap::default();
 
         for j in 0..n {
-            let node_v = node_ids[j];
-
-            // Compute communicability between i and j
-            let mut comm_value = 0.0;
-            for k in 0..n {
-                let phi_u = eigenvectors[(i, k)];
-                let phi_v = eigenvectors[(j, k)];
-                let exp_lambda = eigenvalues[k].exp();
-                comm_value += phi_u * phi_v * exp_lambda;
-            }
-
-            inner_map.insert(node_v, comm_value);
+            inner_map.insert(node_ids[j], exp_a[(i, j)]);
         }
 
         result.insert(node_u, inner_map);
@@ -184,6 +168,7 @@ pub fn communicability_betweenness_centrality(graph: &Graph) -> PyResult<FxHashM
 
     // Compute exp(A) - the communicability matrix for the full graph
     let exp_a = matrix_exp_symmetric(&adj_matrix);
+    let component = component_labels(&adj_matrix);
 
     // Normalization factor C = (n-1)^2 - (n-1)
     let n_f64 = n as f64;
@@ -206,15 +191,17 @@ pub fn communicability_betweenness_centrality(graph: &Graph) -> PyResult<FxHashM
         // Compute exp(A + E(r))
         let exp_a_modified = matrix_exp_symmetric(&adj_modified);
 
-        // Compute betweenness: sum over all pairs (p, q) where p ≠ q and q ≠ r and p ≠ r
+        // Compute betweenness: sum over all pairs (p, q) where p ≠ q and q ≠ r and p ≠ r.
+        // Only pairs in r's component count: nodes in different components have no walks
+        // between them (G_pq = 0), and removing r cannot change another component.
         let mut omega = 0.0;
 
         for p in 0..n {
-            if p == r {
+            if p == r || component[p] != component[r] {
                 continue;
             }
             for q in 0..n {
-                if q == r || p == q {
+                if q == r || p == q || component[q] != component[r] {
                     continue;
                 }
 
@@ -240,10 +227,40 @@ pub fn communicability_betweenness_centrality(graph: &Graph) -> PyResult<FxHashM
     Ok(result)
 }
 
+/// Label the connected components of a symmetric adjacency matrix.
+///
+/// Returns one label per row; two indices share a label exactly when a walk joins them.
+fn component_labels(matrix: &DMatrix<f64>) -> Vec<usize> {
+    let n = matrix.nrows();
+    let mut label = vec![usize::MAX; n];
+    let mut stack = Vec::new();
+
+    for start in 0..n {
+        if label[start] != usize::MAX {
+            continue;
+        }
+        label[start] = start;
+        stack.push(start);
+        while let Some(u) = stack.pop() {
+            for v in 0..n {
+                if matrix[(u, v)] != 0.0 && label[v] == usize::MAX {
+                    label[v] = start;
+                    stack.push(v);
+                }
+            }
+        }
+    }
+
+    label
+}
+
 /// Compute the matrix exponential of a symmetric matrix using eigendecomposition.
 ///
 /// For a symmetric matrix A with eigendecomposition A = V * D * V^T,
 /// exp(A) = V * diag(exp(λ_i)) * V^T
+///
+/// Entries between different connected components are set to exactly zero: no walk joins
+/// them, but the spectral sum leaves round-off noise of order 1e-16 there.
 fn matrix_exp_symmetric(matrix: &DMatrix<f64>) -> DMatrix<f64> {
     let n = matrix.nrows();
 
@@ -255,12 +272,16 @@ fn matrix_exp_symmetric(matrix: &DMatrix<f64>) -> DMatrix<f64> {
     let eigen = SymmetricEigen::new(matrix.clone());
     let eigenvalues = &eigen.eigenvalues;
     let eigenvectors = &eigen.eigenvectors;
+    let component = component_labels(matrix);
 
     // Compute exp(A) = V * diag(exp(λ)) * V^T
     let mut result = DMatrix::<f64>::zeros(n, n);
 
     for i in 0..n {
         for j in 0..n {
+            if component[i] != component[j] {
+                continue;
+            }
             let mut value = 0.0;
             for k in 0..n {
                 value += eigenvectors[(i, k)] * eigenvectors[(j, k)] * eigenvalues[k].exp();
@@ -493,6 +514,44 @@ mod tests {
             middle_betweenness > end_betweenness_5,
             "Middle should have higher betweenness than end"
         );
+    }
+
+    #[test]
+    fn test_communicability_disconnected_is_exact() {
+        // A path 1-2-3 next to a separate edge 4-5
+        let mut graph = create_path_graph(3);
+        for id in 4..=5u64 {
+            graph
+                .add_node_rust(crate::graph::Node {
+                    id,
+                    label: Some(id.to_string()),
+                    attributes: None,
+                })
+                .unwrap();
+        }
+        graph
+            .add_edge_rust(crate::graph::Edge {
+                id: 0,
+                source: 4,
+                target: 5,
+                weight: None,
+                attributes: None,
+            })
+            .unwrap();
+
+        // No walk joins the two components, so their communicability is exactly zero
+        let comm = communicability(&graph).unwrap();
+        for u in 1..=3u64 {
+            for v in 4..=5u64 {
+                assert_eq!(comm[&u][&v], 0.0);
+                assert_eq!(comm[&v][&u], 0.0);
+            }
+        }
+
+        // The two ends of the path are symmetric, so they must score the same
+        let cbc = communicability_betweenness_centrality(&graph).unwrap();
+        assert!((cbc[&1] - cbc[&3]).abs() < 1e-12);
+        assert!((cbc[&4] - cbc[&5]).abs() < 1e-12);
     }
 
     #[test]
