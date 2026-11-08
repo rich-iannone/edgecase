@@ -275,7 +275,7 @@ class TestLattices:
         assert g.count_nodes() == 2 * (rows * cols + rows + cols)
         assert g.is_bipartite() and g.is_planar()
         assert set(g.get_node_df()["degree"]) <= {2, 3}
-        assert g.get_girth() == 6
+        assert g.girth() == 6
         # Euler: one bounded face per hexagon
         assert g.count_edges() - g.count_nodes() + 1 == rows * cols
 

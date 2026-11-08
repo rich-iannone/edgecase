@@ -1,6 +1,8 @@
 import pytest
 import edgecase as ec
 
+# get_cycles() is deprecated in favor of simple_cycles(); these tests keep it working until 1.0
+pytestmark = pytest.mark.filterwarnings("ignore:Graph.get_cycles:DeprecationWarning")
 
 class TestCycleEnumeration:
     """Test find_cycles() method using Johnson's algorithm."""

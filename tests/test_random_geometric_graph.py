@@ -395,6 +395,6 @@ class TestRandomGeometricGraphProperties:
             edge = g.get_edge(edge_id)
 
             # Check reverse edge exists (in undirected mode, just check neighbors)
-            neighbors = g.neighbors(edge.target)
+            neighbors = g.get_neighbors(edge.target)
 
             assert edge.source in neighbors

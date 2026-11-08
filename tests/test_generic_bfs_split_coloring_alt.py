@@ -74,7 +74,7 @@ class TestGenericBfsEdges:
         lab = star.get_label_from_id
 
         def odd_first(n):
-            return sorted(star.neighbors(n), key=lambda x: int(lab(x)) % 2, reverse=True)
+            return sorted(star.get_neighbors(n), key=lambda x: int(lab(x)) % 2, reverse=True)
 
         found = [(lab(u), lab(v)) for u, v in star.generic_bfs_edges("0", neighbors=odd_first)]
         assert found == [("0", "1"), ("0", "3"), ("0", "5"), ("0", "2"), ("0", "4")]
@@ -85,7 +85,7 @@ class TestGenericBfsEdges:
         lab = g.get_label_from_id
         # Never step from A straight to C; labels are accepted as well as IDs
         found = g.generic_bfs_edges(
-            "A", lambda n: [lab(m) for m in g.neighbors(n) if {lab(n), lab(m)} != {"A", "C"}]
+            "A", lambda n: [lab(m) for m in g.get_neighbors(n) if {lab(n), lab(m)} != {"A", "C"}]
         )
         assert [(lab(u), lab(v)) for u, v in found] == [("A", "B"), ("B", "C"), ("C", "D")]
         # Links that are not edges of the graph are followed too
@@ -98,7 +98,7 @@ class TestGenericBfsEdges:
 
         def spy(n):
             calls.append(n)
-            return g.neighbors(n)
+            return g.get_neighbors(n)
 
         g.generic_bfs_edges(1, spy)
         assert sorted(calls) == [1, 2, 3, 4, 5]
@@ -117,7 +117,7 @@ class TestGenericBfsEdges:
         n_steps = len(g.steps)
 
         def forward(n):
-            return g.neighbors(n)
+            return g.get_neighbors(n)
 
         result = g.generic_bfs_edges(1, forward, depth_limit=5)
         assert len(g.steps) == n_steps + 1  # the callback's queries record nothing
@@ -131,7 +131,7 @@ class TestGenericBfsEdges:
     def test_generic_edge_bfs_callback_records_nothing(self):
         g = ec.Graph().add_path_graph(3)
         n_steps = len(g.steps)
-        g.generic_edge_bfs(1, edges=lambda n: [(n, m) for m in g.neighbors(n)])
+        g.generic_edge_bfs(1, edges=lambda n: [(n, m) for m in g.get_neighbors(n)])
         assert len(g.steps) == n_steps + 1
 
 

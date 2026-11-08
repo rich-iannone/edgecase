@@ -506,7 +506,7 @@ class TestConstraintMatchesNetworkX:
     def _compare(reference, g, weights=None, weight_key=None):
         nx = pytest.importorskip("networkx")
         expected = nx.constraint(reference, weight=weight_key)
-        got = g.constraint(weights=weights, return_dict=True)
+        got = g.constraint(weight_attr=weights, return_dict=True)
         for node, value in expected.items():
             ours = got[g.get_id_from_label(str(node))]
             if set(nx.all_neighbors(reference, node)) <= {node}:

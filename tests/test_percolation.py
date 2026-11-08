@@ -157,7 +157,7 @@ class TestPercolationCentrality:
         G.add_weighted_edges_from(edges, weight="cost")
         states = {n: (0.9 if n in "AE" else 0.2) for n in "ABCDEFG"}
         want = nx.percolation_centrality(G, states=states, weight="cost")
-        got = g.percolation_centrality(states=states, weight="cost", return_dict=True)
+        got = g.percolation_centrality(states=states, weight_attr="cost", return_dict=True)
         for n in want:
             assert got[g.get_id_from_label(n)] == pytest.approx(want[n])
         hops = g.percolation_centrality(states=states, return_dict=True)
@@ -167,7 +167,7 @@ class TestPercolationCentrality:
         g = Graph().add_nodes(["A", "B", "C"])
         g.add_edge("A", "B", cost=1.0).add_edge("B", "C")
         with pytest.raises(ValueError, match="no numeric 'cost' attribute"):
-            g.percolation_centrality(weight="cost", return_dict=True)
+            g.percolation_centrality(weight_attr="cost", return_dict=True)
 
 
 class TestNodePercolation:

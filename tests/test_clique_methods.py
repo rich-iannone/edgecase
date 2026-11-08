@@ -132,19 +132,19 @@ class TestFindCliques:
 
 
 class TestMaxClique:
-    """Tests for max_clique() method."""
+    """Tests for maximum_clique() method."""
 
     def test_empty_graph(self):
         """Empty graph returns empty clique."""
         graph = Graph(directed=False)
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert max_clique == []
 
     def test_single_node(self):
         """Single node is the maximum clique."""
         graph = Graph(directed=False).add_node(label="A")
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert len(max_clique) == 1
 
@@ -159,7 +159,7 @@ class TestMaxClique:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert len(max_clique) == 3
 
@@ -175,7 +175,7 @@ class TestMaxClique:
             .add_edge("B", "C")
             .add_edge("C", "D")
         )
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert len(max_clique) == 2
 
@@ -183,16 +183,16 @@ class TestMaxClique:
         """Complete graph K_n has max clique of size n."""
         graph = Graph(directed=False)
         graph.add_full_graph(n=6)
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert len(max_clique) == 6
 
     def test_directed_graph_raises_error(self):
-        """max_clique() raises error on directed graphs."""
+        """maximum_clique() raises error on directed graphs."""
         graph = Graph(directed=True).add_node(label="A")
 
         with pytest.raises(ValueError, match="only works on undirected"):
-            graph.max_clique()
+            graph.maximum_clique()
 
     def test_max_clique_is_sorted(self):
         """Maximum clique node IDs are sorted."""
@@ -205,7 +205,7 @@ class TestMaxClique:
             .add_edge("B", "C")
             .add_edge("C", "A")
         )
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert max_clique == sorted(max_clique)
 
@@ -231,7 +231,7 @@ class TestMaxClique:
             .add_edge("E", "F")
             .add_edge("F", "D")
         )
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
         assert len(max_clique) == 3  # One of the triangles
 
@@ -350,17 +350,17 @@ class TestCliqueIntegration:
     """Integration tests across clique methods."""
 
     def test_clique_number_equals_max_clique_size(self):
-        """clique_number() equals len(max_clique())."""
+        """clique_number() equals len(maximum_clique())."""
         graph = Graph(directed=False)
         graph.add_full_graph(n=5)
 
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
         clique_number = graph.clique_number()
 
         assert clique_number == len(max_clique)
 
     def test_max_clique_in_find_cliques(self):
-        """max_clique() result is one of find_cliques() results."""
+        """maximum_clique() result is one of find_cliques() results."""
         graph = (
             Graph(directed=False)
             .add_node(label="A")
@@ -372,9 +372,9 @@ class TestCliqueIntegration:
         )
 
         all_cliques = graph.find_cliques()
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
 
-        # max_clique should be in all_cliques
+        # maximum_clique should be in all_cliques
         assert max_clique in all_cliques
 
     def test_consistency_across_methods(self):
@@ -383,14 +383,14 @@ class TestCliqueIntegration:
         graph.add_cycle_graph(n=6)
 
         all_cliques = graph.find_cliques()
-        max_clique = graph.max_clique()
+        max_clique = graph.maximum_clique()
         clique_number = graph.clique_number()
 
         # All cliques should have size <= clique_number
         for clique in all_cliques:
             assert len(clique) <= clique_number
 
-        # max_clique should have size == clique_number
+        # maximum_clique should have size == clique_number
         assert len(max_clique) == clique_number
 
         # At least one clique should have size == clique_number
@@ -400,8 +400,8 @@ class TestCliqueIntegration:
 
 
 class TestCliqueExtras:
-    """enumerate_all_cliques, max_weight_clique, node_clique_number, number_of_cliques and
-    make_max_clique_graph, validated against NetworkX."""
+    """enumerate_all_cliques, maximum_weight_clique, node_clique_number, number_of_cliques and
+    clique_graph, validated against NetworkX."""
 
     def test_against_networkx(self):
         for seed in range(150):
@@ -417,12 +417,12 @@ class TestCliqueExtras:
                 list(c) for c in nx.enumerate_all_cliques(G)
             ]
             if len(G):
-                nodes, weight = g.max_weight_clique(weight_attr="w")
+                nodes, weight = g.maximum_weight_clique(node_weight_attr="w")
                 assert weight == nx.max_weight_clique(G, weight="w")[1]
                 members = [lab(x) for x in nodes]
                 assert all(G.has_edge(a, b) for a, b in itertools.combinations(members, 2))
                 assert (
-                    g.max_weight_clique()[1] == nx.graph_clique_number(G)
+                    g.maximum_weight_clique()[1] == nx.graph_clique_number(G)
                     if hasattr(nx, "graph_clique_number")
                     else max(len(c) for c in nx.find_cliques(G))
                 )
@@ -430,7 +430,7 @@ class TestCliqueExtras:
                 nx.node_clique_number(G)
             )
             assert {lab(k): v for k, v in g.number_of_cliques().items()} == nx.number_of_cliques(G)
-            cg = g.make_max_clique_graph()
+            cg = g.clique_graph()
             ref = nx.make_max_clique_graph(G)
             assert cg.count_nodes() == ref.number_of_nodes()
             assert cg.count_edges() == ref.number_of_edges()
@@ -440,12 +440,12 @@ class TestCliqueExtras:
             [("A", {"w": 1}), ("B", {"w": 2}), ("C", {"w": 1}), ("D", {"w": 5})]
         )
         g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D")])
-        nodes, weight = g.max_weight_clique(weight_attr="w")
+        nodes, weight = g.maximum_weight_clique(node_weight_attr="w")
         assert [g.get_label_from_id(n) for n in nodes] == ["B", "D"] and weight == 7
-        assert len(g.max_weight_clique()[0]) == 3
+        assert len(g.maximum_weight_clique()[0]) == 3
         assert len(ec.Graph().add_cycle_graph(3).enumerate_all_cliques()) == 7
         with pytest.raises(ValueError, match="attribute"):
-            g.max_weight_clique(weight_attr="missing")
+            g.maximum_weight_clique(node_weight_attr="missing")
         with pytest.raises(ValueError, match="undirected"):
             ec.Graph(directed=True).add_path_graph(3).enumerate_all_cliques()
         assert g.steps[-1].narration.startswith("Maximum-weight clique")

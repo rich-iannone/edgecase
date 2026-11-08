@@ -233,10 +233,10 @@ class TestComplexPaths:
 
 
 class TestIntegrationWithAllSimplePaths:
-    """Test that is_simple_path validates paths from get_all_simple_paths."""
+    """Test that is_simple_path validates paths from all_simple_paths."""
 
     def test_all_returned_paths_are_valid(self):
-        """All paths from get_all_simple_paths should validate."""
+        """All paths from all_simple_paths should validate."""
         g = (
             Graph()
             .add_node(label="A")
@@ -250,14 +250,14 @@ class TestIntegrationWithAllSimplePaths:
             .add_edge("B", "C")
         )
 
-        paths = g.get_all_simple_paths("A", "D")
+        paths = g.all_simple_paths("A", "D")
         assert len(paths) > 0
 
         for path in paths:
             assert g.is_simple_path(path) is True
 
     def test_invalid_path_not_in_results(self):
-        """Invalid paths should not be returned by get_all_simple_paths."""
+        """Invalid paths should not be returned by all_simple_paths."""
         g = (
             Graph()
             .add_node(label="A")
@@ -267,7 +267,7 @@ class TestIntegrationWithAllSimplePaths:
             .add_edge("B", "C")
         )
 
-        paths = g.get_all_simple_paths("A", "C")
+        paths = g.all_simple_paths("A", "C")
 
         # Invalid path with nonexistent node
         invalid_path = ["A", "Z", "C"]

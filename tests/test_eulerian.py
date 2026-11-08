@@ -225,7 +225,7 @@ class TestEulerianCircuit:
         # Verify edges exist in the direction traveled
         for i in range(len(circuit) - 1):
             u, v = circuit[i], circuit[i + 1]
-            neighbors = graph.neighbors(u)
+            neighbors = graph.get_neighbors(u)
             assert v in neighbors
 
     def test_disconnected_graph_no_circuit(self):

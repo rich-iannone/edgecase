@@ -1,5 +1,5 @@
 """
-Correctness tests for `get_spectrum()` and `get_laplacian_spectrum()` against NetworkX.
+Correctness tests for `adjacency_spectrum()` and `laplacian_spectrum()` against NetworkX.
 
 Every graph in the corpus is built identically in NetworkX and EdgeCase. Reference
 matrices are taken from NetworkX in the node order EdgeCase reports under `"nodes"`,
@@ -182,49 +182,49 @@ class TestUndirectedAgainstNetworkX:
     @undirected
     def test_adjacency_values(self, name):
         G = UNDIRECTED[name]
-        spec = build(G).get_spectrum(which="all")
+        spec = build(G).adjacency_spectrum(which="all")
         assert_same_real_spectrum(spec["values"], nx.adjacency_spectrum(G).real)
 
     @undirected
     def test_adjacency_eigenpairs(self, name):
         G = UNDIRECTED[name]
         g = build(G)
-        spec = g.get_spectrum(which="all")
+        spec = g.adjacency_spectrum(which="all")
         A = adjacency(G, nx_nodelist(g, spec))
         assert_eigenpairs(A, spec["values"], spec["vectors"])
 
     @undirected
     def test_laplacian_values(self, name):
         G = UNDIRECTED[name]
-        spec = build(G).get_laplacian_spectrum(which="all")
+        spec = build(G).laplacian_spectrum(which="all")
         assert_same_real_spectrum(spec["values"], nx.laplacian_spectrum(G))
 
     @undirected
     def test_laplacian_eigenpairs(self, name):
         G = UNDIRECTED[name]
         g = build(G)
-        spec = g.get_laplacian_spectrum(which="all")
+        spec = g.laplacian_spectrum(which="all")
         L = laplacian(G, nx_nodelist(g, spec), normalized=False)
         assert_eigenpairs(L, spec["values"], spec["vectors"])
 
     @undirected
     def test_normalized_laplacian_values(self, name):
         G = UNDIRECTED[name]
-        spec = build(G).get_laplacian_spectrum(which="all", normalized=True)
+        spec = build(G).laplacian_spectrum(which="all", normalized=True)
         assert_same_real_spectrum(spec["values"], nx.normalized_laplacian_spectrum(G))
 
     @undirected
     def test_normalized_laplacian_eigenpairs(self, name):
         G = UNDIRECTED[name]
         g = build(G)
-        spec = g.get_laplacian_spectrum(which="all", normalized=True)
+        spec = g.laplacian_spectrum(which="all", normalized=True)
         L = laplacian(G, nx_nodelist(g, spec), normalized=True)
         assert_eigenpairs(L, spec["values"], spec["vectors"])
 
     @undirected
     def test_spectral_gap(self, name):
         G = UNDIRECTED[name]
-        spec = build(G).get_spectrum()
+        spec = build(G).adjacency_spectrum()
         ref = np.sort(nx.adjacency_spectrum(G).real)[::-1]
         if len(ref) < 2:
             assert spec["spectral_gap"] is None
@@ -234,7 +234,7 @@ class TestUndirectedAgainstNetworkX:
     @undirected
     def test_algebraic_connectivity(self, name):
         G = UNDIRECTED[name]
-        spec = build(G).get_laplacian_spectrum()
+        spec = build(G).laplacian_spectrum()
         if len(G) < 2:
             assert spec["algebraic_connectivity"] is None
         elif not nx.is_connected(G):
@@ -254,7 +254,7 @@ class TestDirectedAgainstNetworkX:
     @directed
     def test_adjacency_values(self, name):
         G = DIRECTED[name]
-        spec = build(G).get_spectrum(which="all")
+        spec = build(G).adjacency_spectrum(which="all")
         assert all(isinstance(v, complex) for v in spec["values"])
         assert_same_complex_spectrum(spec["values"], nx.adjacency_spectrum(G))
 
@@ -262,7 +262,7 @@ class TestDirectedAgainstNetworkX:
     def test_laplacian_values(self, name):
         G = DIRECTED[name]
         g = build(G)
-        spec = g.get_laplacian_spectrum(which="all")
+        spec = g.laplacian_spectrum(which="all")
         L = laplacian(G, nx_nodelist(g, spec), normalized=False)
         assert_same_complex_spectrum(spec["values"], np.linalg.eigvals(L))
 
@@ -270,15 +270,15 @@ class TestDirectedAgainstNetworkX:
     def test_normalized_laplacian_values(self, name):
         G = DIRECTED[name]
         g = build(G)
-        spec = g.get_laplacian_spectrum(which="all", normalized=True)
+        spec = g.laplacian_spectrum(which="all", normalized=True)
         L = laplacian(G, nx_nodelist(g, spec), normalized=True)
         assert_same_complex_spectrum(spec["values"], np.linalg.eigvals(L))
 
     @directed
     def test_no_vectors_or_scalar_summaries(self, name):
         g = build(DIRECTED[name])
-        spec = g.get_spectrum(which="all")
-        lap = g.get_laplacian_spectrum(which="all")
+        spec = g.adjacency_spectrum(which="all")
+        lap = g.laplacian_spectrum(which="all")
         assert spec["vectors"] is None
         assert spec["spectral_gap"] is None
         assert lap["vectors"] is None
@@ -288,7 +288,7 @@ class TestDirectedAgainstNetworkX:
         """The directed n-cycle's adjacency eigenvalues are the n-th roots of unity."""
         n = 5
         g = build(nx.cycle_graph(n, create_using=nx.DiGraph))
-        values = g.get_spectrum(which="all")["values"]
+        values = g.adjacency_spectrum(which="all")["values"]
         roots = np.exp(2j * np.pi * np.arange(n) / n)
         assert_same_complex_spectrum(values, roots)
         # Sorted descending by real part: 1 comes first
@@ -297,14 +297,14 @@ class TestDirectedAgainstNetworkX:
     def test_dag_adjacency_is_nilpotent(self):
         """A DAG's adjacency matrix is nilpotent, so every eigenvalue is zero."""
         g = build(nx.gn_graph(15, seed=4))
-        for v in g.get_spectrum(which="all")["values"]:
+        for v in g.adjacency_spectrum(which="all")["values"]:
             assert abs(v) < 1e-8
 
     def test_directed_differs_from_undirected(self):
         """Direction must matter: a directed path is not its symmetrized version."""
         G = nx.path_graph(4, create_using=nx.DiGraph)
-        directed_vals = build(G).get_spectrum(which="all")["values"]
-        undirected_vals = build(G.to_undirected()).get_spectrum(which="all")["values"]
+        directed_vals = build(G).adjacency_spectrum(which="all")["values"]
+        undirected_vals = build(G.to_undirected()).adjacency_spectrum(which="all")["values"]
         assert max(abs(v) for v in directed_vals) < 1e-8
         assert max(undirected_vals) > 1.0
 
@@ -322,15 +322,15 @@ class TestMatrixConventions:
         g.add_node("b")
         g.add_edge("a", "b")
         g.add_edge("a", "b")
-        assert g.get_spectrum(which="all")["values"] == pytest.approx([2.0, -2.0])
-        assert g.get_laplacian_spectrum(which="all")["values"] == pytest.approx([0.0, 4.0], abs=TOL)
+        assert g.adjacency_spectrum(which="all")["values"] == pytest.approx([2.0, -2.0])
+        assert g.laplacian_spectrum(which="all")["values"] == pytest.approx([0.0, 4.0], abs=TOL)
 
     def test_self_loops_cancel_in_laplacian(self):
         """Laplacian rows sum to zero, so λ = 0 survives self-loops."""
         g = build(_self_loops())
-        values = g.get_laplacian_spectrum(which="all")["values"]
+        values = g.laplacian_spectrum(which="all")["values"]
         assert values[0] == pytest.approx(0.0, abs=TOL)
-        plain = build(nx.cycle_graph(5)).get_laplacian_spectrum(which="all")["values"]
+        plain = build(nx.cycle_graph(5)).laplacian_spectrum(which="all")["values"]
         assert values == pytest.approx(plain, abs=TOL)
 
     def test_self_loop_counted_once_in_adjacency(self):
@@ -338,38 +338,38 @@ class TestMatrixConventions:
         g = Graph(directed=False)
         g.add_node("a")
         g.add_edge("a", "a", weight=3.0)
-        assert g.get_spectrum(which="all")["values"] == pytest.approx([3.0])
+        assert g.adjacency_spectrum(which="all")["values"] == pytest.approx([3.0])
 
     def test_isolated_node_normalized_laplacian_zero(self):
         """Isolated nodes contribute a zero eigenvalue to the normalized Laplacian."""
         g = build(_with_isolates(nx.path_graph(2), 1))
-        values = g.get_laplacian_spectrum(which="all", normalized=True)["values"]
+        values = g.laplacian_spectrum(which="all", normalized=True)["values"]
         assert values == pytest.approx([0.0, 0.0, 2.0], abs=TOL)
 
     @undirected
     def test_zero_eigenvalue_multiplicity_is_component_count(self, name):
         G = UNDIRECTED[name]
-        values = build(G).get_laplacian_spectrum(which="all")["values"]
+        values = build(G).laplacian_spectrum(which="all")["values"]
         zeros = sum(1 for v in values if abs(v) < 1e-8)
         assert zeros == nx.number_connected_components(G)
 
     @undirected
     def test_adjacency_trace_is_loop_weight(self, name):
         G = UNDIRECTED[name]
-        values = build(G).get_spectrum(which="all")["values"]
+        values = build(G).adjacency_spectrum(which="all")["values"]
         loop_weight = sum(w for u, v, w in G.edges(data="weight", default=1.0) if u == v)
         assert sum(values) == pytest.approx(loop_weight, abs=1e-7)
 
     @undirected
     def test_laplacian_trace_is_non_loop_degree_sum(self, name):
         G = UNDIRECTED[name]
-        values = build(G).get_laplacian_spectrum(which="all")["values"]
+        values = build(G).laplacian_spectrum(which="all")["values"]
         weight = sum(w for u, v, w in G.edges(data="weight", default=1.0) if u != v)
         assert sum(values) == pytest.approx(2 * weight, abs=1e-7)
 
     @undirected
     def test_normalized_laplacian_bounds(self, name):
-        values = build(UNDIRECTED[name]).get_laplacian_spectrum(which="all", normalized=True)[
+        values = build(UNDIRECTED[name]).laplacian_spectrum(which="all", normalized=True)[
             "values"
         ]
         assert min(values) > -1e-9
@@ -388,21 +388,21 @@ class TestNodeAlignment:
         for label in labels:
             g.add_node(label)
         g.add_edge("zeta", "alpha")
-        spec = g.get_spectrum(which="all")
+        spec = g.adjacency_spectrum(which="all")
         assert [g.get_label_from_id(i) for i in spec["nodes"]] == labels
-        lap = g.get_laplacian_spectrum(which="all")
+        lap = g.laplacian_spectrum(which="all")
         assert lap["nodes"] == spec["nodes"]
 
     def test_vectors_have_one_entry_per_node(self):
         g = build(nx.karate_club_graph())
-        spec = g.get_spectrum(which="largest", k=3)
+        spec = g.adjacency_spectrum(which="largest", k=3)
         assert len(spec["nodes"]) == 34
         assert all(len(vec) == 34 for vec in spec["vectors"])
 
     def test_path_fiedler_vector_is_monotone(self):
         """On a path the Fiedler vector is monotone along the path in node order."""
         g = build(nx.path_graph(9))
-        spec = g.get_laplacian_spectrum(which="smallest", k=2)
+        spec = g.laplacian_spectrum(which="smallest", k=2)
         labels = [int(g.get_label_from_id(i)) for i in spec["nodes"]]
         fiedler = dict(zip(labels, spec["vectors"][1]))
         seq = [fiedler[i] for i in range(9)]
@@ -412,7 +412,7 @@ class TestNodeAlignment:
     def test_fiedler_sign_split_recovers_clusters(self):
         """Sign of the Fiedler vector separates the two halves of a barbell."""
         g = build(nx.barbell_graph(5, 0))
-        spec = g.get_laplacian_spectrum(which="smallest", k=2)
+        spec = g.laplacian_spectrum(which="smallest", k=2)
         labels = [int(g.get_label_from_id(i)) for i in spec["nodes"]]
         positive = {lab for lab, v in zip(labels, spec["vectors"][1]) if v > 0}
         negative = {lab for lab, v in zip(labels, spec["vectors"][1]) if v < 0}
@@ -425,7 +425,7 @@ class TestNodeAlignment:
         g = build(nx.path_graph(5))
         removed = g.get_id_from_label("2")
         g.delete_node("2")
-        spec = g.get_laplacian_spectrum(which="all")
+        spec = g.laplacian_spectrum(which="all")
         assert removed not in spec["nodes"]
         assert len(spec["nodes"]) == 4
         # Removing the middle of P5 leaves two P2 components
@@ -434,15 +434,15 @@ class TestNodeAlignment:
     def test_eigenvector_sign_is_normalized(self):
         """The first non-negligible entry of each eigenvector is positive."""
         g = build(nx.karate_club_graph())
-        for spec in (g.get_spectrum(which="all"), g.get_laplacian_spectrum(which="all")):
+        for spec in (g.adjacency_spectrum(which="all"), g.laplacian_spectrum(which="all")):
             for vec in spec["vectors"]:
                 first = next(v for v in vec if abs(v) > 1e-12)
                 assert first > 0
 
     def test_results_are_deterministic(self):
         G = nx.gnp_random_graph(30, 0.2, seed=9)
-        a = build(G).get_laplacian_spectrum(which="all")
-        b = build(G).get_laplacian_spectrum(which="all")
+        a = build(G).laplacian_spectrum(which="all")
+        b = build(G).laplacian_spectrum(which="all")
         assert a["values"] == b["values"]
         assert a["vectors"] == b["vectors"]
 
@@ -464,10 +464,10 @@ class TestSelection:
             G = nx.DiGraph([(u, v) for u, v in G.edges() if (u + v) % 3])
             G.add_nodes_from(range(12))
         g = build(G)
-        full = g.get_spectrum(which="all")["values"]
+        full = g.adjacency_spectrum(which="all")["values"]
         kk = min(k, len(full))
-        largest = g.get_spectrum(which="largest", k=k)["values"]
-        smallest = g.get_spectrum(which="smallest", k=k)["values"]
+        largest = g.adjacency_spectrum(which="largest", k=k)["values"]
+        smallest = g.adjacency_spectrum(which="smallest", k=k)["values"]
         assert largest == full[:kk]
         assert smallest == (full[len(full) - kk :] if kk else [])
 
@@ -475,10 +475,10 @@ class TestSelection:
     @pytest.mark.parametrize("k", [0, 1, 3, 12, 50])
     def test_laplacian_largest_and_smallest(self, normalized, k):
         g = build(GRAPH_FOR_SELECTION)
-        full = g.get_laplacian_spectrum(which="all", normalized=normalized)
+        full = g.laplacian_spectrum(which="all", normalized=normalized)
         kk = min(k, len(full["values"]))
-        smallest = g.get_laplacian_spectrum(which="smallest", k=k, normalized=normalized)
-        largest = g.get_laplacian_spectrum(which="largest", k=k, normalized=normalized)
+        smallest = g.laplacian_spectrum(which="smallest", k=k, normalized=normalized)
+        largest = g.laplacian_spectrum(which="largest", k=k, normalized=normalized)
         assert smallest["values"] == full["values"][:kk]
         assert smallest["vectors"] == full["vectors"][:kk]
         tail = slice(len(full["values"]) - kk, None) if kk else slice(0, 0)
@@ -486,36 +486,36 @@ class TestSelection:
         assert largest["vectors"] == full["vectors"][tail]
 
     def test_adjacency_values_descending(self):
-        values = build(GRAPH_FOR_SELECTION).get_spectrum(which="all")["values"]
+        values = build(GRAPH_FOR_SELECTION).adjacency_spectrum(which="all")["values"]
         assert values == sorted(values, reverse=True)
 
     def test_laplacian_values_ascending(self):
-        values = build(GRAPH_FOR_SELECTION).get_laplacian_spectrum(which="all")["values"]
+        values = build(GRAPH_FOR_SELECTION).laplacian_spectrum(which="all")["values"]
         assert values == sorted(values)
 
     def test_directed_values_sorted_by_real_part(self):
         G = nx.gnp_random_graph(15, 0.2, seed=2, directed=True)
         g = build(G)
-        adj = [v.real for v in g.get_spectrum(which="all")["values"]]
-        lap = [v.real for v in g.get_laplacian_spectrum(which="all")["values"]]
+        adj = [v.real for v in g.adjacency_spectrum(which="all")["values"]]
+        lap = [v.real for v in g.laplacian_spectrum(which="all")["values"]]
         assert adj == sorted(adj, reverse=True)
         assert lap == sorted(lap)
 
     @pytest.mark.parametrize("n, expected", [(1, 1), (4, 4), (6, 6), (10, 6)])
     def test_default_k(self, n, expected):
         g = build(nx.path_graph(n))
-        assert len(g.get_spectrum()["values"]) == expected
-        assert len(g.get_laplacian_spectrum()["values"]) == expected
+        assert len(g.adjacency_spectrum()["values"]) == expected
+        assert len(g.laplacian_spectrum()["values"]) == expected
 
     def test_summaries_use_full_spectrum(self):
         """spectral_gap / algebraic_connectivity don't depend on which/k."""
         g = build(nx.karate_club_graph())
-        full_adj = g.get_spectrum(which="all")
-        full_lap = g.get_laplacian_spectrum(which="all")
+        full_adj = g.adjacency_spectrum(which="all")
+        full_lap = g.laplacian_spectrum(which="all")
         for which in ("largest", "smallest"):
-            assert g.get_spectrum(which=which, k=1)["spectral_gap"] == full_adj["spectral_gap"]
+            assert g.adjacency_spectrum(which=which, k=1)["spectral_gap"] == full_adj["spectral_gap"]
             assert (
-                g.get_laplacian_spectrum(which=which, k=1)["algebraic_connectivity"]
+                g.laplacian_spectrum(which=which, k=1)["algebraic_connectivity"]
                 == full_lap["algebraic_connectivity"]
             )
 
@@ -524,14 +524,14 @@ class TestSelection:
         g = Graph(directed=is_directed)
         g.add_node("a")
         with pytest.raises(ValueError, match="which"):
-            g.get_spectrum(which="middle")
+            g.adjacency_spectrum(which="middle")
         with pytest.raises(ValueError, match="which"):
-            g.get_laplacian_spectrum(which="middle")
+            g.laplacian_spectrum(which="middle")
 
     @pytest.mark.parametrize("is_directed", [False, True])
     def test_empty_graph_errors(self, is_directed):
         g = Graph(directed=is_directed)
         with pytest.raises(ValueError, match="empty graph"):
-            g.get_spectrum()
+            g.adjacency_spectrum()
         with pytest.raises(ValueError, match="empty graph"):
-            g.get_laplacian_spectrum()
+            g.laplacian_spectrum()

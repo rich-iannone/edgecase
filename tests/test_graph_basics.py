@@ -121,7 +121,7 @@ def test_edges_returns_list(simple_graph):
 
 def test_neighbors_simple(simple_graph):
     """Test basic neighbor query"""
-    neighbor_ids = simple_graph.neighbors("A")
+    neighbor_ids = simple_graph.get_neighbors("A")
     neighbor_labels = [simple_graph.get_label_from_id(nid) for nid in neighbor_ids]
     assert "B" in neighbor_labels
 
@@ -129,7 +129,7 @@ def test_neighbors_simple(simple_graph):
 def test_neighbors_nonexistent_node(empty_graph):
     """Querying neighbors of nonexistent node should return empty or raise"""
     try:
-        neighbors = empty_graph.neighbors("X")
+        neighbors = empty_graph.get_neighbors("X")
         assert neighbors == [] or neighbors is None
     except (KeyError, ValueError):
         pass  # Also acceptable
@@ -142,8 +142,8 @@ def test_undirected_neighbors_symmetric():
     G.add_node("B")
     G.add_edge("A", "B")
 
-    neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
-    neighbors_b = [G.get_label_from_id(nid) for nid in G.neighbors("B")]
+    neighbors_a = [G.get_label_from_id(nid) for nid in G.get_neighbors("A")]
+    neighbors_b = [G.get_label_from_id(nid) for nid in G.get_neighbors("B")]
 
     assert "B" in neighbors_a
     assert "A" in neighbors_b
@@ -156,7 +156,7 @@ def test_directed_neighbors_asymmetric():
     G.add_node("B")
     G.add_edge("A", "B")
 
-    neighbors_a = [G.get_label_from_id(nid) for nid in G.neighbors("A")]
+    neighbors_a = [G.get_label_from_id(nid) for nid in G.get_neighbors("A")]
     assert "B" in neighbors_a
     # B might not have A as neighbor (depends on API)
 

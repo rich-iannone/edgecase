@@ -189,7 +189,7 @@ def test_girth_vs_networkx(name, nx_graph, directed, expected_girth):
     ec_graph = nx_to_edgecase(nx_graph, directed)
 
     # Compute girth
-    ec_girth = ec_graph.get_girth()
+    ec_girth = ec_graph.girth()
     nx_girth = compute_girth_networkx(nx_graph)
 
     print(f"EdgeCase girth: {ec_girth}")
@@ -232,7 +232,7 @@ def test_girth_vs_igraph(name, nx_graph, directed, expected_girth):
     ig_graph, node_list = nx_to_igraph(nx_graph, directed)
 
     # Compute girth
-    ec_girth = ec_graph.get_girth()
+    ec_girth = ec_graph.girth()
     try:
         ig_girth = ig_graph.girth()
     except Exception as e:
@@ -271,14 +271,14 @@ def test_girth_after_an_acyclic_bfs():
     # A BFS that finds no cycle used to mark its nodes as done, so later searches skipped
     # the triangle 0, 1, 3 and reported the 7-cycle walk instead
     g = _build(nx.Graph([(0, 1), (0, 3), (1, 3), (2, 4), (3, 4), (4, 5)]), False)
-    assert g.get_girth() == 3
+    assert g.girth() == 3
 
 
 def test_directed_girth():
     # A diamond has no directed cycle; a <-> b is a 2-cycle
-    assert _build(nx.DiGraph([(0, 1), (0, 2), (1, 3), (2, 3)]), True).get_girth() is None
-    assert _build(nx.DiGraph([(0, 1), (1, 0)]), True).get_girth() == 2
-    assert _build(nx.DiGraph([(0, 1), (1, 2), (2, 0), (2, 3)]), True).get_girth() == 3
+    assert _build(nx.DiGraph([(0, 1), (0, 2), (1, 3), (2, 3)]), True).girth() is None
+    assert _build(nx.DiGraph([(0, 1), (1, 0)]), True).girth() == 2
+    assert _build(nx.DiGraph([(0, 1), (1, 2), (2, 0), (2, 3)]), True).girth() == 3
 
 
 @pytest.mark.parametrize("directed", [False, True])
@@ -291,4 +291,4 @@ def test_random_girth_matches_networkx(directed):
         else:
             expected = nx.girth(G)
             expected = None if expected == float("inf") else expected
-        assert _build(G, directed).get_girth() == expected, list(G.edges())
+        assert _build(G, directed).girth() == expected, list(G.edges())

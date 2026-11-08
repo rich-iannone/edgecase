@@ -298,7 +298,7 @@ class TestGraphPropertiesValidation:
 
         nx_graph = to_networkx(G)
 
-        ec_density = G.get_density()
+        ec_density = G.density()
         nx_density = nx.density(nx_graph)
 
         assert abs(ec_density - nx_density) < 0.001, (
@@ -452,7 +452,7 @@ class TestNeighborsValidation:
 
         # Check neighbors for each node
         for node_id in G.get_node_ids(limit=None):
-            ec_neighbors = set(G.neighbors(node_id))
+            ec_neighbors = set(G.get_neighbors(node_id))
             # Convert to labels for comparison
             ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
             nx_node = node_to_nx(G, node_id)
@@ -476,7 +476,7 @@ class TestNeighborsValidation:
         nx_graph = to_networkx(G)
 
         for node_id in G.get_node_ids(limit=None):
-            ec_neighbors = set(G.neighbors(node_id))
+            ec_neighbors = set(G.get_neighbors(node_id))
             ec_neighbors_labels = {node_to_nx(G, n) for n in ec_neighbors}
             nx_node = node_to_nx(G, node_id)
             nx_neighbors = set(nx_graph.neighbors(nx_node))
@@ -599,7 +599,7 @@ class TestNeighborsValidation:
         nx_graph = to_networkx(graph)
 
         for node_id in graph.get_node_ids(limit=None):
-            ec_neighbors = set(graph.neighbors(node_id))
+            ec_neighbors = set(graph.get_neighbors(node_id))
             ec_neighbors_labels = {node_to_nx(graph, n) for n in ec_neighbors}
             nx_node = node_to_nx(graph, node_id)
             nx_neighbors = set(nx_graph.neighbors(nx_node))
@@ -813,7 +813,7 @@ class TestEdgeCases:
         a_id = G.get_id_from_label("A")
         assert G.get_degree(a_id) == nx_graph.degree["A"]
         assert G.get_degree(a_id) == 0
-        ec_neighbors = list(G.neighbors(a_id))
+        ec_neighbors = list(G.get_neighbors(a_id))
         assert ec_neighbors == list(nx_graph.neighbors("A"))
 
     def test_self_loop(self):
@@ -845,7 +845,7 @@ class TestEdgeCases:
         c_id = G.get_id_from_label("C")
         assert G.get_degree(c_id) == nx_graph.degree["C"]
         assert G.get_degree(c_id) == 0
-        assert list(G.neighbors(c_id)) == []
+        assert list(G.get_neighbors(c_id)) == []
 
     def test_weighted_vs_unweighted_paths(self):
         """Test that weighted and unweighted paths can differ."""
@@ -1558,7 +1558,7 @@ class TestDirectedGraphSpecifics:
         nx_graph = to_networkx(G)
 
         if hasattr(G, "reciprocity"):
-            ec_reciprocity = G.get_reciprocity()
+            ec_reciprocity = G.reciprocity()
             nx_reciprocity = nx.reciprocity(nx_graph)
             assert abs(ec_reciprocity - nx_reciprocity) < 0.01
 

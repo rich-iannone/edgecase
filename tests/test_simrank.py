@@ -106,7 +106,7 @@ class TestSimRankStarSimilarity:
         p1, p2 = g.get_id_from_label("P1"), g.get_id_from_label("P2")
         for method in ["closed_form", "iterative"]:
             result = g.simrank_star_similarity(
-                return_dict=True, method=method, max_iterations=1000, tolerance=1e-12
+                return_dict=True, method=method, max_iter=1000, tol=1e-12
             )
             assert result[p1][p2] == pytest.approx(expected, abs=1e-9)
 
@@ -126,7 +126,7 @@ class TestSimRankStarSimilarity:
                         g.add_edge(str(u), str(v))
             closed = g.simrank_star_similarity(return_dict=True)
             iterative = g.simrank_star_similarity(
-                return_dict=True, method="iterative", max_iterations=2000, tolerance=1e-13
+                return_dict=True, method="iterative", max_iter=2000, tol=1e-13
             )
             for a, row in iterative.items():
                 for b, value in row.items():
@@ -172,7 +172,7 @@ class TestSimRankStarSimilarity:
     def test_methods_agree(self, diamond_directed):
         cf = diamond_directed.simrank_star_similarity(method="closed_form", return_dict=True)
         it = diamond_directed.simrank_star_similarity(
-            method="iterative", max_iterations=500, tolerance=1e-8, return_dict=True
+            method="iterative", max_iter=500, tol=1e-8, return_dict=True
         )
         for a in cf:
             for b in cf[a]:
@@ -308,4 +308,4 @@ class TestPlainSimRank:
         step = g.steps[-1]
         assert step.kind == KIND_METRIC and step.delta.nodes_selected == ["math"]
         with pytest.raises(ValueError, match="converge"):
-            g.simrank_similarity(max_iterations=1)
+            g.simrank_similarity(max_iter=1)

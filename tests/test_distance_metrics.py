@@ -15,7 +15,7 @@ class TestMeanDistance:
 
         # Distances: 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 2->3=1
         # Total = 1+2+3+1+2+1 = 10, Count = 6, Mean = 10/6 ≈ 1.667
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
         assert abs(mean_dist - 10.0 / 6.0) < 0.001
 
@@ -27,7 +27,7 @@ class TestMeanDistance:
         # From hub to leaves: 4 paths of length 1
         # Between leaves: 6 pairs, each distance 2 (via hub)
         # Total = 4*1 + 6*2 = 16, Count = 10, Mean = 1.6
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
         assert abs(mean_dist - 1.6) < 0.001
 
@@ -38,7 +38,7 @@ class TestMeanDistance:
 
         # In a cycle of 6, distances are: 1,2,3,2,1 for each node
         # Mean should be (6*1 + 6*2 + 6*2 + 6*1) / 30 = 1.667...
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
         assert 1.5 < mean_dist < 2.0
 
@@ -48,7 +48,7 @@ class TestMeanDistance:
         G.add_full_graph(5)
 
         # All pairs are at distance 1
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist == 1.0
 
     def test_mean_distance_disconnected(self):
@@ -58,11 +58,11 @@ class TestMeanDistance:
         G.add_path_graph(3)  # Component 2 (disconnected)
 
         # With unconnected=False (strict mode), should return None
-        mean_dist = G.get_mean_distance(unconnected=False)
+        mean_dist = G.mean_distance(unconnected=False)
         assert mean_dist is None
 
         # With unconnected=True (default), computes mean within reachable pairs
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
         # Each path: (0,1)=1, (0,2)=2, (1,2)=1 -> sum=4, 3 pairs
         # Two paths: sum=8, 6 pairs -> mean = 4/3 ≈ 1.333
@@ -74,14 +74,14 @@ class TestMeanDistance:
         G.add_node("A")
 
         # No pairs to compute distance for
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is None
 
     def test_mean_distance_empty_graph(self):
         """Test mean distance on empty graph."""
         G = ec.Graph()
 
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is None
 
     def test_mean_distance_directed(self):
@@ -91,7 +91,7 @@ class TestMeanDistance:
 
         # Each node can reach all others with varying distances
         # 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 1->0=3, etc.
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
         assert mean_dist == 2.0  # Symmetric cycle
 
@@ -105,7 +105,7 @@ class TestMinEccentricity:
         G.add_path_graph(5)  # 0-1-2-3-4
 
         # Middle node (2) has minimum eccentricity = 2
-        radius = G.get_min_eccentricity()
+        radius = G.radius()
         assert radius == 2
 
     def test_min_eccentricity_star(self):
@@ -114,7 +114,7 @@ class TestMinEccentricity:
         G.add_star_graph(5)
 
         # Hub has minimum eccentricity = 1
-        radius = G.get_min_eccentricity()
+        radius = G.radius()
         assert radius == 1
 
     def test_min_eccentricity_cycle(self):
@@ -123,7 +123,7 @@ class TestMinEccentricity:
         G.add_cycle_graph(6)
 
         # All nodes have eccentricity 3
-        radius = G.get_min_eccentricity()
+        radius = G.radius()
         assert radius == 3
 
     def test_min_eccentricity_complete(self):
@@ -132,7 +132,7 @@ class TestMinEccentricity:
         G.add_full_graph(5)
 
         # All nodes have eccentricity 1
-        radius = G.get_min_eccentricity()
+        radius = G.radius()
         assert radius == 1
 
     def test_min_eccentricity_disconnected(self):
@@ -142,19 +142,12 @@ class TestMinEccentricity:
         G.add_path_graph(3)
 
         # With unconnected=False (strict mode), should return None
-        radius = G.get_min_eccentricity(unconnected=False)
+        radius = G.radius(unconnected=False)
         assert radius is None
 
         # With unconnected=True (default), returns min radius across components
-        radius = G.get_min_eccentricity()
+        radius = G.radius()
         assert radius == 1  # Center nodes of each path have eccentricity 1
-
-    def test_min_eccentricity_alias(self):
-        """Test that min_eccentricity is alias for graph_radius."""
-        G = ec.Graph()
-        G.add_star_graph(7)
-
-        assert G.get_min_eccentricity() == G.get_radius()
 
 
 class TestMaxEccentricity:
@@ -166,7 +159,7 @@ class TestMaxEccentricity:
         G.add_path_graph(5)  # 0-1-2-3-4
 
         # Distance from end to end = 4
-        diameter = G.get_max_eccentricity()
+        diameter = G.diameter()
         assert diameter == 4
 
     def test_max_eccentricity_star(self):
@@ -175,7 +168,7 @@ class TestMaxEccentricity:
         G.add_star_graph(5)
 
         # Distance between any two leaves = 2 (via hub)
-        diameter = G.get_max_eccentricity()
+        diameter = G.diameter()
         assert diameter == 2
 
     def test_max_eccentricity_cycle(self):
@@ -184,7 +177,7 @@ class TestMaxEccentricity:
         G.add_cycle_graph(6)
 
         # Maximum distance in cycle of 6 is 3
-        diameter = G.get_max_eccentricity()
+        diameter = G.diameter()
         assert diameter == 3
 
     def test_max_eccentricity_complete(self):
@@ -193,7 +186,7 @@ class TestMaxEccentricity:
         G.add_full_graph(5)
 
         # All pairs at distance 1
-        diameter = G.get_max_eccentricity()
+        diameter = G.diameter()
         assert diameter == 1
 
     def test_max_eccentricity_disconnected(self):
@@ -203,19 +196,12 @@ class TestMaxEccentricity:
         G.add_path_graph(3)
 
         # With unconnected=False (strict mode), should return None
-        diameter = G.get_max_eccentricity(unconnected=False)
+        diameter = G.diameter(unconnected=False)
         assert diameter is None
 
         # With unconnected=True (default), returns max diameter across components
-        diameter = G.get_max_eccentricity()
+        diameter = G.diameter()
         assert diameter == 2  # Paths of 3 nodes have diameter 2
-
-    def test_max_eccentricity_alias(self):
-        """Test that max_eccentricity is alias for graph_diameter."""
-        G = ec.Graph()
-        G.add_path_graph(10)
-
-        assert G.get_max_eccentricity() == G.get_diameter()
 
 
 class TestDistanceMetricsIntegration:
@@ -226,8 +212,8 @@ class TestDistanceMetricsIntegration:
         G = ec.Graph()
         G.add_path_graph(10)
 
-        radius = G.get_min_eccentricity()
-        diameter = G.get_max_eccentricity()
+        radius = G.radius()
+        diameter = G.diameter()
 
         assert radius is not None
         assert diameter is not None
@@ -238,8 +224,8 @@ class TestDistanceMetricsIntegration:
         G = ec.Graph()
         G.add_path_graph(8)
 
-        mean_dist = G.get_mean_distance()
-        diameter = G.get_max_eccentricity()
+        mean_dist = G.mean_distance()
+        diameter = G.diameter()
 
         assert mean_dist is not None
         assert diameter is not None
@@ -250,9 +236,9 @@ class TestDistanceMetricsIntegration:
         G = ec.Graph()
         G.add_balanced_tree(3, 2)  # 3-ary tree, depth 2
 
-        radius = G.get_min_eccentricity()
-        diameter = G.get_max_eccentricity()
-        mean_dist = G.get_mean_distance()
+        radius = G.radius()
+        diameter = G.diameter()
+        mean_dist = G.mean_distance()
 
         assert radius is not None
         assert diameter is not None
@@ -266,9 +252,9 @@ class TestDistanceMetricsIntegration:
         G = ec.Graph()
         G.add_grid_2d(3, 3)  # 3x3 grid
 
-        radius = G.get_min_eccentricity()
-        diameter = G.get_max_eccentricity()
-        mean_dist = G.get_mean_distance()
+        radius = G.radius()
+        diameter = G.diameter()
+        mean_dist = G.mean_distance()
 
         assert radius is not None
         assert diameter is not None
@@ -283,14 +269,14 @@ class TestDistanceMetricsIntegration:
         G.add_full_graph(3)  # Two disconnected cliques
 
         # With unconnected=False (strict mode), all return None
-        assert G.get_mean_distance(unconnected=False) is None
-        assert G.get_min_eccentricity(unconnected=False) is None
-        assert G.get_max_eccentricity(unconnected=False) is None
+        assert G.mean_distance(unconnected=False) is None
+        assert G.radius(unconnected=False) is None
+        assert G.diameter(unconnected=False) is None
 
         # With unconnected=True (default), compute metrics within components
-        assert G.get_mean_distance() == 1.0  # All pairs in cliques at distance 1
-        assert G.get_min_eccentricity() == 1  # All nodes in cliques have ecc 1
-        assert G.get_max_eccentricity() == 1  # All nodes in cliques have ecc 1
+        assert G.mean_distance() == 1.0  # All pairs in cliques at distance 1
+        assert G.radius() == 1  # All nodes in cliques have ecc 1
+        assert G.diameter() == 1  # All nodes in cliques have ecc 1
 
 
 class TestDistanceMetricsEdgeCases:
@@ -307,7 +293,7 @@ class TestDistanceMetricsEdgeCases:
         G._graph.add_edge(Edge(id=0, source=1, target=1, weight=None, attributes=None))
 
         # Should still compute same distances
-        mean_dist = G.get_mean_distance()
+        mean_dist = G.mean_distance()
         assert mean_dist is not None
 
     def test_two_node_graph(self):
@@ -317,9 +303,9 @@ class TestDistanceMetricsEdgeCases:
         G.add_node("B")
         G.add_edge("A", "B")
 
-        assert G.get_mean_distance() == 1.0
-        assert G.get_min_eccentricity() == 1
-        assert G.get_max_eccentricity() == 1
+        assert G.mean_distance() == 1.0
+        assert G.radius() == 1
+        assert G.diameter() == 1
 
     def test_directed_asymmetric(self):
         """Test metrics on directed asymmetric graph."""
@@ -333,13 +319,13 @@ class TestDistanceMetricsEdgeCases:
 
         # Graph is weakly connected but not strongly connected
         # With unconnected=True (default), computes mean for reachable pairs
-        result = G.get_mean_distance()
+        result = G.mean_distance()
         # A->B=1, A->C=2, B->C=1, so mean = (1+2+1)/3 = 1.33...
         assert result is not None
         assert abs(result - 4.0 / 3.0) < 0.001
 
         # With unconnected=False, returns None for unreachable pairs
-        result_strict = G.get_mean_distance(unconnected=False)
+        result_strict = G.mean_distance(unconnected=False)
         assert result_strict is None
 
 
@@ -354,11 +340,11 @@ class TestUnconnectedParameter:
         G.add_node("isolated")
 
         # unconnected=True (default): max diameter across components
-        assert G.get_diameter() == 3
-        assert G.get_diameter(unconnected=True) == 3
+        assert G.diameter() == 3
+        assert G.diameter(unconnected=True) == 3
 
         # unconnected=False: None for disconnected
-        assert G.get_diameter(unconnected=False) is None
+        assert G.diameter(unconnected=False) is None
 
     def test_unconnected_parameter_radius(self):
         """Test radius with unconnected parameter on various graph types."""
@@ -368,11 +354,11 @@ class TestUnconnectedParameter:
         G.add_cycle_graph(3)  # All nodes have radius 1
 
         # unconnected=True (default): min radius across components
-        assert G.get_radius() == 1
-        assert G.get_radius(unconnected=True) == 1
+        assert G.radius() == 1
+        assert G.radius(unconnected=True) == 1
 
         # unconnected=False: None for disconnected
-        assert G.get_radius(unconnected=False) is None
+        assert G.radius(unconnected=False) is None
 
     def test_unconnected_parameter_mean_distance(self):
         """Test mean distance with unconnected parameter."""
@@ -382,11 +368,11 @@ class TestUnconnectedParameter:
         G.add_full_graph(3)  # All pairs at distance 1
 
         # unconnected=True (default): mean of all reachable pairs
-        mean = G.get_mean_distance()
+        mean = G.mean_distance()
         assert mean == 1.0  # All reachable pairs at distance 1
 
         # unconnected=False: None for disconnected
-        assert G.get_mean_distance(unconnected=False) is None
+        assert G.mean_distance(unconnected=False) is None
 
     def test_unconnected_with_isolated_nodes(self):
         """Test metrics with multiple isolated nodes."""
@@ -397,11 +383,11 @@ class TestUnconnectedParameter:
         G.add_node("C")
 
         # Isolated nodes reach nothing, so they don't count toward the radius
-        assert G.get_diameter() == 2  # Max ecc from path
-        assert G.get_radius() == 1  # Path's middle node
+        assert G.diameter() == 2  # Max ecc from path
+        assert G.radius() == 1  # Path's middle node
 
         # Mean distance computed only for reachable pairs
-        mean = G.get_mean_distance()
+        mean = G.mean_distance()
         # Path has pairs: (0,1)=1, (0,2)=2, (1,2)=1 -> sum=4, 3 pairs -> mean = 4/3
         assert abs(mean - 4 / 3) < 0.01
 
@@ -411,9 +397,9 @@ class TestUnconnectedParameter:
         G.add_cycle_graph(6)
 
         # Connected graph: unconnected parameter shouldn't matter
-        assert G.get_diameter() == G.get_diameter(unconnected=False) == 3
-        assert G.get_radius() == G.get_radius(unconnected=False) == 3
-        assert G.get_mean_distance() == G.get_mean_distance(unconnected=False)
+        assert G.diameter() == G.diameter(unconnected=False) == 3
+        assert G.radius() == G.radius(unconnected=False) == 3
+        assert G.mean_distance() == G.mean_distance(unconnected=False)
 
     def test_unconnected_matches_igraph_behavior(self):
         """Test that default behavior matches igraph's unconn=True."""
@@ -424,16 +410,16 @@ class TestUnconnectedParameter:
         G.add_star_graph(6)  # diameter 2, radius 1 (center)
 
         # Default should return max/min across all components
-        diameter = G.get_diameter()
-        radius = G.get_radius()
+        diameter = G.diameter()
+        radius = G.radius()
 
         # Diameter = max(4, 2, 2) = 4, Radius = min(2, 2, 1) = 1
         assert diameter == 4  # From the path
         assert radius == 1  # From the star center
 
         # With unconnected=False, should be None
-        assert G.get_diameter(unconnected=False) is None
-        assert G.get_radius(unconnected=False) is None
+        assert G.diameter(unconnected=False) is None
+        assert G.radius(unconnected=False) is None
 
 
 class TestWienerIndex:
@@ -451,7 +437,7 @@ class TestWienerIndex:
         # W(P_4) = 4*(16-1)/6 = 4*15/6 = 10
         # Distances: 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 2->3=1
         # Sum = 1+2+3+1+2+1 = 10
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 10.0
 
     def test_wiener_index_complete_graph(self):
@@ -465,7 +451,7 @@ class TestWienerIndex:
         G.add_full_graph(5)
 
         # W(K_5) = 5*4/2 = 10 (all 10 pairs at distance 1)
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 10.0
 
     def test_wiener_index_cycle_graph(self):
@@ -480,7 +466,7 @@ class TestWienerIndex:
         G.add_cycle_graph(6)
 
         # W(C_6) = 6^3/8 = 216/8 = 27
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 27.0
 
     def test_wiener_index_star_graph(self):
@@ -492,7 +478,7 @@ class TestWienerIndex:
         # Hub to leaves: 4 paths of distance 1 = 4
         # Leaf to leaf: 6 pairs of distance 2 = 12
         # Total = 4 + 12 = 16
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 16.0
 
     def test_wiener_index_single_node(self):
@@ -501,7 +487,7 @@ class TestWienerIndex:
         G.add_node("A")
 
         # No pairs, sum is 0
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 0.0
 
     def test_wiener_index_two_nodes_connected(self):
@@ -512,7 +498,7 @@ class TestWienerIndex:
         G.add_edge("A", "B")
 
         # Single pair at distance 1
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 1.0
 
     def test_wiener_index_disconnected_graph(self):
@@ -522,7 +508,7 @@ class TestWienerIndex:
         G.add_path_graph(3)  # Component 2
 
         # Disconnected graphs have infinite Wiener index
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == float("inf")
 
     def test_wiener_index_directed_graph(self):
@@ -532,7 +518,7 @@ class TestWienerIndex:
 
         # 0->1=1, 0->2=2, 1->2=1 (only forward paths exist)
         # 1->0=inf, 2->0=inf, 2->1=inf
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == float("inf")
 
     def test_wiener_index_directed_cycle(self):
@@ -544,11 +530,11 @@ class TestWienerIndex:
         # 0->1=1, 0->2=2, 0->3=3, 1->2=1, 1->3=2, 1->0=3
         # 2->3=1, 2->0=2, 2->1=3, 3->0=1, 3->1=2, 3->2=3
         # Total = (1+2+3)*4 = 24
-        wiener = G.get_wiener_index()
+        wiener = G.wiener_index()
         assert wiener == 24.0
 
     def test_wiener_index_weighted_graph(self):
-        """Test Wiener index respects edge weights when weight parameter is specified."""
+        """Test Wiener index uses edge weights on a weighted graph, unless weighted=False."""
         G = ec.Graph(weighted=True)
         G.add_node(label="A")
         G.add_node(label="B")
@@ -558,13 +544,14 @@ class TestWienerIndex:
 
         # A->B=2, A->C=5, B->C=3
         # Total = 2 + 5 + 3 = 10
-        wiener = G.get_wiener_index(weight="weight")
+        wiener = G.wiener_index()
         assert wiener == 10.0
+        assert G.wiener_index(weighted=True) == 10.0
 
-        # Without weight parameter, uses unweighted (hop count)
+        # With weighted=False, uses unweighted (hop count)
         # A->B=1, A->C=2, B->C=1
         # Total = 1 + 2 + 1 = 4
-        wiener_unweighted = G.get_wiener_index()
+        wiener_unweighted = G.wiener_index(weighted=False)
         assert wiener_unweighted == 4.0
 
 
@@ -580,7 +567,7 @@ class TestEstradaIndex:
         G = ec.Graph()
         G.add_node("A")
 
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - 1.0) < 0.001
 
     def test_estrada_index_two_connected_nodes(self):
@@ -596,7 +583,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(-1) + math.exp(1)
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.001
 
     def test_estrada_index_path_graph(self):
@@ -613,7 +600,7 @@ class TestEstradaIndex:
 
         sqrt2 = math.sqrt(2)
         expected = math.exp(-sqrt2) + math.exp(0) + math.exp(sqrt2)
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_complete_graph(self):
@@ -629,7 +616,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(3) + 3 * math.exp(-1)
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_cycle_graph(self):
@@ -644,7 +631,7 @@ class TestEstradaIndex:
         import math
 
         expected = math.exp(2) + 2 * math.exp(0) + math.exp(-2)
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_star_graph(self):
@@ -661,14 +648,14 @@ class TestEstradaIndex:
 
         sqrt3 = math.sqrt(3)
         expected = math.exp(sqrt3) + 2 * math.exp(0) + math.exp(-sqrt3)
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_empty_graph(self):
         """Test Estrada index on empty graph."""
         G = ec.Graph()
 
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert estrada == 0.0
 
     def test_estrada_index_disconnected_graph(self):
@@ -685,7 +672,7 @@ class TestEstradaIndex:
 
         # Each K_2 contributes exp(-1) + exp(1), two components
         expected = 2 * (math.exp(-1) + math.exp(1))
-        estrada = G.get_estrada_index()
+        estrada = G.estrada_index()
         assert abs(estrada - expected) < 0.01
 
     def test_estrada_index_increases_with_edges(self):
@@ -700,22 +687,22 @@ class TestEstradaIndex:
         G2 = ec.Graph()
         G2.add_cycle_graph(4)  # 4 edges (closed cycle)
 
-        assert G2.get_estrada_index() > G1.get_estrada_index()
+        assert G2.estrada_index() > G1.estrada_index()
 
     def test_estrada_index_positive(self):
         """Test that Estrada index is always positive for non-empty graphs."""
         for n in [3, 5, 10]:
             G = ec.Graph()
             G.add_full_graph(n)
-            assert G.get_estrada_index() > 0
+            assert G.estrada_index() > 0
 
             G2 = ec.Graph()
             G2.add_cycle_graph(n)
-            assert G2.get_estrada_index() > 0
+            assert G2.estrada_index() > 0
 
             G3 = ec.Graph()
             G3.add_path_graph(n)
-            assert G3.get_estrada_index() > 0
+            assert G3.estrada_index() > 0
 
 
 class TestResistanceDistance:
@@ -725,13 +712,13 @@ class TestResistanceDistance:
         """Test resistance distance from a node to itself is zero."""
         G = ec.Graph()
         G.add_path_graph(3)  # Creates nodes 1-2-3
-        assert G.get_resistance_distance(1, 1) == 0.0
+        assert G.resistance_distance(1, 1) == 0.0
 
     def test_resistance_distance_adjacent_nodes(self):
         """Test resistance distance between adjacent nodes equals 1."""
         G = ec.Graph()
         G.add_full_graph(2)  # Two nodes with one edge (IDs 1, 2)
-        result = G.get_resistance_distance(1, 2)
+        result = G.resistance_distance(1, 2)
         assert abs(result - 1.0) < 1e-10
 
     def test_resistance_distance_path_graph(self):
@@ -740,11 +727,11 @@ class TestResistanceDistance:
         G.add_path_graph(4)  # 1-2-3-4
 
         # In a path, resistance = number of edges (series)
-        assert abs(G.get_resistance_distance(1, 2) - 1.0) < 1e-10
-        assert abs(G.get_resistance_distance(1, 3) - 2.0) < 1e-10
-        assert abs(G.get_resistance_distance(1, 4) - 3.0) < 1e-10
-        assert abs(G.get_resistance_distance(2, 3) - 1.0) < 1e-10
-        assert abs(G.get_resistance_distance(2, 4) - 2.0) < 1e-10
+        assert abs(G.resistance_distance(1, 2) - 1.0) < 1e-10
+        assert abs(G.resistance_distance(1, 3) - 2.0) < 1e-10
+        assert abs(G.resistance_distance(1, 4) - 3.0) < 1e-10
+        assert abs(G.resistance_distance(2, 3) - 1.0) < 1e-10
+        assert abs(G.resistance_distance(2, 4) - 2.0) < 1e-10
 
     def test_resistance_distance_complete_graph(self):
         """Test resistance distance in complete graph K_n.
@@ -754,17 +741,17 @@ class TestResistanceDistance:
         # K3
         G3 = ec.Graph()
         G3.add_full_graph(3)  # Nodes 1, 2, 3
-        assert abs(G3.get_resistance_distance(1, 2) - 2.0 / 3.0) < 1e-10
+        assert abs(G3.resistance_distance(1, 2) - 2.0 / 3.0) < 1e-10
 
         # K4
         G4 = ec.Graph()
         G4.add_full_graph(4)  # Nodes 1, 2, 3, 4
-        assert abs(G4.get_resistance_distance(1, 2) - 0.5) < 1e-10
+        assert abs(G4.resistance_distance(1, 2) - 0.5) < 1e-10
 
         # K5
         G5 = ec.Graph()
         G5.add_full_graph(5)  # Nodes 1, 2, 3, 4, 5
-        assert abs(G5.get_resistance_distance(1, 2) - 0.4) < 1e-10
+        assert abs(G5.resistance_distance(1, 2) - 0.4) < 1e-10
 
     def test_resistance_distance_cycle_graph(self):
         """Test resistance distance in cycle graph (parallel paths).
@@ -775,9 +762,9 @@ class TestResistanceDistance:
         G = ec.Graph()
         G.add_cycle_graph(4)  # 1-2-3-4-1
         # Adjacent nodes in C4: parallel paths of 1 and 3
-        assert abs(G.get_resistance_distance(1, 2) - 0.75) < 1e-10
+        assert abs(G.resistance_distance(1, 2) - 0.75) < 1e-10
         # Opposite nodes in C4: two parallel paths of 2
-        assert abs(G.get_resistance_distance(1, 3) - 1.0) < 1e-10
+        assert abs(G.resistance_distance(1, 3) - 1.0) < 1e-10
 
     def test_resistance_distance_star_graph(self):
         """Test resistance distance in star graph."""
@@ -785,25 +772,25 @@ class TestResistanceDistance:
         G.add_star_graph(5)  # Hub (1) + 4 leaves (2, 3, 4, 5)
 
         # Hub to leaf: distance 1
-        assert abs(G.get_resistance_distance(1, 2) - 1.0) < 1e-10
+        assert abs(G.resistance_distance(1, 2) - 1.0) < 1e-10
 
         # Leaf to leaf: through hub (two resistors in series)
-        assert abs(G.get_resistance_distance(2, 3) - 2.0) < 1e-10
+        assert abs(G.resistance_distance(2, 3) - 2.0) < 1e-10
 
     def test_resistance_distance_symmetric(self):
         """Test that resistance distance is symmetric."""
         G = ec.Graph()
         G.add_path_graph(4)  # 1-2-3-4
-        assert abs(G.get_resistance_distance(1, 3) - G.get_resistance_distance(3, 1)) < 1e-10
+        assert abs(G.resistance_distance(1, 3) - G.resistance_distance(3, 1)) < 1e-10
 
     def test_resistance_distance_triangle_inequality(self):
         """Test that resistance distance satisfies triangle inequality."""
         G = ec.Graph()
         G.add_path_graph(4)  # 1-2-3-4
 
-        r12 = G.get_resistance_distance(1, 2)
-        r23 = G.get_resistance_distance(2, 3)
-        r13 = G.get_resistance_distance(1, 3)
+        r12 = G.resistance_distance(1, 2)
+        r23 = G.resistance_distance(2, 3)
+        r13 = G.resistance_distance(1, 3)
 
         # r13 <= r12 + r23 (actually equals for path)
         assert r13 <= r12 + r23 + 1e-10
@@ -818,22 +805,22 @@ class TestResistanceDistance:
         G.add_edge("B", "C")
 
         # Path A-B-C
-        assert abs(G.get_resistance_distance("A", "B") - 1.0) < 1e-10
-        assert abs(G.get_resistance_distance("A", "C") - 2.0) < 1e-10
+        assert abs(G.resistance_distance("A", "B") - 1.0) < 1e-10
+        assert abs(G.resistance_distance("A", "C") - 2.0) < 1e-10
 
     def test_resistance_distance_directed_error(self):
         """Test that directed graphs raise an error."""
         G = ec.Graph(directed=True)
         G.add_path_graph(3)
         with pytest.raises(ValueError, match="undirected"):
-            G.get_resistance_distance(1, 2)
+            G.resistance_distance(1, 2)
 
     def test_resistance_distance_node_not_found(self):
         """Test error when node doesn't exist."""
         G = ec.Graph()
         G.add_path_graph(3)  # Nodes 1, 2, 3
         with pytest.raises(ValueError):
-            G.get_resistance_distance(1, 99)
+            G.resistance_distance(1, 99)
 
 
 class TestResistanceDistanceMatrix:
@@ -917,7 +904,7 @@ class TestResistanceDistanceAccuracy:
         for k in range(1, n):
             expected = k * (n - k) / n
             node = g.get_id_from_label(str(k))
-            assert g.get_resistance_distance("0", str(k)) == pytest.approx(expected, abs=1e-12)
+            assert g.resistance_distance("0", str(k)) == pytest.approx(expected, abs=1e-12)
             assert matrix[(zero, node)] == pytest.approx(expected, abs=1e-12)
 
     def test_different_components_are_infinite(self):
@@ -927,13 +914,13 @@ class TestResistanceDistanceAccuracy:
         g.add_edge("A", "B").add_edge("B", "C").add_edge("D", "E")
         ids = {label: g.get_id_from_label(label) for label in "ABCDE"}
 
-        assert g.get_resistance_distance("A", "D") == float("inf")
+        assert g.resistance_distance("A", "D") == float("inf")
         matrix = g.resistance_distance_matrix()
         assert matrix[(ids["A"], ids["E"])] == float("inf")
         assert matrix[(ids["E"], ids["C"])] == float("inf")
 
         # Pairs inside each component are unaffected by the other component
-        assert g.get_resistance_distance("A", "C") == pytest.approx(2.0)
+        assert g.resistance_distance("A", "C") == pytest.approx(2.0)
         assert matrix[(ids["D"], ids["E"])] == pytest.approx(1.0)
 
     def test_isolated_node_is_infinitely_far(self):
@@ -942,8 +929,8 @@ class TestResistanceDistanceAccuracy:
             g.add_node(label=label)
         g.add_edge("A", "B")
 
-        assert g.get_resistance_distance("A", "C") == float("inf")
-        assert g.get_resistance_distance("A", "B") == pytest.approx(1.0)
+        assert g.resistance_distance("A", "C") == float("inf")
+        assert g.resistance_distance("A", "B") == pytest.approx(1.0)
 
     def test_matches_networkx_per_component(self):
         nx = pytest.importorskip("networkx")
@@ -980,14 +967,14 @@ class TestKirchhoffIndex:
         """Test Kirchhoff index for single node is zero."""
         G = ec.Graph()
         G.add_node(label="A")
-        assert G.get_kirchhoff_index() == 0.0
+        assert G.kirchhoff_index() == 0.0
 
     def test_kirchhoff_index_two_nodes(self):
         """Test Kirchhoff index for two connected nodes."""
         G = ec.Graph()
         G.add_full_graph(2)
         # Single pair with resistance 1
-        assert abs(G.get_kirchhoff_index() - 1.0) < 1e-10
+        assert abs(G.kirchhoff_index() - 1.0) < 1e-10
 
     def test_kirchhoff_index_path_graph(self):
         """Test Kirchhoff index for path graph.
@@ -997,17 +984,17 @@ class TestKirchhoffIndex:
         # P3: Kf = 3*(9-1)/6 = 24/6 = 4
         G3 = ec.Graph()
         G3.add_path_graph(3)
-        assert abs(G3.get_kirchhoff_index() - 4.0) < 1e-10
+        assert abs(G3.kirchhoff_index() - 4.0) < 1e-10
 
         # P4: Kf = 4*(16-1)/6 = 60/6 = 10
         G4 = ec.Graph()
         G4.add_path_graph(4)
-        assert abs(G4.get_kirchhoff_index() - 10.0) < 1e-10
+        assert abs(G4.kirchhoff_index() - 10.0) < 1e-10
 
         # P5: Kf = 5*(25-1)/6 = 120/6 = 20
         G5 = ec.Graph()
         G5.add_path_graph(5)
-        assert abs(G5.get_kirchhoff_index() - 20.0) < 1e-10
+        assert abs(G5.kirchhoff_index() - 20.0) < 1e-10
 
     def test_kirchhoff_index_complete_graph(self):
         """Test Kirchhoff index for complete graph.
@@ -1017,17 +1004,17 @@ class TestKirchhoffIndex:
         # K3: Kf = 2
         G3 = ec.Graph()
         G3.add_full_graph(3)
-        assert abs(G3.get_kirchhoff_index() - 2.0) < 1e-10
+        assert abs(G3.kirchhoff_index() - 2.0) < 1e-10
 
         # K4: Kf = 3
         G4 = ec.Graph()
         G4.add_full_graph(4)
-        assert abs(G4.get_kirchhoff_index() - 3.0) < 1e-10
+        assert abs(G4.kirchhoff_index() - 3.0) < 1e-10
 
         # K5: Kf = 4
         G5 = ec.Graph()
         G5.add_full_graph(5)
-        assert abs(G5.get_kirchhoff_index() - 4.0) < 1e-10
+        assert abs(G5.kirchhoff_index() - 4.0) < 1e-10
 
     def test_kirchhoff_index_cycle_graph(self):
         """Test Kirchhoff index for cycle graph.
@@ -1037,36 +1024,36 @@ class TestKirchhoffIndex:
         # C3: Kf = 3*(9-1)/12 = 24/12 = 2
         G3 = ec.Graph()
         G3.add_cycle_graph(3)
-        assert abs(G3.get_kirchhoff_index() - 2.0) < 1e-10
+        assert abs(G3.kirchhoff_index() - 2.0) < 1e-10
 
         # C4: Kf = 4*(16-1)/12 = 60/12 = 5
         G4 = ec.Graph()
         G4.add_cycle_graph(4)
-        assert abs(G4.get_kirchhoff_index() - 5.0) < 1e-10
+        assert abs(G4.kirchhoff_index() - 5.0) < 1e-10
 
         # C6: Kf = 6*(36-1)/12 = 210/12 = 17.5
         G6 = ec.Graph()
         G6.add_cycle_graph(6)
-        assert abs(G6.get_kirchhoff_index() - 17.5) < 1e-10
+        assert abs(G6.kirchhoff_index() - 17.5) < 1e-10
 
     def test_kirchhoff_index_disconnected(self):
         """Test Kirchhoff index for disconnected graph returns infinity."""
         G = ec.Graph()
         G.add_path_graph(3)
         G.add_path_graph(3)  # Disconnected second component
-        assert G.get_kirchhoff_index() == float("inf")
+        assert G.kirchhoff_index() == float("inf")
 
     def test_kirchhoff_index_directed_error(self):
         """Test that directed graphs raise an error."""
         G = ec.Graph(directed=True)
         G.add_path_graph(3)
         with pytest.raises(ValueError, match="undirected"):
-            G.get_kirchhoff_index()
+            G.kirchhoff_index()
 
     def test_kirchhoff_index_empty_graph(self):
         """Test Kirchhoff index for empty graph."""
         G = ec.Graph()
-        assert G.get_kirchhoff_index() == 0.0
+        assert G.kirchhoff_index() == 0.0
 
     def test_kirchhoff_vs_sum_resistance(self):
         """Test that Kirchhoff index equals sum of pairwise resistances."""
@@ -1077,9 +1064,9 @@ class TestKirchhoffIndex:
         total = 0.0
         for i in range(1, 5):
             for j in range(i + 1, 5):
-                total += G.get_resistance_distance(i, j)
+                total += G.resistance_distance(i, j)
 
-        assert abs(G.get_kirchhoff_index() - total) < 1e-10
+        assert abs(G.kirchhoff_index() - total) < 1e-10
 
 
 # Center, periphery and barycenter, validated against NetworkX.
@@ -1121,13 +1108,13 @@ class TestCenterAndBarycenter:
             if big.number_of_nodes() < 2:
                 continue
             g = _build(big)
-            assert sorted(_lab(g, n) for n in g.get_center()) == sorted(nx.center(big))
+            assert sorted(_lab(g, n) for n in g.center()) == sorted(nx.center(big))
 
     def test_center_and_periphery_are_counterparts(self):
         g = ec.Graph().add_path_graph(5)
-        assert g.get_center() == [3]
-        assert sorted(g.get_periphery()) == [1, 5]
-        assert ec.Graph().get_center() == []
+        assert g.center() == [3]
+        assert sorted(g.periphery()) == [1, 5]
+        assert ec.Graph().center() == []
 
     @pytest.mark.parametrize("weighted", [False, True])
     def test_barycenter_matches_networkx(self, weighted):
@@ -1137,31 +1124,31 @@ class TestCenterAndBarycenter:
                 continue
             g = _build(big, weighted)
             ref = nx.barycenter(big, weight="weight" if weighted else None)
-            assert sorted(_lab(g, n) for n in g.get_barycenter()) == sorted(ref)
+            assert sorted(_lab(g, n) for n in g.barycenter()) == sorted(ref)
 
     def test_center_and_barycenter_differ(self):
         g = ec.Graph().add_nodes(["hub", "A", "B", "C", "X", "D", "E", "F", "G"])
         g.add_edges(
             [("hub", x) for x in ["A", "B", "C", "X", "D"]] + [("D", "E"), ("E", "F"), ("F", "G")]
         )
-        assert _labels(g, g.get_center()) == ["D", "E"]
-        assert _labels(g, g.get_barycenter()) == ["hub"]
+        assert _labels(g, g.center()) == ["D", "E"]
+        assert _labels(g, g.barycenter()) == ["hub"]
 
     def test_barycenter_requires_connectivity(self):
         with pytest.raises(ValueError, match="connected"):
-            ec.Graph().add_nodes(["A", "B"]).get_barycenter()
+            ec.Graph().add_nodes(["A", "B"]).barycenter()
         one_way = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
         with pytest.raises(ValueError, match="strongly connected"):
-            one_way.get_barycenter()
+            one_way.barycenter()
         cycle = ec.Graph(directed=True).add_nodes(list("ABC"))
         cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        assert cycle.get_barycenter() == [1, 2, 3]
+        assert cycle.barycenter() == [1, 2, 3]
 
     def test_steps(self):
         g = ec.Graph().add_path_graph(5)
-        g.get_center()
+        g.center()
         assert g.steps[-1].narration == "Center: 3 (eccentricity 2)."
-        g.get_barycenter()
+        g.barycenter()
         assert g.steps[-1].narration == "Barycenter: 3 (total distance 6)."
 
 
@@ -1170,42 +1157,42 @@ class TestRadiusIgnoresNodesThatReachNothing:
 
     def test_isolated_node_skipped(self):
         g = ec.Graph().add_path_graph(5).add_node(label="loner")
-        assert g.get_radius() == 2
-        assert g.get_min_eccentricity() == 2
-        assert g.get_center() == [3]
-        assert g.get_radius(unconnected=False) is None
+        assert g.radius() == 2
+        assert g.radius() == 2
+        assert g.center() == [3]
+        assert g.radius(unconnected=False) is None
 
     def test_smallest_radius_across_components(self):
         # Path of 5 (radius 2) plus a separate edge (radius 1)
         g = ec.Graph().add_path_graph(5).add_nodes(["X", "Y"]).add_edges([("X", "Y")])
-        assert g.get_radius() == 1
-        assert sorted(_labels(g, g.get_center())) == ["X", "Y"]
+        assert g.radius() == 1
+        assert sorted(_labels(g, g.center())) == ["X", "Y"]
 
     def test_graph_without_edges(self):
         g = ec.Graph().add_nodes(["A", "B"])
-        assert g.get_radius() == 0
-        assert len(g.get_center()) == 2
-        assert ec.Graph().get_radius() is None
-        assert ec.Graph().add_nodes(["A"]).get_radius() == 0
+        assert g.radius() == 0
+        assert len(g.center()) == 2
+        assert ec.Graph().radius() is None
+        assert ec.Graph().add_nodes(["A"]).radius() == 0
 
     def test_directed_path_and_sink(self):
         g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B"), ("B", "C")])
         # Only A reaches the whole component; C (a sink) no longer gives 0
-        assert g.get_radius() == 2
-        assert _labels(g, g.get_center()) == ["A"]
+        assert g.radius() == 2
+        assert _labels(g, g.center()) == ["A"]
         # Only weakly connected, so unconnected=False gives None (strong connectivity needed)
-        assert g.get_radius(unconnected=False) is None
+        assert g.radius(unconnected=False) is None
 
     def test_directed_out_star_and_in_star(self):
         out_star = ec.Graph(directed=True).add_star_graph(4)
-        assert out_star.get_radius() == 1
-        assert out_star.get_center() == [1]
+        assert out_star.radius() == 1
+        assert out_star.center() == [1]
         # No node of an in-star reaches the others
         in_star = ec.Graph(directed=True).add_nodes(["H", "A", "B"])
         in_star.add_edges([("A", "H"), ("B", "H")])
-        assert in_star.get_radius() is None
-        assert in_star.get_center() == []
+        assert in_star.radius() is None
+        assert in_star.center() == []
 
     def test_strongly_connected_matches_networkx(self):
         for seed in range(15):
@@ -1214,5 +1201,5 @@ class TestRadiusIgnoresNodesThatReachNothing:
                 continue
             g = ec.Graph(directed=True).add_nodes([str(n) for n in G])
             g.add_edges([(str(u), str(v)) for u, v in G.edges])
-            assert g.get_radius() == nx.radius(G)
-            assert sorted(_lab(g, n) for n in g.get_center()) == sorted(nx.center(G))
+            assert g.radius() == nx.radius(G)
+            assert sorted(_lab(g, n) for n in g.center()) == sorted(nx.center(G))

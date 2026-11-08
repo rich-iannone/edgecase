@@ -16,7 +16,7 @@ class TestReciprocity:
         G.add_edge("B", "C")
         G.add_edge("C", "B")  # Reciprocal
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 1.0  # All edges are reciprocal
 
     def test_reciprocity_no_reciprocal(self):
@@ -29,7 +29,7 @@ class TestReciprocity:
         G.add_edge("B", "C")
         G.add_edge("C", "A")
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 0.0  # No reciprocal edges
 
     def test_reciprocity_partial(self):
@@ -42,7 +42,7 @@ class TestReciprocity:
         G.add_edge("B", "A")  # Reciprocal (2 edges)
         G.add_edge("A", "C")  # Not reciprocal (1 edge)
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         # 2 out of 3 edges are part of reciprocal pairs
         assert abs(reciprocity - 2.0 / 3.0) < 0.001
 
@@ -55,7 +55,7 @@ class TestReciprocity:
         G.add_edge("B", "A")  # Reciprocal
         G.add_edge("A", "A")  # Self-loop (counted as edge but not reciprocal)
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         # 2 out of 3 edges are reciprocal (self-loop doesn't have reverse)
         assert abs(reciprocity - 2.0 / 3.0) < 0.001
 
@@ -63,7 +63,7 @@ class TestReciprocity:
         """Test reciprocity on empty graph."""
         G = ec.Graph(directed=True)
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 0.0
 
     def test_reciprocity_single_edge(self):
@@ -73,7 +73,7 @@ class TestReciprocity:
         G.add_node("B")
         G.add_edge("A", "B")
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 0.0
 
     def test_reciprocity_cycle(self):
@@ -81,7 +81,7 @@ class TestReciprocity:
         G = ec.Graph(directed=True)
         G.add_cycle_graph(4)  # 0->1->2->3->0
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 0.0  # Cycle has no reciprocal edges
 
     def test_reciprocity_undirected_error(self):
@@ -90,7 +90,7 @@ class TestReciprocity:
         G.add_path_graph(3)
 
         with pytest.raises(ValueError, match="requires a directed graph"):
-            G.get_reciprocity()
+            G.reciprocity()
 
     def test_reciprocity_social_network(self):
         """Test reciprocity on social network example."""
@@ -107,7 +107,7 @@ class TestReciprocity:
         G.add_edge("Alice", "Charlie")
         G.add_edge("Bob", "David")
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         # 2 reciprocal out of 4 total edges = 0.5
         assert reciprocity == 0.5
 
@@ -121,7 +121,7 @@ class TestMinCutBetween:
         G.add_path_graph(4)  # Creates nodes 1-2-3-4
 
         # Minimum cut between ends is 1 (cut the path)
-        min_cut = G.get_min_cut_between(1, 4)
+        min_cut = G.minimum_cut_value(1, 4)
         assert min_cut == 1
 
     def test_min_cut_parallel_edges(self):
@@ -134,7 +134,7 @@ class TestMinCutBetween:
 
         # Need to cut 2 edges to disconnect
         a_id, b_id = G.get_id_from_label("A"), G.get_id_from_label("B")
-        min_cut = G.get_min_cut_between(a_id, b_id)
+        min_cut = G.minimum_cut_value(a_id, b_id)
         assert min_cut == 2
 
     def test_min_cut_star_graph(self):
@@ -143,7 +143,7 @@ class TestMinCutBetween:
         G.add_star_graph(5)  # Hub at 1, leaves at 2-6
 
         # Cut between hub and leaf needs 1 edge
-        min_cut = G.get_min_cut_between(1, 2)
+        min_cut = G.minimum_cut_value(1, 2)
         assert min_cut == 1
 
     def test_min_cut_complete_graph(self):
@@ -152,7 +152,7 @@ class TestMinCutBetween:
         G.add_full_graph(4)
 
         # In K4, min cut between any two nodes
-        min_cut = G.get_min_cut_between(1, 4)
+        min_cut = G.minimum_cut_value(1, 4)
         assert min_cut == 3  # Three edge-disjoint paths
 
     def test_min_cut_directed_graph(self):
@@ -167,7 +167,7 @@ class TestMinCutBetween:
 
         # From A to C, there are 2 edge-disjoint paths
         a_id, c_id = G.get_id_from_label("A"), G.get_id_from_label("C")
-        min_cut = G.get_min_cut_between(a_id, c_id)
+        min_cut = G.minimum_cut_value(a_id, c_id)
         assert min_cut == 2
 
     def test_min_cut_bottleneck(self):
@@ -184,7 +184,7 @@ class TestMinCutBetween:
         G.add_edge("5", "6")
 
         # Min cut between cliques is 1 (the bottleneck)
-        min_cut = G.get_min_cut_between("1", "6")
+        min_cut = G.minimum_cut_value("1", "6")
         assert min_cut == 1
 
     def test_min_cut_same_node_error(self):
@@ -193,7 +193,7 @@ class TestMinCutBetween:
         G.add_node("A")
 
         with pytest.raises(ValueError, match="must be different"):
-            G.get_min_cut_between("A", "A")
+            G.minimum_cut_value("A", "A")
 
     def test_min_cut_nonexistent_source(self):
         """Test error when source doesn't exist."""
@@ -202,7 +202,7 @@ class TestMinCutBetween:
         G.add_node("B")
 
         with pytest.raises(ValueError, match="not found in graph"):
-            G.get_min_cut_between("X", "B")
+            G.minimum_cut_value("X", "B")
 
     def test_min_cut_nonexistent_sink(self):
         """Test error when sink doesn't exist."""
@@ -211,7 +211,7 @@ class TestMinCutBetween:
         G.add_node("B")
 
         with pytest.raises(ValueError, match="not found in graph"):
-            G.get_min_cut_between("A", "X")
+            G.minimum_cut_value("A", "X")
 
     def test_min_cut_disconnected(self):
         """Test min cut when nodes are disconnected."""
@@ -220,7 +220,7 @@ class TestMinCutBetween:
         G.add_node("B")
         # No edges - disconnected
 
-        min_cut = G.get_min_cut_between("A", "B")
+        min_cut = G.minimum_cut_value("A", "B")
         assert min_cut == 0  # Already disconnected
 
     def test_min_cut_cycle(self):
@@ -229,7 +229,7 @@ class TestMinCutBetween:
         G.add_cycle_graph(6)
 
         # In a cycle, min cut is 2 (cut in two places)
-        min_cut = G.get_min_cut_between("1", "4")
+        min_cut = G.minimum_cut_value("1", "4")
         assert min_cut == 2
 
     def test_min_cut_grid(self):
@@ -239,7 +239,7 @@ class TestMinCutBetween:
 
         # In 3x3 grid, corner to opposite corner
         # Grid creates nodes with coordinate labels like "(0,0)", "(2,2)"
-        min_cut = G.get_min_cut_between("(0,0)", "(2,2)")
+        min_cut = G.minimum_cut_value("(0,0)", "(2,2)")
         # Should have multiple paths
         assert min_cut >= 2
 
@@ -257,7 +257,7 @@ class TestConnectivityFlowIntegration:
         G.add_edge("B", "A")
         G.add_edge("B", "C")
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         edge_count = G.count_edges()
 
         # Should have consistent relationship
@@ -268,8 +268,8 @@ class TestConnectivityFlowIntegration:
         G = ec.Graph()
         G.add_path_graph(5)
 
-        cut_ab = G.get_min_cut_between("1", "5")
-        cut_ba = G.get_min_cut_between("5", "1")
+        cut_ab = G.minimum_cut_value("1", "5")
+        cut_ba = G.minimum_cut_value("5", "1")
 
         assert cut_ab == cut_ba
 
@@ -279,7 +279,7 @@ class TestConnectivityFlowIntegration:
         G.add_cycle_graph(5)
 
         # Cycle is 2-edge-connected
-        min_cut = G.get_min_cut_between("1", "3")
+        min_cut = G.minimum_cut_value("1", "3")
         assert min_cut == 2
 
     def test_reciprocity_complete_bidirectional(self):
@@ -295,7 +295,7 @@ class TestConnectivityFlowIntegration:
                 if src != dst:
                     G.add_edge(src, dst)
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         assert reciprocity == 1.0  # All edges reciprocal
 
 
@@ -311,7 +311,7 @@ class TestConnectivityFlowEdgeCases:
         G.add_edge("A", "B")  # Duplicate
         G.add_edge("B", "A")
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         # 3 total edges: 2 A->B and 1 B->A. Only 2 have reciprocal counterparts
         assert abs(reciprocity - 2 / 3) < 0.001
 
@@ -321,7 +321,7 @@ class TestConnectivityFlowEdgeCases:
         G.add_node("A")
 
         with pytest.raises(ValueError):
-            G.get_min_cut_between("A", "A")
+            G.minimum_cut_value("A", "A")
 
     def test_reciprocity_asymmetric_network(self):
         """Test reciprocity on asymmetric directed network."""
@@ -335,6 +335,6 @@ class TestConnectivityFlowEdgeCases:
             G.add_edge("0", str(i))  # Hub links to all
         G.add_edge("1", "0")  # Only one links back
 
-        reciprocity = G.get_reciprocity()
+        reciprocity = G.reciprocity()
         # 2 reciprocal out of 5 edges = 0.4
         assert reciprocity == 0.4

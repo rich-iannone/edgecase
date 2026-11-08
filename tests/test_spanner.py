@@ -146,7 +146,7 @@ class TestSpannerWeighted:
 
         # 3-spanner should be able to skip the heavy edge
         # since distance A-C via B is 2, which is < 3 * 10
-        spanner = g.transform_with_spanner(stretch=3.0, weight="weight")
+        spanner = g.transform_with_spanner(stretch=3.0, weight_attr="weight")
 
         assert spanner.count_nodes() == 3
 
@@ -164,7 +164,7 @@ class TestSpannerWeighted:
         g.add_edge("1", "2", weight=1.0)
         g.add_edge("2", "3", weight=1.0)
 
-        spanner = g.transform_with_spanner(stretch=2.0, weight="weight")
+        spanner = g.transform_with_spanner(stretch=2.0, weight_attr="weight")
 
         assert spanner.count_nodes() == 4
         assert spanner.count_edges() >= 2  # Need at least 2 edges to maintain connectivity
@@ -272,8 +272,8 @@ class TestSpannerErrors:
         g.add_edges([("A", "B", {"w": 1.0}), ("B", "C", {"w": 1.0}), ("A", "C", {"w": "far"})])
         for name in ("wieght", "w"):
             with pytest.raises(ValueError, match=f"no numeric '{name}' attribute"):
-                g.transform_with_spanner(stretch=2.0, weight=name)
-        assert g.transform_with_spanner(stretch=2.0, weight="weight").count_edges() == 2
+                g.transform_with_spanner(stretch=2.0, weight_attr=name)
+        assert g.transform_with_spanner(stretch=2.0, weight_attr="weight").count_edges() == 2
 
 
 class TestSpannerConnectivity:

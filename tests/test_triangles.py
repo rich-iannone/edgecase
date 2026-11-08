@@ -241,7 +241,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "A")
 
-        trans = g.get_transitivity()
+        trans = g.transitivity()
         assert trans is not None
         assert abs(trans - 1.0) < 1e-10
 
@@ -256,7 +256,7 @@ class TestTransitivity:
         g.add_edge("B", "C")
         g.add_edge("C", "D")
 
-        trans = g.get_transitivity()
+        trans = g.transitivity()
         assert trans is not None
         assert abs(trans - 0.0) < 1e-10
 
@@ -272,14 +272,14 @@ class TestTransitivity:
         g.add_edge("C", "A")  # Triangle
         g.add_edge("A", "D")  # Extra edge creating open triple
 
-        trans = g.get_transitivity()
+        trans = g.transitivity()
         assert trans is not None
         assert 0.0 < trans < 1.0
 
     def test_transitivity_empty(self):
         """Empty graph returns None."""
         g = ec.Graph()
-        trans = g.get_transitivity()
+        trans = g.transitivity()
         assert trans is None
 
     def test_transitivity_no_triples(self):
@@ -288,7 +288,7 @@ class TestTransitivity:
         g.add_node(label="A")
         g.add_node(label="B")
 
-        trans = g.get_transitivity()
+        trans = g.transitivity()
         assert trans is None
 
 
@@ -468,11 +468,11 @@ class TestDirectedTransitivity:
     def test_reciprocated_triangle_is_fully_transitive(self):
         """Paths that return to their start (u -> v -> u) aren't triples."""
         edges = [(u, v) for u in range(3) for v in range(3) if u != v]
-        assert self._build(3, edges).get_transitivity() == pytest.approx(1.0)
+        assert self._build(3, edges).transitivity() == pytest.approx(1.0)
 
     def test_reciprocal_pair_has_no_triples(self):
         """A lone A <-> B pair has no triple through three distinct nodes."""
-        assert self._build(2, [(0, 1), (1, 0)]).get_transitivity() is None
+        assert self._build(2, [(0, 1), (1, 0)]).transitivity() is None
 
     def test_matches_brute_force(self):
         """Matches a direct count of closed / all distinct-node directed 2-paths."""
@@ -489,7 +489,7 @@ class TestDirectedTransitivity:
                 sum((w, u) in edges for u, v, w in paths) / len(paths) if paths else None
             )
 
-            result = self._build(n, sorted(edges)).get_transitivity()
+            result = self._build(n, sorted(edges)).transitivity()
             if expected is None:
                 assert result is None
             else:
@@ -541,7 +541,7 @@ class TestDirectedClustering:
             for i in range(n):
                 assert ours[i + 1] == pytest.approx(expected[i])
                 assert (local[i + 1] or 0.0) == pytest.approx(expected[i])
-            assert g.get_avg_clustering_coefficient() == pytest.approx(nx.average_clustering(G))
+            assert g.average_clustering_coefficient() == pytest.approx(nx.average_clustering(G))
 
 
 class TestParallelEdgesAndSelfLoops:
@@ -571,12 +571,12 @@ class TestParallelEdgesAndSelfLoops:
 
         assert multi.count_triangles() == simple.count_triangles()
         assert sorted(multi.list_triangles()) == sorted(simple.list_triangles())
-        assert multi.get_transitivity() == pytest.approx(simple.get_transitivity())
+        assert multi.transitivity() == pytest.approx(simple.transitivity())
         assert multi.clustering_coefficient(return_dict=True) == pytest.approx(
             simple.clustering_coefficient(return_dict=True)
         )
-        assert multi.get_avg_clustering_coefficient() == pytest.approx(
-            simple.get_avg_clustering_coefficient()
+        assert multi.average_clustering_coefficient() == pytest.approx(
+            simple.average_clustering_coefficient()
         )
 
     def test_undirected_values_with_parallel_edges(self):
@@ -584,7 +584,7 @@ class TestParallelEdgesAndSelfLoops:
         g = self._build(False, [("A", "B"), ("B", "A"), ("C", "C")])
         ids = {label: g.get_id_from_label(label) for label in "ABCD"}
 
-        assert g.get_transitivity() == pytest.approx(0.6)
+        assert g.transitivity() == pytest.approx(0.6)
         local = g.clustering_coefficient(return_dict=True)
         assert local[ids["A"]] == pytest.approx(1.0)
         assert local[ids["C"]] == pytest.approx(1 / 3)
@@ -610,7 +610,7 @@ class TestParallelEdgesAndSelfLoops:
                 if rng.random() < 0.1:
                     g.add_edge(str(i), str(i))
 
-            assert (g.get_transitivity() or 0.0) == pytest.approx(nx.transitivity(reference))
+            assert (g.transitivity() or 0.0) == pytest.approx(nx.transitivity(reference))
             local = g.clustering_coefficient(return_dict=True)
             expected = nx.clustering(reference)
             for i in range(n):

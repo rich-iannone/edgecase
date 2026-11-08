@@ -12,7 +12,7 @@ class TestNodeVitality:
         graph.add_node(label="A")
         node_id = graph.get_id_from_label("A")
 
-        vitality = graph.get_node_vitality(node_id)
+        vitality = graph.node_vitality(node_id)
 
         assert vitality == 0.0
 
@@ -25,8 +25,8 @@ class TestNodeVitality:
         a_id = graph.get_id_from_label("A")
         b_id = graph.get_id_from_label("B")
 
-        vitality_a = graph.get_node_vitality(a_id)
-        vitality_b = graph.get_node_vitality(b_id)
+        vitality_a = graph.node_vitality(a_id)
+        vitality_b = graph.node_vitality(b_id)
 
         assert vitality_a == 0.0
         assert vitality_b == 0.0
@@ -38,10 +38,10 @@ class TestNodeVitality:
         nodes = sorted(graph.get_node_ids())
 
         # Middle node
-        middle_vitality = graph.get_node_vitality(nodes[2])
+        middle_vitality = graph.node_vitality(nodes[2])
 
         # End node
-        end_vitality = graph.get_node_vitality(nodes[0])
+        end_vitality = graph.node_vitality(nodes[0])
 
         # Middle node's removal disconnects graph (infinite distances)
         # or significantly increases distances
@@ -54,10 +54,10 @@ class TestNodeVitality:
         nodes = sorted(graph.get_node_ids())
 
         # First node is the hub
-        hub_vitality = graph.get_node_vitality(nodes[0])
+        hub_vitality = graph.node_vitality(nodes[0])
 
         # Leaf node
-        leaf_vitality = graph.get_node_vitality(nodes[1])
+        leaf_vitality = graph.node_vitality(nodes[1])
 
         # Hub removal disconnects all leaves
         assert hub_vitality > leaf_vitality or math.isinf(hub_vitality)
@@ -68,7 +68,7 @@ class TestNodeVitality:
         graph.add_cycle_graph(6)
         nodes = sorted(graph.get_node_ids())
 
-        vitalities = [graph.get_node_vitality(node) for node in nodes]
+        vitalities = [graph.node_vitality(node) for node in nodes]
 
         # All vitalities should be equal (within floating point precision)
         assert len(set(vitalities)) == 1
@@ -87,7 +87,7 @@ class TestNodeVitality:
             for j in range(i + 1, n):
                 graph.add_edge(nodes[i], nodes[j])
 
-        vitalities = [graph.get_node_vitality(node) for node in nodes]
+        vitalities = [graph.node_vitality(node) for node in nodes]
 
         # All should be equal due to symmetry
         for i in range(1, len(vitalities)):
@@ -103,8 +103,8 @@ class TestNodeVitality:
         graph.add_edge("B", "C")
 
         # Using string label
-        vitality_b = graph.get_node_vitality("B")
-        vitality_a = graph.get_node_vitality("A")
+        vitality_b = graph.node_vitality("B")
+        vitality_a = graph.node_vitality("A")
 
         # B is connector, should have higher vitality
         assert vitality_b >= vitality_a
@@ -115,7 +115,7 @@ class TestNodeVitality:
         graph.add_path_graph(3)
 
         with pytest.raises(ValueError, match="does not exist"):
-            graph.get_node_vitality(999999)
+            graph.node_vitality(999999)
 
     def test_node_vitality_invalid_label(self):
         """Node vitality raises error for invalid label."""
@@ -123,7 +123,7 @@ class TestNodeVitality:
         graph.add_path_graph(3)
 
         with pytest.raises(ValueError, match="not found"):
-            graph.get_node_vitality("nonexistent")
+            graph.node_vitality("nonexistent")
 
     def test_directed_graph_hub_vitality(self):
         """Directed graph hub has high vitality."""
@@ -140,8 +140,8 @@ class TestNodeVitality:
             leaf_id = graph.get_id_from_label(f"leaf{i}")
             graph.add_edge(hub_id, leaf_id)
 
-        hub_vitality = graph.get_node_vitality(hub_id)
-        leaf_vitality = graph.get_node_vitality(graph.get_id_from_label("leaf0"))
+        hub_vitality = graph.node_vitality(hub_id)
+        leaf_vitality = graph.node_vitality(graph.get_id_from_label("leaf0"))
 
         # Hub removal eliminates all paths
         assert hub_vitality >= leaf_vitality
@@ -174,20 +174,20 @@ class TestNodeVitalityIntegration:
         graph.add_edge("C", "G")
         graph.add_edge("G", "D")
 
-        g_vitality = graph.get_node_vitality("G")
-        a_vitality = graph.get_node_vitality("A")
+        g_vitality = graph.node_vitality("G")
+        a_vitality = graph.node_vitality("A")
 
         # Bridge node should have much higher vitality
         assert g_vitality > a_vitality
 
     def test_vitality_vs_closeness_vitality(self):
-        """get_node_vitality() matches closeness_vitality() for single node."""
+        """node_vitality() matches closeness_vitality() for single node."""
         graph = Graph()
         graph.add_star_graph(5)
         nodes = sorted(graph.get_node_ids())
 
-        # Get vitality via get_node_vitality
-        single_vitality = graph.get_node_vitality(nodes[0])  # Get vitality via closeness_vitality
+        # Get vitality via node_vitality
+        single_vitality = graph.node_vitality(nodes[0])  # Get vitality via closeness_vitality
         all_vitalities = graph.closeness_vitality(return_dict=True)
         closeness_vitality_value = all_vitalities[nodes[0]]
 
@@ -201,10 +201,10 @@ class TestNodeVitalityIntegration:
         nodes = sorted(graph.get_node_ids())
 
         # Hub
-        hub_vitality = graph.get_node_vitality(nodes[0])
+        hub_vitality = graph.node_vitality(nodes[0])
 
         # Leaf
-        leaf_vitality = graph.get_node_vitality(nodes[1])  # Leaf should have much lower vitality
+        leaf_vitality = graph.node_vitality(nodes[1])  # Leaf should have much lower vitality
         assert leaf_vitality < hub_vitality or math.isinf(hub_vitality)
 
     def test_disconnected_components(self):
@@ -226,8 +226,8 @@ class TestNodeVitalityIntegration:
         graph.add_edge("Y", "Z")
 
         # Middle nodes in each component should have equal vitality
-        b_vitality = graph.get_node_vitality("B")
-        y_vitality = graph.get_node_vitality("Y")
+        b_vitality = graph.node_vitality("B")
+        y_vitality = graph.node_vitality("Y")
 
         assert abs(b_vitality - y_vitality) < 1e-9
 
@@ -240,7 +240,7 @@ class TestNodeVitalityIntegration:
         # Add self-loop to middle node
         graph.add_edge(nodes[1], nodes[1])
 
-        vitality = graph.get_node_vitality(nodes[1])
+        vitality = graph.node_vitality(nodes[1])
 
         # Should still be high/infinite (disconnects graph)
         assert vitality >= 0.0
@@ -258,8 +258,8 @@ class TestNodeVitalityIntegration:
         graph.add_edge("B", "C")
 
         # B is still connector
-        vitality_b = graph.get_node_vitality("B")
-        vitality_a = graph.get_node_vitality("A")
+        vitality_b = graph.node_vitality("B")
+        vitality_a = graph.node_vitality("A")
 
         assert vitality_b >= vitality_a
 
@@ -270,10 +270,10 @@ class TestNodeVitalityIntegration:
         nodes = sorted(graph.get_node_ids())
         all_vitalities = graph.closeness_vitality(return_dict=True)
         for n in nodes:
-            v = graph.get_node_vitality(n)
+            v = graph.node_vitality(n)
             assert math.isfinite(v)
             assert v == pytest.approx(all_vitalities[n])
-        assert graph.get_node_vitality(nodes[2]) == 36
+        assert graph.node_vitality(nodes[2]) == 36
 
 
 class TestNodeVitalityPerformance:
@@ -286,10 +286,10 @@ class TestNodeVitalityPerformance:
         nodes = sorted(graph.get_node_ids())
 
         # Middle node
-        middle_vitality = graph.get_node_vitality(nodes[10])
+        middle_vitality = graph.node_vitality(nodes[10])
 
         # End node
-        end_vitality = graph.get_node_vitality(nodes[0])
+        end_vitality = graph.node_vitality(nodes[0])
 
         # Should complete and middle should be more vital
         assert middle_vitality >= end_vitality
@@ -300,6 +300,6 @@ class TestNodeVitalityPerformance:
         graph.add_node(label="isolated")
         node_id = graph.get_id_from_label("isolated")
 
-        vitality = graph.get_node_vitality(node_id)
+        vitality = graph.node_vitality(node_id)
 
         assert vitality == 0.0

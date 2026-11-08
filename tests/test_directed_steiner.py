@@ -4,6 +4,11 @@ import pytest
 import edgecase as ec
 
 
+def labeled(g, edges):
+    """Edge triples with labels in place of node IDs."""
+    return [(g.get_label_from_id(s), g.get_label_from_id(t), w) for s, t, w in edges]
+
+
 @pytest.fixture
 def diamond_dag():
     """R -> A -> B, R -> C (expensive), A -> C (cheap), C -> D."""
@@ -54,10 +59,13 @@ class TestDirectedSteinerTree:
         edges = diamond_dag.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
         assert isinstance(edges, list)
         assert all(len(e) == 3 for e in edges)
+        assert all(isinstance(s, int) and isinstance(t, int) for s, t, _ in edges)
 
     def test_all_terminals_reachable(self, diamond_dag):
         tree = diamond_dag.directed_steiner_tree("R", ["B", "D"])
-        edge_list = diamond_dag.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
+        edge_list = labeled(
+            diamond_dag, diamond_dag.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
+        )
         node_labels = set()
         for s, t, _ in edge_list:
             node_labels.add(s)
@@ -68,18 +76,20 @@ class TestDirectedSteinerTree:
 
     def test_prefers_shared_path(self, diamond_dag):
         """Should route through A->C (cost 2) rather than R->C (cost 5)."""
-        edges = diamond_dag.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
+        edges = labeled(
+            diamond_dag, diamond_dag.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
+        )
         edge_set = {(s, t) for s, t, _ in edges}
         assert ("A", "C") in edge_set, "Should use cheaper A->C path"
         assert ("R", "C") not in edge_set, "Should not use expensive R->C"
 
     def test_chain_all_edges(self, chain):
         """Reaching terminals 3 and 5 from 1 requires the full chain."""
-        edges = chain.directed_steiner_tree("1", ["3", "5"], return_subgraph=False)
+        edges = labeled(chain, chain.directed_steiner_tree("1", ["3", "5"], return_subgraph=False))
         assert len(edges) == 4
 
     def test_chain_single_terminal(self, chain):
-        edges = chain.directed_steiner_tree("1", ["3"], return_subgraph=False)
+        edges = labeled(chain, chain.directed_steiner_tree("1", ["3"], return_subgraph=False))
         edge_set = {(s, t) for s, t, _ in edges}
         assert ("1", "2") in edge_set
         assert ("2", "3") in edge_set
@@ -87,7 +97,9 @@ class TestDirectedSteinerTree:
 
     def test_branching_two_branches(self, branching):
         """Reaching B and E requires both branches from R."""
-        edges = branching.directed_steiner_tree("R", ["B", "E"], return_subgraph=False)
+        edges = labeled(
+            branching, branching.directed_steiner_tree("R", ["B", "E"], return_subgraph=False)
+        )
         node_labels = set()
         for s, t, _ in edges:
             node_labels.add(s)
@@ -98,18 +110,20 @@ class TestDirectedSteinerTree:
 
     def test_root_is_terminal(self, chain):
         """Root as terminal should be handled gracefully."""
-        edges = chain.directed_steiner_tree("1", ["1", "3"], return_subgraph=False)
+        edges = labeled(chain, chain.directed_steiner_tree("1", ["1", "3"], return_subgraph=False))
         edge_set = {(s, t) for s, t, _ in edges}
         assert ("1", "2") in edge_set
         assert ("2", "3") in edge_set
 
     def test_single_terminal(self, chain):
-        edges = chain.directed_steiner_tree("1", ["2"], return_subgraph=False)
+        edges = labeled(chain, chain.directed_steiner_tree("1", ["2"], return_subgraph=False))
         assert len(edges) == 1
         assert edges[0][:2] == ("1", "2")
 
     def test_edge_weights_preserved(self, diamond_dag):
-        edges = diamond_dag.directed_steiner_tree("R", ["B"], return_subgraph=False)
+        edges = labeled(
+            diamond_dag, diamond_dag.directed_steiner_tree("R", ["B"], return_subgraph=False)
+        )
         weight_map = {(s, t): w for s, t, w in edges}
         assert weight_map[("R", "A")] == 1.0
         assert weight_map[("A", "B")] == 2.0
@@ -165,7 +179,7 @@ class TestDirectedSteinerTreeEdgeCases:
         g = ec.Graph(directed=True, weighted=True)
         g.add_node(label="A").add_node(label="B")
         g.add_edge("A", "B", weight=3.0)
-        edges = g.directed_steiner_tree("A", ["B"], return_subgraph=False)
+        edges = labeled(g, g.directed_steiner_tree("A", ["B"], return_subgraph=False))
         assert len(edges) == 1
         assert edges[0] == ("A", "B", 3.0)
 
@@ -174,7 +188,7 @@ class TestDirectedSteinerTreeEdgeCases:
         g = ec.Graph(directed=True, weighted=True)
         g.add_node(label="A").add_node(label="B")
         g.add_edge("A", "B", weight=1.0)
-        edges = g.directed_steiner_tree("A", ["B", "B"], return_subgraph=False)
+        edges = labeled(g, g.directed_steiner_tree("A", ["B", "B"], return_subgraph=False))
         assert len(edges) == 1
 
     def test_unweighted_graph(self):
@@ -182,7 +196,7 @@ class TestDirectedSteinerTreeEdgeCases:
         g = ec.Graph(directed=True)
         g.add_node(label="A").add_node(label="B").add_node(label="C")
         g.add_edge("A", "B").add_edge("B", "C")
-        edges = g.directed_steiner_tree("A", ["C"], return_subgraph=False)
+        edges = labeled(g, g.directed_steiner_tree("A", ["C"], return_subgraph=False))
         total_weight = sum(w for _, _, w in edges)
         assert total_weight == 2.0
 
@@ -195,7 +209,7 @@ class TestDirectedSteinerTreeEdgeCases:
         g.add_edge("A", "T", weight=1.0)
         g.add_edge("R", "B", weight=10.0)
         g.add_edge("B", "T", weight=10.0)
-        edges = g.directed_steiner_tree("R", ["T"], return_subgraph=False)
+        edges = labeled(g, g.directed_steiner_tree("R", ["T"], return_subgraph=False))
         total_weight = sum(w for _, _, w in edges)
         assert total_weight == 2.0
 

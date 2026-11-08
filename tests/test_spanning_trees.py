@@ -129,7 +129,7 @@ class TestSteinerTree:
         g.add_edges([("S", "A", 1.0), ("S", "B", 1.0), ("S", "C", 1.0)])
         g.add_edges([("A", "B", 5.0), ("B", "C", 5.0)])
         hub = g.steiner_tree(["A", "B", "C"], return_subgraph=False)
-        assert {e[0] for e in hub} == {"S"}
+        assert {g.get_label_from_id(e[0]) for e in hub} == {"S"}
         assert g.steiner_tree(["A", "B", "C"], weight_attr="weight", return_subgraph=False) == hub
 
         d = Graph(directed=True, weighted=True).add_nodes(["R", "X", "A", "B"])

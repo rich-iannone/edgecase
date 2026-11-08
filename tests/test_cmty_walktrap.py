@@ -566,7 +566,7 @@ def compute_modularity(G, communities):
     degrees = {}
 
     for node in nodes:
-        neighbors = G.neighbors(node)
+        neighbors = G.get_neighbors(node)
         adjacency[node] = set(neighbors)
         degrees[node] = len(neighbors)
 

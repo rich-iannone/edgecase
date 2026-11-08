@@ -182,10 +182,10 @@ class TestPowerlawCluster:
     def test_edge_count_and_clustering(self):
         g = ec.Graph().add_powerlaw_cluster_graph(n=200, m=3, p=0.0, seed=4)
         assert g.count_edges() == (200 - 3) * 3
-        low = g.get_avg_clustering_coefficient()
+        low = g.average_clustering_coefficient()
         high = ec.Graph().add_powerlaw_cluster_graph(n=200, m=3, p=0.9, seed=4)
         assert high.count_edges() <= (200 - 3) * 3
-        assert high.get_avg_clustering_coefficient() > low
+        assert high.average_clustering_coefficient() > low
 
     def test_invalid(self):
         for kwargs in (dict(n=5, m=0, p=0.5), dict(n=3, m=4, p=0.5), dict(n=5, m=2, p=1.5)):
@@ -604,7 +604,7 @@ class TestGeometric:
 
     def test_geographical_threshold_custom(self):
         g = ec.Graph().add_geographical_threshold_graph(
-            n=20, theta=0.0, p_dist=lambda d: 1.0, pos_attr=None, weight_attr="w", seed=1
+            n=20, theta=0.0, p_dist=lambda d: 1.0, pos_attr=None, node_weight_attr="w", seed=1
         )
         assert g.count_edges() == 190
         assert g.get_node_attrs("pos") == {} and len(g.get_node_attrs("w")) == 20

@@ -129,47 +129,47 @@ def make_two_cliques_bridge():
 
 class TestMotifCensusSize3:
     def test_pure_triangle(self):
-        census = make_triangle().motif_census(size=3, return_dict=True)
+        census = make_triangle().motif_census(size=3)
         assert census["triangle"] == 1
         assert "path" not in census
 
     def test_pure_path(self):
-        census = make_path().motif_census(size=3, return_dict=True)
+        census = make_path().motif_census(size=3)
         assert census["path"] == 1
         assert "triangle" not in census
 
     def test_triangle_plus_tail(self):
-        census = make_triangle_with_tail().motif_census(size=3, return_dict=True)
+        census = make_triangle_with_tail().motif_census(size=3)
         assert census["triangle"] == 1
         assert census["path"] == 2
 
     def test_k4_all_triangles(self):
-        census = make_k4().motif_census(size=3, return_dict=True)
+        census = make_k4().motif_census(size=3)
         assert census["triangle"] == 4
 
     def test_star_all_paths(self):
-        census = make_star().motif_census(size=3, return_dict=True)
+        census = make_star().motif_census(size=3)
         assert census["path"] == 3
         assert "triangle" not in census
 
     def test_cycle4_paths(self):
-        census = make_cycle4().motif_census(size=3, return_dict=True)
+        census = make_cycle4().motif_census(size=3)
         assert census["path"] == 4
         assert "triangle" not in census
 
     def test_empty_graph(self):
         g = ec.Graph()
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_single_node(self):
         g = ec.Graph().add_node(label="A")
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_two_nodes(self):
         g = ec.Graph().add_node(label="A").add_node(label="B").add_edge(source="A", target="B")
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_disconnected_pair_and_singleton(self):
@@ -180,19 +180,19 @@ class TestMotifCensusSize3:
             .add_node(label="C")
             .add_edge(source="A", target="B")
         )
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_two_cliques_bridge(self):
         g = make_two_cliques_bridge()
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         # Each 5-clique has C(5,3) = 10 triangles
         assert census["triangle"] == 20
         # Paths crossing the bridge: center nodes and bridge neighbors
         assert census["path"] > 0
 
     def test_total_count_triangle_tail(self):
-        census = make_triangle_with_tail().motif_census(size=3, return_dict=True)
+        census = make_triangle_with_tail().motif_census(size=3)
         total = sum(census.values())
         assert total == 3  # 1 triangle + 2 paths
 
@@ -204,35 +204,35 @@ class TestMotifCensusSize3:
 
 class TestMotifCensusSize4:
     def test_k4_single_clique(self):
-        census = make_k4().motif_census(size=4, return_dict=True)
+        census = make_k4().motif_census(size=4)
         assert census["clique_4"] == 1
 
     def test_star_single_motif(self):
-        census = make_star().motif_census(size=4, return_dict=True)
+        census = make_star().motif_census(size=4)
         assert len(census) == 1
         total = sum(census.values())
         assert total == 1
 
     def test_cycle4_single_motif(self):
-        census = make_cycle4().motif_census(size=4, return_dict=True)
+        census = make_cycle4().motif_census(size=4)
         assert len(census) == 1
         total = sum(census.values())
         assert total == 1
 
     def test_too_few_nodes(self):
-        census = make_triangle().motif_census(size=4, return_dict=True)
+        census = make_triangle().motif_census(size=4)
         assert census == {}
 
     def test_empty_graph(self):
         g = ec.Graph()
-        census = g.motif_census(size=4, return_dict=True)
+        census = g.motif_census(size=4)
         assert census == {}
 
     def test_k4_plus_pendant(self):
         g = make_k4()
         g.add_node(label="E")
         g.add_edge(source="D", target="E")
-        census = g.motif_census(size=4, return_dict=True)
+        census = g.motif_census(size=4)
         assert census["clique_4"] == 1
         total = sum(census.values())
         # K4 + pendant: {A,B,C,D}=clique, then {A,B,D,E}, {A,C,D,E}, {B,C,D,E}
@@ -249,7 +249,7 @@ class TestMotifCensusSize4:
             .add_edge(source="B", target="C")
             .add_edge(source="C", target="D")
         )
-        census = g.motif_census(size=4, return_dict=True)
+        census = g.motif_census(size=4)
         total = sum(census.values())
         assert total == 1  # Only one connected 4-subgraph (the whole graph)
 
@@ -261,8 +261,8 @@ class TestMotifCensusSize4:
 
 class TestMotifCensusDirected:
     def test_directed_triangle_and_cycle_differ(self):
-        tri = make_directed_triangle().motif_census(size=3, return_dict=True)
-        cyc = make_directed_cycle().motif_census(size=3, return_dict=True)
+        tri = make_directed_triangle().motif_census(size=3)
+        cyc = make_directed_cycle().motif_census(size=3)
         # Both have 1 motif but the motif class should differ
         assert sum(tri.values()) == 1
         assert sum(cyc.values()) == 1
@@ -280,12 +280,12 @@ class TestMotifCensusDirected:
             .add_edge(source="A", target="C")
             .add_edge(source="B", target="C")
         )
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert sum(census.values()) == 1
 
     def test_directed_empty(self):
         g = ec.Graph(directed=True)
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_directed_two_nodes(self):
@@ -295,7 +295,7 @@ class TestMotifCensusDirected:
             .add_node(label="B")
             .add_edge(source="A", target="B")
         )
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census == {}
 
     def test_directed_mutual_edge(self):
@@ -308,7 +308,7 @@ class TestMotifCensusDirected:
             .add_edge(source="B", target="A")
             .add_edge(source="B", target="C")
         )
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert sum(census.values()) == 1
 
     def test_directed_four_node(self):
@@ -323,7 +323,7 @@ class TestMotifCensusDirected:
             .add_edge(source="C", target="D")
             .add_edge(source="D", target="A")
         )
-        census = g.motif_census(size=4, return_dict=True)
+        census = g.motif_census(size=4)
         assert sum(census.values()) == 1
 
 
@@ -336,50 +336,39 @@ class TestMotifCensusErrors:
     def test_size_too_small(self):
         g = make_triangle()
         with pytest.raises(ValueError, match="3 or 4"):
-            g.motif_census(size=2, return_dict=True)
+            g.motif_census(size=2)
 
     def test_size_too_large(self):
         g = make_triangle()
         with pytest.raises(ValueError, match="3 or 4"):
-            g.motif_census(size=5, return_dict=True)
+            g.motif_census(size=5)
 
     def test_size_one(self):
         g = make_triangle()
         with pytest.raises(ValueError, match="3 or 4"):
-            g.motif_census(size=1, return_dict=True)
+            g.motif_census(size=1)
 
 
 # ===========================================================================
-# motif_census — chaining and return_dict
+# motif_census — the removed return_dict=
 # ===========================================================================
 
 
-class TestMotifCensusChaining:
-    def test_return_self(self):
-        g = make_triangle()
-        with pytest.warns(UserWarning, match="doesn't store its result"):
-            result = g.motif_census(size=3, return_dict=False)
-        assert result is g
-
-    def test_return_dict(self):
-        g = make_triangle()
-        result = g.motif_census(size=3, return_dict=True)
-        assert isinstance(result, dict)
-
+class TestMotifCensusReturnDict:
     def test_default_returns_dict(self):
         """Regression: the default return_dict=False computed the census and threw it away."""
         assert make_triangle().motif_census(size=3) == {"triangle": 1}
 
-    def test_computations_tracked(self):
+    def test_return_dict_is_ignored_with_warning(self):
         g = make_triangle()
-        with pytest.warns(UserWarning):
-            g.motif_census(size=3, return_dict=False)
-        assert ("motif_census", {"size": 3}, None) in g._computations
+        with pytest.warns(DeprecationWarning, match="return_dict= has no effect"):
+            result = g.motif_census(size=3, return_dict=False)
+        assert result == {"triangle": 1}
 
-    def test_computations_not_tracked_with_return_dict(self):
+    def test_not_tracked_as_computation(self):
         g = make_triangle()
         before = len(g._computations)
-        g.motif_census(size=3, return_dict=True)
+        g.motif_census(size=3)
         assert len(g._computations) == before
 
 
@@ -391,13 +380,13 @@ class TestMotifCensusChaining:
 class TestMotifSignificanceBasic:
     def test_returns_dict(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=5, seed=23)
         assert isinstance(result, dict)
         assert len(result) > 0
 
     def test_keys_present(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=5, seed=23)
         for _class, stats in result.items():
             assert "count" in stats
             assert "mean_random" in stats
@@ -407,20 +396,20 @@ class TestMotifSignificanceBasic:
 
     def test_count_matches_census(self):
         g = make_triangle_with_tail()
-        census = g.motif_census(size=3, return_dict=True)
-        sig = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
+        census = g.motif_census(size=3)
+        sig = g.motif_significance(size=3, n_random=5, seed=23)
         for motif_class, count in census.items():
             assert sig[motif_class]["count"] == float(count)
 
     def test_p_value_range(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=10, seed=23)
         for stats in result.values():
             assert 0.0 <= stats["p_value"] <= 1.0
 
     def test_std_non_negative(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=10, seed=23)
         for stats in result.values():
             assert stats["std_random"] >= 0.0
 
@@ -433,29 +422,29 @@ class TestMotifSignificanceBasic:
 class TestMotifSignificanceStatistical:
     def test_clustered_graph_triangle_significant(self):
         g = make_two_cliques_bridge()
-        sig = g.motif_significance(size=3, n_random=20, seed=23, return_dict=True)
+        sig = g.motif_significance(size=3, n_random=20, seed=23)
         # Triangles should be significantly overrepresented
         assert sig["triangle"]["z_score"] > 2.0
         assert sig["triangle"]["p_value"] < 0.05
 
     def test_clustered_graph_paths_underrepresented(self):
         g = make_two_cliques_bridge()
-        sig = g.motif_significance(size=3, n_random=20, seed=23, return_dict=True)
+        sig = g.motif_significance(size=3, n_random=20, seed=23)
         # Paths should be underrepresented
         assert sig["path"]["z_score"] < -2.0
 
     def test_seed_reproducibility(self):
         g = make_triangle_with_tail()
-        r1 = g.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
-        r2 = g.motif_significance(size=3, n_random=10, seed=23, return_dict=True)
+        r1 = g.motif_significance(size=3, n_random=10, seed=23)
+        r2 = g.motif_significance(size=3, n_random=10, seed=23)
         for cls in r1:
             assert r1[cls]["z_score"] == r2[cls]["z_score"]
             assert r1[cls]["p_value"] == r2[cls]["p_value"]
 
     def test_different_seeds_may_differ(self):
         g = make_two_cliques_bridge()
-        r1 = g.motif_significance(size=3, n_random=5, seed=1, return_dict=True)
-        r2 = g.motif_significance(size=3, n_random=5, seed=999, return_dict=True)
+        r1 = g.motif_significance(size=3, n_random=5, seed=1)
+        r2 = g.motif_significance(size=3, n_random=5, seed=999)
         # With different seeds, at least mean_random values may differ
         any_diff = False
         for cls in r1:
@@ -473,41 +462,29 @@ class TestMotifSignificanceErrors:
     def test_invalid_size(self):
         g = make_triangle()
         with pytest.raises(ValueError, match="3 or 4"):
-            g.motif_significance(size=5, n_random=5, return_dict=True)
+            g.motif_significance(size=5, n_random=5)
 
     def test_zero_random(self):
         g = make_triangle()
         with pytest.raises(ValueError, match="n_random"):
-            g.motif_significance(size=3, n_random=0, return_dict=True)
+            g.motif_significance(size=3, n_random=0)
 
 
 # ===========================================================================
-# motif_significance — chaining
+# motif_significance — the removed return_dict=
 # ===========================================================================
 
 
-class TestMotifSignificanceChaining:
-    def test_return_self(self):
-        g = make_triangle_with_tail()
-        with pytest.warns(UserWarning, match="doesn't store its result"):
-            result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
-        assert result is g
-
-    def test_return_dict(self):
-        g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
-        assert isinstance(result, dict)
-
+class TestMotifSignificanceReturnDict:
     def test_default_returns_dict(self):
         result = make_triangle_with_tail().motif_significance(size=3, n_random=5, seed=23)
         assert set(result) == {"path", "triangle"}
 
-    def test_computations_tracked(self):
+    def test_return_dict_is_ignored_with_warning(self):
         g = make_triangle_with_tail()
-        with pytest.warns(UserWarning):
-            g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
-        found = any(c[0] == "motif_significance" and c[2] is None for c in g._computations)
-        assert found
+        with pytest.warns(DeprecationWarning, match="return_dict= has no effect"):
+            result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
+        assert result == g.motif_significance(size=3, n_random=5, seed=23)
 
 
 # ===========================================================================
@@ -518,19 +495,19 @@ class TestMotifSignificanceChaining:
 class TestMotifSignificanceEdgeCases:
     def test_empty_graph(self):
         g = ec.Graph()
-        result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=5, seed=23)
         assert result == {}
 
     def test_graph_too_small(self):
         g = ec.Graph().add_node(label="A").add_node(label="B").add_edge(source="A", target="B")
-        result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=True)
+        result = g.motif_significance(size=3, n_random=5, seed=23)
         assert result == {}
 
     def test_size_4(self):
         g = make_k4()
         g.add_node(label="E")
         g.add_edge(source="D", target="E")
-        result = g.motif_significance(size=4, n_random=5, seed=23, return_dict=True)
+        result = g.motif_significance(size=4, n_random=5, seed=23)
         assert len(result) > 0
         for stats in result.values():
             assert "count" in stats
@@ -538,7 +515,7 @@ class TestMotifSignificanceEdgeCases:
 
     def test_no_seed(self):
         g = make_triangle_with_tail()
-        result = g.motif_significance(size=3, n_random=5, return_dict=True)
+        result = g.motif_significance(size=3, n_random=5)
         assert isinstance(result, dict)
         assert len(result) > 0
 
@@ -584,7 +561,7 @@ class TestMotifCensusLarger:
             g.add_edge(source=str(i), target=str(i + 5))
         for i in range(5):
             g.add_edge(source=str(i + 5), target=str((i + 2) % 5 + 5))
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         total = sum(census.values())
         assert total > 0
 
@@ -596,7 +573,7 @@ class TestMotifCensusLarger:
         for i in range(3):
             for j in range(3, 6):
                 g.add_edge(source=str(i), target=str(j))
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert "triangle" not in census
         # All 3-node subgraphs should be paths
         assert census.get("path", 0) > 0
@@ -607,7 +584,7 @@ class TestMotifCensusLarger:
             g.add_node(label=str(i))
         for i in range(19):
             g.add_edge(source=str(i), target=str(i + 1))
-        census = g.motif_census(size=3, return_dict=True)
+        census = g.motif_census(size=3)
         assert census["path"] == 18  # Each internal node forms a path with its neighbors
         assert "triangle" not in census
 

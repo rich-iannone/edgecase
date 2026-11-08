@@ -349,7 +349,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node ID (int)
-        neighbors = G.neighbors(1)  # A's ID is 1
+        neighbors = G.get_neighbors(1)  # A's ID is 1
 
         # Should return node IDs
         assert set(neighbors) == {2, 3}
@@ -365,14 +365,14 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
 
         # Using node label (str)
-        neighbors = G.neighbors("A")
+        neighbors = G.get_neighbors("A")
 
         # Should return node IDs (not labels)
         assert set(neighbors) == {2, 3}
         assert isinstance(neighbors[0], int)
 
         # Verify we get the same results with ID vs label
-        neighbors_by_id = G.neighbors(1)
+        neighbors_by_id = G.get_neighbors(1)
         assert set(neighbors) == set(neighbors_by_id)
 
     def test_get_neighbors_directed_out(self):
@@ -385,7 +385,7 @@ class TestGetNeighbors:
         G.add_edge("D", "A")
 
         # get_neighbors expects node_id (1 = A)
-        neighbors = G.neighbors(1, mode="out")
+        neighbors = G.get_neighbors(1, mode="out")
 
         # Returns list of node IDs: [2, 3] (B, C)
         assert set(neighbors) == {2, 3}
@@ -400,7 +400,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.neighbors(1, mode="in")
+        neighbors = G.get_neighbors(1, mode="in")
 
         # Returns list of node IDs: [4] (D)
         assert set(neighbors) == {4}
@@ -416,7 +416,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.neighbors(1, mode="all")
+        neighbors = G.get_neighbors(1, mode="all")
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
@@ -430,7 +430,7 @@ class TestGetNeighbors:
         G.add_edge("A", "C")
         G.add_edge("D", "A")
 
-        neighbors = G.neighbors(1)
+        neighbors = G.get_neighbors(1)
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(neighbors) == {2, 3, 4}
@@ -451,7 +451,7 @@ class TestGetNeighbors:
             node = G.get_node(node_id)
             return node and node.attributes and node.attributes.get("type") == "user"
 
-        neighbors = [n for n in G.neighbors(1) if is_user(n)]
+        neighbors = [n for n in G.get_neighbors(1) if is_user(n)]
 
         # Returns list of node IDs: [2, 4] (B, D)
         assert set(neighbors) == {2, 4}
@@ -465,18 +465,18 @@ class TestNeighborsUndirectedModes:
         G = ec.Graph().add_nodes(["A", "B", "C", "D"])
         G.add_edges([("A", "B"), ("C", "A"), ("A", "D")])
         a = G.get_id_from_label("A")
-        expected = G.neighbors(a, mode="out")
+        expected = G.get_neighbors(a, mode="out")
         assert sorted(G.get_label_from_id(n) for n in expected) == ["B", "C", "D"]
-        assert G.neighbors(a, mode="in") == expected
-        assert G.neighbors(a, mode="all") == expected
+        assert G.get_neighbors(a, mode="in") == expected
+        assert G.get_neighbors(a, mode="all") == expected
 
     def test_directed_modes_unchanged(self):
         G = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
         G.add_edges([("A", "B"), ("C", "A")])
         a, b, c = (G.get_id_from_label(x) for x in "ABC")
-        assert G.neighbors(a, mode="out") == [b]
-        assert G.neighbors(a, mode="in") == [c]
-        assert G.neighbors(a, mode="all") == [b, c]
+        assert G.get_neighbors(a, mode="out") == [b]
+        assert G.get_neighbors(a, mode="in") == [c]
+        assert G.get_neighbors(a, mode="all") == [b, c]
 
 
 class TestGetCommonNeighbors:
@@ -843,10 +843,10 @@ class TestGetSimilarNeighbors:
 
 
 class TestGetAllConnectedNodes:
-    """Tests for get_all_connected_nodes()."""
+    """Tests for reachable_nodes()."""
 
     def test_connected_nodes_accepts_label(self):
-        """Test that get_all_connected_nodes accepts both ID and label."""
+        """Test that reachable_nodes accepts both ID and label."""
         G = ec.Graph()
         for label in ["A", "B", "C", "D"]:
             G.add_node(label)
@@ -855,11 +855,11 @@ class TestGetAllConnectedNodes:
         G.add_edge("C", "D")
 
         # Using node ID
-        connected_by_id = G.get_all_connected_nodes(1)  # A=1
+        connected_by_id = G.reachable_nodes(1)  # A=1
         assert set(connected_by_id) == {2, 3, 4}  # B, C, D
 
         # Using node label
-        connected_by_label = G.get_all_connected_nodes("A")
+        connected_by_label = G.reachable_nodes("A")
         assert set(connected_by_label) == {2, 3, 4}
 
         # Should return same results (node IDs)
@@ -872,7 +872,7 @@ class TestGetAllConnectedNodes:
         G.add_path_graph(5)  # 1-2-3-4-5
 
         # All nodes 2-5 are connected to 1
-        connected = G.get_all_connected_nodes(1)
+        connected = G.reachable_nodes(1)
 
         # Returns list of node IDs: [2, 3, 4, 5]
         assert set(connected) == {2, 3, 4, 5}
@@ -887,11 +887,11 @@ class TestGetAllConnectedNodes:
         G.add_edge("4", "5")  # Separate component: 4-5
 
         # Only 2 and 3 are connected to 1
-        connected1 = G.get_all_connected_nodes(1)
+        connected1 = G.reachable_nodes(1)
         assert set(connected1) == {2, 3}
 
         # Only 5 is connected to 4
-        connected4 = G.get_all_connected_nodes(4)
+        connected4 = G.reachable_nodes(4)
         assert set(connected4) == {5}
 
     def test_connected_nodes_isolated(self):
@@ -903,7 +903,7 @@ class TestGetAllConnectedNodes:
         G.add_edge("B", "C")
 
         # A is isolated, no connected nodes
-        connected = G.get_all_connected_nodes(1)  # A=1
+        connected = G.reachable_nodes(1)  # A=1
 
         assert connected == []
 
@@ -916,7 +916,7 @@ class TestGetAllConnectedNodes:
         G.add_edge("2", "3")  # 2 -> 3
 
         # Even though edges are directed, BFS treats as undirected
-        connected_from_3 = G.get_all_connected_nodes(3)
+        connected_from_3 = G.reachable_nodes(3)
 
         # Should find both 1 and 2 despite direction
         # Returns list of node IDs: [1, 2]
@@ -934,7 +934,7 @@ class TestGetAllConnectedNodes:
         G.add_edge("D", "A")
 
         # All others are connected to A
-        connected = G.get_all_connected_nodes(1)  # A=1
+        connected = G.reachable_nodes(1)  # A=1
 
         # Returns list of node IDs: [2, 3, 4] (B, C, D)
         assert set(connected) == {2, 3, 4}
@@ -945,11 +945,11 @@ class TestGetAllConnectedNodes:
         G.add_star_graph(5)  # Center node 1 connected to 2-5
 
         # From center, all spokes are connected
-        connected_center = G.get_all_connected_nodes(1)
+        connected_center = G.reachable_nodes(1)
         assert set(connected_center) == {2, 3, 4, 5}
 
         # From spoke, all others are connected (including center and other spokes)
-        connected_spoke = G.get_all_connected_nodes(2)
+        connected_spoke = G.reachable_nodes(2)
         assert set(connected_spoke) == {1, 3, 4, 5}
 
     def test_connected_nodes_large_component(self):
@@ -966,7 +966,7 @@ class TestGetAllConnectedNodes:
                     G.add_edge(f"{i}_{j - 1}", node)
 
         # All 100 nodes are connected
-        connected = G.get_all_connected_nodes(1)  # Node with label "1_1" = ID 1
+        connected = G.reachable_nodes(1)  # Node with label "1_1" = ID 1
 
         assert len(connected) == 99  # All except source
         assert 1 not in connected

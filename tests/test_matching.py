@@ -195,7 +195,7 @@ class TestMaximalMatching:
 
 
 class TestMaxWeightMatching:
-    """Tests for max_weight_matching() method."""
+    """Tests for maximum_weight_matching() method."""
 
     def test_weighted_graph_simple(self):
         """Test maximum weight matching with different weights."""
@@ -211,7 +211,7 @@ class TestMaxWeightMatching:
         graph.add_edge("B", "C", weight=1.0)
         graph.add_edge("C", "D", weight=1.0)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Should include heavy edge (first edge ID = 1)
         edge_ids = graph.get_edge_ids()
@@ -230,7 +230,7 @@ class TestMaxWeightMatching:
         for i in range(5):
             graph.add_edge(str(i), str(i + 1), weight=1.0)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Should match 2-3 edges
         assert len(matching) >= 2
@@ -241,7 +241,7 @@ class TestMaxWeightMatching:
         graph = Graph()
         graph.add_full_graph(6)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Perfect matching: 3 edges
         assert len(matching) == 3
@@ -258,7 +258,7 @@ class TestMaxWeightMatching:
         graph.add_edge("B", "C", weight=3.0)
         graph.add_edge("A", "C", weight=2.0)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # The heaviest edge, A-B, is the best single edge
         edge_ids = graph.get_edge_ids()
@@ -287,7 +287,7 @@ class TestMaxWeightMatching:
         for (src, tgt), weight in weights.items():
             graph.add_edge(src, tgt, weight=weight)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Should get 2 edges (perfect matching)
         assert len(matching) == 2
@@ -303,19 +303,19 @@ class TestMaxWeightMatching:
         graph = Graph()
         graph.add_grid_2d(rows=3, cols=3)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Should get reasonable matching
         assert len(matching) >= 3
         assert graph.is_matching(matching)
 
     def test_compare_with_maximal(self):
-        """Test that max_weight_matching finds valid maximal matching."""
+        """Test that maximum_weight_matching finds valid maximal matching."""
         graph = Graph()
         graph.add_path_graph(10)
 
         matching1 = graph.maximal_matching()
-        matching2 = graph.max_weight_matching()
+        matching2 = graph.maximum_weight_matching()
 
         # Both should be valid matchings
         assert graph.is_matching(matching1)
@@ -334,7 +334,7 @@ class TestMaxWeightMatching:
         graph.add_edge("1", "2", weight=2.0)
         graph.add_edge("2", "3", weight=3.0)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         assert len(matching) >= 1
         assert graph.is_matching(matching)
@@ -388,7 +388,7 @@ class TestMatchingEdgeCases:
         original_nodes = graph.count_nodes()
 
         _ = graph.maximal_matching()
-        _ = graph.max_weight_matching()
+        _ = graph.maximum_weight_matching()
 
         assert graph.count_edges() == original_edges
         assert graph.count_nodes() == original_nodes
@@ -439,7 +439,7 @@ class TestMatchingIntegration:
         graph.add_edge("3", "4", weight=10.0)  # Heavy edge
         graph.add_edge("4", "5", weight=1.0)
 
-        matching = graph.max_weight_matching()
+        matching = graph.maximum_weight_matching()
 
         # Should include the heavy edge
         heavy_edge = None
@@ -497,7 +497,7 @@ class TestExactMaxWeightMatching:
         for G in _general_cases():
             g = _build(G)
             for mc in (False, True):
-                ours = g.max_weight_matching(maxcardinality=mc)
+                ours = g.maximum_weight_matching(maxcardinality=mc)
                 ref = nx.max_weight_matching(G, maxcardinality=mc)
                 assert g.is_matching(ours)
                 assert _total(g, ours) == pytest.approx(
@@ -509,29 +509,29 @@ class TestExactMaxWeightMatching:
     def test_unweighted_is_maximum_cardinality(self):
         for G in _general_cases(60):
             g = _build(G, weighted=False)
-            assert len(g.max_weight_matching()) == len(nx.max_weight_matching(G, True))
+            assert len(g.maximum_weight_matching()) == len(nx.max_weight_matching(G, True))
 
     def test_beats_greedy_and_weighted_flag(self):
         g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
         g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
-        assert _total(g, g.max_weight_matching()) == 8.0
-        assert _total(g, g.max_weight_matching(method="greedy")) == 5.0
-        assert len(g.max_weight_matching(weighted=False)) == 2
+        assert _total(g, g.maximum_weight_matching()) == 8.0
+        assert _total(g, g.maximum_weight_matching(method="greedy")) == 5.0
+        assert len(g.maximum_weight_matching(weighted=False)) == 2
         with pytest.raises(ValueError, match="method"):
-            g.max_weight_matching(method="hungarian")
+            g.maximum_weight_matching(method="hungarian")
 
     def test_parallel_edges_self_loops_and_direction(self):
         g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B", 1.0), ("B", "A", 3.0), ("C", "C", 9.0)])
-        assert g.max_weight_matching() == g.find_edge_ids("B", "A")
-        assert ec.Graph().max_weight_matching() == []
+        assert g.maximum_weight_matching() == g.find_edge_ids("B", "A")
+        assert ec.Graph().maximum_weight_matching() == []
 
 
 class TestMinWeightMatching:
     def test_against_networkx(self):
         for G in _general_cases(100):
             g = _build(G)
-            ours, ref = g.min_weight_matching(), nx.min_weight_matching(G)
+            ours, ref = g.minimum_weight_matching(), nx.min_weight_matching(G)
             assert len(ours) == len(ref)
             assert _total(g, ours) == pytest.approx(
                 sum(G[u][v]["weight"] for u, v in ref), abs=1e-7
@@ -581,9 +581,9 @@ class TestBipartiteMatching:
                 ref = nx.bipartite.minimum_weight_full_matching(B, top_nodes=range(a))
             except ValueError:
                 with pytest.raises(ValueError, match="no full matching"):
-                    g.bipartite_min_weight_full_matching(top_nodes=top)
+                    g.bipartite_minimum_weight_full_matching(top_nodes=top)
                 continue
-            ours = g.bipartite_min_weight_full_matching(top_nodes=top)
+            ours = g.bipartite_minimum_weight_full_matching(top_nodes=top)
             assert len(ours) == min(a, B.number_of_nodes() - a)
             assert _total(g, ours) == pytest.approx(
                 sum(B[u][v]["weight"] for u, v in ref.items() if u < a), abs=1e-7
@@ -606,7 +606,7 @@ class TestCovers:
             if not len(G) or list(nx.isolates(G)):
                 continue
             g = _build(G, weighted=False)
-            cover = g.min_edge_cover()
+            cover = g.minimum_edge_cover()
             assert g.is_edge_cover(cover)
             assert len(cover) == len({frozenset(e) for e in nx.min_edge_cover(G)})
             assert nx.is_edge_cover(
@@ -618,11 +618,11 @@ class TestCovers:
             )
 
     def test_min_edge_cover_edge_cases(self):
-        assert ec.Graph().min_edge_cover() == []
+        assert ec.Graph().minimum_edge_cover() == []
         with pytest.raises(ValueError, match="isolated"):
-            ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B").min_edge_cover()
+            ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B").minimum_edge_cover()
         loop = ec.Graph().add_nodes(["A"]).add_edge("A", "A")
-        assert loop.min_edge_cover() == loop.get_edge_ids()
+        assert loop.minimum_edge_cover() == loop.get_edge_ids()
 
     def test_weighted_vertex_cover_is_a_2_approximation(self):
         for seed in range(60):
@@ -631,7 +631,7 @@ class TestCovers:
             g = _build(G, weighted=False)
             cost = {g.get_id_from_label(str(v)): float(rnd.randint(1, 6)) for v in G}
             g.set_node_attrs("cost", cost)
-            cover = g.min_weighted_vertex_cover(weight_attr="cost")
+            cover = g.minimum_weighted_vertex_cover(node_weight_attr="cost")
             assert g.is_vertex_cover(cover)
             best = min(
                 sum(cost[n] for n in subset)
@@ -647,21 +647,21 @@ class TestCovers:
         assert g.is_edge_cover(g.get_edge_ids()) and not g.is_edge_cover([999])
         g.set_node_attrs("cost", {g.get_id_from_label("a"): -1.0})
         with pytest.raises(ValueError, match="non-negative"):
-            g.min_weighted_vertex_cover(weight_attr="cost")
+            g.minimum_weighted_vertex_cover(node_weight_attr="cost")
 
 
 class TestMatchingStepHooks:
     def test_steps(self):
         g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
         g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
-        g.max_weight_matching()
+        g.maximum_weight_matching()
         step = g.steps[-1]
-        assert step.kind == KIND_QUERY and step.code == "G.max_weight_matching()"
+        assert step.kind == KIND_QUERY and step.code == "G.maximum_weight_matching()"
         assert step.delta.edges_selected == [("A", "B"), ("C", "D")]
         assert step.narration == "Matching of 2 edges with total weight 8."
         b = ec.Graph().add_nodes(list("ABCDE"))
         b.add_edges([("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")])
         b.bipartite_vertex_cover()
         assert b.steps[-1].delta.nodes_selected == ["A", "E"]
-        b.min_edge_cover()
+        b.minimum_edge_cover()
         assert len(b.steps[-1].delta.edges_selected) == 3  # 5 nodes - matching of 2

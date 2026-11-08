@@ -132,7 +132,7 @@ _SEED_NO_ARGS = [
     "layout_forceatlas2",
     "layout_random",
     "layout_spring",
-    "max_cut",
+    "maximum_cut",
     "maximal_independent_set",
     "motif_significance",
     "network_robustness",
@@ -365,9 +365,10 @@ class TestDerivedGraphsKeepIdsAndAttributes:
         for nid in h.get_node_ids():
             assert h.get_node(nid).attributes == g.get_node(nid).attributes
         assert sorted(h.get_edge_ids()) == sorted(g.get_edge_ids())
+        r, a, b = (g.get_id_from_label(x) for x in "RAB")
         assert g.directed_steiner_tree("R", ["B"], return_subgraph=False) == [
-            ("A", "B", 1.0),
-            ("R", "A", 1.0),
+            (r, a, 1.0),
+            (a, b, 1.0),
         ]
 
     def test_steiner_accepts_unlabelled_terminals(self):
@@ -436,8 +437,8 @@ class TestOptInWeights:
 
     def test_cut_methods_take_capacity(self):
         g = self._graph()
-        assert g.get_min_cut_between("S", "T") == 2
-        assert g.get_min_cut_between("S", "T", capacity="weight") == 2.0
+        assert g.minimum_cut_value("S", "T") == 2
+        assert g.minimum_cut_value("S", "T", capacity="weight") == 2.0
         cut = g.minimum_edge_cut("S", "T", capacity="weight")
         labels = {tuple(g.get_label_from_id(n) for n in e) for e in cut}
         assert labels == {("A", "T"), ("S", "B")}
@@ -458,22 +459,24 @@ class TestOptInWeights:
         got = g.closeness_vitality(weighted=True, return_dict=True)
         for nid, value in got.items():
             assert value == pytest.approx(2 * want[g.get_label_from_id(nid)])
-            assert g.get_node_vitality(nid, weighted=True) == pytest.approx(value)
-        # Default stays hop-based
+            assert g.node_vitality(nid, weighted=True) == pytest.approx(value)
+        # The default follows the graph, so it is weight-based here, and weighted=False counts hops
+        assert g.closeness_vitality(return_dict=True) == got
         hops = nx.closeness_vitality(G)
-        for nid, value in g.closeness_vitality(return_dict=True).items():
+        for nid, value in g.closeness_vitality(weighted=False, return_dict=True).items():
             assert value == pytest.approx(2 * hops[g.get_label_from_id(nid)])
+            assert g.node_vitality(nid, weighted=False) == pytest.approx(value)
 
 
 def test_unconnected_false_needs_strong_connectivity():
     """Diameter/radius checked weak connectivity while mean distance required strong."""
     chain = ec.Graph(directed=True).add_path_graph(3)
-    for method in ("get_diameter", "get_radius", "get_mean_distance"):
+    for method in ("diameter", "radius", "mean_distance"):
         assert getattr(chain, method)(unconnected=False) is None
     ring = ec.Graph(directed=True).add_cycle_graph(3)
-    assert ring.get_diameter(unconnected=False) == 2
-    assert ring.get_radius(unconnected=False) == 2
-    assert ring.get_mean_distance(unconnected=False) == 1.5
+    assert ring.diameter(unconnected=False) == 2
+    assert ring.radius(unconnected=False) == 2
+    assert ring.mean_distance(unconnected=False) == 1.5
 
 
 class TestSmallerOddities:
@@ -573,7 +576,7 @@ class TestRemainingDerivedGraphsKeepIds:
 
 class TestPlotTraversalBfsTree:
     """Regression: tree edges attached each node to its most recently visited neighbor (the DFS
-    rule), which is wrong for BFS, including the default BFS run from start=."""
+    rule), which is wrong for BFS, including the default BFS run from source=."""
 
     @staticmethod
     def _tree(player):
@@ -590,7 +593,7 @@ class TestPlotTraversalBfsTree:
 
     def test_start_uses_real_bfs_tree(self):
         g = self._graph()
-        assert self._tree(g.plot_traversal(start=1)) == [("1", "2"), ("1", "3"), ("3", "4")]
+        assert self._tree(g.plot_traversal(source=1)) == [("1", "2"), ("1", "3"), ("3", "4")]
 
     def test_inference_follows_algorithm(self):
         g = self._graph()
@@ -631,7 +634,7 @@ class TestResolverChecksIntegerIds:
         [
             lambda g: g.get_node(99),
             lambda g: g.get_degree(99),
-            lambda g: g.neighbors(99, mode="in"),
+            lambda g: g.get_neighbors(99, mode="in"),
             lambda g: g.has_path(1, 99),
             lambda g: g.shortest_path(1, 99),
             lambda g: g.shortest_path_length(1, 99),
@@ -643,7 +646,7 @@ class TestResolverChecksIntegerIds:
             lambda g: g.single_source_shortest_path_length(99),
             lambda g: g.select_nodes_in_neighborhood([99]),
             lambda g: g.set_node_attrs("x", {99: 1}),
-            lambda g: g.max_flow_value(1, 99),
+            lambda g: g.maximum_flow_value(1, 99),
             lambda g: g.contract_nodes(1, 99),
             lambda g: g.ego_graph(99),
         ],
@@ -757,7 +760,7 @@ class TestNotFoundErrors:
             lambda g: g.delete_node(99),
             lambda g: g.delete_node("Z"),
             lambda g: g.select_nodes_by_id([1, 99]),
-            lambda g: g.neighbors("Z"),
+            lambda g: g.get_neighbors("Z"),
             lambda g: g.add_node(label="C", from_node="Z"),
         ],
     )

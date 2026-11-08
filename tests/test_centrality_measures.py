@@ -874,7 +874,7 @@ class TestSpectralAndElectrical:
             assert ours == pytest.approx(nx.subgraph_centrality(U))
         assert sum(
             ec.karate_club().subgraph_centrality(return_dict=True).values()
-        ) == pytest.approx(ec.karate_club().get_estrada_index())
+        ) == pytest.approx(ec.karate_club().estrada_index())
 
     @pytest.mark.parametrize("normalized", [True, False])
     def test_current_flow_betweenness(self, normalized):
@@ -1512,8 +1512,8 @@ class TestCentralityWeightedFlag:
         with pytest.raises(ValueError, match="non-negative"):
             g.load_centrality(return_dict=True)
 
-    def test_harmonic_weights_argument_points_to_weighted(self):
-        with pytest.raises(ValueError, match="weighted"):
+    def test_harmonic_has_no_weights_argument(self):
+        with pytest.raises(TypeError, match="weights"):
             _triangle_detour().harmonic_centrality(weights="weight")
 
     def test_explicit_flag_recorded_in_computations(self):

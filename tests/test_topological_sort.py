@@ -5,7 +5,7 @@ from edgecase import Graph
 
 
 class TestTopologicalSort:
-    """Test get_topological_sort_order() method."""
+    """Test topological_sort() method."""
 
     def test_simple_dag(self):
         """Test basic topological sort on simple DAG."""
@@ -17,7 +17,7 @@ class TestTopologicalSort:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        order = g.get_topological_sort_order()  # Returns list[int] (node IDs)
+        order = g.topological_sort()  # Returns list[int] (node IDs)
 
         # Convert IDs to labels for checking
         order_labels = [g.get_label_from_id(nid) for nid in order]
@@ -40,14 +40,14 @@ class TestTopologicalSort:
         for i in range(len(nodes) - 1):
             g.add_edge(nodes[i], nodes[i + 1])
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
         assert order_labels == nodes  # Should be in exact order
 
     def test_empty_graph(self):
         """Test topological sort on empty graph."""
         g = Graph(directed=True)
-        order = g.get_topological_sort_order()
+        order = g.topological_sort()
         assert order == []
 
     def test_single_node(self):
@@ -55,7 +55,7 @@ class TestTopologicalSort:
         g = Graph(directed=True)
         g.add_node(label="A")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
         assert order_labels == ["A"]
 
@@ -72,7 +72,7 @@ class TestTopologicalSort:
         g.add_node(label="D")
         g.add_edge("C", "D")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # All nodes should be present
@@ -92,7 +92,7 @@ class TestTopologicalSort:
         g.add_edge("C", "A")  # Creates cycle
 
         with pytest.raises(ValueError, match="cycle.*not a DAG"):
-            g.get_topological_sort_order()
+            g.topological_sort()
 
     def test_self_loop(self):
         """Test that self-loops are detected as cycles."""
@@ -103,7 +103,7 @@ class TestTopologicalSort:
         g.add_edge("B", "B")  # Self-loop
 
         with pytest.raises(ValueError, match="cycle"):
-            g.get_topological_sort_order()
+            g.topological_sort()
 
     def test_undirected_graph_error(self):
         """Test that undirected graphs raise error."""
@@ -113,7 +113,7 @@ class TestTopologicalSort:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="directed"):
-            g.get_topological_sort_order()
+            g.topological_sort()
 
     def test_complex_dag(self):
         """Test more complex DAG with multiple valid orderings."""
@@ -127,7 +127,7 @@ class TestTopologicalSort:
         for src, tgt in edges:
             g.add_edge(src, tgt)
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify all constraints
@@ -145,7 +145,7 @@ class TestTopologicalSort:
         g.add_edge("left", "bottom")
         g.add_edge("right", "bottom")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         assert order_labels[0] == "top"
@@ -171,7 +171,7 @@ class TestTopologicalSort:
             for dep in deps:
                 g.add_edge(dep, task)
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify dependencies
@@ -193,7 +193,7 @@ class TestTopologicalSort:
         g.add_edge("C", "D")
         g.add_edge("C", "E")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # A and B should come before C
@@ -215,7 +215,7 @@ class TestTopologicalSort:
         g.add_edge("A", "C")
         g.add_edge("A", "D")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         assert order_labels[0] == "A"
@@ -237,7 +237,7 @@ class TestTopologicalSort:
         g.add_edge("utils.h", "main.c")
         g.add_edge("config.h", "main.c")
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # config.h must be first
@@ -274,7 +274,7 @@ class TestTopologicalSort:
             for prereq in prereqs:
                 g.add_edge(prereq, course)
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # Verify prerequisites
@@ -286,10 +286,10 @@ class TestTopologicalSort:
 
 
 class TestTopologicalSortIntegration:
-    """Integration tests for get_topological_sort_order()."""
+    """Integration tests for topological_sort()."""
 
     def test_with_is_dag(self):
-        """Test get_topological_sort_order works only on DAGs."""
+        """Test topological_sort works only on DAGs."""
         # DAG should work
         g1 = Graph(directed=True)
         for node in ["A", "B", "C"]:
@@ -298,7 +298,7 @@ class TestTopologicalSortIntegration:
         g1.add_edge("B", "C")
 
         assert g1.is_dag()
-        order = g1.get_topological_sort_order()
+        order = g1.topological_sort()
         assert len(order) == 3
 
         # Cyclic should fail
@@ -311,7 +311,7 @@ class TestTopologicalSortIntegration:
 
         assert not g2.is_dag()
         with pytest.raises(ValueError):
-            g2.get_topological_sort_order()
+            g2.topological_sort()
 
     def test_isolated_nodes(self):
         """Test DAG with isolated nodes."""
@@ -323,7 +323,7 @@ class TestTopologicalSortIntegration:
         g.add_edge("A", "B")
         # C, D, E are isolated
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         # All nodes should be in result
@@ -343,7 +343,7 @@ class TestTopologicalSortIntegration:
         for i in range(n - 1):
             g.add_edge(str(i), str(i + 1))
 
-        order = g.get_topological_sort_order()  # Returns list[int]
+        order = g.topological_sort()  # Returns list[int]
         order_labels = [g.get_label_from_id(nid) for nid in order]
 
         assert len(order_labels) == n

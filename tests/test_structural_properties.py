@@ -3,24 +3,24 @@ import edgecase as ec
 
 
 class TestDensity:
-    """Test get_density() method."""
+    """Test density() method."""
 
     def test_density_empty_graph(self):
         """Empty graph has density 0."""
         G = ec.Graph()
-        assert G.get_density() == 0.0
+        assert G.density() == 0.0
 
     def test_density_single_node(self):
         """Single node has density 0."""
         G = ec.Graph()
         G.add_node("A")
-        assert G.get_density() == 0.0
+        assert G.density() == 0.0
 
     def test_density_complete_graph_undirected(self):
         """Complete undirected graph has density 1.0."""
         G = ec.Graph()
         G.add_full_graph(4)
-        assert G.get_density() == 1.0
+        assert G.density() == 1.0
 
     def test_density_complete_graph_directed(self):
         """Complete directed graph has density 1.0."""
@@ -33,14 +33,14 @@ class TestDensity:
             for j in range(len(nodes)):
                 if i != j:
                     G.add_edge(nodes[i], nodes[j])
-        assert G.get_density() == 1.0
+        assert G.density() == 1.0
 
     def test_density_sparse_graph(self):
         """Sparse graph has low density."""
         G = ec.Graph()
         G.add_path_graph(10)  # 9 edges, 10 nodes
         # Undirected: 9 / (10*9/2) = 9 / 45 = 0.2
-        assert abs(G.get_density() - 0.2) < 1e-10
+        assert abs(G.density() - 0.2) < 1e-10
 
     def test_density_partial_graph(self):
         """Partial graph has intermediate density."""
@@ -50,7 +50,7 @@ class TestDensity:
         G.add_node("C")
         G.add_edge("A", "B")  # 1 edge out of 3 possible
         # 1 / 3 = 0.333...
-        assert abs(G.get_density() - 1.0 / 3.0) < 1e-10
+        assert abs(G.density() - 1.0 / 3.0) < 1e-10
 
 
 class TestIsConnected:
@@ -273,13 +273,13 @@ class TestDegreeDistribution:
     def test_degree_dist_empty_graph(self):
         """Empty graph has empty distribution."""
         G = ec.Graph()
-        assert G.get_degree_distribution() == {}
+        assert G.degree_distribution() == {}
 
     def test_degree_dist_path_graph(self):
         """Path graph has 2 nodes with degree 1, rest with degree 2."""
         G = ec.Graph()
         G.add_path_graph(5)
-        dist = G.get_degree_distribution()
+        dist = G.degree_distribution()
         assert dist[1] == 2  # End nodes
         assert dist[2] == 3  # Middle nodes
 
@@ -287,7 +287,7 @@ class TestDegreeDistribution:
         """Star graph has 1 hub with high degree, rest with degree 1."""
         G = ec.Graph()
         G.add_star_graph(6)  # 1 center + 5 spokes
-        dist = G.get_degree_distribution()
+        dist = G.degree_distribution()
         assert dist[1] == 5  # Spoke nodes
         assert dist[5] == 1  # Hub node
 
@@ -295,7 +295,7 @@ class TestDegreeDistribution:
         """Cycle graph has all nodes with degree 2."""
         G = ec.Graph()
         G.add_cycle_graph(6)
-        dist = G.get_degree_distribution()
+        dist = G.degree_distribution()
         assert dist[2] == 6
         assert len(dist) == 1  # Only one degree value
 
@@ -307,17 +307,17 @@ class TestDegreeDistributionDirected:
         # A -> B -> C plus A -> C and a self-loop on C: totals A 2, B 2, C 4
         G = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
         G.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "C")])
-        assert G.get_degree_distribution() == {2: 2, 4: 1}
+        assert G.degree_distribution() == {2: 2, 4: 1}
         expected: dict[int, int] = {}
         for nid in G.get_node_ids():
             d = G.get_degree(nid)
             expected[d] = expected.get(d, 0) + 1
-        assert G.get_degree_distribution() == expected
+        assert G.degree_distribution() == expected
 
     def test_directed_path_has_no_zero_bin(self):
         # The sink used to land in degree 0
         G = ec.Graph(directed=True).add_path_graph(4)
-        assert G.get_degree_distribution() == {1: 2, 2: 2}
+        assert G.degree_distribution() == {1: 2, 2: 2}
 
 
 class TestCountSelfloops:
@@ -356,31 +356,31 @@ class TestCountSelfloops:
 
 
 class TestAverageDegree:
-    """Test get_average_degree() method."""
+    """Test average_degree() method."""
 
     def test_avg_degree_empty_graph(self):
         """Empty graph has average degree 0."""
         G = ec.Graph()
-        assert G.get_average_degree() == 0.0
+        assert G.average_degree() == 0.0
 
     def test_avg_degree_cycle_graph(self):
         """Cycle graph has average degree 2."""
         G = ec.Graph()
         G.add_cycle_graph(5)
-        assert G.get_average_degree() == 2.0
+        assert G.average_degree() == 2.0
 
     def test_avg_degree_star_graph(self):
         """Star graph average degree calculation."""
         G = ec.Graph()
         G.add_star_graph(5)  # 1 node with degree 4, 4 nodes with degree 1
         # (4 + 1 + 1 + 1 + 1) / 5 = 8 / 5 = 1.6
-        assert abs(G.get_average_degree() - 1.6) < 1e-10
+        assert abs(G.average_degree() - 1.6) < 1e-10
 
     def test_avg_degree_complete_graph(self):
         """Complete graph average degree."""
         G = ec.Graph()
         G.add_full_graph(5)  # Each node has degree 4
-        assert G.get_average_degree() == 4.0
+        assert G.average_degree() == 4.0
 
     def test_average_degree_directed_counts_in_and_out(self):
         """For directed graphs the average is of in-degree + out-degree (2E/N)."""
@@ -389,7 +389,7 @@ class TestAverageDegree:
             G_.add_node(label=label)
         for u, v in [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")]:
             G_.add_edge(u, v)
-        assert G_.get_average_degree() == pytest.approx(2 * 4 / 3)
+        assert G_.average_degree() == pytest.approx(2 * 4 / 3)
 
 
 class TestStructuralPropertiesIntegration:
@@ -409,14 +409,14 @@ class TestStructuralPropertiesIntegration:
         assert G2.is_connected()
         assert G2.is_simple()
         assert G2.is_bipartite()  # Even cycle
-        assert G2.get_average_degree() == 2.0
+        assert G2.average_degree() == 2.0
 
         # Complete graph
         G3 = ec.Graph().add_full_graph(4)
         assert G3.is_connected()
         assert G3.is_simple()
         assert not G3.is_bipartite()  # Contains triangles
-        assert G3.get_density() == 1.0
+        assert G3.density() == 1.0
 
     def test_dag_properties(self):
         """Test DAG-specific properties."""
@@ -441,7 +441,7 @@ class TestStructuralPropertiesIntegration:
 
         assert not G.is_connected()
         assert G.is_simple()
-        assert G.get_density() < 0.5  # Sparse
+        assert G.density() < 0.5  # Sparse
 
 
 class TestHasCycles:

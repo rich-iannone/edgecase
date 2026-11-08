@@ -113,10 +113,10 @@ def test_undirected_neighbors_symmetric(G):
     """In undirected graph, if B is neighbor of A, then A is neighbor of B"""
     if G.count_nodes() > 0:
         for node in G.get_node_ids(limit=None):
-            neighbors = G.neighbors(node)
+            neighbors = G.get_neighbors(node)
             for neighbor in neighbors:
                 # Check symmetry
-                reverse_neighbors = G.neighbors(neighbor)
+                reverse_neighbors = G.get_neighbors(neighbor)
                 assert node in reverse_neighbors
 
 
@@ -197,7 +197,7 @@ def test_shortest_path_consecutive_edges_exist(G, seed):
                 # Path contains node IDs - use them directly
                 current_id = path[i]
                 # Get neighbor IDs
-                neighbor_ids = G.neighbors(current_id)
+                neighbor_ids = G.get_neighbors(current_id)
                 # Next node should be in current node's neighbors
                 next_id = path[i + 1]
                 assert next_id in neighbor_ids

@@ -301,7 +301,7 @@ class TestMinimumCycleBasisWeighted:
             .add_edge("C", "A", weight=3.0)
         )
 
-        basis = g.minimum_cycle_basis(weight="weight")
+        basis = g.minimum_cycle_basis(weight_attr="weight")
 
         assert len(basis) == 1
 
@@ -321,7 +321,7 @@ class TestMinimumCycleBasisWeighted:
             .add_edge("A", "C", weight=100.0)  # Heavy diagonal
         )
 
-        basis = g.minimum_cycle_basis(weight="weight")
+        basis = g.minimum_cycle_basis(weight_attr="weight")
 
         assert len(basis) == 2
 
@@ -330,18 +330,20 @@ class TestMinimumCycleBasisWeighted:
         g = Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
         g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0), ("D", "A", 1.0)])
         g.add_edge("A", "C", weight=100.0)
-        basis = g.minimum_cycle_basis(weight="weight")
+        basis = g.minimum_cycle_basis(weight_attr="weight")
         assert sorted(map(len, basis)) == [3, 4]
         assert basis == g.minimum_cycle_basis()
 
     def test_missing_weight_attribute_raises(self):
-        """`weight="cots"` used to count every edge as 1.0."""
+        """`weight_attr="cots"` used to count every edge as 1.0."""
         g = Graph().add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B", {"cost": 1.0}), ("B", "C", {"cost": 1.0}), ("C", "A")])
-        with pytest.raises(ValueError, match="no numeric 'cots' attribute, which weight='cots'"):
-            g.minimum_cycle_basis(weight="cots")
+        with pytest.raises(
+            ValueError, match="no numeric 'cots' attribute, which weight_attr='cots'"
+        ):
+            g.minimum_cycle_basis(weight_attr="cots")
         with pytest.raises(ValueError, match="no numeric 'cost' attribute"):
-            g.minimum_cycle_basis(weight="cost")
+            g.minimum_cycle_basis(weight_attr="cost")
 
 
 class TestMinimumCycleBasisComplexGraphs:
@@ -448,7 +450,7 @@ class TestMinimumCycleBasisCorrectness:
         g = Graph().add_nodes(list("ABC"))
         g.add_edge("A", "B", cost=1.0).add_edge("B", "C", cost=bad).add_edge("C", "A", cost=1.0)
         with pytest.raises(ValueError, match="non-negative"):
-            g.minimum_cycle_basis(weight="cost")
+            g.minimum_cycle_basis(weight_attr="cost")
 
     @pytest.mark.parametrize("weighted", [False, True])
     def test_matches_networkx(self, weighted):
@@ -465,7 +467,7 @@ class TestMinimumCycleBasisCorrectness:
             g = Graph(weighted=weighted).add_nodes([str(i) for i in range(n)])
             for u, v, w in G.edges(data="weight"):
                 g.add_edge(str(u), str(v), **({"weight": w} if weighted else {}))
-            basis = g.minimum_cycle_basis(weight="weight")
+            basis = g.minimum_cycle_basis(weight_attr="weight")
 
             def total(cycles):
                 return sum(G[c[i - 1]][c[i]]["weight"] for c in cycles for i in range(len(c)))

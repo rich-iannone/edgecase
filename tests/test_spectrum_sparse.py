@@ -1,5 +1,5 @@
 """
-Tests for the sparse solver used by `get_spectrum()` / `get_laplacian_spectrum()`.
+Tests for the sparse solver used by `adjacency_spectrum()` / `laplacian_spectrum()`.
 
 For undirected graphs with at least 400 nodes, `which="largest"`/`"smallest"` with a
 small `k` runs Chebyshev-filtered subspace iteration instead of a dense
@@ -51,8 +51,8 @@ def graph(name):
 
 def spectrum(g, kind, **kwargs):
     if kind == "adjacency":
-        return g.get_spectrum(**kwargs)
-    return g.get_laplacian_spectrum(normalized=(kind == "normalized"), **kwargs)
+        return g.adjacency_spectrum(**kwargs)
+    return g.laplacian_spectrum(normalized=(kind == "normalized"), **kwargs)
 
 
 def reference_matrix(G, g, spec, kind):
@@ -120,15 +120,15 @@ class TestAgainstDense:
     def test_small_k_still_reports_summaries(self, k):
         _, g = graph("watts_strogatz")
         ref = dense_eigenvalues("watts_strogatz", "laplacian")
-        spec = g.get_laplacian_spectrum(which="largest", k=k)
+        spec = g.laplacian_spectrum(which="largest", k=k)
         assert len(spec["values"]) == len(spec["vectors"]) == k
         assert spec["algebraic_connectivity"] == pytest.approx(ref[1], abs=1e-8)
 
     def test_matches_dense_path_on_all(self):
         """`which="all"` (dense) and the sparse path agree on the extremal values."""
         _, g = graph("powerlaw_cluster")
-        full = g.get_laplacian_spectrum(which="all")["values"]
-        sparse = g.get_laplacian_spectrum(which="smallest", k=6)["values"]
+        full = g.laplacian_spectrum(which="all")["values"]
+        sparse = g.laplacian_spectrum(which="smallest", k=6)["values"]
         np.testing.assert_allclose(sparse, full[:6], atol=1e-8)
 
 
@@ -138,17 +138,17 @@ class TestRepeatedEigenvalues:
     def test_clique_union_eigenvalue_multiplicities(self):
         # 60 x K_10: adjacency {9 (x60), -1 (x540)}, Laplacian {0 (x60), 10 (x540)}
         _, g = graph("clique_union_60x10")
-        assert g.get_spectrum(which="largest", k=8)["values"] == pytest.approx([9.0] * 8)
-        assert g.get_spectrum(which="smallest", k=8)["values"] == pytest.approx([-1.0] * 8)
-        lap_small = g.get_laplacian_spectrum(which="smallest", k=8)["values"]
+        assert g.adjacency_spectrum(which="largest", k=8)["values"] == pytest.approx([9.0] * 8)
+        assert g.adjacency_spectrum(which="smallest", k=8)["values"] == pytest.approx([-1.0] * 8)
+        lap_small = g.laplacian_spectrum(which="smallest", k=8)["values"]
         assert lap_small == pytest.approx([0.0] * 8, abs=1e-9)
-        lap_large = g.get_laplacian_spectrum(which="largest", k=8)["values"]
+        lap_large = g.laplacian_spectrum(which="largest", k=8)["values"]
         assert lap_large == pytest.approx([10.0] * 8)
 
     def test_null_space_larger_than_block(self):
         # 400 isolates + a path: λ = 0 has multiplicity 401, next is ~1.5e-5
         _, g = graph("isolates_and_path")
-        spec = g.get_laplacian_spectrum(which="smallest", k=6)
+        spec = g.laplacian_spectrum(which="smallest", k=6)
         assert spec["values"] == pytest.approx([0.0] * 6, abs=1e-9)
         assert spec["algebraic_connectivity"] == pytest.approx(0.0, abs=1e-9)
 
@@ -161,7 +161,7 @@ class TestRepeatedEigenvalues:
             if len(comp) > 1 and nx.is_bipartite(G.subgraph(comp))
         )
         assert bipartite >= 6
-        values = g.get_laplacian_spectrum(which="largest", k=6, normalized=True)["values"]
+        values = g.laplacian_spectrum(which="largest", k=6, normalized=True)["values"]
         assert values == pytest.approx([2.0] * 6)
 
 
@@ -205,13 +205,13 @@ class TestLargeGraphs:
 class TestDeterminism:
     def test_repeated_calls_identical(self):
         _, g = graph("barabasi_albert")
-        a = g.get_laplacian_spectrum(which="smallest", k=5)
-        b = g.get_laplacian_spectrum(which="smallest", k=5)
+        a = g.laplacian_spectrum(which="smallest", k=5)
+        b = g.laplacian_spectrum(which="smallest", k=5)
         assert a["values"] == b["values"]
         assert a["vectors"] == b["vectors"]
 
     def test_eigenvector_signs_normalized(self):
         _, g = graph("grid_30x30")
-        for vec in g.get_spectrum(which="largest", k=5)["vectors"]:
+        for vec in g.adjacency_spectrum(which="largest", k=5)["vectors"]:
             first = next(v for v in vec if abs(v) > 1e-12)
             assert first > 0

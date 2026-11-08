@@ -46,11 +46,12 @@ class TestMinimumSpanningTree:
         g.add_edge("B", "C", weight=2.0)
         g.add_edge("C", "A", weight=3.0)
 
-        edge_ids = g.minimum_spanning_tree(return_subgraph=False)
+        edges = g.minimum_spanning_tree(return_subgraph=False)
 
-        assert isinstance(edge_ids, list)
-        assert len(edge_ids) == 2  # Triangle: 3 nodes, 2 edges in MST
-        assert all(isinstance(eid, str) for eid in edge_ids)
+        assert isinstance(edges, list)
+        assert len(edges) == 2  # Triangle: 3 nodes, 2 edges in MST
+        a, b, c = (g.get_id_from_label(x) for x in "ABC")
+        assert sorted(edges) == [(a, b, 1.0), (b, c, 2.0)]
 
     def test_mst_custom_weight_attribute(self):
         """MST using custom weight attribute."""
@@ -235,11 +236,12 @@ class TestMaximumSpanningTree:
         g.add_edge("B", "C", weight=2.0)
         g.add_edge("C", "A", weight=3.0)
 
-        edge_ids = g.maximum_spanning_tree(return_subgraph=False)
+        edges = g.maximum_spanning_tree(return_subgraph=False)
 
-        assert isinstance(edge_ids, list)
-        assert len(edge_ids) == 2
-        assert all(isinstance(eid, str) for eid in edge_ids)
+        assert isinstance(edges, list)
+        assert len(edges) == 2
+        a, b, c = (g.get_id_from_label(x) for x in "ABC")
+        assert sorted(edges) == [(b, c, 2.0), (c, a, 3.0)]
 
     def test_maximum_st_custom_weight(self):
         """Maximum ST using custom weight attribute."""

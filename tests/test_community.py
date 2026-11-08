@@ -478,19 +478,20 @@ class TestMoreCommunityMethods:
             assert sorted(x for c in ours for x in c) == sorted(T)
         with pytest.raises(ValueError, match="tree"):
             ec.Graph().add_cycle_graph(4).lukes_partitioning(2)
-        # edge_weight="weight" reads the weight field (it used to count every edge as 1)
+        # The weight field is the default, as it is for weight_attr="weight"
         for heavy in ("A", "C"):
             path = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
             path.add_edges([("A", "B", 5.0 if heavy == "A" else 1.0)])
             path.add_edges([("B", "C", 5.0 if heavy == "C" else 1.0)])
-            parts = path.lukes_partitioning(2, edge_weight="weight")
+            parts = path.lukes_partitioning(2, weight_attr="weight")
             labels = sorted(sorted(path.get_label_from_id(x) for x in c) for c in parts)
             assert sorted(["B", heavy]) in labels
+            assert path.lukes_partitioning(2) == parts
         # A missing edge attribute raises, as a missing node attribute does
         path = ec.Graph().add_nodes(["A", "B", "C"])
         path.add_edges([("A", "B", {"e": 1.0}), ("B", "C")])
-        with pytest.raises(ValueError, match="no numeric 'e' attribute, which edge_weight='e'"):
-            path.lukes_partitioning(2, edge_weight="e")
+        with pytest.raises(ValueError, match="no numeric 'e' attribute, which weight_attr='e'"):
+            path.lukes_partitioning(2, weight_attr="e")
 
     def test_greedy_source_expansion(self):
         G = nx.karate_club_graph()

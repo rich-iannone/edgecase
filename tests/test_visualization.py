@@ -139,7 +139,7 @@ class TestPlotTraversal:
         """Regression: on directed graphs the inferred tree edges were always empty."""
         g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
         g.add_edges([("A", "B"), ("B", "C"), ("A", "D")])
-        html = g.plot_traversal(start="A")._repr_html_()
+        html = g.plot_traversal(source="A")._repr_html_()
         steps = json.loads(re.search(r"var STEPS=(\[.*?\]);", html, re.S).group(1))
         a, b, c, d = (str(g.get_id_from_label(x)) for x in "ABCD")
         assert sorted(map(tuple, steps[-1]["tree_edges"])) == sorted([(a, b), (a, d), (b, c)])
@@ -157,7 +157,7 @@ class TestUnknownStyleOptionsRaise:
             (lambda g: g.plot(edge_color_by="nope"), "edge_color_by='nope'"),
             (lambda g: g.play(layout="spring"), "Unknown layout"),
             (lambda g: g.play(layout_mode="smooth"), "Unknown layout_mode 'smooth'"),
-            (lambda g: g.plot_traversal(start="A", theme="blue"), "Unknown theme"),
+            (lambda g: g.plot_traversal(source="A", theme="blue"), "Unknown theme"),
             (lambda g: g.plot_vis(layout="spring"), "Unknown layout"),
         ],
     )

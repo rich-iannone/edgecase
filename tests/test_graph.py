@@ -92,7 +92,7 @@ def test_neighbors_undirected_graph() -> None:
     graph.add_edge(Edge(0, 1, 2, None, None))
     graph.add_edge(Edge(0, 1, 3, None, None))
 
-    neighbors = graph.neighbors("A")
+    neighbors = graph.get_neighbors("A")
     assert len(neighbors) == 2
     # neighbors() returns node IDs, not labels
     assert 2 in neighbors
@@ -111,11 +111,11 @@ def test_neighbors_directed_graph() -> None:
     graph.add_edge(Edge(0, 1, 3, None, None))
 
     # A should have B and C as neighbors
-    a_neighbors = graph.neighbors("A")
+    a_neighbors = graph.get_neighbors("A")
     assert len(a_neighbors) == 2
 
     # B should have no outgoing neighbors
-    b_neighbors = graph.neighbors("B")
+    b_neighbors = graph.get_neighbors("B")
     assert len(b_neighbors) == 0
 
 
@@ -123,7 +123,7 @@ def test_neighbors_nonexistent_node_raises_error() -> None:
     """Test that getting neighbors of non-existent node raises error."""
     graph = Graph(directed=False)
     with pytest.raises(Exception):  # Should raise KeyError
-        graph.neighbors("NonExistent")
+        graph.get_neighbors("NonExistent")
 
 
 # Node tests

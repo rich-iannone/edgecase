@@ -37,7 +37,7 @@ class TestGraphBuilderEdgeCases:
 
         # Each node should have exactly one neighbor
         for node_id in g.get_node_ids(limit=None):
-            assert len(g.neighbors(node_id)) == 1
+            assert len(g.get_neighbors(node_id)) == 1
 
     def test_add_star_two_nodes(self):
         """Test minimum star (2 nodes - center and one leaf)."""
@@ -139,7 +139,7 @@ class TestGraphBuilderProperties:
 
         # Each node should have exactly 1 outgoing edge
         for node_id in g.get_node_ids(limit=None):
-            assert len(g.neighbors(node_id)) == 1
+            assert len(g.get_neighbors(node_id)) == 1
 
     @given(n=st.integers(min_value=2, max_value=30))
     def test_star_properties(self, n):
@@ -151,7 +151,7 @@ class TestGraphBuilderProperties:
         assert g.count_edges() == n - 1
 
         # Count degree distribution
-        degrees = [len(g.neighbors(nid)) for nid in g.get_node_ids(limit=None)]
+        degrees = [len(g.get_neighbors(nid)) for nid in g.get_node_ids(limit=None)]
 
         if n == 2:
             # Special case: both nodes have degree 1
@@ -176,7 +176,7 @@ class TestGraphBuilderProperties:
         # Each node should have n-1 neighbors
         if n > 1:
             for node_id in g.get_node_ids(limit=None):
-                assert len(g.neighbors(node_id)) == n - 1
+                assert len(g.get_neighbors(node_id)) == n - 1
 
     @given(k=st.integers(min_value=1, max_value=5), h=st.integers(min_value=0, max_value=4))
     def test_balanced_tree_properties(self, k, h):
@@ -357,8 +357,8 @@ class TestCreateGraphDataFrames:
 
         # In directed graph, B has no outgoing edges to A
         # In undirected graph, B has edge to A
-        assert len(g_directed.neighbors("B")) == 1  # only to C
-        assert len(g_undirected.neighbors("B")) >= 1  # to A and C
+        assert len(g_directed.get_neighbors("B")) == 1  # only to C
+        assert len(g_undirected.get_neighbors("B")) >= 1  # to A and C
 
 
 class TestGraphBuilderPerformance:
@@ -421,7 +421,7 @@ class TestGraphBuilderConsistency:
         for i in range(len(node_ids) - 1):
             current = node_ids[i]
             expected_next = node_ids[i + 1]
-            neighbors = g.neighbors(current)
+            neighbors = g.get_neighbors(current)
             assert expected_next in neighbors
 
     def test_cycle_connectivity(self):
@@ -436,7 +436,7 @@ class TestGraphBuilderConsistency:
 
         while current not in visited:
             visited.add(current)
-            neighbors = g.neighbors(current)
+            neighbors = g.get_neighbors(current)
             assert len(neighbors) == 1
             current = neighbors[0]
 
@@ -451,10 +451,10 @@ class TestGraphBuilderConsistency:
 
         # Find the center (node with highest degree)
         nodes = g.get_node_ids(limit=None)
-        degrees = {nid: len(g.neighbors(nid)) for nid in nodes}
+        degrees = {nid: len(g.get_neighbors(nid)) for nid in nodes}
         center = max(degrees, key=degrees.get)
 
-        center_neighbors = set(g.neighbors(center))
+        center_neighbors = set(g.get_neighbors(center))
         all_nodes = set(nodes)
 
         # Center should connect to all non-center nodes
@@ -467,7 +467,7 @@ class TestGraphBuilderConsistency:
 
         nodes = g.get_node_ids(limit=None)
         for node in nodes:
-            neighbors = set(g.neighbors(node))
+            neighbors = set(g.get_neighbors(node))
             # Each node should connect to all others
             assert neighbors == set(nodes) - {node}
 
@@ -479,7 +479,7 @@ class TestGraphBuilderConsistency:
         # Corner nodes should have exactly 2 neighbors
         # Edge nodes should have exactly 3 neighbors
         # Center node should have exactly 4 neighbors
-        degrees = [len(g.neighbors(nid)) for nid in g.get_node_ids(limit=None)]
+        degrees = [len(g.get_neighbors(nid)) for nid in g.get_node_ids(limit=None)]
 
         assert degrees.count(2) == 4  # 4 corners
         assert degrees.count(3) == 4  # 4 edge midpoints

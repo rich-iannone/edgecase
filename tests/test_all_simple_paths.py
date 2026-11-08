@@ -2,6 +2,11 @@ import pytest
 from edgecase import Graph
 
 
+def simple_paths(g, *args, **kwargs):
+    """`all_simple_paths()` with each node ID mapped to its label."""
+    return [[g.get_label_from_id(n) for n in p] for p in g.all_simple_paths(*args, **kwargs)]
+
+
 class TestBasicPaths:
     """Test basic path finding scenarios."""
 
@@ -14,7 +19,7 @@ class TestBasicPaths:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        paths = g.get_all_simple_paths( "A", "C")
+        paths = simple_paths(g, "A", "C")
         assert len(paths) == 1
         assert paths[0] == ["A", "B", "C"]
 
@@ -30,7 +35,7 @@ class TestBasicPaths:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        paths = g.get_all_simple_paths( "A", "D")
+        paths = simple_paths(g, "A", "D")
         assert len(paths) == 2
         # Sort paths for consistent comparison
         paths_sorted = sorted([tuple(p) for p in paths])
@@ -55,7 +60,7 @@ class TestBasicPaths:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        paths = g.get_all_simple_paths( "A", "D")
+        paths = simple_paths(g, "A", "D")
         assert len(paths) == 5
         # Paths: A->D, A->B->D, A->C->D, A->B->C->D, A->C->B->D
 
@@ -66,7 +71,7 @@ class TestBasicPaths:
         g.add_node(label="B")
         g.add_edge("A", "B")
 
-        paths = g.get_all_simple_paths( "A", "B")
+        paths = simple_paths(g, "A", "B")
         assert len(paths) == 1
         assert paths[0] == ["A", "B"]
 
@@ -75,7 +80,7 @@ class TestBasicPaths:
         g = Graph()
         g.add_node(label="A")
 
-        paths = g.get_all_simple_paths( "A", "A")
+        paths = simple_paths(g, "A", "A")
         # Should return path with just the node itself
         assert len(paths) == 1
         assert paths[0] == ["A"]
@@ -91,7 +96,7 @@ class TestEdgeCases:
         g.add_node(label="B")
         # No edge between them
 
-        paths = g.get_all_simple_paths( "A", "B")
+        paths = simple_paths(g, "A", "B")
         assert len(paths) == 0
 
     def test_nonexistent_source(self):
@@ -100,7 +105,7 @@ class TestEdgeCases:
         g.add_node(label="A")
 
         with pytest.raises(Exception):  # Should raise ValueError or similar
-            g.get_all_simple_paths( "B", "A")
+            simple_paths(g, "B", "A")
 
     def test_nonexistent_target(self):
         """Test with nonexistent target node."""
@@ -108,14 +113,14 @@ class TestEdgeCases:
         g.add_node(label="A")
 
         with pytest.raises(Exception):  # Should raise ValueError or similar
-            g.get_all_simple_paths( "A", "B")
+            simple_paths(g, "A", "B")
 
     def test_empty_graph(self):
         """Test with empty graph."""
         g = Graph()
 
         with pytest.raises(Exception):  # Should raise error
-            g.get_all_simple_paths( "A", "B")
+            simple_paths(g, "A", "B")
 
 
 class TestDirectedGraphs:
@@ -131,12 +136,12 @@ class TestDirectedGraphs:
         g.add_edge("B", "C")
 
         # Forward direction should work
-        paths_forward = g.get_all_simple_paths( "A", "C")
+        paths_forward = simple_paths(g, "A", "C")
         assert len(paths_forward) == 1
         assert paths_forward[0] == ["A", "B", "C"]
 
         # Reverse direction should not work
-        paths_backward = g.get_all_simple_paths( "C", "A")
+        paths_backward = simple_paths(g, "C", "A")
         assert len(paths_backward) == 0
 
     def test_directed_diamond(self):
@@ -153,7 +158,7 @@ class TestDirectedGraphs:
         g.add_edge("B", "D")
         g.add_edge("C", "D")
 
-        paths = g.get_all_simple_paths( "A", "D")
+        paths = simple_paths(g, "A", "D")
         assert len(paths) == 2
 
     def test_directed_cycle(self):
@@ -167,7 +172,7 @@ class TestDirectedGraphs:
         g.add_edge("C", "A")  # Cycle back
 
         # Should not get stuck in cycle
-        paths = g.get_all_simple_paths( "A", "C")
+        paths = simple_paths(g, "A", "C")
         assert len(paths) == 1
         assert paths[0] == ["A", "B", "C"]
 
@@ -185,10 +190,10 @@ class TestUndirectedGraphs:
         g.add_edge("B", "C")
 
         # Both directions should work
-        paths_forward = g.get_all_simple_paths( "A", "C")
+        paths_forward = simple_paths(g, "A", "C")
         assert len(paths_forward) == 1
 
-        paths_backward = g.get_all_simple_paths( "C", "A")
+        paths_backward = simple_paths(g, "C", "A")
         assert len(paths_backward) == 1
 
     def test_undirected_triangle(self):
@@ -202,7 +207,7 @@ class TestUndirectedGraphs:
         g.add_edge("C", "A")
 
         # Should find 2 paths in triangle: direct and going around
-        paths = g.get_all_simple_paths( "A", "C")
+        paths = simple_paths(g, "A", "C")
         assert len(paths) == 2
 
 
@@ -222,16 +227,16 @@ class TestCutoff:
         g.add_edge("A", "D")  # Shortcut
 
         # Without cutoff: should find 2 paths
-        all_paths = g.get_all_simple_paths( "A", "D")
+        all_paths = simple_paths(g, "A", "D")
         assert len(all_paths) == 2
 
         # With cutoff=1: only direct path
-        short_paths = g.get_all_simple_paths( "A", "D", cutoff=1)
+        short_paths = simple_paths(g, "A", "D", cutoff=1)
         assert len(short_paths) == 1
         assert len(short_paths[0]) == 2  # 2 nodes = 1 edge
 
         # With cutoff=2: both paths should be found
-        medium_paths = g.get_all_simple_paths( "A", "D", cutoff=3)
+        medium_paths = simple_paths(g, "A", "D", cutoff=3)
         assert len(medium_paths) == 2
 
     def test_cutoff_zero(self):
@@ -242,7 +247,7 @@ class TestCutoff:
         g.add_edge("A", "B")
 
         # cutoff=0 should not allow any traversal
-        paths = g.get_all_simple_paths( "A", "B", cutoff=0)
+        paths = simple_paths(g, "A", "B", cutoff=0)
         assert len(paths) == 0
 
     def test_cutoff_exact_length(self):
@@ -258,12 +263,12 @@ class TestCutoff:
         g.add_edge("C", "D")
 
         # cutoff=3 should find the path (exactly 3 edges)
-        paths = g.get_all_simple_paths( "A", "D", cutoff=3)
+        paths = simple_paths(g, "A", "D", cutoff=3)
         assert len(paths) == 1
         assert len(paths[0]) == 4  # 4 nodes = 3 edges
 
         # cutoff=2 should not find the path (need 3 edges)
-        paths_short = g.get_all_simple_paths( "A", "D", cutoff=2)
+        paths_short = simple_paths(g, "A", "D", cutoff=2)
         assert len(paths_short) == 0
 
 
@@ -292,7 +297,7 @@ class TestComplexGraphs:
         g.add_edge("C", "F")
 
         # Find all paths from A to F
-        paths = g.get_all_simple_paths( "A", "F")
+        paths = simple_paths(g, "A", "F")
         # Many possible paths in a grid
         assert len(paths) > 0
 
@@ -310,7 +315,7 @@ class TestComplexGraphs:
                 g.add_edge(n1, n2)
 
         # In K4, there should be many paths between any two nodes
-        paths = g.get_all_simple_paths( "A", "D")
+        paths = simple_paths(g, "A", "D")
         # Direct + via B + via C + via B,C
         assert len(paths) >= 4
 
@@ -333,7 +338,7 @@ class TestComplexGraphs:
         g.add_edge("C", "F")
 
         # In a tree, there's exactly one path between any two nodes
-        paths = g.get_all_simple_paths( "D", "F")
+        paths = simple_paths(g, "D", "F")
         assert len(paths) == 1
         assert "A" in paths[0]  # Must go through root
 
@@ -354,7 +359,7 @@ class TestLargerGraphs:
             g.add_edge(str(i), str(i + 1))
 
         # Only one path in a chain
-        paths = g.get_all_simple_paths( "0", str(n - 1))
+        paths = simple_paths(g, "0", str(n - 1))
         assert len(paths) == 1
         assert len(paths[0]) == n
 
@@ -369,7 +374,7 @@ class TestLargerGraphs:
             g.add_edge("center", f"spoke_{i}")
 
         # Path from one spoke to another must go through center
-        paths = g.get_all_simple_paths( "spoke_0", "spoke_5")
+        paths = simple_paths(g, "spoke_0", "spoke_5")
         assert len(paths) == 1
         assert "center" in paths[0]
         assert len(paths[0]) == 3  # spoke_0 -> center -> spoke_5
@@ -393,7 +398,7 @@ class TestWeightedGraphs:
         g.add_edge("C", "D", weight=10.0)
 
         # Should find both paths regardless of weight
-        paths = g.get_all_simple_paths( "A", "D")
+        paths = simple_paths(g, "A", "D")
         assert len(paths) == 2
         # Simple path enumeration doesn't consider weights
 
@@ -404,12 +409,12 @@ class TestUnlabelledAndMissingEndpoints:
     def test_unlabelled_endpoints(self):
         g = Graph().add_cycle_graph(4, label=False)
         a, b, c, d = sorted(g.get_node_ids())
-        paths = g.get_all_simple_paths(a, c)
-        assert sorted(paths) == sorted([[str(a), str(b), str(c)], [str(a), str(d), str(c)]])
+        paths = g.all_simple_paths(a, c)
+        assert sorted(paths) == sorted([[a, b, c], [a, d, c]])
 
     def test_missing_integer_id_raises_value_error(self):
         g = Graph().add_path_graph(3)
         with pytest.raises(ValueError, match="Node 999 does not exist"):
-            g.get_all_simple_paths(999, 1)
+            g.all_simple_paths(999, 1)
         with pytest.raises(ValueError, match="Node 999 does not exist"):
-            g.get_all_simple_paths(1, 999)
+            g.all_simple_paths(1, 999)

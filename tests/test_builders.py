@@ -13,7 +13,7 @@ class TestGraphBuilders:
         assert g.count_edges() == 4
 
         # Verify linear structure
-        neighbors_1 = g.neighbors("1")
+        neighbors_1 = g.get_neighbors("1")
         assert len(neighbors_1) == 1
         # Neighbor could be returned as int or string
         assert "2" in neighbors_1 or 2 in neighbors_1
@@ -34,7 +34,7 @@ class TestGraphBuilders:
 
         # Verify cycle structure - each node has exactly 1 outgoing edge
         for node_id in g.get_node_ids(limit=None):
-            assert len(g.neighbors(node_id)) == 1
+            assert len(g.get_neighbors(node_id)) == 1
 
     def test_add_cycle_graph_minimum(self):
         """Test cycle graph must have at least 3 nodes."""
@@ -51,7 +51,7 @@ class TestGraphBuilders:
 
         # Center node (first added) should connect to all others
         center_id = "1"
-        neighbors = g.neighbors(center_id)
+        neighbors = g.get_neighbors(center_id)
         assert len(neighbors) == 5
 
     def test_add_full_graph(self):
@@ -218,7 +218,7 @@ class TestGraphBuildersIntegration:
         g = ec.Graph(directed=True).add_path_graph(n=10)
 
         # Path should have exactly 2 leaf nodes (endpoints)
-        leaf_count = sum(1 for nid in g.get_node_ids(limit=None) if len(g.neighbors(nid)) == 0)
+        leaf_count = sum(1 for nid in g.get_node_ids(limit=None) if len(g.get_neighbors(nid)) == 0)
         assert leaf_count == 1  # Only last node has no outgoing edges
 
     def test_star_centrality(self):
@@ -226,12 +226,12 @@ class TestGraphBuildersIntegration:
         g = ec.Graph(directed=False).add_star_graph(n=10)
 
         # Center node should have degree n-1
-        center_degree = len(g.neighbors("1"))
+        center_degree = len(g.get_neighbors("1"))
         assert center_degree == 9
 
         # All other nodes should have degree 1
         for i in range(2, 11):
-            assert len(g.neighbors(str(i))) == 1
+            assert len(g.get_neighbors(str(i))) == 1
 
     def test_grid_neighbors(self):
         """Test that grid nodes have correct neighbor counts."""
@@ -243,7 +243,7 @@ class TestGraphBuildersIntegration:
         degree_4 = 0  # Interior
 
         for nid in g.get_node_ids(limit=None):
-            degree = len(g.neighbors(nid))
+            degree = len(g.get_neighbors(nid))
             if degree == 2:
                 degree_2 += 1
             elif degree == 3:

@@ -142,7 +142,7 @@ class TestDirectedCycleBasisValidity:
         result = triangle.directed_cycle_basis()
         adj = {}
         for nid in triangle.get_node_ids():
-            adj[nid] = set(triangle.neighbors(nid, mode="out"))
+            adj[nid] = set(triangle.get_neighbors(nid, mode="out"))
         for cycle in result:
             for i in range(len(cycle)):
                 u = cycle[i]
@@ -153,7 +153,7 @@ class TestDirectedCycleBasisValidity:
         result = diamond_scc.directed_cycle_basis()
         adj = {}
         for nid in diamond_scc.get_node_ids():
-            adj[nid] = set(diamond_scc.neighbors(nid, mode="out"))
+            adj[nid] = set(diamond_scc.get_neighbors(nid, mode="out"))
         for cycle in result:
             for i in range(len(cycle)):
                 u = cycle[i]
@@ -164,7 +164,7 @@ class TestDirectedCycleBasisValidity:
         result = figure_eight.directed_cycle_basis()
         adj = {}
         for nid in figure_eight.get_node_ids():
-            adj[nid] = set(figure_eight.neighbors(nid, mode="out"))
+            adj[nid] = set(figure_eight.get_neighbors(nid, mode="out"))
         for cycle in result:
             for i in range(len(cycle)):
                 u = cycle[i]
@@ -182,7 +182,7 @@ class TestDirectedCycleBasisValidity:
         result = g.directed_cycle_basis()
         adj = {}
         for nid in g.get_node_ids():
-            adj[nid] = set(g.neighbors(nid, mode="out"))
+            adj[nid] = set(g.get_neighbors(nid, mode="out"))
         for cycle in result:
             assert len(cycle) >= 2
             for i in range(len(cycle)):

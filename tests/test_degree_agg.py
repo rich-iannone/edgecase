@@ -10,7 +10,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        mean_in = G.get_agg_degree_in("mean")
+        mean_in = G.aggregate_in_degree("mean")
         assert isinstance(mean_in, float)
         assert mean_in == 1.75  # 35 edges / 20 nodes
 
@@ -19,7 +19,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        median_in = G.get_agg_degree_in("median")
+        median_in = G.aggregate_in_degree("median")
         assert isinstance(median_in, float)
         assert median_in >= 0
 
@@ -28,7 +28,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        sum_in = G.get_agg_degree_in("sum")
+        sum_in = G.aggregate_in_degree("sum")
         assert sum_in == 35.0  # Total number of edges
 
     def test_agg_degree_in_min_max(self):
@@ -36,8 +36,8 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_star_graph(5)  # Hub has indegree 0, leaves have indegree 1
 
-        min_in = G.get_agg_degree_in("min")
-        max_in = G.get_agg_degree_in("max")
+        min_in = G.aggregate_in_degree("min")
+        max_in = G.aggregate_in_degree("max")
 
         assert min_in == 0.0
         assert max_in == 1.0
@@ -47,7 +47,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        mean_out = G.get_agg_degree_out("mean")
+        mean_out = G.aggregate_out_degree("mean")
         assert isinstance(mean_out, float)
         assert mean_out == 1.75  # 35 edges / 20 nodes
 
@@ -56,7 +56,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        sum_out = G.get_agg_degree_out("sum")
+        sum_out = G.aggregate_out_degree("sum")
         assert sum_out == 35.0  # Total number of edges
 
     def test_agg_degree_total_mean(self):
@@ -64,7 +64,7 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=True)
         G.add_gnm_graph(20, 35, seed=23)
 
-        mean_total = G.get_agg_degree_total("mean")
+        mean_total = G.aggregate_degree("mean")
         assert isinstance(mean_total, float)
         assert mean_total == 3.5  # 70 degree sum / 20 nodes
 
@@ -73,10 +73,10 @@ class TestDegreeAggregationBasic:
         G = ec.Graph(directed=False)
         G.add_cycle_graph(4)  # All nodes have degree 2
 
-        mean_total = G.get_agg_degree_total("mean")
+        mean_total = G.aggregate_degree("mean")
         assert mean_total == 2.0
 
-        sum_total = G.get_agg_degree_total("sum")
+        sum_total = G.aggregate_degree("sum")
         assert sum_total == 8.0  # 4 nodes * 2 degree each
 
 
@@ -87,21 +87,21 @@ class TestDegreeAggregationEdgeCases:
         """Test aggregation on empty graph."""
         G = ec.Graph(directed=True)
 
-        assert G.get_agg_degree_in("mean") == 0.0
-        assert G.get_agg_degree_out("mean") == 0.0
-        assert G.get_agg_degree_total("mean") == 0.0
+        assert G.aggregate_in_degree("mean") == 0.0
+        assert G.aggregate_out_degree("mean") == 0.0
+        assert G.aggregate_degree("mean") == 0.0
 
     def test_single_node(self):
         """Test aggregation on single node graph."""
         G = ec.Graph(directed=True)
         G.add_node("A")
 
-        assert G.get_agg_degree_in("mean") == 0.0
-        assert G.get_agg_degree_out("mean") == 0.0
-        assert G.get_agg_degree_total("mean") == 0.0
-        assert G.get_agg_degree_in("sum") == 0.0
-        assert G.get_agg_degree_in("min") == 0.0
-        assert G.get_agg_degree_in("max") == 0.0
+        assert G.aggregate_in_degree("mean") == 0.0
+        assert G.aggregate_out_degree("mean") == 0.0
+        assert G.aggregate_degree("mean") == 0.0
+        assert G.aggregate_in_degree("sum") == 0.0
+        assert G.aggregate_in_degree("min") == 0.0
+        assert G.aggregate_in_degree("max") == 0.0
 
     def test_median_even_nodes(self):
         """Test median calculation with even number of nodes."""
@@ -116,7 +116,7 @@ class TestDegreeAggregationEdgeCases:
         G.add_edge("B", "D")  # D has indegree 2
         G.add_edge("C", "D")  # D has indegree 3
 
-        median = G.get_agg_degree_in("median")
+        median = G.aggregate_in_degree("median")
         assert median == 1.5  # Median of [0, 1, 2, 3]
 
     def test_median_odd_nodes(self):
@@ -127,7 +127,7 @@ class TestDegreeAggregationEdgeCases:
         G.add_edge("A", "B")  # B has indegree 1
         G.add_edge("A", "C")  # C has indegree 1
 
-        median = G.get_agg_degree_in("median")
+        median = G.aggregate_in_degree("median")
         assert median == 1.0  # Median of [0, 1, 1] sorted is [0, 1, 1], middle value is 1
 
 
@@ -149,7 +149,7 @@ class TestDegreeAggregationWithConditions:
         G.add_edge("B", "D", auto_create_nodes=True)
 
         # Only count nodes with value > 5
-        mean_high_value = G.get_agg_degree_in(
+        mean_high_value = G.aggregate_in_degree(
             "mean", conditions=lambda n: n.attributes and n.attributes.get("value", 0) > 5
         )
 
@@ -162,7 +162,7 @@ class TestDegreeAggregationWithConditions:
         G.add_gnm_graph(10, 15, seed=23)
 
         # Filter that matches no nodes
-        result = G.get_agg_degree_in("mean", conditions=lambda n: False)
+        result = G.aggregate_in_degree("mean", conditions=lambda n: False)
         assert result == 0.0
 
 
@@ -175,7 +175,7 @@ class TestDegreeAggregationErrors:
         G.add_path_graph(3)
 
         with pytest.raises(ValueError, match="agg must be one of"):
-            G.get_agg_degree_in("average")  # Invalid function name
+            G.aggregate_in_degree("average")  # Invalid function name
 
     def test_undirected_graph_indegree(self):
         """Test error when using indegree on undirected graph."""
@@ -183,7 +183,7 @@ class TestDegreeAggregationErrors:
         G.add_path_graph(3)
 
         with pytest.raises(ValueError, match="only works with directed graphs"):
-            G.get_agg_degree_in("mean")
+            G.aggregate_in_degree("mean")
 
     def test_undirected_graph_outdegree(self):
         """Test error when using outdegree on undirected graph."""
@@ -191,7 +191,7 @@ class TestDegreeAggregationErrors:
         G.add_path_graph(3)
 
         with pytest.raises(ValueError, match="only works with directed graphs"):
-            G.get_agg_degree_out("mean")
+            G.aggregate_out_degree("mean")
 
 
 class TestDegreeAggregationRealWorld:
@@ -217,15 +217,15 @@ class TestDegreeAggregationRealWorld:
         G.add_edge("Bob", "Eve")
 
         # Calculate follower statistics
-        mean_followers = G.get_agg_degree_in("mean")
-        max_followers = G.get_agg_degree_in("max")
+        mean_followers = G.aggregate_in_degree("mean")
+        max_followers = G.aggregate_in_degree("max")
 
         assert mean_followers == 1.4  # 7 edges / 5 nodes
         assert max_followers == 4.0  # Alice has 4 followers
 
         # Calculate following statistics
-        mean_following = G.get_agg_degree_out("mean")
-        max_following = G.get_agg_degree_out("max")
+        mean_following = G.aggregate_out_degree("mean")
+        max_following = G.aggregate_out_degree("max")
 
         assert mean_following == 1.4
         assert max_following == 4.0  # Bob follows 4 people
@@ -249,11 +249,11 @@ class TestDegreeAggregationRealWorld:
         G.add_edge("Paper2", "Paper4")
 
         # Average citations received
-        avg_citations = G.get_agg_degree_in("mean")
+        avg_citations = G.aggregate_in_degree("mean")
         assert avg_citations == 1.2  # 6 edges / 5 nodes
 
         # Most cited paper
-        max_citations = G.get_agg_degree_in("max")
+        max_citations = G.aggregate_in_degree("max")
         assert max_citations == 4.0  # Paper1
 
     def test_transportation_network(self):
@@ -270,11 +270,11 @@ class TestDegreeAggregationRealWorld:
         G.add_edge("B", "D")  # Shortcut
 
         # Average connections per intersection
-        avg_connections = G.get_agg_degree_total("mean")
+        avg_connections = G.aggregate_degree("mean")
         assert avg_connections == 2.0  # 10 total degree / 5 nodes
 
         # Most connected intersection
-        max_connections = G.get_agg_degree_total("max")
+        max_connections = G.aggregate_degree("max")
         assert max_connections == 3.0  # B and D both have 3 connections
 
 
@@ -289,17 +289,17 @@ class TestDegreeAggregationAllFunctions:
         # Each node (except first) has indegree 1
         # Indegrees: [0, 1, 1, 1, 1]
 
-        assert G.get_agg_degree_in("sum") == 4.0
-        assert G.get_agg_degree_in("min") == 0.0
-        assert G.get_agg_degree_in("max") == 1.0
-        assert G.get_agg_degree_in("mean") == 0.8
-        assert G.get_agg_degree_in("median") == 1.0
+        assert G.aggregate_in_degree("sum") == 4.0
+        assert G.aggregate_in_degree("min") == 0.0
+        assert G.aggregate_in_degree("max") == 1.0
+        assert G.aggregate_in_degree("mean") == 0.8
+        assert G.aggregate_in_degree("median") == 1.0
 
         # Each node (except last) has outdegree 1
         # Outdegrees: [1, 1, 1, 1, 0]
 
-        assert G.get_agg_degree_out("sum") == 4.0
-        assert G.get_agg_degree_out("min") == 0.0
-        assert G.get_agg_degree_out("max") == 1.0
-        assert G.get_agg_degree_out("mean") == 0.8
-        assert G.get_agg_degree_out("median") == 1.0
+        assert G.aggregate_out_degree("sum") == 4.0
+        assert G.aggregate_out_degree("min") == 0.0
+        assert G.aggregate_out_degree("max") == 1.0
+        assert G.aggregate_out_degree("mean") == 0.8
+        assert G.aggregate_out_degree("median") == 1.0

@@ -21,7 +21,7 @@ class TestAssortativityDegree:
         """Empty graph should raise error."""
         g = Graph(directed=False)
         with pytest.raises(ValueError, match="no edges"):
-            g.get_assortativity_degree()
+            g.assortativity_degree()
 
     def test_single_edge_error(self):
         """Single edge has no variance - returns NaN like igraph."""
@@ -29,7 +29,7 @@ class TestAssortativityDegree:
         add_nodes(g, "A", "B")
         g.add_edge("A", "B")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert math.isnan(r), "Single edge should return NaN (no variance)"
 
     def test_perfect_assortative_undirected(self):
@@ -46,7 +46,7 @@ class TestAssortativityDegree:
         g.add_edge("Leaf1", "Leaf2")
         g.add_edge("Leaf2", "Leaf3")  # Leaves in chain
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         # Note: This structure gives r=-1.0 in igraph because the actual
         # degrees are [1,2,1,1,2,1] - not perfectly assortative
         # For this test, we just verify it's a valid correlation
@@ -64,7 +64,7 @@ class TestAssortativityDegree:
         g.add_edge("Hub", "Leaf3")
         g.add_edge("Hub", "Leaf4")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert r < 0, "Star graph should be disassortative"
 
     def test_random_mixing_undirected(self):
@@ -79,7 +79,7 @@ class TestAssortativityDegree:
         g.add_edge("D", "E")
         g.add_edge("E", "A")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert math.isnan(r), "Uniform degree cycle should return NaN"
 
     def test_assortative_directed(self):
@@ -96,7 +96,7 @@ class TestAssortativityDegree:
         g.add_edge("L1", "L2")
         g.add_edge("L2", "L3")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         # Should be positive (but hard to predict exact value)
         assert isinstance(r, float)
         assert -1 <= r <= 1
@@ -112,7 +112,7 @@ class TestAssortativityDegree:
         g.add_edge("Source2", "Sink2")
         g.add_edge("Source2", "Sink3")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert isinstance(r, float)
         # May be NaN if variance is zero, otherwise in [-1, 1]
         assert math.isnan(r) or (-1 <= r <= 1)
@@ -129,7 +129,7 @@ class TestAssortativityDegree:
                 g.add_edge(u, v)
 
         # All nodes have degree 3 - no variance
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert math.isnan(r), "Uniform degree should return NaN"
 
     def test_self_loops_included(self):
@@ -141,7 +141,7 @@ class TestAssortativityDegree:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert isinstance(r, float)
         assert -1 <= r <= 1
 
@@ -156,7 +156,7 @@ class TestAssortativityDegree:
         g.add_edge("C", "D")
         g.add_edge("D", "E")
 
-        r = g.get_assortativity_degree()
+        r = g.assortativity_degree()
         assert r < 0, "Path graph should be slightly disassortative"
 
 
@@ -174,7 +174,7 @@ class TestAssortativityNominal:
         g.add_edge("A", "B")  # X-X
         g.add_edge("C", "D")  # Y-Y
 
-        r = g.get_assortativity_nominal("type")
+        r = g.assortativity_nominal("type")
         assert abs(r - 1.0) < 1e-6, "Perfect segregation should give r = 1.0"
 
     def test_perfect_heterophily(self):
@@ -190,7 +190,7 @@ class TestAssortativityNominal:
         g.add_edge("B", "C")  # X-Y
         g.add_edge("B", "D")  # X-Y
 
-        r = g.get_assortativity_nominal("type")
+        r = g.assortativity_nominal("type")
         assert r < 0, "All cross-type edges should be disassortative"
 
     def test_random_mixing(self):
@@ -206,7 +206,7 @@ class TestAssortativityNominal:
         g.add_edge("C", "D")  # Y-Y
         g.add_edge("B", "D")  # X-Y
 
-        r = g.get_assortativity_nominal("type")
+        r = g.assortativity_nominal("type")
         assert -0.5 < r < 0.5, "Balanced mixing should be near 0"
 
     def test_three_categories(self):
@@ -224,7 +224,7 @@ class TestAssortativityNominal:
         g.add_edge("C", "D")
         g.add_edge("E", "F")
 
-        r = g.get_assortativity_nominal("group")
+        r = g.assortativity_nominal("group")
         assert abs(r - 1.0) < 1e-6, "All within-group should give r = 1.0"
 
     def test_directed_nominal(self):
@@ -241,7 +241,7 @@ class TestAssortativityNominal:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        r = g.get_assortativity_nominal("role")
+        r = g.assortativity_nominal("role")
         # In directed graphs, this bipartite structure gives r=0
         # because there's no correlation between source and target types
         assert abs(r - 0.0) < 1e-6, "Directed bipartite should give r ≈ 0"
@@ -255,7 +255,7 @@ class TestAssortativityNominal:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="(Attribute.*not found|no attributes)"):
-            g.get_assortativity_nominal("type")
+            g.assortativity_nominal("type")
 
     def test_nonexistent_attribute_error(self):
         """Should error if attribute doesn't exist."""
@@ -266,7 +266,7 @@ class TestAssortativityNominal:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="not found"):
-            g.get_assortativity_nominal("nonexistent")
+            g.assortativity_nominal("nonexistent")
 
     def test_single_category_error(self):
         """Should error if only one attribute value exists."""
@@ -279,7 +279,7 @@ class TestAssortativityNominal:
         g.add_edge("B", "C")
 
         with pytest.raises(ValueError, match="at least 2 different"):
-            g.get_assortativity_nominal("type")
+            g.assortativity_nominal("type")
 
     def test_empty_graph_error(self):
         """Empty graph should raise error."""
@@ -287,7 +287,7 @@ class TestAssortativityNominal:
         g.add_node("A", type="X")
 
         with pytest.raises(ValueError, match="no edges"):
-            g.get_assortativity_nominal("type")
+            g.assortativity_nominal("type")
 
     def test_string_attribute_values(self):
         """Test with string attribute values."""
@@ -300,7 +300,7 @@ class TestAssortativityNominal:
         g.add_edge("Alice", "Carol")  # F-F
         g.add_edge("Bob", "Dave")  # M-M
 
-        r = g.get_assortativity_nominal("gender")
+        r = g.assortativity_nominal("gender")
         assert abs(r - 1.0) < 1e-6
 
 
@@ -318,7 +318,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")  # 1.0 - 1.0
         g.add_edge("C", "D")  # 2.0 - 2.0
 
-        r = g.get_assortativity("value")
+        r = g.assortativity("value")
         assert abs(r - 1.0) < 1e-6, "Identical values should give r = 1.0"
 
     def test_perfect_negative_correlation(self):
@@ -334,7 +334,7 @@ class TestAssortativityNumeric:
         g.add_edge("B", "C")  # 1.0 - 10.0
         g.add_edge("B", "D")  # 1.0 - 10.0
 
-        r = g.get_assortativity("value")
+        r = g.assortativity("value")
         assert abs(r - (-1.0)) < 1e-6, "Opposite values should give r = -1.0"
 
     def test_positive_correlation(self):
@@ -350,7 +350,7 @@ class TestAssortativityNumeric:
         g.add_edge("B", "C")  # Similar ages (27-26)
         g.add_edge("D", "E")  # Similar ages (55-53)
 
-        r = g.get_assortativity("age")
+        r = g.assortativity("age")
         assert r > 0.5, "Similar ages connecting should be assortative"
 
     def test_negative_correlation(self):
@@ -367,7 +367,7 @@ class TestAssortativityNumeric:
         g.add_edge("Junior2", "Senior1")
         g.add_edge("Junior2", "Senior2")
 
-        r = g.get_assortativity("exp")
+        r = g.assortativity("exp")
         assert r < -0.5, "Junior-senior connections should be disassortative"
 
     def test_zero_correlation(self):
@@ -383,7 +383,7 @@ class TestAssortativityNumeric:
         g.add_edge("C", "D")
         g.add_edge("D", "A")
 
-        r = g.get_assortativity("value")
+        r = g.assortativity("value")
         assert -0.5 < r < 0.5, "Cycle should have moderate correlation"
 
     def test_integer_attributes(self):
@@ -397,7 +397,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")
         g.add_edge("C", "D")
 
-        r = g.get_assortativity("count")
+        r = g.assortativity("count")
         assert r > 0.5, "Similar integers should correlate"
 
     def test_float_attributes(self):
@@ -411,7 +411,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")
         g.add_edge("C", "D")
 
-        r = g.get_assortativity("weight")
+        r = g.assortativity("weight")
         assert r > 0.5
 
     def test_directed_numeric(self):
@@ -428,7 +428,7 @@ class TestAssortativityNumeric:
         g.add_edge("B", "C")
         g.add_edge("B", "D")
 
-        r = g.get_assortativity("rank")
+        r = g.assortativity("rank")
         # In directed graphs, this bipartite structure gives r=0
         # because there's no correlation in the directed sense
         assert abs(r - 0.0) < 1e-6, "Directed bipartite should give r ≈ 0"
@@ -442,7 +442,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="(not found|no attributes)"):
-            g.get_assortativity("value")
+            g.assortativity("value")
 
     def test_non_numeric_attribute_error(self):
         """Should error if attribute isn't numeric."""
@@ -453,7 +453,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")
 
         with pytest.raises(ValueError, match="not numeric"):
-            g.get_assortativity("value")
+            g.assortativity("value")
 
     def test_no_variance_error(self):
         """Should error if all attribute values are identical."""
@@ -466,7 +466,7 @@ class TestAssortativityNumeric:
         g.add_edge("B", "C")
 
         with pytest.raises(ValueError, match="variance"):
-            g.get_assortativity("value")
+            g.assortativity("value")
 
     def test_empty_graph_error(self):
         """Empty graph should raise error."""
@@ -474,7 +474,7 @@ class TestAssortativityNumeric:
         g.add_node("A", value=1.0)
 
         with pytest.raises(ValueError, match="no edges"):
-            g.get_assortativity("value")
+            g.assortativity("value")
 
     def test_self_loops(self):
         """Self-loops should be handled correctly."""
@@ -487,7 +487,7 @@ class TestAssortativityNumeric:
         g.add_edge("A", "B")
         g.add_edge("B", "C")
 
-        r = g.get_assortativity("value")
+        r = g.assortativity("value")
         assert isinstance(r, float)
         assert -1 <= r <= 1
 
@@ -506,9 +506,9 @@ class TestEdgeCases:
         g.add_edge("A", "B")  # hub-hub
         g.add_edge("C", "D")  # leaf-leaf
 
-        r_degree = g.get_assortativity_degree()
-        r_nominal = g.get_assortativity_nominal("type")
-        r_numeric = g.get_assortativity("value")
+        r_degree = g.assortativity_degree()
+        r_nominal = g.assortativity_nominal("type")
+        r_numeric = g.assortativity("value")
 
         # Note: all nodes have degree 1, so degree assortativity returns NaN
         assert math.isnan(r_degree), "All nodes have same degree, should be NaN"
@@ -529,9 +529,9 @@ class TestEdgeCases:
             v = f"N{(i + 1) % 50}"
             g.add_edge(u, v)
 
-        r_degree = g.get_assortativity_degree()
-        r_nominal = g.get_assortativity_nominal("group")
-        r_numeric = g.get_assortativity("score")
+        r_degree = g.assortativity_degree()
+        r_nominal = g.assortativity_nominal("group")
+        r_numeric = g.assortativity("score")
 
         assert isinstance(r_degree, float)
         assert isinstance(r_nominal, float)
@@ -549,8 +549,8 @@ class TestEdgeCases:
         g.add_edge("B", "C")
 
         # Should handle multiple edges correctly
-        r_nominal = g.get_assortativity_nominal("type")
-        r_numeric = g.get_assortativity("val")
+        r_nominal = g.assortativity_nominal("type")
+        r_numeric = g.assortativity("val")
 
         assert isinstance(r_nominal, float)
         assert isinstance(r_numeric, float)
@@ -599,7 +599,7 @@ class TestDegreeAndAttributeMixing:
         # a has degree 2; its neighbors b and c both have total degree 1
         assert d.average_degree_connectivity()[2] == pytest.approx(1.0)
         with pytest.raises(ValueError, match="directed"):
-            ec.Graph().add_path_graph(3).average_degree_connectivity(source="in")
+            ec.Graph().add_path_graph(3).average_degree_connectivity(source_mode="in")
 
     def test_degree_mixing_and_pearson(self):
         for G, g, gw, _ in _cases():

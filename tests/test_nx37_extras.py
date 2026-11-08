@@ -357,7 +357,7 @@ class TestPantherVectorSimilarity:
         g = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
         g.add_edges([("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"),
                      ("z", "x")])
-        scores = g.panther_vector_similarity("a", D=4, k=5, eps=0.03, seed=2)
+        scores = g.panther_vector_similarity("a", D=4, k=5, epsilon=0.03, seed=2)
         top = set(sorted(scores, key=scores.get, reverse=True)[:3])
         # b is a's twin; y and z mirror a and b in the other triangle; c and x are bridge ends
         assert top == {2, 5, 6}
@@ -387,7 +387,7 @@ class TestPantherVectorSimilarity:
                     if i + 1 != source
                 }
                 scores = g.panther_vector_similarity(
-                    source, D=dims, k=n - 1, eps=eps, seed=seed
+                    source, D=dims, k=n - 1, epsilon=eps, seed=seed
                 )
                 assert set(scores) == set(expected)
                 for v, score in scores.items():
@@ -418,8 +418,8 @@ class TestPantherVectorSimilarity:
 
     def test_seed_and_step(self):
         g = ec.Graph().add_named_graph("petersen")
-        a = g.panther_vector_similarity(1, D=4, k=4, eps=0.05, seed=3)
-        assert a == g.panther_vector_similarity(1, D=4, k=4, eps=0.05, seed=3)
+        a = g.panther_vector_similarity(1, D=4, k=4, epsilon=0.05, seed=3)
+        assert a == g.panther_vector_similarity(1, D=4, k=4, epsilon=0.05, seed=3)
         step = g.steps[-1]
         assert step.code == "G.panther_vector_similarity('1', D=4, k=4)"
         assert step.result == a

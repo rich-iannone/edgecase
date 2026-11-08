@@ -3,7 +3,7 @@ import edgecase as ec
 
 
 class TestMinCostFlowBasic:
-    """Basic functionality tests for min_cost_flow."""
+    """Basic functionality tests for minimum_cost_flow."""
 
     def test_simple_path(self):
         """Simple path should send flow along the only path."""
@@ -14,7 +14,7 @@ class TestMinCostFlowBasic:
             .add_edge("S", "T", weight=10.0, cost=5.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 10.0
         assert cost == 50.0  # 10 units * 5 cost
@@ -34,7 +34,7 @@ class TestMinCostFlowBasic:
             .add_edge("B", "T", weight=10.0, cost=1.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 20.0  # Uses both paths
 
@@ -57,7 +57,7 @@ class TestMinCostFlowBasic:
             .add_edge("B", "T", weight=5.0, cost=2.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 10.0  # Both paths used
 
@@ -67,7 +67,7 @@ class TestMinCostFlowBasic:
 
 
 class TestMinCostFlowWithDemand:
-    """Tests for min_cost_flow with specific demand."""
+    """Tests for minimum_cost_flow with specific demand."""
 
     def test_exact_demand(self):
         """Should send exactly the demanded flow."""
@@ -78,7 +78,7 @@ class TestMinCostFlowWithDemand:
             .add_edge("S", "T", weight=100.0, cost=5.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", demand=25.0)
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", demand=25.0)
 
         assert flow == 25.0
         assert cost == 125.0  # 25 * 5
@@ -98,7 +98,7 @@ class TestMinCostFlowWithDemand:
         )
 
         # Only need 5 units - should use only cheap path
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", demand=5.0)
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", demand=5.0)
 
         assert flow == 5.0
         assert cost == 10.0  # 5 * (1 + 1)
@@ -113,7 +113,7 @@ class TestMinCostFlowWithDemand:
         )
 
         with pytest.raises(ValueError, match="Cannot satisfy demand"):
-            graph.min_cost_flow("S", "T", demand=100.0)
+            graph.minimum_cost_flow("S", "T", demand=100.0)
 
     def test_zero_demand(self):
         """Zero demand should return zero flow and cost."""
@@ -124,7 +124,7 @@ class TestMinCostFlowWithDemand:
             .add_edge("S", "T", weight=10.0, cost=5.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", demand=0.0)
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", demand=0.0)
 
         assert flow == 0.0
         assert cost == 0.0
@@ -143,7 +143,7 @@ class TestMinCostFlowCustomAttributes:
             .add_edge("S", "T", bandwidth=50)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", capacity="bandwidth")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", capacity="bandwidth")
 
         assert flow == 50.0
 
@@ -156,7 +156,7 @@ class TestMinCostFlowCustomAttributes:
             .add_edge("S", "T", weight=10.0, price=7.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", cost="price")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", cost="price")
 
         assert flow == 10.0
         assert cost == 70.0  # 10 * 7
@@ -170,7 +170,7 @@ class TestMinCostFlowCustomAttributes:
             .add_edge("S", "T", bandwidth=20, price=3)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", capacity="bandwidth", cost="price")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", capacity="bandwidth", cost="price")
 
         assert flow == 20.0
         assert cost == 60.0  # 20 * 3
@@ -184,35 +184,35 @@ class TestMinCostFlowErrors:
         graph = ec.Graph(directed=False).add_node(label="S").add_node(label="T").add_edge("S", "T")
 
         with pytest.raises(ValueError, match="directed"):
-            graph.min_cost_flow("S", "T")
+            graph.minimum_cost_flow("S", "T")
 
     def test_invalid_source_raises(self):
         """Should raise error for non-existent source."""
         graph = ec.Graph(directed=True).add_node(label="S").add_node(label="T")
 
         with pytest.raises(ValueError):
-            graph.min_cost_flow("X", "T")
+            graph.minimum_cost_flow("X", "T")
 
     def test_invalid_sink_raises(self):
         """Should raise error for non-existent sink."""
         graph = ec.Graph(directed=True).add_node(label="S").add_node(label="T")
 
         with pytest.raises(ValueError):
-            graph.min_cost_flow("S", "X")
+            graph.minimum_cost_flow("S", "X")
 
     def test_same_source_sink_raises(self):
         """Should raise error if source equals sink."""
         graph = ec.Graph(directed=True).add_node(label="S")
 
         with pytest.raises(ValueError, match="different"):
-            graph.min_cost_flow("S", "S")
+            graph.minimum_cost_flow("S", "S")
 
     def test_negative_demand_raises(self):
         """Should raise error for negative demand."""
         graph = ec.Graph(directed=True).add_node(label="S").add_node(label="T").add_edge("S", "T")
 
         with pytest.raises(ValueError, match="non-negative"):
-            graph.min_cost_flow("S", "T", demand=-5.0)
+            graph.minimum_cost_flow("S", "T", demand=-5.0)
 
 
 class TestMinCostFlowEdgeCases:
@@ -225,7 +225,7 @@ class TestMinCostFlowEdgeCases:
             # No edge connecting them
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 0.0
         assert cost == 0.0
@@ -241,7 +241,7 @@ class TestMinCostFlowEdgeCases:
             .add_edge("S", "T", weight=10.0, cost=5.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 10.0
         assert cost == 50.0
@@ -257,7 +257,7 @@ class TestMinCostFlowEdgeCases:
             # T is not reachable
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         assert flow == 0.0
         assert cost == 0.0
@@ -289,7 +289,7 @@ class TestMinCostFlowIntegration:
             .add_edge("S2", "Sink", weight=35.0, cost=0.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("Source", "Sink")
+        flow, cost, flow_dict = graph.minimum_cost_flow("Source", "Sink")
 
         # Max possible flow is min(supply, demand) = min(70, 70) = 70
         assert flow == 70.0
@@ -304,7 +304,7 @@ class TestMinCostFlowIntegration:
         t_id = graph.add_node(label="T").get_id_from_label("T")
         graph.add_edge("S", "T", weight=10.0, cost=5.0)
 
-        flow, cost, flow_dict = graph.min_cost_flow(s_id, t_id)
+        flow, cost, flow_dict = graph.minimum_cost_flow(s_id, t_id)
 
         assert flow == 10.0
         assert cost == 50.0
@@ -318,7 +318,7 @@ class TestMinCostFlowIntegration:
         graph.add_edge("S", "T", weight=10.0, cost=3.0)  # Cheaper parallel edge
         expensive_id, cheap_id = graph.find_edge_ids("S", "T")
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         # Total capacity is 20
         assert flow == 20.0
@@ -336,7 +336,7 @@ class TestMinCostFlowIntegration:
         graph.add_edge("S", "T", weight=10.0, cost=3.0)
         _, cheap_id = graph.find_edge_ids("S", "T")
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T", demand=6.0)
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T", demand=6.0)
 
         assert (flow, cost) == (6.0, 18.0)
         assert flow_dict == {cheap_id: 6.0}
@@ -353,7 +353,7 @@ class TestMinCostFlowIntegration:
         graph.add_edge("A", "T", capacity=1, cost=1)
         graph.add_edge("B", "T", capacity=3, cost=1)
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         # Max flow is 4: S->A->T (1), S->B->T (2), S->A->B->T (1)
         assert flow == 4.0
@@ -372,7 +372,7 @@ class TestMinCostFlowIntegration:
         graph.add_edge("A", "T", capacity=1, cost=1)
 
         with pytest.raises(ValueError, match="negative-cost cycle"):
-            graph.min_cost_flow("S", "T")
+            graph.minimum_cost_flow("S", "T")
 
     def test_matches_networkx_on_multigraphs(self):
         """Flow value, cost, and a feasible per-edge flow match NetworkX's network simplex."""
@@ -407,7 +407,7 @@ class TestMinCostFlowIntegration:
             reference.nodes[n - 1]["demand"] = max_value
             expected_cost, _ = nx.network_simplex(reference)
 
-            flow, cost, flow_dict = graph.min_cost_flow("0", str(n - 1))
+            flow, cost, flow_dict = graph.minimum_cost_flow("0", str(n - 1))
             assert flow == pytest.approx(max_value)
             assert cost == pytest.approx(expected_cost)
 
@@ -442,7 +442,7 @@ class TestMinCostFlowIntegration:
             .add_edge("B", "T", weight=10.0, cost=1.0)
         )
 
-        flow, cost, flow_dict = graph.min_cost_flow("S", "T")
+        flow, cost, flow_dict = graph.minimum_cost_flow("S", "T")
 
         # Only S->A and A->T should have flow
         assert len(flow_dict) == 2

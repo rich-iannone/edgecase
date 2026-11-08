@@ -145,15 +145,15 @@ def _ref_hyper_wiener(G, weight=None):
 class TestHyperWienerIndex:
     def test_known_values(self):
         # Standard values; NetworkX 3.7 returns twice these (30, 20, 210)
-        assert ec.Graph().add_path_graph(4).get_hyper_wiener_index() == 15.0
-        assert ec.Graph().add_cycle_graph(4).get_hyper_wiener_index() == 10.0
-        assert ec.Graph().add_named_graph("petersen").get_hyper_wiener_index() == 105.0
+        assert ec.Graph().add_path_graph(4).hyper_wiener_index() == 15.0
+        assert ec.Graph().add_cycle_graph(4).hyper_wiener_index() == 10.0
+        assert ec.Graph().add_named_graph("petersen").hyper_wiener_index() == 105.0
         # Complete graph: every pair at distance 1
-        assert ec.Graph().add_full_graph(6).get_hyper_wiener_index() == 15.0
+        assert ec.Graph().add_full_graph(6).hyper_wiener_index() == 15.0
 
     def test_matches_reference(self):
         for G in _random_graphs(80, seed=2, n_range=(0, 14)):
-            ours = _build(G).get_hyper_wiener_index()
+            ours = _build(G).hyper_wiener_index()
             assert ours == pytest.approx(_ref_hyper_wiener(G)), sorted(G.edges)
 
     def test_weighted(self):
@@ -164,20 +164,18 @@ class TestHyperWienerIndex:
         g = ec.Graph(weighted=True).add_nodes([str(v) for v in G])
         for u, v, w in G.edges(data="weight"):
             g.add_edge(str(u), str(v), weight=w)
-        assert g.get_hyper_wiener_index(weight="weight") == pytest.approx(
-            _ref_hyper_wiener(G, weight="weight")
-        )
-        assert g.get_hyper_wiener_index() == pytest.approx(_ref_hyper_wiener(G))
+        assert g.hyper_wiener_index() == pytest.approx(_ref_hyper_wiener(G, weight="weight"))
+        assert g.hyper_wiener_index(weighted=False) == pytest.approx(_ref_hyper_wiener(G))
 
     def test_disconnected_and_tiny(self):
-        assert ec.Graph().get_hyper_wiener_index() == 0.0
-        assert ec.Graph().add_nodes(["A"]).get_hyper_wiener_index() == 0.0
-        assert ec.Graph().add_nodes(["A", "B"]).get_hyper_wiener_index() == math.inf
+        assert ec.Graph().hyper_wiener_index() == 0.0
+        assert ec.Graph().add_nodes(["A"]).hyper_wiener_index() == 0.0
+        assert ec.Graph().add_nodes(["A", "B"]).hyper_wiener_index() == math.inf
 
     def test_directed_raises(self):
         g = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
         with pytest.raises(ValueError, match="undirected"):
-            g.get_hyper_wiener_index()
+            g.hyper_wiener_index()
 
 
 # =============================================================================

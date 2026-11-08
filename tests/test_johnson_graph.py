@@ -40,7 +40,7 @@ class TestJohnsonGraph:
 
         # Node "0,1" should be adjacent to nodes that share exactly 1 element
         node_01_id = graph.get_id_from_label("0,1")
-        neighbors = graph.neighbors(node_01_id)
+        neighbors = graph.get_neighbors(node_01_id)
         neighbor_labels = {graph.get_label_from_id(nid) for nid in neighbors}
 
         # Neighbors: share 0 or 1 with {0,1}
@@ -130,5 +130,5 @@ class TestJohnsonGraph:
             edge_id, source, target = edge_tuple
 
             # Should find edge from target to source (symmetric)
-            reverse_neighbors = graph.neighbors(target)
+            reverse_neighbors = graph.get_neighbors(target)
             assert source in reverse_neighbors

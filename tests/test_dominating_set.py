@@ -238,20 +238,20 @@ class TestDominatingSet:
 
 
 class TestMinWeightedDominatingSet:
-    """Tests for min_weighted_dominating_set() method."""
+    """Tests for minimum_weighted_dominating_set() method."""
 
     def test_empty_graph(self):
         """Empty graph: returns empty set."""
         graph = Graph()
 
-        assert graph.min_weighted_dominating_set() == []
+        assert graph.minimum_weighted_dominating_set() == []
 
     def test_unweighted_is_valid(self):
         """Without weights, still produces valid dominating set."""
         graph = Graph()
         graph.add_gnm_graph(n=30, m=60, seed=23)
 
-        dom = graph.min_weighted_dominating_set()
+        dom = graph.minimum_weighted_dominating_set()
 
         assert graph.is_dominating_set(dom)
 
@@ -265,7 +265,7 @@ class TestMinWeightedDominatingSet:
         weight_dict = {node_id: float(i + 1) for i, node_id in enumerate(node_ids)}
         graph.set_node_attrs("weight", weight_dict)
 
-        dom = graph.min_weighted_dominating_set(weight_attr="weight")
+        dom = graph.minimum_weighted_dominating_set(node_weight_attr="weight")
 
         assert graph.is_dominating_set(dom)
 
@@ -282,7 +282,7 @@ class TestMinWeightedDominatingSet:
         dom_unweighted = graph.dominating_set()
 
         # Weighted: should prefer leaves over expensive hub
-        dom_weighted = graph.min_weighted_dominating_set(weight_attr="cost")
+        dom_weighted = graph.minimum_weighted_dominating_set(node_weight_attr="cost")
 
         # Both should be valid
         assert graph.is_dominating_set(dom_unweighted)
@@ -293,7 +293,7 @@ class TestMinWeightedDominatingSet:
         graph = Graph()
         graph.add_full_graph(5)
 
-        dom = graph.min_weighted_dominating_set()
+        dom = graph.minimum_weighted_dominating_set()
 
         assert len(dom) == 1
         assert graph.is_dominating_set(dom)
@@ -303,7 +303,7 @@ class TestMinWeightedDominatingSet:
         graph = Graph()
         graph.add_path_graph(10)
 
-        dom = graph.min_weighted_dominating_set()
+        dom = graph.minimum_weighted_dominating_set()
 
         assert graph.is_dominating_set(dom)
 
@@ -313,7 +313,7 @@ class TestMinWeightedDominatingSet:
         graph.add_path_graph(5)
 
         # Attribute doesn't exist, should still work
-        dom = graph.min_weighted_dominating_set(weight_attr="nonexistent")
+        dom = graph.minimum_weighted_dominating_set(node_weight_attr="nonexistent")
 
         assert graph.is_dominating_set(dom)
 
@@ -322,7 +322,7 @@ class TestMinWeightedDominatingSet:
         graph = Graph()
         graph.add_gnm_graph(n=20, m=40, seed=23)
 
-        dom = graph.min_weighted_dominating_set()
+        dom = graph.minimum_weighted_dominating_set()
 
         assert dom == sorted(dom)
 

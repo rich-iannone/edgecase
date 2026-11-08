@@ -2,6 +2,11 @@ import pytest
 from edgecase import Graph
 
 
+def labeled_trails(G, *args, **kwargs):
+    """`enumerate_trails()` with each node ID mapped to its label."""
+    return [[G.get_label_from_id(n) for n in t] for t in G.enumerate_trails(*args, **kwargs)]
+
+
 class TestCountTrails:
     """Test count_trails() method."""
 
@@ -151,7 +156,7 @@ class TestEnumerateTrails:
         G.add_edge("B", "C")
         G.add_edge("C", "A")
 
-        trails = G.enumerate_trails("A", "C")
+        trails = labeled_trails(G, "A", "C")
 
         assert len(trails) == 2
         # Check that we have both trails
@@ -176,8 +181,8 @@ class TestEnumerateTrails:
         trails = G.enumerate_trails(a_id, c_id)
 
         assert len(trails) == 2
-        # Results should be in label form
-        assert all(isinstance(trail[0], str) for trail in trails)
+        # Results are node IDs
+        assert all(trail[0] == a_id and trail[-1] == c_id for trail in trails)
 
     def test_enumerate_trails_mixed_ids_and_labels(self):
         """Test enumerating trails with mixed ID and label inputs."""
@@ -188,8 +193,8 @@ class TestEnumerateTrails:
 
         a_id = G.get_id_from_label("A")
 
-        trails1 = G.enumerate_trails(a_id, "B")
-        trails2 = G.enumerate_trails("A", "B")
+        trails1 = labeled_trails(G, a_id, "B")
+        trails2 = labeled_trails(G, "A", "B")
 
         assert len(trails1) == len(trails2) == 1
         assert trails1[0] == trails2[0]
@@ -202,7 +207,7 @@ class TestEnumerateTrails:
         for i in range(3):
             G.add_edge(str(i), str(i + 1))
 
-        trails = G.enumerate_trails("0", "3")
+        trails = labeled_trails(G, "0", "3")
 
         assert len(trails) == 1
         assert trails[0] == ["0", "1", "2", "3"]
@@ -213,7 +218,7 @@ class TestEnumerateTrails:
         G.add_node(label="A")
         G.add_node(label="B")
 
-        trails = G.enumerate_trails("A", "B")
+        trails = labeled_trails(G, "A", "B")
         assert len(trails) == 0
 
     def test_enumerate_trails_with_limit(self):
@@ -227,14 +232,14 @@ class TestEnumerateTrails:
         G.add_edge("B", "D")
         G.add_edge("C", "D")
 
-        trails_all = G.enumerate_trails("A", "D", max_trails=None)
-        trails_limited = G.enumerate_trails("A", "D", max_trails=1)
+        trails_all = labeled_trails(G, "A", "D", max_trails=None)
+        trails_limited = labeled_trails(G, "A", "D", max_trails=1)
 
         assert len(trails_all) == 2
         assert len(trails_limited) == 1
 
     def test_enumerate_trails_returns_node_sequences(self):
-        """Test that enumerate_trails returns sequences of node labels."""
+        """Test that enumerate_trails returns node sequences."""
         G = Graph()
         G.add_node(label="start")
         G.add_node(label="middle")
@@ -242,7 +247,7 @@ class TestEnumerateTrails:
         G.add_edge("start", "middle")
         G.add_edge("middle", "end")
 
-        trails = G.enumerate_trails("start", "end")
+        trails = labeled_trails(G, "start", "end")
 
         assert len(trails) == 1
         assert trails[0] == ["start", "middle", "end"]
@@ -256,7 +261,7 @@ class TestEnumerateTrails:
         G.add_edge("A", "B")
 
         # Default limit should be 1000
-        trails = G.enumerate_trails("A", "B")
+        trails = labeled_trails(G, "A", "B")
         assert isinstance(trails, list)
         assert len(trails) <= 1000
 
@@ -271,7 +276,7 @@ class TestEnumerateTrails:
         G.add_edge("A", "C")
         G.add_edge("C", "D")
 
-        trails = G.enumerate_trails("A", "D")
+        trails = labeled_trails(G, "A", "D")
 
         assert len(trails) == 2
         # Both trails should end at D
@@ -320,7 +325,7 @@ class TestTrailsEdgeCases:
         count = G.count_trails("A", "A")
         assert count == 1  # Trivial empty trail
 
-        trails = G.enumerate_trails("A", "A")
+        trails = labeled_trails(G, "A", "A")
         assert len(trails) == 1
         assert trails[0] == ["A"]
 
@@ -338,7 +343,7 @@ class TestTrailsEdgeCases:
         count = G.count_trails("A", "C")
         assert count == 0
 
-        trails = G.enumerate_trails("A", "C")
+        trails = labeled_trails(G, "A", "C")
         assert len(trails) == 0
 
     def test_directed_vs_undirected(self):
@@ -383,7 +388,7 @@ class TestTrailsIntegration:
 
         # Count and enumeration should match
         count = G.count_trails("0", "4")
-        trails = G.enumerate_trails("0", "4")
+        trails = labeled_trails(G, "0", "4")
         assert count == len(trails)
 
     def test_trails_with_custom_labels(self):
@@ -400,7 +405,7 @@ class TestTrailsIntegration:
         count = G.count_trails("Alice", "Charlie")
         assert count == 2
 
-        trails = G.enumerate_trails("Alice", "Charlie")
+        trails = labeled_trails(G, "Alice", "Charlie")
         assert len(trails) == 2
         assert all("Alice" in str(trail) and "Charlie" in str(trail) for trail in trails)
 
@@ -413,7 +418,7 @@ class TestTrailsIntegration:
         G.add_edge("A", "B")
         G.add_edge("B", "C")
 
-        trails = G.enumerate_trails("A", "C")
+        trails = labeled_trails(G, "A", "C")
 
         assert len(trails) == 1
         trail = trails[0]

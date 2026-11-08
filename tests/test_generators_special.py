@@ -357,7 +357,7 @@ class TestRandomClustered:
 
     def test_triangles_raise_transitivity(self):
         g = ec.Graph().add_random_clustered_graph([(0, 3)] * 99, seed=1)
-        assert g.get_transitivity() > 0.15
+        assert g.transitivity() > 0.15
 
     @pytest.mark.parametrize("joint", [[(1, 0)], [(0, 1)], [(-1, 1), (1, 2)]])
     def test_invalid(self, joint):
@@ -641,7 +641,7 @@ class TestSudoku:
     def test_labels(self):
         g = ec.Graph().add_sudoku_graph(2)
         assert g.get_label_from_id(6) == "(1,1)"
-        assert sorted(g.get_label_from_id(v) for v in g.neighbors("(0,0)")) == [
+        assert sorted(g.get_label_from_id(v) for v in g.get_neighbors("(0,0)")) == [
             "(0,1)",
             "(0,2)",
             "(0,3)",

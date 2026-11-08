@@ -260,7 +260,7 @@ class TestShared:
         "method, kwargs",
         [
             ("layout_bipartite", {}),
-            ("layout_bfs", {"start": 1}),
+            ("layout_bfs", {"source": 1}),
             ("layout_multipartite", {"subset_key": "part"}),
         ],
     )
@@ -602,5 +602,5 @@ class TestStoredLayoutPlotting:
     def test_traversal_plot_with_stored_positions(self):
         g = ec.Graph().add_grid_graph([3, 3]).layout_spectral()
         order = g.bfs(1, return_list=True)
-        result = g.plot_traversal(visit_order=order, start=1, layout="pos")
+        result = g.plot_traversal(visit_order=order, source=1, layout="pos")
         assert "<svg" in result.svg

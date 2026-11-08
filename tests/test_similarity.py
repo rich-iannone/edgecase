@@ -3,7 +3,7 @@ import edgecase as ec
 
 
 class TestDiceSimilarity:
-    """Test get_dice_similarity() method."""
+    """Test dice_similarity() method."""
 
     def test_identical_neighborhoods(self):
         """Nodes with identical neighbors should have Dice = 1.0."""
@@ -17,7 +17,7 @@ class TestDiceSimilarity:
         G.add_edge("B", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(1.0)
@@ -33,7 +33,7 @@ class TestDiceSimilarity:
         G.add_edge("A", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(0.0)
@@ -43,7 +43,7 @@ class TestDiceSimilarity:
         G = ec.Graph()
         G.add_star_graph(5)
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
@@ -60,7 +60,7 @@ class TestDiceSimilarity:
         G.add_edge("B", "Y")
         G.add_edge("B", "Z")
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         # A has 2 neighbors, B has 2 neighbors, 1 in common
         # Dice = 2 * 1 / (2 + 2) = 0.5
         a_id = G.get_id_from_label("A")
@@ -72,7 +72,7 @@ class TestDiceSimilarity:
         G = ec.Graph()
         G.add_star_graph(4)  # Hub + 3 leaves
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         # Leaves should have Dice = 0 with each other
         id_1 = G.get_id_from_label("1")
         id_2 = G.get_id_from_label("2")
@@ -85,7 +85,7 @@ class TestDiceSimilarity:
         G = ec.Graph()
         G.add_full_graph(4)
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         # Each node has 3 neighbors, any pair shares 2 neighbors
         # Dice = 2 * 2 / (3 + 3) = 4/6 ≈ 0.667
         node_ids = [G.get_id_from_label(str(i)) for i in range(1, 5)]
@@ -96,7 +96,7 @@ class TestDiceSimilarity:
 
 
 class TestJaccardSimilarity:
-    """Test get_jaccard_similarity() method."""
+    """Test jaccard_similarity() method."""
 
     def test_identical_neighborhoods(self):
         """Nodes with identical neighbors should have Jaccard = 1.0."""
@@ -110,7 +110,7 @@ class TestJaccardSimilarity:
         G.add_edge("B", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(1.0)
@@ -125,7 +125,7 @@ class TestJaccardSimilarity:
         G.add_edge("A", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(0.0)
@@ -135,7 +135,7 @@ class TestJaccardSimilarity:
         G = ec.Graph()
         G.add_cycle_graph(5)
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
@@ -152,7 +152,7 @@ class TestJaccardSimilarity:
         G.add_edge("B", "Y")
         G.add_edge("B", "Z")
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         # A neighbors: {X, Y}, B neighbors: {Y, Z}
         # Intersection: {Y} (size 1)
         # Union: {X, Y, Z} (size 3)
@@ -177,8 +177,8 @@ class TestJaccardSimilarity:
         G.add_edge("B", "Z")
         G.add_edge("B", "W")
 
-        dice = G.get_dice_similarity()
-        jaccard = G.get_jaccard_similarity()
+        dice = G.dice_similarity()
+        jaccard = G.jaccard_similarity()
 
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
@@ -189,14 +189,14 @@ class TestJaccardSimilarity:
         G = ec.Graph()
         G.add_star_graph(4)
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         id_1 = G.get_id_from_label("1")
         id_2 = G.get_id_from_label("2")
         assert sim[id_1][id_2] == pytest.approx(0.0)
 
 
 class TestCosineSimilarity:
-    """Test get_cosine_similarity() method."""
+    """Test cosine_similarity() method."""
 
     def test_identical_neighborhoods(self):
         """Nodes with identical neighbors should have Cosine = 1.0."""
@@ -210,7 +210,7 @@ class TestCosineSimilarity:
         G.add_edge("B", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(1.0)
@@ -225,7 +225,7 @@ class TestCosineSimilarity:
         G.add_edge("A", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(0.0)
@@ -235,7 +235,7 @@ class TestCosineSimilarity:
         G = ec.Graph()
         G.add_path_graph(5)
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
@@ -255,7 +255,7 @@ class TestCosineSimilarity:
         G.add_edge("B", "Y")
         G.add_edge("B", "Z")  # B has 2 neighbors, 2 in common
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         # Cosine = 2 / (sqrt(4) * sqrt(2)) = 2 / (2 * 1.414) ≈ 0.707
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
@@ -266,7 +266,7 @@ class TestCosineSimilarity:
         G = ec.Graph()
         G.add_cycle_graph(5)
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         # Each node has 2 neighbors, adjacent nodes share 1 neighbor (the node 2-hops away)
         # Cosine = 1 / (sqrt(2) * sqrt(2)) = 1/2 = 0.5
         # From the actual graph: 1 is adjacent to 3 and 4
@@ -289,9 +289,9 @@ class TestCosineSimilarity:
         G.add_edge("B", "Y")
         G.add_edge("B", "Z")
 
-        dice = G.get_dice_similarity()
-        cosine = G.get_cosine_similarity()
-        jaccard = G.get_jaccard_similarity()
+        dice = G.dice_similarity()
+        cosine = G.cosine_similarity()
+        jaccard = G.jaccard_similarity()
 
         # For this graph: Dice > Cosine > Jaccard
         a_id = G.get_id_from_label("A")
@@ -300,7 +300,7 @@ class TestCosineSimilarity:
 
 
 class TestOverlapSimilarity:
-    """Test get_overlap_similarity() method."""
+    """Test overlap_similarity() method."""
 
     def test_identical_neighborhoods(self):
         """Nodes with identical neighbors should have Overlap = 1.0."""
@@ -314,7 +314,7 @@ class TestOverlapSimilarity:
         G.add_edge("B", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(1.0)
@@ -329,7 +329,7 @@ class TestOverlapSimilarity:
         G.add_edge("A", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(0.0)
@@ -339,7 +339,7 @@ class TestOverlapSimilarity:
         G = ec.Graph()
         G.add_full_graph(4)
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         for node_id in G.get_node_ids(limit=None):
             assert sim[node_id][node_id] == pytest.approx(1.0)
 
@@ -357,7 +357,7 @@ class TestOverlapSimilarity:
         G.add_edge("B", "X")
         G.add_edge("B", "Y")
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         # B's neighbors {X, Y} ⊂ A's neighbors {X, Y, Z}
         # Overlap = 2 / min(3, 2) = 2/2 = 1.0
         a_id = G.get_id_from_label("A")
@@ -379,7 +379,7 @@ class TestOverlapSimilarity:
         # A neighbors: {B, C}, B neighbors: {A, C}
         # Common neighbors: {C}
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         # They share C, min size is 2
         # Overlap = 1 / min(2, 2) = 0.5
         a_id = G.get_id_from_label("A")
@@ -401,7 +401,7 @@ class TestOverlapSimilarity:
         G.add_edge("B", "Z")
         G.add_edge("B", "W")  # B has 4 neighbors
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         # They share 1 neighbor, min size is 1
         # Overlap = 1 / 1 = 1.0
         a_id = G.get_id_from_label("A")
@@ -413,7 +413,7 @@ class TestOverlapSimilarity:
         G = ec.Graph()
         G.add_star_graph(4)
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         id_1 = G.get_id_from_label("1")
         id_2 = G.get_id_from_label("2")
         assert sim[id_1][id_2] == pytest.approx(0.0)
@@ -435,7 +435,7 @@ class TestSimilaritySymmetry:
         G.add_edge("B", "Y")
         G.add_edge("B", "Z")
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         a_id = G.get_id_from_label("A")
         b_id = G.get_id_from_label("B")
         assert sim[a_id][b_id] == pytest.approx(sim[b_id][a_id])
@@ -445,7 +445,7 @@ class TestSimilaritySymmetry:
         G = ec.Graph()
         G.add_cycle_graph(6)
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         node_ids = [G.get_id_from_label(str(i)) for i in range(1, 7)]
         for idx1, id1 in enumerate(node_ids):
             for id2 in node_ids[idx1 + 1 :]:
@@ -456,7 +456,7 @@ class TestSimilaritySymmetry:
         G = ec.Graph()
         G.add_full_graph(5)
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         nodes = G.get_node_ids(limit=None)
         for n1_id in nodes:
             for n2_id in nodes:
@@ -467,7 +467,7 @@ class TestSimilaritySymmetry:
         G = ec.Graph()
         G.add_path_graph(7)
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         node_ids = [G.get_id_from_label(str(i)) for i in range(1, 8)]
         for idx1, id1 in enumerate(node_ids):
             for id2 in node_ids[idx1 + 1 : -1]:  # -1 to match original range(i+1, 7)
@@ -482,7 +482,7 @@ class TestSimilarityRange:
         G = ec.Graph()
         G.add_pa_graph(20)
 
-        sim = G.get_dice_similarity()
+        sim = G.dice_similarity()
         for n1, scores in sim.items():
             for n2, score in scores.items():
                 assert 0.0 <= score <= 1.0
@@ -492,7 +492,7 @@ class TestSimilarityRange:
         G = ec.Graph()
         G.add_gnp_graph(15, 0.3)
 
-        sim = G.get_jaccard_similarity()
+        sim = G.jaccard_similarity()
         for n1, scores in sim.items():
             for n2, score in scores.items():
                 assert 0.0 <= score <= 1.0
@@ -502,7 +502,7 @@ class TestSimilarityRange:
         G = ec.Graph()
         G.add_smallworld_graph(10, 4, 0.3)
 
-        sim = G.get_cosine_similarity()
+        sim = G.cosine_similarity()
         for n1, scores in sim.items():
             for n2, score in scores.items():
                 assert 0.0 <= score <= 1.0
@@ -512,7 +512,7 @@ class TestSimilarityRange:
         G = ec.Graph()
         G.add_balanced_tree(3, 4)  # r=3 (branching factor), h=4 (height)
 
-        sim = G.get_overlap_similarity()
+        sim = G.overlap_similarity()
         for n1, scores in sim.items():
             for n2, score in scores.items():
                 assert 0.0 <= score <= 1.0
@@ -526,10 +526,10 @@ class TestSimilarityEmptyGraph:
         G = ec.Graph()
         G.add_node("A")
 
-        dice = G.get_dice_similarity()
-        jaccard = G.get_jaccard_similarity()
-        cosine = G.get_cosine_similarity()
-        overlap = G.get_overlap_similarity()
+        dice = G.dice_similarity()
+        jaccard = G.jaccard_similarity()
+        cosine = G.cosine_similarity()
+        overlap = G.overlap_similarity()
 
         a_id = G.get_id_from_label("A")
         assert dice[a_id][a_id] == pytest.approx(1.0)
@@ -543,10 +543,10 @@ class TestSimilarityEmptyGraph:
         G.add_node("A")
         G.add_node("B")
 
-        dice = G.get_dice_similarity()
-        jaccard = G.get_jaccard_similarity()
-        cosine = G.get_cosine_similarity()
-        overlap = G.get_overlap_similarity()
+        dice = G.dice_similarity()
+        jaccard = G.jaccard_similarity()
+        cosine = G.cosine_similarity()
+        overlap = G.overlap_similarity()
 
         # Nodes with no neighbors should have 0 similarity
         a_id = G.get_id_from_label("A")
@@ -566,10 +566,10 @@ class TestSimilarityReturnStructure:
         G.add_full_graph(4)
 
         for method in [
-            G.get_dice_similarity,
-            G.get_jaccard_similarity,
-            G.get_cosine_similarity,
-            G.get_overlap_similarity,
+            G.dice_similarity,
+            G.jaccard_similarity,
+            G.cosine_similarity,
+            G.overlap_similarity,
         ]:
             sim = method()
 
@@ -589,10 +589,10 @@ class TestSimilarityReturnStructure:
         node_ids = set(G.get_node_ids(limit=None))
 
         for method in [
-            G.get_dice_similarity,
-            G.get_jaccard_similarity,
-            G.get_cosine_similarity,
-            G.get_overlap_similarity,
+            G.dice_similarity,
+            G.jaccard_similarity,
+            G.cosine_similarity,
+            G.overlap_similarity,
         ]:
             sim = method()
 

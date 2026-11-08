@@ -1,5 +1,5 @@
 """Tests for approximation and optimization methods: traveling_salesman, metric_closure,
-tree_decomposition, densest_subgraph and max_cut.
+tree_decomposition, densest_subgraph and maximum_cut.
 
 Validated against NetworkX (closure distances, greedy tours, treewidth heuristics, Greedy++)
 and by brute force on small graphs (optimal tours, densest subgraphs, maximum cuts).
@@ -249,7 +249,7 @@ class TestMaxCut:
                 for k in range(n + 1)
                 for c in itertools.combinations(G, k)
             )
-            value, (S, T) = g.max_cut(seed=seed)
+            value, (S, T) = g.maximum_cut(seed=seed)
             side = {_lab(g, x) for x in S}
             assert set(S).isdisjoint(T) and len(S) + len(T) == n
             assert value == pytest.approx(nx.cut_size(G, side, weight="weight"))
@@ -258,19 +258,19 @@ class TestMaxCut:
 
     def test_randomized_initial_and_errors(self):
         ring = ec.Graph().add_cycle_graph(6)
-        assert ring.max_cut(seed=1)[0] == 6
-        value, (S, T) = ring.max_cut(method="randomized", seed=2, p=1.0)
+        assert ring.maximum_cut(seed=1)[0] == 6
+        value, (S, T) = ring.maximum_cut(method="randomized", seed=2, p=1.0)
         assert value == 0 and not T
         start = ring.get_node_ids(limit=None)[:1]
-        assert ring.max_cut(initial=start, seed=3)[0] == 6
+        assert ring.maximum_cut(initial=start, seed=3)[0] == 6
         with pytest.raises(ValueError, match="method"):
-            ring.max_cut(method="goemans_williamson")
+            ring.maximum_cut(method="goemans_williamson")
         with pytest.raises(ValueError, match="between 0 and 1"):
-            ring.max_cut(method="randomized", p=1.5)
+            ring.maximum_cut(method="randomized", p=1.5)
         inf = ec.Graph(weighted=True).add_nodes(list("ABCD"))
         inf.add_edges([("A", "B", float("inf")), ("B", "C", 1.0), ("C", "D", float("inf"))])
         with pytest.raises(ValueError, match="finite"):  # the local search used to hang
-            inf.max_cut(seed=1)
+            inf.maximum_cut(seed=1)
 
 
 class TestApproximationStepHooks:
@@ -283,7 +283,7 @@ class TestApproximationStepHooks:
         assert len(step.delta.edges_selected) == 5
         ring = ec.Graph().add_nodes(list("ABCDEF"))
         ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
-        ring.max_cut(seed=1)
+        ring.maximum_cut(seed=1)
         step = ring.steps[-1]
         assert (
             len(set(step.delta.node_groups.values())) == 2 and len(step.delta.edges_selected) == 6

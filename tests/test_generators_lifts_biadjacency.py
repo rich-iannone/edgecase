@@ -78,7 +78,7 @@ class TestGeneralizedPetersen:
             assert g.is_k_regular(3)
             assert g.count_edges() == 3 * n
         assert {
-            k: ec.Graph().add_generalized_petersen_graph(10, k).get_girth() for k in (1, 2, 3)
+            k: ec.Graph().add_generalized_petersen_graph(10, k).girth() for k in (1, 2, 3)
         } == {1: 4, 2: 5, 3: 6}
 
     def test_errors(self):

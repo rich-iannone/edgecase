@@ -161,10 +161,10 @@ class TestConstantPottsModel:
         g = _build(G)
         g.set_node_attrs("nw", {g.get_id_from_label("0"): 2.5, g.get_id_from_label("3"): 4.0})
         part = [[0, 1, 2], [3, 4]]
-        ours = g.constant_potts_model(_lab(part), resolution=0.4, node_weight="nw")
+        ours = g.constant_potts_model(_lab(part), resolution=0.4, node_weight_attr="nw")
         assert ours == pytest.approx(_ref_cpm(G, part, 0.4, node_weight="nw"))
         with pytest.raises(ValueError, match="No node attribute"):
-            g.constant_potts_model(_lab(part), node_weight="missing")
+            g.constant_potts_model(_lab(part), node_weight_attr="missing")
 
     def test_invalid_partition(self):
         g = _two_triangles()

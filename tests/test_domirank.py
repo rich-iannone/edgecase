@@ -161,8 +161,8 @@ class TestDomiRankParameters:
         g = _build_graph([("A", "B"), ("B", "C")])
 
         # Should complete without error
-        result_tight = g.domirank_centrality(return_dict=True, tolerance=1e-8)
-        result_loose = g.domirank_centrality(return_dict=True, tolerance=1e-3)
+        result_tight = g.domirank_centrality(return_dict=True, tol=1e-8)
+        result_loose = g.domirank_centrality(return_dict=True, tol=1e-3)
 
         # Both should produce reasonable results
         assert len(result_tight) == 3

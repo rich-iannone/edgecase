@@ -200,7 +200,7 @@ class TestMaximalIndependentSet:
         # Every node not in MIS should be adjacent to at least one node in MIS
         for node in graph.get_node_ids():
             if node not in mis_set:
-                neighbors = set(graph.neighbors(node))
+                neighbors = set(graph.get_neighbors(node))
                 assert len(neighbors & mis_set) > 0
 
     def test_seed_reproducibility(self):

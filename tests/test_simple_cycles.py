@@ -1,3 +1,4 @@
+import pytest
 from edgecase import Graph
 
 
@@ -334,8 +335,9 @@ class TestSimpleCyclesEdgeCases:
             assert isinstance(node_id, int)
 
 
+@pytest.mark.filterwarnings("ignore:Graph.get_cycles:DeprecationWarning")
 class TestSimpleCyclesComparison:
-    """Tests comparing simple_cycles with get_cycles."""
+    """Tests comparing simple_cycles with the deprecated get_cycles."""
 
     def test_directed_graph_same_results(self):
         """For directed graphs, simple_cycles should find same cycles as get_cycles."""

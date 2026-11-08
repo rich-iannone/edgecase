@@ -110,10 +110,11 @@ class TestPartitionSpanningTree:
         g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 9.0)])
         (diag,) = g.find_edge_ids("A", "C")
-        ids = g.minimum_spanning_tree(include=[diag], return_subgraph=False)
-        assert ids[0] == str(diag) and len(ids) == 2
-        assert g.minimum_spanning_tree(include=[str(diag)], return_subgraph=False) == ids
-        assert g.minimum_spanning_tree(include=[("C", "A")], return_subgraph=False) == ids
+        a, c = g.get_id_from_label("A"), g.get_id_from_label("C")
+        edges = g.minimum_spanning_tree(include=[diag], return_subgraph=False)
+        assert (a, c, 9.0) in edges and len(edges) == 2
+        assert g.minimum_spanning_tree(include=[str(diag)], return_subgraph=False) == edges
+        assert g.minimum_spanning_tree(include=[("C", "A")], return_subgraph=False) == edges
 
     def test_directed_pairs_match_either_way(self):
         g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
@@ -190,8 +191,8 @@ class TestIterSpanningTrees:
     def test_parallel_edges_are_different_trees(self):
         g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("B", "C", 1.0), ("A", "A", 0.0)])
-        ids = list(g.iter_spanning_trees(return_subgraphs=False))
-        assert len(ids) == 2 and all(isinstance(e, str) for e in ids[0])
+        trees = list(g.iter_spanning_trees(return_subgraphs=False))
+        assert len(trees) == 2 and sorted(w for t in trees for _, _, w in t) == [1.0, 1.0, 1.0, 2.0]
 
     def test_lazy_and_small_cases(self):
         k = ec.Graph().add_full_graph(9)  # 9^7 trees: must not enumerate them all

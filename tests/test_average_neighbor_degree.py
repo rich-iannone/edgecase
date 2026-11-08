@@ -92,14 +92,16 @@ class TestAverageNeighborDegreeBasic:
 
         # Default: source="out", target="out"
         # Each node has 1 out-neighbor with out-degree 1
-        and_out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+        and_out_out = g.average_neighbor_degree(
+            source_mode="out", target_mode="out", return_dict=True
+        )
         for label in ["A", "B", "C"]:
             node_id = g.get_id_from_label(label)
             assert abs(and_out_out[node_id] - 1.0) < 1e-6
 
         # source="in", target="in"
         # Each node has 1 in-neighbor with in-degree 1
-        and_in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        and_in_in = g.average_neighbor_degree(source_mode="in", target_mode="in", return_dict=True)
         for label in ["A", "B", "C"]:
             node_id = g.get_id_from_label(label)
             assert abs(and_in_in[node_id] - 1.0) < 1e-6
@@ -113,12 +115,14 @@ class TestAverageNeighborDegreeBasic:
             g.add_edge("center", f"leaf_{i}")
 
         # Out-neighbors of center have out-degree 0
-        and_out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+        and_out_out = g.average_neighbor_degree(
+            source_mode="out", target_mode="out", return_dict=True
+        )
         center_id = g.get_id_from_label("center")
         assert abs(and_out_out[center_id] - 0.0) < 1e-6
 
         # In-neighbors of leaves have in-degree 0
-        and_in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        and_in_in = g.average_neighbor_degree(source_mode="in", target_mode="in", return_dict=True)
         for i in range(3):
             leaf_id = g.get_id_from_label(f"leaf_{i}")
             assert abs(and_in_in[leaf_id] - 0.0) < 1e-6
@@ -199,17 +203,19 @@ class TestAverageNeighborDegreeDirected:
         g.add_edge("C", "D")
 
         # Test source="out", target="out"
-        out_out = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+        out_out = g.average_neighbor_degree(source_mode="out", target_mode="out", return_dict=True)
 
         assert len(out_out) == 4
 
         # Test source="in", target="in"
-        in_in = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        in_in = g.average_neighbor_degree(source_mode="in", target_mode="in", return_dict=True)
 
         assert len(in_in) == 4
 
         # Test source="in+out", target="in+out"
-        inout_inout = g.average_neighbor_degree(source="in+out", target="in+out", return_dict=True)
+        inout_inout = g.average_neighbor_degree(
+            source_mode="in+out", target_mode="in+out", return_dict=True
+        )
 
         assert len(inout_inout) == 4
 
@@ -223,12 +229,12 @@ class TestAverageNeighborDegreeDirected:
         g.add_edge("B", "C")
 
         # source="out" (successors), target="in" (measure their in-degree)
-        out_in = g.average_neighbor_degree(source="out", target="in", return_dict=True)
+        out_in = g.average_neighbor_degree(source_mode="out", target_mode="in", return_dict=True)
 
         assert len(out_in) == 3
 
         # source="in" (predecessors), target="out" (measure their out-degree)
-        in_out = g.average_neighbor_degree(source="in", target="out", return_dict=True)
+        in_out = g.average_neighbor_degree(source_mode="in", target_mode="out", return_dict=True)
 
         assert len(in_out) == 3
 
@@ -328,7 +334,7 @@ class TestAverageNeighborDegreeErrors:
         g.add_edge("A", "B")
 
         with pytest.raises(Exception):
-            g.average_neighbor_degree(source="invalid", return_dict=True)
+            g.average_neighbor_degree(source_mode="invalid", return_dict=True)
 
     def test_invalid_target_parameter(self):
         """Test invalid target parameter raises error."""
@@ -338,7 +344,7 @@ class TestAverageNeighborDegreeErrors:
         g.add_edge("A", "B")
 
         with pytest.raises(Exception):
-            g.average_neighbor_degree(target="invalid", return_dict=True)
+            g.average_neighbor_degree(target_mode="invalid", return_dict=True)
 
 
 class TestAverageNeighborDegreeNetworkX:
@@ -409,7 +415,7 @@ class TestAverageNeighborDegreeNetworkX:
         for i in range(4):
             g.add_edge(str(i), str((i + 1) % 4))
 
-        ec_and = g.average_neighbor_degree(source="out", target="out", return_dict=True)
+        ec_and = g.average_neighbor_degree(source_mode="out", target_mode="out", return_dict=True)
 
         # Create NetworkX graph
         nx_g = nx.DiGraph()
@@ -437,7 +443,7 @@ class TestAverageNeighborDegreeNetworkX:
         g.add_edge("1", "3")
         g.add_edge("2", "3")
 
-        ec_and = g.average_neighbor_degree(source="in", target="in", return_dict=True)
+        ec_and = g.average_neighbor_degree(source_mode="in", target_mode="in", return_dict=True)
 
         # Create NetworkX graph
         nx_g = nx.DiGraph()

@@ -151,7 +151,7 @@ class TestConnectivityEdgeCases:
 
 
 class TestNodeConnectivityBetween:
-    """Test get_node_connectivity_between() method with IDs and labels."""
+    """Test node_connectivity_between() method with IDs and labels."""
 
     def test_path_graph_with_labels(self):
         """Test node connectivity using labels in path graph."""
@@ -159,7 +159,7 @@ class TestNodeConnectivityBetween:
         G.add_path_graph(5)  # Creates nodes with labels "1"-"5"
 
         # Endpoints have connectivity 1 (any middle node disconnects them)
-        conn = G.get_node_connectivity_between("1", "5")
+        conn = G.node_connectivity_between("1", "5")
         assert conn == 1
 
     def test_path_graph_with_ids(self):
@@ -172,7 +172,7 @@ class TestNodeConnectivityBetween:
         node5_id = G.get_id_from_label("5")
 
         # Use node IDs directly
-        conn = G.get_node_connectivity_between(node1_id, node5_id)
+        conn = G.node_connectivity_between(node1_id, node5_id)
         assert conn == 1
 
     def test_cycle_graph_with_labels(self):
@@ -181,7 +181,7 @@ class TestNodeConnectivityBetween:
         G.add_cycle_graph(6)  # Creates nodes with labels "1"-"6"
 
         # Any two nodes in a cycle have connectivity 2
-        conn = G.get_node_connectivity_between("1", "4")
+        conn = G.node_connectivity_between("1", "4")
         assert conn == 2
 
     def test_cycle_graph_with_ids(self):
@@ -192,7 +192,7 @@ class TestNodeConnectivityBetween:
         node1_id = G.get_id_from_label("1")
         node4_id = G.get_id_from_label("4")
 
-        conn = G.get_node_connectivity_between(node1_id, node4_id)
+        conn = G.node_connectivity_between(node1_id, node4_id)
         assert conn == 2
 
     def test_complete_graph_with_labels(self):
@@ -205,7 +205,7 @@ class TestNodeConnectivityBetween:
                 G.add_edge(str(i), str(j))
 
         # Any two nodes in K_5 have connectivity 4 (need to remove 4 nodes to disconnect)
-        conn = G.get_node_connectivity_between("1", "5")
+        conn = G.node_connectivity_between("1", "5")
         assert conn == 4
 
     def test_complete_graph_with_ids(self):
@@ -220,7 +220,7 @@ class TestNodeConnectivityBetween:
         node1_id = G.get_id_from_label("1")
         node5_id = G.get_id_from_label("5")
 
-        conn = G.get_node_connectivity_between(node1_id, node5_id)
+        conn = G.node_connectivity_between(node1_id, node5_id)
         assert conn == 4
 
     def test_mixed_id_and_label(self):
@@ -230,12 +230,12 @@ class TestNodeConnectivityBetween:
 
         # Mix ID and label
         node1_id = G.get_id_from_label("1")
-        conn = G.get_node_connectivity_between(node1_id, "5")
+        conn = G.node_connectivity_between(node1_id, "5")
         assert conn == 1
 
         # Reverse order
         node5_id = G.get_id_from_label("5")
-        conn2 = G.get_node_connectivity_between("1", node5_id)
+        conn2 = G.node_connectivity_between("1", node5_id)
         assert conn2 == 1
 
     def test_star_graph_with_labels(self):
@@ -244,7 +244,7 @@ class TestNodeConnectivityBetween:
         G.add_star_graph(5)  # Creates center (label "1") + 5 leaves
 
         # Center to any leaf has connectivity 1
-        conn = G.get_node_connectivity_between("1", "2")
+        conn = G.node_connectivity_between("1", "2")
         assert conn == 1
 
     def test_nonexistent_label_error(self):
@@ -253,7 +253,7 @@ class TestNodeConnectivityBetween:
         G.add_path_graph(3)
 
         with pytest.raises(ValueError, match="not found"):
-            G.get_node_connectivity_between("1", "nonexistent")
+            G.node_connectivity_between("1", "nonexistent")
 
     def test_nonexistent_id_error(self):
         """Test error when using non-existent node ID."""
@@ -262,7 +262,7 @@ class TestNodeConnectivityBetween:
 
         # Use a node ID that doesn't exist
         with pytest.raises(Exception):
-            G.get_node_connectivity_between(999, 1000)
+            G.node_connectivity_between(999, 1000)
 
     def test_custom_labels(self):
         """Test with custom node labels."""
@@ -276,7 +276,7 @@ class TestNodeConnectivityBetween:
         G.add_edge("Charlie", "Dave")
 
         # Path: Alice-Bob-Charlie-Dave
-        conn = G.get_node_connectivity_between("Alice", "Dave")
+        conn = G.node_connectivity_between("Alice", "Dave")
         assert conn == 1  # Removing Bob or Charlie disconnects them
 
     @staticmethod
@@ -297,7 +297,7 @@ class TestNodeConnectivityBetween:
         """Node IDs 2v / 2v+1 used for node splitting never collide with source/target IDs."""
         g = self._two_diamonds()
         i = g.get_id_from_label
-        assert g.get_node_connectivity_between(i(pair[0]), i(pair[1])) == 1
+        assert g.node_connectivity_between(i(pair[0]), i(pair[1])) == 1
 
     def test_matches_networkx(self):
         """Pairwise node connectivity matches NetworkX for non-adjacent pairs."""
@@ -308,7 +308,7 @@ class TestNodeConnectivityBetween:
         ])
         i = g.get_id_from_label
         for s, t in [("A", "F"), ("B", "G"), ("C", "E")]:
-            assert g.get_node_connectivity_between(i(s), i(t)) == nx.node_connectivity(ref, s, t)
+            assert g.node_connectivity_between(i(s), i(t)) == nx.node_connectivity(ref, s, t)
 
 
 def _brute_node_connectivity(H):
@@ -345,7 +345,7 @@ class TestNodeConnectivityDirectedAndMulti:
             if rnd.random() < 0.3:
                 edges += [(u, v) for u in range(n) for v in range(n) if u != v and rnd.random() < 0.8]
             g, H = self._pair(n, edges, directed)
-            assert g.get_node_connectivity() == _brute_node_connectivity(H), seed
+            assert g.node_connectivity() == _brute_node_connectivity(H), seed
             for s, t in itertools.permutations(range(n), 2):
                 # a direct edge is one path that no node removal breaks
                 H2 = H.copy()
@@ -353,12 +353,12 @@ class TestNodeConnectivityDirectedAndMulti:
                 if direct:
                     H2.remove_edge(s, t)
                 want = nx.node_connectivity(H2, s, t) + direct
-                assert g.get_node_connectivity_between(str(s), str(t)) == want, (seed, s, t)
+                assert g.node_connectivity_between(str(s), str(t)) == want, (seed, s, t)
 
     def test_weakly_connected_digraph_is_zero(self):
         # nothing reaches node 0, so the digraph is already not strongly connected
         g, _ = self._pair(4, [(0, 1), (0, 2), (1, 2), (1, 3), (2, 3), (3, 1), (3, 2)], True)
-        assert g.get_node_connectivity() == 0
+        assert g.node_connectivity() == 0
 
     def test_digraph_pairs_are_ordered(self):
         # a bidirected 4-cycle plus the one-way chord 0 -> 2: from 0 to 2 there are the
@@ -366,26 +366,26 @@ class TestNodeConnectivityDirectedAndMulti:
         cycle = [(i, (i + 1) % 4) for i in range(4)]
         edges = cycle + [(v, u) for u, v in cycle] + [(0, 2)]
         g, H = self._pair(4, edges, True)
-        assert g.get_node_connectivity() == 2 == nx.node_connectivity(H)
-        assert g.get_node_connectivity_between("0", "2") == 3
-        assert g.get_node_connectivity_between("2", "0") == 2
+        assert g.node_connectivity() == 2 == nx.node_connectivity(H)
+        assert g.node_connectivity_between("0", "2") == 3
+        assert g.node_connectivity_between("2", "0") == 2
 
     def test_complete_digraph(self):
         g, _ = self._pair(4, [(u, v) for u in range(4) for v in range(4) if u != v], True)
-        assert g.get_node_connectivity() == 3
+        assert g.node_connectivity() == 3
         # one arc missing: the pair it joined can be separated by the other two nodes
         g, _ = self._pair(4, [(u, v) for u in range(4) for v in range(4) if u != v][1:], True)
-        assert g.get_node_connectivity() == 2
+        assert g.node_connectivity() == 2
 
     def test_parallel_edges_and_self_loops(self):
         # a path is 1-connected however its edges are doubled or looped
         g, _ = self._pair(3, [(0, 1), (0, 1), (1, 2)], False)
-        assert g.get_node_connectivity() == 1
+        assert g.node_connectivity() == 1
         g, _ = self._pair(3, [(0, 0), (0, 1), (1, 2)], False)
-        assert g.get_node_connectivity() == 1
+        assert g.node_connectivity() == 1
         # a doubled direct edge is still a single path
         g, _ = self._pair(3, [(0, 1), (0, 1), (1, 2), (0, 2)], False)
-        assert g.get_node_connectivity_between("0", "1") == 2
+        assert g.node_connectivity_between("0", "1") == 2
 
 
 # Edge- and node-disjoint paths, validated against NetworkX.
@@ -445,9 +445,9 @@ class TestDisjointPaths:
 
     def test_bowtie_contrast_and_menger(self):
         g = _bowtie()
-        assert len(g.edge_disjoint_paths("A", "E")) == g.get_min_cut_between("A", "E") == 2
+        assert len(g.edge_disjoint_paths("A", "E")) == g.minimum_cut_value("A", "E") == 2
         assert len(g.node_disjoint_paths("A", "E")) == 1
-        assert g.get_node_connectivity_between("A", "E") == 1
+        assert g.node_connectivity_between("A", "E") == 1
 
     def test_cube_and_max_paths(self):
         cube = ec.Graph().add_nodes([str(i) for i in range(8)])

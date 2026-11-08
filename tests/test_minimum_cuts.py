@@ -150,7 +150,7 @@ class TestMinimumEdgeCut:
             G.add_node(i)
         G.add_edge(1, 2)
 
-        with pytest.raises(ValueError, match="Source and sink must be different"):
+        with pytest.raises(ValueError, match="Source and target must be different"):
             G.minimum_edge_cut(1, 1)
 
     def test_nonexistent_node_error(self):
@@ -323,7 +323,7 @@ class TestMinimumNodeCut:
             G.add_node(i)
         G.add_edge(1, 2)
 
-        with pytest.raises(ValueError, match="Source and sink must be different"):
+        with pytest.raises(ValueError, match="Source and target must be different"):
             G.minimum_node_cut(1, 1)
 
     def test_nonexistent_node_error(self):
@@ -419,7 +419,7 @@ class TestMinimumCutComparison:
         assert len(node_cut) >= 1
 
     def test_min_cut_size_equivalence(self):
-        """Test that get_min_cut_between matches minimum_edge_cut size."""
+        """Test that minimum_cut_value matches minimum_edge_cut size."""
         G = Graph()
         for i in [1, 2, 3, 4]:
             G.add_node(i)
@@ -429,7 +429,7 @@ class TestMinimumCutComparison:
         G.add_edge(1, 4)
         G.add_edge(2, 4)
 
-        cut_size = G.get_min_cut_between(1, 3)
+        cut_size = G.minimum_cut_value(1, 3)
         edge_cut = G.minimum_edge_cut(1, 3)
 
         assert cut_size == len(edge_cut)
