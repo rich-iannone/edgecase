@@ -49,7 +49,6 @@ sys.path.insert(
 )
 import edgecase as ec
 
-
 # ═══════════════════════════════════════════════════════════════════════════
 # Mock Graph classes (matches the Graph API that svg_renderer expects)
 # ═══════════════════════════════════════════════════════════════════════════
