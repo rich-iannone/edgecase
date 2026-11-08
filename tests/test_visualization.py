@@ -112,7 +112,7 @@ class TestPlotVis:
         g.add_edges([("A", "B"), ("A", "B"), ("B", "A")])
         out = tmp_path / "vis.html"
         plot_graph(g, output_path=str(out), open_browser=False, display_inline=False)
-        edges = self._edges(out.read_text())
+        edges = self._edges(out.read_text(encoding="utf-8"))
         assert len(edges) == 3
         assert len({e["id"] for e in edges}) == 3
         assert sum("smooth" in e for e in edges) == 2
