@@ -35034,8 +35034,8 @@ class Graph:
           `cmty_fast_greedy()` or `cmty_louvain()`
 
         The graph must be undirected and edge weights are ignored (every edge counts once). An
-        edgeless graph puts every node in its own community, and an empty graph gives an empty
-        result. The community assignments are always written to the node DataFrame, even when
+        isolated node gets a community of its own (so an edgeless graph puts every node in its
+        own community), and an empty graph gives an empty result. The community assignments are always written to the node DataFrame, even when
         `return_dict=True`.
 
         Parameters
