@@ -1345,7 +1345,7 @@ pub fn max_cut(
         };
         if w.is_infinite() {
             // Flip gains would turn into inf - inf = NaN and the local search never settles
-            return value_err("max_cut() requires finite edge weights");
+            return value_err("maximum_cut() requires finite edge weights");
         }
         adj[a].push((b, w));
         adj[b].push((a, w));

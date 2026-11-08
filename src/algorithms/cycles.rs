@@ -518,7 +518,7 @@ fn get_edge_weight(graph: &Graph, edge_id: u64, weight_attr: Option<&str>) -> Py
     };
     match weight_attr {
         Some(attr_name) => Python::with_gil(|py| {
-            crate::utils::require_named_edge_weight(py, &edge, attr_name, "weight")
+            crate::utils::require_named_edge_weight(py, &edge, attr_name, "weight_attr")
         }),
         None => Ok(edge.weight.unwrap_or(1.0)),
     }

@@ -50,13 +50,13 @@ pub fn max_flow(
     }
     if !graph.get_node_ids().contains(&sink) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Sink node {} does not exist",
+            "Target node {} does not exist",
             sink
         )));
     }
     if source == sink {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Source and sink must be different nodes",
+            "Source and target must be different nodes",
         ));
     }
 
@@ -88,13 +88,13 @@ pub fn max_flow_value(
     }
     if !graph.get_node_ids().contains(&sink) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Sink node {} does not exist",
+            "Target node {} does not exist",
             sink
         )));
     }
     if source == sink {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Source and sink must be different nodes",
+            "Source and target must be different nodes",
         ));
     }
 
@@ -139,7 +139,7 @@ pub fn min_cost_flow(
     // Validate graph is directed
     if !graph.is_directed() {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "min_cost_flow requires a directed graph",
+            "minimum_cost_flow() requires a directed graph",
         ));
     }
 
@@ -152,13 +152,13 @@ pub fn min_cost_flow(
     }
     if !graph.get_node_ids().contains(&sink) {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-            "Sink node {} does not exist",
+            "Target node {} does not exist",
             sink
         )));
     }
     if source == sink {
         return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-            "Source and sink must be different nodes",
+            "Source and target must be different nodes",
         ));
     }
 

@@ -208,7 +208,7 @@ pub fn average_degree_connectivity(
     weighted: bool,
 ) -> PyResult<FxHashMap<u64, f64>> {
     let directed = graph.is_directed();
-    for (name, v) in [("source", source), ("target", target)] {
+    for (name, v) in [("source_mode", source), ("target_mode", target)] {
         if !["in", "out", "in+out"].contains(&v) {
             return Err(err(format!(
                 "{} must be one of 'in', 'out', or 'in+out'",
@@ -217,7 +217,7 @@ pub fn average_degree_connectivity(
         }
         if !directed && v != "in+out" {
             return Err(err(
-                "source and target arguments are only supported for directed graphs",
+                "source_mode and target_mode are only supported for directed graphs",
             ));
         }
     }
@@ -282,7 +282,7 @@ pub fn degree_pairs(
     let directed = graph.is_directed();
     for v in [x, y] {
         if directed && v != "in" && v != "out" {
-            return Err(err("x and y must be 'in' or 'out' on directed graphs"));
+            return Err(err("source_mode and target_mode must be 'in' or 'out' on directed graphs"));
         }
     }
     let (_, idx) = sorted_ids(graph);

@@ -1014,14 +1014,14 @@ pub fn average_neighbor_degree(
             "in+out" => "in+out",
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "source must be 'in', 'out', or 'in+out' for directed graphs",
+                    "source_mode must be 'in', 'out', or 'in+out' for directed graphs",
                 ))
             }
         }
     } else {
         if source.is_some() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "source parameter not allowed for undirected graphs",
+                "source_mode not allowed for undirected graphs",
             ));
         }
         "out" // unused for undirected
@@ -1034,14 +1034,14 @@ pub fn average_neighbor_degree(
             "in+out" => "in+out",
             _ => {
                 return Err(pyo3::exceptions::PyValueError::new_err(
-                    "target must be 'in', 'out', or 'in+out' for directed graphs",
+                    "target_mode must be 'in', 'out', or 'in+out' for directed graphs",
                 ))
             }
         }
     } else {
         if target.is_some() {
             return Err(pyo3::exceptions::PyValueError::new_err(
-                "target parameter not allowed for undirected graphs",
+                "target_mode not allowed for undirected graphs",
             ));
         }
         "out" // unused for undirected

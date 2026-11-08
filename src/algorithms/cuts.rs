@@ -1,7 +1,7 @@
 //! Cuts and disjoint paths: s-t minimum cut partitions, Stoer-Wagner global minimum cut,
 //! Gomory-Hu cut trees, edge- and node-disjoint paths, and the directed triadic census.
 //!
-//! Capacities follow `max_flow()`: the edge attribute named by `capacity`, else a `capacity`
+//! Capacities follow `maximum_flow()`: the edge attribute named by `capacity`, else a `capacity`
 //! attribute, else the edge weight on a weighted graph, else 1.0. Self-loops are ignored.
 
 use crate::algorithms::flow::{edmonds_karp, get_edge_capacity};

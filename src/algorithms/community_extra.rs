@@ -583,7 +583,8 @@ fn attr_f64(py: Python, attrs: &Option<Py<PyDict>>, name: &str) -> PyResult<Opti
 
 /// Lukes' algorithm: the partition of a tree into clusters of total node weight at most
 /// `max_size` that maximizes the total weight of the edges kept inside clusters. Node weights
-/// must be non-negative integers (1 by default); edge weights default to 1.
+/// must be non-negative integers (1 by default); edge weights default to the weight field (1
+/// where an edge has none).
 /// Returns `(clusters, kept edge weight)`.
 #[pyfunction]
 #[pyo3(signature = (graph, max_size, node_weight=None, edge_weight=None))]
@@ -624,8 +625,8 @@ pub fn lukes_partitioning(
         }
         let w = match edge_weight {
             // "weight" also falls back to the weight field, where weighted graphs keep it
-            Some(attr) => crate::utils::require_named_edge_weight(py, e, attr, "edge_weight")?,
-            None => 1.0,
+            Some(attr) => crate::utils::require_named_edge_weight(py, e, attr, "weight_attr")?,
+            None => e.weight.unwrap_or(1.0),
         };
         adj[a].push((b, w));
         adj[b].push((a, w));

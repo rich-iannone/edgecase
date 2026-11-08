@@ -97,12 +97,15 @@ pub fn percolation_centrality(
         .collect();
 
     // Weighted shortest paths when an attribute is named: (neighbor, weight) per edge, with
-    // parallel edges kept (Dijkstra takes the cheapest). Every edge must hold a numeric value.
+    // parallel edges kept (Dijkstra takes the cheapest). Every edge must hold a numeric value,
+    // except that "weight" is the weight field, with 1.0 where an edge has none.
     let weighted_adj: Option<FxHashMap<u64, Vec<(u64, f64)>>> = match weight {
         Some(attr) => {
             let mut adj: FxHashMap<u64, Vec<(u64, f64)>> = FxHashMap::default();
             for edge in graph.get_edges_internal() {
-                let w = crate::algorithms::flow::named_edge_value(edge, attr, "weight")?;
+                let w = Python::with_gil(|py| {
+                    crate::utils::require_named_edge_weight(py, edge, attr, "weight_attr")
+                })?;
                 if w < 0.0 {
                     return Err(pyo3::exceptions::PyValueError::new_err(format!(
                         "Edge {} ({} -> {}) has negative weight {}",

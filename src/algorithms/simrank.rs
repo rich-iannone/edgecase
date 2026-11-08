@@ -576,7 +576,7 @@ fn panther_sample(
         return err(format!("delta must be between 0 and 1, got {delta}"));
     }
     if matches!(eps, Some(e) if e.is_nan() || e <= 0.0) {
-        return err("eps must be positive".to_string());
+        return err("epsilon must be positive".to_string());
     }
     let (ids, idx, out) = walk_table(graph, weighted)?;
     let Some(&s) = idx.get(&source) else {
@@ -612,7 +612,7 @@ fn panther_sample(
     let size = (c / (eps * eps)) * (pairs.log2() + 1.0 + (1.0 / delta).ln());
     let sample_size = size.ceil().max(0.0) as usize;
     if sample_size == 0 {
-        return err("The sample size works out to 0 paths; lower eps or raise c".to_string());
+        return err("The sample size works out to 0 paths; lower epsilon or raise c".to_string());
     }
 
     let mut rng = rng_from(seed);
