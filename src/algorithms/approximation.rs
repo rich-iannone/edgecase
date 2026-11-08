@@ -48,7 +48,7 @@ fn out_adjacency(
         } else {
             1.0
         };
-        if !(w >= 0.0) || !w.is_finite() {
+        if !w.is_finite() || w < 0.0 {
             return value_err("edge weights must be finite and non-negative");
         }
         let (a, b) = (idx[&e.source], idx[&e.target]);
@@ -755,7 +755,7 @@ fn asadpour_tour(d: &[Vec<f64>], rng: &mut ChaCha8Rng) -> PyResult<Vec<usize>> {
     let flow = balancing_flow(d, &excess);
     for (u, row) in flow.iter().enumerate() {
         for (v, &f) in row.iter().enumerate() {
-            arcs.extend(std::iter::repeat((u, v)).take(f as usize));
+            arcs.extend(std::iter::repeat_n((u, v), f as usize));
         }
     }
     // Eulerian circuit (Hierholzer) from node 0 and shortcutting
@@ -1375,7 +1375,7 @@ pub fn max_cut(
                 order.shuffle(&mut rng);
                 let mut pick = None;
                 for &v in &order {
-                    if pick.map_or(true, |b: usize| gain[v] > gain[b]) {
+                    if pick.is_none_or(|b: usize| gain[v] > gain[b]) {
                         pick = Some(v);
                     }
                 }

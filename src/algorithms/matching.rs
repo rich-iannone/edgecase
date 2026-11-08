@@ -174,7 +174,7 @@ mod tests {
         let matching = maximal_matching(&graph).unwrap();
 
         // Should get 2 edges (maximal but not maximum)
-        assert!(matching.len() >= 1);
+        assert!(!matching.is_empty());
         assert!(is_matching(&graph, matching).unwrap());
     }
 

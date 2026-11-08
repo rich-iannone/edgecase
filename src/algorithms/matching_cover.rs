@@ -108,7 +108,7 @@ impl<'a> Blossom<'a> {
             neighbend[j].push(2 * k);
         }
         let mut dualvar = vec![maxweight; n];
-        dualvar.extend(std::iter::repeat(0.0).take(n));
+        dualvar.extend(std::iter::repeat_n(0.0, n));
         Blossom {
             n,
             edges,
@@ -120,7 +120,7 @@ impl<'a> Blossom<'a> {
             inblossom: (0..n).collect(),
             blossomparent: vec![-1; 2 * n],
             blossomchilds: vec![Vec::new(); 2 * n],
-            blossombase: (0..n as i64).chain(std::iter::repeat(-1).take(n)).collect(),
+            blossombase: (0..n as i64).chain(std::iter::repeat_n(-1, n)).collect(),
             blossomendps: vec![Vec::new(); 2 * n],
             bestedge: vec![-1; 2 * n],
             blossombestedges: vec![None; 2 * n],

@@ -492,7 +492,7 @@ mod tests {
 
         // Betweenness should be between 0 and 1
         for &bc in result.values() {
-            assert!(bc >= 0.0 && bc <= 1.0, "Betweenness should be in [0, 1]");
+            assert!((0.0..=1.0).contains(&bc), "Betweenness should be in [0, 1]");
         }
     }
 

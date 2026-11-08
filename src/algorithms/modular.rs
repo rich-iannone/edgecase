@@ -19,7 +19,7 @@ struct Adjacency {
 impl Adjacency {
     fn new(graph: &Graph, ids: &[u64]) -> Self {
         let n = ids.len();
-        let words = (n + 63) / 64;
+        let words = n.div_ceil(64);
         let idx: rustc_hash::FxHashMap<u64, usize> =
             ids.iter().enumerate().map(|(i, &v)| (v, i)).collect();
         let mut adj = Adjacency {

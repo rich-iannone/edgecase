@@ -283,7 +283,7 @@ pub fn dfs_labeled_search(
                     } else {
                         seen[w] = true;
                         out.push((id(v), id(w), "forward"));
-                        if depth_limit.map_or(true, |lim| stack.len() < lim) {
+                        if depth_limit.is_none_or(|lim| stack.len() < lim) {
                             stack.push((w, 0));
                         } else {
                             out.push((id(v), id(w), "reverse-depth_limit"));

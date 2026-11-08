@@ -258,7 +258,7 @@ impl<'a> Matcher<'a> {
         match self.mode {
             2 => match lp {
                 None => true,
-                Some(lp) => lt.map_or(false, |lt| contains(lt, lp)),
+                Some(lp) => lt.is_some_and(|lt| contains(lt, lp)),
             },
             _ => lp == lt,
         }

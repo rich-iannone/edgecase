@@ -111,7 +111,7 @@ fn shortest_preds(
     let arcs = net.arcs(reverse);
     let mut dist = vec![f64::INFINITY; n];
     let mut pred: Vec<Vec<usize>> = vec![Vec::new(); n];
-    let within = |d: f64| cutoff.map_or(true, |c| d <= c);
+    let within = |d: f64| cutoff.is_none_or(|c| d <= c);
     for &s in sources {
         dist[s] = 0.0;
     }

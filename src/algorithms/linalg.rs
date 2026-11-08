@@ -230,7 +230,7 @@ pub fn directed_laplacian_matrix(
     let mut p = na::DMatrix::<f64>::zeros(n, n);
     match walk.as_str() {
         "random" | "lazy" => {
-            if rowsum.iter().any(|&s| s == 0.0) {
+            if rowsum.contains(&0.0) {
                 return Err(err(
                     "The random and lazy walks need every node to have an out-edge",
                 ));

@@ -268,7 +268,7 @@ pub fn random_regular_edges(n: usize, d: usize, seed: Option<Seed>) -> PyResult<
 
 fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(usize, usize)>> {
     let mut edges: FxHashSet<(usize, usize)> = FxHashSet::default();
-    let mut stubs: Vec<usize> = (0..n).flat_map(|v| std::iter::repeat(v).take(d)).collect();
+    let mut stubs: Vec<usize> = (0..n).flat_map(|v| std::iter::repeat_n(v, d)).collect();
     while !stubs.is_empty() {
         stubs.shuffle(rng);
         let mut leftover: BTreeMap<usize, usize> = BTreeMap::new();
@@ -290,7 +290,7 @@ fn try_regular(rng: &mut ChaCha8Rng, n: usize, d: usize) -> Option<FxHashSet<(us
         }
         stubs = leftover
             .iter()
-            .flat_map(|(&v, &c)| std::iter::repeat(v).take(c))
+            .flat_map(|(&v, &c)| std::iter::repeat_n(v, c))
             .collect();
     }
     Some(edges)
@@ -356,7 +356,7 @@ pub fn powerlaw_cluster_edges(
             repeated.push(target);
             count += 1;
         }
-        repeated.extend(std::iter::repeat(source).take(m));
+        repeated.extend(std::iter::repeat_n(source, m));
     }
     Ok(edges)
 }
@@ -600,7 +600,7 @@ pub fn extended_barabasi_albert_edges(
             }
             size += m;
             preference.extend(&targets);
-            preference.extend(std::iter::repeat(new_node).take(m + 1));
+            preference.extend(std::iter::repeat_n(new_node, m + 1));
             new_node += 1;
         }
     }
@@ -643,13 +643,13 @@ pub fn dual_barabasi_albert_edges(
     };
     let mut rng = make_rng(seed);
     let mut edges: EdgeList = (1..=m0).map(|leaf| (0, leaf)).collect();
-    let mut repeated: Vec<usize> = std::iter::repeat(0).take(m0).chain(1..=m0).collect();
+    let mut repeated: Vec<usize> = std::iter::repeat_n(0, m0).chain(1..=m0).collect();
     for source in (m0 + 1)..n {
         let m = if rng.gen::<f64>() < p { m1 } else { m2 };
         let targets = random_subset(&mut rng, &repeated, m);
         edges.extend(targets.iter().map(|&t| (source, t)));
         repeated.extend(&targets);
-        repeated.extend(std::iter::repeat(source).take(m));
+        repeated.extend(std::iter::repeat_n(source, m));
     }
     Ok(edges)
 }
@@ -879,7 +879,7 @@ pub fn directed_configuration_edges(
     let stubs = |seq: &[usize]| -> Vec<usize> {
         seq.iter()
             .enumerate()
-            .flat_map(|(v, &d)| std::iter::repeat(v).take(d))
+            .flat_map(|(v, &d)| std::iter::repeat_n(v, d))
             .collect()
     };
     let mut rng = make_rng(seed);
@@ -1085,7 +1085,7 @@ impl<'a> BksAttempt<'a> {
         let mut stubs: Vec<usize> = self
             .alive
             .iter()
-            .flat_map(|&v| std::iter::repeat(v).take(self.remaining[v]))
+            .flat_map(|&v| std::iter::repeat_n(v, self.remaining[v]))
             .collect();
         let mut stall = 0;
         while stubs.len() >= 2 * dmax * dmax {

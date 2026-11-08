@@ -786,7 +786,7 @@ impl Graph {
                 }
             }
         }
-        for (id, _) in &renamed {
+        for id in renamed.keys() {
             if let Some(old) = self.nodes.get(id).and_then(|n| n.label.clone()) {
                 self.node_labels.remove(&old);
             }
@@ -2539,8 +2539,7 @@ impl Graph {
     /// otherwise. False for an empty graph.
     fn all_pairs_reachable(&self) -> bool {
         if self.directed {
-            crate::algorithms::connectivity::count_strongly_connected_components(self)
-                .map_or(false, |c| c == 1)
+            crate::algorithms::connectivity::count_strongly_connected_components(self) == Ok(1)
         } else {
             self.count_weakly_connected_components() == 1
         }
@@ -2748,8 +2747,10 @@ impl Graph {
                         if len <= if self.directed { 2 } else { 3 } {
                             return min_cycle;
                         }
-                    } else if !distances.contains_key(&neighbor) {
-                        distances.insert(neighbor, current_dist + 1);
+                    } else if let std::collections::hash_map::Entry::Vacant(e) =
+                        distances.entry(neighbor)
+                    {
+                        e.insert(current_dist + 1);
                         parent.insert(neighbor, current);
                         queue.push_back(neighbor);
                     }
@@ -8726,7 +8727,7 @@ impl Graph {
             paths.push(current_path.clone());
         } else {
             // Check cutoff (cutoff is number of edges, path length is nodes)
-            let can_continue = cutoff.map_or(true, |max_edges| current_path.len() <= max_edges);
+            let can_continue = cutoff.is_none_or(|max_edges| current_path.len() <= max_edges);
 
             if can_continue {
                 // Explore neighbors

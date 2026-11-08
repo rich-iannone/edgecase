@@ -95,28 +95,26 @@ fn dict_product(
     let none = py.None();
     let da = a.as_ref().map(|d| d.bind(py).clone());
     let db = b.as_ref().map(|d| d.bind(py).clone());
-    for side in [&da, &db] {
-        if let Some(d) = side {
-            for key in d.keys() {
-                if out.contains(&key)? {
-                    continue;
-                }
-                let va = match &da {
-                    Some(x) => x
-                        .get_item(&key)?
-                        .map(|v| v.unbind())
-                        .unwrap_or_else(|| none.clone_ref(py)),
-                    None => none.clone_ref(py),
-                };
-                let vb = match &db {
-                    Some(x) => x
-                        .get_item(&key)?
-                        .map(|v| v.unbind())
-                        .unwrap_or_else(|| none.clone_ref(py)),
-                    None => none.clone_ref(py),
-                };
-                out.set_item(key, PyTuple::new(py, [va, vb])?)?;
+    for d in [&da, &db].into_iter().flatten() {
+        for key in d.keys() {
+            if out.contains(&key)? {
+                continue;
             }
+            let va = match &da {
+                Some(x) => x
+                    .get_item(&key)?
+                    .map(|v| v.unbind())
+                    .unwrap_or_else(|| none.clone_ref(py)),
+                None => none.clone_ref(py),
+            };
+            let vb = match &db {
+                Some(x) => x
+                    .get_item(&key)?
+                    .map(|v| v.unbind())
+                    .unwrap_or_else(|| none.clone_ref(py)),
+                None => none.clone_ref(py),
+            };
+            out.set_item(key, PyTuple::new(py, [va, vb])?)?;
         }
     }
     Ok(if out.is_empty() {

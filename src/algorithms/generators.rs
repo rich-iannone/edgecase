@@ -489,7 +489,7 @@ pub fn lfr_benchmark(
             smin, smax
         )));
     }
-    if (n + smax - 1) / smax > n / smin {
+    if n.div_ceil(smax) > n / smin {
         return Err(PyValueError::new_err(format!(
             "{} nodes can't be split into communities of {} to {} nodes",
             n, smin, smax
@@ -568,14 +568,14 @@ pub fn lfr_benchmark(
     for group in &members {
         let stubs: Vec<usize> = group
             .iter()
-            .flat_map(|&v| std::iter::repeat(v).take(kin[v]))
+            .flat_map(|&v| std::iter::repeat_n(v, kin[v]))
             .collect();
         let mut internal = pair_stubs(&mut rng, stubs);
         make_simple(&mut rng, &mut internal, None);
         edges.extend(internal);
     }
     let stubs: Vec<usize> = (0..n)
-        .flat_map(|v| std::iter::repeat(v).take(degree[v] - kin[v]))
+        .flat_map(|v| std::iter::repeat_n(v, degree[v] - kin[v]))
         .collect();
     let mut external = pair_stubs(&mut rng, stubs);
     make_simple(&mut rng, &mut external, Some(&comm));

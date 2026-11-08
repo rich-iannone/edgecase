@@ -234,7 +234,7 @@ fn weighted_sum_of_distances(
                     continue;
                 }
                 let nd = d + weight;
-                if dist.get(&w).map_or(true, |&old| nd < old) {
+                if dist.get(&w).is_none_or(|&old| nd < old) {
                     dist.insert(w, nd);
                     heap.push(Reverse((Cost(nd), w)));
                 }

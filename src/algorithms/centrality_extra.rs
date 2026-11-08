@@ -1302,7 +1302,7 @@ pub fn edge_load_centrality(
         level[src] = 0;
         let mut frontier = vec![src];
         let mut depth = 0;
-        while !frontier.is_empty() && cutoff.map_or(true, |c| depth < c) {
+        while !frontier.is_empty() && cutoff.is_none_or(|c| depth < c) {
             depth += 1;
             let mut next = Vec::new();
             for &v in &frontier {

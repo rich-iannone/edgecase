@@ -282,7 +282,9 @@ pub fn degree_pairs(
     let directed = graph.is_directed();
     for v in [x, y] {
         if directed && v != "in" && v != "out" {
-            return Err(err("source_mode and target_mode must be 'in' or 'out' on directed graphs"));
+            return Err(err(
+                "source_mode and target_mode must be 'in' or 'out' on directed graphs",
+            ));
         }
     }
     let (_, idx) = sorted_ids(graph);

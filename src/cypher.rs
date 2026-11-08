@@ -1382,7 +1382,7 @@ impl<'a, 'py> Search<'a, 'py> {
         dist.insert(b, 0);
         let (mut frontier, mut depth) = (vec![b], 0);
         let mut length = low;
-        while high.map_or(true, |high| length <= high) {
+        while high.is_none_or(|high| length <= high) {
             while depth < length && !frontier.is_empty() {
                 let mut layer = Vec::new();
                 for &node in &frontier {

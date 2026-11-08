@@ -223,11 +223,16 @@ pub fn dominators(graph: &Graph, start: u64) -> PyResult<(Vec<(u64, u64)>, Vec<(
             .copied()
             .filter(|&p| idom[p] != usize::MAX)
             .collect();
-        if pred[u].len() >= 2 {
+        // The start has no immediate dominator of its own, so an edge back into it is a join:
+        // its walk climbs up to and including the start (the start is in its own frontier)
+        if u == s || pred[u].len() >= 2 {
             for mut v in preds {
-                while v != idom[u] {
+                while u == s || v != idom[u] {
                     if !df[v].contains(&u) {
                         df[v].push(u);
+                    }
+                    if v == s {
+                        break;
                     }
                     v = idom[v];
                 }
@@ -768,7 +773,7 @@ impl Simple {
                     }
                 }
             }
-            if dist.iter().any(|&d| d == usize::MAX) {
+            if dist.contains(&usize::MAX) {
                 return value_err("the graph must be connected");
             }
             total += dist.iter().sum::<usize>();

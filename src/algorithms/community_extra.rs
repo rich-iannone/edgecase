@@ -389,7 +389,7 @@ pub fn greedy_node_swap_bipartition(
                 let (s, o) = (cur[u] as usize, 1 - cur[u] as usize);
                 let delta = (link[u][o] - link[u][s]) / m
                     + deg[u] * (dsum[s] - dsum[o] - deg[u]) / (2.0 * m * m);
-                if pick.map_or(true, |(_, b)| delta > b) {
+                if pick.is_none_or(|(_, b)| delta > b) {
                     pick = Some((u, delta));
                 }
             }
@@ -731,9 +731,9 @@ pub fn lukes_partitioning(
                     && (before[a] + child[b] + w - value).abs() < 1e-9
                 {
                     stack.push((*c, b, cluster));
-                    want = a;
                     value = before[a];
                     done = true;
+                    want = a;
                     break;
                 }
             }

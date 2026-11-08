@@ -409,7 +409,7 @@ fn euler_start(graph: &Graph, ea: &EulerAdj, source: Option<u64>) -> PyResult<Op
                 starts.push(v);
             }
         }
-        if starts.len() != 0 && starts.len() != 2 {
+        if !starts.is_empty() && starts.len() != 2 {
             return Ok(None);
         }
     }

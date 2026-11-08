@@ -92,10 +92,10 @@ pub fn bipartite_configuration_edges(
     let (a, b) = bipartite_sequences(&aseq, &bseq)?;
     let lena = a.len();
     let mut astubs: Vec<usize> = (0..lena)
-        .flat_map(|v| std::iter::repeat(v).take(a[v]))
+        .flat_map(|v| std::iter::repeat_n(v, a[v]))
         .collect();
     let mut bstubs: Vec<usize> = (0..b.len())
-        .flat_map(|v| std::iter::repeat(lena + v).take(b[v]))
+        .flat_map(|v| std::iter::repeat_n(lena + v, b[v]))
         .collect();
     let mut rng = make_rng(seed);
     astubs.shuffle(&mut rng);
@@ -402,8 +402,8 @@ pub fn random_clustered_edges(joint: Vec<(i64, i64)>, seed: Option<Seed>) -> PyR
                 ))
             }
         };
-        ilist.extend(std::iter::repeat(v).take(e));
-        tlist.extend(std::iter::repeat(v).take(t));
+        ilist.extend(std::iter::repeat_n(v, e));
+        tlist.extend(std::iter::repeat_n(v, t));
     }
     if ilist.len() % 2 != 0 {
         return value_error(format!(

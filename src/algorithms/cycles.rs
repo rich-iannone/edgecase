@@ -232,12 +232,12 @@ fn simple_cycles_from_node_directed(
                 // Found a cycle
                 found_cycle = true;
                 // Check length bound
-                if length_bound.map_or(true, |bound| path.len() <= bound) {
+                if length_bound.is_none_or(|bound| path.len() <= bound) {
                     cycles.push(path.clone());
                 }
             } else if !blocked.contains(&neighbor) && !path_set.contains(&neighbor) {
                 // Check if adding this node would exceed length bound
-                if length_bound.map_or(true, |bound| path.len() < bound) {
+                if length_bound.is_none_or(|bound| path.len() < bound) {
                     path.push(neighbor);
                     path_set.insert(neighbor);
 
@@ -355,7 +355,7 @@ fn find_cycles_undirected_dfs(
                 let canonical = canonicalize_cycle(path, node_to_idx);
                 if !seen_cycles.contains(&canonical) {
                     // Check length bound
-                    if length_bound.map_or(true, |bound| path.len() <= bound) {
+                    if length_bound.is_none_or(|bound| path.len() <= bound) {
                         seen_cycles.insert(canonical);
                         cycles.push(path.clone());
                     }
@@ -369,7 +369,7 @@ fn find_cycles_undirected_dfs(
                 // Only continue if neighbor index >= start index to avoid finding same cycle twice
                 if neighbor_idx >= start_idx {
                     // Check if adding this node would exceed length bound
-                    if length_bound.map_or(true, |bound| path.len() < bound) {
+                    if length_bound.is_none_or(|bound| path.len() < bound) {
                         path.push(neighbor);
                         path_set.insert(neighbor);
 
@@ -933,7 +933,7 @@ pub fn minimum_cycle_basis(graph: &Graph, weight: Option<String>) -> PyResult<Ve
 
     // Greedy selection, with Gaussian elimination over GF(2) on chord vectors.
     // `pivots[p]` holds the kept vector whose lowest set bit is p.
-    let words = (num_chords + 63) / 64;
+    let words = num_chords.div_ceil(64);
     let mut pivots: Vec<Option<Vec<u64>>> = vec![None; num_chords];
     let mut basis: Vec<Vec<u64>> = Vec::with_capacity(num_chords);
 
