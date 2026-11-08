@@ -33760,10 +33760,6 @@ class Graph:
         many triangles is deep inside a dense cluster. The counts add up to the degree, and
         `Σ k * count / 2` is the number of triangles through the node.
 
-        Parameters
-        ----------
-        None.
-
         Returns
         -------
         dict[int, dict[int, int]]
@@ -57715,7 +57711,9 @@ class Graph:
         Following Cooper, Harvey and Kennedy (2001), as in NetworkX: for every join node `v`
         (two or more predecessors), each reachable predecessor walks up the dominator tree until
         reaching `v`'s immediate dominator, adding `v` to the frontier of every node passed. The
-        cost is proportional to the total size of the frontiers after computing the dominators.
+        start node has no immediate dominator, so an edge back into it makes it a join whose walk
+        climbs up to and including the start: the start is then in its own frontier. The cost is
+        proportional to the total size of the frontiers after computing the dominators.
 
         Examples
         --------
