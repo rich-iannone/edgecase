@@ -28,6 +28,12 @@ def create_both_graphs(edges, directed=False):
     return ec_graph, nx_graph
 
 
+def labeled_paths(ec_graph, paths):
+    """Map node-ID paths to label paths."""
+    label = ec_graph.get_label_from_id
+    return [[label(n) for n in path] for path in paths]
+
+
 def compare_paths(ec_paths, nx_paths, graph_name):
     """Compare path sets from both implementations."""
     # Convert to sets of tuples for comparison
@@ -70,7 +76,7 @@ def test_diamond_graph():
     print("Structure: A -> B -> D")
     print("           A -> C -> D")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "D")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "D"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "D"))
 
     return compare_paths(ec_paths, nx_paths, "Diamond graph")
@@ -89,7 +95,7 @@ def test_complete_graph():
 
     print("Structure: All nodes connected (K4)")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "D")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "D"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "D"))
 
     return compare_paths(ec_paths, nx_paths, "Complete graph K4")
@@ -106,7 +112,7 @@ def test_linear_chain():
 
     print("Structure: A -> B -> C -> D -> E")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "E")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "E"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "E"))
 
     return compare_paths(ec_paths, nx_paths, "Linear chain")
@@ -124,7 +130,7 @@ def test_directed_graph():
     print("Structure: A -> B -> D")
     print("           A -> C -> D")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "D")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "D"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "D"))
 
     return compare_paths(ec_paths, nx_paths, "Directed graph")
@@ -150,7 +156,7 @@ def test_with_cutoff():
     print("           with shortcuts A->C and C->E")
     print("Testing cutoff=2 (max 2 edges)")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "E", cutoff=2)
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "E", cutoff=2))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "E", cutoff=2))
 
     return compare_paths(ec_paths, nx_paths, "Graph with cutoff=2")
@@ -177,7 +183,7 @@ def test_grid_graph():
     print("           |   |   |")
     print("           D - E - F")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "F")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "F"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "F"))
 
     return compare_paths(ec_paths, nx_paths, "Grid graph")
@@ -206,7 +212,7 @@ def test_tree_structure():
     print("          / \\   / \\")
     print("         D   E F   G")
 
-    ec_paths = ec_graph.get_all_simple_paths("D", "G")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("D", "G"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "D", "G"))
 
     return compare_paths(ec_paths, nx_paths, "Tree structure")
@@ -224,7 +230,7 @@ def test_self_loop():
     print("Structure: A -> B -> C")
     print("Finding paths from A to A")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "A")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "A"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "A"))
 
     return compare_paths(ec_paths, nx_paths, "Self-loop")
@@ -242,7 +248,7 @@ def test_disconnected():
     print("Structure: A - B    C - D")
     print("           (disconnected)")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "D")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "D"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "D"))
 
     return compare_paths(ec_paths, nx_paths, "Disconnected graph")
@@ -259,7 +265,7 @@ def test_triangle_with_chord():
 
     print("Structure: Triangle ABC with chord through D")
 
-    ec_paths = ec_graph.get_all_simple_paths("A", "C")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("A", "C"))
     nx_paths = list(nx.all_simple_paths(nx_graph, "A", "C"))
 
     return compare_paths(ec_paths, nx_paths, "Triangle with chord")
@@ -276,7 +282,7 @@ def test_petersen_graph():
 
     # Convert to EdgeCase (nodes are 0-9)
     ec_graph = ec.Graph()
-    for node in nx_graph.get_node_ids(limit=None):
+    for node in nx_graph.nodes():
         ec_graph.add_node(label=str(node))
 
     for src, tgt in nx_graph.edges():
@@ -285,7 +291,7 @@ def test_petersen_graph():
     print("Structure: Petersen graph (10 nodes, 15 edges)")
     print("Finding paths from node 0 to node 5")
 
-    ec_paths = ec_graph.get_all_simple_paths("0", "5")
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("0", "5"))
     nx_paths = list(nx.all_simple_paths(nx_graph, 0, 5))
 
     # Convert nx paths to strings for comparison
@@ -305,7 +311,7 @@ def test_karate_club():
 
     # Convert to EdgeCase
     ec_graph = ec.Graph()
-    for node in nx_graph.get_node_ids(limit=None):
+    for node in nx_graph.nodes():
         ec_graph.add_node(label=str(node))
 
     for src, tgt in nx_graph.edges():
@@ -315,7 +321,7 @@ def test_karate_club():
     print("Finding paths from node 0 to node 33 with cutoff=4")
 
     # Use cutoff to make it computationally tractable
-    ec_paths = ec_graph.get_all_simple_paths("0", "33", cutoff=4)
+    ec_paths = labeled_paths(ec_graph, ec_graph.all_simple_paths("0", "33", cutoff=4))
     nx_paths = list(nx.all_simple_paths(nx_graph, 0, 33, cutoff=4))
 
     # Convert nx paths to strings for comparison
@@ -327,7 +333,7 @@ def test_karate_club():
 def main():
     """Run all validation tests."""
     print("=" * 70)
-    print("EdgeCase vs NetworkX: get_all_simple_paths() Validation")
+    print("EdgeCase vs NetworkX: all_simple_paths() Validation")
     print("=" * 70)
     print("\nComparing EdgeCase implementation against NetworkX reference...")
 
@@ -358,7 +364,7 @@ def main():
 
     if passed == total:
         print("\n✓ All tests passed!")
-        print("EdgeCase get_all_simple_paths() matches NetworkX behavior.")
+        print("EdgeCase all_simple_paths() matches NetworkX behavior.")
     else:
         print(f"\n✗ {total - passed} test(s) failed")
         print("Review differences above.")
