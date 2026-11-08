@@ -336,7 +336,7 @@ reference:
     - title: Neighbors and Connectivity
       desc: Methods for finding neighbors and connectivity
       contents:
-        - Graph.neighbors
+        - Graph.get_neighbors
         - Graph.get_predecessors
         - Graph.get_successors
         - Graph.get_non_neighbors
@@ -412,11 +412,11 @@ reference:
         - Graph.get_degree
         - Graph.get_in_degree
         - Graph.get_out_degree
-        - Graph.get_degree_distribution
-        - Graph.get_average_degree
-        - Graph.get_agg_degree_in
-        - Graph.get_agg_degree_out
-        - Graph.get_agg_degree_total
+        - Graph.degree_distribution
+        - Graph.average_degree
+        - Graph.aggregate_in_degree
+        - Graph.aggregate_out_degree
+        - Graph.aggregate_degree
 
     - title: Centrality
       desc: Methods for computing centrality measures
@@ -488,12 +488,10 @@ reference:
     - title: Distance and Paths
       desc: Methods for shortest paths and distance calculations
       contents:
-        - Graph.get_mean_distance
-        - Graph.get_min_eccentricity
-        - Graph.get_max_eccentricity
-        - Graph.get_diameter
-        - Graph.get_radius
-        - Graph.get_girth
+        - Graph.mean_distance
+        - Graph.diameter
+        - Graph.radius
+        - Graph.girth
         - Graph.eccentricity
         - Graph.radiality
         - Graph.bellman_ford_shortest_path
@@ -549,11 +547,11 @@ reference:
     - title: Path Analysis
       desc: Methods for analyzing paths and walks
       contents:
-        - Graph.get_all_simple_paths
+        - Graph.all_simple_paths
         - Graph.is_simple_path
         - Graph.random_walk
         - Graph.random_edge_walk
-        - Graph.get_topological_sort_order
+        - Graph.topological_sort
         - Graph.transitive_closure
         - Graph.transitive_reduction
         - Graph.count_walks
@@ -603,7 +601,6 @@ reference:
       desc: Methods for finding cycles in graphs
       contents:
         - Graph.has_cycles
-        - Graph.get_cycles
         - Graph.simple_cycles
         - Graph.cycle_basis
         - Graph.directed_cycle_basis
@@ -621,15 +618,15 @@ reference:
         - Graph.lattice_reference
         - Graph.generalized_degree
         - Graph.clustering_coefficient
-        - Graph.get_edge_clustering_coefficient
-        - Graph.get_avg_clustering_coefficient
+        - Graph.edge_clustering_coefficient
+        - Graph.average_clustering_coefficient
 
     - title: Triangle and Transitivity
       desc: Methods for triangle counting and transitivity
       contents:
         - Graph.count_triangles
         - Graph.list_triangles
-        - Graph.get_transitivity
+        - Graph.transitivity
 
     - title: Network Motif Census
       desc: Methods for counting and testing significance of network motifs
@@ -646,13 +643,13 @@ reference:
       desc: Methods for finding cliques
       contents:
         - Graph.find_cliques
-        - Graph.max_clique
+        - Graph.maximum_clique
         - Graph.clique_number
         - Graph.enumerate_all_cliques
-        - Graph.max_weight_clique
+        - Graph.maximum_weight_clique
         - Graph.node_clique_number
         - Graph.number_of_cliques
-        - Graph.make_max_clique_graph
+        - Graph.clique_graph
         - Graph.is_chordal
         - Graph.is_perfect_graph
         - Graph.is_split_graph
@@ -818,11 +815,11 @@ reference:
     - title: Similarity
       desc: Methods for computing node similarity
       contents:
-        - Graph.get_pairwise_similarity
-        - Graph.get_dice_similarity
-        - Graph.get_jaccard_similarity
-        - Graph.get_cosine_similarity
-        - Graph.get_overlap_similarity
+        - Graph.pairwise_similarity
+        - Graph.dice_similarity
+        - Graph.jaccard_similarity
+        - Graph.cosine_similarity
+        - Graph.overlap_similarity
         - Graph.simrank_similarity
         - Graph.simrank_star_similarity
         - Graph.simrank_star_similarity_pair
@@ -836,22 +833,22 @@ reference:
         - Graph.bridges
         - Graph.has_bridges
         - Graph.local_bridges
-        - Graph.get_node_vitality
+        - Graph.node_vitality
 
     - title: Connectivity and Flow
       desc: Methods for connectivity and network flow
       contents:
-        - Graph.get_all_connected_nodes
-        - Graph.get_articulation_points
+        - Graph.reachable_nodes
+        - Graph.articulation_points
         - Graph.biconnected_components
         - Graph.is_biconnected
-        - Graph.get_periphery
-        - Graph.get_center
-        - Graph.get_barycenter
+        - Graph.periphery
+        - Graph.center
+        - Graph.barycenter
         - Graph.isolates
-        - Graph.get_node_connectivity
-        - Graph.get_node_connectivity_between
-        - Graph.get_edge_connectivity
+        - Graph.node_connectivity
+        - Graph.node_connectivity_between
+        - Graph.edge_connectivity
         - Graph.average_node_connectivity
         - Graph.all_pairs_node_connectivity
         - Graph.is_k_edge_connected
@@ -860,12 +857,12 @@ reference:
         - Graph.k_edge_components
         - Graph.k_edge_subgraphs
         - Graph.chain_decomposition
-        - Graph.get_adhesion
-        - Graph.get_cohesion
-        - Graph.get_density
+        - Graph.adhesion
+        - Graph.cohesion
+        - Graph.density
         - Graph.find_cohesive_blocks
         - Graph.k_components
-        - Graph.get_min_cut_between
+        - Graph.minimum_cut_value
         - Graph.minimum_node_cut
         - Graph.all_node_cuts
         - Graph.minimum_cut
@@ -884,9 +881,9 @@ reference:
         - Graph.edge_disjoint_paths
         - Graph.node_disjoint_paths
         - Graph.minimum_edge_cut
-        - Graph.max_flow
-        - Graph.max_flow_value
-        - Graph.min_cost_flow
+        - Graph.maximum_flow
+        - Graph.maximum_flow_value
+        - Graph.minimum_cost_flow
 
     - title: Connected Components
       desc: Methods for finding connected components
@@ -967,14 +964,14 @@ reference:
         - Graph.is_maximal_matching
         - Graph.is_perfect_matching
         - Graph.maximal_matching
-        - Graph.max_weight_matching
-        - Graph.min_weight_matching
+        - Graph.maximum_weight_matching
+        - Graph.minimum_weight_matching
         - Graph.bipartite_maximum_matching
-        - Graph.bipartite_min_weight_full_matching
+        - Graph.bipartite_minimum_weight_full_matching
         - Graph.bipartite_vertex_cover
-        - Graph.min_weighted_vertex_cover
+        - Graph.minimum_weighted_vertex_cover
         - Graph.is_vertex_cover
-        - Graph.min_edge_cover
+        - Graph.minimum_edge_cover
         - Graph.is_edge_cover
 
     - title: Approximation and Optimization
@@ -984,7 +981,7 @@ reference:
         - Graph.metric_closure
         - Graph.tree_decomposition
         - Graph.densest_subgraph
-        - Graph.max_cut
+        - Graph.maximum_cut
 
     - title: Independent Sets
       desc: Methods for finding independent sets
@@ -999,7 +996,7 @@ reference:
       contents:
         - Graph.is_dominating_set
         - Graph.dominating_set
-        - Graph.min_weighted_dominating_set
+        - Graph.minimum_weighted_dominating_set
 
     - title: Spanning Trees
       desc: Methods for finding spanning trees
@@ -1035,26 +1032,26 @@ reference:
       desc: Methods for measuring reciprocity
       contents:
         - Graph.which_mutual
-        - Graph.get_reciprocity
+        - Graph.reciprocity
 
     - title: Assortativity
       desc: Methods for measuring assortativity
       contents:
-        - Graph.get_assortativity_degree
+        - Graph.assortativity_degree
         - Graph.average_degree_connectivity
         - Graph.degree_mixing_dict
         - Graph.degree_mixing_matrix
         - Graph.attribute_mixing_dict
         - Graph.attribute_mixing_matrix
         - Graph.degree_pearson_correlation_coefficient
-        - Graph.get_assortativity_nominal
-        - Graph.get_assortativity
+        - Graph.assortativity_nominal
+        - Graph.assortativity
 
     - title: Spectral Analysis
       desc: Methods for spectral graph analysis
       contents:
-        - Graph.get_spectrum
-        - Graph.get_laplacian_spectrum
+        - Graph.adjacency_spectrum
+        - Graph.laplacian_spectrum
         - Graph.adjacency_matrix
         - Graph.incidence_matrix
         - Graph.laplacian_matrix
@@ -1082,12 +1079,12 @@ reference:
     - title: Distance Metrics
       desc: Methods for computing distance-based metrics
       contents:
-        - Graph.get_wiener_index
-        - Graph.get_hyper_wiener_index
-        - Graph.get_estrada_index
-        - Graph.get_resistance_distance
+        - Graph.wiener_index
+        - Graph.hyper_wiener_index
+        - Graph.estrada_index
+        - Graph.resistance_distance
         - Graph.resistance_distance_matrix
-        - Graph.get_kirchhoff_index
+        - Graph.kirchhoff_index
 
     - title: Datasets
       desc: Functions for loading graph datasets
