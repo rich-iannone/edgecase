@@ -2,7 +2,7 @@
 name = "edgecase-core"
 version = "0.1.0"
 edition = "2021"
-rust-version = "1.70"
+rust-version = "1.82"
 authors = ["Rich Iannone <riannone@me.com>"]
 license = "MIT"
 description = "High-performance Rust core for edgecase graph library"
@@ -44,6 +44,12 @@ extension-module = ["pyo3/extension-module"]
 temporal = []  # Temporal graph analysis
 weighted = []  # Weighted graph support
 parallel = []  # Parallel computation
+
+[lints.clippy]
+# Index loops and nested result types are deliberate in the numeric and
+# algorithm code; these two lints would only add noise there.
+needless_range_loop = "allow"
+type_complexity = "allow"
 
 [profile.release]
 opt-level = 3
