@@ -124,6 +124,20 @@ class TestCommunicability:
         with pytest.raises(ValueError, match="self-loops"):
             graph.communicability()
 
+    def test_disconnected_pairs_are_exactly_zero(self):
+        """No walk joins two components, so their communicability is exactly 0 (not noise)."""
+        graph = Graph(directed=False)
+        graph.add_nodes(["a", "b", "c", "x", "y"])
+        graph.add_edges([("a", "b"), ("b", "c"), ("x", "y")])
+
+        result = graph.communicability()
+        ids = {label: graph.get_id_from_label(label) for label in "abcxy"}
+
+        for u in "abc":
+            for v in "xy":
+                assert result[ids[u]][ids[v]] == 0.0
+                assert result[ids[v]][ids[u]] == 0.0
+
 
 class TestCommunicabilityBetweennessCentrality:
     """Tests for communicability_betweenness_centrality() method."""
@@ -216,6 +230,34 @@ class TestCommunicabilityBetweennessCentrality:
 
         with pytest.raises(ValueError, match="undirected"):
             graph.communicability_betweenness_centrality(return_dict=True)
+
+    def test_disconnected_graph_symmetric_and_per_component(self):
+        """A second component must not add noise: pairs across components count 0."""
+        edges = [("a", "b"), ("b", "c"), ("c", "a"), ("c", "d"), ("d", "e"), ("x", "y"), ("y", "z")]
+        graph = Graph(directed=False)
+        graph.add_nodes(["a", "b", "c", "d", "e", "x", "y", "z"])
+        graph.add_edges(edges)
+
+        result = graph.communicability_betweenness_centrality(return_dict=True)
+        cbc = {graph.get_label_from_id(n): v for n, v in result.items()}
+
+        # The two ends of the path x-y-z are symmetric, as are a and b
+        assert cbc["x"] == pytest.approx(cbc["z"], abs=1e-12)
+        assert cbc["a"] == pytest.approx(cbc["b"], abs=1e-12)
+
+        # Each component scores as it would alone, rescaled from its own normalization
+        # (m - 1)^2 - (m - 1) to the whole graph's (n - 1)^2 - (n - 1)
+        n = 8
+        for labels in (["a", "b", "c", "d", "e"], ["x", "y", "z"]):
+            alone = Graph(directed=False)
+            alone.add_nodes(labels)
+            alone.add_edges([e for e in edges if e[0] in labels])
+            ref = alone.communicability_betweenness_centrality(return_dict=True)
+            m = len(labels)
+            scale = ((m - 1) ** 2 - (m - 1)) / ((n - 1) ** 2 - (n - 1))
+            for nid, value in ref.items():
+                label = alone.get_label_from_id(nid)
+                assert cbc[label] == pytest.approx(value * scale, abs=1e-12)
 
     def test_return_self_for_chaining(self):
         """Test that return_dict=False returns self for chaining."""
