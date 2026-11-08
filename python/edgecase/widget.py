@@ -872,7 +872,7 @@ export default { render };
 </html>
 """
 
-        with open(path, "w") as f:
+        with open(path, "w", encoding="utf-8") as f:
             f.write(html)
 
         return path

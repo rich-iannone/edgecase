@@ -29,7 +29,7 @@ def _load_vis_network_js() -> str:
             "This file is required for graph visualization."
         )
 
-    return vis_network_path.read_text()
+    return vis_network_path.read_text(encoding="utf-8")
 
 
 def plot_graph(
@@ -128,10 +128,10 @@ def plot_graph(
     # Save and optionally open
     if output_path is None:
         fd, output_path = tempfile.mkstemp(suffix=".html", prefix="edgecase_")
-        with open(fd, "w") as f:
+        with open(fd, "w", encoding="utf-8") as f:
             f.write(html)
     else:
-        with open(output_path, "w") as f:
+        with open(output_path, "w", encoding="utf-8") as f:
             f.write(html)
 
     # Check if we're in a notebook environment

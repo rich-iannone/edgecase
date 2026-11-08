@@ -94,7 +94,7 @@ def from_matrix_market(
     detected_directed = None
     detected_weighted = None
 
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         first_line = f.readline().strip()
 
         # Parse Matrix Market header: %%MatrixMarket matrix coordinate <type> <symmetry>
@@ -131,7 +131,7 @@ def from_matrix_market(
 
     # Read the file and parse edges
     edges = []
-    with open(filepath, "r") as f:
+    with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
 
