@@ -2,6 +2,7 @@ import random
 
 import edgecase as ec
 import networkx as nx
+import numpy as np
 import pytest
 from networkx.algorithms import node_classification as nx_nc
 
@@ -236,9 +237,32 @@ class TestLabelPropagationDirected:
         assert result[c] == 0
 
 
+def nx_class_scores(G, harmonic, alpha=0.99, max_iter=30):
+    """The class scores NetworkX's node classifiers take the argmax of, one row per node in
+    `G` order and one column per class in `classes`."""
+    X = nx.to_numpy_array(G)
+    classes = sorted({c for _, c in G.nodes(data="cls") if c is not None})
+    seeds = [(i, classes.index(c)) for i, (_, c) in enumerate(G.nodes(data="cls")) if c]
+    deg = X.sum(axis=0)
+    deg[deg == 0] = 1
+    B = np.zeros((len(X), len(classes)))
+    for i, k in seeds:
+        B[i, k] = 1 if harmonic else 1 - alpha
+    if harmonic:
+        P = X / deg[:, None]
+        P[[i for i, _ in seeds]] = 0
+    else:
+        P = alpha * X / np.sqrt(np.outer(deg, deg))
+    F = np.zeros_like(B)
+    for _ in range(max_iter):
+        F = P @ F + B
+    return F, classes
+
+
 class TestNodeClassification:
     """harmonic_function and local_and_global_consistency, validated against NetworkX (nodes
-    whose top class scores tie exactly are skipped: NetworkX resolves those by rounding)."""
+    whose top class scores tie exactly may differ: NetworkX resolves those by rounding, which
+    varies with the NetworkX version and the BLAS library)."""
 
     def test_against_networkx(self):
         for seed in range(80):
@@ -254,16 +278,21 @@ class TestNodeClassification:
             )
             for u, v, d in G.edges(data=True):
                 g.add_edge(str(u), str(v), weight=d["weight"])
-            for ours, ref in [
-                (g.harmonic_function("cls"), nx_nc.harmonic_function(G, label_name="cls")),
+            for harmonic, ours, ref in [
+                (True, g.harmonic_function("cls"), nx_nc.harmonic_function(G, label_name="cls")),
                 (
+                    False,
                     g.local_and_global_consistency("cls"),
                     nx_nc.local_and_global_consistency(G, label_name="cls"),
                 ),
             ]:
                 mine = [ours[g.get_id_from_label(str(n))] for n in G]
-                differ = [i for i, (a, b) in enumerate(zip(mine, ref)) if a != b]
-                assert len(differ) <= 3  # only exact ties may differ
+                scores, classes = nx_class_scores(G, harmonic)
+                for i, (a, b) in enumerate(zip(mine, ref)):
+                    if a != b:
+                        top = scores[i].max()
+                        assert scores[i, classes.index(a)] == pytest.approx(top, rel=1e-9)
+                        assert scores[i, classes.index(b)] == pytest.approx(top, rel=1e-9)
 
     def test_example_and_errors(self):
         g = ec.Graph().add_nodes(list("ABCDEFGH"))
