@@ -3665,13 +3665,13 @@ impl Graph {
         }
         if !self.nodes.contains_key(&sink) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Sink node {} does not exist",
+                "Target node {} does not exist",
                 sink
             )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Source and sink must be different nodes",
+                "Source and target must be different nodes",
             ));
         }
 
@@ -3753,13 +3753,13 @@ impl Graph {
         }
         if !self.nodes.contains_key(&sink) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Sink node {} does not exist",
+                "Target node {} does not exist",
                 sink
             )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Source and sink must be different nodes",
+                "Source and target must be different nodes",
             ));
         }
 
@@ -3864,13 +3864,13 @@ impl Graph {
         }
         if !self.nodes.contains_key(&sink) {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(format!(
-                "Sink node {} does not exist",
+                "Target node {} does not exist",
                 sink
             )));
         }
         if source == sink {
             return Err(PyErr::new::<pyo3::exceptions::PyValueError, _>(
-                "Source and sink must be different nodes",
+                "Source and target must be different nodes",
             ));
         }
         // A direct source -> sink edge (either orientation when undirected) can't be cut by
@@ -4858,8 +4858,8 @@ impl Graph {
         }
 
         // The named attribute, which every edge must hold ("weight" falls back to the weight
-        // field, where weighted graphs keep it); 1.0 for every edge without `weight=`
-        crate::utils::check_named_edge_weights(self, weight.as_deref(), "weight")?;
+        // field, where weighted graphs keep it); 1.0 for every edge without `weight_attr=`
+        crate::utils::check_named_edge_weights(self, weight.as_deref(), "weight_attr")?;
         let edge_weight_of = |e: &Edge| -> f64 {
             match weight {
                 Some(ref w) => crate::utils::named_edge_weight(py, e, w).unwrap_or(1.0),
@@ -8213,12 +8213,12 @@ impl Graph {
     /// with backtracking to explore all possibilities.
     ///
     /// # Arguments
-    /// * `source` - Source node label
-    /// * `target` - Target node label
+    /// * `source` - Source node ID
+    /// * `target` - Target node ID
     /// * `cutoff` - Optional maximum path length (number of edges). If None, no limit.
     ///
     /// # Returns
-    /// Vec of paths, where each path is a Vec of node labels (String)
+    /// Vec of paths, where each path is a Vec of node IDs
     ///
     /// # Algorithm
     /// - Uses DFS with backtracking
@@ -8237,7 +8237,7 @@ impl Graph {
         source: u64,
         target: u64,
         cutoff: Option<usize>,
-    ) -> PyResult<Vec<Vec<String>>> {
+    ) -> PyResult<Vec<Vec<u64>>> {
         // Endpoints are node IDs, so unlabelled nodes work too
         for (role, id) in [("Source", source), ("Target", target)] {
             if !self.nodes.contains_key(&id) {
@@ -8713,20 +8713,13 @@ impl Graph {
         current: u64,
         target: u64,
         visited: &mut FxHashSet<u64>,
-        current_path: &mut Vec<String>,
-        paths: &mut Vec<Vec<String>>,
+        current_path: &mut Vec<u64>,
+        paths: &mut Vec<Vec<u64>>,
         cutoff: Option<usize>,
     ) {
-        // Get label for current node
-        let current_label = self
-            .nodes
-            .get(&current)
-            .and_then(|n| n.label.clone())
-            .unwrap_or_else(|| current.to_string());
-
         // Add current node to path and mark as visited
         visited.insert(current);
-        current_path.push(current_label);
+        current_path.push(current);
 
         // Check if we've reached the target
         if current == target {
@@ -10716,7 +10709,7 @@ pub struct AdaStar {
     graph_id: Option<usize>, // Track which graph this search is for
     source: u64,
     target: u64,
-    weight_attr: String,
+    weight_attr: Option<String>,
     epsilon: f64,
 
     // g-values: estimate of cost from state to goal
@@ -10744,11 +10737,11 @@ pub struct AdaStar {
 #[pymethods]
 impl AdaStar {
     #[new]
-    #[pyo3(signature = (source, target, weight="weight", initial_epsilon=1000.0, heuristic=None))]
+    #[pyo3(signature = (source, target, weight_attr=None, initial_epsilon=1000.0, heuristic=None))]
     fn new(
         source: u64,
         target: u64,
-        weight: &str,
+        weight_attr: Option<String>,
         initial_epsilon: f64,
         heuristic: Option<PyObject>,
     ) -> Self {
@@ -10756,7 +10749,7 @@ impl AdaStar {
             graph_id: None,
             source,
             target,
-            weight_attr: weight.to_string(),
+            weight_attr,
             epsilon: initial_epsilon,
             state_to_goal_est: FxHashMap::default(),
             one_step_lookahead: FxHashMap::default(),
@@ -11134,9 +11127,9 @@ impl AdaStar {
     #[inline]
     fn get_edge_weight(&self, from: u64, to: u64, graph: &Graph) -> f64 {
         // Cost of stepping from `from` to `to`: the cheapest edge stored as `from -> to` or, on
-        // an undirected graph, as `to -> from`. Each edge's weight comes from its weight field,
-        // else the `weight_attr` attribute, else 1.0. Positions come from the graph's edge
-        // index rather than a scan of every edge.
+        // an undirected graph, as `to -> from`. Each edge's weight comes from the `weight_attr`
+        // attribute, or the weight field without one, else 1.0. Positions come from the graph's
+        // edge index rather than a scan of every edge.
         let index = graph.edge_index();
         let forward = index.positions_by_pair.get(&(from, to));
         let reverse = if graph.directed || from == to {
@@ -11152,23 +11145,15 @@ impl AdaStar {
         best
     }
 
-    /// An edge's weight for AdaStar: the weight field, else the `weight_attr` attribute, else 1.0
+    /// An edge's weight for AdaStar: the `weight_attr` attribute (`"weight"` falling back to the
+    /// weight field), or the weight field without one, else 1.0
     fn resolve_edge_weight(&self, edge: &Edge) -> f64 {
-        if let Some(w) = edge.weight {
-            return w;
+        match self.weight_attr.as_deref() {
+            None => edge.weight.unwrap_or(1.0),
+            Some(name) => Python::with_gil(|py| {
+                crate::utils::named_edge_weight(py, edge, name).unwrap_or(1.0)
+            }),
         }
-        if let Some(ref attrs) = edge.attributes {
-            return Python::with_gil(|py| {
-                let dict = attrs.bind(py);
-                if let Ok(Some(weight)) = dict.get_item(&self.weight_attr) {
-                    if let Ok(w) = weight.extract::<f64>() {
-                        return w;
-                    }
-                }
-                1.0 // Default weight
-            });
-        }
-        1.0
     }
 }
 
