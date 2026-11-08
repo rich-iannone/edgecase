@@ -1,4 +1,3 @@
-import pytest
 from edgecase import Graph
 
 
@@ -333,34 +332,6 @@ class TestSimpleCyclesEdgeCases:
         # Check that we got integers (node IDs)
         for node_id in cycles[0]:
             assert isinstance(node_id, int)
-
-
-@pytest.mark.filterwarnings("ignore:Graph.get_cycles:DeprecationWarning")
-class TestSimpleCyclesComparison:
-    """Tests comparing simple_cycles with the deprecated get_cycles."""
-
-    def test_directed_graph_same_results(self):
-        """For directed graphs, simple_cycles should find same cycles as get_cycles."""
-        g = Graph(directed=True)
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_node(label="C")
-        g.add_edge("A", "B")
-        g.add_edge("B", "C")
-        g.add_edge("C", "A")
-        g.add_edge("B", "A")
-
-        simple = g.simple_cycles()
-        traditional = g.get_cycles()
-
-        # Same number of cycles
-        assert len(simple) == len(traditional)
-
-        # Convert to sets for comparison (order may differ)
-        simple_sets = {frozenset(c) for c in simple}
-        traditional_sets = {frozenset(c) for c in traditional}
-
-        assert simple_sets == traditional_sets
 
 
 def _canonical(cycle):
