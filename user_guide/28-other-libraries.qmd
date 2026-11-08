@@ -27,7 +27,7 @@ be used for what it does best.
 | two-mode data | [`from_biadjacency_matrix()`](../reference/from_biadjacency_matrix.qmd) | [`biadjacency_matrix()`](../reference/Graph.biadjacency_matrix.qmd) | a rows-by-columns matrix |
 
 These libraries are optional dependencies, imported only when a conversion needs them (see
-[Installation](01-installation.qmd)). The conversions follow the conventions of NetworkX wherever
+[Installation](installation.qmd)). The conversions follow the conventions of NetworkX wherever
 there is one, so code written for NetworkX's functions of the same names carries over.
 
 ## NetworkX
@@ -181,7 +181,7 @@ unrelated ones.
 An adjacency matrix holds a graph as numbers: entry `[i, j]` is the weight of the edge from the
 `i`-th node to the `j`-th, and 0 where there is none. In this form, a graph can be handed to the
 whole of numerical Python, from linear algebra to machine learning. [Matrices and
-spectra](21-spectral.qmd) describes the matrices that EdgeCase computes itself, such as the
+spectra](spectral.qmd) describes the matrices that EdgeCase computes itself, such as the
 Laplacian; this section covers the conversions.
 
 ### Dense arrays
@@ -249,7 +249,7 @@ n_components, round(largest, 3)
 The grid is connected, and its largest adjacency eigenvalue is about 7.5. That eigenvalue matters
 for spreading processes: its reciprocal approximates the epidemic threshold, the infection rate
 above which an outbreak can take hold on the network (see [Spreading and
-robustness](32-spreading.qmd)).
+robustness](spreading.qmd)).
 
 ### Graphs from matrices
 
@@ -344,7 +344,7 @@ exports.get_edge_df()
 ```
 
 Since EdgeCase works with Polars natively, the `Graph` constructor with `edges_df=` is the more
-direct route for Polars tables (see [Building graphs](04-building-graphs.qmd)), while
+direct route for Polars tables (see [Building graphs](building-graphs.qmd)), while
 `from_pandas_edgelist()` is the drop-in replacement for NetworkX's function of the same name.
 
 [`to_pandas_adjacency()`](../reference/to_pandas_adjacency.qmd) gives the adjacency matrix as a
@@ -381,7 +381,7 @@ shop.get_node_df()
 
 The rows come first and the columns after, and the `bipartite` attribute marks the two sides with 0
 and 1, as in NetworkX, which is what [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd)
-and the projections of [Transforming graphs](19-transforming.qmd) work with. The counts of the
+and the projections of [Transforming graphs](transforming.qmd) work with. The counts of the
 purchases become edge weights. The matrix need not be square, and it can be a list of rows, a NumPy
 array, or a SciPy sparse matrix.
 

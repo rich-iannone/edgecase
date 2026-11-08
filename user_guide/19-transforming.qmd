@@ -19,7 +19,7 @@ This page covers these transformations.
 Almost all of them return a *new* graph and leave the original unchanged, so the original remains
 available for comparison. The exceptions are the cleanup methods, such as `simplify()` and
 `relabel_nodes()`, which modify the graph in place like the other editing methods (see
-[The graph model](03-graph-model.qmd#methods-modify-the-graph-in-place)).
+[The graph model](graph-model.qmd#methods-modify-the-graph-in-place)).
 
 ## Extracting part of a graph
 
@@ -72,9 +72,9 @@ the right, and to his own family, the Gillenormands. The Thénardiers lead to th
 associates at the top.
 
 The selection methods offer a second route to the same result: select nodes or edges by any
-criterion and call `transform_to_subgraph_ws()` (see [Selections](08-selections.qmd)). The
+criterion and call `transform_to_subgraph_ws()` (see [Selections](selections.qmd)). The
 k-core, k-truss, and related methods extract dense parts of a graph by a structural rule, and are
-described in [Structural properties](11-structure.qmd#cores-and-dense-regions).
+described in [Structural properties](structure.qmd#cores-and-dense-regions).
 
 ### Ego networks
 
@@ -99,7 +99,7 @@ alters = karate.ego_graph(34, center=False)
 
 Without the administrator, 14 of the administrator's friends still form one group, while the other
 three know none of the rest. Those three depend on the administrator for any connection to the
-group, a position that the structural holes measures of [Centrality](13-centrality.qmd) quantify.
+group, a position that the structural holes measures of [Centrality](centrality.qmd) quantify.
 On a directed graph, `mode=` chooses whether the neighborhood follows edges out of the node, into
 it, or both, and on a weighted graph the radius is a total edge weight rather than a number of
 steps.
@@ -134,11 +134,11 @@ becomes "is cited by" and the nodes that a node can reach become the nodes that 
 the way to run a forward-only method, such as a traversal, against the direction of the edges.
 [`moral_graph()`](../reference/Graph.moral_graph.qmd) is a specialized conversion for Bayesian
 networks, which links the parents of each node before dropping the directions (see
-[Directed acyclic graphs](17-dags.qmd)).
+[Directed acyclic graphs](dags.qmd)).
 
 ## Cleaning up
 
-[Building graphs](04-building-graphs.qmd#cleaning-up) describes the methods that
+[Building graphs](building-graphs.qmd#cleaning-up) describes the methods that
 remove self-loops and duplicate edges: `remove_selfloops()`, `remove_duplicate_edges()`, and
 `simplify()`, which does both. Unlike the transformations on this page, they modify the graph in
 place. To keep the original, take a copy first with a subgraph of all the nodes (`limit=None`
@@ -153,7 +153,7 @@ grqc.count_edges(), simple.count_edges()
 The co-authorship network records each pair of co-authors twice, once in each direction, so
 simplifying the copy roughly halves its edges and leaves the original intact.
 [`relabel_nodes()`](../reference/Graph.relabel_nodes.qmd), also in place, renames nodes without
-changing their IDs, as described in [The graph model](03-graph-model.qmd).
+changing their IDs, as described in [The graph model](graph-model.qmd).
 
 ## Merging nodes
 
@@ -191,9 +191,9 @@ quotient.get_node_df()
 The quotient nodes are labelled `"block_0"`, `"block_1"`, and so on, in the order of the groups,
 and the `members` attribute lists the original nodes of each. Quotient graphs are most useful with
 many groups, such as the communities found by a detection method, where they show which groups
-are linked to which; [Community detection](14-communities.qmd) has an example.
+are linked to which; [Community detection](communities.qmd) has an example.
 [`condensation()`](../reference/Graph.condensation.qmd) is the special case for directed graphs
-that collapses each strongly connected component (see [Connectivity and flows](16-connectivity.qmd)).
+that collapses each strongly connected component (see [Connectivity and flows](connectivity.qmd)).
 
 ## Derived graphs
 
@@ -248,7 +248,7 @@ events.count_nodes(), events.count_edges()
 ```
 
 The 14 events form 66 of the 91 possible pairs, linked by women who attended both. The projection
-onto the women is shown in [Datasets](06-datasets.qmd), and [Network biology](31-network-biology.qmd)
+onto the women is shown in [Datasets](datasets.qmd), and [Network biology](network-biology.qmd)
 covers projections of gene–disease and similar networks.
 
 ### Spanners

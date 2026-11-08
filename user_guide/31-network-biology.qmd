@@ -30,8 +30,8 @@ genes and modules are known, so that each method's result can be checked against
 
 Real interaction networks are assembled from databases such as STRING, BioGRID, or IntAct, which
 provide an edge list of interacting proteins that can be read with the functions of [File
-formats](27-file-formats.qmd) or built from a data frame as in [Building
-graphs](04-building-graphs.qmd). For this page, a network of 180 proteins is simulated instead.
+formats](file-formats.qmd) or built from a data frame as in [Building
+graphs](building-graphs.qmd). For this page, a network of 180 proteins is simulated instead.
 Each protein belongs to one of six pathways, and proteins of the same pathway interact far more
 often than proteins of different ones. Each protein also has a *propensity* to interact, drawn from
 a heavy-tailed distribution, so that a few proteins become hubs with many partners, as in real
@@ -64,10 +64,10 @@ ppi.count_nodes(), ppi.count_edges(), ppi.is_connected()
 The genes are named `G001` to `G180`, with the first thirty in DNA repair, the next thirty in the
 cell cycle, and so on. The 552 interactions give a mean degree of about six, and the network is
 connected. A real interactome usually isn't, and analyses are then restricted to its largest
-connected component, as described in [Connectivity](16-connectivity.qmd). Drawn with the pathways
+connected component, as described in [Connectivity](connectivity.qmd). Drawn with the pathways
 in color, the network shows its modular structure. ForceAtlas2 separates the pathways more clearly
 than the default layout of `plot()` for a network of this size and density (see
-[Layouts](23-layouts.qmd)):
+[Layouts](layouts.qmd)):
 
 ```{python}
 ppi.layout_forceatlas2(seed=1)
@@ -170,7 +170,7 @@ speed of the method makes practical even for large networks.
 
 [`heat_diffusion()`](../reference/Graph.heat_diffusion.qmd) places heat on the seeds and lets it
 flow along the interactions for a time `t=`, as described in [Matrices and
-spectra](21-spectral.qmd). Unlike a random walk, whose visits pile up at hubs, heat evens out over
+spectra](spectral.qmd). Unlike a random walk, whose visits pile up at hubs, heat evens out over
 the network as time passes, so diffusion is less drawn to hubs:
 
 ```{python}
@@ -334,7 +334,7 @@ network, the weights are the costs, which suits confidence scores turned into di
 twenty genes, reaching hits in other pathways. At higher values, the tree shrinks, and when no
 interaction is worth its cost the result is an empty graph, since a tree of a single gene has no
 edges to return. [`steiner_tree()`](../reference/Graph.steiner_tree.qmd), described in [Paths and
-distances](12-paths.qmd), instead connects a given set of genes, all of which must be included.
+distances](paths.qmd), instead connects a given set of genes, all of which must be included.
 
 ## Interpreting modules with annotations
 
@@ -398,7 +398,7 @@ community. It is community 0, the DNA repair community, which holds ten of the t
 five times as many as expected. The result also holds the smoothed scores and the members of every
 community, and nothing is written to the graph. `smooth_alpha=`, `community_method=`, and
 `community_resolution=` adjust the steps, and each step can be run on its own with
-`network_smooth()` and the community detection methods of [Community detection](14-communities.qmd)
+`network_smooth()` and the community detection methods of [Community detection](communities.qmd)
 for finer control.
 
 ## Network proximity of drugs
@@ -503,7 +503,7 @@ Every pair of genes has some correlation, so the network is complete, with all 1
 and weighted by their absolute correlation. `silenced=` is used in the next section. The
 symmetrizing step guards against rounding differences between the two halves of the matrix, which
 [`from_numpy_array()`](../reference/from_numpy_array.qmd) would reject (see [Other
-libraries](28-other-libraries.qmd)).
+libraries](other-libraries.qmd)).
 
 ### Choosing the power
 
@@ -586,7 +586,7 @@ at the top of each module are its hubs.
 
 The topological overlap of WGCNA, which compares the neighborhoods of two genes, is computed by
 [`topological_overlap()`](../reference/Graph.topological_overlap.qmd), described in
-[Similarity](18-similarity.qmd). It counts shared neighbors without weights, so it is applied to
+[Similarity](similarity.qmd). It counts shared neighbors without weights, so it is applied to
 a thresholded network, in which only the strong correlations are edges, rather than to the
 complete weighted one.
 
@@ -650,7 +650,7 @@ internal correlations are gone. The other modules both lose and gain edges, `M1`
 one set of samples to the next. A one-sided change, concentrated in one module, is the signature of
 a real difference, while changes in both directions are what sampling noise looks like. The overall
 similarity of two networks is given by [`edge_overlap()`](../reference/Graph.edge_overlap.qmd),
-described in [Similarity](18-similarity.qmd).
+described in [Similarity](similarity.qmd).
 
 ## Gene–disease networks
 
@@ -697,7 +697,7 @@ associations, and the graph is bipartite, as it must be.
 
 [`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) turns the two-mode network
 into a network of one kind of node, linking two nodes when they share a neighbor of the other
-kind (see [Transforming graphs](19-transforming.qmd)). Projected onto the diseases, it links two
+kind (see [Transforming graphs](transforming.qmd)). Projected onto the diseases, it links two
 diseases that share a gene, which is the idea behind the *human disease network* of Goh and
 colleagues. `which=` chooses the side: 0 is the side holding the lowest node ID of each connected
 component, here always a gene, since the genes were added first, and 1 is the other side:

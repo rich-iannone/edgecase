@@ -85,7 +85,7 @@ preserving randomization, from [`random_reference()`](../reference/Graph.random_
 keeps every node's degree but rewires the edges at random, and so shows how much clustering the
 degrees alone would produce. Comparing several networks with their randomized versions
 (simplified first, since some of the bundled networks contain duplicate edges; see
-[Datasets](06-datasets.qmd#networks-from-data-repositories)):
+[Datasets](datasets.qmd#networks-from-data-repositories)):
 
 ```{python}
 networks = {
@@ -151,7 +151,7 @@ Several variants of clustering suit other questions:
 
 On a directed graph, the clustering methods use Fagiolo's definition, as NetworkX does: a
 triangle through a node counts whichever way its three arcs point.
-[Structural properties](11-structure.qmd#cliques) covers cliques, the extreme form of clustering.
+[Structural properties](structure.qmd#cliques) covers cliques, the extreme form of clustering.
 
 ## Motifs
 
@@ -301,4 +301,4 @@ In a directed graph, cycles must follow edge direction. The small graph above ha
 `C` leads to `D`, `D` to `A`, and `A` back to `C`, either directly or by way of `B`. Bounding the
 length keeps the enumeration manageable on larger graphs: in the karate club,
 `simple_cycles(length_bound=4)` finds the 199 cycles of three or four members. Directed graphs
-without any cycles are the subject of [Directed acyclic graphs](17-dags.qmd).
+without any cycles are the subject of [Directed acyclic graphs](dags.qmd).

@@ -32,7 +32,7 @@ The structure of a network shapes everything that spreads on it, and the most im
 feature is the spread of its degrees. Two networks of the same size and density show this. The first
 is grown by preferential attachment, in which new nodes link to well-connected ones, so that a few
 nodes become hubs; the second is a random graph, in which every pair of nodes is equally likely to
-be linked (see [Generating graphs](05-generators.qmd)):
+be linked (see [Generating graphs](generators.qmd)):
 
 ```{python}
 import edgecase as ec
@@ -233,7 +233,7 @@ both networks are almost entirely infected.
 Other models have thresholds of their own. In the SIS model, in which recovered nodes become
 susceptible again, as with many bacterial infections, the infection persists when the ratio of the
 infection and recovery rates exceeds about `1 / λ`, where `λ` is the largest eigenvalue of the
-adjacency matrix, which [Other libraries](28-other-libraries.qmd#sparse-matrices) computes with
+adjacency matrix, which [Other libraries](other-libraries.qmd#sparse-matrices) computes with
 SciPy. Hubs raise the largest eigenvalue, and lower the threshold, in the same way.
 
 ## Immunization
@@ -307,7 +307,7 @@ newly activated node has one chance to activate each of its neighbors, with prob
 The obvious choice, the nodes of highest degree, has a flaw: hubs tend to sit close together, and
 seeds in the same region reach the same nodes. Two methods take the overlap into account.
 [`voterank()`](../reference/Graph.voterank.qmd), described in
-[Centrality](13-centrality.qmd#spreaders), elects seeds one at a time and weakens the votes of each
+[Centrality](centrality.qmd#spreaders), elects seeds one at a time and weakens the votes of each
 winner's neighbors, so that later seeds lie elsewhere.
 [`influence_maximization()`](../reference/Graph.influence_maximization.qmd) chooses seeds greedily,
 simulating cascades to find, at each step, the node that adds the most to the expected spread of
@@ -393,12 +393,12 @@ matter more.
 
 For a single spreader rather than a set, the *coreness* of a node from
 [`coreness()`](../reference/Graph.coreness.qmd), its depth in the k-core decomposition (see
-[Structure](11-structure.qmd)), is a good predictor of its reach, often better than its degree,
+[Structure](structure.qmd)), is a good predictor of its reach, often better than its degree,
 since a hub on the periphery of a network spreads less than a node in its dense core.
 
 ## Robustness
 
-[Connectivity](16-connectivity.qmd#robustness) introduced
+[Connectivity](connectivity.qmd#robustness) introduced
 [`network_robustness()`](../reference/Graph.network_robustness.qmd), which removes nodes one at a
 time, in random order or in order of degree or betweenness, and records the share of the original
 nodes that remain in the largest component. The whole curve can be summarized by its mean, the
@@ -478,7 +478,7 @@ hubs make it fragile to attack.
 the same sweep in a single call, averaging over `trials=` random removals at each of `steps=`
 evenly spaced shares. It reports the largest component as a share of the *surviving* nodes rather
 than of all of them, which shows how well the survivors hold together (see
-[Connectivity](16-connectivity.qmd#robustness)).
+[Connectivity](connectivity.qmd#robustness)).
 
 ### Robustness and spreading
 

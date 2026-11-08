@@ -137,7 +137,7 @@ condensed.count_nodes(), condensed.is_dag()
 ```
 
 A condensation is the standard way to apply the methods of
-[Directed acyclic graphs](17-dags.qmd), such as topological sorting, to a graph with cycles. The
+[Directed acyclic graphs](dags.qmd), such as topological sorting, to a graph with cycles. The
 sinks of the condensation, components that no edge leaves, are returned by
 [`attracting_components()`](../reference/Graph.attracting_components.qmd). A random walk that
 enters one can never leave, which makes them important in the study of Markov chains and of web
@@ -224,7 +224,7 @@ is the fewest nodes whose removal disconnects it, and its *edge connectivity* th
 By Menger's theorem, the same numbers count independent routes: two nodes that it takes `k` node
 removals to separate are joined by `k` paths that share no intermediate node, and the same holds
 for edges and edge-disjoint paths (see
-[Paths and distances](12-paths.qmd#disjoint-paths)).
+[Paths and distances](paths.qmd#disjoint-paths)).
 
 For a whole graph, [`node_connectivity()`](../reference/Graph.node_connectivity.qmd) and
 [`edge_connectivity()`](../reference/Graph.edge_connectivity.qmd) give the two values,
@@ -428,7 +428,7 @@ lightest such tree, the cheapest way to connect every node. It answers design qu
 which roads to pave, or along which routes to lay cable, so that every town is served at the least
 total cost.
 
-The road network from [Paths and distances](12-paths.qmd) is a good example. Each road's weight is
+The road network from [Paths and distances](paths.qmd) is a good example. Each road's weight is
 its length in kilometers, and each city has a `pos` attribute for drawing it as a map:
 
 ```{python}
@@ -528,7 +528,7 @@ of the road network are left out with `weighted=False`, since with lengths as we
 value would mean longer roads. The eigenvector that belongs to this eigenvalue, the *Fiedler
 vector* ([`fiedler_vector()`](../reference/Graph.fiedler_vector.qmd)), points to where the cut
 would fall, and [`spectral_bisection()`](../reference/Graph.spectral_bisection.qmd) uses it to
-split a graph in two (see [Communities](14-communities.qmd)).
+split a graph in two (see [Communities](communities.qmd)).
 
 ## Robustness
 
@@ -586,7 +586,7 @@ gone. [`node_percolation()`](../reference/Graph.node_percolation.qmd) and
 [`edge_percolation()`](../reference/Graph.edge_percolation.qmd) perform a single round of random
 removal and return the surviving graph, for experiments of your own. The spread of epidemics over
 networks, which is closely related to percolation, is covered in
-[Spreading and robustness](32-spreading.qmd).
+[Spreading and robustness](spreading.qmd).
 
 ## Choosing a method
 

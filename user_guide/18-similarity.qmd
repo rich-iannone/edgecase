@@ -246,7 +246,7 @@ extra weight to shared neighbors in the pair's own community, and
 [`within_inter_cluster()`](../reference/Graph.within_inter_cluster.qmd) compares the shared
 neighbors inside the pair's community with those outside it. The communities are read from a node
 attribute, `community` by default, such as one written by a detection method (see
-[Community detection](14-communities.qmd)):
+[Community detection](communities.qmd)):
 
 ```{python}
 train.cmty_louvain()
@@ -521,4 +521,4 @@ better and better estimates as it runs, which is useful when an approximate answ
 | How much do two graphs differ? | `edge_overlap()`, `differential_edges()`, `graph_edit_distance()` |
 
 Counting every small pattern in a graph, rather than searching for one, is the subject of
-[Clustering and motifs](15-clustering-and-motifs.qmd#motifs).
+[Clustering and motifs](clustering-and-motifs.qmd#motifs).

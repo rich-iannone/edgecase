@@ -212,7 +212,7 @@ node shows its label and its state in the current frame.
 
 `play()` shares many of its options with `plot()`: `layout=` chooses between `"force"`,
 `"circular"`, and `"random"`, `theme=` between `"light"` and `"dark"`, and `width=`, `height=`,
-`node_size=`, `edge_width=`, and `show_labels=` work as in [Static plots](22-plotting.qmd). The
+`node_size=`, `edge_width=`, and `show_labels=` work as in [Static plots](plotting.qmd). The
 canvas is 700 by 500 pixels by default. Three options are particular to the player:
 
 - `auto_play=True` starts the animation as soon as the player is displayed

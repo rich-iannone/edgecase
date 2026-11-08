@@ -95,23 +95,23 @@ graph.get_node_df().sort("pagerank", descending=True)
 The guide moves from the basics to specialized topics, and each page can be read on its own once
 the first few are familiar.
 
-- **Getting started** covers installation and a [quick tour](02-quick-start.qmd) of the library.
-- **Building graphs** explains the [graph model](03-graph-model.qmd), the
-  [construction methods](04-building-graphs.qmd), [generators](05-generators.qmd), and the
-  [bundled datasets](06-datasets.qmd).
-- **Working with graphs** covers [node and edge data](07-node-and-edge-data.qmd),
-  [selections](08-selections.qmd), [traversals](09-traversals.qmd), and
-  [Cypher queries](10-cypher.qmd).
+- **Getting started** covers installation and a [quick tour](quick-start.qmd) of the library.
+- **Building graphs** explains the [graph model](graph-model.qmd), the
+  [construction methods](building-graphs.qmd), [generators](generators.qmd), and the
+  [bundled datasets](datasets.qmd).
+- **Working with graphs** covers [node and edge data](node-and-edge-data.qmd),
+  [selections](selections.qmd), [traversals](traversals.qmd), and
+  [Cypher queries](cypher.qmd).
 - **Analysis** works through the algorithm families, from
-  [structural properties](11-structure.qmd) and [paths](12-paths.qmd) to
-  [centrality](13-centrality.qmd), [communities](14-communities.qmd), and beyond.
-- **Visualization** covers [static plots](22-plotting.qmd), [layouts](23-layouts.qmd),
-  [aesthetics](24-aesthetics.qmd), [interactive widgets](25-interactive.qmd), and the
-  [step log](26-step-log.qmd).
-- **Interoperability** covers [file formats](27-file-formats.qmd),
-  [other libraries](28-other-libraries.qmd), and [summary tables](29-tables.qmd).
-- **Specialized topics** cover [multiplex networks](30-multiplex.qmd),
-  [network biology](31-network-biology.qmd), and [spreading and robustness](32-spreading.qmd).
+  [structural properties](structure.qmd) and [paths](paths.qmd) to
+  [centrality](centrality.qmd), [communities](communities.qmd), and beyond.
+- **Visualization** covers [static plots](plotting.qmd), [layouts](layouts.qmd),
+  [aesthetics](aesthetics.qmd), [interactive widgets](interactive.qmd), and the
+  [step log](step-log.qmd).
+- **Interoperability** covers [file formats](file-formats.qmd),
+  [other libraries](other-libraries.qmd), and [summary tables](tables.qmd).
+- **Specialized topics** cover [multiplex networks](multiplex.qmd),
+  [network biology](network-biology.qmd), and [spreading and robustness](spreading.qmd).
 
 Each page links to the [API reference](../reference/index.qmd) for the methods it uses, where every
 parameter is documented in full.

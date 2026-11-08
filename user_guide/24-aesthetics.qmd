@@ -66,7 +66,7 @@ The Louvain method finds five communities. The two large groups of the populatio
 and the bottom of the drawing, correspond to the two main communities the researchers observed,
 and the method splits the lower group further into smaller circles of associates. Plotting a
 community detection result like this is the quickest check of whether the groups it found make
-sense. [Community detection](14-communities.qmd) describes the methods.
+sense. [Community detection](communities.qmd) describes the methods.
 
 ### Deriving categories with Polars
 
@@ -93,7 +93,7 @@ karate.plot(color_by="position", label_by="label", seed=1)
 Four members, `"8"`, `"13"`, `"19"`, and `"31"`, were friends with both the instructor and the
 administrator, and they sit in the middle of the drawing, between the two camps. The pattern of a
 Polars expression followed by `set_node_attrs()` works for any categorization, such as binning a
-numeric score into "low", "medium", and "high"; [Node and edge data](07-node-and-edge-data.qmd)
+numeric score into "low", "medium", and "high"; [Node and edge data](node-and-edge-data.qmd)
 describes it in more detail.
 
 ## Palettes
@@ -209,7 +209,7 @@ one picture both how the cast divides into storylines and which characters hold 
 ## Visual attributes for the interactive views
 
 `plot()` computes its colors and sizes from the mappings at drawing time. The interactive views of
-[Interactive widgets](25-interactive.qmd) work differently: they read visual properties stored on
+[Interactive widgets](interactive.qmd) work differently: they read visual properties stored on
 the nodes themselves, a `color` attribute holding a color string and a `size` attribute holding a
 number. Two methods prepare these attributes.
 
@@ -230,7 +230,7 @@ Both methods modify the graph in place, and `node_attr_to=` writes to an attribu
 and `alpha=` adds transparency. Both record the mapping on the graph, and
 [`describe()`](../reference/Graph.describe.qmd) lists the recorded mappings under "Node
 aesthetics", which documents how a figure was made. The stored colors are used by
-[`plot_vis()`](25-interactive.qmd) and the graph widget; `plot()` itself ignores them and uses its
+[`plot_vis()`](interactive.qmd) and the graph widget; `plot()` itself ignores them and uses its
 own mappings.
 
 ## Summary

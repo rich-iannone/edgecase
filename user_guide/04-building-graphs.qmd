@@ -26,7 +26,7 @@ methods for deleting nodes and edges and for cleaning up a graph once it's built
 | Make a graph simple | [`remove_selfloops()`](../reference/Graph.remove_selfloops.qmd), [`remove_duplicate_edges()`](../reference/Graph.remove_duplicate_edges.qmd), [`simplify()`](../reference/Graph.simplify.qmd) |
 
 Every one of these methods changes the graph in place and returns it, so they chain freely, and
-each call is recorded as a step in the graph's [step log](26-step-log.qmd).
+each call is recorded as a step in the graph's [step log](step-log.qmd).
 
 ## Adding nodes
 
@@ -124,7 +124,7 @@ lab.get_node_df()
 ```
 
 Einstein was created without a type or any other attributes, which can be set afterwards with
-the methods in [Node and edge data](07-node-and-edge-data.qmd).
+the methods in [Node and edge data](node-and-edge-data.qmd).
 
 ### Many at once
 
@@ -263,8 +263,8 @@ edges = pl.read_csv("interactions.csv").rename({"protein_a": "from", "protein_b"
 graph = ec.Graph(edges_df=edges)
 ```
 
-For graph file formats such as GraphML, GML, or Pajek, see [File formats](27-file-formats.qmd), and
-for other libraries' graph objects, see [Other libraries](28-other-libraries.qmd).
+For graph file formats such as GraphML, GML, or Pajek, see [File formats](file-formats.qmd), and
+for other libraries' graph objects, see [Other libraries](other-libraries.qmd).
 
 ## Deleting nodes and edges
 
@@ -287,7 +287,7 @@ transit.get_edges_str_repr()
 ```
 
 To delete many nodes or edges that meet some condition, select them first and then call
-`delete_nodes_ws()` or `delete_edges_ws()`, as shown in [Selections](08-selections.qmd).
+`delete_nodes_ws()` or `delete_edges_ws()`, as shown in [Selections](selections.qmd).
 
 ## Cleaning up
 
@@ -321,7 +321,7 @@ messy.is_simple(), messy.get_edges_str_repr()
 
 In a directed graph, `A -> B` and `B -> A` are different pairs, so reciprocal edges survive
 `remove_duplicate_edges()`. To turn them into a single undirected edge, convert the graph with
-`to_undirected()`, described in [Transforming graphs](19-transforming.qmd).
+`to_undirected()`, described in [Transforming graphs](transforming.qmd).
 
 ## Combining construction methods
 
@@ -341,4 +341,4 @@ combined.plot(label_by="id", seed=3)
 
 The cycle's five nodes were created without labels (`label=False`) and received IDs 2 to 6, after
 the hub's ID 1, so `add_edges_by_id()` can join them to the hub by ID. The result is a wheel. The
-[generators](05-generators.qmd) page has much more on building graphs like this.
+[generators](generators.qmd) page has much more on building graphs like this.

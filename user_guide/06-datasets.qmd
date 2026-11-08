@@ -78,7 +78,7 @@ women.get_edge_df().sort("weight", descending=True).head(3)
 ```
 
 Evelyn Jefferson (ID 1) and Theresa Anderson (ID 3) attended seven events together, more than any
-other pair. [Network biology](31-network-biology.qmd) and the reference page for
+other pair. [Network biology](network-biology.qmd) and the reference page for
 [`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) have more on two-mode
 networks.
 
@@ -122,7 +122,7 @@ distances of 2 to 3, and even the co-authorship networks, with thousands of auth
 
 Because these nodes are labelled with numbers stored as strings, the usual rule about IDs and labels
 applies with full force: `grid.get_node(1)` is the node with ID 1, while `grid.get_node("1")` is the
-node that was numbered 1 in the source file. See [The graph model](03-graph-model.qmd#referring-to-nodes).
+node that was numbered 1 in the source file. See [The graph model](graph-model.qmd#referring-to-nodes).
 
 The files are loaded as published, which means that some of these graphs aren't simple. The three
 co-authorship networks (`ca_grqc()`, `physics()`, and `condmat()`) list every collaboration in both
@@ -193,7 +193,7 @@ Datasets are stored in the Matrix Market format, and
 [`list_available_datasets()`](../reference/list_available_datasets.qmd) lists the files found on
 disk. To load your own Matrix Market files, use
 [`from_matrix_market()`](../reference/from_matrix_market.qmd), described in
-[File formats](27-file-formats.qmd).
+[File formats](file-formats.qmd).
 
 ## Choosing a dataset
 
@@ -201,4 +201,4 @@ For learning a method or checking that it behaves as expected, start with a clas
 answer is known: the karate club for communities, the Florentine families for centrality, the
 Southern Women for bipartite methods, and *Les Misérables* for anything weighted. Move to the
 repository networks to see how a method copes with a larger, messier graph, and to
-[generators](05-generators.qmd) when you need a graph whose structure you control exactly.
+[generators](generators.qmd) when you need a graph whose structure you control exactly.

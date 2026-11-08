@@ -113,7 +113,7 @@ broken.is_dag(), [[broken.get_label_from_id(i) for i in cycle] for cycle in brok
 fewest (or, on a weighted graph, the lightest) edges whose removal would break every cycle. For a
 large graph with many cycles, [`condensation()`](../reference/Graph.condensation.qmd) collapses each
 strongly connected component into a single node, which leaves a DAG to which all of the methods on
-this page apply (see [Connectivity and flows](16-connectivity.qmd#directed-graphs)).
+this page apply (see [Connectivity and flows](connectivity.qmd#directed-graphs)).
 
 ## The critical path
 
@@ -366,10 +366,10 @@ A *tree* is a connected graph without cycles, and so the simplest connected grap
 exactly `n - 1` edges, and a single path between each pair of nodes. Its directed counterpart, an
 *arborescence*, has one root from which a unique directed path leads to every other node, like a
 family tree, an organization chart, or a file system. Trees appear throughout this guide, as
-search trees ([Traversals](09-traversals.qmd)), spanning trees
-([Connectivity and flows](16-connectivity.qmd#spanning-trees)), and Steiner trees
-([Paths and distances](12-paths.qmd#steiner-trees)), and many generators build them
-([Generators](05-generators.qmd)).
+search trees ([Traversals](traversals.qmd)), spanning trees
+([Connectivity and flows](connectivity.qmd#spanning-trees)), and Steiner trees
+([Paths and distances](paths.qmd#steiner-trees)), and many generators build them
+([Generators](generators.qmd)).
 
 [`is_tree()`](../reference/Graph.is_tree.qmd) and [`is_forest()`](../reference/Graph.is_forest.qmd)
 test undirected graphs, and [`is_arborescence()`](../reference/Graph.is_arborescence.qmd) and

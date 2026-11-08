@@ -19,9 +19,9 @@ document, a web page, or a file on disk.
 
 This page covers the mechanics of `plot()`: what it returns, how to save a drawing, and how to
 control its size, labels, edges, and theme. The pages that follow go further:
-[Layouts](23-layouts.qmd) describes the algorithms that place the nodes,
-[Aesthetics](24-aesthetics.qmd) maps colors and sizes to data, and
-[Interactive widgets](25-interactive.qmd) covers the zoomable, draggable alternatives.
+[Layouts](layouts.qmd) describes the algorithms that place the nodes,
+[Aesthetics](aesthetics.qmd) maps colors and sizes to data, and
+[Interactive widgets](interactive.qmd) covers the zoomable, draggable alternatives.
 
 ## A first plot
 
@@ -51,7 +51,7 @@ every one.
 ## Displaying and saving plots
 
 `plot()` returns a `StepPlayer` object, the same kind of object that the traversal and step
-replays return (see [Traversals](09-traversals.qmd) and [The step log](26-step-log.qmd)). Notebooks
+replays return (see [Traversals](traversals.qmd) and [The step log](step-log.qmd)). Notebooks
 and Quarto documents display it automatically when it is the last expression of a cell. Elsewhere,
 its `svg` property holds the raw SVG markup as a string:
 
@@ -80,7 +80,7 @@ plot.
 
 The canvas is 600 by 400 pixels by default, and `width=` and `height=` change it. The force and
 random layouts spread the nodes over the whole canvas, so a wide canvas gives a wide drawing, while
-positions from a layout method keep their proportions (see [Layouts](23-layouts.qmd)).
+positions from a layout method keep their proportions (see [Layouts](layouts.qmd)).
 
 The node radius is chosen automatically from the canvas area and the number of nodes, from 16 pixels
 on small graphs down to 3.5 pixels on large ones, and edge widths likewise shrink as the graph grows.
@@ -130,7 +130,7 @@ florentine.plot(seed=1)
 
 The marriage network of the Florentine families of the fifteenth century shows the Medici at its
 center, linked to families that are mostly not linked to each other: a position that let the Medici
-broker between the other families, as discussed in [Centrality](13-centrality.qmd). The display
+broker between the other families, as discussed in [Centrality](centrality.qmd). The display
 preference is stored with the graph, so it applies to every later plot until it is changed, and
 `set_node_attr_to_display()` without an argument clears it.
 
@@ -188,9 +188,9 @@ org.plot(label_by="label", edge_label_by="rel", seed=1, width=500, height=350)
 
 Edge labels are drawn small, at the middle of each edge, so they work best on small graphs whose
 edges are reasonably long. The edge weight is not an edge attribute in this sense, since it is
-stored separately from the other attributes (see [The graph model](03-graph-model.qmd)); to show
+stored separately from the other attributes (see [The graph model](graph-model.qmd)); to show
 weights or other numbers, copy them to an attribute first, as the road network examples of
-[Paths and distances](12-paths.qmd) do with their distances.
+[Paths and distances](paths.qmd) do with their distances.
 
 ## Choosing a layout
 
@@ -211,13 +211,13 @@ florentine.plot(layout="circular")
 
 The order of the nodes around the circle follows the graph's internal storage order. A
 deliberate order, in which linked nodes sit close together, concentrates the edges along the rim
-and makes the drawing much easier to read; [Layouts](23-layouts.qmd#circles-and-shells) shows how
+and makes the drawing much easier to read; [Layouts](layouts.qmd#circles-and-shells) shows how
 to arrange the circle in a chosen order. The fourth option is the most flexible. The `layout_*()` methods, such as
 [`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) or
 [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd), compute positions with more
 specialized algorithms and store them in the `"pos"` node attribute, which `layout="pos"` then
 draws. Positions that come with the data, such as geographic coordinates, can be stored and drawn
-the same way. [Layouts](23-layouts.qmd) describes all of them.
+the same way. [Layouts](layouts.qmd) describes all of them.
 
 ### Reproducible drawings
 
@@ -278,7 +278,7 @@ miserables.plot(theme="dark", show_labels=False, seed=2)
 The bishop Myriel and the minor characters of his story form the fan on the left, linked to the
 rest of the novel only through Myriel himself. Valjean is the hub at the center, and the dense
 cluster to the lower right holds Marius and the students of the ABC society. The theme changes only the background, the default node and edge colors, and
-the text; the palettes for colored nodes are described in [Aesthetics](24-aesthetics.qmd).
+the text; the palettes for colored nodes are described in [Aesthetics](aesthetics.qmd).
 
 ## Larger graphs
 
@@ -299,13 +299,13 @@ make the drawing busier and the SVG several times larger without making it clear
 this size and larger, several strategies help:
 
 - draw a meaningful part of the graph, such as a k-core, an ego network, or one community, with
-  the methods of [Transforming graphs](19-transforming.qmd)
+  the methods of [Transforming graphs](transforming.qmd)
 - collapse groups of nodes into single nodes with `quotient_graph()`, so that the drawing shows how
   the groups are linked
 - color the nodes by community or size them by centrality, so that the structure stands out even
-  when individual nodes can't be told apart (see [Aesthetics](24-aesthetics.qmd))
+  when individual nodes can't be told apart (see [Aesthetics](aesthetics.qmd))
 - use `plot_cosmo()`, which lays out and draws graphs of hundreds of thousands of nodes on the GPU
-  in the browser (see [Interactive widgets](25-interactive.qmd))
+  in the browser (see [Interactive widgets](interactive.qmd))
 
 ## Summary
 
@@ -324,4 +324,4 @@ this size and larger, several strategies help:
 | `output=` | a path to save to, as `.svg` or `.html` | `None` |
 
 The arguments for colors and sizes, `color_by=`, `size_by=`, `edge_color_by=`, `palette=`, and
-`cross_community_color=`, are covered in [Aesthetics](24-aesthetics.qmd).
+`cross_community_color=`, are covered in [Aesthetics](aesthetics.qmd).

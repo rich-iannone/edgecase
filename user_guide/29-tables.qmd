@@ -20,12 +20,12 @@ installed together with EdgeCase and turns a data frame into a formatted, public
 
 This page works through the common kinds of summary, from whole graphs down to individual edges,
 and then shows how to present and save them. The tables of [Node and edge
-data](07-node-and-edge-data.qmd) are the starting point for all of them.
+data](node-and-edge-data.qmd) are the starting point for all of them.
 
 ## Summarizing a graph
 
 [`describe()`](../reference/Graph.describe.qmd) prints a quick overview of a single graph, with its
-size, density, degrees, and connectivity, as described in [Structure](11-structure.qmd). Its
+size, density, degrees, and connectivity, as described in [Structure](structure.qmd). Its
 `describe_hook=` takes a function that returns further properties to include, which is a simple way
 to add the measures that matter for a particular study:
 
@@ -156,7 +156,7 @@ with the exceptions that the table of ranks picks out.
 ### Tables of a selection
 
 [`get_node_df_ws()`](../reference/Graph.get_node_df_ws.qmd) returns the node table of the current
-selection only (see [Selections](08-selections.qmd)), which is a quick way to tabulate the nodes
+selection only (see [Selections](selections.qmd)), which is a quick way to tabulate the nodes
 that meet a structural criterion, such as the members with at least ten friends:
 
 ```{python}
@@ -242,7 +242,7 @@ The household of Myriel and the companions of Fantine keep more than three quart
 within their groups, while Valjean's community, at the center of the novel, has more ties leaving
 it than inside it. [`partition_quality()`](../reference/Graph.partition_quality.qmd),
 [`conductance()`](../reference/Graph.conductance.qmd), and the quotient graph of [Community
-detection](14-communities.qmd) give related measures directly.
+detection](communities.qmd) give related measures directly.
 
 ### Cross-tabulations
 

@@ -32,7 +32,7 @@ The main families, and the methods that implement them, are these:
 ## How the centrality methods work
 
 Every centrality method that scores the nodes follows the convention set out in
-[Get started](00-get-started.qmd#three-ideas-that-run-through-the-library). It stores the scores in
+[Get started](get-started.qmd#three-ideas-that-run-through-the-library). It stores the scores in
 a node attribute named after the method, and returns the graph so that calls can be chained:
 
 ```{python}
@@ -225,7 +225,7 @@ EdgeCase can't tell whether a weight is a length or a strength.
 [`edge_betweenness_centrality()`](../reference/Graph.edge_betweenness_centrality.qmd) applies the
 same idea to edges, and stores its scores as an edge attribute. Edges with high betweenness are the
 bridges between groups, which is why repeatedly removing them is one way of finding communities
-(see [Communities](14-communities.qmd)). In the karate club, the edge with the highest betweenness
+(see [Communities](communities.qmd)). In the karate club, the edge with the highest betweenness
 joins the instructor to member `"31"`, who belongs to the other faction:
 
 ```{python}
@@ -410,7 +410,7 @@ karate.voterank(count=4)
 [`percolation_centrality()`](../reference/Graph.percolation_centrality.qmd) generalizes
 betweenness to a network in which each node has a *state* between 0 and 1, such as its level of
 infection, and weights the paths from each source by its state. With every state equal, it reduces
-to betweenness. [Spreading and robustness](32-spreading.qmd) covers the simulation of spreading
+to betweenness. [Spreading and robustness](spreading.qmd) covers the simulation of spreading
 processes in full.
 
 ## Comparing measures
@@ -452,7 +452,7 @@ karate.plot(
 )
 ```
 
-[Aesthetics](24-aesthetics.qmd) has more on mapping attributes to sizes and colors.
+[Aesthetics](aesthetics.qmd) has more on mapping attributes to sizes and colors.
 
 ### Selecting the most central nodes
 
@@ -460,7 +460,7 @@ To act on the most central nodes, rather than just list them,
 [`select_nodes_by_centrality()`](../reference/Graph.select_nodes_by_centrality.qmd) computes a
 measure and selects the `k` highest-scoring nodes in one step. It supports `"degree"`,
 `"in_degree"`, `"out_degree"`, `"pagerank"`, and `"betweenness"`, and stores no attribute. The
-selection can then be passed to any `_ws` method (see [Selections](08-selections.qmd)), here to
+selection can then be passed to any `_ws` method (see [Selections](selections.qmd)), here to
 tag the five members with the highest betweenness:
 
 ```{python}
@@ -516,5 +516,5 @@ follow the same conventions as the measures above:
 Choosing among them is a matter of matching the measure to the process of interest. If influence
 travels along shortest paths, use betweenness or closeness; if it travels by every route, as rumors
 and infections do, use a current-flow or spectral measure; and if only direct contact matters, use
-degree. [Communities](14-communities.qmd) takes the next step, from important nodes to important
+degree. [Communities](communities.qmd) takes the next step, from important nodes to important
 groups of nodes.

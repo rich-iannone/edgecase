@@ -91,7 +91,7 @@ sorted(karate.degree_distribution().items())
 Eleven members have just two friends, while two have 16 and 17. Such a skewed distribution, with
 many low-degree nodes and a few hubs, is typical of social networks, and it's quite unlike the
 narrow, bell-shaped distribution of a random graph of the same density (see
-[Graph generators](05-generators.qmd#the-classic-models)).
+[Graph generators](generators.qmd#the-classic-models)).
 
 For a larger network, the node table and Polars give a fuller picture. In the power grid, nearly
 nine nodes in ten have degree four or less, as befits a network of physical lines between
@@ -123,7 +123,7 @@ karate.get_degree(12), karate.average_neighbor_degree(return_dict=True)[12]
 ## Distances
 
 The distance between two nodes is the number of edges on the shortest path between them (or the
-total weight, for weighted measures; see [Paths and distances](12-paths.qmd)). A handful of
+total weight, for weighted measures; see [Paths and distances](paths.qmd)). A handful of
 measures summarize the distances of a whole graph:
 
 | Measure | Meaning | Method |
@@ -169,7 +169,7 @@ measures whether high-degree nodes link to other high-degree nodes (positive val
 low-degree ones (negative values). Social networks of collaboration tend to be assortative, while
 technological and biological networks tend to be disassortative, with hubs connected to many small
 nodes. Comparing several of the bundled networks, simplified to remove the duplicate edges and
-self-loops some of them contain (see [Datasets](06-datasets.qmd#networks-from-data-repositories)),
+self-loops some of them contain (see [Datasets](datasets.qmd#networks-from-data-repositories)),
 shows the pattern:
 
 ```{python}
@@ -314,6 +314,6 @@ slow on large networks; `iterations=` and `nrand=` trade accuracy for speed:
 round(karate.small_world_sigma(iterations=20, nrand=5, seed=1), 2)
 ```
 
-[Clustering and motifs](15-clustering-and-motifs.qmd) has more on clustering coefficients, and
-[Graph generators](05-generators.qmd#null-models-from-an-existing-graph) on the random references
+[Clustering and motifs](clustering-and-motifs.qmd) has more on clustering coefficients, and
+[Graph generators](generators.qmd#null-models-from-an-existing-graph) on the random references
 these comparisons are made against.

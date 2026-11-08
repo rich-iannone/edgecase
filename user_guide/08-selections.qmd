@@ -116,7 +116,7 @@ karate.select_match(
 karate.count_selected_nodes()
 ```
 
-[Cypher queries](10-cypher.qmd) describes the pattern language in full.
+[Cypher queries](cypher.qmd) describes the pattern language in full.
 
 ## Inspecting a selection
 
@@ -300,7 +300,7 @@ calls, so the same edges were reversed and then tagged.
 
 Selections are also the starting point for *traversals*, which move a selection along the edges of
 the graph: from a set of nodes to their neighbors, to the edges between them, and so on.
-[Traversals](09-traversals.qmd) covers them.
+[Traversals](traversals.qmd) covers them.
 
 `plot()` doesn't draw the selection itself. To highlight selected nodes in a drawing, store a flag
 with `set_node_attrs_ws()` and color by it:

@@ -194,9 +194,9 @@ intact.
 
 ## Where to go next
 
-- [The graph model](03-graph-model.qmd) explains IDs, labels, types, and attributes in detail.
-- [Building graphs](04-building-graphs.qmd) covers every way of adding and removing nodes and edges.
-- [Selections](08-selections.qmd) and [traversals](09-traversals.qmd) explain the select-and-act
+- [The graph model](graph-model.qmd) explains IDs, labels, types, and attributes in detail.
+- [Building graphs](building-graphs.qmd) covers every way of adding and removing nodes and edges.
+- [Selections](selections.qmd) and [traversals](traversals.qmd) explain the select-and-act
   style shown above.
-- The **Analysis** pages, starting with [structure and properties](11-structure.qmd), work
+- The **Analysis** pages, starting with [structure and properties](structure.qmd), work
   through the algorithms.

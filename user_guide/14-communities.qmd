@@ -252,7 +252,7 @@ relation to the true ones. Notice the last two columns. In the hard cases, the p
 finds has a *higher* modularity than the true one, because in any random graph some groups of
 nodes happen to be a little denser than average, and modularity rewards them. Modularity values of
 0.25 or so can arise from noise alone, so a modest score is not, on its own, evidence of real
-community structure. [Graph generators](05-generators.qmd) describes
+community structure. [Graph generators](generators.qmd) describes
 [`add_lfr_graph()`](../reference/Graph.add_lfr_graph.qmd), a more realistic benchmark with
 skewed degrees and community sizes.
 
@@ -437,10 +437,10 @@ storylines.get_node_df().select("label", "degree")
 The quotient shows the main plot (block 1) at the center of the novel, linked to every other
 storyline, while Myriel's household (block 0) connects only to it. For a closer look at one
 community, [`subgraph()`](../reference/Graph.subgraph.qmd) extracts its members as a new graph, and
-[Selections](08-selections.qmd) shows how to select a community with `select_nodes()` and act on
+[Selections](selections.qmd) shows how to select a community with `select_nodes()` and act on
 it.
 
 Community structure feeds into many other analyses. [Similarity and link
-prediction](18-similarity.qmd) covers link predictors that use communities, [Clustering and
-motifs](15-clustering-and-motifs.qmd) the local density that communities are built from, and
-[Network biology](31-network-biology.qmd) the testing of communities for enrichment in annotations.
+prediction](similarity.qmd) covers link predictors that use communities, [Clustering and
+motifs](clustering-and-motifs.qmd) the local density that communities are built from, and
+[Network biology](network-biology.qmd) the testing of communities for enrichment in annotations.

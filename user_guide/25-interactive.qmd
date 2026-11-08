@@ -30,7 +30,7 @@ describes each view in turn.
 
 ## Tooltips in static plots
 
-The drawings made by `plot()`, described in [Static plots](22-plotting.qmd), are already
+The drawings made by `plot()`, described in [Static plots](plotting.qmd), are already
 interactive in a modest way. When they are displayed in a notebook or a web page, hovering over a
 node shows a tooltip with its ID and attributes, and hovering over an edge shows the edge's
 attributes. Any attribute stored on the graph appears, including the results of analysis methods:
@@ -66,7 +66,7 @@ neighbors along, and the network springs back into balance when it is let go.
 
 The view takes its node colors from a `color` attribute stored on the nodes, which
 [`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) prepares from a categorical
-attribute (see [Aesthetics](24-aesthetics.qmd#visual-attributes-for-the-interactive-views)). For
+attribute (see [Aesthetics](aesthetics.qmd#visual-attributes-for-the-interactive-views)). For
 the karate club, colored by faction:
 
 ```{python}
@@ -252,7 +252,7 @@ widget, it can be configured further with the options of the Cosmograph library.
 
 Even with GPU rendering, a drawing of a very large graph shows mostly its overall texture, such as
 dense cores, long chains, and loosely attached periphery. The strategies of
-[Static plots](22-plotting.qmd#larger-graphs), such as drawing a k-core or a single community, are
+[Static plots](plotting.qmd#larger-graphs), such as drawing a k-core or a single community, are
 often the better way to see the detail.
 
 ## Step players
@@ -263,7 +263,7 @@ jump to any frame with a slider. Two families of methods produce them.
 
 `plot_traversal()` and the recorder returned by `record_traversal()` animate a search through a
 graph, lighting up nodes in the order they are reached, as described in
-[Traversals](09-traversals.qmd#drawing-a-search):
+[Traversals](traversals.qmd#drawing-a-search):
 
 ```{python}
 florentine = ec.florentine_families()
@@ -275,7 +275,7 @@ families two marriages away, and finally Bischeri, Peruzzi, and Lamberteschi, th
 
 `play()` replays the graph's *step log*, the record of every operation that built or changed it, so
 that each frame shows a step of the construction together with the code that performed it. It is
-the subject of [The step log](26-step-log.qmd). Both kinds of player are `StepPlayer` objects, like
+the subject of [The step log](step-log.qmd). Both kinds of player are `StepPlayer` objects, like
 the result of `plot()`, so they display themselves in notebooks and rendered documents and can be
 saved with `save()` to an HTML file that keeps all the controls.
 

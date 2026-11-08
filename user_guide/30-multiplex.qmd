@@ -86,7 +86,7 @@ office.count_nodes(), office.count_edges()
 The 43 edges are the 18 project ties, 11 friendships, and 14 advice ties. The edge table shows the
 layer of each edge in its `rel` column, so a layer is a filter on that column, and the methods that
 accept a `rel` filter, as well as Cypher queries, can read one layer or combine several (see
-[Node and edge data](07-node-and-edge-data.qmd#types-and-relationship-types)):
+[Node and edge data](node-and-edge-data.qmd#types-and-relationship-types)):
 
 ```{python}
 office.get_edge_df().group_by("rel", maintain_order=True).len()
@@ -103,7 +103,7 @@ office.match(
 
 Six of the eighteen project partnerships are also friendships. The condition `a.name < b.name`
 keeps one row per pair, since an undirected pattern matches each pair in both directions.
-[Cypher queries](10-cypher.qmd) describes the query language.
+[Cypher queries](cypher.qmd) describes the query language.
 
 ### Describing the layers together
 
@@ -204,7 +204,7 @@ network would treat alike: Ana, Gus, and Hana all have nine ties, but of very di
 
 Layers are easiest to compare when they are drawn with the same positions for the nodes, so that
 each picture shows a different set of edges on the same map. A layout computed once for the whole
-office, stored in the `pos` attribute, can be given to every layer (see [Layouts](23-layouts.qmd)).
+office, stored in the `pos` attribute, can be given to every layer (see [Layouts](layouts.qmd)).
 The layers themselves are built as separate graphs, each with all twelve people:
 
 ```{python}
@@ -333,7 +333,7 @@ office.get_node_df().group_by("friend_cmty").agg(pl.col("label")).sort("friend_c
 
 `resolution=` controls the size of the Louvain communities, as in
 [`cmty_louvain()`](../reference/Graph.cmty_louvain.qmd), with higher values giving more and smaller
-communities. [Community detection](14-communities.qmd) describes both methods.
+communities. [Community detection](communities.qmd) describes both methods.
 
 ## Flattening layers yourself
 
@@ -353,7 +353,7 @@ The 31 pairs become 31 weighted edges, and any method that reads weights as tie 
 as [`pagerank()`](../reference/Graph.pagerank.qmd) or the community detection methods, now treats a
 tie that spans two layers as twice as strong. For methods that read weights as distances, such as
 the shortest paths and betweenness, a stronger tie should be a shorter one, so the weight is better
-inverted first, as described in [Paths and distances](12-paths.qmd). A weighted sum with other
+inverted first, as described in [Paths and distances](paths.qmd). A weighted sum with other
 layer weights is a `group_by()` on the edge table with a weight looked up for each `rel`.
 
 Flattening is also the route for large networks. The `MultiplexGraph` methods are implemented in

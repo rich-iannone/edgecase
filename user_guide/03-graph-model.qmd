@@ -45,7 +45,7 @@ roads.get_graph_name()
 ```
 
 The constructor can also build a graph from Polars DataFrames of nodes and edges, which is covered
-in [Building graphs](04-building-graphs.qmd).
+in [Building graphs](building-graphs.qmd).
 
 ## Nodes
 
@@ -167,7 +167,7 @@ ID, and leaves out nodes that don't have the attribute:
 town.get_node_attrs("age")
 ```
 
-[Node and edge data](07-node-and-edge-data.qmd) covers setting, reading, and transforming
+[Node and edge data](node-and-edge-data.qmd) covers setting, reading, and transforming
 attributes in detail.
 
 ## Edges
@@ -288,7 +288,7 @@ payments.is_simple(), payments.count_multi_edges(), payments.count_all_loops()
 The graph isn't simple: it has one pair of nodes joined by more than one edge, and one self-loop.
 
 To collapse a multigraph into a simple graph, use `simplify()`, `remove_duplicate_edges()`, or
-`remove_selfloops()`, all described in [Building graphs](04-building-graphs.qmd#cleaning-up).
+`remove_selfloops()`, all described in [Building graphs](building-graphs.qmd#cleaning-up).
 Some algorithms are defined only for simple graphs, and their reference pages say so.
 
 ## The graph summary
@@ -316,7 +316,7 @@ The fields are:
 
 For a directed graph, connectivity is reported as both strong and weak. The individual values are
 also available from methods such as `count_nodes()`, `density()`, and `is_connected()`,
-described in [Structure and properties](11-structure.qmd).
+described in [Structure and properties](structure.qmd).
 
 ## Methods modify the graph in place
 

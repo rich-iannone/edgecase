@@ -15,7 +15,7 @@ A graph's structure is only half of most analyses. The other half is the data at
 and edges: the ages of people in a social network, the capacities of pipes in a supply network, the
 scores computed by an algorithm. EdgeCase stores this data as named attributes on each node and
 edge, and offers three ways to work with it: as dictionaries keyed by ID, as Polars DataFrames, and
-through selections. This page covers the first two; [Selections](08-selections.qmd) covers the
+through selections. This page covers the first two; [Selections](selections.qmd) covers the
 third.
 
 | Task | Methods |
@@ -89,7 +89,7 @@ them. When the edge IDs are already known, from `find_edge_ids()` or a selection
 
 For everything about a single node or edge, `get_node()` and `get_edge()` return objects with the
 ID, the label or endpoints, and a dictionary of all attributes, as described in
-[The graph model](03-graph-model.qmd#types-and-attributes).
+[The graph model](graph-model.qmd#types-and-attributes).
 
 ## Writing attributes
 
@@ -220,7 +220,7 @@ Node `type` and edge `rel` are ordinary attributes in most respects, and both ca
 
 - they always have their own column in the node and edge tables, even when no node or edge has one;
 - Cypher queries read them as node labels and relationship types, so `(p:person)-[:knows]->()`
-  matches on them (see [Cypher queries](10-cypher.qmd)); and
+  matches on them (see [Cypher queries](cypher.qmd)); and
 - many methods accept them as filters, and generators set them through `type=` and `rel=`.
 
 A node can have more than one type, given as a list, which the node table shows as a list column:
@@ -244,7 +244,7 @@ roles.get_node_df().filter(pl.col("type").list.contains("author"))
 ## Visual attributes
 
 Two methods turn attribute values into visual properties and store them as new attributes, for use
-by the interactive [graph widget](25-interactive.qmd) or any other renderer.
+by the interactive [graph widget](interactive.qmd) or any other renderer.
 [`rescale_node_attrs()`](../reference/Graph.rescale_node_attrs.qmd) maps a numeric attribute onto a
 range of sizes, and [`colorize_node_attrs()`](../reference/Graph.colorize_node_attrs.qmd) maps a
 categorical attribute onto a color palette:
@@ -261,8 +261,8 @@ categorical attribute onto a color palette:
 )
 ```
 
-The static [`plot()`](22-plotting.qmd) method doesn't need these, since its `color_by=` and
-`size_by=` arguments read the attributes directly; see [Aesthetics](24-aesthetics.qmd).
+The static [`plot()`](plotting.qmd) method doesn't need these, since its `color_by=` and
+`size_by=` arguments read the attributes directly; see [Aesthetics](aesthetics.qmd).
 
 ## Things to know
 
@@ -274,5 +274,5 @@ The static [`plot()`](22-plotting.qmd) method doesn't need these, since its `col
   that `degrees()` stores) is left out of the table, so read it with `get_node_attrs()`. Likewise,
   `id`, `source`, and `target` are reserved in the edge table.
 - **Changes are logged.** Each `set_node_attrs()` and `set_edge_attrs()` call appears in the
-  graph's [step log](26-step-log.qmd), which also records the attribute updates made by
+  graph's [step log](step-log.qmd), which also records the attribute updates made by
   algorithms.

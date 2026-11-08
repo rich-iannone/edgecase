@@ -27,8 +27,8 @@ problems:
 | What route covers every edge, or every node? | [`eulerian_circuit()`](../reference/Graph.eulerian_circuit.qmd), [`traveling_salesman()`](../reference/Graph.traveling_salesman.qmd) |
 | What is the cheapest way to connect some nodes? | [`steiner_tree()`](../reference/Graph.steiner_tree.qmd) |
 
-[Traversals](09-traversals.qmd) covers the related questions of what a node can reach and how far
-away it is in steps, and [Structural properties](11-structure.qmd#distances) covers the
+[Traversals](traversals.qmd) covers the related questions of what a node can reach and how far
+away it is in steps, and [Structural properties](structure.qmd#distances) covers the
 whole-graph summaries of distance, such as the diameter.
 
 ## A road network
@@ -66,7 +66,7 @@ road_net
 ```
 
 Since the edges have weights, `from_edges()` made the graph weighted. As on the
-[Traversals](09-traversals.qmd) page, a small helper turns the node IDs that path methods return
+[Traversals](traversals.qmd) page, a small helper turns the node IDs that path methods return
 into city names:
 
 ```{python}
@@ -171,7 +171,7 @@ karate.all_shortest_paths(12, 34)
 
 Every route runs through the instructor and then through one of the four friends that the
 instructor and the administrator have in common. Counting how many shortest paths pass through each
-node is the idea behind betweenness centrality (see [Centrality](13-centrality.qmd)). On a large
+node is the idea behind betweenness centrality (see [Centrality](centrality.qmd)). On a large
 graph the number of ties can be very large, and `max_paths=` caps it.
 
 ## Choosing an algorithm
@@ -426,7 +426,7 @@ infinite distance.
 
 A full table has one entry per pair of nodes, so its size grows with the square of the number of
 nodes: a graph of 100,000 nodes has ten billion pairs. For large graphs, compute distances from the
-sources you actually need, or use a summary such as the [mean distance](11-structure.qmd#distances).
+sources you actually need, or use a summary such as the [mean distance](structure.qmd#distances).
 
 | Method | Returns |
 |---|---|
@@ -513,7 +513,7 @@ the largest set that share no node other than their ends:
 
 There are only two, because Vienna has only two roads. The number of disjoint paths between two
 nodes measures how robust the connection between them is, and
-[Connectivity and flows](16-connectivity.qmd) builds on it.
+[Connectivity and flows](connectivity.qmd) builds on it.
 
 ## Walks
 
@@ -522,7 +522,7 @@ measures that consider every route between two nodes rather than only the shorte
 [`count_walks()`](../reference/Graph.count_walks.qmd) counts the walks of a given length between
 every pair of nodes. In the karate club, the walks of length two from the instructor to the
 administrator are the routes through a common friend, and there are four of them, matching the
-four common friends found on the [Traversals](09-traversals.qmd#neighbors) page:
+four common friends found on the [Traversals](traversals.qmd#neighbors) page:
 
 ```{python}
 karate.count_walks(2)[1][34], karate.count_walks(3)[1][34]
@@ -536,9 +536,9 @@ walker prefers long roads. Use `seed=` for a repeatable walk:
 names(road_net.random_walk("Paris", steps=6, seed=3, return_list=True))
 ```
 
-Random walks are the basis of PageRank (see [Centrality](13-centrality.qmd)), of the Walktrap and
-Infomap community methods (see [Community detection](14-communities.qmd)), and of several
-similarity measures (see [Similarity and link prediction](18-similarity.qmd)).
+Random walks are the basis of PageRank (see [Centrality](centrality.qmd)), of the Walktrap and
+Infomap community methods (see [Community detection](communities.qmd)), and of several
+similarity measures (see [Similarity and link prediction](similarity.qmd)).
 [`random_walk_with_restart()`](../reference/Graph.random_walk_with_restart.qmd),
 [`random_edge_walk()`](../reference/Graph.random_edge_walk.qmd), and
 [`generate_random_paths()`](../reference/Graph.generate_random_paths.qmd) are variations.
@@ -702,11 +702,11 @@ variants of the problem.
 ## Paths in other contexts
 
 Path problems turn up throughout the library. The longest path in a directed acyclic graph, which
-gives the critical path of a project, is covered in [Directed acyclic graphs](17-dags.qmd).
+gives the critical path of a project, is covered in [Directed acyclic graphs](dags.qmd).
 Centrality measures such as closeness and betweenness are built from shortest paths
-([Centrality](13-centrality.qmd)), and flows and cuts generalize disjoint paths
-([Connectivity and flows](16-connectivity.qmd)). For Cypher users, `shortestPath()` and
-variable-length patterns find paths within a query ([Cypher queries](10-cypher.qmd#path-variables-and-shortest-paths)).
+([Centrality](centrality.qmd)), and flows and cuts generalize disjoint paths
+([Connectivity and flows](connectivity.qmd)). For Cypher users, `shortestPath()` and
+variable-length patterns find paths within a query ([Cypher queries](cypher.qmd#path-variables-and-shortest-paths)).
 Finally, [`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) draws a graph so
 that the distances in the drawing match the shortest-path distances in the graph (see
-[Layouts](23-layouts.qmd)).
+[Layouts](layouts.qmd)).

@@ -59,7 +59,7 @@ route for tabular files such as CSV and Parquet.
 The examples on this page use a small network of four researchers, who have written papers together
 and shared code, with a few attributes of different types on the nodes and the edges. `type` and
 `rel` are EdgeCase's built-in node types and relationship types (see
-[The graph model](03-graph-model.qmd)), and the weights count the joint papers:
+[The graph model](graph-model.qmd)), and the weights count the joint papers:
 
 ```{python}
 import edgecase as ec
@@ -138,7 +138,7 @@ ec.to_gexf(karate, "karate.gexf", description="Zachary's karate club", keywords=
 ```
 
 The two `colorize_node_attrs()` and `rescale_node_attrs()` methods are described in
-[Aesthetics](24-aesthetics.qmd#visual-attributes-for-the-interactive-views). `description=` and
+[Aesthetics](aesthetics.qmd#visual-attributes-for-the-interactive-views). `description=` and
 `keywords=` fill in the file's metadata, which Gephi shows in its project overview. The work can
 also go the other way. [`from_gexf()`](../reference/from_gexf.qmd) reads Gephi's positions back into
 a `pos` attribute, and its colors and sizes into `color` and `size`, so a layout made by hand in
@@ -303,7 +303,7 @@ directed, so `from_sif()` reads an undirected graph unless `directed=True` is pa
 The Matrix Market format stores a sparse matrix as a list of its nonzero entries, and is the format
 of the SuiteSparse Matrix Collection and of several network repositories. Read as a graph, each
 entry is an edge, weighted by its value. EdgeCase stores its own datasets in this format (see
-[Datasets](06-datasets.qmd)). The header line says whether the matrix is `symmetric`, an undirected
+[Datasets](datasets.qmd)). The header line says whether the matrix is `symmetric`, an undirected
 graph, or `general`, a directed one, and whether its entries are `real` or `integer` values or only
 a `pattern` of positions, which gives an unweighted graph:
 
@@ -481,7 +481,7 @@ ec.to_dict_of_lists(lab)
 ```
 
 These dictionaries match the ones NetworkX produces and accepts, which is described further in
-[Other libraries](28-other-libraries.qmd).
+[Other libraries](other-libraries.qmd).
 
 ## graph6 and sparse6
 
@@ -610,7 +610,7 @@ names.
 [`from_cypher()`](../reference/from_cypher.qmd) reads the `CREATE` statements of the Cypher query
 language, and [`to_cypher()`](../reference/to_cypher.qmd) writes a graph as one, which moves graphs
 to and from graph databases such as Neo4j and Memgraph. Both are described in
-[Cypher queries](10-cypher.qmd#exchanging-graphs-with-cypher-databases).
+[Cypher queries](cypher.qmd#exchanging-graphs-with-cypher-databases).
 
 ## Tables of nodes and edges
 
@@ -627,7 +627,7 @@ karate.get_edge_df().write_parquet("karate-edges.parquet")
 ```
 
 The `Graph` constructor then builds the graph from the tables again (see
-[Building graphs](04-building-graphs.qmd#building-a-graph-from-dataframes)). It expects the edge
+[Building graphs](building-graphs.qmd#building-a-graph-from-dataframes)). It expects the edge
 endpoints in columns named `from` and `to`, so the `source` and `target` columns need renaming, and
 the `degree` column, which EdgeCase computes rather than stores, is best dropped:
 

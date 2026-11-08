@@ -56,9 +56,9 @@ np.linalg.matrix_power(A, 3)
 There are four walks of three steps from `"A"` to `"C"`, and the diagonal counts the walks that
 return to their start: each node of the triangle has two, once around in each direction.
 [`count_walks()`](../reference/Graph.count_walks.qmd) counts walks without building the matrix
-(see [Paths and distances](12-paths.qmd)), and the top-level functions `to_numpy_array()` and
+(see [Paths and distances](paths.qmd)), and the top-level functions `to_numpy_array()` and
 `to_scipy_sparse_array()` convert whole graphs, including large sparse ones (see
-[Other libraries](28-other-libraries.qmd)).
+[Other libraries](other-libraries.qmd)).
 
 ### The Laplacian and its relatives
 
@@ -111,7 +111,7 @@ karate.attr_matrix(node_attr="faction")
 
 Of the 78 friendships, 33 lie within the instructor's faction, 35 within the administrator's, and
 only 10 cross between them, which is the pattern that community detection picks up. The mixing
-matrices of [Structural properties](11-structure.qmd#mixing-patterns) present the same information
+matrices of [Structural properties](structure.qmd#mixing-patterns) present the same information
 as fractions.
 
 ## The adjacency spectrum
@@ -129,7 +129,7 @@ spectrum = karate.adjacency_spectrum()
 The largest eigenvalue, the *spectral radius*, grows with the density of the graph and the
 presence of hubs: it lies between the mean degree and the maximum degree. Its eigenvector is
 eigenvector centrality, since each node's entry is proportional to the sum of its neighbors'
-entries (see [Centrality](13-centrality.qmd)):
+entries (see [Centrality](centrality.qmd)):
 
 ```{python}
 leading = dict(zip(spectrum["nodes"], spectrum["vectors"][0]))
@@ -199,7 +199,7 @@ pieces = ec.Graph().add_cycle_graph(n=5).add_path_graph(n=4).add_full_graph(n=3)
 Three zeros mark the three components. The next eigenvalue, the *algebraic connectivity*, is
 positive exactly when the graph is connected, and measures how hard it is to cut in two; it is
 described with the other connectivity measures in
-[Connectivity and flows](16-connectivity.qmd#algebraic-connectivity). With `normalized=True`, the
+[Connectivity and flows](connectivity.qmd#algebraic-connectivity). With `normalized=True`, the
 method uses the normalized Laplacian, whose eigenvalues lie between 0 and 2 and describe random
 walks on the graph.
 
@@ -238,7 +238,7 @@ factions = dict(karate.get_node_df().select("id", "faction").iter_rows())
 
 The first 18 members in the order are the administrator's faction and the last 16 the instructor's,
 without a single exception. Cutting the order at the sign change of the Fiedler vector is spectral
-bisection (see [Community detection](14-communities.qmd)).
+bisection (see [Community detection](communities.qmd)).
 
 ### Spectral layouts
 
@@ -256,7 +256,7 @@ The rows and columns come out straight, packed more tightly toward the edges, wh
 shape of the underlying waves. Spectral layouts suit graphs with a regular, mesh-like structure.
 On social networks, a few weakly attached nodes usually take up the extreme positions and squeeze
 the rest into the middle, so a force-directed layout is a better choice there (see
-[Layouts](23-layouts.qmd)).
+[Layouts](layouts.qmd)).
 
 ## Random walks and diffusion
 
@@ -298,9 +298,9 @@ warmest = sorted(heat, key=heat.get, reverse=True)[:4]
 
 After a short time, the administrator retains a fifth of the heat, and most of the rest has passed
 to the administrator's 17 friends, in nearly equal shares. Over longer times the heat evens out over the whole
-network. [Network biology](31-network-biology.qmd) uses diffusion to prioritize disease genes, and
+network. [Network biology](network-biology.qmd) uses diffusion to prioritize disease genes, and
 [`random_walk_with_restart()`](../reference/Graph.random_walk_with_restart.qmd) is a related method
-based on random walks (see [Paths and distances](12-paths.qmd)).
+based on random walks (see [Paths and distances](paths.qmd)).
 
 ## How many communities?
 
@@ -329,7 +329,7 @@ The count recovers the four planted groups, and gives two for both the karate cl
 dolphins, in line with the two factions and the two groups that are known to exist there. The
 estimate is most reliable on large, sparse networks, and is a useful starting point for methods
 that need the number of groups in advance, such as the stochastic block model fits of
-[Community detection](14-communities.qmd). The eigenvalues of the modularity matrix,
+[Community detection](communities.qmd). The eigenvalues of the modularity matrix,
 from [`modularity_spectrum()`](../reference/Graph.modularity_spectrum.qmd), underlie Newman's
 leading-eigenvector method, `cmty_l_eigenvec()`.
 

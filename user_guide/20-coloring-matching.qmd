@@ -315,7 +315,7 @@ label = project.get_label_from_id
 The work takes 10 hours with Ben translating, Cleo editing, and Dev on layout. Every node on the
 smaller side, here the three tasks, gets a partner, so Ana is left without a task. The graph must be
 created with `weighted=True`, otherwise every pairing would count as equally costly (see
-[The graph model](03-graph-model.qmd)). To maximize a total score instead of minimizing a cost,
+[The graph model](graph-model.qmd)). To maximize a total score instead of minimizing a cost,
 negate the weights.
 
 ### Why a matching can't be larger
@@ -495,7 +495,7 @@ women_events.is_bipartite(), len(women), len(events), karate.is_bipartite()
 
 The Southern Women network splits into its 18 women and 14 events. The karate club is not
 bipartite, since any triangle of friends is an odd cycle. The bipartite matching and cover methods
-above require a bipartite graph, and [Transforming graphs](19-transforming.qmd#derived-graphs) shows
+above require a bipartite graph, and [Transforming graphs](transforming.qmd#derived-graphs) shows
 how to project one onto either side.
 
 ### Planar graphs
@@ -534,7 +534,7 @@ groups of three in the second pattern, and three nodes of degree two that lie on
 edges. Finding the witness reruns the test once for each edge, so it is slower than the plain
 check; [`is_planar()`](../reference/Graph.is_planar.qmd) gives only the answer.
 [`layout_planar()`](../reference/Graph.layout_planar.qmd) computes positions with no crossings
-for a planar graph (see [Layouts](23-layouts.qmd)).
+for a planar graph (see [Layouts](layouts.qmd)).
 
 ### Chordal graphs and treewidth
 
@@ -577,7 +577,7 @@ ec.power_grid().tree_decomposition()[0]
 of edges that makes a graph chordal, and
 [`chordal_graph_treewidth()`](../reference/Graph.chordal_graph_treewidth.qmd) gives the exact
 treewidth of a chordal graph. The junction trees used for exact inference in Bayesian networks are
-tree decompositions of the moral graph (see [Directed acyclic graphs](17-dags.qmd)).
+tree decompositions of the moral graph (see [Directed acyclic graphs](dags.qmd)).
 
 ### Perfect graphs and cographs
 
@@ -618,4 +618,4 @@ neighbors outside the group.
 | Treewidth | `tree_decomposition()`, `chordal_graph_treewidth()` | Upper bound; exact on chordal graphs |
 
 The problems of finding routes through every node or edge (the traveling salesman problem, Euler
-tours, and Steiner trees) are covered in [Paths and distances](12-paths.qmd).
+tours, and Steiner trees) are covered in [Paths and distances](paths.qmd).

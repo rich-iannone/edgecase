@@ -18,7 +18,7 @@ answers them at three levels:
 - **neighbor lookups** return the nodes next to a node,
 - **searches** such as breadth-first and depth-first search explore everything a node can reach,
   and
-- **selection traversals** move the graph's current [selection](08-selections.qmd) along its
+- **selection traversals** move the graph's current [selection](selections.qmd) along its
   edges, one step at a time, so that the nodes or edges reached can be acted on.
 
 This page covers all three, and ends with ways of drawing a search or traversal step by step.
@@ -75,7 +75,7 @@ courses.plot(layout="pos", label_by="label", node_size=10, height=450)
 
 The introductory courses with no prerequisites (Calculus I, Linear Algebra, and Programming) sit at
 the bottom, and the Capstone, which depends directly or indirectly on everything, sits at the top.
-[Layouts](23-layouts.qmd) has more on positioning nodes this way.
+[Layouts](layouts.qmd) has more on positioning nodes this way.
 
 ## Neighbors
 
@@ -407,5 +407,5 @@ Structures, then Algorithms and Machine Learning, and finally the Capstone:
 recorder.plot(node_size=12)
 ```
 
-The graph's [step log](26-step-log.qmd) offers a broader record of the same kind, covering every
+The graph's [step log](step-log.qmd) offers a broader record of the same kind, covering every
 change made to a graph rather than one traversal.

@@ -266,7 +266,7 @@ movies.match(
 
 Through films alone, the two are four steps apart, by six different routes. For shortest paths
 that use edge weights, or for path computations over a whole graph, see
-[Paths and distances](12-paths.qmd).
+[Paths and distances](paths.qmd).
 
 ## Filtering with `WHERE`
 
@@ -468,7 +468,7 @@ so the query finds the credits and Polars does the rest.
 `select_match()` selects what the matches bound. By default it selects every node of every match,
 anonymous ones included; `select=` names the variables to select instead, and a relationship
 variable selects edges. The selection then feeds the `_ws` methods described in
-[Selections](08-selections.qmd):
+[Selections](selections.qmd):
 
 ```{python}
 (
@@ -595,7 +595,7 @@ EdgeCase graph and search for it with
 when the pattern is itself data (loaded from a file, generated, or too large to write out), when
 matches must be *induced* (with no extra edges among the matched nodes), or when each symmetric
 copy should be found only once. Cypher is the better fit when the pattern has conditions on
-properties, or when the result should be a table. [Clustering and motifs](15-clustering-and-motifs.qmd)
+properties, or when the result should be a table. [Clustering and motifs](clustering-and-motifs.qmd)
 has more on subgraph search.
 
 ## Exchanging graphs with Cypher databases
@@ -613,7 +613,7 @@ Each node gets a variable (`n1`, `n2`, and so on, in ID order), its label as the
 and its type as its Cypher labels, and each edge its `rel` as the relationship type. Edges without
 a `rel` get `default_rel=` (`"RELATED_TO"` by default), since Cypher requires a type for every
 relationship. Pass a path as `filepath=` to write the statement to a file as well.
-[File formats](27-file-formats.qmd) covers the other formats EdgeCase reads and writes.
+[File formats](file-formats.qmd) covers the other formats EdgeCase reads and writes.
 
 ## Performance
 

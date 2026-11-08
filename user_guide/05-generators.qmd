@@ -239,7 +239,7 @@ often than their degrees alone would explain. The `iterations=` argument sets ho
 average, each edge is rewired. By default `random_reference()` keeps the graph connected;
 [`degree_preserving_rewire()`](../reference/Graph.degree_preserving_rewire.qmd) performs a set
 number of swaps, `n_swaps=`, without that restriction.
-[Clustering and motifs](15-clustering-and-motifs.qmd#motifs) uses these randomizations to test the
+[Clustering and motifs](clustering-and-motifs.qmd#motifs) uses these randomizations to test the
 significance of triangles and other small patterns.
 
 ### Spatial and growth models
@@ -249,7 +249,7 @@ nodes within a given radius, and `add_waxman_graph()`, `add_soft_random_geometri
 `add_geographical_threshold_graph()`, and `add_navigable_small_world_graph()` are variations on the
 idea. Except for `add_random_geometric_graph()`, they store each node's coordinates in a `pos`
 attribute, which `plot(layout="pos")` can use to draw the graph in its own space (see
-[Layouts](23-layouts.qmd)):
+[Layouts](layouts.qmd)):
 
 ```{python}
 waxman = ec.Graph().add_waxman_graph(n=40, beta=0.6, alpha=0.15, seed=5)
@@ -311,7 +311,7 @@ and cross-tabulating its communities against the planted ones shows how well it 
 
 Each planted community maps onto exactly one detected community, so Louvain recovered the planted
 structure perfectly. Raising `p_out`, or the mixing parameter `mu` of the LFR benchmark, makes the
-communities harder to find. [Community detection](14-communities.qmd) has more on comparing
+communities harder to find. [Community detection](communities.qmd) has more on comparing
 methods.
 
 ## Graphs from data

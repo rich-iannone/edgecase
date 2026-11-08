@@ -16,7 +16,7 @@ anything should go on a page. A *layout* assigns each node a position, and the c
 largely decides what a drawing shows. A force-directed layout reveals clusters, a layered layout
 reveals a hierarchy, a circle makes every edge visible, and a map shows where things really are.
 
-[Static plots](22-plotting.qmd) introduced the three layouts built into `plot()`: `"force"`,
+[Static plots](plotting.qmd) introduced the three layouts built into `plot()`: `"force"`,
 `"circular"`, and `"random"`. This page covers the `layout_*()` methods, which offer many more
 algorithms and finer control, and shows how to draw nodes at coordinates that come with the data.
 
@@ -141,7 +141,7 @@ Hierarchies, pipelines, and two-mode networks are clearer when their nodes are d
 
 [`layout_bfs()`](../reference/Graph.layout_bfs.qmd) puts a start node in the first layer, its
 neighbors in the second, their neighbors in the third, and so on, so that each node's layer is its
-distance from the start. The small organization of [Static plots](22-plotting.qmd):
+distance from the start. The small organization of [Static plots](plotting.qmd):
 
 ```{python}
 org = ec.Graph(directed=True).add_edges(
@@ -212,11 +212,11 @@ karate.layout_circular()
 karate.plot(layout="pos", color_by="faction", show_labels=False, node_size=8, width=400, height=400)
 ```
 
-The nodes are colored by faction with `color_by=` (see [Aesthetics](24-aesthetics.qmd)), and the
+The nodes are colored by faction with `color_by=` (see [Aesthetics](aesthetics.qmd)), and the
 two factions are mixed all around the circle. A better order puts linked nodes next to each other.
 [`layout_shell()`](../reference/Graph.layout_shell.qmd) places the nodes on one or more circles,
 and takes the nodes of each circle in the order given, so a single circle in the
-[spectral order](21-spectral.qmd#ordering-nodes-with-the-fiedler-vector) of the club makes a much
+[spectral order](spectral.qmd#ordering-nodes-with-the-fiedler-vector) of the club makes a much
 more readable drawing:
 
 ```{python}
@@ -253,12 +253,12 @@ Two layouts derive the positions from a mathematical property of the graph.
 
 [`layout_spectral()`](../reference/Graph.layout_spectral.qmd) uses two eigenvectors of the
 Laplacian matrix as coordinates. It recovers the geometry of meshes and grids from their edges
-alone, but tends to squeeze social networks into a small area; [Matrices and spectra](21-spectral.qmd#spectral-layouts)
+alone, but tends to squeeze social networks into a small area; [Matrices and spectra](spectral.qmd#spectral-layouts)
 has an example. [`layout_planar()`](../reference/Graph.layout_planar.qmd) draws a planar graph so
 that no two edges cross, which proves that the graph is planar, but the nodes are placed on a grid
 in a broad triangle and the drawing can be cramped. A force-directed layout often draws a planar
 graph without crossings as well, and looks better. Planarity itself is covered in
-[Coloring, matching, and covering](20-coloring-matching.qmd).
+[Coloring, matching, and covering](coloring-matching.qmd).
 
 [`layout_random()`](../reference/Graph.layout_random.qmd) scatters the nodes uniformly at random.
 It shows nothing of the structure, which makes it a useful baseline: a random drawing shows how
