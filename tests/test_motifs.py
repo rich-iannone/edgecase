@@ -359,11 +359,9 @@ class TestMotifCensusReturnDict:
         """Regression: the default return_dict=False computed the census and threw it away."""
         assert make_triangle().motif_census(size=3) == {"triangle": 1}
 
-    def test_return_dict_is_ignored_with_warning(self):
-        g = make_triangle()
-        with pytest.warns(DeprecationWarning, match="return_dict= has no effect"):
-            result = g.motif_census(size=3, return_dict=False)
-        assert result == {"triangle": 1}
+    def test_return_dict_is_not_a_parameter(self):
+        with pytest.raises(TypeError, match="return_dict"):
+            make_triangle().motif_census(size=3, return_dict=False)
 
     def test_not_tracked_as_computation(self):
         g = make_triangle()
@@ -480,11 +478,9 @@ class TestMotifSignificanceReturnDict:
         result = make_triangle_with_tail().motif_significance(size=3, n_random=5, seed=23)
         assert set(result) == {"path", "triangle"}
 
-    def test_return_dict_is_ignored_with_warning(self):
-        g = make_triangle_with_tail()
-        with pytest.warns(DeprecationWarning, match="return_dict= has no effect"):
-            result = g.motif_significance(size=3, n_random=5, seed=23, return_dict=False)
-        assert result == g.motif_significance(size=3, n_random=5, seed=23)
+    def test_return_dict_is_not_a_parameter(self):
+        with pytest.raises(TypeError, match="return_dict"):
+            make_triangle_with_tail().motif_significance(size=3, return_dict=False)
 
 
 # ===========================================================================
