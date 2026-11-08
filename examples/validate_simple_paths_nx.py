@@ -373,10 +373,4 @@ def main():
 
 
 if __name__ == "__main__":
-    try:
-        import networkx
-
-        main()
-    except ImportError:
-        print("NetworkX not installed. Install with: pip install networkx")
-        print("This validation script requires NetworkX for comparison.")
+    main()
