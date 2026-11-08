@@ -578,7 +578,7 @@ def karate_club() -> Graph:
     max_core
 
     # Analyze clustering
-    avg_clustering = G.get_avg_clustering_coefficient()
+    avg_clustering = G.average_clustering_coefficient()
 
     # Returns approximately 0.571
     avg_clustering

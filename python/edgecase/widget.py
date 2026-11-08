@@ -244,7 +244,7 @@ class GraphWidget:
         seen = set()
 
         for node in nodes:
-            for neighbor in self.graph.neighbors(node):
+            for neighbor in self.graph.get_neighbors(node):
                 edge_key = tuple(sorted([node, neighbor]))
                 if edge_key not in seen:
                     edges.append(list(edge_key))

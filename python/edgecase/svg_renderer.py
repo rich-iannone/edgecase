@@ -1229,7 +1229,7 @@ def render_plot(
     seen_pairs: set = set()
     for nid in node_ids:
         try:
-            neighbors = graph.neighbors(nid)
+            neighbors = graph.get_neighbors(nid)
         except Exception:
             continue
         for nb in neighbors:
@@ -1848,7 +1848,7 @@ def render_traversal(
     adjacency: Dict[str, List[str]] = {nid: [] for nid in str_ids}
     for nid in node_ids:
         try:
-            neighbors = graph.neighbors(nid)
+            neighbors = graph.get_neighbors(nid)
         except Exception:
             continue
         for nb in neighbors:
@@ -2732,7 +2732,7 @@ def render_traversal_chain(
     adjacency: Dict[str, List[str]] = {nid: [] for nid in str_ids}
     for nid in node_ids:
         try:
-            neighbors = graph.neighbors(nid)
+            neighbors = graph.get_neighbors(nid)
         except Exception:
             continue
         for nb in neighbors:
@@ -4069,7 +4069,7 @@ def render_steps(
                 lbl = str(obj.label) if obj and obj.label else str(nid)
                 try:
                     nbs = []
-                    for nb in graph.neighbors(nid):
+                    for nb in graph.get_neighbors(nid):
                         nb_obj = graph.get_node(nb)
                         nbs.append(str(nb_obj.label) if nb_obj and nb_obj.label else str(nb))
                     adj[lbl] = nbs
