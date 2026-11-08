@@ -45,7 +45,6 @@ The core package needs only a few dependencies, which `pip` installs automatical
 | [Polars](https://pola.rs) | The node and edge tables, Cypher query results, and step logs |
 | [Great Tables](https://posit-dev.github.io/great-tables/) | Formatted summary tables |
 | [anywidget](https://anywidget.dev) | Interactive graph widgets in notebooks |
-| typing-extensions | Type annotations on older Python versions |
 
 Everything else is optional. EdgeCase imports an optional package only when you call a function
 that needs it, and raises an `ImportError` naming the package if it isn't installed:
