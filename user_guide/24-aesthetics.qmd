@@ -75,7 +75,7 @@ with Polars and written back with `set_node_attrs()`. Suppose the question is wh
 friends with both leaders, and so stood between the two camps:
 
 ```{python}
-both_leaders = set(karate.neighbors(1)) & set(karate.neighbors(34))
+both_leaders = set(karate.get_neighbors(1)) & set(karate.get_neighbors(34))
 
 positions = karate.get_node_df().select(
     "id",

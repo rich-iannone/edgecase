@@ -48,12 +48,12 @@ The two leaders share only 14% of their combined friends, while the instructor a
 (ID 2) share 39%. The administrator and member `"32"` (ID 33) are the most alike of the three
 pairs, with more than half of their friends in common.
 
-To compare every pair at once, [`get_jaccard_similarity()`](../reference/Graph.get_jaccard_similarity.qmd)
+To compare every pair at once, [`jaccard_similarity()`](../reference/Graph.jaccard_similarity.qmd)
 returns a nested dictionary keyed by node ID. Sorting one node's row ranks the others by how much
 they resemble it:
 
 ```{python}
-jaccard = karate.get_jaccard_similarity()
+jaccard = karate.jaccard_similarity()
 ranked = sorted(jaccard[34].items(), key=lambda item: item[1], reverse=True)
 [(karate.get_label_from_id(node), round(score, 3)) for node, score in ranked[1:6]]
 ```
@@ -67,21 +67,21 @@ the number of shared neighbors, written here as `c` for two nodes with `k_u` and
 
 | Method | Score |
 |---|---|
-| [`get_jaccard_similarity()`](../reference/Graph.get_jaccard_similarity.qmd) | `c / (k_u + k_v - c)`, shared neighbors over all distinct neighbors |
-| [`get_dice_similarity()`](../reference/Graph.get_dice_similarity.qmd) | `2c / (k_u + k_v)` |
-| [`get_cosine_similarity()`](../reference/Graph.get_cosine_similarity.qmd) | `c / sqrt(k_u k_v)` |
-| [`get_overlap_similarity()`](../reference/Graph.get_overlap_similarity.qmd) | `c / min(k_u, k_v)`, which is 1 whenever one neighborhood contains the other |
+| [`jaccard_similarity()`](../reference/Graph.jaccard_similarity.qmd) | `c / (k_u + k_v - c)`, shared neighbors over all distinct neighbors |
+| [`dice_similarity()`](../reference/Graph.dice_similarity.qmd) | `2c / (k_u + k_v)` |
+| [`cosine_similarity()`](../reference/Graph.cosine_similarity.qmd) | `c / sqrt(k_u k_v)` |
+| [`overlap_similarity()`](../reference/Graph.overlap_similarity.qmd) | `c / min(k_u, k_v)`, which is 1 whenever one neighborhood contains the other |
 
 All four rank pairs in a similar order. The overlap coefficient stands apart, because it measures
 containment: a member with three friends, all of whom are also friends of a leader, has an overlap
 of 1 with that leader. For a matrix over a chosen set of nodes, in a known order,
-[`get_pairwise_similarity()`](../reference/Graph.get_pairwise_similarity.qmd) takes a list of nodes
+[`pairwise_similarity()`](../reference/Graph.pairwise_similarity.qmd) takes a list of nodes
 and a `method=` (`"jaccard"`, `"dice"`, `"cosine"`, or `"invlogweighted"`, the Adamic–Adar index
 described below):
 
 ```{python}
 leaders = [1, 2, 33, 34]
-matrix = karate.get_pairwise_similarity(leaders, method="cosine")
+matrix = karate.pairwise_similarity(leaders, method="cosine")
 [[round(value, 2) for value in row] for row in matrix]
 ```
 
@@ -511,7 +511,7 @@ better and better estimates as it runs, which is useful when an approximate answ
 
 | Question | Methods |
 |---|---|
-| Which nodes have similar neighbors? | `get_jaccard_similarity()`, `get_cosine_similarity()`, `get_dice_similarity()`, `get_overlap_similarity()`, `get_pairwise_similarity()` |
+| Which nodes have similar neighbors? | `jaccard_similarity()`, `cosine_similarity()`, `dice_similarity()`, `overlap_similarity()`, `pairwise_similarity()` |
 | Which nodes are similar beyond their immediate neighbors? | `simrank_similarity()`, `simrank_star_similarity()`, `panther_similarity()` |
 | Which missing links are most likely? | `resource_allocation_index()`, `adamic_adar_index()`, `common_neighbors()`, `jaccard_coefficient()`, and the community-aware variants |
 | What are the missing categories of some nodes? | `harmonic_function()`, `local_and_global_consistency()` |

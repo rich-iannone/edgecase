@@ -65,7 +65,7 @@ Arborescence
 Articulation point
 : A node whose removal disconnects the graph, or more generally increases its number of
   **components**. Also called a *cut vertex*. A graph without articulation points is *biconnected*.
-  Available via `get_articulation_points()`, with the biconnected pieces from
+  Available via `articulation_points()`, with the biconnected pieces from
   `biconnected_components()`. See also **bridge**. [Learn more](16-connectivity.qmd#weak-points).
 
 Assortativity
@@ -73,8 +73,8 @@ Assortativity
   correlation between the **degrees** at the two ends of the edges: positive when hubs link to hubs,
   as in many social networks, and negative when hubs link to poorly connected nodes, as in many
   technological and biological networks. Assortativity by a categorical **attribute** measures
-  **homophily**. Available via `get_assortativity_degree()`, `get_assortativity()` for numeric
-  attributes, and `get_assortativity_nominal()` for categories. See also **mixing matrix**. [Learn
+  **homophily**. Available via `assortativity_degree()`, `assortativity()` for numeric
+  attributes, and `assortativity_nominal()` for categories. See also **mixing matrix**. [Learn
   more](11-structure.qmd#mixing-patterns).
 
 Attribute
@@ -94,7 +94,7 @@ Automorphism
 Average degree
 : The mean **degree** of the nodes, $2m / n$ for an undirected graph with $n$ nodes and $m$ edges.
   In a directed graph, the mean in-degree and the mean out-degree are both $m / n$. Available via
-  `get_average_degree()`. See also **density**. [Learn more](11-structure.qmd#degrees).
+  `average_degree()`. See also **density**. [Learn more](11-structure.qmd#degrees).
 
 Barabási–Albert model
 : See **preferential attachment**.
@@ -148,8 +148,8 @@ Brokerage
 
 Center
 : The nodes of smallest **eccentricity**, which are the closest to all others in the worst case. The
-  *periphery* is the nodes of largest eccentricity. Available via `get_center()` and
-  `get_periphery()`, with `get_barycenter()` for the nodes of smallest total distance. See also
+  *periphery* is the nodes of largest eccentricity. Available via `center()` and
+  `periphery()`, with `barycenter()` for the nodes of smallest total distance. See also
   **radius** and **diameter**. [Learn more](11-structure.qmd#distances).
 
 Centrality
@@ -179,7 +179,7 @@ Clique
 : A set of nodes in which every pair is linked. A *maximal* clique can't be extended by another
   node, and a *maximum* clique is a largest one; its size is the graph's *clique number*. Cliques
   are the tightest possible groups, though in real networks they are usually small and overlap
-  heavily. Available via `find_cliques()`, `max_clique()`, `clique_number()`, and
+  heavily. Available via `find_cliques()`, `maximum_clique()`, `clique_number()`, and
   `node_clique_number()`. See also **k-core** and **k-truss**. [Learn
   more](11-structure.qmd#cliques).
 
@@ -196,7 +196,7 @@ Clustering coefficient
   coefficient is the mean over the nodes, and **transitivity** is a related global measure. High
   clustering, far above that of a **random graph**, is a hallmark of social networks. Available via
   `clustering_coefficient()`, `local_clustering_coefficient()`, and
-  `get_avg_clustering_coefficient()`. [Learn
+  `average_clustering_coefficient()`. [Learn
   more](15-clustering-and-motifs.qmd#clustering-coefficients).
 
 Co-expression network
@@ -273,8 +273,8 @@ Connectivity
 : The number of nodes (*node connectivity*) or edges (*edge connectivity*) that must be removed to
   disconnect a graph, or to separate two given nodes. By Menger's theorem, it equals the number of
   **disjoint paths** between them. A graph is *k-connected* when no fewer than $k$ removals
-  disconnect it. Available via `get_node_connectivity()`, `get_edge_connectivity()`,
-  `get_node_connectivity_between()`, and `k_components()`. See also **minimum cut**. [Learn
+  disconnect it. Available via `node_connectivity()`, `edge_connectivity()`,
+  `node_connectivity_between()`, and `k_components()`. See also **minimum cut**. [Learn
   more](16-connectivity.qmd#measuring-connectivity).
 
 Coreness
@@ -292,8 +292,8 @@ Critical path
 Cycle
 : A **path** that returns to its start without repeating any other node. A graph without cycles is
   *acyclic*: a **forest** if undirected, a **DAG** if directed. The length of the shortest cycle is
-  the graph's **girth**. Available via `has_cycles()`, `simple_cycles()`, `get_cycles()`, and
-  `cycle_basis()`. [Learn more](15-clustering-and-motifs.qmd#cycles).
+  the graph's **girth**. Available via `has_cycles()`, `simple_cycles()`, and `cycle_basis()`.
+  [Learn more](15-clustering-and-motifs.qmd#cycles).
 
 Cypher
 : The query language of the Neo4j graph database and the openCypher standard, which describes the
@@ -341,14 +341,14 @@ Degree centrality
 Degree distribution
 : The share of nodes with each **degree**. Many real networks have *heavy-tailed* degree
   distributions, in which most nodes have few ties and a few **hubs** have very many; this shapes
-  their **robustness** and their **spreading** processes. Available via `get_degree_distribution()`.
+  their **robustness** and their **spreading** processes. Available via `degree_distribution()`.
   See also **scale-free network**. [Learn more](11-structure.qmd#degrees).
 
 Density
 : The share of the possible edges that are present: $2m / (n(n - 1))$ for an undirected graph with
   $n$ nodes and $m$ edges, and $m / (n(n - 1))$ for a directed one. Real networks are almost always
   *sparse*, with a density far below 1, and their density falls as they grow. Available via
-  `get_density()`. [Learn more](11-structure.qmd#the-graph-at-a-glance).
+  `density()`. [Learn more](11-structure.qmd#the-graph-at-a-glance).
 
 Depth-first search (DFS)
 : A **traversal** that follows one path as far as it goes before backing up to try the next. It
@@ -362,7 +362,7 @@ Descendant
 Diameter
 : The largest **distance** between any two nodes of a connected graph, which is also the largest
   **eccentricity**. Real networks have small diameters even when they are very large (see **small
-  world**). Available via `get_diameter()`. See also **radius** and **mean distance**. [Learn
+  world**). Available via `diameter()`. See also **radius** and **mean distance**. [Learn
   more](11-structure.qmd#distances).
 
 Differential network
@@ -409,7 +409,7 @@ Distance
 Dominating set
 : A set of nodes such that every other node is linked to at least one of them, as when choosing
   sites for services that every neighborhood must be next to. Available via `dominating_set()`,
-  `min_weighted_dominating_set()`, and `is_dominating_set()`. [Learn
+  `minimum_weighted_dominating_set()`, and `is_dominating_set()`. [Learn
   more](20-coloring-matching.qmd#dominating-sets).
 
 Dominator
@@ -508,8 +508,8 @@ Flow
   respects each edge's capacity and conserves the amount at every node except a source and a sink.
   The *maximum flow* is the most that can be sent from the source to the sink, and equals the
   capacity of the **minimum cut** between them. A *minimum-cost flow* meets given demands at the
-  lowest cost. Available via `max_flow()`, `max_flow_value()`, and `min_cost_flow()`. [Learn
-  more](16-connectivity.qmd#flows).
+  lowest cost. Available via `maximum_flow()`, `maximum_flow_value()`, and `minimum_cost_flow()`.
+  [Learn more](16-connectivity.qmd#flows).
 
 Force-directed layout
 : A **layout** that treats the edges as springs and the nodes as mutually repelling particles, and
@@ -538,7 +538,7 @@ Giant component
 
 Girth
 : The length of the shortest **cycle** in a graph. A graph without cycles has infinite girth.
-  Available via `get_girth()`. [Learn more](15-clustering-and-motifs.qmd#cycles).
+  Available via `girth()`. [Learn more](15-clustering-and-motifs.qmd#cycles).
 
 Girvan–Newman method
 : A **community detection** method that repeatedly removes the edge of highest edge **betweenness
@@ -658,7 +658,7 @@ Isomorphism
 Jaccard similarity
 : The **similarity** of two nodes measured as the number of their **common neighbors** divided by
   the number of nodes linked to either of them. It runs from 0 (no shared neighbors) to 1 (identical
-  neighborhoods). Available via `get_jaccard_similarity()` and `jaccard_coefficient()`. See also
+  neighborhoods). Available via `jaccard_similarity()` and `jaccard_coefficient()`. See also
   **structural equivalence**. [Learn more](18-similarity.qmd#neighborhood-similarity).
 
 k-core
@@ -698,7 +698,7 @@ Laplacian matrix
   **adjacency matrix**. Its eigenvalues describe how well connected a graph is, how it can be cut,
   and how processes such as diffusion spread on it; the number of zero eigenvalues is the number of
   **components**. Available via `laplacian_matrix()`, `normalized_laplacian_matrix()`, and
-  `get_laplacian_spectrum()`. See also **algebraic connectivity** and **Fiedler vector**. [Learn
+  `laplacian_spectrum()`. See also **algebraic connectivity** and **Fiedler vector**. [Learn
   more](21-spectral.qmd#the-laplacian-and-its-relatives).
 
 Layer
@@ -749,25 +749,25 @@ Matching
   *maximum* matching pairs as many nodes as possible, a *perfect* matching pairs them all, and a
   maximum-weight matching maximizes the total **weight** of the pairs. In a **bipartite graph**,
   matching solves assignment problems, such as workers to jobs. Available via
-  `max_weight_matching()`, `maximal_matching()`, `bipartite_maximum_matching()`, and
-  `bipartite_min_weight_full_matching()`. [Learn more](20-coloring-matching.qmd#matching).
+  `maximum_weight_matching()`, `maximal_matching()`, `bipartite_maximum_matching()`, and
+  `bipartite_minimum_weight_full_matching()`. [Learn more](20-coloring-matching.qmd#matching).
 
 Maximum cut
 : A division of the nodes into two groups that maximizes the number, or the total weight, of the
-  edges between them. Available via `max_cut()`. See also **minimum cut**. [Learn
+  edges between them. Available via `maximum_cut()`. See also **minimum cut**. [Learn
   more](20-coloring-matching.qmd#maximum-cut).
 
 Mean distance
 : The mean **distance** over all pairs of nodes that are connected, also called the *average path
   length*. It grows only slowly with the size of a network (see **small world**). Available via
-  `get_mean_distance()`. See also **diameter** and **efficiency**. [Learn
+  `mean_distance()`. See also **diameter** and **efficiency**. [Learn
   more](11-structure.qmd#distances).
 
 Minimum cut
 : The smallest set of edges (or nodes) whose removal separates two given nodes, or disconnects the
   graph; in a **weighted graph**, the set of smallest total weight. Its size is the **connectivity**
   between the nodes and equals the maximum **flow** between them. Available via `minimum_cut()`,
-  `minimum_edge_cut()`, `minimum_node_cut()`, `get_min_cut_between()`, and `stoer_wagner()` for the
+  `minimum_edge_cut()`, `minimum_node_cut()`, `minimum_cut_value()`, and `stoer_wagner()` for the
   global minimum cut of a weighted graph. [Learn more](16-connectivity.qmd#flows).
 
 Mixing matrix
@@ -826,7 +826,7 @@ Multiplexity
 Neighbor
 : A node linked to a given node by an edge. In a **directed graph**, the nodes that an edge points
   to are the node's *successors*, and those that point to it are its *predecessors*. The set of a
-  node's neighbors is its *neighborhood*. Available via `neighbors()`, `get_successors()`, and
+  node's neighbors is its *neighborhood*. Available via `get_neighbors()`, `get_successors()`, and
   `get_predecessors()`, with `select_nodes_in_neighborhood()` selecting a neighborhood. [Learn
   more](09-traversals.qmd#neighbors).
 
@@ -856,7 +856,7 @@ Node
 Node ID
 : The positive integer that EdgeCase assigns to each node, starting from 1 in the order the nodes
   are added. IDs are never reused, even after a node is deleted, so an ID always refers to the same
-  node. Methods that return nodes, such as `neighbors()` and `shortest_path()`, return IDs, and
+  node. Methods that return nodes, such as `get_neighbors()` and `shortest_path()`, return IDs, and
   methods with `return_dict=True` key their results by ID. Wherever a method takes a node, an `int`
   is read as an ID and a `str` as a **label**. See also **edge ID**. [Learn
   more](03-graph-model.qmd#ids).
@@ -907,7 +907,7 @@ Partition
 Path
 : A sequence of nodes in which each is linked to the next. In a *simple path*, no node appears
   twice. More generally, a **walk** may repeat nodes and edges, and a **trail** may repeat nodes but
-  not edges. Available via `has_path()`, `shortest_path()`, `get_all_simple_paths()`, and
+  not edges. Available via `has_path()`, `shortest_path()`, `all_simple_paths()`, and
   `is_simple_path()`. See also **shortest path** and **cycle**. [Learn more](12-paths.qmd).
 
 Percolation
@@ -964,7 +964,7 @@ Quotient graph
 
 Radius
 : The smallest **eccentricity** of any node, the distance from the **center** to the node farthest
-  from it. Available via `get_radius()`. See also **diameter**. [Learn
+  from it. Available via `radius()`. See also **diameter**. [Learn
   more](11-structure.qmd#distances).
 
 Random graph
@@ -997,7 +997,7 @@ Reachability
 
 Reciprocity
 : The share of the edges of a **directed graph** whose reverse edge is also present, such as
-  friendship nominations that are returned. Available via `get_reciprocity()`, with `which_mutual()`
+  friendship nominations that are returned. Available via `reciprocity()`, with `which_mutual()`
   and `count_mutual_node_pairs()`. [Learn more](11-structure.qmd#reciprocity).
 
 Regular graph
@@ -1017,7 +1017,7 @@ Resistance distance
 : The **distance** between two nodes measured as the electrical resistance between them when every
   edge is a one-ohm resistor. Unlike the **shortest path** distance, it falls when there are many
   routes between the nodes, and it is related to **random walks**. Available via
-  `get_resistance_distance()`, `resistance_distance_matrix()`, and `get_kirchhoff_index()`, the sum
+  `resistance_distance()`, `resistance_distance_matrix()`, and `kirchhoff_index()`, the sum
   over all pairs. [Learn more](12-paths.qmd#resistance-distance).
 
 Resolution
@@ -1092,8 +1092,8 @@ Similarity
 : A measure of how alike two nodes are, based on their positions in the network rather than their
   attributes. Neighborhood measures, such as **Jaccard similarity** and cosine similarity, compare
   the nodes' **neighbors**, and path-based measures, such as **SimRank**, take more distant
-  structure into account. Available via `get_jaccard_similarity()`, `get_cosine_similarity()`,
-  `get_dice_similarity()`, `get_pairwise_similarity()`, and `simrank_similarity()`. See also **link
+  structure into account. Available via `jaccard_similarity()`, `cosine_similarity()`,
+  `dice_similarity()`, `pairwise_similarity()`, and `simrank_similarity()`. See also **link
   prediction** and **structural equivalence**. [Learn more](18-similarity.qmd).
 
 Simple graph
@@ -1153,7 +1153,7 @@ Spectrum
 : The eigenvalues of a matrix of a graph, usually the **adjacency matrix** or the **Laplacian
   matrix**. The spectrum reflects many structural properties: the number of **components**, whether
   it is a **bipartite graph**, how well the graph can be cut, and the number of communities.
-  Available via `get_spectrum()`, `get_laplacian_spectrum()`, `modularity_spectrum()`, and
+  Available via `adjacency_spectrum()`, `laplacian_spectrum()`, `modularity_spectrum()`, and
   `bethe_hessian_spectrum()`. [Learn more](21-spectral.qmd).
 
 Spreading
@@ -1240,7 +1240,7 @@ Topological sort
 : An ordering of the nodes of a **DAG** in which every edge points from an earlier node to a later
   one, such as an order in which tasks can be done that respects their prerequisites. A DAG usually
   has many. *Topological generations* group the nodes into stages that can proceed in parallel.
-  Available via `get_topological_sort_order()`, `all_topological_sorts()`,
+  Available via `topological_sort()`, `all_topological_sorts()`,
   `lexicographical_topological_sort()`, and `topological_generations()`. [Learn
   more](17-dags.qmd#ordering).
 
@@ -1262,7 +1262,7 @@ Transitivity
 : The share of the connected triples of nodes (paths of two edges) that are closed into
   **triangles**, $3 \times \text{triangles} / \text{connected triples}$. It measures the tendency of
   the friends of a friend to be friends, over the whole graph. Also called the *global clustering
-  coefficient*. Available via `get_transitivity()`. See also **clustering coefficient**. [Learn
+  coefficient*. Available via `transitivity()`. See also **clustering coefficient**. [Learn
   more](15-clustering-and-motifs.qmd#two-global-measures).
 
 Traveling salesperson problem
@@ -1322,7 +1322,7 @@ Vertex
 Vertex cover
 : A set of nodes that touches every edge, as when placing guards at intersections so that every
   street is watched. The complement of a vertex cover is an **independent set**. Available via
-  `min_weighted_vertex_cover()`, `bipartite_vertex_cover()`, and `is_vertex_cover()`. [Learn
+  `minimum_weighted_vertex_cover()`, `bipartite_vertex_cover()`, and `is_vertex_cover()`. [Learn
   more](20-coloring-matching.qmd#vertex-covers-and-independent-sets).
 
 VoteRank
@@ -1364,5 +1364,5 @@ Weighted graph
 
 Wiener index
 : The sum of the **distances** between all pairs of nodes, a classic descriptor of molecular graphs
-  in chemistry. Available via `get_wiener_index()`, with `get_hyper_wiener_index()` for a variant.
+  in chemistry. Available via `wiener_index()`, with `hyper_wiener_index()` for a variant.
   See also **mean distance**. [Learn more](12-paths.qmd#distance-based-indices).

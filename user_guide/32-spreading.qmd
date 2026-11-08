@@ -71,11 +71,11 @@ contacts with some probability, and after a while recover, becoming immune. On a
 contacts are the edges. In the simplest discrete-time version, each infected node has a single
 step in which to infect each susceptible neighbor, with probability `beta`, and then recovers. A
 simulation needs only the neighbors of each node, from
-[`neighbors()`](../reference/Graph.neighbors.qmd), and a random number generator:
+[`get_neighbors()`](../reference/Graph.get_neighbors.qmd), and a random number generator:
 
 ```{python}
 def simulate_sir(graph, source, beta, rng):
-    neighbors = {node: graph.neighbors(node) for node in graph.get_node_df()["id"]}
+    neighbors = {node: graph.get_neighbors(node) for node in graph.get_node_df()["id"]}
     infected, recovered = {source}, set()
     curve = [1]
     while infected:
@@ -266,7 +266,7 @@ def immunize(graph, doses, strategy, rng):
         return nodes.sort("degree", descending=True)["id"].head(doses).to_list()
     chosen = set()
     while len(chosen) < doses:
-        contacts = graph.neighbors(int(rng.choice(ids)))
+        contacts = graph.get_neighbors(int(rng.choice(ids)))
         if contacts:
             chosen.add(int(rng.choice(contacts)))
     return list(chosen)
@@ -493,7 +493,7 @@ and carry epidemics across it, and they are its weak point when they are attacke
 
 | Task | Approach |
 |---|---|
-| Simulate an epidemic and its curve | an SIR loop over `neighbors()`, with a random number generator |
+| Simulate an epidemic and its curve | an SIR loop over `get_neighbors()`, with a random number generator |
 | Sizes of outbreaks without simulation | `edge_percolation(q=1 - T)` and `node_connected_component()` |
 | Epidemic threshold and attack rate | `<k> / (<k²> - <k>)`, and `largest_component_size()` of percolated copies |
 | Effect of immunization | `subgraph()` of the remaining nodes, then the attack rate |

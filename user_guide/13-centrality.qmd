@@ -503,7 +503,7 @@ follow the same conventions as the measures above:
 | [`subgraph_centrality()`](../reference/Graph.subgraph_centrality.qmd) | the closed walks through a node, with longer walks counting for less |
 | [`laplacian_centrality()`](../reference/Graph.laplacian_centrality.qmd) | the drop in the graph's Laplacian energy when a node is removed |
 | [`second_order_centrality()`](../reference/Graph.second_order_centrality.qmd) | the variability of a random walk's return times to a node; *lower* values are more central |
-| [`closeness_vitality()`](../reference/Graph.closeness_vitality.qmd), [`get_node_vitality()`](../reference/Graph.get_node_vitality.qmd) | the increase in the total distance between all pairs when a node is removed |
+| [`closeness_vitality()`](../reference/Graph.closeness_vitality.qmd), [`node_vitality()`](../reference/Graph.node_vitality.qmd) | the increase in the total distance between all pairs when a node is removed |
 | [`leverage_centrality()`](../reference/Graph.leverage_centrality.qmd) | how a node's degree compares with its neighbors' degrees |
 | [`radiality()`](../reference/Graph.radiality.qmd) | how close a node is to the others, relative to the graph's diameter |
 | [`bridging_centrality()`](../reference/Graph.bridging_centrality.qmd) | betweenness combined with a coefficient for lying between dense regions |

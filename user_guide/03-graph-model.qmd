@@ -128,8 +128,8 @@ When in doubt, convert between the two with
 karate.get_id_from_label("33"), karate.get_label_from_id(34)
 ```
 
-Methods that *return* nodes, such as `neighbors()` or `shortest_path()`, always return IDs, since
-every node has one and not every node has a label.
+Methods that *return* nodes, such as `get_neighbors()` or `shortest_path()`, always return IDs,
+since every node has one and not every node has a label.
 
 ### Types and attributes
 
@@ -213,7 +213,7 @@ the order in which the endpoints were given.
 In a directed graph, an edge runs one way only. Methods that follow edges go from source to target,
 and many methods take a `mode=` or `direction=` argument to choose between outgoing edges,
 incoming edges, or both. Here a small directed graph shows the difference with
-[`neighbors()`](../reference/Graph.neighbors.qmd):
+[`get_neighbors()`](../reference/Graph.get_neighbors.qmd):
 
 ```{python}
 follows = (
@@ -222,7 +222,11 @@ follows = (
     .add_edges([("ana", "ben"), ("cy", "ana")])
 )
 
-follows.neighbors("ana"), follows.neighbors("ana", mode="in"), follows.neighbors("ana", mode="all")
+(
+    follows.get_neighbors("ana"),
+    follows.get_neighbors("ana", mode="in"),
+    follows.get_neighbors("ana", mode="all"),
+)
 ```
 
 Ana follows Ben (ID 2) and is followed by Cy (ID 3). The `mode="all"` list includes both.
@@ -311,7 +315,7 @@ The fields are:
 | Computations | the methods whose results are stored, the attributes they wrote, and their coverage |
 
 For a directed graph, connectivity is reported as both strong and weak. The individual values are
-also available from methods such as `count_nodes()`, `get_density()`, and `is_connected()`,
+also available from methods such as `count_nodes()`, `density()`, and `is_connected()`,
 described in [Structure and properties](11-structure.qmd).
 
 ## Methods modify the graph in place

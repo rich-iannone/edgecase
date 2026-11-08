@@ -113,7 +113,7 @@ shortcuts, so its diameter and mean distance are long:
 
 ```{python}
 grid = ec.power_grid()
-grid.get_diameter(), round(grid.get_mean_distance(), 2)
+grid.diameter(), round(grid.mean_distance(), 2)
 ```
 
 The farthest pair of nodes is 46 links apart and a typical pair about 19. Those distances are long

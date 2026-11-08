@@ -99,7 +99,7 @@ two bounds meet, the coloring is optimal:
 (
     conflicts.chromatic_number_upper_bound(slots),
     conflicts.clique_number(),
-    [conflicts.get_label_from_id(node) for node in conflicts.max_clique()],
+    [conflicts.get_label_from_id(node) for node in conflicts.maximum_clique()],
 )
 ```
 
@@ -225,25 +225,25 @@ differ, as the karate club shows:
 
 ```{python}
 karate = ec.karate_club()
-best = karate.max_weight_matching()
+best = karate.maximum_weight_matching()
 quick = karate.maximal_matching()
 len(best), len(quick), karate.is_perfect_matching(best)
 ```
 
-[`maximal_matching()`](../reference/Graph.maximal_matching.qmd) takes edges greedily and stops at
-11 pairs of friends, but [`max_weight_matching()`](../reference/Graph.max_weight_matching.qmd)
+[`maximal_matching()`](../reference/Graph.maximal_matching.qmd) takes edges greedily and stops at 11
+pairs of friends, but [`maximum_weight_matching()`](../reference/Graph.maximum_weight_matching.qmd)
 finds 13. That still leaves 8 of the 34 members without a partner, so the club has no *perfect*
 matching, one that pairs everyone. Half of the members have three friends or fewer, and most of
 those friendships lead to the same few central members, such as the instructor, the administrator,
 and member `"32"`. Each of them can be in only one pair, so many of their friends are left out.
 
-On a weighted graph, `max_weight_matching()` maximizes the total weight of the pairs. In the
+On a weighted graph, `maximum_weight_matching()` maximizes the total weight of the pairs. In the
 *Les Misérables* network, the weight of an edge is the number of chapters in which two characters
 appear together, so the matching pairs characters by the strength of their ties:
 
 ```{python}
 miserables = ec.les_miserables()
-pairs = miserables.max_weight_matching()
+pairs = miserables.maximum_weight_matching()
 
 label = miserables.get_label_from_id
 (
@@ -269,21 +269,21 @@ def total_weight(graph, edges):
     return graph.get_edge_df().filter(pl.col("id").is_in(edges))["weight"].sum()
 
 
-widest = miserables.max_weight_matching(maxcardinality=True)
+widest = miserables.maximum_weight_matching(maxcardinality=True)
 len(pairs), total_weight(miserables, pairs), len(widest), total_weight(miserables, widest)
 ```
 
 Pairing six more characters costs a third of the total weight, since many of the remaining
 characters have only weak ties to anyone still free.
-[`min_weight_matching()`](../reference/Graph.min_weight_matching.qmd) is the opposite problem, the
-cheapest of the matchings with the most pairs, for weights that are costs. `method="greedy"` gives
-a faster approximate matching for very large graphs.
+[`minimum_weight_matching()`](../reference/Graph.minimum_weight_matching.qmd) is the opposite
+problem, the cheapest of the matchings with the most pairs, for weights that are costs.
+`method="greedy"` gives a faster approximate matching for very large graphs.
 
 ### Assignment
 
 In a *bipartite* graph, the nodes fall into two groups and every edge joins the two, as with
 workers and tasks. Finding the cheapest way to give each task its own worker is the *assignment
-problem*, and [`bipartite_min_weight_full_matching()`](../reference/Graph.bipartite_min_weight_full_matching.qmd)
+problem*, and [`bipartite_minimum_weight_full_matching()`](../reference/Graph.bipartite_minimum_weight_full_matching.qmd)
 solves it. The edges are the pairings that are allowed, weighted by their cost, here the hours that
 each translator needs for each part of a project:
 
@@ -302,7 +302,7 @@ hours = [
     ("Dev", "Layout", 2),
 ]
 project = ec.Graph(weighted=True).add_edges(hours, auto_create_nodes=True)
-assigned = project.bipartite_min_weight_full_matching()
+assigned = project.bipartite_minimum_weight_full_matching()
 
 label = project.get_label_from_id
 [
@@ -370,15 +370,16 @@ candidate set.
 
 ### Vertex covers and independent sets
 
-[`min_weighted_vertex_cover()`](../reference/Graph.min_weighted_vertex_cover.qmd) finds a vertex
-cover that is guaranteed to be at most twice the size of the smallest. With `weight_attr=`, it
-minimizes the total of a node attribute, such as the cost of installing a monitor at each node,
-instead of the number of nodes. An *independent set* is the opposite: a set of nodes with no edges
-among them. [`maximum_independent_set()`](../reference/Graph.maximum_independent_set.qmd) finds a
-large one by taking low-degree nodes first:
+[`minimum_weighted_vertex_cover()`](../reference/Graph.minimum_weighted_vertex_cover.qmd) finds a
+vertex cover that is guaranteed to be at most twice the size of the smallest. With
+`node_weight_attr=`, it minimizes the total of a node attribute, such as the cost of installing a
+monitor at each node, instead of the number of nodes. An *independent set* is the opposite: a set of
+nodes with no edges among them.
+[`maximum_independent_set()`](../reference/Graph.maximum_independent_set.qmd) finds a large one by
+taking low-degree nodes first:
 
 ```{python}
-cover = karate.min_weighted_vertex_cover()
+cover = karate.minimum_weighted_vertex_cover()
 independent = karate.maximum_independent_set()
 len(cover), karate.is_vertex_cover(cover), len(independent), karate.is_independent_set(independent)
 ```
@@ -411,13 +412,13 @@ several, which shows how much they vary:
 The ten sets range from 15 to 20 members. Random restarts like these are a simple way to search for
 a larger set.
 
-[`min_edge_cover()`](../reference/Graph.min_edge_cover.qmd) is the edge version of a cover: the
-fewest edges that touch every node. It is exact, and it is closely tied to matching: the karate
+[`minimum_edge_cover()`](../reference/Graph.minimum_edge_cover.qmd) is the edge version of a cover:
+the fewest edges that touch every node. It is exact, and it is closely tied to matching: the karate
 club's 13 pairs cover 26 members with 13 edges, and each of the other 8 members needs one more edge,
 for 21 in all:
 
 ```{python}
-len(karate.min_edge_cover())
+len(karate.minimum_edge_cover())
 ```
 
 ### Dominating sets
@@ -425,12 +426,12 @@ len(karate.min_edge_cover())
 A *dominating set* is a set of nodes such that every other node is linked to at least one of them,
 like a set of stations within one step of every town, or a few members who can pass a message
 directly to everyone else in the club.
-[`min_weighted_dominating_set()`](../reference/Graph.min_weighted_dominating_set.qmd) looks for a
-small one, preferring nodes that cover many others, while the simpler
+[`minimum_weighted_dominating_set()`](../reference/Graph.minimum_weighted_dominating_set.qmd) looks
+for a small one, preferring nodes that cover many others, while the simpler
 [`dominating_set()`](../reference/Graph.dominating_set.qmd) sweeps the nodes in ID order:
 
 ```{python}
-hubs = karate.min_weighted_dominating_set()
+hubs = karate.minimum_weighted_dominating_set()
 len(karate.dominating_set()), [karate.get_label_from_id(node) for node in hubs]
 ```
 
@@ -444,7 +445,7 @@ karate.set_node_attrs("dominating", {node: node in hubs for node in range(1, 35)
 karate.plot(color_by="dominating", label_by="label", seed=1)
 ```
 
-With `weight_attr=`, the method minimizes a total cost instead, for example when some sites are
+With `node_weight_attr=`, the method minimizes a total cost instead, for example when some sites are
 more expensive to build on than others.
 
 ## Maximum cut
@@ -453,11 +454,11 @@ The *maximum cut* splits the nodes into two sides so that as many edges as possi
 them. It models dividing people into two teams so that rivals end up on opposite sides, or
 assigning the parts of a circuit to two layers so that as few wires as possible stay within one.
 It is the opposite of community detection, which looks for groups with few edges between them.
-[`max_cut()`](../reference/Graph.max_cut.qmd) returns the number of crossing edges (or their total
-weight) and the two sides:
+[`maximum_cut()`](../reference/Graph.maximum_cut.qmd) returns the number of crossing edges (or their
+total weight) and the two sides:
 
 ```{python}
-cut_size, (side_a, side_b) = karate.max_cut(seed=1)
+cut_size, (side_a, side_b) = karate.maximum_cut(seed=1)
 
 faction_1 = set(karate.get_node_df().filter(pl.col("faction") == 1)["id"].to_list())
 across_factions = sum(
@@ -606,13 +607,13 @@ neighbors outside the group.
 |---|---|---|
 | Node coloring | `greedy_color()`, `chromatic_number_upper_bound()`, `is_valid_coloring()` | Heuristic; check against `clique_number()` |
 | Edge coloring | `edge_coloring()`, `is_valid_edge_coloring()` | At most one color above the optimum |
-| Matching | `max_weight_matching()`, `min_weight_matching()`, `maximal_matching()`, `is_matching()`, `is_perfect_matching()` | Exact (except `maximal_matching()` and `method="greedy"`) |
-| Bipartite matching | `bipartite_maximum_matching()`, `bipartite_min_weight_full_matching()` | Exact |
-| Vertex cover | `min_weighted_vertex_cover()`, `bipartite_vertex_cover()`, `is_vertex_cover()` | Within a factor of two; exact on bipartite graphs |
-| Edge cover | `min_edge_cover()`, `is_edge_cover()` | Exact |
+| Matching | `maximum_weight_matching()`, `minimum_weight_matching()`, `maximal_matching()`, `is_matching()`, `is_perfect_matching()` | Exact (except `maximal_matching()` and `method="greedy"`) |
+| Bipartite matching | `bipartite_maximum_matching()`, `bipartite_minimum_weight_full_matching()` | Exact |
+| Vertex cover | `minimum_weighted_vertex_cover()`, `bipartite_vertex_cover()`, `is_vertex_cover()` | Within a factor of two; exact on bipartite graphs |
+| Edge cover | `minimum_edge_cover()`, `is_edge_cover()` | Exact |
 | Independent set | `maximum_independent_set()`, `maximal_independent_set()`, `find_maximal_independent_sets()`, `is_independent_set()` | Heuristic |
-| Dominating set | `min_weighted_dominating_set()`, `dominating_set()`, `is_dominating_set()` | Heuristic |
-| Maximum cut | `max_cut()` | Heuristic; at least half the edges |
+| Dominating set | `minimum_weighted_dominating_set()`, `dominating_set()`, `is_dominating_set()` | Heuristic |
+| Maximum cut | `maximum_cut()` | Heuristic; at least half the edges |
 | Graph classes | `is_bipartite()`, `check_planarity()`, `is_chordal()`, `is_perfect_graph()`, `is_cograph()` | Exact |
 | Treewidth | `tree_decomposition()`, `chordal_graph_treewidth()` | Upper bound; exact on chordal graphs |
 

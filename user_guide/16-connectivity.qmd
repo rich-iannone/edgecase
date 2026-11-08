@@ -152,12 +152,12 @@ the other.
 A connected network may still hang together by a thread. A *bridge* is an edge whose removal
 disconnects the graph, and an *articulation point*, or cut node, is a node whose removal does.
 [`bridges()`](../reference/Graph.bridges.qmd) returns the IDs of the bridge edges and
-[`get_articulation_points()`](../reference/Graph.get_articulation_points.qmd) the IDs of the
+[`articulation_points()`](../reference/Graph.articulation_points.qmd) the IDs of the
 articulation points:
 
 ```{python}
 karate = ec.karate_club()
-named_edges(karate, karate.bridges()), karate.get_articulation_points()
+named_edges(karate, karate.bridges()), karate.articulation_points()
 ```
 
 The karate club has one bridge, the only friendship of member `"11"`, and one articulation point,
@@ -186,7 +186,7 @@ blocks = grid.biconnected_components()
     grid.count_edges(),
     len(grid.bridges()),
     grid.count_nodes(),
-    len(grid.get_articulation_points()),
+    len(grid.articulation_points()),
     max(len(block) for block in blocks),
 )
 ```
@@ -226,23 +226,23 @@ removals to separate are joined by `k` paths that share no intermediate node, an
 for edges and edge-disjoint paths (see
 [Paths and distances](12-paths.qmd#disjoint-paths)).
 
-For a whole graph, [`get_node_connectivity()`](../reference/Graph.get_node_connectivity.qmd) and
-[`get_edge_connectivity()`](../reference/Graph.get_edge_connectivity.qmd) give the two values,
+For a whole graph, [`node_connectivity()`](../reference/Graph.node_connectivity.qmd) and
+[`edge_connectivity()`](../reference/Graph.edge_connectivity.qmd) give the two values,
 which are also called *cohesion* and *adhesion*
-([`get_cohesion()`](../reference/Graph.get_cohesion.qmd) and
-[`get_adhesion()`](../reference/Graph.get_adhesion.qmd)). For a single pair of nodes,
-[`get_node_connectivity_between()`](../reference/Graph.get_node_connectivity_between.qmd) and
-[`get_min_cut_between()`](../reference/Graph.get_min_cut_between.qmd) give the local values, and
+([`cohesion()`](../reference/Graph.cohesion.qmd) and
+[`adhesion()`](../reference/Graph.adhesion.qmd)). For a single pair of nodes,
+[`node_connectivity_between()`](../reference/Graph.node_connectivity_between.qmd) and
+[`minimum_cut_value()`](../reference/Graph.minimum_cut_value.qmd) give the local values, and
 [`minimum_node_cut()`](../reference/Graph.minimum_node_cut.qmd) and
 [`minimum_edge_cut()`](../reference/Graph.minimum_edge_cut.qmd) return a smallest set that
 separates them:
 
 ```{python}
 (
-    karate.get_node_connectivity(),
-    karate.get_node_connectivity_between(1, 34),
+    karate.node_connectivity(),
+    karate.node_connectivity_between(1, 34),
     karate.minimum_node_cut(1, 34),
-    karate.get_min_cut_between(1, 34),
+    karate.minimum_cut_value(1, 34),
 )
 ```
 
@@ -345,15 +345,15 @@ pipes = ec.Graph.from_edges(
     ],
     directed=True,
 )
-pipes.max_flow_value("s", "t")
+pipes.maximum_flow_value("s", "t")
 ```
 
-[`max_flow_value()`](../reference/Graph.max_flow_value.qmd) gives the total, and
-[`max_flow()`](../reference/Graph.max_flow.qmd) returns how much each edge carries, as a dictionary
-from edge IDs to amounts. Edges that carry nothing are left out:
+[`maximum_flow_value()`](../reference/Graph.maximum_flow_value.qmd) gives the total, and
+[`maximum_flow()`](../reference/Graph.maximum_flow.qmd) returns how much each edge carries, as a
+dictionary from edge IDs to amounts. Edges that carry nothing are left out:
 
 ```{python}
-flows = pipes.max_flow("s", "t")
+flows = pipes.maximum_flow("s", "t")
 named_edges(pipes).with_columns(
     flow=pl.col("id").replace_strict(flows, default=0.0, return_dtype=pl.Float64)
 )
@@ -373,21 +373,23 @@ The bottleneck is the three pipes that lead into `c` and `t` from the source sid
 (12), `d` to `c` (7), and `d` to `t` (4), which together carry exactly 23 units, all of them full.
 Widening any other pipe would not increase the flow.
 
-Note that [`get_min_cut_between()`](../reference/Graph.get_min_cut_between.qmd) and
+Note that [`minimum_cut_value()`](../reference/Graph.minimum_cut_value.qmd) and
 [`minimum_edge_cut()`](../reference/Graph.minimum_edge_cut.qmd), from the previous section, count
 edges by default, and use capacities only when you name the attribute with `capacity=`.
-`max_flow()`, `max_flow_value()`, and `minimum_cut()` use the `capacity` attribute automatically:
+`maximum_flow()`, `maximum_flow_value()`, and `minimum_cut()` use the `capacity` attribute
+automatically:
 
 ```{python}
-pipes.get_min_cut_between("s", "t"), pipes.get_min_cut_between("s", "t", capacity="capacity")
+pipes.minimum_cut_value("s", "t"), pipes.minimum_cut_value("s", "t", capacity="capacity")
 ```
 
 ### The cheapest flow
 
 When edges also have a cost per unit of flow, the question becomes how to send a given amount as
-cheaply as possible. [`min_cost_flow()`](../reference/Graph.min_cost_flow.qmd) reads costs from a
-`cost` attribute and returns the amount sent, its total cost, and the flow on each edge. Consider a
-plant that ships goods to a market through two warehouses, with a link between the warehouses:
+cheaply as possible. [`minimum_cost_flow()`](../reference/Graph.minimum_cost_flow.qmd) reads costs
+from a `cost` attribute and returns the amount sent, its total cost, and the flow on each edge.
+Consider a plant that ships goods to a market through two warehouses, with a link between the
+warehouses:
 
 ```{python}
 shipping = ec.Graph.from_edges(
@@ -400,7 +402,7 @@ shipping = ec.Graph.from_edges(
     ],
     directed=True,
 )
-sent, cost, flows = shipping.min_cost_flow("plant", "market", demand=15)
+sent, cost, flows = shipping.minimum_cost_flow("plant", "market", demand=15)
 sent, cost
 ```
 
@@ -481,7 +483,8 @@ road_net.shortest_path_length("Amsterdam", "Berlin"), tree.shortest_path_length(
 The options of
 `minimum_spanning_tree()` adapt it to other uses. `include=` and `exclude=` force particular edges
 in or out of the tree, `weight_attr=` names another attribute to minimize, and
-`return_subgraph=False` returns the IDs of the tree's edges instead of a graph.
+`return_subgraph=False` returns the tree's edges as `(source, target, weight)` tuples of node IDs
+instead of a graph.
 
 The other spanning-tree methods are these:
 
@@ -590,9 +593,9 @@ networks, which is closely related to percolation, is covered in
 | Question | Methods |
 |---|---|
 | Is the graph in one piece, and if not, what are the pieces? | `is_connected()`, `weakly_connected_components()`, `strongly_connected_components()`, `subgraph()` |
-| Which single node or edge would disconnect it? | `get_articulation_points()`, `bridges()`, `biconnected_components()` |
-| How many independent routes join two nodes? | `get_node_connectivity_between()`, `get_min_cut_between()`, `node_disjoint_paths()` |
+| Which single node or edge would disconnect it? | `articulation_points()`, `bridges()`, `biconnected_components()` |
+| How many independent routes join two nodes? | `node_connectivity_between()`, `minimum_cut_value()`, `node_disjoint_paths()` |
 | Which parts are robustly connected? | `k_edge_components()`, `k_components()`, `gomory_hu_tree()` |
-| How much can flow from one node to another, and where is the bottleneck? | `max_flow()`, `minimum_cut()`, `min_cost_flow()` |
+| How much can flow from one node to another, and where is the bottleneck? | `maximum_flow()`, `minimum_cut()`, `minimum_cost_flow()` |
 | What is the cheapest way to connect everything? | `minimum_spanning_tree()` |
 | How does the network degrade under failure or attack? | `network_robustness()`, `percolation_threshold_analysis()` |

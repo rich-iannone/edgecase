@@ -65,10 +65,10 @@ def names(ids):
 
 A *topological order* lists the nodes so that every edge points forward: each task comes after all
 the tasks it depends on. Every DAG has at least one, and a graph with a cycle has none.
-[`get_topological_sort_order()`](../reference/Graph.get_topological_sort_order.qmd) returns one:
+[`topological_sort()`](../reference/Graph.topological_sort.qmd) returns one:
 
 ```{python}
-names(house.get_topological_sort_order())
+names(house.topological_sort())
 ```
 
 Working through the tasks in this order never starts one before its prerequisites. A DAG usually
@@ -139,7 +139,7 @@ delaying the project. [`get_predecessors()`](../reference/Graph.get_predecessors
 [`get_successors()`](../reference/Graph.get_successors.qmd) supply the neighbors:
 
 ```{python}
-order = house.get_topological_sort_order()
+order = house.topological_sort()
 
 def duration(node):
     return durations.get(house.get_label_from_id(node), 0)
@@ -405,7 +405,7 @@ Other methods for trees and branchings are these:
 | Question | Methods |
 |---|---|
 | Does the graph have cycles, and where? | `is_dag()`, `simple_cycles()`, `minimum_feedback_edge_set()` |
-| In what order can the nodes be processed? | `get_topological_sort_order()`, `lexicographical_topological_sort()`, `topological_generations()` |
+| In what order can the nodes be processed? | `topological_sort()`, `lexicographical_topological_sort()`, `topological_generations()` |
 | How long is the longest chain of dependencies? | `dag_longest_path()`, `dag_longest_path_length()` |
 | What does a node depend on, and what depends on it? | `ancestors()`, `descendants()`, `reachability_index()` |
 | What do two nodes have in common? | `lowest_common_ancestor()`, `all_lowest_common_ancestors()` |

@@ -22,7 +22,7 @@ problems:
 | What is the shortest route from A to B? | [`shortest_path()`](../reference/Graph.shortest_path.qmd), [`shortest_path_length()`](../reference/Graph.shortest_path_length.qmd), [`all_shortest_paths()`](../reference/Graph.all_shortest_paths.qmd) |
 | How far is everything from A? | [`single_source_shortest_path_length()`](../reference/Graph.single_source_shortest_path_length.qmd), [`multi_source_shortest_path_length()`](../reference/Graph.multi_source_shortest_path_length.qmd) |
 | How far is everything from everything? | [`all_pairs_shortest_path_length()`](../reference/Graph.all_pairs_shortest_path_length.qmd), [`floyd_warshall()`](../reference/Graph.floyd_warshall.qmd), [`johnson()`](../reference/Graph.johnson.qmd) |
-| What are the next-best routes? | [`k_shortest_paths()`](../reference/Graph.k_shortest_paths.qmd), [`shortest_simple_paths()`](../reference/Graph.shortest_simple_paths.qmd), [`get_all_simple_paths()`](../reference/Graph.get_all_simple_paths.qmd) |
+| What are the next-best routes? | [`k_shortest_paths()`](../reference/Graph.k_shortest_paths.qmd), [`shortest_simple_paths()`](../reference/Graph.shortest_simple_paths.qmd), [`all_simple_paths()`](../reference/Graph.all_simple_paths.qmd) |
 | What if some weights are negative? | [`bellman_ford_shortest_path()`](../reference/Graph.bellman_ford_shortest_path.qmd), [`find_negative_cycle()`](../reference/Graph.find_negative_cycle.qmd) |
 | What route covers every edge, or every node? | [`eulerian_circuit()`](../reference/Graph.eulerian_circuit.qmd), [`traveling_salesman()`](../reference/Graph.traveling_salesman.qmd) |
 | What is the cheapest way to connect some nodes? | [`steiner_tree()`](../reference/Graph.steiner_tree.qmd) |
@@ -482,13 +482,14 @@ Zurich.
 
 ### Every simple path
 
-[`get_all_simple_paths()`](../reference/Graph.get_all_simple_paths.qmd) lists every simple path
-between two nodes, in no particular order. Unlike the other path methods, it returns the paths as
-lists of node *labels*. The number of simple paths grows explosively with the size of a graph, so
-on anything beyond a small graph, set `cutoff=` to limit the number of edges per path:
+[`all_simple_paths()`](../reference/Graph.all_simple_paths.qmd) lists every simple path
+between two nodes, in no particular order. The number of simple paths grows explosively with the
+size of a graph, so on anything beyond a small graph, set `cutoff=` to limit the number of edges
+per path:
 
 ```{python}
-len(road_net.get_all_simple_paths("Paris", "Milan")), road_net.get_all_simple_paths("Paris", "Milan", cutoff=3)
+short_routes = road_net.all_simple_paths("Paris", "Milan", cutoff=3)
+len(road_net.all_simple_paths("Paris", "Milan")), [names(path) for path in short_routes]
 ```
 
 Even in this small network, there are 119 ways to drive from Paris to Milan without passing through
@@ -549,14 +550,14 @@ index*, the sum of the distances between all pairs of nodes, which originated in
 predictor of the boiling points of molecules:
 
 ```{python}
-road_net.get_wiener_index(), road_net.get_wiener_index(weight="weight")
+road_net.wiener_index(weighted=False), road_net.wiener_index()
 ```
 
-[`get_wiener_index()`](../reference/Graph.get_wiener_index.qmd) counts hops unless `weight=` names
-an edge attribute to sum; `"weight"` uses the edge weights. Over the 91 pairs of cities, the hop
+[`wiener_index()`](../reference/Graph.wiener_index.qmd) sums the edge weights on a weighted graph,
+and counts hops with `weighted=False`. Over the 91 pairs of cities, the hop
 counts add up to 203, which is an average of 2.23 hops per pair, the
-[mean distance](../reference/Graph.get_mean_distance.qmd). The road lengths add up to 71,360 km.
-[`get_hyper_wiener_index()`](../reference/Graph.get_hyper_wiener_index.qmd) is a variant that
+[mean distance](../reference/Graph.mean_distance.qmd). The road lengths add up to 71,360 km.
+[`hyper_wiener_index()`](../reference/Graph.hyper_wiener_index.qmd) is a variant that
 weights long distances more heavily.
 
 ### Resistance distance
@@ -564,18 +565,18 @@ weights long distances more heavily.
 The *resistance distance* treats a graph as an electrical circuit, with a one-ohm resistor on each
 edge, and measures the resistance between two nodes. Unlike the shortest-path distance, it takes
 every route into account: many parallel routes bring two nodes closer together, while a single
-bridge between them keeps them apart. [`get_resistance_distance()`](../reference/Graph.get_resistance_distance.qmd)
+bridge between them keeps them apart. [`resistance_distance()`](../reference/Graph.resistance_distance.qmd)
 computes it for one pair:
 
 ```{python}
-round(karate.get_resistance_distance(1, 34), 3), round(karate.get_resistance_distance(1, 12), 3)
+round(karate.resistance_distance(1, 34), 3), round(karate.resistance_distance(1, 12), 3)
 ```
 
 The instructor and the administrator are two steps apart, but because there are so many routes
 between them, the resistance is only 0.254, a quarter of a single edge. Member `"11"` (ID 12), by
 contrast, has a single friendship with the instructor, and the resistance across it is a full
 1.0. [`resistance_distance_matrix()`](../reference/Graph.resistance_distance_matrix.qmd) computes
-the resistance between every pair, and [`get_kirchhoff_index()`](../reference/Graph.get_kirchhoff_index.qmd)
+the resistance between every pair, and [`kirchhoff_index()`](../reference/Graph.kirchhoff_index.qmd)
 sums it over all pairs, the electrical counterpart of the Wiener index.
 
 ## Routing problems

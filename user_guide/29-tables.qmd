@@ -36,8 +36,8 @@ import polars as pl
 karate = ec.karate_club()
 karate.describe(
     describe_hook=lambda graph: {
-        "Transitivity": round(graph.get_transitivity(), 3),
-        "Diameter": graph.get_diameter(),
+        "Transitivity": round(graph.transitivity(), 3),
+        "Diameter": graph.diameter(),
     }
 )
 ```
@@ -70,12 +70,12 @@ for loader in loaders:
             "network": graph.get_graph_name(),
             "nodes": graph.count_nodes(),
             "edges": graph.count_edges(),
-            "density": graph.get_density(),
+            "density": graph.density(),
             "mean_degree": 2 * graph.count_edges() / graph.count_nodes(),
-            "transitivity": graph.get_transitivity(),
-            "assortativity": graph.get_assortativity_degree(),
-            "diameter": graph.get_diameter(),
-            "mean_distance": graph.get_mean_distance(),
+            "transitivity": graph.transitivity(),
+            "assortativity": graph.assortativity_degree(),
+            "diameter": graph.diameter(),
+            "mean_distance": graph.mean_distance(),
         }
     )
 
@@ -303,14 +303,14 @@ Only 10 of the 78 friendships crossed the line along which the club later split.
 ## Summarizing distributions
 
 A distribution, such as the degree distribution, is a table with one row per value.
-[`get_degree_distribution()`](../reference/Graph.get_degree_distribution.qmd) returns a dictionary
+[`degree_distribution()`](../reference/Graph.degree_distribution.qmd) returns a dictionary
 from each degree to the number of nodes with it, which becomes a data frame directly. Heavy-tailed
 distributions, with a few nodes of very high degree, are best summarized in bins that double in
 width, here for the metabolic network of *C. elegans*:
 
 ```{python}
 celegans = ec.celegans()
-distribution = celegans.get_degree_distribution()
+distribution = celegans.degree_distribution()
 
 degrees = (
     pl.DataFrame({"degree": list(distribution), "nodes": list(distribution.values())})
@@ -464,6 +464,6 @@ number was obtained.
 | Two partitions compared | `pivot()` on the node table, `attribute_mixing_matrix()` for edges |
 | Edges with readable endpoints | `replace_strict()` with a dictionary of labels |
 | Ties within and between groups | the edge table with the groups of both endpoints |
-| A distribution | `get_degree_distribution()`, binned with `group_by()` |
+| A distribution | `degree_distribution()`, binned with `group_by()` |
 | A presentation table | `GT()` from Great Tables, with `fmt_*()`, `cols_label()`, and `data_color()` |
 | A saved table | `write_csv()`, `write_parquet()`, or `write_raw_html()`, `as_latex()`, `save()` |

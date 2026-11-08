@@ -66,14 +66,14 @@ method.
 ### Two global measures
 
 There are two common ways to summarize clustering for a whole graph, and they can differ a great
-deal. [`get_avg_clustering_coefficient()`](../reference/Graph.get_avg_clustering_coefficient.qmd)
+deal. [`average_clustering_coefficient()`](../reference/Graph.average_clustering_coefficient.qmd)
 averages the local coefficients over the nodes, while
-[`get_transitivity()`](../reference/Graph.get_transitivity.qmd) is the fraction of all connected
+[`transitivity()`](../reference/Graph.transitivity.qmd) is the fraction of all connected
 triples of nodes (paths of two edges) that are closed into triangles. Transitivity weights each
 node by the number of pairs of neighbors it has, so it is dominated by the hubs:
 
 ```{python}
-round(karate.get_avg_clustering_coefficient(), 3), round(karate.get_transitivity(), 3)
+round(karate.average_clustering_coefficient(), 3), round(karate.transitivity(), 3)
 ```
 
 In the karate club, the average is more than double the transitivity, because the many low-degree
@@ -100,9 +100,9 @@ pl.DataFrame(
     [
         {
             "network": name,
-            "average": round(graph.get_avg_clustering_coefficient(), 3),
-            "transitivity": round(graph.get_transitivity(), 3),
-            "randomized": round(graph.random_reference(seed=1).get_transitivity(), 3),
+            "average": round(graph.average_clustering_coefficient(), 3),
+            "transitivity": round(graph.transitivity(), 3),
+            "randomized": round(graph.random_reference(seed=1).transitivity(), 3),
         }
         for name, graph in networks.items()
     ]
@@ -145,7 +145,7 @@ Several variants of clustering suit other questions:
 | Method | Measures |
 |---|---|
 | [`square_clustering()`](../reference/Graph.square_clustering.qmd) | the fraction of possible squares (four-cycles) through a node; useful in bipartite-like networks, which have no triangles |
-| [`get_edge_clustering_coefficient()`](../reference/Graph.get_edge_clustering_coefficient.qmd) | the triangles (or squares, with `k=4`) through an edge, relative to the fewest its endpoints allow |
+| [`edge_clustering_coefficient()`](../reference/Graph.edge_clustering_coefficient.qmd) | the triangles (or squares, with `k=4`) through an edge, relative to the fewest its endpoints allow |
 | [`generalized_degree()`](../reference/Graph.generalized_degree.qmd) | a node's edges, counted by how many triangles each belongs to |
 | [`latapy_clustering()`](../reference/Graph.latapy_clustering.qmd), [`robins_alexander_clustering()`](../reference/Graph.robins_alexander_clustering.qmd) | clustering for bipartite graphs |
 
@@ -179,7 +179,7 @@ import statistics
 def motif_z_scores(graph, size=3, n_random=30):
     observed = graph.motif_census(size=size)
     randomized = [
-        graph.random_reference(niter=10, seed=seed).motif_census(size=size)
+        graph.random_reference(iterations=10, seed=seed).motif_census(size=size)
         for seed in range(n_random)
     ]
     scores = {}
@@ -193,9 +193,9 @@ dolphins = ec.dolphins()
 dolphins.motif_census(), motif_z_scores(dolphins)
 ```
 
-The `niter=10` argument rewires each edge about ten times, enough to erase the original structure,
-and `census.get(shape, 0)` covers randomizations in which a shape doesn't occur at all. The
-dolphins form 95 triangles, where their degrees alone would give about 33, a difference of more
+The `iterations=10` argument rewires each edge about ten times, enough to erase the original
+structure, and `census.get(shape, 0)` covers randomizations in which a shape doesn't occur at all.
+The dolphins form 95 triangles, where their degrees alone would give about 33, a difference of more
 than fourteen standard deviations. Associations among dolphins are strongly transitive. (The path
 score is the mirror image of the triangle score, because with every degree fixed, each extra
 triangle uses up three paths.) The same
@@ -262,11 +262,11 @@ more established ones, and rarely around a loop, which is the signature of a sta
 ## Cycles
 
 A cycle is a path that returns to its start without repeating a node. Triangles are the shortest
-possible cycles in a simple graph, and [`get_girth()`](../reference/Graph.get_girth.qmd) returns
+possible cycles in a simple graph, and [`girth()`](../reference/Graph.girth.qmd) returns
 the length of a graph's shortest cycle, or `None` if it has none:
 
 ```{python}
-karate.get_girth()
+karate.girth()
 ```
 
 Listing every cycle is rarely practical, since their number grows exponentially with the size of
@@ -288,7 +288,6 @@ The other cycle methods are these:
 | Method | Returns |
 |---|---|
 | [`simple_cycles()`](../reference/Graph.simple_cycles.qmd) | every cycle, optionally only those up to `length_bound=` nodes |
-| [`get_cycles()`](../reference/Graph.get_cycles.qmd) | every cycle of at least `min_length=` nodes (Johnson's algorithm) |
 | [`directed_cycle_basis()`](../reference/Graph.directed_cycle_basis.qmd) | a cycle basis that respects edge direction |
 | [`minimum_feedback_edge_set()`](../reference/Graph.minimum_feedback_edge_set.qmd) | the lightest set of edges whose removal leaves no cycles |
 | [`has_cycles()`](../reference/Graph.has_cycles.qmd), [`is_dag()`](../reference/Graph.is_dag.qmd) | whether a graph has any cycles, and whether a directed graph has none |

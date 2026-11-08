@@ -116,12 +116,13 @@ as fractions.
 
 ## The adjacency spectrum
 
-[`get_spectrum()`](../reference/Graph.get_spectrum.qmd) computes eigenvalues and eigenvectors of
-the adjacency matrix. By default it returns the six largest eigenvalues, in descending order, with
-their eigenvectors and the node IDs that give the order of the vector entries:
+[`adjacency_spectrum()`](../reference/Graph.adjacency_spectrum.qmd) computes eigenvalues and
+eigenvectors of the adjacency matrix. By default it returns the six largest eigenvalues, in
+descending order, with their eigenvectors and the node IDs that give the order of the vector
+entries:
 
 ```{python}
-spectrum = karate.get_spectrum()
+spectrum = karate.adjacency_spectrum()
 [round(value, 3) for value in spectrum["values"]], round(spectrum["spectral_gap"], 3)
 ```
 
@@ -154,7 +155,7 @@ spectrum is symmetric about zero, as for the cube, whose eight corners split int
 
 ```{python}
 cube = ec.Graph().add_hypercube_graph(3)
-[round(value, 6) for value in cube.get_spectrum(which="all")["values"]]
+[round(value, 6) for value in cube.adjacency_spectrum(which="all")["values"]]
 ```
 
 A graph that is not bipartite is somewhere between, and
@@ -173,26 +174,26 @@ part in odd cycles.
 The *Estrada index* adds up `e^λ` over all eigenvalues. It counts the closed walks of every length,
 with long walks weighted down by the factorial of their length, and serves as a measure of how
 folded or interlinked a structure is, originally of protein chains.
-[`get_estrada_index()`](../reference/Graph.get_estrada_index.qmd) returns it, and it can be checked
+[`estrada_index()`](../reference/Graph.estrada_index.qmd) returns it, and it can be checked
 against the spectrum directly:
 
 ```{python}
 import math
 
-all_values = karate.get_spectrum(which="all")["values"]
-round(karate.get_estrada_index(), 3), round(sum(math.exp(value) for value in all_values), 3)
+all_values = karate.adjacency_spectrum(which="all")["values"]
+round(karate.estrada_index(), 3), round(sum(math.exp(value) for value in all_values), 3)
 ```
 
 ## The Laplacian spectrum
 
 The eigenvalues of the Laplacian are all zero or positive. The smallest is always 0, and the number
 of zero eigenvalues equals the number of connected components.
-[`get_laplacian_spectrum()`](../reference/Graph.get_laplacian_spectrum.qmd) returns the smallest
+[`laplacian_spectrum()`](../reference/Graph.laplacian_spectrum.qmd) returns the smallest
 eigenvalues by default. For a graph made of a cycle, a path, and a triangle, side by side:
 
 ```{python}
 pieces = ec.Graph().add_cycle_graph(n=5).add_path_graph(n=4).add_full_graph(n=3)
-[round(value, 4) for value in pieces.get_laplacian_spectrum(k=5)["values"]]
+[round(value, 4) for value in pieces.laplacian_spectrum(k=5)["values"]]
 ```
 
 Three zeros mark the three components. The next eigenvalue, the *algebraic connectivity*, is
@@ -349,8 +350,8 @@ information is kept. Both are used for spectral clustering and embedding of dire
 | Task | Methods |
 |---|---|
 | Get a matrix | `adjacency_matrix()`, `laplacian_matrix()`, `normalized_laplacian_matrix()`, `incidence_matrix()`, `attr_matrix()`, `modularity_matrix()`, `biadjacency_matrix()` |
-| Eigenvalues and eigenvectors | `get_spectrum()`, `get_laplacian_spectrum()`, `modularity_spectrum()`, `bethe_hessian_spectrum()`, `magnetic_spectrum()` |
-| Spectral measures | `algebraic_connectivity()`, `spectral_bipartivity()`, `get_estrada_index()`, `kemeny_constant()`, `number_of_spanning_trees()` |
+| Eigenvalues and eigenvectors | `adjacency_spectrum()`, `laplacian_spectrum()`, `modularity_spectrum()`, `bethe_hessian_spectrum()`, `magnetic_spectrum()` |
+| Spectral measures | `algebraic_connectivity()`, `spectral_bipartivity()`, `estrada_index()`, `kemeny_constant()`, `number_of_spanning_trees()` |
 | Order, split, or place nodes | `spectral_ordering()`, `fiedler_vector()`, `spectral_bisection()`, `layout_spectral()` |
 | Diffusion | `heat_diffusion()`, `random_walk_with_restart()` |
 | Convert whole graphs | `to_numpy_array()`, `to_scipy_sparse_array()` |

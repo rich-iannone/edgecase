@@ -35,15 +35,15 @@ The same values are available one at a time, for use in code:
 | Measure | Method |
 |---|---|
 | Number of nodes and edges | [`count_nodes()`](../reference/Graph.count_nodes.qmd), [`count_edges()`](../reference/Graph.count_edges.qmd) |
-| Density, the fraction of possible edges present | [`get_density()`](../reference/Graph.get_density.qmd) |
-| Mean degree | [`get_average_degree()`](../reference/Graph.get_average_degree.qmd) |
+| Density, the fraction of possible edges present | [`density()`](../reference/Graph.density.qmd) |
+| Mean degree | [`average_degree()`](../reference/Graph.average_degree.qmd) |
 | Degree of every node | [`degrees()`](../reference/Graph.degrees.qmd) |
 | Degree of one node | [`get_degree()`](../reference/Graph.get_degree.qmd), [`get_in_degree()`](../reference/Graph.get_in_degree.qmd), [`get_out_degree()`](../reference/Graph.get_out_degree.qmd) |
-| Number of nodes of each degree | [`get_degree_distribution()`](../reference/Graph.get_degree_distribution.qmd) |
+| Number of nodes of each degree | [`degree_distribution()`](../reference/Graph.degree_distribution.qmd) |
 | Nodes with no edges | [`isolates()`](../reference/Graph.isolates.qmd) |
 
 ```{python}
-karate.count_nodes(), karate.count_edges(), round(karate.get_density(), 3)
+karate.count_nodes(), karate.count_edges(), round(karate.density(), 3)
 ```
 
 The karate club has 78 of the 561 friendships that 34 people could have, a density of about 14%.
@@ -81,11 +81,11 @@ follows the usual convention for algorithms: it stores the result in a `degree` 
 default, and returns it as a dictionary with `return_dict=True`.
 
 The *degree distribution*, the number of nodes with each degree, is the most important single
-description of a network's structure. [`get_degree_distribution()`](../reference/Graph.get_degree_distribution.qmd)
+description of a network's structure. [`degree_distribution()`](../reference/Graph.degree_distribution.qmd)
 returns it as a dictionary from degree to count:
 
 ```{python}
-sorted(karate.get_degree_distribution().items())
+sorted(karate.degree_distribution().items())
 ```
 
 Eleven members have just two friends, while two have 16 and 17. Such a skewed distribution, with
@@ -129,16 +129,16 @@ measures summarize the distances of a whole graph:
 | Measure | Meaning | Method |
 |---|---|---|
 | Eccentricity | a node's distance to the node farthest from it | [`eccentricity()`](../reference/Graph.eccentricity.qmd) |
-| Diameter | the largest eccentricity: the longest shortest path | [`get_diameter()`](../reference/Graph.get_diameter.qmd) |
-| Radius | the smallest eccentricity | [`get_radius()`](../reference/Graph.get_radius.qmd) |
-| Center | the nodes whose eccentricity equals the radius | [`get_center()`](../reference/Graph.get_center.qmd) |
-| Periphery | the nodes whose eccentricity equals the diameter | [`get_periphery()`](../reference/Graph.get_periphery.qmd) |
-| Barycenter | the nodes with the smallest total distance to all others | [`get_barycenter()`](../reference/Graph.get_barycenter.qmd) |
-| Mean distance | the average over all pairs of nodes | [`get_mean_distance()`](../reference/Graph.get_mean_distance.qmd) |
+| Diameter | the largest eccentricity: the longest shortest path | [`diameter()`](../reference/Graph.diameter.qmd) |
+| Radius | the smallest eccentricity | [`radius()`](../reference/Graph.radius.qmd) |
+| Center | the nodes whose eccentricity equals the radius | [`center()`](../reference/Graph.center.qmd) |
+| Periphery | the nodes whose eccentricity equals the diameter | [`periphery()`](../reference/Graph.periphery.qmd) |
+| Barycenter | the nodes with the smallest total distance to all others | [`barycenter()`](../reference/Graph.barycenter.qmd) |
+| Mean distance | the average over all pairs of nodes | [`mean_distance()`](../reference/Graph.mean_distance.qmd) |
 | Global efficiency | the average of the inverse distances | [`global_efficiency()`](../reference/Graph.global_efficiency.qmd) |
 
 ```{python}
-karate.get_radius(), karate.get_diameter(), round(karate.get_mean_distance(), 2)
+karate.radius(), karate.diameter(), round(karate.mean_distance(), 2)
 ```
 
 No two members are more than five steps apart, and the typical pair is between two and three steps
@@ -146,7 +146,7 @@ apart: the karate club is a small world. Eight members have the smallest eccentr
 they form the center, but only the instructor minimizes the *total* distance to everyone else:
 
 ```{python}
-karate.get_center(), karate.get_barycenter()
+karate.center(), karate.barycenter()
 ```
 
 The center and the barycenter answer slightly different questions. The center minimizes the
@@ -164,7 +164,7 @@ distances, handles disconnection more gracefully, since an unreachable pair simp
 Do nodes link to similar nodes? *Assortativity* answers this with a correlation coefficient
 between −1 and 1, computed over the edges.
 
-**By degree.** [`get_assortativity_degree()`](../reference/Graph.get_assortativity_degree.qmd)
+**By degree.** [`assortativity_degree()`](../reference/Graph.assortativity_degree.qmd)
 measures whether high-degree nodes link to other high-degree nodes (positive values) or to
 low-degree ones (negative values). Social networks of collaboration tend to be assortative, while
 technological and biological networks tend to be disassortative, with hubs connected to many small
@@ -181,7 +181,7 @@ networks = {
     "metabolism (celegans)": ec.celegans().simplify(),
     "karate club": karate,
 }
-{name: round(graph.get_assortativity_degree(), 3) for name, graph in networks.items()}
+{name: round(graph.assortativity_degree(), 3) for name, graph in networks.items()}
 ```
 
 The physicists who wrote general relativity papers together are strongly assortative: prolific
@@ -191,13 +191,13 @@ connect to many small networks, which makes it disassortative, as is the metabol
 karate club is the most disassortative of all, since its two hubs, the instructor and the
 administrator, have many friends who have few friends of their own.
 
-**By attribute.** [`get_assortativity_nominal()`](../reference/Graph.get_assortativity_nominal.qmd)
+**By attribute.** [`assortativity_nominal()`](../reference/Graph.assortativity_nominal.qmd)
 does the same for a categorical attribute, and
-[`get_assortativity()`](../reference/Graph.get_assortativity.qmd) for a numeric one. The karate
+[`assortativity()`](../reference/Graph.assortativity.qmd) for a numeric one. The karate
 club's two factions are strongly assortative, as expected of the groups the club split into:
 
 ```{python}
-round(karate.get_assortativity_nominal("faction"), 3)
+round(karate.assortativity_nominal("faction"), 3)
 ```
 
 The *mixing matrix* behind the coefficient shows exactly where the edges fall.
@@ -220,7 +220,7 @@ edges `A -> B` for which `B -> A` also exists. In Wikipedia's administrator elec
 rarely returned:
 
 ```{python}
-round(ec.wiki_vote().get_reciprocity(), 3)
+round(ec.wiki_vote().reciprocity(), 3)
 ```
 
 Only about 6% of votes are reciprocated, which fits a network in which established editors vote on
@@ -279,11 +279,11 @@ degree of 5.25 within the group.
 
 A *clique* is a set of nodes that are all linked to one another, the densest structure possible.
 [`find_cliques()`](../reference/Graph.find_cliques.qmd) lists every *maximal* clique (one that
-can't be extended by another node), [`max_clique()`](../reference/Graph.max_clique.qmd) finds a
-largest one, and [`clique_number()`](../reference/Graph.clique_number.qmd) gives its size:
+can't be extended by another node), [`maximum_clique()`](../reference/Graph.maximum_clique.qmd)
+finds a largest one, and [`clique_number()`](../reference/Graph.clique_number.qmd) gives its size:
 
 ```{python}
-len(karate.find_cliques()), karate.max_clique()
+len(karate.find_cliques()), karate.maximum_clique()
 ```
 
 The karate club has 36 maximal cliques, and the largest has five members: the instructor and four
@@ -308,10 +308,10 @@ Two indices compare a graph against random and lattice references to quantify th
 [`small_world_sigma()`](../reference/Graph.small_world_sigma.qmd) is greater than 1 for a small
 world, and [`small_world_omega()`](../reference/Graph.small_world_omega.qmd) runs from −1 (lattice
 like) through 0 (small world) to 1 (random like). Both build many randomized graphs, so they are
-slow on large networks; `niter=` and `nrand=` trade accuracy for speed:
+slow on large networks; `iterations=` and `nrand=` trade accuracy for speed:
 
 ```{python}
-round(karate.small_world_sigma(niter=20, nrand=5, seed=1), 2)
+round(karate.small_world_sigma(iterations=20, nrand=5, seed=1), 2)
 ```
 
 [Clustering and motifs](15-clustering-and-motifs.qmd) has more on clustering coefficients, and

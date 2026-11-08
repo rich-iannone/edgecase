@@ -79,12 +79,13 @@ the bottom, and the Capstone, which depends directly or indirectly on everything
 
 ## Neighbors
 
-[`neighbors()`](../reference/Graph.neighbors.qmd) returns the IDs of the nodes adjacent to a node.
-In a directed graph, `mode=` chooses the direction: `"out"` (the default) follows edges forward to
-a node's successors, `"in"` follows them backward to its predecessors, and `"all"` does both:
+[`get_neighbors()`](../reference/Graph.get_neighbors.qmd) returns the IDs of the nodes adjacent to a
+node. In a directed graph, `mode=` chooses the direction: `"out"` (the default) follows edges
+forward to a node's successors, `"in"` follows them backward to its predecessors, and `"all"` does
+both:
 
 ```{python}
-names(courses.neighbors("Data Structures", mode="out")), names(courses.neighbors("Data Structures", mode="in"))
+names(courses.get_neighbors("Data Structures", mode="out")), names(courses.get_neighbors("Data Structures", mode="in"))
 ```
 
 Data Structures leads to Algorithms and Machine Learning, and requires Programming. In an undirected
@@ -93,7 +94,7 @@ graph the three modes give the same result.
 For directed graphs, [`get_successors()`](../reference/Graph.get_successors.qmd) and
 [`get_predecessors()`](../reference/Graph.get_predecessors.qmd) are dedicated alternatives. They
 return each neighbor once, even when parallel edges join two nodes, and `get_predecessors()` is
-faster than `neighbors(mode="in")` on large graphs. Machine Learning is the course with the most
+faster than `get_neighbors(mode="in")` on large graphs. Machine Learning is the course with the most
 prerequisites:
 
 ```{python}
@@ -159,7 +160,7 @@ Machine Learning is three steps from Calculus I, by way of Multivariable Calculu
 Capstone four. Statistics is also three steps away, but the longer route from it to Machine
 Learning doesn't matter: each node belongs to the layer of its shortest distance. When only one ring is needed,
 [`descendants_at_distance()`](../reference/Graph.descendants_at_distance.qmd) returns it as a set.
-Its `mode=` argument works as in `neighbors()`, so in the karate club, where the default `"out"`
+Its `mode=` argument works as in `get_neighbors()`, so in the karate club, where the default `"out"`
 is the same as `"all"`, this gives the friends of the instructor's friends who aren't friends of
 the instructor:
 
@@ -188,7 +189,7 @@ Machine Learning builds, directly or indirectly, on eight of the other ten cours
 includes the course itself.
 
 These methods follow edge direction. To ignore it, and find every node in the same weakly connected
-component, use [`get_all_connected_nodes()`](../reference/Graph.get_all_connected_nodes.qmd). For a
+component, use [`reachable_nodes()`](../reference/Graph.reachable_nodes.qmd). For a
 question about one pair of nodes, [`has_path()`](../reference/Graph.has_path.qmd) answers it
 directly, and when the same fixed graph must answer many such questions,
 [`reachability_index()`](../reference/Graph.reachability_index.qmd) builds an index once and then
@@ -371,11 +372,11 @@ an interactive drawing with controls for stepping forward and back through the s
 notebook or a rendered document it displays itself, and its `save()` method writes it to an HTML
 file.
 
-`plot_traversal()` animates a breadth-first or depth-first search. Given only a `start=` node, it
+`plot_traversal()` animates a breadth-first or depth-first search. Given only a `source=` node, it
 runs a breadth-first search from it, and lights up the nodes in the order they are reached:
 
 ```{python}
-courses.clear_selection().plot_traversal(start="Calculus I", algorithm="BFS")
+courses.clear_selection().plot_traversal(source="Calculus I", algorithm="BFS")
 ```
 
 To animate another search, pass its visit order as `visit_order=`, and optionally its tree edges as

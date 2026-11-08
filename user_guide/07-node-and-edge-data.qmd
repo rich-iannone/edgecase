@@ -203,7 +203,7 @@ max(scores, key=scores.get)
 
 The dictionary form suits code that consumes the scores directly, and it pairs with
 `set_node_attrs()` when you want to store the result after all, or store a transformed version of
-it. Algorithms that return a single number (such as `get_transitivity()`) or a structure (such as
+it. Algorithms that return a single number (such as `transitivity()`) or a structure (such as
 `shortest_path()`) don't store anything.
 
 The graph keeps a record of the computations whose results it stores, and lists them in its summary,

@@ -45,7 +45,7 @@ club = (
     .delete_node("Ben")
 )
 club.degree_centrality()
-club.bfs(start="Ana")
+club.bfs(source="Ana")
 club.count_nodes(), club.count_edges()
 ```
 
@@ -58,7 +58,7 @@ club.steps
 
 There are seven steps, one for each call that changed or analyzed the graph. The breadth-first
 search is a single step with five *sub-steps*, one for each node it visited. Read-only calls, such
-as the `count_nodes()` and `count_edges()` above, `get_node_df()`, or `neighbors()`, are not
+as the `count_nodes()` and `count_edges()` above, `get_node_df()`, or `get_neighbors()`, are not
 recorded, so the log stays focused on the operations that matter. `print_steps()` prints the same
 summary without the list brackets, which suits scripts and logs:
 
@@ -239,8 +239,8 @@ paths = ec.Graph().add_nodes(list("ABCDEFGH")).add_edges(
     ]
 )
 paths.clear_steps()
-paths.note("Breadth-first: finish each level before going deeper.").bfs(start="A")
-paths.note("Depth-first: follow one path as far as it goes, then back up.").dfs(start="A")
+paths.note("Breadth-first: finish each level before going deeper.").bfs(source="A")
+paths.note("Depth-first: follow one path as far as it goes, then back up.").dfs(source="A")
 paths.play(layout_mode="stable", speed=2.0)
 ```
 

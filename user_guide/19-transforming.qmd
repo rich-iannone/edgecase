@@ -166,7 +166,7 @@ In the Florentine families network, the Tornabuoni were close allies of the Medi
 ```{python}
 florentine = ec.florentine_families()
 merged = florentine.contract_nodes("Medici", "Tornabuoni", self_loops=False)
-merged.count_nodes(), [merged.get_label_from_id(node) for node in merged.neighbors("Medici")]
+merged.count_nodes(), [merged.get_label_from_id(node) for node in merged.get_neighbors("Medici")]
 ```
 
 The merged Medici node has taken over the Tornabuoni's marriage tie to the Guadagni, while the
@@ -231,7 +231,7 @@ interfere through a shared neighbor. [`power()`](../reference/Graph.power.qmd) b
 
 ```{python}
 square = karate.power(2)
-square.count_edges(), karate.get_diameter(), square.get_diameter()
+square.count_edges(), karate.diameter(), square.diameter()
 ```
 
 The square of the karate club has 343 edges, and its diameter falls from 5 steps to 3, since each
@@ -265,8 +265,8 @@ spanner = jazz.transform_with_spanner(stretch=3, seed=1)
 (
     spanner.count_edges(),
     jazz.count_edges(),
-    round(jazz.get_mean_distance(), 2),
-    round(spanner.get_mean_distance(), 2),
+    round(jazz.mean_distance(), 2),
+    round(spanner.mean_distance(), 2),
 )
 ```
 

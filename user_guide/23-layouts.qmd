@@ -156,7 +156,7 @@ org = ec.Graph(directed=True).add_edges(
     ],
     auto_create_nodes=True,
 )
-org.layout_bfs(start="Dana")
+org.layout_bfs(source="Dana")
 org.plot(layout="pos", label_by="label", node_size=12, width=500, height=300)
 ```
 
@@ -234,7 +234,7 @@ Medici, with their marriage partners in the first ring and the other families in
 ```{python}
 florentine = ec.florentine_families()
 medici = florentine.get_node_df().filter(pl.col("label") == "Medici")["id"].item()
-partners = florentine.neighbors(medici)
+partners = florentine.get_neighbors(medici)
 others = [node for node in florentine.get_node_df()["id"] if node != medici and node not in partners]
 
 florentine.layout_shell(nlist=[[medici], partners, others])

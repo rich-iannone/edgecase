@@ -110,7 +110,7 @@ is a counterexample to many plausible-sounding conjectures:
 
 ```{python}
 petersen = ec.Graph().add_named_graph("petersen")
-petersen.is_regular(), petersen.get_girth(), petersen.chromatic_number_upper_bound()
+petersen.is_regular(), petersen.girth(), petersen.chromatic_number_upper_bound()
 ```
 
 It is regular, its shortest cycle has length 5, and a greedy coloring colors it with three colors
@@ -190,7 +190,7 @@ while leaving most of the local clustering intact:
 ```{python}
 for p in [0.0, 0.05, 0.5]:
     sw = ec.Graph().add_smallworld_graph(n=200, k=6, p=p, seed=3)
-    print(f"p={p:<4}  clustering={sw.get_transitivity():.3f}  mean distance={sw.get_mean_distance():.2f}")
+    print(f"p={p:<4}  clustering={sw.transitivity():.3f}  mean distance={sw.mean_distance():.2f}")
 ```
 
 Rewiring 5% of the edges cuts the mean distance between nodes by more than two thirds, while the
@@ -228,14 +228,14 @@ copies gives the baseline:
 
 ```{python}
 dolphins = ec.dolphins()
-shuffled = [dolphins.random_reference(niter=10, seed=s).get_transitivity() for s in range(5)]
+shuffled = [dolphins.random_reference(iterations=10, seed=s).transitivity() for s in range(5)]
 
-round(dolphins.get_transitivity(), 3), [round(t, 3) for t in shuffled]
+round(dolphins.transitivity(), 3), [round(t, 3) for t in shuffled]
 ```
 
 The dolphins' transitivity (the fraction of connected triples that close into triangles) is more
 than double that of the randomized copies, so their associations close into triangles far more
-often than their degrees alone would explain. The `niter=` argument sets how many times, on
+often than their degrees alone would explain. The `iterations=` argument sets how many times, on
 average, each edge is rewired. By default `random_reference()` keeps the graph connected;
 [`degree_preserving_rewire()`](../reference/Graph.degree_preserving_rewire.qmd) performs a set
 number of swaps, `n_swaps=`, without that restriction.
