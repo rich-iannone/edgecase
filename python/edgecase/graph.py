@@ -6,12 +6,6 @@ from typing import Any, Callable, Iterator, Optional, Union
 import polars as pl
 
 from edgecase import _core as rust
-from edgecase._deprecation import (
-    add_renamed_methods,
-    removed_params,
-    renamed_params,
-    warn_deprecated_method,
-)
 from edgecase.cypher import Matcher, Projection, cypher_error, parse_query
 from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.steps import (
@@ -4380,7 +4374,6 @@ class Graph:
             output=output,
         )
 
-    @renamed_params(start="source")
     def plot_traversal(
         self,
         visit_order: Optional[list] = None,
@@ -5499,7 +5492,6 @@ class Graph:
         )
         return self._layout_result("layout_multipartite", coords, attr_name, return_dict, params)
 
-    @renamed_params(start="source")
     def layout_bfs(
         self,
         source: Union[int, str],
@@ -12499,7 +12491,6 @@ class Graph:
             )
         return self
 
-    @renamed_params(weight_attr="node_weight_attr")
     def add_geographical_threshold_graph(
         self,
         n: int,
@@ -28325,7 +28316,6 @@ class Graph:
     # Link Analysis
     # ==============================================================================
 
-    @renamed_params(u="node_1", v="node_2")
     def dispersion(
         self, node_1: Union[int, str], node_2: Union[int, str], normalized: bool = True
     ) -> float:
@@ -29257,7 +29247,6 @@ class Graph:
     # Similarity
     # ==============================================================================
 
-    @renamed_params(max_iterations="max_iter", tolerance="tol")
     def simrank_similarity(
         self,
         source: Union[int, str, None] = None,
@@ -29389,7 +29378,6 @@ class Graph:
             )
         return result
 
-    @renamed_params(eps="epsilon")
     def panther_similarity(
         self,
         source: Union[int, str],
@@ -29516,7 +29504,6 @@ class Graph:
             )
         return result
 
-    @renamed_params(eps="epsilon")
     def panther_vector_similarity(
         self,
         source: Union[int, str],
@@ -29744,7 +29731,6 @@ class Graph:
             )
         return paths
 
-    @renamed_params(max_iterations="max_iter", tolerance="tol")
     def simrank_star_similarity(
         self,
         importance_factor: float = 0.8,
@@ -29916,7 +29902,6 @@ class Graph:
         )
         return self
 
-    @renamed_params(max_iterations="max_iter", tolerance="tol")
     def simrank_star_similarity_pair(
         self,
         source: Union[int, str],
@@ -30568,20 +30553,6 @@ class Graph:
         """
         return self._graph.has_cycles()
 
-    def get_cycles(self, min_length: int = 2) -> list[list[int]]:
-        """
-        Deprecated: use `simple_cycles()`, which also works on undirected graphs.
-
-        On a directed graph, `g.get_cycles(min_length=k)` gives the same cycles as
-        `[c for c in g.simple_cycles() if len(c) >= k]`. This method will be removed in 1.0.
-        """
-        warn_deprecated_method("get_cycles", "simple_cycles")
-        if not self.is_directed():
-            raise ValueError("get_cycles() requires a directed graph")
-
-        # Get cycles as node IDs from Rust
-        return self._graph.get_cycles(float(min_length))
-
     def simple_cycles(self, length_bound: int | None = None) -> list[list[int]]:
         r"""
         Find all simple cycles in the graph.
@@ -30844,7 +30815,6 @@ class Graph:
 
         return rust_directed_cycle_basis(self._graph)
 
-    @renamed_params(weight="weight_attr")
     def minimum_cycle_basis(self, weight_attr: str | None = None) -> list[list[int]]:
         r"""
         Find a minimum weight cycle basis for the graph.
@@ -32014,7 +31984,6 @@ class Graph:
             )
         return value
 
-    @renamed_params(s="source", t="target")
     def find_induced_nodes(self, source: Union[int, str], target: Union[int, str]) -> list[int]:
         """
         Find the nodes on induced paths between two nodes of a chordal graph.
@@ -32137,7 +32106,6 @@ class Graph:
             )
         return cliques
 
-    @renamed_params(weight_attr="node_weight_attr")
     def maximum_weight_clique(
         self, node_weight_attr: str | None = None
     ) -> tuple[list[int], "int | float"]:
@@ -32731,7 +32699,6 @@ class Graph:
     # Network Motif Census
     # ==============================================================================
 
-    @removed_params("return_dict")
     def motif_census(
         self,
         size: int = 3,
@@ -33155,7 +33122,6 @@ class Graph:
             )
         return census
 
-    @removed_params("return_dict")
     def motif_significance(
         self,
         size: int = 3,
@@ -33430,7 +33396,6 @@ class Graph:
 
         return self
 
-    @renamed_params(niter="iterations")
     def random_reference(
         self, iterations: int = 1, connectivity: bool = True, seed: int | None = None
     ) -> "Graph":
@@ -33496,7 +33461,6 @@ class Graph:
         self._record_reference("random_reference", result)
         return result
 
-    @renamed_params(niter="iterations")
     def lattice_reference(
         self, iterations: int = 5, connectivity: bool = True, seed: int | None = None
     ) -> "Graph":
@@ -33586,7 +33550,6 @@ class Graph:
             narration=f"{method}(): {len(pairs)} rewired edges.",
         )
 
-    @renamed_params(niter="iterations")
     def small_world_sigma(
         self, iterations: int = 100, nrand: int = 10, seed: int | None = None
     ) -> float:
@@ -33660,7 +33623,6 @@ class Graph:
             )
         return value
 
-    @renamed_params(niter="iterations")
     def small_world_omega(
         self, iterations: int = 5, nrand: int = 10, seed: int | None = None
     ) -> float:
@@ -33845,7 +33807,6 @@ class Graph:
             )
         return result
 
-    @renamed_params(source="source_mode", target="target_mode")
     def average_degree_connectivity(
         self,
         source_mode: str = "in+out",
@@ -33943,7 +33904,6 @@ class Graph:
             matrix = [[v / total for v in r] for r in matrix]
         return matrix, order
 
-    @renamed_params(x="source_mode", y="target_mode")
     def degree_mixing_dict(
         self,
         source_mode: str = "out",
@@ -34000,7 +33960,6 @@ class Graph:
             counts[a][b] = counts[a].get(b, 0) + c
         return self._mixing_from_counts(counts, normalized)
 
-    @renamed_params(x="source_mode", y="target_mode")
     def degree_mixing_matrix(
         self,
         source_mode: str = "out",
@@ -34179,7 +34138,6 @@ class Graph:
         """
         return self._mixing_matrix(self._attribute_counts(attribute), normalized)
 
-    @renamed_params(x="source_mode", y="target_mode")
     def degree_pearson_correlation_coefficient(
         self, source_mode: str = "out", target_mode: str = "in", weighted: bool | None = None
     ) -> float:
@@ -34358,7 +34316,6 @@ class Graph:
 
         return self
 
-    @renamed_params(normalize="normalized")
     def edge_clustering_coefficient(
         self,
         edge_ids: list[int] | None = None,
@@ -35558,7 +35515,6 @@ class Graph:
             )
         return coverage, performance
 
-    @renamed_params(node_weight="node_weight_attr")
     def constant_potts_model(
         self,
         communities,
@@ -36814,7 +36770,6 @@ class Graph:
         )
         return result
 
-    @renamed_params(node_weight="node_weight_attr", edge_weight="weight_attr")
     def lukes_partitioning(
         self,
         max_size: int,
@@ -38512,7 +38467,6 @@ class Graph:
     # Node Contraction
     # ==============================================================================
 
-    @renamed_params(u="node_1", v="node_2")
     def contract_nodes(
         self, node_1: int | str, node_2: int | str, self_loops: bool = True
     ) -> "Graph":
@@ -38627,7 +38581,6 @@ class Graph:
 
         return result
 
-    @renamed_params(u="node_1", v="node_2")
     def contracted_edge(
         self, node_1: int | str, node_2: int | str, self_loops: bool = True
     ) -> "Graph":
@@ -42324,7 +42277,6 @@ class Graph:
     # Whole-Graph Transformations
     # ==============================================================================
 
-    @renamed_params(weight="weight_attr")
     def transform_with_spanner(
         self,
         stretch: float,
@@ -44786,7 +44738,6 @@ class Graph:
 
         return self
 
-    @renamed_params(weights="weight_attr")
     def constraint(
         self,
         weight_attr: str | None = None,
@@ -45665,7 +45616,6 @@ class Graph:
 
         return self
 
-    @removed_params("return_dict")
     def communicability(self) -> dict[int, dict[int, float]]:
         r"""
         Compute communicability between all pairs of nodes.
@@ -45892,7 +45842,6 @@ class Graph:
     # Percolation Methods
     # -------------------------------------------------------------------------
 
-    @renamed_params(weight="weight_attr")
     def percolation_centrality(
         self,
         states: dict[int, float] | None = None,
@@ -46417,7 +46366,6 @@ class Graph:
 
         return rust_pta(self._graph, steps, trials, seed)
 
-    @renamed_params(source="source_mode", target="target_mode")
     def average_neighbor_degree(
         self,
         source_mode: str = "out",
@@ -50223,7 +50171,6 @@ class Graph:
 
         return self
 
-    @renamed_params(tolerance="tol")
     def domirank_centrality(
         self,
         sigma: float | None = None,
@@ -54667,7 +54614,6 @@ class Graph:
 
         return k_shortest_paths(self._graph, source_id, target_id, k)
 
-    @renamed_params(start="source")
     def bfs(
         self,
         source: Union[int, str],
@@ -54813,7 +54759,6 @@ class Graph:
 
         return self
 
-    @renamed_params(start="source")
     def dfs(
         self,
         source: Union[int, str],
@@ -56716,7 +56661,6 @@ class Graph:
 
         return self._graph.is_simple_path(node_ids)
 
-    @renamed_params(start="source")
     def random_walk(
         self,
         source: Union[int, str],
@@ -56941,7 +56885,6 @@ class Graph:
 
         return self
 
-    @renamed_params(start="source")
     def random_edge_walk(
         self,
         source: Union[int, str],
@@ -57660,7 +57603,6 @@ class Graph:
             )
         return length
 
-    @renamed_params(start="source")
     def immediate_dominators(self, source: Union[int, str]) -> dict[int, int]:
         r"""
         Find the immediate dominator of every node reachable from a start node.
@@ -57740,7 +57682,6 @@ class Graph:
             )
         return result
 
-    @renamed_params(start="source")
     def dominance_frontiers(self, source: Union[int, str]) -> dict[int, set[int]]:
         """
         Find the dominance frontier of every node reachable from a start node.
@@ -63135,7 +63076,6 @@ class Graph:
 
         return rust_k_components(self._graph)
 
-    @renamed_params(sink="target")
     def minimum_cut_value(
         self, source: Union[int, str], target: Union[int, str], capacity: str | None = None
     ) -> int | float:
@@ -63231,7 +63171,6 @@ class Graph:
         sink_id = self._resolve_node_id(target, auto_create=False)
         return self._graph.get_min_cut_between(source_id, sink_id)
 
-    @renamed_params(sink="target")
     def minimum_node_cut(self, source: Union[int, str], target: Union[int, str]) -> set[int]:
         r"""
         Find minimum node cut between source and sink nodes.
@@ -63375,7 +63314,6 @@ class Graph:
             ),
         )
 
-    @renamed_params(sink="target")
     def minimum_cut(
         self, source: Union[int, str], target: Union[int, str], capacity: str | None = None
     ) -> tuple[float, tuple[list[int], list[int]]]:
@@ -64233,7 +64171,6 @@ class Graph:
             )
         return result
 
-    @renamed_params(sink="target")
     def minimum_edge_cut(
         self, source: Union[int, str], target: Union[int, str], capacity: str | None = None
     ) -> set[tuple[int, int]]:
@@ -64349,7 +64286,6 @@ class Graph:
         sink_id = self._resolve_node_id(target, auto_create=False)
         return self._graph.minimum_edge_cut(source_id, sink_id)
 
-    @renamed_params(sink="target")
     def maximum_flow(
         self,
         source: Union[int, str],
@@ -64508,7 +64444,6 @@ class Graph:
         sink_id = self._resolve_node_id(target, auto_create=False)
         return dict(_max_flow(self._graph, source_id, sink_id, capacity))
 
-    @renamed_params(sink="target")
     def maximum_flow_value(
         self,
         source: Union[int, str],
@@ -64605,7 +64540,6 @@ class Graph:
         sink_id = self._resolve_node_id(target, auto_create=False)
         return _max_flow_value(self._graph, source_id, sink_id, capacity)
 
-    @renamed_params(sink="target")
     def minimum_cost_flow(
         self,
         source: Union[int, str],
@@ -66790,7 +66724,6 @@ class Graph:
             covered.update(ends)
         return covered >= set(self.get_node_ids(limit=None))
 
-    @renamed_params(weight_attr="node_weight_attr")
     def minimum_weighted_vertex_cover(self, node_weight_attr: str | None = None) -> list[int]:
         r"""
         Find a vertex cover of small total weight (2-approximation).
@@ -66920,7 +66853,6 @@ class Graph:
     # Approximation and Optimization
     # ==============================================================================
 
-    @renamed_params(max_iterations="max_iter")
     def traveling_salesman(
         self,
         nodes: list[Union[int, str]] | None = None,
@@ -68120,7 +68052,6 @@ class Graph:
 
         return dominating_set(self._graph, start_with)
 
-    @renamed_params(weight_attr="node_weight_attr")
     def minimum_weighted_dominating_set(self, node_weight_attr: str | None = None) -> list[int]:
         r"""
         Find an approximate minimum weighted dominating set.
@@ -73186,7 +73117,6 @@ class Graph:
     # Distance Metrics
     # ==============================================================================
 
-    @renamed_params(weight=("weighted", lambda weight: weight is not None))
     def wiener_index(self, weighted: bool | None = None) -> float:
         r"""
         Calculate the Wiener index of the graph.
@@ -73260,7 +73190,6 @@ class Graph:
 
         return wiener_index(self._graph, "weight" if self._use_weights(weighted) else None)
 
-    @renamed_params(weight=("weighted", lambda weight: weight is not None))
     def hyper_wiener_index(self, weighted: bool | None = None) -> float:
         r"""
         Calculate the hyper-Wiener index of an undirected graph.
@@ -73744,9 +73673,6 @@ class Graph:
         return kirchhoff_index(self._graph)
 
 
-add_renamed_methods(Graph)
-
-
 # ============================================================================
 # AdaStar Pathfinding Classes
 # ============================================================================
@@ -73917,7 +73843,6 @@ class AdaStar:
     ```
     """
 
-    @renamed_params(weight="weight_attr")
     def __init__(
         self,
         graph,
