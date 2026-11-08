@@ -1342,12 +1342,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Generic edge BFS](/assets/graphs/generic-edge-bfs.light.svg){.lightbox fig-alt="A triangle A, B, C with a tail C to D, searched breadth-first from A (outlined) with a callback that leaves out the edge A-C, drawn dashed. The search still reaches C, through B, and the visited edges are numbered in the accent color: 1 A-B, 2 B-C and 3 C-D. The card lists the three edges in visit order and notes that A-C is never visited." width="100%"}
 ```
 
-### `get_all_connected_nodes()` — All connected nodes
+### `get_neighbors()` — Neighbors
 
-<img src="get-all-connected-nodes.light.svg" alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="570">
+<img src="get-neighbors.light.svg" alt="A seven-node directed graph with the query node C outlined. With mode all, every node joined to C by an edge in either direction is returned, so B, D, A, and E and their edges to C are in the accent color. The card lists B, D, A, E: successors first, then predecessors." width="570">
 
 ```markdown
-![All connected nodes](/assets/graphs/get-all-connected-nodes.light.svg){.lightbox fig-alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="100%"}
+![Neighbors](/assets/graphs/get-neighbors.light.svg){.lightbox fig-alt="A seven-node directed graph with the query node C outlined. With mode all, every node joined to C by an edge in either direction is returned, so B, D, A, and E and their edges to C are in the accent color. The card lists B, D, A, E: successors first, then predecessors." width="100%"}
 ```
 
 ### `get_non_neighbors()` — Non-neighbors
@@ -1372,14 +1372,6 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Successors](/assets/graphs/get-successors.light.svg){.lightbox fig-alt="A seven-node directed graph with the query node C outlined. The two edges leaving C and their targets, B and D, are in the accent color; A and E point into C and are not successors. The card lists B, D." width="100%"}
-```
-
-### `get_topological_sort_order()` — Topological sort
-
-<img src="get-topological-sort-order.light.svg" alt="A six-node directed acyclic graph laid out left to right. Numbered badges give the topological order, in which every node comes after all nodes with arrows into it. The result card lists A, B, D, C, E, F." width="570">
-
-```markdown
-![Topological sort](/assets/graphs/get-topological-sort-order.light.svg){.lightbox fig-alt="A six-node directed acyclic graph laid out left to right. Numbered badges give the topological order, in which every node comes after all nodes with arrows into it. The result card lists A, B, D, C, E, F." width="100%"}
 ```
 
 ### `immediate_dominators()` — Immediate dominators
@@ -1430,12 +1422,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Lowest common ancestor](/assets/graphs/lowest-common-ancestor.light.svg){.lightbox fig-alt="A seven-node DAG with the query nodes E and F outlined. A, B, and D all have paths to both, but D is the closest, so it is the lowest common ancestor, shown in the accent color with its edges to E and F. The card lists the common ancestors A, B, D and the answer D." width="100%"}
 ```
 
-### `neighbors()` — Neighbors
+### `reachable_nodes()` — All connected nodes
 
-<img src="neighbors.light.svg" alt="A seven-node directed graph with the query node C outlined. With mode all, every node joined to C by an edge in either direction is returned, so B, D, A, and E and their edges to C are in the accent color. The card lists B, D, A, E: successors first, then predecessors." width="570">
+<img src="reachable-nodes.light.svg" alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="570">
 
 ```markdown
-![Neighbors](/assets/graphs/neighbors.light.svg){.lightbox fig-alt="A seven-node directed graph with the query node C outlined. With mode all, every node joined to C by an edge in either direction is returned, so B, D, A, and E and their edges to C are in the accent color. The card lists B, D, A, E: successors first, then predecessors." width="100%"}
+![All connected nodes](/assets/graphs/reachable-nodes.light.svg){.lightbox fig-alt="A directed graph in two pieces, with the start node A outlined. Ignoring arrow direction, A reaches B, C, and D, shown in the accent color with the edges used; the separate pair E and F is not reached. The card lists B, C, D, without A itself." width="100%"}
 ```
 
 ### `topological_generations()` — Topological generations
@@ -1444,6 +1436,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Topological generations](/assets/graphs/topological-generations.light.svg){.lightbox fig-alt="A seven-node DAG laid out in four columns, one per generation, each in its own color and tinted region: the sources A, B (accent), then C, D (teal), E, F (violet), and finally G (gold). Every arrow points to a later generation. The card lists the generations 0 to 3." width="100%"}
+```
+
+### `topological_sort()` — Topological sort
+
+<img src="topological-sort.light.svg" alt="A six-node directed acyclic graph laid out left to right. Numbered badges give the topological order, in which every node comes after all nodes with arrows into it. The result card lists A, B, D, C, E, F." width="570">
+
+```markdown
+![Topological sort](/assets/graphs/topological-sort.light.svg){.lightbox fig-alt="A six-node directed acyclic graph laid out left to right. Numbered badges give the topological order, in which every node comes after all nodes with arrows into it. The result card lists A, B, D, C, E, F." width="100%"}
 ```
 
 ### `trav_both()` — Bidirectional traversal
@@ -1566,6 +1566,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![All simple edge paths](/assets/graphs/all-simple-edge-paths.light.svg){.lightbox fig-alt="Nodes A, B, C with two parallel edges between A and B (edge ids 1 and 2) and one edge between B and C (id 3). Both routes visit the same nodes but use different edges, so two edge paths are returned: [1, 3] in the accent color and [2, 3] in teal; both share edge 3." width="100%"}
+```
+
+### `all_simple_paths()` — All simple paths
+
+<img src="all-simple-paths.light.svg" alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="570">
+
+```markdown
+![All simple paths](/assets/graphs/all-simple-paths.light.svg){.lightbox fig-alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="100%"}
 ```
 
 ### `alt_heuristic()` — ALT heuristic
@@ -1720,28 +1728,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Floyd-Warshall distances](/assets/graphs/floyd-warshall.light.svg){.lightbox fig-alt="Three nodes with directed weighted edges A to B 4, A to C 2 and C to B −1. The negative shortcut makes the long way round, A, C, B (accent color), cheaper than the direct edge: 2 + (−1) = 1. The distance matrix highlights dist A to B = 1.0; pairs with no path, such as B to A, are left out (shown as a dot)." width="100%"}
 ```
 
-### `get_all_simple_paths()` — All simple paths
+### `girth()` — Girth
 
-<img src="get-all-simple-paths.light.svg" alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="570">
-
-```markdown
-![All simple paths](/assets/graphs/get-all-simple-paths.light.svg){.lightbox fig-alt="A directed graph with three routes from A to F, none repeating a node. All three simple paths are returned and drawn in their own colors: A, B, C, F in the accent color, A, D, F in teal, and A, E, F in violet, matching the card." width="100%"}
-```
-
-### `get_cycles()` — Elementary cycles (directed)
-
-<img src="get-cycles.light.svg" alt="A directed graph shaped like a house. Johnson&#x27;s algorithm finds the two cycles that follow the edge directions: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal. The square B, C, E, D is not a directed cycle." width="570">
+<img src="girth.light.svg" alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="570">
 
 ```markdown
-![Elementary cycles (directed)](/assets/graphs/get-cycles.light.svg){.lightbox fig-alt="A directed graph shaped like a house. Johnson's algorithm finds the two cycles that follow the edge directions: the triangle C, A, B in the accent color and the outer loop C, A, B, D, E in teal. The square B, C, E, D is not a directed cycle." width="100%"}
-```
-
-### `get_girth()` — Girth
-
-<img src="get-girth.light.svg" alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="570">
-
-```markdown
-![Girth](/assets/graphs/get-girth.light.svg){.lightbox fig-alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="100%"}
+![Girth](/assets/graphs/girth.light.svg){.lightbox fig-alt="The house-shaped graph has cycles of length 3, 4, and 5. The shortest is the triangle A, B, C, drawn in the accent color, so the girth is 3." width="100%"}
 ```
 
 ### `goldberg_radzik()` — Goldberg-Radzik shortest paths
@@ -2146,6 +2138,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Edge betweenness on a subset](/assets/graphs/edge-betweenness-centrality-subset.light.svg){.lightbox fig-alt="The shared seven-node graph with the sources A and B and the target G outlined; only shortest paths from A or B to G count. Every one ends along E-F and F-G (accent, 1.00). A's single path and one of B's two run through C-E, 0.75, B's other path takes B-D-E, and A-B and C-D carry none." width="100%"}
 ```
 
+### `edge_clustering_coefficient()` — Edge clustering coefficient
+
+<img src="edge-clustering-coefficient.light.svg" alt="The shared seven-node graph with edge C-D in accent and the two triangles through it, B-C-D and C-D-E, shaded. With endpoint degrees 4 and 3 at most 2 triangles are possible, so the default score is (2 + 1) / 2 = 1.5, shown in the card." width="570">
+
+```markdown
+![Edge clustering coefficient](/assets/graphs/edge-clustering-coefficient.light.svg){.lightbox fig-alt="The shared seven-node graph with edge C-D in accent and the two triangles through it, B-C-D and C-D-E, shaded. With endpoint degrees 4 and 3 at most 2 triangles are possible, so the default score is (2 + 1) / 2 = 1.5, shown in the card." width="100%"}
+```
+
 ### `edge_current_flow_betweenness_centrality()` — Edge current-flow betweenness centrality
 
 <img src="edge-current-flow-betweenness-centrality.light.svg" alt="The shared seven-node graph with each edge drawn thicker the more electrical current it carries when every pair of nodes in turn sends a unit of current. The bridge E-F carries the most, 0.33 in accent, then C-E 0.23, D-E 0.22 and F-G 0.20; the triangle edges B-C and C-D, with parallel routes beside them, carry the least, 0.12." width="570">
@@ -2202,28 +2202,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Degree of one node](/assets/graphs/get-degree.light.svg){.lightbox fig-alt="The shared seven-node graph with the queried node C outlined and its four incident edges, to A, B, D and E, drawn in accent. The card lists those neighbors and the result, degree 4." width="100%"}
 ```
 
-### `get_edge_clustering_coefficient()` — Edge clustering coefficient
-
-<img src="get-edge-clustering-coefficient.light.svg" alt="The shared seven-node graph with edge C-D in accent and the two triangles through it, B-C-D and C-D-E, shaded. With endpoint degrees 4 and 3 at most 2 triangles are possible, so the default score is (2 + 1) / 2 = 1.5, shown in the card." width="570">
-
-```markdown
-![Edge clustering coefficient](/assets/graphs/get-edge-clustering-coefficient.light.svg){.lightbox fig-alt="The shared seven-node graph with edge C-D in accent and the two triangles through it, B-C-D and C-D-E, shaded. With endpoint degrees 4 and 3 at most 2 triangles are possible, so the default score is (2 + 1) / 2 = 1.5, shown in the card." width="100%"}
-```
-
 ### `get_in_degree()` — In-degree of one node
 
 <img src="get-in-degree.light.svg" alt="A five-node directed graph with the queried node C outlined. The three arrows pointing into C, from A, B and E, are drawn in accent; the arrows C sends to B and D are not counted. The card reads in-degree 3." width="570">
 
 ```markdown
 ![In-degree of one node](/assets/graphs/get-in-degree.light.svg){.lightbox fig-alt="A five-node directed graph with the queried node C outlined. The three arrows pointing into C, from A, B and E, are drawn in accent; the arrows C sends to B and D are not counted. The card reads in-degree 3." width="100%"}
-```
-
-### `get_node_vitality()` — Node vitality
-
-<img src="get-node-vitality.light.svg" alt="The shared seven-node graph with the queried hub C outlined and its four edges dashed, as if removed. The neighbors can still reach each other around C, so the total pairwise distance only drops from 82 to 70 and the card reads vitality 12." width="570">
-
-```markdown
-![Node vitality](/assets/graphs/get-node-vitality.light.svg){.lightbox fig-alt="The shared seven-node graph with the queried hub C outlined and its four edges dashed, as if removed. The neighbors can still reach each other around C, so the total pairwise distance only drops from 82 to 70 and the card reads vitality 12." width="100%"}
 ```
 
 ### `get_out_degree()` — Out-degree of one node
@@ -2300,10 +2284,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `laplacian_centrality()` — Laplacian centrality
 
-<img src="laplacian-centrality.light.svg" alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph&#x27;s Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03." width="570">
+<img src="laplacian-centrality.light.svg" alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph&#x27;s Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.60, then D 0.46, B and E 0.43, while the pendant node G costs only 0.09." width="570">
 
 ```markdown
-![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.24, then D 0.18, B and E 0.17, while the pendant node G costs only 0.03." width="100%"}
+![Laplacian centrality](/assets/graphs/laplacian-centrality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by Laplacian centrality, the share of the graph's Laplacian energy lost when a node is removed. Removing hub C costs the most, 0.60, then D 0.46, B and E 0.43, while the pendant node G costs only 0.09." width="100%"}
 ```
 
 ### `latapy_clustering()` — Latapy bipartite clustering
@@ -2368,6 +2352,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Node redundancy](/assets/graphs/node-redundancy.light.svg){.lightbox fig-alt="The same people and events graph. ann attended party and talk, and bob attended both too, so the pair stays linked without ann: ann scores 1.0, and bob, covered by ann, also 1.0. cy is the only one at both talk and game, so the edges joining them, in the accent color, are the pair's sole link and cy scores 0.0." width="100%"}
+```
+
+### `node_vitality()` — Node vitality
+
+<img src="node-vitality.light.svg" alt="The shared seven-node graph with the queried hub C outlined and its four edges dashed, as if removed. The neighbors can still reach each other around C, so the total pairwise distance only drops from 82 to 70 and the card reads vitality 12." width="570">
+
+```markdown
+![Node vitality](/assets/graphs/node-vitality.light.svg){.lightbox fig-alt="The shared seven-node graph with the queried hub C outlined and its four edges dashed, as if removed. The neighbors can still reach each other around C, so the total pairwise distance only drops from 82 to 70 and the card reads vitality 12." width="100%"}
 ```
 
 ### `pagerank()` — PageRank
@@ -2460,12 +2452,68 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## graph-metrics
 
+### `adjacency_spectrum()` — Adjacency spectrum
+
+<img src="adjacency-spectrum.light.svg" alt="A five-node graph and a bar chart of its five adjacency eigenvalues, sorted from largest to smallest: 2.641, 0.724, -0.589, -1.000, and -1.776. The largest eigenvalue is in the accent color." width="570">
+
+```markdown
+![Adjacency spectrum](/assets/graphs/adjacency-spectrum.light.svg){.lightbox fig-alt="A five-node graph and a bar chart of its five adjacency eigenvalues, sorted from largest to smallest: 2.641, 0.724, -0.589, -1.000, and -1.776. The largest eigenvalue is in the accent color." width="100%"}
+```
+
+### `aggregate_degree()` — Aggregate total degree
+
+<img src="aggregate-degree.light.svg" alt="The same five-node directed graph with each node&#x27;s total degree (in plus out) in a badge: A 3, B 3, C 4, D 3, E 1. The card sorts them as 1, 3, 3, 3, 4 and gives the median, 3.0." width="570">
+
+```markdown
+![Aggregate total degree](/assets/graphs/aggregate-degree.light.svg){.lightbox fig-alt="The same five-node directed graph with each node's total degree (in plus out) in a badge: A 3, B 3, C 4, D 3, E 1. The card sorts them as 1, 3, 3, 3, 4 and gives the median, 3.0." width="100%"}
+```
+
+### `aggregate_in_degree()` — Aggregate in-degree
+
+<img src="aggregate-in-degree.light.svg" alt="A five-node directed graph with each node&#x27;s in-degree in a badge. Node C receives three arcs, drawn in the accent color, more than any other node. The card lists the in-degrees 1, 1, 3, 1, 1 and their max, 3.0." width="570">
+
+```markdown
+![Aggregate in-degree](/assets/graphs/aggregate-in-degree.light.svg){.lightbox fig-alt="A five-node directed graph with each node's in-degree in a badge. Node C receives three arcs, drawn in the accent color, more than any other node. The card lists the in-degrees 1, 1, 3, 1, 1 and their max, 3.0." width="100%"}
+```
+
+### `aggregate_out_degree()` — Aggregate out-degree
+
+<img src="aggregate-out-degree.light.svg" alt="The same five-node directed graph with each node&#x27;s out-degree in a badge: A 2, B 2, C 1, D 2, E 0. The card sums them to 7 over 5 nodes and gives the mean out-degree 1.4." width="570">
+
+```markdown
+![Aggregate out-degree](/assets/graphs/aggregate-out-degree.light.svg){.lightbox fig-alt="The same five-node directed graph with each node's out-degree in a badge: A 2, B 2, C 1, D 2, E 0. The card sums them to 7 over 5 nodes and gives the mean out-degree 1.4." width="100%"}
+```
+
 ### `algebraic_connectivity()` — Algebraic connectivity
 
 <img src="algebraic-connectivity.light.svg" alt="Left, a six-node cycle whose closing edge F–A is in the accent color; right, the same nodes without that edge (dashed), a path. The cycle&#x27;s algebraic connectivity is 1.0 and the path&#x27;s only 0.268: the path is much easier to cut in two." width="570">
 
 ```markdown
 ![Algebraic connectivity](/assets/graphs/algebraic-connectivity.light.svg){.lightbox fig-alt="Left, a six-node cycle whose closing edge F–A is in the accent color; right, the same nodes without that edge (dashed), a path. The cycle's algebraic connectivity is 1.0 and the path's only 0.268: the path is much easier to cut in two." width="100%"}
+```
+
+### `assortativity()` — Numeric assortativity
+
+<img src="assortativity.light.svg" alt="Two triangles joined by one edge, each node shaded by a numeric attribute shown in its badge: 1, 2, 3 on the left and 7, 8, 9 on the right. Low values link to low and high to high, so the correlation across edges is positive, r = 0.774." width="570">
+
+```markdown
+![Numeric assortativity](/assets/graphs/assortativity.light.svg){.lightbox fig-alt="Two triangles joined by one edge, each node shaded by a numeric attribute shown in its badge: 1, 2, 3 on the left and 7, 8, 9 on the right. Low values link to low and high to high, so the correlation across edges is positive, r = 0.774." width="100%"}
+```
+
+### `assortativity_degree()` — Degree assortativity
+
+<img src="assortativity-degree.light.svg" alt="Two hubs C and D, each with degree 3, linked to each other and to two leaves of degree 1 apiece. Four of the five edges join a high-degree node to a low-degree one (accent), so mixing is disassortative and r = -0.667." width="570">
+
+```markdown
+![Degree assortativity](/assets/graphs/assortativity-degree.light.svg){.lightbox fig-alt="Two hubs C and D, each with degree 3, linked to each other and to two leaves of degree 1 apiece. Four of the five edges join a high-degree node to a low-degree one (accent), so mixing is disassortative and r = -0.667." width="100%"}
+```
+
+### `assortativity_nominal()` — Nominal assortativity
+
+<img src="assortativity-nominal.light.svg" alt="Two triangles joined by one edge, with the nodes split into two categories: A, B, C in the accent color and D, E, F in teal. Six of the seven edges join nodes of the same category, so mixing is assortative and r = 0.714." width="570">
+
+```markdown
+![Nominal assortativity](/assets/graphs/assortativity-nominal.light.svg){.lightbox fig-alt="Two triangles joined by one edge, with the nodes split into two categories: A, B, C in the accent color and D, E, F in teal. Six of the seven edges join nodes of the same category, so mixing is assortative and r = 0.714." width="100%"}
 ```
 
 ### `attr_matrix()` — Attribute matrix
@@ -2492,12 +2540,36 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Attribute mixing matrix](/assets/graphs/attribute-mixing-matrix.light.svg){.lightbox fig-alt="The same two teams, x on A, B, C (teal) and y on D, E, F (violet), and their 2 by 2 mixing matrix. Twelve of the fourteen edge ends stay within a team, 0.43 in each diagonal cell (accent); the single cross edge C–D puts 0.07 in each off-diagonal cell." width="100%"}
 ```
 
+### `average_clustering_coefficient()` — Average clustering coefficient
+
+<img src="average-clustering-coefficient.light.svg" alt="A five-node graph with two triangles in the accent color. Badges give each node&#x27;s local clustering coefficient: A 1, B 0.67, C 0.67, D 0.33, E 0. The card sums them to 2.667 over 5 nodes, an average of 0.533." width="570">
+
+```markdown
+![Average clustering coefficient](/assets/graphs/average-clustering-coefficient.light.svg){.lightbox fig-alt="A five-node graph with two triangles in the accent color. Badges give each node's local clustering coefficient: A 1, B 0.67, C 0.67, D 0.33, E 0. The card sums them to 2.667 over 5 nodes, an average of 0.533." width="100%"}
+```
+
+### `average_degree()` — Average degree
+
+<img src="average-degree.light.svg" alt="A five-node undirected graph with each node&#x27;s degree in a badge: A 2, B 3, C 3, D 3, E 1. The card adds the degrees to 12, divides by 5 nodes, and gives the average degree 2.4." width="570">
+
+```markdown
+![Average degree](/assets/graphs/average-degree.light.svg){.lightbox fig-alt="A five-node undirected graph with each node's degree in a badge: A 2, B 3, C 3, D 3, E 1. The card adds the degrees to 12, divides by 5 nodes, and gives the average degree 2.4." width="100%"}
+```
+
 ### `average_degree_connectivity()` — Average degree connectivity
 
 <img src="average-degree-connectivity.light.svg" alt="Two hubs C and D of degree 3, linked to each other and to two leaves of degree 1 apiece. Every leaf&#x27;s neighbor is a hub, so degree 1 maps to 3.0, while the hubs&#x27; six neighbors have degrees 1, 1, 3, 3, 1, 1, so degree 3 maps to 1.667: a falling curve, the mark of disassortative mixing." width="570">
 
 ```markdown
 ![Average degree connectivity](/assets/graphs/average-degree-connectivity.light.svg){.lightbox fig-alt="Two hubs C and D of degree 3, linked to each other and to two leaves of degree 1 apiece. Every leaf's neighbor is a hub, so degree 1 maps to 3.0, while the hubs' six neighbors have degrees 1, 1, 3, 3, 1, 1, so degree 3 maps to 1.667: a falling curve, the mark of disassortative mixing." width="100%"}
+```
+
+### `barycenter()` — Barycenter
+
+<img src="barycenter.light.svg" alt="A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its total distance to all the others. D has the smallest total, 9, so it is the barycenter, in the accent color; the card returns its id 4. The center, which minimizes the farthest distance instead, is E, one step down the tail." width="570">
+
+```markdown
+![Barycenter](/assets/graphs/barycenter.light.svg){.lightbox fig-alt="A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its total distance to all the others. D has the smallest total, 9, so it is the barycenter, in the accent color; the card returns its id 4. The center, which minimizes the farthest distance instead, is E, one step down the tail." width="100%"}
 ```
 
 ### `bethe_hessian_matrix()` — Bethe Hessian matrix
@@ -2514,6 +2586,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Bethe Hessian spectrum](/assets/graphs/bethe-hessian-spectrum.light.svg){.lightbox fig-alt="Two triangles joined by the edge C–D, and a bar chart of the six eigenvalues of its Bethe Hessian at the default r = 1.43, in increasing order: 0.031, 0.748, 4.194, 4.469, 4.469 and 6.334. The two small eigenvalues, in the accent color, stand well apart from the rest, matching the two triangle communities." width="100%"}
+```
+
+### `center()` — Center
+
+<img src="center.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The middle nodes C and D have the minimum eccentricity 2 and are drawn in the accent color. The card returns their node ids, 3 and 4." width="570">
+
+```markdown
+![Center](/assets/graphs/center.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The middle nodes C and D have the minimum eccentricity 2 and are drawn in the accent color. The card returns their node ids, 3 and 4." width="100%"}
 ```
 
 ### `chromatic_number_upper_bound()` — Chromatic number upper bound
@@ -2540,6 +2620,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Count triangles](/assets/graphs/count-triangles.light.svg){.lightbox fig-alt="Two triangles, A B C (accent) and B C D (teal), share the edge B to C; E hangs off D. The table counts the triangles each node belongs to: B and C are in 2, A and D in 1, E in none." width="100%"}
 ```
 
+### `degree_distribution()` — Degree distribution
+
+<img src="degree-distribution.light.svg" alt="A five-node graph with each node&#x27;s degree in a badge, and a bar chart of how many nodes have each degree: one node of degree 1, one of degree 2, and three of degree 3." width="570">
+
+```markdown
+![Degree distribution](/assets/graphs/degree-distribution.light.svg){.lightbox fig-alt="A five-node graph with each node's degree in a badge, and a bar chart of how many nodes have each degree: one node of degree 1, one of degree 2, and three of degree 3." width="100%"}
+```
+
 ### `degree_mixing_dict()` — Degree mixing dict
 
 <img src="degree-mixing-dict.light.svg" alt="The hub-and-leaf graph with each degree in a badge. The four accent edges join degree 1 to degree 3, and the hub edge C–D joins 3 to 3. Counting every edge from both ends gives {1: {3: 4}, 3: {1: 4, 3: 2}}." width="570">
@@ -2564,6 +2652,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Degree Pearson correlation](/assets/graphs/degree-pearson-correlation-coefficient.light.svg){.lightbox fig-alt="The hub-and-leaf graph with each degree in a badge. Over the ten edge ends the mean degree is 2.2; the degrees at the two ends of an edge have covariance -0.64 and variance 0.96, so their correlation is r = -0.667: hubs link to leaves." width="100%"}
 ```
 
+### `density()` — Graph density
+
+<img src="density.light.svg" alt="A five-node graph with four edges drawn solid and the six missing node pairs drawn as faint dashed lines. The result card reads 4 of 10 possible edges, density 0.4." width="570">
+
+```markdown
+![Graph density](/assets/graphs/density.light.svg){.lightbox fig-alt="A five-node graph with four edges drawn solid and the six missing node pairs drawn as faint dashed lines. The result card reads 4 of 10 possible edges, density 0.4." width="100%"}
+```
+
+### `diameter()` — Diameter
+
+<img src="diameter.light.svg" alt="A six-node graph: a four-node cycle with a tail on each side. The longest shortest path runs from A to F in four hops (shown in the accent color along one of the two equal routes), so the diameter is 4." width="570">
+
+```markdown
+![Diameter](/assets/graphs/diameter.light.svg){.lightbox fig-alt="A six-node graph: a four-node cycle with a tail on each side. The longest shortest path runs from A to F in four hops (shown in the accent color along one of the two equal routes), so the diameter is 4." width="100%"}
+```
+
 ### `directed_laplacian_matrix()` — Directed Laplacian matrix
 
 <img src="directed-laplacian-matrix.light.svg" alt="A directed four-cycle A, B, C, D with a chord from A to C, and its directed Laplacian, built from a random walk on the arcs. The matrix is symmetric even though the graph is not: the one-way arc A to B gives -0.35 in both the A, B and B, A cells (highlighted), the chord -0.25, and B and D, with no arc, 0." width="570">
@@ -2572,220 +2676,20 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Directed Laplacian matrix](/assets/graphs/directed-laplacian-matrix.light.svg){.lightbox fig-alt="A directed four-cycle A, B, C, D with a chord from A to C, and its directed Laplacian, built from a random walk on the arcs. The matrix is symmetric even though the graph is not: the one-way arc A to B gives -0.35 in both the A, B and B, A cells (highlighted), the chord -0.25, and B and D, with no arc, 0." width="100%"}
 ```
 
+### `estrada_index()` — Estrada index
+
+<img src="estrada-index.light.svg" alt="A five-node graph and a card that exponentiates each of its five adjacency eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds them to the Estrada index 17.18." width="570">
+
+```markdown
+![Estrada index](/assets/graphs/estrada-index.light.svg){.lightbox fig-alt="A five-node graph and a card that exponentiates each of its five adjacency eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds them to the Estrada index 17.18." width="100%"}
+```
+
 ### `generalized_degree()` — Generalized degree
 
 <img src="generalized-degree.light.svg" alt="Two triangles sharing the edge B–C, plus E hanging off D, with each edge labelled by the number of triangles it lies in. D&#x27;s three edges, in accent, lie in 1, 1 and 0 triangles, so D maps to {0: 1, 1: 2}; the shared edge B–C lies in 2, giving B and C {1: 2, 2: 1}." width="570">
 
 ```markdown
 ![Generalized degree](/assets/graphs/generalized-degree.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C, plus E hanging off D, with each edge labelled by the number of triangles it lies in. D's three edges, in accent, lie in 1, 1 and 0 triangles, so D maps to {0: 1, 1: 2}; the shared edge B–C lies in 2, giving B and C {1: 2, 2: 1}." width="100%"}
-```
-
-### `get_agg_degree_in()` — Aggregate in-degree
-
-<img src="get-agg-degree-in.light.svg" alt="A five-node directed graph with each node&#x27;s in-degree in a badge. Node C receives three arcs, drawn in the accent color, more than any other node. The card lists the in-degrees 1, 1, 3, 1, 1 and their max, 3.0." width="570">
-
-```markdown
-![Aggregate in-degree](/assets/graphs/get-agg-degree-in.light.svg){.lightbox fig-alt="A five-node directed graph with each node's in-degree in a badge. Node C receives three arcs, drawn in the accent color, more than any other node. The card lists the in-degrees 1, 1, 3, 1, 1 and their max, 3.0." width="100%"}
-```
-
-### `get_agg_degree_out()` — Aggregate out-degree
-
-<img src="get-agg-degree-out.light.svg" alt="The same five-node directed graph with each node&#x27;s out-degree in a badge: A 2, B 2, C 1, D 2, E 0. The card sums them to 7 over 5 nodes and gives the mean out-degree 1.4." width="570">
-
-```markdown
-![Aggregate out-degree](/assets/graphs/get-agg-degree-out.light.svg){.lightbox fig-alt="The same five-node directed graph with each node's out-degree in a badge: A 2, B 2, C 1, D 2, E 0. The card sums them to 7 over 5 nodes and gives the mean out-degree 1.4." width="100%"}
-```
-
-### `get_agg_degree_total()` — Aggregate total degree
-
-<img src="get-agg-degree-total.light.svg" alt="The same five-node directed graph with each node&#x27;s total degree (in plus out) in a badge: A 3, B 3, C 4, D 3, E 1. The card sorts them as 1, 3, 3, 3, 4 and gives the median, 3.0." width="570">
-
-```markdown
-![Aggregate total degree](/assets/graphs/get-agg-degree-total.light.svg){.lightbox fig-alt="The same five-node directed graph with each node's total degree (in plus out) in a badge: A 3, B 3, C 4, D 3, E 1. The card sorts them as 1, 3, 3, 3, 4 and gives the median, 3.0." width="100%"}
-```
-
-### `get_assortativity()` — Numeric assortativity
-
-<img src="get-assortativity.light.svg" alt="Two triangles joined by one edge, each node shaded by a numeric attribute shown in its badge: 1, 2, 3 on the left and 7, 8, 9 on the right. Low values link to low and high to high, so the correlation across edges is positive, r = 0.774." width="570">
-
-```markdown
-![Numeric assortativity](/assets/graphs/get-assortativity.light.svg){.lightbox fig-alt="Two triangles joined by one edge, each node shaded by a numeric attribute shown in its badge: 1, 2, 3 on the left and 7, 8, 9 on the right. Low values link to low and high to high, so the correlation across edges is positive, r = 0.774." width="100%"}
-```
-
-### `get_assortativity_degree()` — Degree assortativity
-
-<img src="get-assortativity-degree.light.svg" alt="Two hubs C and D, each with degree 3, linked to each other and to two leaves of degree 1 apiece. Four of the five edges join a high-degree node to a low-degree one (accent), so mixing is disassortative and r = -0.667." width="570">
-
-```markdown
-![Degree assortativity](/assets/graphs/get-assortativity-degree.light.svg){.lightbox fig-alt="Two hubs C and D, each with degree 3, linked to each other and to two leaves of degree 1 apiece. Four of the five edges join a high-degree node to a low-degree one (accent), so mixing is disassortative and r = -0.667." width="100%"}
-```
-
-### `get_assortativity_nominal()` — Nominal assortativity
-
-<img src="get-assortativity-nominal.light.svg" alt="Two triangles joined by one edge, with the nodes split into two categories: A, B, C in the accent color and D, E, F in teal. Six of the seven edges join nodes of the same category, so mixing is assortative and r = 0.714." width="570">
-
-```markdown
-![Nominal assortativity](/assets/graphs/get-assortativity-nominal.light.svg){.lightbox fig-alt="Two triangles joined by one edge, with the nodes split into two categories: A, B, C in the accent color and D, E, F in teal. Six of the seven edges join nodes of the same category, so mixing is assortative and r = 0.714." width="100%"}
-```
-
-### `get_average_degree()` — Average degree
-
-<img src="get-average-degree.light.svg" alt="A five-node undirected graph with each node&#x27;s degree in a badge: A 2, B 3, C 3, D 3, E 1. The card adds the degrees to 12, divides by 5 nodes, and gives the average degree 2.4." width="570">
-
-```markdown
-![Average degree](/assets/graphs/get-average-degree.light.svg){.lightbox fig-alt="A five-node undirected graph with each node's degree in a badge: A 2, B 3, C 3, D 3, E 1. The card adds the degrees to 12, divides by 5 nodes, and gives the average degree 2.4." width="100%"}
-```
-
-### `get_avg_clustering_coefficient()` — Average clustering coefficient
-
-<img src="get-avg-clustering-coefficient.light.svg" alt="A five-node graph with two triangles in the accent color. Badges give each node&#x27;s local clustering coefficient: A 1, B 0.67, C 0.67, D 0.33, E 0. The card sums them to 2.667 over 5 nodes, an average of 0.533." width="570">
-
-```markdown
-![Average clustering coefficient](/assets/graphs/get-avg-clustering-coefficient.light.svg){.lightbox fig-alt="A five-node graph with two triangles in the accent color. Badges give each node's local clustering coefficient: A 1, B 0.67, C 0.67, D 0.33, E 0. The card sums them to 2.667 over 5 nodes, an average of 0.533." width="100%"}
-```
-
-### `get_barycenter()` — Barycenter
-
-<img src="get-barycenter.light.svg" alt="A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its total distance to all the others. D has the smallest total, 9, so it is the barycenter, in the accent color; the card returns its id 4. The center, which minimizes the farthest distance instead, is E, one step down the tail." width="570">
-
-```markdown
-![Barycenter](/assets/graphs/get-barycenter.light.svg){.lightbox fig-alt="A hub D with three leaves A, B, C and a tail E, F, G, each node badged with its total distance to all the others. D has the smallest total, 9, so it is the barycenter, in the accent color; the card returns its id 4. The center, which minimizes the farthest distance instead, is E, one step down the tail." width="100%"}
-```
-
-### `get_center()` — Center
-
-<img src="get-center.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The middle nodes C and D have the minimum eccentricity 2 and are drawn in the accent color. The card returns their node ids, 3 and 4." width="570">
-
-```markdown
-![Center](/assets/graphs/get-center.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The middle nodes C and D have the minimum eccentricity 2 and are drawn in the accent color. The card returns their node ids, 3 and 4." width="100%"}
-```
-
-### `get_degree_distribution()` — Degree distribution
-
-<img src="get-degree-distribution.light.svg" alt="A five-node graph with each node&#x27;s degree in a badge, and a bar chart of how many nodes have each degree: one node of degree 1, one of degree 2, and three of degree 3." width="570">
-
-```markdown
-![Degree distribution](/assets/graphs/get-degree-distribution.light.svg){.lightbox fig-alt="A five-node graph with each node's degree in a badge, and a bar chart of how many nodes have each degree: one node of degree 1, one of degree 2, and three of degree 3." width="100%"}
-```
-
-### `get_density()` — Graph density
-
-<img src="get-density.light.svg" alt="A five-node graph with four edges drawn solid and the six missing node pairs drawn as faint dashed lines. The result card reads 4 of 10 possible edges, density 0.4." width="570">
-
-```markdown
-![Graph density](/assets/graphs/get-density.light.svg){.lightbox fig-alt="A five-node graph with four edges drawn solid and the six missing node pairs drawn as faint dashed lines. The result card reads 4 of 10 possible edges, density 0.4." width="100%"}
-```
-
-### `get_diameter()` — Diameter
-
-<img src="get-diameter.light.svg" alt="A six-node graph: a four-node cycle with a tail on each side. The longest shortest path runs from A to F in four hops (shown in the accent color along one of the two equal routes), so the diameter is 4." width="570">
-
-```markdown
-![Diameter](/assets/graphs/get-diameter.light.svg){.lightbox fig-alt="A six-node graph: a four-node cycle with a tail on each side. The longest shortest path runs from A to F in four hops (shown in the accent color along one of the two equal routes), so the diameter is 4." width="100%"}
-```
-
-### `get_estrada_index()` — Estrada index
-
-<img src="get-estrada-index.light.svg" alt="A five-node graph and a card that exponentiates each of its five adjacency eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds them to the Estrada index 17.18." width="570">
-
-```markdown
-![Estrada index](/assets/graphs/get-estrada-index.light.svg){.lightbox fig-alt="A five-node graph and a card that exponentiates each of its five adjacency eigenvalues, from e to the 2.641 (14.03) down to e to the -1.776 (0.17), and adds them to the Estrada index 17.18." width="100%"}
-```
-
-### `get_hyper_wiener_index()` — Hyper-Wiener index
-
-<img src="get-hyper-wiener-index.light.svg" alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="570">
-
-```markdown
-![Hyper-Wiener index](/assets/graphs/get-hyper-wiener-index.light.svg){.lightbox fig-alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="100%"}
-```
-
-### `get_kirchhoff_index()` — Kirchhoff index
-
-<img src="get-kirchhoff-index.light.svg" alt="A six-node graph labeled with the resistance distance across each edge: 1 on the two tail edges, but 0.75 on the four cycle edges (accent), where a second route runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index 21.0." width="570">
-
-```markdown
-![Kirchhoff index](/assets/graphs/get-kirchhoff-index.light.svg){.lightbox fig-alt="A six-node graph labeled with the resistance distance across each edge: 1 on the two tail edges, but 0.75 on the four cycle edges (accent), where a second route runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index 21.0." width="100%"}
-```
-
-### `get_laplacian_spectrum()` — Laplacian spectrum
-
-<img src="get-laplacian-spectrum.light.svg" alt="A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. The single zero means the graph is connected, and the second-smallest eigenvalue, the algebraic connectivity 0.830, is in the accent color." width="570">
-
-```markdown
-![Laplacian spectrum](/assets/graphs/get-laplacian-spectrum.light.svg){.lightbox fig-alt="A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. The single zero means the graph is connected, and the second-smallest eigenvalue, the algebraic connectivity 0.830, is in the accent color." width="100%"}
-```
-
-### `get_max_eccentricity()` — Maximum eccentricity
-
-<img src="get-max-eccentricity.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge: A 4, B 3, C 2, D 2, E 3, F 4. The end nodes A and F have the largest value and are drawn in the accent color; the card gives the maximum eccentricity 4." width="570">
-
-```markdown
-![Maximum eccentricity](/assets/graphs/get-max-eccentricity.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge: A 4, B 3, C 2, D 2, E 3, F 4. The end nodes A and F have the largest value and are drawn in the accent color; the card gives the maximum eccentricity 4." width="100%"}
-```
-
-### `get_mean_distance()` — Mean distance
-
-<img src="get-mean-distance.light.svg" alt="A six-node graph and a card that adds the shortest-path distances of all 15 node pairs to 28 and divides by the 15 pairs, giving a mean distance of 1.867." width="570">
-
-```markdown
-![Mean distance](/assets/graphs/get-mean-distance.light.svg){.lightbox fig-alt="A six-node graph and a card that adds the shortest-path distances of all 15 node pairs to 28 and divides by the 15 pairs, giving a mean distance of 1.867." width="100%"}
-```
-
-### `get_min_eccentricity()` — Minimum eccentricity
-
-<img src="get-min-eccentricity.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge: A 4, B 3, C 2, D 2, E 3, F 4. The middle nodes C and D have the smallest value and are drawn in the accent color; the card gives the minimum eccentricity 2." width="570">
-
-```markdown
-![Minimum eccentricity](/assets/graphs/get-min-eccentricity.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge: A 4, B 3, C 2, D 2, E 3, F 4. The middle nodes C and D have the smallest value and are drawn in the accent color; the card gives the minimum eccentricity 2." width="100%"}
-```
-
-### `get_periphery()` — Periphery
-
-<img src="get-periphery.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The end nodes A and F have the maximum eccentricity 4 and are drawn in the accent color. The card returns their node ids, 1 and 6." width="570">
-
-```markdown
-![Periphery](/assets/graphs/get-periphery.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The end nodes A and F have the maximum eccentricity 4 and are drawn in the accent color. The card returns their node ids, 1 and 6." width="100%"}
-```
-
-### `get_radius()` — Radius
-
-<img src="get-radius.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The center nodes C and D, drawn in the accent color, reach every other node within 2 hops, so the radius is 2." width="570">
-
-```markdown
-![Radius](/assets/graphs/get-radius.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The center nodes C and D, drawn in the accent color, reach every other node within 2 hops, so the radius is 2." width="100%"}
-```
-
-### `get_reciprocity()` — Reciprocity
-
-<img src="get-reciprocity.light.svg" alt="A five-node directed graph with seven arcs. The two reciprocal pairs, A and B and C and D, are drawn in the accent color: four of the seven arcs have a partner pointing back, so reciprocity is 4 / 7 = 0.571." width="570">
-
-```markdown
-![Reciprocity](/assets/graphs/get-reciprocity.light.svg){.lightbox fig-alt="A five-node directed graph with seven arcs. The two reciprocal pairs, A and B and C and D, are drawn in the accent color: four of the seven arcs have a partner pointing back, so reciprocity is 4 / 7 = 0.571." width="100%"}
-```
-
-### `get_spectrum()` — Adjacency spectrum
-
-<img src="get-spectrum.light.svg" alt="A five-node graph and a bar chart of its five adjacency eigenvalues, sorted from largest to smallest: 2.641, 0.724, -0.589, -1.000, and -1.776. The largest eigenvalue is in the accent color." width="570">
-
-```markdown
-![Adjacency spectrum](/assets/graphs/get-spectrum.light.svg){.lightbox fig-alt="A five-node graph and a bar chart of its five adjacency eigenvalues, sorted from largest to smallest: 2.641, 0.724, -0.589, -1.000, and -1.776. The largest eigenvalue is in the accent color." width="100%"}
-```
-
-### `get_transitivity()` — Transitivity
-
-<img src="get-transitivity.light.svg" alt="A five-node graph with two triangles in the accent color. Badges count the connected triples centered on each node (1, 3, 3, 3, 0), ten in all. The card computes 3 times 2 triangles over 10 triples, transitivity 0.6." width="570">
-
-```markdown
-![Transitivity](/assets/graphs/get-transitivity.light.svg){.lightbox fig-alt="A five-node graph with two triangles in the accent color. Badges count the connected triples centered on each node (1, 3, 3, 3, 0), ten in all. The card computes 3 times 2 triangles over 10 triples, transitivity 0.6." width="100%"}
-```
-
-### `get_wiener_index()` — Wiener index
-
-<img src="get-wiener-index.light.svg" alt="A six-node graph and a card that groups its 15 node pairs by shortest-path distance: 6 pairs at distance 1, 6 at 2, 2 at 3, and 1 at 4. Weighting each group by its distance sums to the Wiener index 28.0." width="570">
-
-```markdown
-![Wiener index](/assets/graphs/get-wiener-index.light.svg){.lightbox fig-alt="A six-node graph and a card that groups its 15 node pairs by shortest-path distance: 6 pairs at distance 1, 6 at 2, 2 at 3, and 1 at 4. Weighting each group by its distance sums to the Wiener index 28.0." width="100%"}
 ```
 
 ### `global_efficiency()` — Global efficiency
@@ -2804,6 +2708,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Global reaching centrality](/assets/graphs/global-reaching-centrality.light.svg){.lightbox fig-alt="Left, a five-node out-tree, each node badged with the share of other nodes it reaches: A 1, B 0.5, and the leaves 0. Averaging each node's gap to the top value gives (0 + 0.5 + 1 + 1 + 1) / 4 = 0.875, a strong hierarchy. Right, in a directed 4-cycle every node reaches all others, there is no gap, and the score is 0.0." width="100%"}
 ```
 
+### `hyper_wiener_index()` — Hyper-Wiener index
+
+<img src="hyper-wiener-index.light.svg" alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="570">
+
+```markdown
+![Hyper-Wiener index](/assets/graphs/hyper-wiener-index.light.svg){.lightbox fig-alt="The six-node graph of the Wiener index figure and a card that groups its 15 node pairs by shortest-path distance, each pair adding half of d times d plus one: 6 pairs at distance 1 add 1 each, 6 at 2 add 3, 2 at 3 add 6, and 1 at 4 adds 10. The sum is the hyper-Wiener index 46.0, against a Wiener index of 28." width="100%"}
+```
+
 ### `kemeny_constant()` — Kemeny constant
 
 <img src="kemeny-constant.light.svg" alt="Left, the complete graph on six nodes: the nine edges it adds to the six-node cycle are in the accent color, and a random walk reaches a target drawn from its stationary distribution in 4.167 steps on average. Right, the cycle alone needs 5.833. The value does not depend on the start node; smaller is better connected." width="570">
@@ -2812,12 +2724,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Kemeny constant](/assets/graphs/kemeny-constant.light.svg){.lightbox fig-alt="Left, the complete graph on six nodes: the nine edges it adds to the six-node cycle are in the accent color, and a random walk reaches a target drawn from its stationary distribution in 4.167 steps on average. Right, the cycle alone needs 5.833. The value does not depend on the start node; smaller is better connected." width="100%"}
 ```
 
+### `kirchhoff_index()` — Kirchhoff index
+
+<img src="kirchhoff-index.light.svg" alt="A six-node graph labeled with the resistance distance across each edge: 1 on the two tail edges, but 0.75 on the four cycle edges (accent), where a second route runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index 21.0." width="570">
+
+```markdown
+![Kirchhoff index](/assets/graphs/kirchhoff-index.light.svg){.lightbox fig-alt="A six-node graph labeled with the resistance distance across each edge: 1 on the two tail edges, but 0.75 on the four cycle edges (accent), where a second route runs in parallel. Summing resistance over all 15 pairs gives the Kirchhoff index 21.0." width="100%"}
+```
+
 ### `laplacian_matrix()` — Laplacian matrix
 
 <img src="laplacian-matrix.light.svg" alt="Two triangles sharing the edge B–C plus a pendant E, each node badged with its degree, and the 5 by 5 Laplacian D minus A. The degrees 2, 3, 3, 3, 1 run down the diagonal (accent), each edge puts -1 in its two cells, and every row sums to 0." width="570">
 
 ```markdown
 ![Laplacian matrix](/assets/graphs/laplacian-matrix.light.svg){.lightbox fig-alt="Two triangles sharing the edge B–C plus a pendant E, each node badged with its degree, and the 5 by 5 Laplacian D minus A. The degrees 2, 3, 3, 3, 1 run down the diagonal (accent), each edge puts -1 in its two cells, and every row sums to 0." width="100%"}
+```
+
+### `laplacian_spectrum()` — Laplacian spectrum
+
+<img src="laplacian-spectrum.light.svg" alt="A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. The single zero means the graph is connected, and the second-smallest eigenvalue, the algebraic connectivity 0.830, is in the accent color." width="570">
+
+```markdown
+![Laplacian spectrum](/assets/graphs/laplacian-spectrum.light.svg){.lightbox fig-alt="A five-node graph, two triangles sharing an edge plus a pendant, and a bar chart of the five eigenvalues of its Laplacian D minus A, sorted from smallest to largest: 0.000, 0.830, 2.689, 4.000, and 4.481. The single zero means the graph is connected, and the second-smallest eigenvalue, the algebraic connectivity 0.830, is in the accent color." width="100%"}
 ```
 
 ### `magnetic_laplacian_matrix()` — Magnetic Laplacian matrix
@@ -2844,6 +2772,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Maximal extendability](/assets/graphs/maximal-extendability.light.svg){.lightbox fig-alt="A six-node cycle 1 to 6 drawn as a ring. Every single edge belongs to some perfect matching, but the two edges 1-2 and 4-5, in the accent color, cannot be extended: they leave nodes 3 and 6 (teal), which are not joined. The card notes that k = 1 works and k = 2 fails, so the maximal extendability is 1." width="100%"}
 ```
 
+### `mean_distance()` — Mean distance
+
+<img src="mean-distance.light.svg" alt="A six-node graph and a card that adds the shortest-path distances of all 15 node pairs to 28 and divides by the 15 pairs, giving a mean distance of 1.867." width="570">
+
+```markdown
+![Mean distance](/assets/graphs/mean-distance.light.svg){.lightbox fig-alt="A six-node graph and a card that adds the shortest-path distances of all 15 node pairs to 28 and divides by the 15 pairs, giving a mean distance of 1.867." width="100%"}
+```
+
 ### `modularity_matrix()` — Modularity matrix
 
 <img src="modularity-matrix.light.svg" alt="Two triangles A, B, C and D, E, F joined by the edge C–D, each node badged with its degree, and the 6 by 6 modularity matrix: actual edges minus those expected from the degrees, rounded to one decimal. The positive cells (accent) form one block per triangle plus C–D at 0.4; pairs across the triangles, such as C and E at -0.4, and the diagonal are negative." width="570">
@@ -2866,6 +2802,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Normalized Laplacian matrix](/assets/graphs/normalized-laplacian-matrix.light.svg){.lightbox fig-alt="The same five-node graph with degree badges and its normalized Laplacian: 1 on the diagonal and, for each edge, minus one over the square root of its two degrees. Edges at A (degrees 2 and 3) give -0.41, edges between degree-3 nodes -0.33, and the highlighted D–E (3 and 1) -0.58." width="100%"}
+```
+
+### `periphery()` — Periphery
+
+<img src="periphery.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The end nodes A and F have the maximum eccentricity 4 and are drawn in the accent color. The card returns their node ids, 1 and 6." width="570">
+
+```markdown
+![Periphery](/assets/graphs/periphery.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The end nodes A and F have the maximum eccentricity 4 and are drawn in the accent color. The card returns their node ids, 1 and 6." width="100%"}
+```
+
+### `radius()` — Radius
+
+<img src="radius.light.svg" alt="A six-node graph with each node&#x27;s eccentricity in a badge. The center nodes C and D, drawn in the accent color, reach every other node within 2 hops, so the radius is 2." width="570">
+
+```markdown
+![Radius](/assets/graphs/radius.light.svg){.lightbox fig-alt="A six-node graph with each node's eccentricity in a badge. The center nodes C and D, drawn in the accent color, reach every other node within 2 hops, so the radius is 2." width="100%"}
+```
+
+### `reciprocity()` — Reciprocity
+
+<img src="reciprocity.light.svg" alt="A five-node directed graph with seven arcs. The two reciprocal pairs, A and B and C and D, are drawn in the accent color: four of the seven arcs have a partner pointing back, so reciprocity is 4 / 7 = 0.571." width="570">
+
+```markdown
+![Reciprocity](/assets/graphs/reciprocity.light.svg){.lightbox fig-alt="A five-node directed graph with seven arcs. The two reciprocal pairs, A and B and C and D, are drawn in the accent color: four of the seven arcs have a partner pointing back, so reciprocity is 4 / 7 = 0.571." width="100%"}
 ```
 
 ### `rich_club_coefficient()` — Rich-club coefficient
@@ -2908,12 +2868,28 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Spectral bipartivity](/assets/graphs/spectral-bipartivity.light.svg){.lightbox fig-alt="Left: the square 1, 2, 3, 4 has only even cycles, so every closed walk has even length and spectral_bipartivity() returns 1.0. Right: the same square plus the diagonal 1 to 3, in the accent color, which closes the triangles 1, 2, 3 and 1, 3, 4; odd closed walks now count against it and the value drops to 0.795." width="100%"}
 ```
 
+### `transitivity()` — Transitivity
+
+<img src="transitivity.light.svg" alt="A five-node graph with two triangles in the accent color. Badges count the connected triples centered on each node (1, 3, 3, 3, 0), ten in all. The card computes 3 times 2 triangles over 10 triples, transitivity 0.6." width="570">
+
+```markdown
+![Transitivity](/assets/graphs/transitivity.light.svg){.lightbox fig-alt="A five-node graph with two triangles in the accent color. Badges count the connected triples centered on each node (1, 3, 3, 3, 0), ten in all. The card computes 3 times 2 triangles over 10 triples, transitivity 0.6." width="100%"}
+```
+
 ### `trophic_incoherence_parameter()` — Trophic incoherence parameter
 
 <img src="trophic-incoherence-parameter.light.svg" alt="The food web of grass, rabbit, mouse, fox and owl, laid out by trophic level with each edge labelled by its level difference: four edges of exactly 1, mouse to owl 1.5 and fox to owl 0.5. The card takes their mean, 1.0, and their standard deviation, q = 0.29; a perfectly layered web would score 0." width="570">
 
 ```markdown
 ![Trophic incoherence parameter](/assets/graphs/trophic-incoherence-parameter.light.svg){.lightbox fig-alt="The food web of grass, rabbit, mouse, fox and owl, laid out by trophic level with each edge labelled by its level difference: four edges of exactly 1, mouse to owl 1.5 and fox to owl 0.5. The card takes their mean, 1.0, and their standard deviation, q = 0.29; a perfectly layered web would score 0." width="100%"}
+```
+
+### `wiener_index()` — Wiener index
+
+<img src="wiener-index.light.svg" alt="A six-node graph and a card that groups its 15 node pairs by shortest-path distance: 6 pairs at distance 1, 6 at 2, 2 at 3, and 1 at 4. Weighting each group by its distance sums to the Wiener index 28.0." width="570">
+
+```markdown
+![Wiener index](/assets/graphs/wiener-index.light.svg){.lightbox fig-alt="A six-node graph and a card that groups its 15 node pairs by shortest-path distance: 6 pairs at distance 1, 6 at 2, 2 at 3, and 1 at 4. Weighting each group by its distance sums to the Wiener index 28.0." width="100%"}
 ```
 
 ## similarity
@@ -2966,6 +2942,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Communicability](/assets/graphs/communicability.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color, and the two walks of length 2 between them, through C and D, are in accent. Communicability sums the walks of every length k divided by k factorial, 2/2! + 1/3! + 15/4! and so on, giving 2.069 for B and E." width="100%"}
 ```
 
+### `cosine_similarity()` — Cosine similarity
+
+<img src="cosine-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the square root of 3 times 4, about 3.464: cosine similarity 0.577." width="570">
+
+```markdown
+![Cosine similarity](/assets/graphs/cosine-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the square root of 3 times 4, about 3.464: cosine similarity 0.577." width="100%"}
+```
+
+### `dice_similarity()` — Dice similarity
+
+<img src="dice-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card doubles the 2 shared neighbors to 4 and divides by the summed degrees 3 + 4 = 7: Dice similarity 0.571." width="570">
+
+```markdown
+![Dice similarity](/assets/graphs/dice-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card doubles the 2 shared neighbors to 4 and divides by the summed degrees 3 + 4 = 7: Dice similarity 0.571." width="100%"}
+```
+
 ### `dispersion()` — Dispersion
 
 <img src="dispersion.light.svg" alt="Nodes A and B are outlined in the accent color and share three neighbors C, D, and E, filled in accent. C and D are linked, but E touches neither, so two of the three shared-neighbor pairs are unlinked: dispersion 2 / 3 = 0.667." width="570">
@@ -3006,54 +2998,6 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Common neighbors](/assets/graphs/get-common-neighbors.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color; their two shared neighbors C and D are filled in accent, while A (only next to B) and F and G (only next to E) stay plain. The card lists N(B) = A, C, D and N(E) = C, D, F, G, and returns C and D." width="100%"}
 ```
 
-### `get_cosine_similarity()` — Cosine similarity
-
-<img src="get-cosine-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the square root of 3 times 4, about 3.464: cosine similarity 0.577." width="570">
-
-```markdown
-![Cosine similarity](/assets/graphs/get-cosine-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the square root of 3 times 4, about 3.464: cosine similarity 0.577." width="100%"}
-```
-
-### `get_dice_similarity()` — Dice similarity
-
-<img src="get-dice-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card doubles the 2 shared neighbors to 4 and divides by the summed degrees 3 + 4 = 7: Dice similarity 0.571." width="570">
-
-```markdown
-![Dice similarity](/assets/graphs/get-dice-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card doubles the 2 shared neighbors to 4 and divides by the summed degrees 3 + 4 = 7: Dice similarity 0.571." width="100%"}
-```
-
-### `get_jaccard_similarity()` — Jaccard similarity
-
-<img src="get-jaccard-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; A, F, and G each touch only one side. The card divides the 2 shared neighbors by the 5 distinct neighbors: Jaccard similarity 0.4." width="570">
-
-```markdown
-![Jaccard similarity](/assets/graphs/get-jaccard-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; A, F, and G each touch only one side. The card divides the 2 shared neighbors by the 5 distinct neighbors: Jaccard similarity 0.4." width="100%"}
-```
-
-### `get_overlap_similarity()` — Overlap similarity
-
-<img src="get-overlap-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the smaller neighborhood, B with 3: overlap coefficient 0.667." width="570">
-
-```markdown
-![Overlap similarity](/assets/graphs/get-overlap-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the smaller neighborhood, B with 3: overlap coefficient 0.667." width="100%"}
-```
-
-### `get_pairwise_similarity()` — Pairwise similarity matrix
-
-<img src="get-pairwise-similarity.light.svg" alt="Four requested nodes B, C, D, and E are outlined in the accent color. A 4 by 4 table gives their Jaccard similarities, with 1 on the diagonal; the B, E cells read 0.4 and C, D is the most similar pair at 0.67." width="570">
-
-```markdown
-![Pairwise similarity matrix](/assets/graphs/get-pairwise-similarity.light.svg){.lightbox fig-alt="Four requested nodes B, C, D, and E are outlined in the accent color. A 4 by 4 table gives their Jaccard similarities, with 1 on the diagonal; the B, E cells read 0.4 and C, D is the most similar pair at 0.67." width="100%"}
-```
-
-### `get_resistance_distance()` — Resistance distance
-
-<img src="get-resistance-distance.light.svg" alt="Nodes A and B are outlined in the accent color and joined by two routes drawn in accent, A–C–B and A–D–E–B, with each edge a 1 ohm resistor. The card combines the 2 and 3 ohm routes in parallel, 2·3 / (2+3), for a resistance of 1.2." width="570">
-
-```markdown
-![Resistance distance](/assets/graphs/get-resistance-distance.light.svg){.lightbox fig-alt="Nodes A and B are outlined in the accent color and joined by two routes drawn in accent, A–C–B and A–D–E–B, with each edge a 1 ohm resistor. The card combines the 2 and 3 ohm routes in parallel, 2·3 / (2+3), for a resistance of 1.2." width="100%"}
-```
-
 ### `get_similar_neighbors()` — Similar neighbors
 
 <img src="get-similar-neighbors.light.svg" alt="Node E is outlined in the accent color and nodes B through G carry badges with their value of x. Of E&#x27;s neighbors, C and F match E&#x27;s value of 3 and are filled in accent; D and G differ, and B matches but is not a neighbor, so it is faded." width="570">
@@ -3078,6 +3022,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Jaccard coefficient](/assets/graphs/jaccard-coefficient.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. A table scores three requested pairs by shared over total distinct neighbors: B, E is 2 of 5 = 0.4, C, D is 2 of 3 = 0.67, and A, E is 0." width="100%"}
 ```
 
+### `jaccard_similarity()` — Jaccard similarity
+
+<img src="jaccard-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; A, F, and G each touch only one side. The card divides the 2 shared neighbors by the 5 distinct neighbors: Jaccard similarity 0.4." width="570">
+
+```markdown
+![Jaccard similarity](/assets/graphs/jaccard-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent; A, F, and G each touch only one side. The card divides the 2 shared neighbors by the 5 distinct neighbors: Jaccard similarity 0.4." width="100%"}
+```
+
 ### `optimal_edit_paths()` — Optimal edit paths
 
 <img src="optimal-edit-paths.light.svg" alt="A three-node path A–B–C beside a triangle X, Y, Z. The first of the six optimal edit paths, each costing 1, maps A to X, B to Y and C to Z (matching colors in both graphs and the card); the path&#x27;s two edges land on X–Y and Y–Z, and the triangle&#x27;s third edge Z–X, dashed in accent, is the one insertion." width="570">
@@ -3100,6 +3052,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Improving edit distance estimates](/assets/graphs/optimize-graph-edit-distance.light.svg){.lightbox fig-alt="Graph G is a diamond, two triangles sharing edge A–B; H is the same diamond on other labels, sharing D–E, with an extra node B hanging off E (accent). The search yields the costs 10, 8, 6 and 4 as it finds cheaper edit paths, and ends at 2, the exact distance: insert node B and edge E–B." width="100%"}
+```
+
+### `overlap_similarity()` — Overlap similarity
+
+<img src="overlap-similarity.light.svg" alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the smaller neighborhood, B with 3: overlap coefficient 0.667." width="570">
+
+```markdown
+![Overlap similarity](/assets/graphs/overlap-similarity.light.svg){.lightbox fig-alt="Nodes B and E are outlined in the accent color with their shared neighbors C and D filled in accent. The card divides the 2 shared neighbors by the smaller neighborhood, B with 3: overlap coefficient 0.667." width="100%"}
+```
+
+### `pairwise_similarity()` — Pairwise similarity matrix
+
+<img src="pairwise-similarity.light.svg" alt="Four requested nodes B, C, D, and E are outlined in the accent color. A 4 by 4 table gives their Jaccard similarities, with 1 on the diagonal; the B, E cells read 0.4 and C, D is the most similar pair at 0.67." width="570">
+
+```markdown
+![Pairwise similarity matrix](/assets/graphs/pairwise-similarity.light.svg){.lightbox fig-alt="Four requested nodes B, C, D, and E are outlined in the accent color. A 4 by 4 table gives their Jaccard similarities, with 1 on the diagonal; the B, E cells read 0.4 and C, D is the most similar pair at 0.67." width="100%"}
 ```
 
 ### `panther_similarity()` — Panther similarity
@@ -3132,6 +3100,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Resource allocation with communities](/assets/graphs/ra-index-soundarajan-hopcroft.light.svg){.lightbox fig-alt="Four nodes in a square: A, B and D form community 0 (teal region) and C is community 1 (violet region). Of the two common neighbors of the candidate link A–D (dashed), only B (accent) is in the pair's community, so only B counts, with 1 over its degree 2. C is ignored. The card gives the score 0.5." width="100%"}
+```
+
+### `resistance_distance()` — Resistance distance
+
+<img src="resistance-distance.light.svg" alt="Nodes A and B are outlined in the accent color and joined by two routes drawn in accent, A–C–B and A–D–E–B, with each edge a 1 ohm resistor. The card combines the 2 and 3 ohm routes in parallel, 2·3 / (2+3), for a resistance of 1.2." width="570">
+
+```markdown
+![Resistance distance](/assets/graphs/resistance-distance.light.svg){.lightbox fig-alt="Nodes A and B are outlined in the accent color and joined by two routes drawn in accent, A–C–B and A–D–E–B, with each edge a 1 ohm resistor. The card combines the 2 and 3 ohm routes in parallel, 2·3 / (2+3), for a resistance of 1.2." width="100%"}
 ```
 
 ### `resistance_distance_matrix()` — Resistance distance matrix
@@ -3250,6 +3226,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ## connectivity
 
+### `adhesion()` — Adhesion
+
+<img src="adhesion.light.svg" alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut, so the adhesion (edge connectivity) is 2. The card shows that cut and the value 2." width="570">
+
+```markdown
+![Adhesion](/assets/graphs/adhesion.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut, so the adhesion (edge connectivity) is 2. The card shows that cut and the value 2." width="100%"}
+```
+
 ### `all_node_cuts()` — All minimum node cuts
 
 <img src="all-node-cuts.light.svg" alt="Three copies of a strip of four triangles on A to F, whose node connectivity is 2. Each copy shows one minimum node cut in the accent color, with the edges it removes dashed: B, C cuts off A; C, D separates A, B from E, F; and D, E cuts off F. The card lists the three cuts." width="570">
@@ -3264,6 +3248,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![All-pairs node connectivity](/assets/graphs/all-pairs-node-connectivity.light.svg){.lightbox fig-alt="A square A, B, C, D with the diagonal A–C (accent). The table gives the local node connectivity of every pair: A and C are joined directly and through B and through D, three routes that share no other node (accent cells), while every other pair has two." width="100%"}
+```
+
+### `articulation_points()` — Articulation points
+
+<img src="articulation-points.light.svg" alt="Two triangles joined by the path C, D, E. The nodes C, D, and E are in the accent color: removing any one of them splits the graph. The card lists the articulation points C, D, E." width="570">
+
+```markdown
+![Articulation points](/assets/graphs/articulation-points.light.svg){.lightbox fig-alt="Two triangles joined by the path C, D, E. The nodes C, D, and E are in the accent color: removing any one of them splits the graph. The card lists the articulation points C, D, E." width="100%"}
 ```
 
 ### `average_node_connectivity()` — Average node connectivity
@@ -3306,6 +3298,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Chain decomposition](/assets/graphs/chain-decomposition.light.svg){.lightbox fig-alt="Two triangles joined by the bridge C–D. The depth-first search splits the edges into two chains, each a closed loop: A, C, B back to A (accent) and D, F, E back to D (teal). The bridge C–D, faded, lies on no cycle and so belongs to no chain. The card lists both chains as edge pairs in traversal order." width="100%"}
 ```
 
+### `cohesion()` — Cohesion
+
+<img src="cohesion.light.svg" alt="Two triangles joined through the two middle nodes D and E, drawn in the accent color. No single node disconnects the graph, but removing D and E together does, so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2." width="570">
+
+```markdown
+![Cohesion](/assets/graphs/cohesion.light.svg){.lightbox fig-alt="Two triangles joined through the two middle nodes D and E, drawn in the accent color. No single node disconnects the graph, but removing D and E together does, so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2." width="100%"}
+```
+
 ### `conductance()` — Conductance
 
 <img src="conductance.light.svg" alt="The same graph and set S, with every degree in a badge. Three edges cross the cut (accent), and the smaller side by volume is S with 9 edge ends against 11, so a third of S&#x27;s edge ends leave it: conductance 3 / 9 = 0.333." width="570">
@@ -3330,6 +3330,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Edge boundary](/assets/graphs/edge-boundary.light.svg){.lightbox fig-alt="The same graph and set S. The edges with exactly one end in S are B–D, C–D and C–E, in accent and labelled with their edge ids. The call returns those ids, 4, 5 and 6." width="100%"}
 ```
 
+### `edge_connectivity()` — Edge connectivity
+
+<img src="edge-connectivity.light.svg" alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut: removing both disconnects the graph and no single edge does. The card shows that cut and the edge connectivity 2." width="570">
+
+```markdown
+![Edge connectivity](/assets/graphs/edge-connectivity.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut: removing both disconnects the graph and no single edge does. The card shows that cut and the edge connectivity 2." width="100%"}
+```
+
 ### `edge_expansion()` — Edge expansion
 
 <img src="edge-expansion.light.svg" alt="The same graph and set S. Three edges cross the cut (accent) and the smaller side by node count is S, with 3 nodes against 4, so the edge expansion is 3 / 3 = 1.0 crossing edge per member." width="570">
@@ -3344,62 +3352,6 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Edge percolation](/assets/graphs/edge-percolation.light.svg){.lightbox fig-alt="Before: the two diamonds sharing hub D. After removing 30 percent of the edges at random (here B–D, C–D, and D–E, drawn dashed), every node survives but the graph has split into the triangle A, B, C and the four nodes D, E, F, G." width="100%"}
-```
-
-### `get_adhesion()` — Adhesion
-
-<img src="get-adhesion.light.svg" alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut, so the adhesion (edge connectivity) is 2. The card shows that cut and the value 2." width="570">
-
-```markdown
-![Adhesion](/assets/graphs/get-adhesion.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut, so the adhesion (edge connectivity) is 2. The card shows that cut and the value 2." width="100%"}
-```
-
-### `get_articulation_points()` — Articulation points
-
-<img src="get-articulation-points.light.svg" alt="Two triangles joined by the path C, D, E. The nodes C, D, and E are in the accent color: removing any one of them splits the graph. The card lists the articulation points C, D, E." width="570">
-
-```markdown
-![Articulation points](/assets/graphs/get-articulation-points.light.svg){.lightbox fig-alt="Two triangles joined by the path C, D, E. The nodes C, D, and E are in the accent color: removing any one of them splits the graph. The card lists the articulation points C, D, E." width="100%"}
-```
-
-### `get_cohesion()` — Cohesion
-
-<img src="get-cohesion.light.svg" alt="Two triangles joined through the two middle nodes D and E, drawn in the accent color. No single node disconnects the graph, but removing D and E together does, so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2." width="570">
-
-```markdown
-![Cohesion](/assets/graphs/get-cohesion.light.svg){.lightbox fig-alt="Two triangles joined through the two middle nodes D and E, drawn in the accent color. No single node disconnects the graph, but removing D and E together does, so the cohesion (node connectivity) is 2. The card shows the cut D, E and the value 2." width="100%"}
-```
-
-### `get_edge_connectivity()` — Edge connectivity
-
-<img src="get-edge-connectivity.light.svg" alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut: removing both disconnects the graph and no single edge does. The card shows that cut and the edge connectivity 2." width="570">
-
-```markdown
-![Edge connectivity](/assets/graphs/get-edge-connectivity.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D. The two accent edges B–D and C–D form a smallest edge cut: removing both disconnects the graph and no single edge does. The card shows that cut and the edge connectivity 2." width="100%"}
-```
-
-### `get_min_cut_between()` — Minimum cut between two nodes
-
-<img src="get-min-cut-between.light.svg" alt="Two diamonds that share the hub node D, with B and E outlined as source and sink. The two accent edges B–D and C–D are a smallest set of edges whose removal separates B from E. The card shows that cut and its size 2." width="570">
-
-```markdown
-![Minimum cut between two nodes](/assets/graphs/get-min-cut-between.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, with B and E outlined as source and sink. The two accent edges B–D and C–D are a smallest set of edges whose removal separates B from E. The card shows that cut and its size 2." width="100%"}
-```
-
-### `get_node_connectivity()` — Node connectivity
-
-<img src="get-node-connectivity.light.svg" alt="Two diamonds that share the hub node D, drawn in the accent color. Removing D alone disconnects the graph, so the node connectivity is 1, smaller than the edge connectivity of 2. The card shows the cut D and the value 1." width="570">
-
-```markdown
-![Node connectivity](/assets/graphs/get-node-connectivity.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, drawn in the accent color. Removing D alone disconnects the graph, so the node connectivity is 1, smaller than the edge connectivity of 2. The card shows the cut D and the value 1." width="100%"}
-```
-
-### `get_node_connectivity_between()` — Node connectivity between two nodes
-
-<img src="get-node-connectivity-between.light.svg" alt="Two diamonds that share the hub node D, with B and E outlined as source and target. Every path from B to E passes through the accent hub D, so one node removal separates them. The card shows the cut D and the value 1." width="570">
-
-```markdown
-![Node connectivity between two nodes](/assets/graphs/get-node-connectivity-between.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, with B and E outlined as source and target. Every path from B to E passes through the accent hub D, so one node removal separates them. The card shows the cut D and the value 1." width="100%"}
 ```
 
 ### `gomory_hu_tree()` — Gomory-Hu tree
@@ -3458,36 +3410,36 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Local bridges](/assets/graphs/local-bridges.light.svg){.lightbox fig-alt="Two triangles joined directly by the edge C–D and the long way round through G, plus a pendant node H. The four accent edges C–D, A–G, G–F, and E–H lie on no triangle. The table lists each with its edge id and span: without it, its ends are 4 hops apart, or never reconnect (inf) for the true bridge E–H." width="100%"}
 ```
 
-### `max_cut()` — Maximum cut
+### `maximum_cut()` — Maximum cut
 
-<img src="max-cut.light.svg" alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="570">
+<img src="maximum-cut.light.svg" alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="570">
 
 ```markdown
-![Maximum cut](/assets/graphs/max-cut.light.svg){.lightbox fig-alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="100%"}
+![Maximum cut](/assets/graphs/maximum-cut.light.svg){.lightbox fig-alt="A six-node cycle A to F. The split puts alternate nodes on opposite sides: A, C, E on side S (teal) and B, D, F on side T (violet). Every one of the six edges then runs between the two sides, so all six are cut edges in the accent color. The card gives the cut value 6.0 and the two sides." width="100%"}
 ```
 
-### `max_flow()` — Maximum flow
+### `maximum_flow()` — Maximum flow
 
-<img src="max-flow.light.svg" alt="A directed network from source S to sink T through A and B. Each edge is labeled flow over capacity, and every edge carries flow, drawn in the accent color with width growing with the flow. The card lists the flow per edge, which totals 5." width="570">
+<img src="maximum-flow.light.svg" alt="A directed network from source S to sink T through A and B. Each edge is labeled flow over capacity, and every edge carries flow, drawn in the accent color with width growing with the flow. The card lists the flow per edge, which totals 5." width="570">
 
 ```markdown
-![Maximum flow](/assets/graphs/max-flow.light.svg){.lightbox fig-alt="A directed network from source S to sink T through A and B. Each edge is labeled flow over capacity, and every edge carries flow, drawn in the accent color with width growing with the flow. The card lists the flow per edge, which totals 5." width="100%"}
+![Maximum flow](/assets/graphs/maximum-flow.light.svg){.lightbox fig-alt="A directed network from source S to sink T through A and B. Each edge is labeled flow over capacity, and every edge carries flow, drawn in the accent color with width growing with the flow. The card lists the flow per edge, which totals 5." width="100%"}
 ```
 
-### `max_flow_value()` — Maximum flow value
+### `maximum_flow_value()` — Maximum flow value
 
-<img src="max-flow-value.light.svg" alt="The directed network from the max_flow figure, each edge labeled with its capacity. The accent edges A→T and B→T form a minimum cut separating source S from sink T, with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0." width="570">
+<img src="maximum-flow-value.light.svg" alt="The directed network from the maximum_flow figure, each edge labeled with its capacity. The accent edges A→T and B→T form a minimum cut separating source S from sink T, with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0." width="570">
 
 ```markdown
-![Maximum flow value](/assets/graphs/max-flow-value.light.svg){.lightbox fig-alt="The directed network from the max_flow figure, each edge labeled with its capacity. The accent edges A→T and B→T form a minimum cut separating source S from sink T, with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0." width="100%"}
+![Maximum flow value](/assets/graphs/maximum-flow-value.light.svg){.lightbox fig-alt="The directed network from the maximum_flow figure, each edge labeled with its capacity. The accent edges A→T and B→T form a minimum cut separating source S from sink T, with capacity 2 + 3. The card shows that cut and the returned maximum flow value 5.0." width="100%"}
 ```
 
-### `min_cost_flow()` — Minimum cost flow
+### `minimum_cost_flow()` — Minimum cost flow
 
-<img src="min-cost-flow.light.svg" alt="The max_flow network with a per-unit cost on each edge, labeled flow/capacity then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B stays unused and faded. The card lists flow times cost per edge and the totals: flow 4, cost 14." width="570">
+<img src="minimum-cost-flow.light.svg" alt="The maximum_flow network with a per-unit cost on each edge, labeled flow/capacity then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B stays unused and faded. The card lists flow times cost per edge and the totals: flow 4, cost 14." width="570">
 
 ```markdown
-![Minimum cost flow](/assets/graphs/min-cost-flow.light.svg){.lightbox fig-alt="The max_flow network with a per-unit cost on each edge, labeled flow/capacity then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B stays unused and faded. The card lists flow times cost per edge and the totals: flow 4, cost 14." width="100%"}
+![Minimum cost flow](/assets/graphs/minimum-cost-flow.light.svg){.lightbox fig-alt="The maximum_flow network with a per-unit cost on each edge, labeled flow/capacity then cost. Sending a demand of 4 from S to T at the lowest cost fills S→A, then splits at A between the cheap detour A→B→T and the direct A→T; the costly S→B stays unused and faded. The card lists flow times cost per edge and the totals: flow 4, cost 14." width="100%"}
 ```
 
 ### `minimum_cut()` — Minimum cut
@@ -3496,6 +3448,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Minimum cut](/assets/graphs/minimum-cut.light.svg){.lightbox fig-alt="A weighted graph whose weights are capacities, with source A and sink F outlined. The cheapest way to separate them cuts the two accent edges B–D and C–E, of capacity 1 + 2 = 3.0. The two sides are shaded: A, B, C, G with the source (teal) and D, E, F with the sink (violet), as listed on the card." width="100%"}
+```
+
+### `minimum_cut_value()` — Minimum cut between two nodes
+
+<img src="minimum-cut-value.light.svg" alt="Two diamonds that share the hub node D, with B and E outlined as source and sink. The two accent edges B–D and C–D are a smallest set of edges whose removal separates B from E. The card shows that cut and its size 2." width="570">
+
+```markdown
+![Minimum cut between two nodes](/assets/graphs/minimum-cut-value.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, with B and E outlined as source and sink. The two accent edges B–D and C–D are a smallest set of edges whose removal separates B from E. The card shows that cut and its size 2." width="100%"}
 ```
 
 ### `minimum_edge_cut()` — Minimum edge cut
@@ -3536,6 +3496,22 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Node boundary](/assets/graphs/node-boundary.light.svg){.lightbox fig-alt="The same graph and set S. The nodes outside S with a neighbor inside it are D and E, in accent; F and G are further away. The call returns their node ids, 4 and 5." width="100%"}
+```
+
+### `node_connectivity()` — Node connectivity
+
+<img src="node-connectivity.light.svg" alt="Two diamonds that share the hub node D, drawn in the accent color. Removing D alone disconnects the graph, so the node connectivity is 1, smaller than the edge connectivity of 2. The card shows the cut D and the value 1." width="570">
+
+```markdown
+![Node connectivity](/assets/graphs/node-connectivity.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, drawn in the accent color. Removing D alone disconnects the graph, so the node connectivity is 1, smaller than the edge connectivity of 2. The card shows the cut D and the value 1." width="100%"}
+```
+
+### `node_connectivity_between()` — Node connectivity between two nodes
+
+<img src="node-connectivity-between.light.svg" alt="Two diamonds that share the hub node D, with B and E outlined as source and target. Every path from B to E passes through the accent hub D, so one node removal separates them. The card shows the cut D and the value 1." width="570">
+
+```markdown
+![Node connectivity between two nodes](/assets/graphs/node-connectivity-between.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, with B and E outlined as source and target. Every path from B to E passes through the accent hub D, so one node removal separates them. The card shows the cut D and the value 1." width="100%"}
 ```
 
 ### `node_expansion()` — Node expansion
@@ -3998,12 +3974,12 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Bipartite maximum matching](/assets/graphs/bipartite-maximum-matching.light.svg){.lightbox fig-alt="Three applicants, Ann, Bob, and Cy, in a column on the left and three jobs, Dev, Ops, and QA, on the right. Ann and Bob can only do Dev, and Cy can do Ops or QA, so at most two pairs form: Ann–Dev and Cy–Ops, in the accent color with their endpoints. Bob and QA stay unmatched. The card lists the two pairs and the size 2." width="100%"}
 ```
 
-### `bipartite_min_weight_full_matching()` — Bipartite minimum weight full matching
+### `bipartite_minimum_weight_full_matching()` — Bipartite minimum weight full matching
 
-<img src="bipartite-min-weight-full-matching.light.svg" alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana&#x27;s nearest delivery is d1 (2)." width="570">
+<img src="bipartite-minimum-weight-full-matching.light.svg" alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana&#x27;s nearest delivery is d1 (2)." width="570">
 
 ```markdown
-![Bipartite minimum weight full matching](/assets/graphs/bipartite-min-weight-full-matching.light.svg){.lightbox fig-alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana's nearest delivery is d1 (2)." width="100%"}
+![Bipartite minimum weight full matching](/assets/graphs/bipartite-minimum-weight-full-matching.light.svg){.lightbox fig-alt="Three couriers, Ana, Ben, and Cho, in a column on the left, every one linked to three deliveries d1, d2, d3 on the right. The cheapest assignment, in the accent color, is Ana–d2 (3), Ben–d1 (3), and Cho–d3 (5); the other six links are faded. The table of travel times highlights those three cells and gives the total 3 + 3 + 5 = 11, even though Ana's nearest delivery is d1 (2)." width="100%"}
 ```
 
 ### `bipartite_vertex_cover()` — Bipartite vertex cover
@@ -4028,6 +4004,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Chordal graph treewidth](/assets/graphs/chordal-graph-treewidth.light.svg){.lightbox fig-alt="The same chordal graph: triangles A, B, C and B, C, D sharing an edge, plus a pendant E. Its largest cliques have three nodes; A, B, C is drawn in the accent color and B, C, D ties it. The card gives the treewidth as the largest clique size minus one, 3 − 1 = 2." width="100%"}
+```
+
+### `clique_graph()` — Maximal clique graph
+
+<img src="clique-graph.light.svg" alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="570">
+
+```markdown
+![Maximal clique graph](/assets/graphs/clique-graph.light.svg){.lightbox fig-alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="100%"}
 ```
 
 ### `densest_subgraph()` — Densest subgraph
@@ -4158,38 +4142,6 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![List triangles](/assets/graphs/list-triangles.light.svg){.lightbox fig-alt="A six-node graph with two triangles, 3, 5, 6 in the accent color and 2, 4, 5 in teal, sharing node 5, plus a four-node cycle 1, 2, 5, 3 that is not a triangle. The card lists the two triangles in matching colors, (3, 5, 6) and (2, 4, 5)." width="100%"}
 ```
 
-### `make_max_clique_graph()` — Maximal clique graph
-
-<img src="make-max-clique-graph.light.svg" alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="570">
-
-```markdown
-![Maximal clique graph](/assets/graphs/make-max-clique-graph.light.svg){.lightbox fig-alt="Left: two triangles A, B, C and C, E, F sharing node C, plus a tail C to D; the three maximal cliques are tinted regions in the accent color, teal and violet, all overlapping at C. Right: the clique graph has one node per clique, labeled {A,B,C}, {C,D} and {C,E,F} in the same colors, and an edge for every pair that shares a node: all three pairs share C, named on each edge, so 3 edges." width="100%"}
-```
-
-### `max_clique()` — Maximum clique
-
-<img src="max-clique.light.svg" alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="570">
-
-```markdown
-![Maximum clique](/assets/graphs/max-clique.light.svg){.lightbox fig-alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="100%"}
-```
-
-### `max_weight_clique()` — Maximum weight clique
-
-<img src="max-weight-clique.light.svg" alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="570">
-
-```markdown
-![Maximum weight clique](/assets/graphs/max-weight-clique.light.svg){.lightbox fig-alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="100%"}
-```
-
-### `max_weight_matching()` — Maximum weight matching
-
-<img src="max-weight-matching.light.svg" alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="570">
-
-```markdown
-![Maximum weight matching](/assets/graphs/max-weight-matching.light.svg){.lightbox fig-alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="100%"}
-```
-
 ### `maximal_independent_set()` — Maximal independent set
 
 <img src="maximal-independent-set.light.svg" alt="A five-node graph: a triangle 2, 3, 5 with pendant nodes 1 and 4. Nodes 2 and 4, in the accent color, share no edge, and every other node is adjacent to one of them, so no node can be added. The card shows the result [2, 4], size 2, smaller than the maximum of 3." width="570">
@@ -4212,6 +4164,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Maximum branching](/assets/graphs/maximum-branching.light.svg){.lightbox fig-alt="A weighted directed graph on four nodes: A points to B (3) and D (1), and B, C, D form the cycle B→C (5), C→D (4), D→B (6). The heaviest in-edges would close that cycle, so Edmonds' algorithm drops D→B (dashed) and keeps A→B, B→C, and C→D in the accent color, a single tree rooted at A; A→D is faded. The card lists the three edges and their total weight 3 + 5 + 4 = 12." width="100%"}
+```
+
+### `maximum_clique()` — Maximum clique
+
+<img src="maximum-clique.light.svg" alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="570">
+
+```markdown
+![Maximum clique](/assets/graphs/maximum-clique.light.svg){.lightbox fig-alt="The same five-node graph. The triangle 2, 3, 5, in the accent color, is the largest set of nodes that are all pairwise connected. The card shows the result [2, 3, 5], size 3." width="100%"}
 ```
 
 ### `maximum_independent_set()` — Maximum independent set
@@ -4238,36 +4198,20 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 ![Maximum spanning tree](/assets/graphs/maximum-spanning-tree.light.svg){.lightbox fig-alt="The same weighted graph as the minimum spanning tree figure. The maximum spanning tree keeps the heaviest edges that still form a tree: D–E (7), B–E (6), A–D (5), and C–D (3), in the accent color. The card lists them and their total weight, 7 + 6 + 5 + 3 = 21." width="100%"}
 ```
 
-### `min_edge_cover()` — Minimum edge cover
+### `maximum_weight_clique()` — Maximum weight clique
 
-<img src="min-edge-cover.light.svg" alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="570">
+<img src="maximum-weight-clique.light.svg" alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="570">
 
 ```markdown
-![Minimum edge cover](/assets/graphs/min-edge-cover.light.svg){.lightbox fig-alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="100%"}
+![Maximum weight clique](/assets/graphs/maximum-weight-clique.light.svg){.lightbox fig-alt="Four nodes with weights w in badges: A 1, B 2, C 1, D 5. The triangle A, B, C has the most nodes but weighs only 1 + 2 + 1 = 4; the edge B to D, in the accent color, weighs 2 + 5 = 7. The card shows the result [B, D] with weight 7." width="100%"}
 ```
 
-### `min_weight_matching()` — Minimum weight matching
+### `maximum_weight_matching()` — Maximum weight matching
 
-<img src="min-weight-matching.light.svg" alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="570">
-
-```markdown
-![Minimum weight matching](/assets/graphs/min-weight-matching.light.svg){.lightbox fig-alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="100%"}
-```
-
-### `min_weighted_dominating_set()` — Minimum weighted dominating set
-
-<img src="min-weighted-dominating-set.light.svg" alt="The same seven-node graph, with each node&#x27;s weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="570">
+<img src="maximum-weight-matching.light.svg" alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="570">
 
 ```markdown
-![Minimum weighted dominating set](/assets/graphs/min-weighted-dominating-set.light.svg){.lightbox fig-alt="The same seven-node graph, with each node's weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="100%"}
-```
-
-### `min_weighted_vertex_cover()` — Minimum weighted vertex cover
-
-<img src="min-weighted-vertex-cover.light.svg" alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="570">
-
-```markdown
-![Minimum weighted vertex cover](/assets/graphs/min-weighted-vertex-cover.light.svg){.lightbox fig-alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="100%"}
+![Maximum weight matching](/assets/graphs/maximum-weight-matching.light.svg){.lightbox fig-alt="A weighted path A–B (4), B–C (5), C–D (4). The exact blossom matching takes the two outer edges A–B and C–D, in the accent color with their endpoints, for a total weight of 4 + 4 = 8; the heavier middle edge B–C is faded. The card notes that the greedy method would lock in B–C first and stop at a total of 5." width="100%"}
 ```
 
 ### `minimum_branching()` — Minimum branching
@@ -4276,6 +4220,14 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Minimum branching](/assets/graphs/minimum-branching.light.svg){.lightbox fig-alt="A weighted directed triangle: A→B (−2), A→C (−1), C→B (−3), and B→C (4). Only negative edges lower the total, and each node may keep one parent, so the minimum branching takes C→B and A→C, in the accent color, while A→B and B→C are faded. The card lists the two edges and their total weight −3 − 1 = −4." width="100%"}
+```
+
+### `minimum_edge_cover()` — Minimum edge cover
+
+<img src="minimum-edge-cover.light.svg" alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="570">
+
+```markdown
+![Minimum edge cover](/assets/graphs/minimum-edge-cover.light.svg){.lightbox fig-alt="A path of five nodes, A to E. A maximum matching covers four nodes with two edges, and one more edge is needed for the fifth, so the minimum edge cover has three edges: A–B, B–C, and D–E, in the accent color; C–D is faded. Every node touches a chosen edge. The card lists the three edges and the count 5 − 2 = 3." width="100%"}
 ```
 
 ### `minimum_spanning_arborescence()` — Minimum spanning arborescence
@@ -4292,6 +4244,30 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ```markdown
 ![Minimum spanning tree](/assets/graphs/minimum-spanning-tree.light.svg){.lightbox fig-alt="A five-node weighted graph with edge weights 1 to 7. The minimum spanning tree edges A–C (1), B–D (2), C–D (3), and B–E (6) are in the accent color and connect every node; the other edges are faded. The card lists the four tree edges and their total weight, 1 + 2 + 3 + 6 = 12." width="100%"}
+```
+
+### `minimum_weight_matching()` — Minimum weight matching
+
+<img src="minimum-weight-matching.light.svg" alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="570">
+
+```markdown
+![Minimum weight matching](/assets/graphs/minimum-weight-matching.light.svg){.lightbox fig-alt="Four drivers A, B, C, D with the extra driving time of each possible pair as edge weights: A–B (2), C–D (3), A–C (1), B–D (6), and A–D (4). Among the matchings that pair everyone, the cheapest is A–B and C–D, in the accent color, total 2 + 3 = 5; the other edges are faded. The card notes that taking the cheapest edge A–C (1) would force B–D (6), a total of 7." width="100%"}
+```
+
+### `minimum_weighted_dominating_set()` — Minimum weighted dominating set
+
+<img src="minimum-weighted-dominating-set.light.svg" alt="The same seven-node graph, with each node&#x27;s weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="570">
+
+```markdown
+![Minimum weighted dominating set](/assets/graphs/minimum-weighted-dominating-set.light.svg){.lightbox fig-alt="The same seven-node graph, with each node's weight w in a badge: the hubs 2 and 5 cost 4, every other node costs 1. The cheapest dominating set found is 1, 4, and 6 (accent), with an accent edge from each other node to the member that dominates it. The card shows [1, 4, 6] and total weight 1 + 1 + 1 = 3." width="100%"}
+```
+
+### `minimum_weighted_vertex_cover()` — Minimum weighted vertex cover
+
+<img src="minimum-weighted-vertex-cover.light.svg" alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="570">
+
+```markdown
+![Minimum weighted vertex cover](/assets/graphs/minimum-weighted-vertex-cover.light.svg){.lightbox fig-alt="A star: a hub joined to four leaves a, b, c, d, with node costs in badges, 10 for the hub and 1 for each leaf. Covering every edge with the hub alone costs 10, so the method takes the four leaves instead, in the accent color. The card shows the cover [a, b, c, d] and its cost 1 + 1 + 1 + 1 = 4, against 10 for the hub." width="100%"}
 ```
 
 ### `modular_decomposition()` — Modular decomposition
@@ -5616,10 +5592,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `layout_bfs()` — BFS layout
 
-<img src="layout-bfs.light.svg" alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="570">
+<img src="layout-bfs.light.svg" alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(source=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="570">
 
 ```markdown
-![BFS layout](/assets/graphs/layout-bfs.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(start=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="100%"}
+![BFS layout](/assets/graphs/layout-bfs.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random, node 1 outlined as the start. On the right, layout_bfs(source=1) puts node 1 in the leftmost column and every other node in a column by its distance from node 1, so the graph reads as layers of a breadth-first search." width="100%"}
 ```
 
 ### `layout_bipartite()` — Bipartite layout
