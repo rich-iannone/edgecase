@@ -13,7 +13,7 @@
 </p>
 
 <p align="center">
-  <img src="https://img.shields.io/badge/python-3.9%2B-3776ab" alt="Python 3.9+">
+  <img src="https://img.shields.io/badge/python-3.10%2B-3776ab" alt="Python 3.10+">
   <img src="https://img.shields.io/badge/core-Rust-b7410e" alt="Rust core">
   <img src="https://img.shields.io/badge/tables-Polars-0075ff" alt="Polars tables">
   <img src="https://img.shields.io/badge/license-MIT-green" alt="MIT license">
@@ -64,7 +64,7 @@ cd edgecase
 pip install -e .
 ```
 
-EdgeCase runs on Python 3.9 and later, on macOS, Linux and Windows. The optional extras are
+EdgeCase runs on Python 3.10 and later, on macOS, Linux and Windows. The optional extras are
 `networkx` (conversion and validation), `bio` (SciPy and scikit-learn for the network biology
 methods), `dev` and `all`.
 
@@ -338,7 +338,7 @@ betweenness: 52% of the grid still connected after losing 5% of substations
   `densest_subgraph()` for tight clusters, and link prediction with `adamic_adar_index()`,
   `jaccard_coefficient()` and `resource_allocation_index()`.
 - **Logistics and planning:** `bidirectional_dijkstra()`, `astar_path()`, `k_shortest_paths()`,
-  `max_flow()`, `min_cost_flow()`, `traveling_salesman()`, `steiner_tree()` and
+  `maximum_flow()`, `minimum_cost_flow()`, `traveling_salesman()`, `steiner_tree()` and
   `minimum_spanning_tree()`.
 
 ## Every method, illustrated
@@ -360,8 +360,8 @@ graph. There are 709 of them, each in a light and a dark version. A few:
 </p>
 <p align="center">
   <picture>
-    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/max-flow.dark.svg">
-    <img src="assets/graphs/max-flow.light.svg" width="100%" alt="Diagram for max_flow(): a network from S to T with each edge labeled flow over capacity, and a card listing the flow on each edge, with a total of 5.">
+    <source media="(prefers-color-scheme: dark)" srcset="assets/graphs/maximum-flow.dark.svg">
+    <img src="assets/graphs/maximum-flow.light.svg" width="100%" alt="Diagram for maximum_flow(): a network from S to T with each edge labeled flow over capacity, and a card listing the flow on each edge, with a total of 5.">
   </picture>
 </p>
 <p align="center">
@@ -483,12 +483,12 @@ routes = ec.from_pandas_edgelist(flights, source="from", target="to", edge_attr=
 | Paths and traversal       | `shortest_path()`, `astar_path()`, `bellman_ford_shortest_path()`, `floyd_warshall()`, `johnson()`, `k_shortest_paths()`, `bfs()`, `dfs()`, `eulerian_circuit()` |
 | Centrality                | `betweenness_centrality()`, `closeness_centrality()`, `harmonic_centrality()`, `eigen_centrality()`, `katz_centrality()`, `pagerank()`, `current_flow_betweenness_centrality()`, `percolation_centrality()`, `voterank()` |
 | Communities               | `cmty_louvain()`, `cmty_leiden()`, `cmty_walktrap()`, `cmty_label_propagation()`, `cmty_fluid()`, `cmty_girvan_newman()`, `cmty_stochastic_block_model()`, `modularity()` |
-| Connectivity and flow     | `weakly_connected_components()`, `bridges()`, `get_articulation_points()`, `k_components()`, `stoer_wagner()`, `gomory_hu_tree()`, `max_flow()`, `min_cost_flow()` |
-| Cores, cliques and motifs | `k_core()`, `k_truss()`, `find_cliques()`, `max_clique()`, `count_triangles()`, `motif_census()`, `triadic_census()`, `rich_club_coefficient()` |
-| Coloring and matching     | `greedy_color()`, `edge_coloring()`, `max_weight_matching()`, `bipartite_maximum_matching()`, `dominating_set()`, `maximum_independent_set()` |
+| Connectivity and flow     | `weakly_connected_components()`, `bridges()`, `articulation_points()`, `k_components()`, `stoer_wagner()`, `gomory_hu_tree()`, `maximum_flow()`, `minimum_cost_flow()` |
+| Cores, cliques and motifs | `k_core()`, `k_truss()`, `find_cliques()`, `maximum_clique()`, `count_triangles()`, `motif_census()`, `triadic_census()`, `rich_club_coefficient()` |
+| Coloring and matching     | `greedy_color()`, `edge_coloring()`, `maximum_weight_matching()`, `bipartite_maximum_matching()`, `dominating_set()`, `maximum_independent_set()` |
 | Similarity and isomorphism | `is_isomorphic()`, `subgraph_isomorphisms()`, `weisfeiler_lehman_graph_hash()`, `graph_edit_distance()`, `simrank_similarity()`, `adamic_adar_index()` |
 | DAGs and trees            | `topological_generations()`, `dag_longest_path()`, `transitive_reduction()`, `immediate_dominators()`, `minimum_spanning_tree()`, `steiner_tree()`, `tree_decomposition()` |
-| Spectral                  | `laplacian_matrix()`, `get_spectrum()`, `fiedler_vector()`, `algebraic_connectivity()`, `spectral_bisection()`, `magnetic_laplacian_matrix()` |
+| Spectral                  | `laplacian_matrix()`, `adjacency_spectrum()`, `fiedler_vector()`, `algebraic_connectivity()`, `spectral_bisection()`, `magnetic_laplacian_matrix()` |
 | Building graphs           | 85 generators (`add_gnp_graph()`, `add_lfr_graph()`, `add_smallworld_graph()`, ...), 20 bundled datasets, set operations, products and `from_cypher()` |
 | Plotting                  | `plot()` (static SVG), `plot_vis()` (interactive), `plot_cosmo()` (GPU, for large graphs), `plot_traversal()`, `play()`, and 13 `layout_*()` methods |
 
@@ -500,6 +500,10 @@ The [documentation site](https://rich-iannone.github.io/edgecase/) has a User Gu
 than 30 chapters (from building graphs to Cypher, communities, plotting, network biology and
 spreading processes), a glossary, and a reference page for every method, nearly all with a
 diagram.
+
+## Stability
+
+EdgeCase is in alpha, and its API may change before 1.0.
 
 ## License
 
