@@ -493,6 +493,7 @@ class TestMoreCommunityMethods:
         with pytest.raises(ValueError, match="no numeric 'e' attribute, which weight_attr='e'"):
             path.lukes_partitioning(2, weight_attr="e")
 
+    @pytest.mark.skipif(not hasattr(nx_comm, "greedy_source_expansion"), reason="NetworkX 3.5+")
     def test_greedy_source_expansion(self):
         G = nx.karate_club_graph()
         g = _from_nx(G)

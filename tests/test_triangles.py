@@ -5,6 +5,9 @@ import networkx as nx
 import pytest
 from edgecase.steps import KIND_METRIC
 
+# NetworkX 3.5 fixed square_clustering, so older versions are no reference
+NX_35 = tuple(int(x) for x in nx.__version__.split(".")[:2]) >= (3, 5)
+
 
 class TestTriangleCounting:
     """Test triangle counting functions."""
@@ -658,6 +661,7 @@ def _lab(g, nid):
 
 
 class TestSquareClusteringGeneralizedDegree:
+    @pytest.mark.skipif(not NX_35, reason="NetworkX 3.5+")
     def test_square_clustering_and_generalized_degree(self):
         for G, g, _, _ in _cases():
             ours = {_lab(g, k): v for k, v in g.square_clustering(return_dict=True).items()}

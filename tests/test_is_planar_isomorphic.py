@@ -471,6 +471,10 @@ def _aggregate_directed_fixed(G, node, node_labels, edge_attr=None):
 
 
 class TestWeisfeilerLehman:
+    @pytest.mark.skipif(
+        not hasattr(nx.algorithms.graph_hashing, "_neighborhood_aggregate_directed"),
+        reason="NetworkX 3.5+",
+    )
     def test_hashes_match_networkx(self, monkeypatch):
         from networkx.algorithms import graph_hashing
 

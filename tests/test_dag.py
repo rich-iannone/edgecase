@@ -12,6 +12,8 @@ from edgecase.steps import KIND_QUERY, KIND_TRANSFORM
 
 # Validated against NetworkX on random DAGs and checked on hand-built pipelines.
 
+NX_36 = tuple(int(x) for x in nx.__version__.split(".")[:2]) >= (3, 6)
+
 
 def _random_cases():
     """(networkx graph, edgecase graph, weight key) over many random configurations."""
@@ -230,9 +232,27 @@ class TestDominators:
             g = _digraph(D)
             lab = {g.get_id_from_label(str(n)): n for n in D}
             idom = {lab[a]: lab[b] for a, b in g.immediate_dominators("0").items()}
-            assert idom == nx.immediate_dominators(D, 0)
+            # NetworkX 3.6 stopped mapping the start node to itself; we still do
+            ref = nx.immediate_dominators(D, 0)
+            ref.setdefault(0, 0)
+            assert idom == ref
             df = {lab[a]: {lab[x] for x in b} for a, b in g.dominance_frontiers("0").items()}
-            assert df == nx.dominance_frontiers(D, 0)
+            ref = nx.dominance_frontiers(D, 0)
+            if not NX_36:
+                # Before 3.6, NetworkX ignored edges back into the start node
+                df = {u: f - {0} for u, f in df.items()}
+                ref = {u: f - {0} for u, f in ref.items()}
+            assert df == ref
+
+    def test_edge_back_into_start(self):
+        g = ec.Graph(directed=True).add_nodes(["entry", "loop", "exit"])
+        g.add_edges([("entry", "loop"), ("loop", "entry"), ("entry", "exit")])
+        ids = {label: g.get_id_from_label(label) for label in ["entry", "loop", "exit"]}
+        frontiers = g.dominance_frontiers("entry")
+        # The start dominates the source of the back edge but doesn't strictly dominate itself
+        assert frontiers[ids["entry"]] == {ids["entry"]}
+        assert frontiers[ids["loop"]] == {ids["entry"]}
+        assert frontiers[ids["exit"]] == set()
 
     def test_errors_and_steps(self):
         with pytest.raises(ValueError, match="directed"):

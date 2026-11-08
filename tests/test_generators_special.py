@@ -12,6 +12,9 @@ import edgecase as ec
 import networkx as nx
 import pytest
 
+# NetworkX 3.5 fixed is_regular_expander, so older versions are no reference
+NX_35 = tuple(int(x) for x in nx.__version__.split(".")[:2]) >= (3, 5)
+
 
 def edge_pairs(g):
     """`(source, target)` pairs as 0-based indices, for a graph built from empty."""
@@ -593,7 +596,6 @@ class TestExpanders:
 class TestIsRegularExpander:
     def graphs(self):
         yield ec.Graph().add_named_graph("petersen")
-        yield ec.Graph().add_cycle_graph(10)
         yield ec.Graph().add_cycle_graph(9)
         yield ec.Graph().add_full_graph(6)
         yield ec.Graph().add_star_graph(5)
@@ -602,6 +604,7 @@ class TestIsRegularExpander:
             yield ec.Graph().add_random_regular_graph(n=40, d=3, seed=seed)
             yield ec.Graph().add_random_regular_graph(n=12, d=4, seed=seed)
 
+    @pytest.mark.skipif(not NX_35, reason="NetworkX 3.5+")
     def test_matches_networkx(self):
         pytest.importorskip("scipy")
         for g in self.graphs():
@@ -614,6 +617,11 @@ class TestIsRegularExpander:
         assert not ec.Graph().add_node("a").is_regular_expander()
         assert not ec.Graph().add_nodes(["a", "b", "c"]).is_regular_expander()
         assert ec.Graph().add_named_graph("petersen").is_regular_expander()
+        # C10 sits exactly on the bound (|lambda2| = 2), where NetworkX's ARPACK answer flips
+        # from run to run, so it's checked here rather than against NetworkX
+        c10 = ec.Graph().add_cycle_graph(10)
+        assert not c10.is_regular_expander(epsilon=0.0)
+        assert c10.is_regular_expander(epsilon=0.5)
 
     def test_invalid(self):
         with pytest.raises(ValueError):
@@ -732,7 +740,8 @@ class TestNonisomorphicTrees:
     def test_counts(self):
         expected = [1, 1, 2, 3, 6, 11, 23, 47, 106, 235, 551, 1301, 3159]
         assert [ec.Graph.count_nonisomorphic_trees(n) for n in range(2, 15)] == expected
-        assert ec.Graph.count_nonisomorphic_trees(30) == nx.number_of_nonisomorphic_trees(30)
+        # OEIS A000055 (NetworkX before 3.5 counts by enumerating all 14.8 billion trees)
+        assert ec.Graph.count_nonisomorphic_trees(30) == 14_830_871_802
 
     @pytest.mark.parametrize("order", [-1, 0, 1])
     def test_invalid(self, order):

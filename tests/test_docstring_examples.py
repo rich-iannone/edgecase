@@ -144,7 +144,8 @@ def execute_code_example(
         namespace: Optional shared namespace; a fresh one is created if not given.
 
     Returns:
-        (True, "") if successful, (False, error_msg) if failed
+        (True, "") if successful, (True, reason) if skipped for a missing optional package,
+        (False, error_msg) if failed
     """
     if namespace is None:
         namespace = _make_namespace()
@@ -152,6 +153,14 @@ def execute_code_example(
     try:
         exec(code, namespace)
         return True, ""
+    except ImportError as e:
+        # Examples for optional extras (plot_cosmo() needs cosmograph) can't run without the
+        # package, so they count as skipped rather than failed
+        missing = e.name or getattr(e.__cause__, "name", None)
+        if missing and missing.split(".")[0] != "edgecase":
+            return True, f"{missing} is not installed"
+        tb = traceback.format_exc()
+        return False, f"{type(e).__name__}: {e}\n{tb}"
     except Exception as e:
         tb = traceback.format_exc()
         return False, f"{type(e).__name__}: {e}\n{tb}"
@@ -188,6 +197,7 @@ def test_all_docstring_examples():
     # docstring so that later blocks can reference variables set in earlier ones.
     failures = []
     successes = 0
+    skipped = 0
     shared_ns: dict = {}  # namespace shared within a (filepath, context) group
     current_group: tuple = ()
 
@@ -204,7 +214,10 @@ def test_all_docstring_examples():
 
             success, error = execute_code_example(code, context, namespace=shared_ns)
 
-            if success:
+            if success and error:
+                print(f"- SKIPPED ({error})")
+                skipped += 1
+            elif success:
                 print("✓ PASSED")
                 successes += 1
             else:
@@ -213,7 +226,7 @@ def test_all_docstring_examples():
 
     # Print summary
     print("\n" + "=" * 80)
-    print(f"SUMMARY: {successes}/{len(all_examples)} examples passed")
+    print(f"SUMMARY: {successes}/{len(all_examples)} examples passed, {skipped} skipped")
     print("=" * 80)
 
     if failures:

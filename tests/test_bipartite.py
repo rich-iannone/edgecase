@@ -410,6 +410,7 @@ class TestBipartiteExtras:
                     nx_bp.node_redundancy(B, busy)
                 )
 
+    @pytest.mark.skipif(not hasattr(nx_bp, "birank"), reason="NetworkX 3.5+")
     def test_spectral_bipartivity_and_birank(self):
         for B, g, a, _ in _random_bipartite(50):
             for weighted in (False, True):

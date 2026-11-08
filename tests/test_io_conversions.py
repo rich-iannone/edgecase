@@ -266,7 +266,8 @@ class TestPandasEdgelist:
         assert list(df.columns) == ["source", "target", "weight", "rel", "note", "tags"]
         assert df["source"].tolist() == ["a", "b", "b", "c", "d"]
         assert df["weight"].tolist() == [2.0, 3.0, 1.5, 0.5, 4.0]
-        assert df["rel"].tolist()[0] == "knows" and df["rel"].tolist()[1] is None
+        # pandas 3 stores the missing string as NaN rather than None
+        assert df["rel"].tolist()[0] == "knows" and pd.isna(df["rel"].tolist()[1])
         assert df["tags"].tolist()[2] == [1, "two"]
 
     def test_no_weight_column_without_weights(self):

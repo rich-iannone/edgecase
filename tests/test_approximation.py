@@ -201,6 +201,7 @@ class TestTreeDecomposition:
 
 
 class TestDensestSubgraph:
+    @pytest.mark.skipif(not hasattr(nx_approx, "densest_subgraph"), reason="NetworkX 3.5+")
     def test_exact_against_brute_force_and_greedy_plus_plus(self):
         for seed in range(100):
             rnd = random.Random(seed)
