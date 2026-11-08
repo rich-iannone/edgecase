@@ -7952,16 +7952,24 @@ impl Graph {
             return Ok(result);
         }
 
-        // Start with all nodes in one community
-        let node_ids: Vec<u64> = self.nodes.keys().copied().collect();
+        // Start with all nodes in one community. An isolated node has a zero row in the
+        // modularity matrix, so no split says anything about it: each gets its own community
+        // (as in igraph) and is left out of the splitting
         let mut communities: FxHashMap<u64, usize> =
             FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for &id in &node_ids {
-            communities.insert(id, 0);
+        let mut node_ids: Vec<u64> = Vec::with_capacity(n);
+        let mut next_community_id = 1;
+        for &id in self.nodes.keys() {
+            if self.degree(id) == 0 {
+                communities.insert(id, next_community_id);
+                next_community_id += 1;
+            } else {
+                communities.insert(id, 0);
+                node_ids.push(id);
+            }
         }
 
         // Recursive splitting
-        let mut next_community_id = 1;
         let mut to_split: Vec<Vec<u64>> = Vec::with_capacity(n / 10);
         to_split.push(node_ids);
 
