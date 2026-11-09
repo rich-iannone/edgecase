@@ -1635,8 +1635,13 @@ def render_plot(
 
         raw_nid = int(nid) if nid.isdigit() else nid
         n_attrs = node_data.get(raw_nid, {})
+        # The label as well, when it differs from the ID, since either may be drawn under the node
+        tip = {"id": nid}
+        n_label = graph.get_label_from_id(raw_nid)
+        if n_label is not None and str(n_label) != nid:
+            tip["label"] = n_label
         attrs_j = (
-            json.dumps({"id": nid, **n_attrs}, default=str)
+            json.dumps({**tip, **n_attrs}, default=str)
             .replace("&", "&amp;")
             .replace("'", "&#39;")
             .replace("<", "&lt;")
