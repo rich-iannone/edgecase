@@ -174,8 +174,8 @@ widget.show()
 ```
 
 In a Jupyter notebook, `show()` displays the widget below the cell. It uses
-[anywidget](https://anywidget.dev), which needs to be installed with `pip install anywidget`.
-Outside a notebook, or when anywidget is missing, `show()` falls back to `plot_vis()` in a browser
+[anywidget](https://anywidget.dev), which is installed along with EdgeCase. Outside a notebook,
+or when anywidget is missing, `show()` falls back to `plot_vis()` in a browser
 tab, which draws the graph with that view's own defaults rather than the widget's settings.
 
 For a widget that works everywhere, `to_html()` writes a standalone HTML page with the same
