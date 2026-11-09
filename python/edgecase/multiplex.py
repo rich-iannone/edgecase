@@ -75,7 +75,7 @@ class MultiplexGraph:
         return labels
 
     def __repr__(self) -> str:
-        n_nodes = self.count_nodes()
+        n_nodes = self.count_shared_nodes()
         layer_parts = []
         for name, g in self._layers.items():
             layer_parts.append(f"{name}({g.count_edges()} edges)")
@@ -114,7 +114,7 @@ class MultiplexGraph:
             raise KeyError(f"No layer named '{name}'")
         return self._layers[name]
 
-    def count_nodes(self) -> int:
+    def count_shared_nodes(self) -> int:
         """Return the number of nodes (shared across all layers)."""
         ref_graph = next(iter(self._layers.values()))
         return ref_graph.count_nodes()
