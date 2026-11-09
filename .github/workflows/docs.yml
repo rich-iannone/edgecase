@@ -46,9 +46,18 @@ jobs:
       - name: Set up Quarto
         uses: quarto-dev/quarto-actions/setup@v2
 
-      # Render the pages with several Quarto processes at once
+      # Render the pages with several Quarto processes at once. Every page that runs code gets a
+      # fresh Jupyter kernel, whose TCP ports jupyter_client picks by binding to port 0 and
+      # releasing the socket, so two processes now and then hand their kernels the same port and
+      # one dies on startup. A build that fails that way runs again in one process, which starts
+      # one kernel at a time (a failed build saves no freeze cache, so it starts from scratch)
       - name: Build docs
-        run: great-docs build --jobs auto
+        run: |
+          if ! great-docs build --jobs auto 2>&1 | tee "$RUNNER_TEMP/build.log"; then
+            grep -q "Address already in use" "$RUNNER_TEMP/build.log" || exit 1
+            echo "::warning::Two Jupyter kernels were given the same port; building again in one process"
+            great-docs build
+          fi
 
       - name: Save docs artifact
         uses: actions/upload-artifact@v7
