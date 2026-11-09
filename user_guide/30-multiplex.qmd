@@ -262,8 +262,8 @@ office_mpx
 ```
 
 `layer_names` lists the layers, `layers` returns the dictionary of layer graphs, `get_layer()`
-returns one layer by name, and `count_nodes()`, `count_layers()`, and `node_labels()` describe the
-shared nodes. Each layer is an ordinary graph, so every EdgeCase method works on it:
+returns one layer by name, and `count_shared_nodes()`, `count_layers()`, and `node_labels()`
+describe the shared nodes. Each layer is an ordinary graph, so every EdgeCase method works on it:
 
 ```{python}
 office_mpx.get_layer("advice").pagerank(return_dict=True)[1]
