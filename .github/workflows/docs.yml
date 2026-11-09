@@ -50,8 +50,11 @@ jobs:
       # fresh Jupyter kernel, whose TCP ports jupyter_client picks by binding to port 0 and
       # releasing the socket, so two processes now and then hand their kernels the same port and
       # one dies on startup. A build that fails that way runs again in one process, which starts
-      # one kernel at a time (a failed build saves no freeze cache, so it starts from scratch)
+      # one kernel at a time (a failed build saves no freeze cache, so it starts from scratch).
+      # `shell: bash` adds pipefail, without which the `if` would test tee's exit status and a
+      # failed build would pass
       - name: Build docs
+        shell: bash
         run: |
           if ! great-docs build --jobs auto 2>&1 | tee "$RUNNER_TEMP/build.log"; then
             grep -q "Address already in use" "$RUNNER_TEMP/build.log" || exit 1
