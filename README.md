@@ -48,25 +48,26 @@
 
 ## Installation
 
-EdgeCase isn't on PyPI yet. Until it is, install it from source, which needs a
-[Rust toolchain](https://rustup.rs) (the build is handled by
-[maturin](https://www.maturin.rs)):
+Install EdgeCase from PyPI:
+
+```bash
+pip install edgecase
+```
+
+EdgeCase runs on Python 3.10 and later, on macOS, Linux and Windows, with prebuilt wheels for
+each, so no Rust toolchain is needed. The optional extras are `networkx` (conversion and
+validation), `bio` (SciPy and scikit-learn for the network biology methods), `dev` and `all`:
+
+```bash
+pip install "edgecase[networkx]"
+```
+
+To install the development version from GitHub, which builds the Rust core and so needs a
+[Rust toolchain](https://rustup.rs):
 
 ```bash
 pip install git+https://github.com/rich-iannone/edgecase.git
 ```
-
-or, for a working copy:
-
-```bash
-git clone https://github.com/rich-iannone/edgecase.git
-cd edgecase
-pip install -e .
-```
-
-EdgeCase runs on Python 3.10 and later, on macOS, Linux and Windows. The optional extras are
-`networkx` (conversion and validation), `bio` (SciPy and scikit-learn for the network biology
-methods), `dev` and `all`.
 
 ## A 60-second tour
 
