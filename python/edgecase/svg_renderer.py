@@ -543,6 +543,38 @@ def _remove_overlaps(
     return {nid: (px[nid], py[nid]) for nid in ids}
 
 
+def _turn_to_fill(
+    raw: Dict[int, Tuple[float, float]], width: float, height: float
+) -> Dict[int, Tuple[float, float]]:
+    """Rotate layout coordinates to the angle at which they are drawn largest in a frame.
+
+    A force layout's orientation is arbitrary, so without this a long graph can come out
+    upright in a wide frame and be drawn small. Angles are tried in 5-degree steps, and the
+    first of any that fit equally well wins, so the result is deterministic.
+    """
+    pts = list(raw.values())
+    best_angle, best_scale = 0.0, 0.0
+    for step in range(36):
+        angle = math.radians(step * 5)
+        c, s = math.cos(angle), math.sin(angle)
+        us = [x * c - y * s for x, y in pts]
+        vs = [x * s + y * c for x, y in pts]
+        range_u = max(us) - min(us)
+        range_v = max(vs) - min(vs)
+        if range_u == 0 and range_v == 0:
+            return raw
+        scale = min(
+            width / range_u if range_u > 0 else math.inf,
+            height / range_v if range_v > 0 else math.inf,
+        )
+        if scale > best_scale * (1 + 1e-9):
+            best_angle, best_scale = angle, scale
+    if best_angle == 0.0:
+        return raw
+    c, s = math.cos(best_angle), math.sin(best_angle)
+    return {idx: (x * c - y * s, x * s + y * c) for idx, (x, y) in raw.items()}
+
+
 def _force_directed_layout(
     node_ids: List[str],
     edges: List[Tuple[str, str]],
@@ -577,6 +609,11 @@ def _force_directed_layout(
     if not raw:
         return _circular_layout(node_ids, width, height)
 
+    pad = 60.0
+    usable_w = width - 2 * pad
+    usable_h = height - 2 * pad
+    raw = _turn_to_fill(raw, usable_w, usable_h)
+
     xs = [pos[0] for pos in raw.values()]
     ys = [pos[1] for pos in raw.values()]
     min_x, max_x = min(xs), max(xs)
@@ -584,9 +621,6 @@ def _force_directed_layout(
     range_x = max_x - min_x if max_x != min_x else 1.0
     range_y = max_y - min_y if max_y != min_y else 1.0
 
-    pad = 60.0
-    usable_w = width - 2 * pad
-    usable_h = height - 2 * pad
     scale = min(usable_w / range_x, usable_h / range_y)
 
     cx_raw = (min_x + max_x) / 2
@@ -1089,8 +1123,14 @@ def _compute_viewbox(
     labels: Optional[Dict[str, str]] = None,
     label_space: float = 20.0,
     padding: float = 30.0,
+    frame: Optional[Tuple[float, float]] = None,
 ) -> Tuple[float, float, float, float]:
-    """Return (min_x, min_y, width, height) enclosing all nodes and labels."""
+    """Return (min_x, min_y, width, height) enclosing all nodes and labels.
+
+    With `frame=(width, height)`, the box is widened on its shorter side, around the drawing's
+    center, to the frame's aspect ratio. The drawing then fills the frame instead of sitting in
+    it with empty bands on two sides, and a background drawn over the box covers the whole frame.
+    """
     if not positions:
         return (0, 0, 100, 100)
 
@@ -1112,9 +1152,17 @@ def _compute_viewbox(
         max_x = max(max_x, x + horiz_extra)
         max_y = max(max_y, y + vert_extra + label_space)
 
-    w = max_x - min_x
-    h = max_y - min_y
-    return (min_x, min_y, max(w, 1), max(h, 1))
+    w = max(max_x - min_x, 1)
+    h = max(max_y - min_y, 1)
+    if frame is not None:
+        aspect = frame[0] / frame[1]
+        if w / h < aspect:
+            min_x -= (h * aspect - w) / 2
+            w = h * aspect
+        else:
+            min_y -= (w / aspect - h) / 2
+            h = w / aspect
+    return (min_x, min_y, w, h)
 
 
 # ---------------------------------------------------------------------------
@@ -1354,6 +1402,7 @@ def render_plot(
         radii,
         labels=label_map if show_labels else None,
         label_space=20 if show_labels else 0,
+        frame=(width, height),
     )
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
@@ -1636,7 +1685,9 @@ def _generate_html_wrapper(
     global _tooltip_counter
     _tooltip_counter += 1
     tip_id = f"ec-tooltip-{_tooltip_counter}"
-    return f"""<div style="position:relative;display:inline-block">
+    # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that
+    return f"""<div class="ec-plot" style="position:relative;width:fit-content;max-width:100%;margin:0 auto">
+<style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div id="{tip_id}" style="
   display:none;position:absolute;padding:6px 10px;border-radius:6px;
@@ -1927,6 +1978,7 @@ def render_traversal(
         radii,
         labels=label_map if show_labels else None,
         label_space=20 if show_labels else 0,
+        frame=(width, height),
     )
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
@@ -2285,7 +2337,8 @@ def _generate_traversal_html_wrapper(
     btn_fg = "#e5e7eb" if is_dark else "#374151"
     ctrl_accent = accent
 
-    return f"""<div style="display:inline-block;max-width:{svg_width}px">
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:0 auto">
+<style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;
   font-family:{FONT_FAMILY};font-size:13px;color:{th.label_color};">
@@ -2872,6 +2925,7 @@ def render_traversal_chain(
         radii,
         labels=label_map if show_labels else None,
         label_space=20 if show_labels else 0,
+        frame=(width, height),
     )
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
@@ -3238,7 +3292,8 @@ def _generate_chain_html_wrapper(
         )
     pills_html = "\n".join(pill_items)
 
-    return f"""<div style="display:inline-block;max-width:{svg_width}px;font-family:{FONT_FAMILY}">
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:0 auto;font-family:{FONT_FAMILY}">
+<style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;gap:6px;padding:6px 4px;flex-wrap:wrap;align-items:center">
 {pills_html}
