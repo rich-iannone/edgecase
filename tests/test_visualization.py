@@ -1,5 +1,6 @@
 """Regression tests for visualization inputs that used to be silently ignored."""
 
+import html
 import json
 import re
 
@@ -58,6 +59,22 @@ class TestPlotNodeValues:
         svg = ec.Graph().add_star_graph(5).plot(size_by="degree", seed=1).svg
         radii = {float(r) for r in re.findall(r'<circle[^>]* r="([\d.]+)"', svg)}
         assert len(radii) == 2
+
+    def test_tooltip_shows_label(self):
+        """Regression: the tooltip gave only the ID, so a node drawn with its label was hard to match up."""
+
+        def tooltips(g):
+            nodes = re.findall(r"data-node=\"([^\"]*)\" data-attrs='([^']*)'", g.plot(seed=1).svg)
+            return {nid: json.loads(html.unescape(attrs)) for nid, attrs in nodes}
+
+        assert tooltips(ec.karate_club())["17"] == {
+            "id": "17",
+            "label": "16",
+            "faction": 1,
+            "role": "Member",
+        }
+        # A label that just repeats the ID is left out
+        assert "label" not in tooltips(ec.Graph().add_path_graph(n=3))["1"]
 
     def test_unknown_attribute_raises(self):
         with pytest.raises(ValueError, match="no node has an attribute 'nope'"):
