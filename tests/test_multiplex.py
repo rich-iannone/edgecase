@@ -119,7 +119,7 @@ def make_cluster_layers():
 class TestMultiplexConstruction:
     def test_basic_creation(self):
         mpx = make_two_layer_4node()
-        assert mpx.count_nodes() == 4
+        assert mpx.count_shared_nodes() == 4
         assert mpx.count_layers() == 2
 
     def test_layer_names(self):
@@ -156,12 +156,12 @@ class TestMultiplexConstruction:
     def test_three_layers(self):
         mpx = make_three_layers()
         assert mpx.count_layers() == 3
-        assert mpx.count_nodes() == 3
+        assert mpx.count_shared_nodes() == 3
 
     def test_single_layer(self):
         mpx = make_single_layer()
         assert mpx.count_layers() == 1
-        assert mpx.count_nodes() == 2
+        assert mpx.count_shared_nodes() == 2
 
 
 # ===========================================================================
@@ -588,7 +588,7 @@ class TestMultiplexIntegration:
             layers[f"layer_{layer_idx}"] = g
         mpx = MultiplexGraph(layers)
         assert mpx.count_layers() == 10
-        assert mpx.count_nodes() == 20
+        assert mpx.count_shared_nodes() == 20
         pr = mpx.multiplex_pagerank(return_dict=True)
         assert len(pr) == 20
         assert abs(sum(pr.values()) - 1.0) < 1e-6
