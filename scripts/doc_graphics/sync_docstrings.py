@@ -4,7 +4,7 @@
     .venv/bin/python scripts/doc_graphics/sync_docstrings.py --check  # exit 1 if out of date
     .venv/bin/python scripts/doc_graphics/sync_docstrings.py --insert # also add missing lines
 
-For each registered figure, finds the `![...](/assets/graphs/....light.svg){...}`
+For each registered figure, finds the `![...](../assets/graphs/....light.svg){...}`
 line in that method's docstring and replaces it with the canonical snippet.
 Methods with a figure but no image line are reported; with --insert, the line
 is added on its own, one blank line under the docstring's summary (the house
@@ -23,7 +23,7 @@ sys.path.insert(0, str(HERE))
 from build import ROOT, load_figures, snippet  # noqa: E402
 
 GRAPH_PY = ROOT / "python" / "edgecase" / "graph.py"
-IMG = re.compile(r"^(\s*)!\[[^\]]*\]\(/assets/graphs/[^)]+\.light\.svg\)\{[^\n]*\}\s*$")
+IMG = re.compile(r"^(\s*)!\[[^\]]*\]\(\.\./assets/graphs/[^)]+\.light\.svg\)\{[^\n]*\}\s*$")
 DEF = re.compile(r"^    def (\w+)\(")
 OPEN = re.compile(r'^\s*r?"""\s*$')
 
