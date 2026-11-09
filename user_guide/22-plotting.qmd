@@ -78,9 +78,10 @@ plot.
 
 ## Canvas and node size
 
-The canvas is 600 by 400 pixels by default, and `width=` and `height=` change it. The force and
-random layouts spread the nodes over the whole canvas, so a wide canvas gives a wide drawing, while
-positions from a layout method keep their proportions (see [Layouts](layouts.qmd)).
+The canvas is 700 by 500 pixels by default, and `width=` and `height=` change it. The force and
+random layouts spread the nodes over the whole canvas, so a wide canvas gives a wide drawing, and
+the force layout is turned so that a long graph lies along the canvas's longer side. Positions from
+a layout method keep their proportions (see [Layouts](layouts.qmd)).
 
 The node radius is chosen automatically from the canvas area and the number of nodes, from 16 pixels
 on small graphs down to 3.5 pixels on large ones, and edge widths likewise shrink as the graph grows.
