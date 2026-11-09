@@ -3987,8 +3987,8 @@ class Graph:
         curved_edges: bool = False,
         theme: str = "light",
         palette: str = "tableau",
-        width: int = 600,
-        height: int = 400,
+        width: int = 700,
+        height: int = 500,
         node_size: float = 16.0,
         edge_width: float = 1.2,
         edge_opacity: float = 0.4,
@@ -4079,10 +4079,10 @@ class Graph:
             or `"Dark2"`). Default is `"tableau"`. An unknown name raises a `ValueError` when
             `color_by=` or `edge_color_by=` is set.
         width
-            SVG canvas width in pixels. Default is `600`. Together with `height=`, it also
+            SVG canvas width in pixels. Default is `700`. Together with `height=`, it also
             influences the automatic node size.
         height
-            SVG canvas height in pixels. Default is `400`.
+            SVG canvas height in pixels. Default is `500`.
         node_size
             Base node circle radius in pixels. The default value, `16.0`, acts as "automatic": the
             radius is then derived from the canvas area and the number of nodes (between `3.5` and
