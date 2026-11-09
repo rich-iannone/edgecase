@@ -202,7 +202,6 @@ cargo clippy -- -D warnings
 - Update docstrings for new functions
 - Add examples for new features
 - Update README.md if adding major features
-- Add entries to CHANGELOG.md
 
 ## Benchmarking
 
