@@ -43,7 +43,7 @@ def load_figures() -> list[Figure]:
 
 
 def snippet(fig: Figure) -> str:
-    return (f"![{fig.title}](/assets/graphs/{fig.slug}.light.svg)"
+    return (f"![{fig.title}](../assets/graphs/{fig.slug}.light.svg)"
             f'{{.lightbox fig-alt="{fig.alt}" width="100%"}}')
 
 
