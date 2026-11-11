@@ -1690,8 +1690,10 @@ def _generate_html_wrapper(
     global _tooltip_counter
     _tooltip_counter += 1
     tip_id = f"ec-tooltip-{_tooltip_counter}"
-    # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that
-    return f"""<div class="ec-plot" style="position:relative;width:fit-content;max-width:100%;margin:0 auto">
+    # Centered in the page or cell, and scaled down (keeping its shape) where it is wider than that.
+    # Quarto puts no space around cell outputs, so the margin keeps the plot off the code and text
+    # around it (margin rather than padding, since the tooltip is placed from the SVG's corner)
+    return f"""<div class="ec-plot" style="position:relative;width:fit-content;max-width:100%;margin:1em auto">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div id="{tip_id}" style="
@@ -2342,7 +2344,7 @@ def _generate_traversal_html_wrapper(
     btn_fg = "#e5e7eb" if is_dark else "#374151"
     ctrl_accent = accent
 
-    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:0 auto">
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;align-items:center;gap:8px;padding:8px 4px;
@@ -3297,7 +3299,7 @@ def _generate_chain_html_wrapper(
         )
     pills_html = "\n".join(pill_items)
 
-    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:0 auto;font-family:{FONT_FAMILY}">
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY}">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;gap:6px;padding:6px 4px;flex-wrap:wrap;align-items:center">
