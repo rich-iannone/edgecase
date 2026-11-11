@@ -3925,6 +3925,26 @@ def _speed_options_html(speed: float) -> str:
     )
 
 
+# The step player's button icons, drawn in the button's text color (the arrow glyphs for these
+# differ by font, and make "play" and "next" look the same)
+_ICON_PREV = (
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">'
+    '<rect x="1" y="1.5" width="2" height="9"/><path d="M11 1.5v9L4 6z"/></svg>'
+)
+_ICON_NEXT = (
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">'
+    '<path d="M1 1.5v9L8 6z"/><rect x="9" y="1.5" width="2" height="9"/></svg>'
+)
+_ICON_PLAY = (
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">'
+    '<path d="M2.5 1v10L11 6z"/></svg>'
+)
+_ICON_PAUSE = (
+    '<svg width="12" height="12" viewBox="0 0 12 12" fill="currentColor" aria-hidden="true">'
+    '<rect x="2" y="1.5" width="3" height="9"/><rect x="7" y="1.5" width="3" height="9"/></svg>'
+)
+
+
 def render_steps(
     graph,
     steps: list,
@@ -4530,7 +4550,9 @@ def render_steps(
     sl_html = "\n      ".join(sl_items)
     notch_html = "\n      ".join(notch_items)
 
-    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;overflow:hidden;color-scheme:{'dark' if is_dark else 'light'};">
+    # The font size and line height are set here so that a page's (e.g., a docs site's larger text)
+    # don't spread out the panel below the drawing
+    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};font-size:13px;line-height:1.4;max-width:{width}px;margin:1em auto;overflow:hidden;color-scheme:{'dark' if is_dark else 'light'};">
 <style>
 #{uid} .step-panel {{
   border:1px solid {border};
@@ -4545,7 +4567,6 @@ def render_steps(
 #{uid} .step-code-panel {{
   padding:12px 16px;
   border-bottom:1px solid {border};
-  height:130px;
   box-sizing:border-box;
   overflow:hidden;
   position:relative;
@@ -4703,11 +4724,15 @@ def render_steps(
   color:#fff;
   border:none;
   border-radius:4px;
-  padding:4px 10px;
+  padding:0;
+  width:30px;
+  height:28px;
+  display:inline-flex;
+  align-items:center;
+  justify-content:center;
   cursor:pointer;
-  font-size:13px;
+  font-size:14px;
   font-family:inherit;
-  min-width:32px;
 }}
 #{uid} .step-controls button:hover {{ opacity:0.85; }}
 #{uid} .step-controls .replay-btn {{
@@ -4735,7 +4760,8 @@ def render_steps(
   cursor:pointer;
 }}
 #{uid} .step-kind-badge {{
-  display:inline-block;
+  display:block;
+  width:fit-content;
   padding:2px 8px;
   border-radius:3px;
   font-size:11px;
@@ -4944,9 +4970,9 @@ def render_steps(
     {tl_html}
   </div>
   <div class="step-controls">
-    <button id="{uid}-prev" title="Previous step (&#8592;)">&#9664;</button>
-    <button id="{uid}-play" title="Play / Pause (Space)">&#9654;</button>
-    <button id="{uid}-next" title="Next step (&#8594;)">&#9654;</button>
+    <button id="{uid}-prev" title="Previous step (&#8592;)">{_ICON_PREV}</button>
+    <button id="{uid}-play" title="Play / Pause (Space)">{_ICON_PLAY}</button>
+    <button id="{uid}-next" title="Next step (&#8594;)">{_ICON_NEXT}</button>
     <button id="{uid}-replay" class="replay-btn" title="Replay from start (Home)">&#8634;</button>
     <input type="range" id="{uid}-slider" min="0" max="{len(step_data) - 1}" value="0" step="1"/>
     <span class="step-counter" id="{uid}-counter">Step 1 / {len(step_data)}</span>
@@ -5308,6 +5334,97 @@ def render_steps(
       }});
   }}
 
+  // The panel below the drawing, for step `s`
+  function fillPanel(s){{
+    var tv=s.traverse||null;
+    var d=s.delta||{{}};
+    badgeEl.textContent=tv?s.method.toUpperCase()+' ('+tv.step_num+'/'+tv.total+')':s.kind;
+    if(s.kind==='annotate'){{
+      codeWrap.style.display='none';
+      noteEl.style.display='block';
+      noteEl.textContent=s.narration;
+      narrEl.style.display='none';
+      codeMore.style.display='none';
+    }} else {{
+      codeWrap.style.display='';
+      noteEl.style.display='none';
+      narrEl.style.display='';
+      _codeRaw=s.code;
+      codeEl.innerHTML=hlPy(s.code);
+      narrEl.textContent=s.narration;
+    }}
+
+    // Delta detail chips
+    var dh='';
+    if(!tv && d){{
+      if(d.na && d.na.length){{
+        var lbl=d.na.length===1?d.na[0]:d.na.length+' nodes';
+        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
+      }}
+      if(d.ea && d.ea.length){{
+        var n=d.ea.length;
+        var lbl=n===1?d.ea[0][0]+' \\u2192 '+d.ea[0][1]:n+' edges';
+        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
+      }}
+      if(d.nr && d.nr.length){{
+        var lbl=d.nr.length===1?d.nr[0]:d.nr.length+' nodes';
+        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
+      }}
+      if(d.er && d.er.length){{
+        var n=d.er.length;
+        var lbl=n===1?d.er[0][0]+' \\u2192 '+d.er[0][1]:n+' edges';
+        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
+      }}
+      if(d.ac){{
+        for(var k in d.ac){{
+          var v=d.ac[k];
+          var vs=typeof v==='string'?v:JSON.stringify(v);
+          if(vs.length>30) vs=vs.substring(0,27)+'\\u2026';
+          dh+='<span class="delta-chip delta-attr">'+k+' = '+vs+'</span> ';
+        }}
+      }}
+      if(d.sn && d.sn.length){{
+        var lbl=d.sn.length<=4?d.sn.join(', '):d.sn.length+' nodes';
+        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
+      }}
+      if(d.se && d.se.length){{
+        var n=d.se.length;
+        var lbl=n<=2?d.se.map(function(e){{return e[0]+' \\u2192 '+e[1];}}).join(', '):n+' edges';
+        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
+      }}
+    }}
+    deltaEl.innerHTML=dh;
+  }}
+  function showPanel(s){{
+    fillPanel(s);
+    if(s.kind==='annotate'){{
+      addMoreLink(noteEl,s.narration);
+    }} else {{
+      checkCodeOverflow();
+      addMoreLink(narrEl,s.narration);
+    }}
+  }}
+
+  // The panel is as tall as the tallest step needs (at the width its text wraps to), so that
+  // nothing is cut off and the controls don't move as the steps change
+  var codePanel=document.getElementById('{uid}-code');
+  var fitWidth=-1;
+  function fitPanel(){{
+    if(!codePanel.clientWidth) return;
+    if(moreLink.parentNode) moreLink.parentNode.removeChild(moreLink);
+    codePanel.style.height='auto';
+    var tallest=0;
+    STEPS.forEach(function(s){{
+      fillPanel(s);
+      var el=s.kind==='annotate'?noteEl:narrEl;
+      if(isTruncated(el)) el.parentNode.insertBefore(moreLink,el.nextSibling);
+      tallest=Math.max(tallest,codePanel.offsetHeight);
+      if(moreLink.parentNode) moreLink.parentNode.removeChild(moreLink);
+    }});
+    codePanel.style.height=tallest+'px';
+    showPanel(STEPS[cur]);
+  }}
+
   function applyStep(idx){{
     var s=STEPS[idx];
     if(LAYOUTS.length && s.lf!==undefined && s.lf!==curFrame) animateTo(s.lf);
@@ -5622,66 +5739,7 @@ def render_steps(
       }}
     }}
 
-    // Badge and text
-    badgeEl.textContent=tv?s.method.toUpperCase()+' ('+tv.step_num+'/'+tv.total+')':s.kind;
-    if(s.kind==='annotate'){{
-      codeWrap.style.display='none';
-      noteEl.style.display='block';
-      noteEl.textContent=s.narration;
-      narrEl.style.display='none';
-      addMoreLink(noteEl,s.narration);
-      codeMore.style.display='none';
-    }} else {{
-      codeWrap.style.display='';
-      noteEl.style.display='none';
-      narrEl.style.display='';
-      _codeRaw=s.code;
-      codeEl.innerHTML=hlPy(s.code);
-      checkCodeOverflow();
-      narrEl.textContent=s.narration;
-      addMoreLink(narrEl,s.narration);
-    }}
-
-    // Delta detail chips
-    var dh='';
-    if(!tv && d){{
-      if(d.na && d.na.length){{
-        var lbl=d.na.length===1?d.na[0]:d.na.length+' nodes';
-        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
-      }}
-      if(d.ea && d.ea.length){{
-        var n=d.ea.length;
-        var lbl=n===1?d.ea[0][0]+' \\u2192 '+d.ea[0][1]:n+' edges';
-        dh+='<span class="delta-chip delta-add">+ '+lbl+'</span> ';
-      }}
-      if(d.nr && d.nr.length){{
-        var lbl=d.nr.length===1?d.nr[0]:d.nr.length+' nodes';
-        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
-      }}
-      if(d.er && d.er.length){{
-        var n=d.er.length;
-        var lbl=n===1?d.er[0][0]+' \\u2192 '+d.er[0][1]:n+' edges';
-        dh+='<span class="delta-chip delta-rm">&minus; '+lbl+'</span> ';
-      }}
-      if(d.ac){{
-        for(var k in d.ac){{
-          var v=d.ac[k];
-          var vs=typeof v==='string'?v:JSON.stringify(v);
-          if(vs.length>30) vs=vs.substring(0,27)+'\\u2026';
-          dh+='<span class="delta-chip delta-attr">'+k+' = '+vs+'</span> ';
-        }}
-      }}
-      if(d.sn && d.sn.length){{
-        var lbl=d.sn.length<=4?d.sn.join(', '):d.sn.length+' nodes';
-        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
-      }}
-      if(d.se && d.se.length){{
-        var n=d.se.length;
-        var lbl=n<=2?d.se.map(function(e){{return e[0]+' \\u2192 '+e[1];}}).join(', '):n+' edges';
-        dh+='<span class="delta-chip delta-sel">\\u25c9 '+lbl+'</span> ';
-      }}
-    }}
-    deltaEl.innerHTML=dh;
+    showPanel(s);
 
     slider.value=idx;
     counter.textContent='Step '+(idx+1)+' / '+STEPS.length;
@@ -5711,17 +5769,17 @@ def render_steps(
       slItems[idx].scrollIntoView({{block:'nearest',behavior:'smooth'}});
     }}
     var atEnd=idx>=STEPS.length-1;
-    replayBtn.style.display=atEnd&&!playing?'inline-block':'none';
-    nextBtn.style.display=atEnd?'none':'inline-block';
+    replayBtn.style.display=atEnd&&!playing?'inline-flex':'none';
+    nextBtn.style.display=atEnd?'none':'inline-flex';
   }}
 
   function stopPlay(){{
     playing=false;
-    playBtn.innerHTML='&#9654;';
+    playBtn.innerHTML='{_ICON_PLAY}';
     if(timer){{ clearInterval(timer); timer=null; }}
     var atEnd=cur>=STEPS.length-1;
-    replayBtn.style.display=atEnd?'inline-block':'none';
-    nextBtn.style.display=atEnd?'none':'inline-block';
+    replayBtn.style.display=atEnd?'inline-flex':'none';
+    nextBtn.style.display=atEnd?'none':'inline-flex';
   }}
 
   function getInterval(){{
@@ -5729,9 +5787,9 @@ def render_steps(
   }}
   function startPlay(){{
     playing=true;
-    playBtn.innerHTML='&#9646;&#9646;';
+    playBtn.innerHTML='{_ICON_PAUSE}';
     replayBtn.style.display='none';
-    nextBtn.style.display='inline-block';
+    nextBtn.style.display='inline-flex';
     timer=setInterval(function(){{
       if(cur<STEPS.length-1){{ cur++; applyStep(cur); }}
       else {{ stopPlay(); }}
@@ -5815,6 +5873,9 @@ def render_steps(
   }});
 
   applyStep(0);
+  new ResizeObserver(function(){{
+    if(codePanel.clientWidth!==fitWidth){{ fitWidth=codePanel.clientWidth; fitPanel(); }}
+  }}).observe(wrapper);
   {"startPlay();" if auto_play else ""}
 }})();
 </script>
