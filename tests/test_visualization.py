@@ -81,6 +81,60 @@ class TestPlotNodeValues:
         # A label that just repeats the ID is left out
         assert "label" not in tooltips(ec.Graph().add_path_graph(n=3))["1"]
 
+    def test_tooltip_numbers_are_rounded(self):
+        """Regression: a stored position showed as `-0.3142857142857143,0.0571428571428571`."""
+        g = ec.Graph().add_nodes(["A", "B", "C"])
+        g.set_node_attrs("pos", {1: (-0.3142857142857143, 0.0571428571428571), 2: (0.5, 1e-17)})
+        g.set_node_attrs("score", {1: 0.123456789, 2: 1234.56789, 3: 2})
+        nodes = re.findall(r"data-node=\"([^\"]*)\" data-attrs='([^']*)'", g.plot(seed=1).svg)
+        tips = {nid: json.loads(html.unescape(attrs)) for nid, attrs in nodes}
+        # Coordinates share a decimal place (so one near 0 doesn't show as 1e-17)
+        assert tips["1"]["pos"] == [-0.314, 0.057]
+        assert tips["2"]["pos"] == [0.5, 0.0]
+        # Other numbers keep 4 significant digits, but all of their whole-number digits
+        assert [tips[n]["score"] for n in "123"] == [0.1235, 1235.0, 2]
+
+    def test_tooltip_vector_precision_follows_point_spacing(self):
+        from edgecase.svg_renderer import _tooltip_rows
+
+        def first_x(n, spread):
+            rows = [{"pos": (1 / 3 + spread * i / (n - 1), 0.0)} for i in range(n)]
+            return _tooltip_rows(rows)[0]["pos"][0]
+
+        # To a hundredth of the typical spacing: finer for more points or a smaller range
+        assert first_x(4, 2.0) == 0.33
+        assert first_x(1000, 2.0) == 0.3333
+        assert first_x(30, 700.0) == 0
+
+    @staticmethod
+    def _edge_tooltips(svg: str) -> list[dict]:
+        tips = re.findall(r" data-edge=\"[^\"]*\" data-attrs='([^']*)'", svg)
+        return [json.loads(html.unescape(tip)) for tip in tips]
+
+    def test_edge_tooltips(self):
+        """Regression: an edge had no tooltip unless it had attributes, and was hard to hover,
+        being as thin as it is drawn."""
+        g = ec.Graph(directed=True).add_nodes(["Ana", "Ben", "Cy"])
+        g.add_edges([("Ana", "Ben")], weight=0.123456789, rel="knows")
+        g.add_edges([("Ben", "Cy")])
+        svg = g.plot(label_by="label", seed=1).svg
+        assert sorted(self._edge_tooltips(svg), key=lambda tip: tip["id"]) == [
+            {"id": 1, "edge": "Ana → Ben", "weight": 0.1235, "rel": "knows"},
+            {"id": 2, "edge": "Ben → Cy"},
+        ]
+        # On a transparent stroke wider than the edge drawn
+        hit_areas = re.findall(r"<line[^>]* data-edge=[^>]*>", svg)
+        assert len(hit_areas) == 2
+        assert all('stroke="transparent" stroke-width="8.0"' in h for h in hit_areas)
+        # The ends are named as their labels are drawn, here the IDs
+        assert self._edge_tooltips(_abc_path().plot(seed=1).svg)[0]["edge"] == "1 — 2"
+
+    @pytest.mark.parametrize("opts", [{"curved_edges": True}, {"edge_routing": "around"}])
+    def test_edge_tooltips_on_curved_and_routed_edges(self, opts):
+        g = ec.Graph(directed=True).add_nodes(list("ABCD")).add_edges([("A", "B"), ("B", "A")])
+        g.add_edges([("C", "C"), ("A", "D")])
+        assert len(self._edge_tooltips(g.plot(seed=1, **opts).svg)) == 4
+
     def test_unknown_attribute_raises(self):
         with pytest.raises(ValueError, match="no node has an attribute 'nope'"):
             _abc_path().plot(color_by="nope")
@@ -201,6 +255,25 @@ class TestPlotTraversal:
         rec.select_nodes_by_id([1]).trav_out().trav_out_edge()
         assert _drawing(rec.plot(seed=7)) == _drawing(rec.plot(seed=7))
         assert _drawing(rec.plot(seed=7)) != _drawing(rec.plot(seed=8))
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    @pytest.mark.parametrize("player", ["plot_traversal", "recorder"])
+    def test_controls_have_the_theme_background(self, player, theme):
+        """Regression: the controls were drawn on the page's background, so on a dark page the
+        light theme's dark text (and the dark theme's on a light page) was hard to read."""
+        from edgecase.svg_renderer import THEMES
+
+        g = ec.karate_club()
+        if player == "plot_traversal":
+            out = g.plot_traversal(source=1, theme=theme, seed=1)
+        else:
+            rec = g.record_traversal()
+            rec.select_nodes_by_id([1]).trav_out()
+            out = rec.plot(theme=theme, seed=1)
+        outer = re.match(r'<div class="ec-plot" style="([^"]*)"', out._repr_html_()).group(1)
+        assert f"background:{THEMES[theme].bg}" in outer
+        assert f"color:{THEMES[theme].label_color}" in outer
+        assert f"color-scheme:{theme}" in outer
 
 
 class TestUnknownStyleOptionsRaise:
