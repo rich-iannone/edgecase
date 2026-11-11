@@ -1,5 +1,6 @@
 use crate::graph::Graph;
 use pyo3::prelude::*;
+use pyo3::types::{IntoPyDict, PyDict};
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::HashMap;
 
@@ -7,28 +8,27 @@ use std::collections::HashMap;
 ///
 /// Spreads known labels through the network: each unlabeled node adopts the
 /// most common label among its neighbors (weighted by edge weight), iterating
-/// until convergence or `max_iter` is reached.
+/// until convergence or `max_iter` is reached. Returns a dict sorted by node ID.
 #[pyfunction]
 #[pyo3(signature = (graph, known_labels, max_iter=100))]
-pub fn label_propagation(
+pub fn label_propagation<'py>(
+    py: Python<'py>,
     graph: &Graph,
     known_labels: HashMap<u64, i64>,
     max_iter: usize,
-) -> PyResult<HashMap<u64, i64>> {
+) -> PyResult<Bound<'py, PyDict>> {
     let node_ids = graph.get_node_ids();
     if node_ids.is_empty() {
-        return Ok(HashMap::new());
+        return Ok(PyDict::new(py));
     }
 
-    // Validate known labels
+    // Validate known labels, naming the smallest unknown node (not the first in hash order)
     let valid: FxHashSet<u64> = node_ids.iter().copied().collect();
-    for &nid in known_labels.keys() {
-        if !valid.contains(&nid) {
-            return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                "Node {} in known_labels not found in graph",
-                nid
-            )));
-        }
+    if let Some(nid) = known_labels.keys().filter(|nid| !valid.contains(nid)).min() {
+        return Err(pyo3::exceptions::PyValueError::new_err(format!(
+            "Node {} in known_labels not found in graph",
+            nid
+        )));
     }
 
     if known_labels.is_empty() {
@@ -128,10 +128,10 @@ pub fn label_propagation(
         }
     }
 
-    // Convert to standard HashMap
-    let mut result = HashMap::new();
-    for (&nid, &lbl) in &labels {
-        result.insert(nid, lbl);
-    }
-    Ok(result)
+    let mut sorted_ids = node_ids;
+    sorted_ids.sort_unstable();
+    sorted_ids
+        .iter()
+        .map(|nid| (*nid, labels[nid]))
+        .into_py_dict(py)
 }
