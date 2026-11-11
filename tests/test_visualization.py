@@ -161,6 +161,16 @@ class TestPlay:
         assert '<option value="800" selected>1.5&times;</option>' in html
         assert html.count(" selected>") == 1
 
+    def test_layout_holds_up_on_a_page(self):
+        """Regression: a page's larger text spread out the panel below the drawing, past a fixed
+        height that cut off its last line, and the play and next buttons had the same arrow."""
+        html = _abc_path().play()._repr_html_()
+        root = re.match(r'<div id="\w+" style="([^"]*)"', html).group(1)
+        assert "font-size:13px;line-height:1.4" in root
+        assert "height:130px" not in html
+        buttons = dict(re.findall(r'<button id="\w+-(prev|play|next)"[^>]*>(.*?)</button>', html))
+        assert len(set(buttons.values())) == 3
+
     def test_invalid_speed_raises(self):
         with pytest.raises(ValueError, match="speed must be a positive number"):
             _abc_path().play(speed=0)
