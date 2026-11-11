@@ -224,6 +224,8 @@ positions of the step before, and moves the nodes smoothly between frames, so th
 and reshapes as the graph does. `layout_mode="stable"` computes a single layout of every node that
 ever appears, so nodes never move, which is easier to follow when the structure stays the same and
 something else changes, as in a traversal. Graphs of more than 300 nodes always use the stable mode.
+The stable force layout starts from random positions, so pass `seed=` for the same drawing every
+time (the progressive layout is reproducible without one).
 
 ### Teaching an algorithm
 
@@ -241,7 +243,7 @@ paths = ec.Graph().add_nodes(list("ABCDEFGH")).add_edges(
 paths.clear_steps()
 paths.note("Breadth-first: finish each level before going deeper.").bfs(source="A")
 paths.note("Depth-first: follow one path as far as it goes, then back up.").dfs(source="A")
-paths.play(layout_mode="stable", speed=2.0)
+paths.play(layout_mode="stable", speed=2.0, seed=1)
 ```
 
 `clear_steps()` empties the log but keeps the graph, and remembers which nodes and edges existed at
@@ -267,7 +269,7 @@ given steps alone, which suits a prefix of the log, such as the steps that built
 anyone left:
 
 ```{python}
-club.play(steps=club.steps[:4], layout_mode="stable")
+club.play(steps=club.steps[:4], layout_mode="stable", seed=1)
 ```
 
 A subset passed to `steps=` that skips the steps creating some nodes doesn't show those nodes, so
@@ -288,7 +290,7 @@ the final frame:
 
 ```{python}
 #| eval: false
-paths.play(layout_mode="stable", output="bfs-vs-dfs.html")
+paths.play(layout_mode="stable", seed=1, output="bfs-vs-dfs.html")
 ```
 
 ## Managing the log

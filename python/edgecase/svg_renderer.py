@@ -1831,7 +1831,7 @@ def _build_traversal_steps(
             {
                 "current": nid,
                 "current_edge": current_edge,
-                "visited": list(visited_set),
+                "visited": list(step_labels),  # in visit order
                 "frontier": sorted(frontier),
                 "tree_edges": [list(e) for e in tree_edges_so_far],
                 "step_labels": dict(step_labels),
@@ -1865,6 +1865,7 @@ def render_traversal(
     node_overlap: Union[str, float] = "remove",
     show_labels: bool = True,
     output: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> "StepPlayer":
     """Render an interactive traversal StepPlayer with a step-through slider."""
     global _traversal_counter
@@ -1949,7 +1950,7 @@ def render_traversal(
     if layout == "circular":
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
-        positions = _random_layout(str_ids, float(width), float(height))
+        positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     elif layout not in LAYOUTS:
         positions = _stored_layout(graph, node_ids, layout, float(width), float(height))
     else:
@@ -1961,6 +1962,7 @@ def render_traversal(
             float(width),
             float(height),
             iterations=fr_iters,
+            seed=seed,
         )
 
     # --- Color map (for visited state) ---
@@ -1973,7 +1975,7 @@ def render_traversal(
     # --- Overlap removal (force/random layout) ---
     if node_overlap != "allow" and layout not in ("circular",) and len(str_ids) >= 2:
         overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
-        positions = _remove_overlaps(positions, radii, padding=overlap_pad)
+        positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
     # --- Compute viewBox ---
     label_map = {}
@@ -2710,6 +2712,7 @@ class TraversalRecorder:
         node_overlap: Union[str, float] = "remove",
         show_labels: bool = True,
         output: Optional[str] = None,
+        seed: Optional[int] = None,
     ) -> StepPlayer:
         return render_traversal_chain(
             self._graph,
@@ -2723,6 +2726,7 @@ class TraversalRecorder:
             node_overlap=node_overlap,
             show_labels=show_labels,
             output=output,
+            seed=seed,
         )
 
 
@@ -2743,6 +2747,7 @@ def render_traversal_chain(
     node_overlap: Union[str, float] = "remove",
     show_labels: bool = True,
     output: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> StepPlayer:
     """Render an interactive traversal-chain visualization.
 
@@ -2867,21 +2872,20 @@ def render_traversal_chain(
             )
         else:
             sel_edge_visuals = []
-            connected_nodes = set()
+            connected_nodes = []
             for eid in step["ids"]:
                 vis = edge_id_to_visual.get(eid)
                 if vis:
                     s_src = _sanitize_svg_id(vis[0])
                     s_tgt = _sanitize_svg_id(vis[1])
                     sel_edge_visuals.append(f"{s_src}-{s_tgt}")
-                    connected_nodes.add(vis[0])
-                    connected_nodes.add(vis[1])
+                    connected_nodes.extend(vis)
             js_steps.append(
                 {
                     "sel": "edges",
                     "nodes": [],
                     "edges": list(dict.fromkeys(sel_edge_visuals)),
-                    "related_nodes": list(connected_nodes),
+                    "related_nodes": list(dict.fromkeys(connected_nodes)),
                     "op": step["op_display"],
                 }
             )
@@ -2901,7 +2905,7 @@ def render_traversal_chain(
     if layout == "circular":
         positions = _circular_layout(str_ids, float(width), float(height))
     elif layout == "random":
-        positions = _random_layout(str_ids, float(width), float(height))
+        positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     elif layout not in LAYOUTS:
         positions = _stored_layout(graph, node_ids, layout, float(width), float(height))
     else:
@@ -2912,6 +2916,7 @@ def render_traversal_chain(
             float(width),
             float(height),
             iterations=fr_iters,
+            seed=seed,
         )
 
     radii = {nid: node_size for nid in str_ids}
@@ -2919,7 +2924,7 @@ def render_traversal_chain(
     # --- Overlap removal ---
     if node_overlap != "allow" and layout not in ("circular",) and n >= 2:
         overlap_pad = float(node_overlap) if isinstance(node_overlap, (int, float)) else 2.0
-        positions = _remove_overlaps(positions, radii, padding=overlap_pad)
+        positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
     # --- ViewBox ---
     label_map = {}
@@ -3624,6 +3629,7 @@ def _progressive_layouts(
     layout: str,
     width: float,
     height: float,
+    seed: Optional[int] = None,
 ) -> Optional[Tuple[List[Dict[str, Tuple[float, float]]], List[int], List[List[str]]]]:
     """
     Compute one layout frame per structurally distinct graph state.
@@ -3632,7 +3638,8 @@ def _progressive_layouts(
     to a position (nodes not yet added sit where they will first appear; removed nodes keep their
     last position), `state_frame[i]` is the frame index for `states[i]`, and `present[f]` lists
     the nodes actually in the graph for frame `f`. Returns `None` when the
-    graph is too large to lay out progressively.
+    graph is too large to lay out progressively. Without a `seed`, the placement jitter uses a
+    fixed seed, so the frames are reproducible either way.
     """
     if not final_order or len(final_order) > _PROGRESSIVE_MAX_NODES:
         return None
@@ -3665,7 +3672,7 @@ def _progressive_layouts(
         total_pairs = sum(len(nodes) ** 2 / 2 * iters_base for nodes, _ in frame_states)
         scale = min(1.0, _PROGRESSIVE_PAIR_BUDGET / max(total_pairs, 1.0))
         golden = math.pi * (3 - math.sqrt(5))
-        rng = random.Random(7)
+        rng = random.Random(7 if seed is None else seed)
         pos: Dict[str, List[float]] = {}
         placed_count = 0
         prev_edges: set = set()
@@ -3816,6 +3823,7 @@ def render_steps(
     speed: float = 1.0,
     layout_mode: str = "progressive",
     output: Optional[str] = None,
+    seed: Optional[int] = None,
 ) -> "StepPlayer":
     """Render an interactive step-through visualization of recorded graph steps."""
     if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not speed > 0:
@@ -3903,7 +3911,7 @@ def render_steps(
 
     # All label-IDs for layout (sorted for deterministic order)
     all_label_ids = sorted(label_to_id[lbl] for lbl in all_nodes)
-    all_edge_ids = [(label_to_id.get(s, s), label_to_id.get(t, t)) for s, t in all_edges]
+    all_edge_ids = [(label_to_id.get(s, s), label_to_id.get(t, t)) for s, t in sorted(all_edges)]
 
     # --- Adaptive sizes ---
     n = len(all_label_ids)
@@ -3918,7 +3926,7 @@ def render_steps(
     if layout == "circular":
         positions = _circular_layout(all_label_ids, float(width), float(height))
     elif layout == "random":
-        positions = _random_layout(all_label_ids, float(width), float(height))
+        positions = _random_layout(all_label_ids, float(width), float(height), seed=seed)
     else:
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
         positions = _force_directed_layout(
@@ -3927,12 +3935,13 @@ def render_steps(
             float(width),
             float(height),
             iterations=fr_iters,
+            seed=seed,
         )
 
     # Overlap removal (force layout only)
     radii = {nid: node_size for nid in all_label_ids}
     if layout not in ("circular",) and n >= 2:
-        positions = _remove_overlaps(positions, radii, padding=2.0)
+        positions = _remove_overlaps(positions, radii, padding=2.0, seed=seed)
 
     # Progressive layout: one frame per structurally distinct state, animated between steps.
     # `step_frames[i]` is the frame index for visible step i; frames are keyed by label.
@@ -3941,7 +3950,7 @@ def render_steps(
     if layout_mode == "progressive" and layout in ("force", "circular"):
         final_order = [id_to_label.get(nid, nid) for nid in all_label_ids]
         prog = _progressive_layouts(
-            all_states, final_order, node_size, layout, float(width), float(height)
+            all_states, final_order, node_size, layout, float(width), float(height), seed=seed
         )
         if prog is not None:
             frames, state_frame, frame_present = prog

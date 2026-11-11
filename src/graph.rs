@@ -6654,7 +6654,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping (source_id, target_id) tuples to edge counts
+    /// Dictionary mapping (source_id, target_id) tuples to edge counts, sorted by pair
     ///
     /// # Examples
     ///
@@ -6670,7 +6670,7 @@ impl Graph {
     /// # Single edges like (node_id_b, node_id_c) are not included
     /// ```
     #[inline]
-    pub fn count_multiple(&self) -> PyResult<std::collections::HashMap<(u64, u64), usize>> {
+    pub fn count_multiple(&self) -> PyResult<std::collections::BTreeMap<(u64, u64), usize>> {
         let m = self.num_edges();
         let mut pair_counts = FxHashMap::with_capacity_and_hasher(m, Default::default());
 
@@ -6689,14 +6689,11 @@ impl Graph {
             *pair_counts.entry(pair).or_insert(0) += 1;
         }
 
-        // Filter for multiples only (count >= 2) and return node IDs
-        let estimated_result_size = pair_counts.len() / 2;
-        let mut result = std::collections::HashMap::with_capacity(estimated_result_size);
-        for ((source_id, target_id), count) in pair_counts.iter() {
-            if *count >= 2 {
-                result.insert((*source_id, *target_id), *count);
-            }
-        }
+        // Filter for multiples only (count >= 2) and return node IDs, ordered by pair
+        let result = pair_counts
+            .into_iter()
+            .filter(|&(_, count)| count >= 2)
+            .collect();
 
         Ok(result)
     }
@@ -6743,7 +6740,7 @@ impl Graph {
     ///
     /// # Returns
     ///
-    /// Dictionary mapping node IDs to self-loop counts
+    /// Dictionary mapping node IDs to self-loop counts, sorted by node ID
     ///
     /// # Examples
     ///
@@ -6758,10 +6755,9 @@ impl Graph {
     /// # Returns: {a_id: 2, b_id: 1} where a_id, b_id are node IDs
     /// ```
     #[inline]
-    pub fn count_loops(&self) -> PyResult<std::collections::HashMap<u64, usize>> {
-        let n = self.num_nodes();
-        let mut loop_counts: std::collections::HashMap<u64, usize> =
-            std::collections::HashMap::with_capacity(n);
+    pub fn count_loops(&self) -> PyResult<std::collections::BTreeMap<u64, usize>> {
+        let mut loop_counts: std::collections::BTreeMap<u64, usize> =
+            std::collections::BTreeMap::new();
 
         // Count self-loops per node
         for edge in &self.edges {

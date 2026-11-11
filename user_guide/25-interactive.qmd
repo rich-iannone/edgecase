@@ -267,7 +267,7 @@ graph, lighting up nodes in the order they are reached, as described in
 
 ```{python}
 florentine = ec.florentine_families()
-florentine.plot_traversal(source="Medici", algorithm="BFS")
+florentine.plot_traversal(source="Medici", algorithm="BFS", seed=1)
 ```
 
 The breadth-first search from the Medici reaches their six marriage partners first, then five

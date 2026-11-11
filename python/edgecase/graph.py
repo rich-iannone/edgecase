@@ -4236,6 +4236,7 @@ class Graph:
         speed: float = 1.0,
         layout_mode: str = "progressive",
         output: Optional[str] = None,
+        seed: Optional[int] = None,
     ):
         """
         Replay the step log as an interactive step-through visualization.
@@ -4275,8 +4276,8 @@ class Graph:
             `graph.steps.filter(kind="select").play()`.
         layout
             Layout algorithm: `"force"` (default, a force-directed layout), `"circular"`, or
-            `"random"` (unseeded). Any other value raises `ValueError`. See `layout_mode=` for how
-            positions evolve across steps.
+            `"random"`. Any other value raises `ValueError`. See `layout_mode=` for how positions
+            evolve across steps, and `seed=` for making them reproducible.
         theme
             Color theme: `"light"` (default) or `"dark"`. Any other value raises `ValueError`.
         width
@@ -4311,6 +4312,11 @@ class Graph:
             File path to save. A path ending in `.html` saves the full interactive player; any
             other extension saves only the static SVG. The `StepPlayer` is returned either way. If
             `None` (default), nothing is saved.
+        seed
+            Integer seed for the `"force"` and `"random"` layouts. The same seed on the same steps
+            gives the same positions. If `None` (default), the `"random"` layout and the stable
+            `"force"` layout (see `layout_mode=`) differ between calls, while the progressive
+            `"force"` layout is reproducible anyway; a seed then picks a different arrangement.
 
         Returns
         -------
@@ -4372,6 +4378,7 @@ class Graph:
             speed=speed,
             layout_mode=layout_mode,
             output=output,
+            seed=seed,
         )
 
     def plot_traversal(
@@ -4388,6 +4395,7 @@ class Graph:
         edge_width: float = 1.5,
         show_labels: bool = True,
         output: Optional[str] = None,
+        seed: Optional[int] = None,
     ):
         """
         Render an interactive traversal visualization with a step-through slider.
@@ -4436,7 +4444,7 @@ class Graph:
             BFS is run from this node. Default is `None`.
         layout
             Layout algorithm: `"force"` (default, force-directed), `"circular"`, or `"random"`
-            (unseeded), or the name of a node attribute holding `(x, y)` positions, such as the
+            (see `seed=`), or the name of a node attribute holding `(x, y)` positions, such as the
             `"pos"` attribute the `layout_*()` methods set (see `plot()`). Any other value raises
             `ValueError`.
         theme
@@ -4455,6 +4463,9 @@ class Graph:
         output
             Optional file path to save to. A path ending in `.html` saves the interactive widget;
             any other extension saves only the static SVG. Default is `None` (nothing is saved).
+        seed
+            Integer seed for the `"force"` and `"random"` layouts. The same seed on the same graph
+            gives the same positions. If `None` (default), positions differ between calls.
 
         Returns
         -------
@@ -4477,7 +4488,7 @@ class Graph:
         import edgecase as ec
 
         g = ec.karate_club()
-        g.plot_traversal(source=1)
+        g.plot_traversal(source=1, seed=1)
         ```
 
         To show a different traversal, compute the visit order yourself and label it with
@@ -4486,7 +4497,7 @@ class Graph:
 
         ```{python}
         order = g.dfs(source=1, return_list=True)
-        g.plot_traversal(visit_order=order, algorithm="DFS")
+        g.plot_traversal(visit_order=order, algorithm="DFS", seed=1)
         ```
 
         On a small graph the step-by-step frontier is easy to follow. Here a binary-tree-like
@@ -4498,7 +4509,7 @@ class Graph:
             auto_create_nodes=True,
         )
 
-        tree.plot_traversal(source="A", theme="dark", node_size=22)
+        tree.plot_traversal(source="A", theme="dark", node_size=22, seed=1)
         ```
         """
         if visit_order is None:
@@ -4531,6 +4542,7 @@ class Graph:
             edge_width=edge_width,
             show_labels=show_labels,
             output=output,
+            seed=seed,
         )
 
     def record_traversal(self):
@@ -4572,8 +4584,8 @@ class Graph:
         TraversalRecorder
             A recorder object supporting the same traversal/selection API as `Graph`, plus a
             `plot()` method to visualize the chain. `plot()` accepts `layout=`, `theme=`, `width=`,
-            `height=`, `node_size=`, `edge_width=`, `node_overlap=`, `show_labels=` and `output=`,
-            and returns a `StepPlayer`.
+            `height=`, `node_size=`, `edge_width=`, `node_overlap=`, `show_labels=`, `output=` and
+            `seed=` (as in `plot_traversal()`), and returns a `StepPlayer`.
 
         Examples
         --------
@@ -4593,7 +4605,7 @@ class Graph:
         rec.select_nodes_by_id([node_a])
         rec.trav_out()
         rec.trav_out_edge()
-        rec.plot()
+        rec.plot(seed=1)
         ```
 
         Recorder calls can be chained. The recorded snapshots list the selection after each move:
@@ -27458,13 +27470,13 @@ class Graph:
         Or grouping to count how many edges fall into each relationship type:
 
         ```{python}
-        df.group_by("rel").len()
+        df.group_by("rel").len().sort("rel")
         ```
 
         Aggregating `weight` per group works the same way as with any Polars DataFrame:
 
         ```{python}
-        df.group_by("rel").agg(pl.col("weight").mean())
+        df.group_by("rel").agg(pl.col("weight").mean()).sort("rel")
         ```
         """
         return self._edge_df(self.get_edge_ids(limit=None))
@@ -37519,9 +37531,9 @@ class Graph:
         Returns
         -------
         dict or Graph
-            If `return_dict=` is `True`: label assignments for every node. Seed nodes keep their
-            given labels; nodes that could not be reached from any seed retain label `-1`. If
-            `return_dict=` is `False` (default): `self` for chaining.
+            If `return_dict=` is `True`: label assignments for every node, sorted by node ID.
+            Seed nodes keep their given labels; nodes that could not be reached from any seed
+            retain label `-1`. If `return_dict=` is `False` (default): `self` for chaining.
 
         Raises
         ------
@@ -51114,12 +51126,12 @@ class Graph:
 
         ```{python}
         # Scale-free networks often show rich-club phenomenon
-        ba_graph = ec.Graph().add_pa_graph(100, 3)
+        ba_graph = ec.Graph().add_pa_graph(100, 3, seed=7)
         rc = ba_graph.rich_club_coefficient()
 
         # Check if high-degree nodes are more interconnected than expected
         # Filter coefficients > 0.5 to see strong rich-club effect
-        {k: phi for k, phi in rc.items() if phi > 0.5}
+        {k: phi for k, phi in sorted(rc.items()) if phi > 0.5}
         ```
 
         The raw values climb toward `1` at the top of the degree range partly because so few
@@ -70732,9 +70744,9 @@ class Graph:
         Returns
         -------
         dict[tuple[int, int], int]
-            Dictionary mapping `(source_id, target_id)` to edge count. Only includes pairs with
-            count `>= 2`; an empty dictionary means the graph has no multiple edges. The order
-            of entries is not meaningful.
+            Dictionary mapping `(source_id, target_id)` to edge count, sorted by pair. Only
+            includes pairs with count `>= 2`; an empty dictionary means the graph has no multiple
+            edges.
 
         Technical Notes
         ---------------
@@ -70923,9 +70935,8 @@ class Graph:
         Returns
         -------
         dict[int, int]
-            Dictionary mapping node IDs to self-loop counts. Only includes nodes with count
-            `>= 1`, so an empty dictionary means the graph has no self-loops. The order of
-            entries is not meaningful.
+            Dictionary mapping node IDs to self-loop counts, sorted by node ID. Only includes
+            nodes with count `>= 1`, so an empty dictionary means the graph has no self-loops.
 
         Technical Notes
         ---------------

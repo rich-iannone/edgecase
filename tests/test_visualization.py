@@ -13,6 +13,11 @@ def _abc_path():
     return ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
 
 
+def _drawing(player) -> str:
+    """A step player's HTML without its per-call widget ID, so two calls can be compared."""
+    return re.sub(r"\b(?:stv|tv|tc)\d+", "uid", player._repr_html_())
+
+
 class TestColorizeNodeAttrs:
     def test_alpha_appends_channel(self):
         """Regression: alpha= was accepted but ignored."""
@@ -116,6 +121,25 @@ class TestPlay:
         for label in "ABCD":
             assert f'"{label}"' in html
 
+    @pytest.mark.parametrize("layout", ["force", "random"])
+    def test_seed_makes_stable_layout_reproducible(self, layout):
+        """Regression: play() had no seed=, so its stable layouts changed on every call."""
+        g = ec.Graph().add_nodes(list("ABCDE")).add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        one = _drawing(g.play(layout=layout, layout_mode="stable", seed=7))
+        assert one == _drawing(g.play(layout=layout, layout_mode="stable", seed=7))
+        assert one != _drawing(g.play(layout=layout, layout_mode="stable", seed=8))
+        # Filtered replays take the seed too
+        sub = g.steps.filter(kind="add")
+        assert _drawing(sub.play(layout_mode="stable", seed=7)) == _drawing(
+            sub.play(layout_mode="stable", seed=7)
+        )
+
+    def test_progressive_layout_reproducible_without_seed(self):
+        g = ec.Graph().add_nodes(list("ABCDE")).add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        assert _drawing(g.play()) == _drawing(g.play())
+        assert _drawing(g.play(seed=7)) == _drawing(g.play(seed=7))
+        assert _drawing(g.play(seed=7)) != _drawing(g.play(seed=8))
+
 
 class TestPlotVis:
     def _edges(self, html: str) -> list[dict]:
@@ -160,6 +184,23 @@ class TestPlotTraversal:
         steps = json.loads(re.search(r"var STEPS=(\[.*?\]);", html, re.S).group(1))
         a, b, c, d = (str(g.get_id_from_label(x)) for x in "ABCD")
         assert sorted(map(tuple, steps[-1]["tree_edges"])) == sorted([(a, b), (a, d), (b, c)])
+        # Visited nodes are listed in visit order (not set order)
+        assert steps[-1]["visited"] == [str(v) for v in g.bfs(int(a), return_list=True)]
+
+    @pytest.mark.parametrize("layout", ["force", "random"])
+    def test_seed_makes_layout_reproducible(self, layout):
+        """Regression: plot_traversal() had no seed=, so its layout changed on every call."""
+        g = ec.karate_club()
+        one = _drawing(g.plot_traversal(source=1, layout=layout, seed=7))
+        assert one == _drawing(g.plot_traversal(source=1, layout=layout, seed=7))
+        assert one != _drawing(g.plot_traversal(source=1, layout=layout, seed=8))
+
+    def test_recorder_seed_makes_layout_reproducible(self):
+        g = ec.karate_club()
+        rec = g.record_traversal()
+        rec.select_nodes_by_id([1]).trav_out().trav_out_edge()
+        assert _drawing(rec.plot(seed=7)) == _drawing(rec.plot(seed=7))
+        assert _drawing(rec.plot(seed=7)) != _drawing(rec.plot(seed=8))
 
 
 class TestUnknownStyleOptionsRaise:

@@ -1,7 +1,10 @@
 use crate::algorithms::paths::single_source_dijkstra_distances;
 use crate::graph::Graph;
 use pyo3::prelude::*;
-use std::collections::HashMap;
+use pyo3::types::{IntoPyDict, PyDict};
+
+/// Result fields, in the order they appear in the returned dict.
+type Fields = Vec<(&'static str, f64)>;
 
 /// Compute pairwise shortest path distances between two node sets.
 /// Returns a map from (source, target) to distance for all reachable pairs.
@@ -34,12 +37,13 @@ fn pairwise_distances(
 /// - "separation": network separation (s_AB - (s_AA + s_BB) / 2) from Menche et al.
 #[pyfunction]
 #[pyo3(signature = (graph, set_a, set_b, method="closest"))]
-pub fn network_proximity(
+pub fn network_proximity<'py>(
+    py: Python<'py>,
     graph: &Graph,
     set_a: Vec<u64>,
     set_b: Vec<u64>,
     method: &str,
-) -> PyResult<HashMap<String, f64>> {
+) -> PyResult<Bound<'py, PyDict>> {
     if set_a.is_empty() || set_b.is_empty() {
         return Err(pyo3::exceptions::PyValueError::new_err(
             "Both node sets must be non-empty",
@@ -65,19 +69,22 @@ pub fn network_proximity(
         }
     }
 
-    match method {
-        "closest" => compute_closest(graph, &set_a, &set_b),
-        "shortest" => compute_shortest(graph, &set_a, &set_b),
-        "kernel" => compute_kernel(graph, &set_a, &set_b),
-        "separation" => compute_separation(graph, &set_a, &set_b),
-        _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
-            "Unknown method '{}'; use 'closest', 'shortest', 'kernel', or 'separation'",
-            method
-        ))),
-    }
+    let fields = match method {
+        "closest" => compute_closest(graph, &set_a, &set_b)?,
+        "shortest" => compute_shortest(graph, &set_a, &set_b)?,
+        "kernel" => compute_kernel(graph, &set_a, &set_b)?,
+        "separation" => compute_separation(graph, &set_a, &set_b)?,
+        _ => {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                "Unknown method '{}'; use 'closest', 'shortest', 'kernel', or 'separation'",
+                method
+            )))
+        }
+    };
+    fields.into_py_dict(py)
 }
 
-fn compute_closest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
+fn compute_closest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Fields> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut min_dist = f64::INFINITY;
@@ -95,14 +102,14 @@ fn compute_closest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Hash
         min_dist = f64::INFINITY;
     }
 
-    let mut result = HashMap::new();
-    result.insert("proximity".to_string(), min_dist);
-    result.insert("reachable_pairs".to_string(), reachable as f64);
-    result.insert("total_pairs".to_string(), total as f64);
-    Ok(result)
+    Ok(vec![
+        ("proximity", min_dist),
+        ("reachable_pairs", reachable as f64),
+        ("total_pairs", total as f64),
+    ])
 }
 
-fn compute_shortest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
+fn compute_shortest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Fields> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut sum = 0.0;
@@ -120,14 +127,14 @@ fn compute_shortest(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Has
         f64::INFINITY
     };
 
-    let mut result = HashMap::new();
-    result.insert("proximity".to_string(), avg);
-    result.insert("reachable_pairs".to_string(), reachable as f64);
-    result.insert("total_pairs".to_string(), total as f64);
-    Ok(result)
+    Ok(vec![
+        ("proximity", avg),
+        ("reachable_pairs", reachable as f64),
+        ("total_pairs", total as f64),
+    ])
 }
 
-fn compute_kernel(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashMap<String, f64>> {
+fn compute_kernel(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Fields> {
     let pairs = pairwise_distances(graph, set_a, set_b)?;
 
     let mut sum = 0.0;
@@ -145,11 +152,11 @@ fn compute_kernel(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<HashM
         0.0
     };
 
-    let mut result = HashMap::new();
-    result.insert("proximity".to_string(), avg);
-    result.insert("reachable_pairs".to_string(), reachable as f64);
-    result.insert("total_pairs".to_string(), total as f64);
-    Ok(result)
+    Ok(vec![
+        ("proximity", avg),
+        ("reachable_pairs", reachable as f64),
+        ("total_pairs", total as f64),
+    ])
 }
 
 fn mean_internal_distance(graph: &Graph, nodes: &[u64]) -> PyResult<f64> {
@@ -182,11 +189,7 @@ fn mean_internal_distance(graph: &Graph, nodes: &[u64]) -> PyResult<f64> {
     }
 }
 
-fn compute_separation(
-    graph: &Graph,
-    set_a: &[u64],
-    set_b: &[u64],
-) -> PyResult<HashMap<String, f64>> {
+fn compute_separation(graph: &Graph, set_a: &[u64], set_b: &[u64]) -> PyResult<Fields> {
     // Menche et al. (Science 2015) separation:
     // s_AB = <d_AB> - (<d_AA> + <d_BB>) / 2
     // where <d_XY> is the average shortest path between sets X and Y
@@ -211,10 +214,10 @@ fn compute_separation(
 
     let separation = d_ab - (d_aa + d_bb) / 2.0;
 
-    let mut result = HashMap::new();
-    result.insert("separation".to_string(), separation);
-    result.insert("d_ab".to_string(), d_ab);
-    result.insert("d_aa".to_string(), d_aa);
-    result.insert("d_bb".to_string(), d_bb);
-    Ok(result)
+    Ok(vec![
+        ("separation", separation),
+        ("d_ab", d_ab),
+        ("d_aa", d_aa),
+        ("d_bb", d_bb),
+    ])
 }

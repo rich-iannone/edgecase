@@ -6,7 +6,7 @@ pub use force_directed::{ForceDirectedLayout, LayoutConfig};
 
 use crate::utils::Seed;
 use pyo3::prelude::*;
-use std::collections::HashMap;
+use std::collections::BTreeMap;
 
 /// Compute force-directed layout for a graph (Python interface)
 ///
@@ -18,7 +18,7 @@ use std::collections::HashMap;
 /// * `seed` - Seed for the random starting positions (default: entropy, so runs differ)
 ///
 /// # Returns
-/// Dictionary mapping node indices to (x, y) positions
+/// Dictionary mapping node indices to (x, y) positions, in index order
 #[pyfunction]
 #[pyo3(signature = (node_count, edges, iterations=50, use_barnes_hut=None, seed=None))]
 pub fn force_directed_layout_rust(
@@ -27,7 +27,7 @@ pub fn force_directed_layout_rust(
     iterations: usize,
     use_barnes_hut: Option<bool>,
     seed: Option<Seed>,
-) -> PyResult<HashMap<usize, (f64, f64)>> {
+) -> PyResult<BTreeMap<usize, (f64, f64)>> {
     let seed = seed.map(u64::from);
     let use_bh = use_barnes_hut.unwrap_or(node_count > 100);
 
@@ -44,5 +44,5 @@ pub fn force_directed_layout_rust(
     let layout = ForceDirectedLayout::new(config);
     let positions = layout.compute(node_count, &edges);
 
-    Ok(positions)
+    Ok(positions.into_iter().collect())
 }
