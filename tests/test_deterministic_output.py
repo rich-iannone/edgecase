@@ -49,9 +49,14 @@ for player in [
 
 
 def _run(code: str, hash_seed: str) -> str:
-    env = {**os.environ, "PYTHONHASHSEED": hash_seed}
+    # UTF-8 both ways, since Windows pipes default to a code page that can't encode the HTML
+    env = {**os.environ, "PYTHONHASHSEED": hash_seed, "PYTHONIOENCODING": "utf-8"}
     out = subprocess.run(
-        [sys.executable, "-c", code], capture_output=True, text=True, env=env, check=True
+        [sys.executable, "-c", code],
+        capture_output=True,
+        encoding="utf-8",
+        env=env,
+        check=True,
     )
     return out.stdout
 
