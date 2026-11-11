@@ -166,6 +166,7 @@ class StepList(list):
         speed: float = 1.0,
         layout_mode: str = "progressive",
         output: Optional[str] = None,
+        seed: Optional[int] = None,
     ):
         """Replay this subset of steps as an interactive visualization."""
 
@@ -194,6 +195,7 @@ class StepList(list):
             speed=speed,
             layout_mode=layout_mode,
             output=output,
+            seed=seed,
         )
 
     def __getitem__(self, key):
