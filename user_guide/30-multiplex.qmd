@@ -191,7 +191,7 @@ n_layers = len(ties)
         ties=pl.col("len").sum(),
         participation=n_layers / (n_layers - 1) * (1 - (pl.col("share") ** 2).sum()),
     )
-    .sort("participation", descending=True)
+    .sort("participation", "node", descending=[True, False])
 )
 ```
 

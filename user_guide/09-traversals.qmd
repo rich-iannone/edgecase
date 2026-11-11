@@ -376,7 +376,7 @@ file.
 runs a breadth-first search from it, and lights up the nodes in the order they are reached:
 
 ```{python}
-courses.clear_selection().plot_traversal(source="Calculus I", algorithm="BFS")
+courses.clear_selection().plot_traversal(source="Calculus I", algorithm="BFS", seed=1)
 ```
 
 To animate another search, pass its visit order as `visit_order=`, and optionally its tree edges as
@@ -404,7 +404,7 @@ operation's name and the IDs selected after it. The three steps out of Programmi
 Structures, then Algorithms and Machine Learning, and finally the Capstone:
 
 ```{python}
-recorder.plot(node_size=12)
+recorder.plot(node_size=12, seed=1)
 ```
 
 The graph's [step log](step-log.qmd) offers a broader record of the same kind, covering every
