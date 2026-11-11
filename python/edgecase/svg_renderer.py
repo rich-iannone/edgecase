@@ -765,6 +765,16 @@ def _compute_edge_fans(
 # ---------------------------------------------------------------------------
 
 
+def _svg_edge_hit_area(geometry: str, width: float, edge_id: str, attrs_json: str) -> str:
+    """An invisible, wider copy of an edge's stroke, which takes the hover for its tooltip, since
+    the edge itself can be thinner than a pixel. `geometry` is the element's tag and shape, e.g.,
+    `'path d="M 0 0 L 9 9"'`."""
+    return (
+        f'<{geometry} fill="none" stroke="transparent" stroke-width="{max(8.0, width + 4):.1f}" '
+        f"pointer-events=\"stroke\" data-edge=\"{edge_id}\" data-attrs='{attrs_json}'/>"
+    )
+
+
 def _svg_edge_straight(
     x1: float,
     y1: float,
@@ -819,7 +829,7 @@ def _svg_edge_straight(
             f'<g opacity="{opacity}">'
             f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
             f'stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
             f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
             f'fill="{color}"/>'
             f"</g>"
@@ -828,8 +838,16 @@ def _svg_edge_straight(
         parts.append(
             f'<line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex_line:.1f}" y2="{ey_line:.1f}" '
             f'stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
         )
+    parts.append(
+        _svg_edge_hit_area(
+            f'line x1="{sx:.1f}" y1="{sy:.1f}" x2="{ex:.1f}" y2="{ey:.1f}"',
+            width,
+            edge_id,
+            attrs_json,
+        )
+    )
 
     return "\n".join(parts)
 
@@ -851,6 +869,7 @@ def _svg_edge_routed(
         return ""
 
     parts = []
+    hit_area = _svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json)
     arrow_scale = max(width / 1.2, 0.6)
     head_len = 8.0 * arrow_scale
     head_wid = 5.0 * arrow_scale
@@ -878,8 +897,7 @@ def _svg_edge_routed(
             parts.append(
                 f'<g opacity="{opacity}">'
                 f'<path d="{path_d}" fill="none" stroke="{color}" '
-                f'stroke-width="{width}" stroke-linecap="round" '
-                f"data-edge=\"{edge_id}\" data-attrs='{attrs_json}'/>"
+                f'stroke-width="{width}" stroke-linecap="round"/>'
                 f'<polygon points="{ex:.1f},{ey:.1f} {p1x:.1f},{p1y:.1f} {p2x:.1f},{p2y:.1f}" '
                 f'fill="{color}"/>'
                 f"</g>"
@@ -888,14 +906,15 @@ def _svg_edge_routed(
             parts.append(
                 f'<path d="{path_d}" fill="none" stroke="{color}" '
                 f'stroke-width="{width}" stroke-opacity="{opacity}" '
-                f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+                f'stroke-linecap="round"/>'
             )
     else:
         parts.append(
             f'<path d="{path_d}" fill="none" stroke="{color}" '
             f'stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
         )
+    parts.append(hit_area)
 
     return "\n".join(parts)
 
@@ -980,15 +999,23 @@ def _svg_edge_curved(
             f'<g opacity="{opacity}">'
             f'<path id="{path_id}" d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
             f"{arrow_svg}</g>"
         )
     else:
         parts.append(
             f'<path id="{path_id}" d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
         )
+    parts.append(
+        _svg_edge_hit_area(
+            f'path d="M {sx:.1f} {sy:.1f} Q {mx:.1f} {my:.1f} {ex:.1f} {ey:.1f}"',
+            width,
+            edge_id,
+            attrs_json,
+        )
+    )
 
     return "\n".join(parts)
 
@@ -1061,15 +1088,16 @@ def _svg_edge_loop(
             f'<g opacity="{opacity}">'
             f'<path id="{path_id}" d="{path_d}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
             f"{arrow_svg}</g>"
         )
     else:
         parts.append(
             f'<path id="{path_id}" d="{path_d}" '
             f'fill="none" stroke="{color}" stroke-width="{width}" stroke-opacity="{opacity}" '
-            f'stroke-linecap="round" data-edge="{edge_id}" data-attrs=\'{attrs_json}\'/>'
+            f'stroke-linecap="round"/>'
         )
+    parts.append(_svg_edge_hit_area(f'path d="{path_d}"', width, edge_id, attrs_json))
     return "\n".join(parts)
 
 
@@ -1197,6 +1225,61 @@ def _plot_node_values(graph, node_ids, node_data, key, param):
     )
 
 
+def _round_sig(v: float, digits: int = 4) -> float:
+    """`v` to `digits` significant digits, but keeping all of its whole-number digits."""
+    if v == 0 or not math.isfinite(v):
+        return v
+    return round(v, max(0, digits - 1 - math.floor(math.log10(abs(v)))))
+
+
+def _is_num_vector(v) -> bool:
+    return (
+        isinstance(v, (list, tuple))
+        and len(v) > 0
+        and all(isinstance(c, (int, float)) and not isinstance(c, bool) for c in v)
+    )
+
+
+def _tooltip_rows(rows: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    """Round the floats in the nodes' (or edges') tooltip values, which can run to 16 digits.
+
+    A single number keeps 4 significant digits. The numbers in a vector (e.g., a stored `pos`) are
+    rounded to the same decimal place in every row: a hundredth of the typical spacing of that
+    many points spread over the vectors' range. Significant digits would instead show a
+    coordinate that is nearly 0 as noise like 1.3e-17.
+    """
+    decimals = {}
+    for key in dict.fromkeys(k for row in rows for k in row):
+        vectors = [row[key] for row in rows if _is_num_vector(row.get(key))]
+        comps = [c for v in vectors for c in v if math.isfinite(c)]
+        if comps:
+            spread = max(comps) - min(comps)
+            decimals[key] = (
+                max(0, math.ceil(math.log10(math.sqrt(len(vectors)) / spread)) + 2)
+                if spread > 0
+                else 2
+            )
+
+    def tidy(key, v):
+        if isinstance(v, float):
+            return _round_sig(v)
+        if key in decimals and _is_num_vector(v):
+            return [round(c, decimals[key]) for c in v]
+        return v
+
+    return [{k: tidy(k, v) for k, v in row.items()} for row in rows]
+
+
+def _attrs_json(attrs: Dict[str, Any]) -> str:
+    """`attrs` as JSON for a `data-attrs='...'` attribute."""
+    return (
+        json.dumps(attrs, default=str)
+        .replace("&", "&amp;")
+        .replace("'", "&#39;")
+        .replace("<", "&lt;")
+    )
+
+
 def render_plot(
     graph,
     layout: str = "force",
@@ -1274,6 +1357,24 @@ def render_plot(
     is_directed = graph.is_directed()
     edges: List[Tuple[str, str]] = []
     edge_attrs_list: List[Dict] = []
+    # The start of each edge's tooltip: its ID, ends (named as their labels are drawn, and in the
+    # order stored) and weight. Its attributes follow
+    edge_tip_heads: List[Dict] = []
+    arrow = "→" if is_directed else "—"
+
+    def drawn_name(nid):
+        value = label_values[str(nid)]
+        return str(nid) if value is None else str(value)
+
+    def tip_head(src, tgt, e_obj=None):
+        if e_obj is not None:
+            src, tgt = e_obj.source, e_obj.target
+        head = {"id": e_obj.id} if e_obj is not None else {}
+        head["edge"] = f"{drawn_name(src)} {arrow} {drawn_name(tgt)}"
+        if e_obj is not None and e_obj.weight is not None:
+            head["weight"] = e_obj.weight
+        return head
+
     seen_pairs: set = set()
     for nid in node_ids:
         try:
@@ -1294,6 +1395,7 @@ def render_plot(
                 if not eids:
                     edges.append((str(nid), str(nb)))
                     edge_attrs_list.append({})
+                    edge_tip_heads.append(tip_head(nid, nb))
                 else:
                     for eid in eids:
                         edges.append((str(nid), str(nb)))
@@ -1302,8 +1404,10 @@ def render_plot(
                             edge_attrs_list.append(
                                 dict(e_obj.attributes) if e_obj and e_obj.attributes else {}
                             )
+                            edge_tip_heads.append(tip_head(nid, nb, e_obj))
                         except Exception:
                             edge_attrs_list.append({})
+                            edge_tip_heads.append(tip_head(nid, nb))
 
     # Convert node_ids to strings for consistency
     str_ids = [str(nid) for nid in node_ids]
@@ -1431,6 +1535,10 @@ def render_plot(
     # Compute fan-out bows for parallel / reciprocal edges
     edge_bows, edge_loop_sizes = _compute_edge_fans(edges)
 
+    edge_tips = _tooltip_rows(
+        [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
+    )
+
     # Edges first (painter's algorithm)
     for i, (src, tgt) in enumerate(edges):
         if src not in positions or tgt not in positions:
@@ -1456,13 +1564,7 @@ def render_plot(
         ):
             e_color = color_map.get(src, th.edge_color)
 
-        e_attrs = edge_attrs_list[i] if i < len(edge_attrs_list) else {}
-        attrs_j = (
-            json.dumps(e_attrs, default=str)
-            .replace("&", "&amp;")
-            .replace("'", "&#39;")
-            .replace("<", "&lt;")
-        )
+        attrs_j = _attrs_json(edge_tips[i])
         eid = f"{src}-{tgt}-{i}"
 
         bow = edge_bows[i]
@@ -1625,6 +1727,17 @@ def render_plot(
                     f'pointer-events="none">{html_mod.escape(str(label_val))}</text>'
                 )
 
+    # Node tooltips: the ID and the label as well, when it differs from the ID, since either may
+    # be drawn under the node, then the node's attributes
+    node_tips = []
+    for raw_nid, nid in zip(node_ids, str_ids):
+        tip = {"id": nid}
+        n_label = graph.get_label_from_id(raw_nid)
+        if n_label is not None and str(n_label) != nid:
+            tip["label"] = n_label
+        node_tips.append({**tip, **node_data.get(raw_nid, {})})
+    node_tips = dict(zip(str_ids, _tooltip_rows(node_tips)))
+
     # Nodes on top
     for nid in str_ids:
         if nid not in positions:
@@ -1632,22 +1745,7 @@ def render_plot(
         x, y = positions[nid]
         r = radii.get(nid, node_size)
         fill = color_map.get(nid, DEFAULT_NODE_COLOR)
-
-        raw_nid = int(nid) if nid.isdigit() else nid
-        n_attrs = node_data.get(raw_nid, {})
-        # The label as well, when it differs from the ID, since either may be drawn under the node
-        tip = {"id": nid}
-        n_label = graph.get_label_from_id(raw_nid)
-        if n_label is not None and str(n_label) != nid:
-            tip["label"] = n_label
-        attrs_j = (
-            json.dumps({**tip, **n_attrs}, default=str)
-            .replace("&", "&amp;")
-            .replace("'", "&#39;")
-            .replace("<", "&lt;")
-        )
-
-        svg_parts.append(_svg_node(x, y, r, fill, nid, attrs_j))
+        svg_parts.append(_svg_node(x, y, r, fill, nid, _attrs_json(node_tips[nid])))
 
     # Labels
     if show_labels:
@@ -1700,14 +1798,23 @@ def _generate_html_wrapper(
   display:none;position:absolute;padding:6px 10px;border-radius:6px;
   font-family:{FONT_FAMILY};font-size:12px;pointer-events:none;
   background:{theme.tooltip_bg};color:{theme.tooltip_fg};
-  box-shadow:0 2px 8px rgba(0,0,0,0.18);max-width:260px;z-index:999;
-  line-height:1.4;
+  box-shadow:0 2px 8px rgba(0,0,0,0.18);max-width:min(260px,100%);box-sizing:border-box;
+  z-index:999;line-height:1.4;overflow-wrap:anywhere;
 "></div>
 <script>
 (function(){{
   var tip=document.currentScript.parentElement.querySelector('#{tip_id}');
   var svg=document.currentScript.parentElement.querySelector('svg');
   if(!svg||!tip) return;
+  // Next to the pointer but inside the plot (flipped to the pointer's left near the right edge),
+  // since anything past its edges is clipped, and scrolls, in a notebook or Quarto cell
+  function place(ev){{
+    var r=svg.getBoundingClientRect();
+    var x=ev.clientX-r.left+12,y=ev.clientY-r.top-10;
+    if(x+tip.offsetWidth>r.width) x=ev.clientX-r.left-12-tip.offsetWidth;
+    tip.style.left=Math.max(0,Math.min(x,r.width-tip.offsetWidth))+'px';
+    tip.style.top=Math.max(0,Math.min(y,r.height-tip.offsetHeight))+'px';
+  }}
   function show(el,ev){{
     var raw=el.getAttribute('data-attrs');
     if(!raw) return;
@@ -1715,23 +1822,19 @@ def _generate_html_wrapper(
     var h='';
     for(var k in d){{
       var v=d[k];
-      if(typeof v==='number'&&!Number.isInteger(v)) v=v.toFixed(4);
+      if(Array.isArray(v)) v=v.join(', ');
       h+='<div><b>'+k+'</b>: '+v+'</div>';
     }}
     if(!h) return;
     tip.innerHTML=h;tip.style.display='block';
-    var r=svg.getBoundingClientRect();
-    tip.style.left=(ev.clientX-r.left+12)+'px';
-    tip.style.top=(ev.clientY-r.top-10)+'px';
+    place(ev);
   }}
   svg.addEventListener('mouseover',function(ev){{
     var t=ev.target;
     if(t.hasAttribute('data-node')||t.hasAttribute('data-edge')) show(t,ev);
   }});
   svg.addEventListener('mousemove',function(ev){{
-    var r=svg.getBoundingClientRect();
-    tip.style.left=(ev.clientX-r.left+12)+'px';
-    tip.style.top=(ev.clientY-r.top-10)+'px';
+    if(tip.style.display==='block') place(ev);
   }});
   svg.addEventListener('mouseout',function(ev){{
     var t=ev.target;
@@ -2293,6 +2396,15 @@ def render_traversal(
     return result
 
 
+def _panel_style(th: Theme, is_dark: bool) -> str:
+    """CSS for a player's outer box: a card in the theme's colors, like `render_steps()`'s."""
+    border = "#30363d" if is_dark else "#d0d7de"
+    return (
+        f"background:{th.bg};color:{th.label_color};color-scheme:{'dark' if is_dark else 'light'};"
+        f"border:1px solid {border};border-radius:8px;overflow:hidden"
+    )
+
+
 def _generate_traversal_html_wrapper(
     svg_str: str,
     th: Theme,
@@ -2346,10 +2458,14 @@ def _generate_traversal_html_wrapper(
     btn_fg = "#e5e7eb" if is_dark else "#374151"
     ctrl_accent = accent
 
-    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto">
+    # The controls sit on the theme's background, not the page's, which can be dark under a light
+    # theme (or vice versa) and leave the text unreadable. `color-scheme` does the same for the
+    # browser-drawn parts (the slider's track and the speed menu)
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY};
+  {_panel_style(th, is_dark)}">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
-<div style="display:flex;align-items:center;gap:8px;padding:8px 4px;
+<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
   font-family:{FONT_FAMILY};font-size:13px;color:{th.label_color};">
   <button id="{uid}-play" title="Play / Pause" style="
     width:32px;height:32px;border:none;border-radius:6px;cursor:pointer;
@@ -2369,7 +2485,7 @@ def _generate_traversal_html_wrapper(
     <option value="100">Very fast</option>
   </select>
 </div>
-<div style="font-size:11px;color:{th.label_color};opacity:0.5;padding:0 4px 4px;">
+<div style="font-size:11px;color:{th.label_color};opacity:0.7;padding:0 10px 8px;">
   {algo_label}
 </div>
 <script>
@@ -3304,13 +3420,15 @@ def _generate_chain_html_wrapper(
         )
     pills_html = "\n".join(pill_items)
 
-    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY}">
+    # On the theme's background, as in `_generate_traversal_html_wrapper()`
+    return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY};
+  {_panel_style(th, is_dark)}">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
-<div style="display:flex;gap:6px;padding:6px 4px;flex-wrap:wrap;align-items:center">
+<div style="display:flex;gap:6px;padding:8px 10px 2px;flex-wrap:wrap;align-items:center">
 {pills_html}
 </div>
-<div style="display:flex;align-items:center;gap:8px;padding:8px 4px;font-size:13px;color:{th.label_color}">
+<div style="display:flex;align-items:center;gap:8px;padding:8px 10px;font-size:13px;color:{th.label_color}">
   <button id="{uid}-play" title="Play / Pause" style="
     width:32px;height:32px;border:none;border-radius:6px;cursor:pointer;
     background:{btn_bg};color:{btn_fg};font-size:14px;
@@ -3329,11 +3447,11 @@ def _generate_chain_html_wrapper(
   </select>
 </div>
 <details style="border-top:1px solid {btn_bg};margin-top:4px">
-  <summary style="padding:8px 4px;font-size:12px;color:{th.label_color};cursor:pointer;
-    opacity:0.6;list-style:none;user-select:none">
+  <summary style="padding:8px 10px;font-size:12px;color:{th.label_color};cursor:pointer;
+    opacity:0.75;list-style:none;user-select:none">
     &#9662; Traversal steps ({n_steps} operations)
   </summary>
-  <div id="{uid}-log" style="padding:4px;line-height:1.9">
+  <div id="{uid}-log" style="padding:4px 6px;line-height:1.9">
     {step_log_html}
   </div>
 </details>
@@ -4412,7 +4530,7 @@ def render_steps(
     sl_html = "\n      ".join(sl_items)
     notch_html = "\n      ".join(notch_items)
 
-    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;overflow:hidden;">
+    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};max-width:{width}px;margin:0 auto;overflow:hidden;color-scheme:{'dark' if is_dark else 'light'};">
 <style>
 #{uid} .step-panel {{
   border:1px solid {border};
