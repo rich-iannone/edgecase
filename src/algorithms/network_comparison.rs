@@ -5,6 +5,7 @@
 //! - `graph_edit_distance`: minimum edit operations to transform one graph into another
 
 use pyo3::prelude::*;
+use pyo3::types::{IntoPyDict, PyDict};
 use rustc_hash::FxHashSet;
 
 use crate::graph::Graph;
@@ -40,11 +41,11 @@ fn collect_node_labels(graph: &Graph) -> PyResult<FxHashSet<String>> {
 /// Compute edge overlap (Jaccard similarity) between two graphs.
 ///
 /// Returns a dict with keys: `jaccard` (|intersection|/|union|),
-/// `overlap` (|intersection|), `union_size`, `g1_only`, `g2_only`.
+/// `overlap` (|intersection|), `union_size`, `g1_only`, `g2_only`, in that order.
 /// Edges are compared by node labels.
 #[pyfunction]
 #[pyo3(signature = (g1, g2))]
-pub fn edge_overlap(g1: &Graph, g2: &Graph) -> PyResult<std::collections::HashMap<String, f64>> {
+pub fn edge_overlap<'py>(py: Python<'py>, g1: &Graph, g2: &Graph) -> PyResult<Bound<'py, PyDict>> {
     let edges1 = collect_label_edges(g1)?;
     let edges2 = collect_label_edges(g2)?;
 
@@ -59,37 +60,36 @@ pub fn edge_overlap(g1: &Graph, g2: &Graph) -> PyResult<std::collections::HashMa
         intersection_size as f64 / union_size as f64
     };
 
-    let mut result = std::collections::HashMap::new();
-    result.insert("jaccard".to_string(), jaccard);
-    result.insert("overlap".to_string(), intersection_size as f64);
-    result.insert("union_size".to_string(), union_size as f64);
-    result.insert("g1_only".to_string(), g1_only as f64);
-    result.insert("g2_only".to_string(), g2_only as f64);
-
-    Ok(result)
+    [
+        ("jaccard", jaccard),
+        ("overlap", intersection_size as f64),
+        ("union_size", union_size as f64),
+        ("g1_only", g1_only as f64),
+        ("g2_only", g2_only as f64),
+    ]
+    .into_py_dict(py)
 }
 
 /// Find edges present in one graph but not the other.
 ///
 /// Returns a dict with `added` (in g2 only) and `removed` (in g1 only),
-/// each a list of `(source_label, target_label)` tuples.
+/// each a sorted list of `(source_label, target_label)` tuples.
 #[pyfunction]
 #[pyo3(signature = (g1, g2))]
-pub fn differential_edges(
+pub fn differential_edges<'py>(
+    py: Python<'py>,
     g1: &Graph,
     g2: &Graph,
-) -> PyResult<std::collections::HashMap<String, Vec<(String, String)>>> {
+) -> PyResult<Bound<'py, PyDict>> {
     let edges1 = collect_label_edges(g1)?;
     let edges2 = collect_label_edges(g2)?;
 
-    let removed: Vec<(String, String)> = edges1.difference(&edges2).cloned().collect();
-    let added: Vec<(String, String)> = edges2.difference(&edges1).cloned().collect();
+    let mut removed: Vec<(String, String)> = edges1.difference(&edges2).cloned().collect();
+    let mut added: Vec<(String, String)> = edges2.difference(&edges1).cloned().collect();
+    removed.sort_unstable();
+    added.sort_unstable();
 
-    let mut result = std::collections::HashMap::new();
-    result.insert("added".to_string(), added);
-    result.insert("removed".to_string(), removed);
-
-    Ok(result)
+    [("added", added), ("removed", removed)].into_py_dict(py)
 }
 
 /// Approximate graph edit distance between two graphs.
@@ -99,15 +99,16 @@ pub fn differential_edges(
 /// Uses label-based matching (exact label match = same node).
 ///
 /// Returns a dict with `distance`, `node_insertions`, `node_deletions`,
-/// `edge_insertions`, `edge_deletions`.
+/// `edge_insertions`, `edge_deletions`, in that order.
 #[pyfunction]
 #[pyo3(signature = (g1, g2, node_cost=1.0, edge_cost=1.0))]
-pub fn graph_edit_distance(
+pub fn graph_edit_distance<'py>(
+    py: Python<'py>,
     g1: &Graph,
     g2: &Graph,
     node_cost: f64,
     edge_cost: f64,
-) -> PyResult<std::collections::HashMap<String, f64>> {
+) -> PyResult<Bound<'py, PyDict>> {
     let nodes1 = collect_node_labels(g1)?;
     let nodes2 = collect_node_labels(g2)?;
     let edges1 = collect_label_edges(g1)?;
@@ -121,12 +122,12 @@ pub fn graph_edit_distance(
     let distance =
         (node_ins + node_del) as f64 * node_cost + (edge_ins + edge_del) as f64 * edge_cost;
 
-    let mut result = std::collections::HashMap::new();
-    result.insert("distance".to_string(), distance);
-    result.insert("node_insertions".to_string(), node_ins as f64);
-    result.insert("node_deletions".to_string(), node_del as f64);
-    result.insert("edge_insertions".to_string(), edge_ins as f64);
-    result.insert("edge_deletions".to_string(), edge_del as f64);
-
-    Ok(result)
+    [
+        ("distance", distance),
+        ("node_insertions", node_ins as f64),
+        ("node_deletions", node_del as f64),
+        ("edge_insertions", edge_ins as f64),
+        ("edge_deletions", edge_del as f64),
+    ]
+    .into_py_dict(py)
 }
