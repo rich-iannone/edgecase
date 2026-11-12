@@ -4585,6 +4585,18 @@ def render_steps(
   max-width:100%;
   box-sizing:border-box;
 }}
+#{uid} .step-code-panel pre code {{
+  color:inherit;
+  background:none;
+  padding:0;
+  font-size:inherit;
+}}
+#{uid} .step-modal-body pre {{
+  color:inherit;
+  background:none;
+  border:none;
+  padding:0;
+}}
 #{uid} .code-expand {{
   display:none;
   position:absolute;
