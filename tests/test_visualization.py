@@ -171,6 +171,14 @@ class TestPlay:
         buttons = dict(re.findall(r'<button id="\w+-(prev|play|next)"[^>]*>(.*?)</button>', html))
         assert len(set(buttons.values())) == 3
 
+    def test_code_keeps_the_theme_colors(self):
+        """Regression: on a dark docs page, the page's `pre code` color reached the code shown
+        for each step, so its unhighlighted parts were light gray on the light theme's panel."""
+        html = _abc_path().play()._repr_html_()
+        for selector in [".step-code-panel pre code", ".step-modal-body pre"]:
+            rule = re.search(rf"#\w+ {re.escape(selector)} \{{([^}}]*)\}}", html).group(1)
+            assert "color:inherit;" in rule and "background:none;" in rule
+
     def test_invalid_speed_raises(self):
         with pytest.raises(ValueError, match="speed must be a positive number"):
             _abc_path().play(speed=0)
