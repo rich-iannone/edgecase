@@ -6,6 +6,7 @@ from edgecase.nx_backend.algorithms import (
     community,
     components,
     core,
+    distance_measures,
     shortest_paths,
     traversal,
 )
