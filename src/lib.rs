@@ -594,6 +594,16 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::paths::k_shortest_paths, m)?)?;
     m.add_class::<algorithms::path_search::PathAdjacency>()?;
     m.add_class::<algorithms::path_search::GoldbergRadzik>()?;
+    m.add_class::<algorithms::nx_cliques::CliqueSearch>()?;
+    m.add_class::<algorithms::nx_cliques::AllCliques>()?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_cliques::nx_max_weight_clique,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_cliques::nx_pyset_model_check,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_structure::nx_biconnected_dfs,
         m
