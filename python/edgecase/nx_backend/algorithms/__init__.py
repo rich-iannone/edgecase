@@ -1,6 +1,7 @@
 """NetworkX functions implemented with edgecase (importing a module registers them)."""
 
 from edgecase.nx_backend.algorithms import (
+    bellman_ford,
     centrality,
     centrality_extra,
     cluster,

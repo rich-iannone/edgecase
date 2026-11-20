@@ -446,9 +446,14 @@ def bidirectional_dijkstra(G, source, target, weight="weight"):
 def _can_run_generic(G, source=None, target=None, weight=None, method="dijkstra"):
     if callable(weight):
         return "a callable weight is not supported; give an edge attribute name"
-    if weight is not None and method == "bellman-ford":
-        return "Bellman-Ford is not implemented by edgecase"
     return True
+
+
+def _bf():
+    """The Bellman-Ford module (imported late: it builds on this one)."""
+    from edgecase.nx_backend.algorithms import bellman_ford
+
+    return bellman_ford
 
 
 def _check_method(method, weight):
@@ -464,20 +469,31 @@ def shortest_path(G, source=None, target=None, weight=None, method="dijkstra"):
         if target is None:
             if method == "unweighted":
                 return all_pairs_shortest_path(G)
-            return all_pairs_dijkstra_path(G, weight=weight)
+            if method == "dijkstra":
+                return all_pairs_dijkstra_path(G, weight=weight)
+            return _bf().all_pairs_bellman_ford_path(G, weight=weight)
         # Paths to `target`: search backwards (predecessors) and reverse the paths
         if method == "unweighted":
             t = _require(G, target, f"Source {target} not in G")
             return _bfs_paths(G, t, None, reverse=True)
-        t = _require(G, target, f"Node {target} not found in graph")
-        return _dijkstra_paths(G, [t], None, weight, reverse=True)[1]
+        if method == "dijkstra":
+            t = _require(G, target, f"Node {target} not found in graph")
+            return _dijkstra_paths(G, [t], None, weight, reverse=True)[1]
+        paths = _bf()._reverse_bellman_ford_paths(G, target, weight)
+        for t in paths:
+            paths[t] = list(reversed(paths[t]))
+        return paths
     if target is None:
         if method == "unweighted":
             return single_source_shortest_path(G, source)
-        return single_source_dijkstra_path(G, source, weight=weight)
+        if method == "dijkstra":
+            return single_source_dijkstra_path(G, source, weight=weight)
+        return _bf().single_source_bellman_ford_path(G, source, weight=weight)
     if method == "unweighted":
         return bidirectional_shortest_path(G, source, target)
-    return bidirectional_dijkstra(G, source, target, weight)[1]
+    if method == "dijkstra":
+        return bidirectional_dijkstra(G, source, target, weight)[1]
+    return _bf().bellman_ford_path(G, source, target, weight)
 
 
 @networkx_algorithm(can_run=_can_run_generic, should_run=_unless_all_pairs)
@@ -487,20 +503,28 @@ def shortest_path_length(G, source=None, target=None, weight=None, method="dijks
         if target is None:
             if method == "unweighted":
                 return all_pairs_shortest_path_length(G)
-            return all_pairs_dijkstra_path_length(G, weight=weight)
+            if method == "dijkstra":
+                return all_pairs_dijkstra_path_length(G, weight=weight)
+            return _bf().all_pairs_bellman_ford_path_length(G, weight=weight)
         # Lengths to `target`: search backwards (predecessors)
         if method == "unweighted":
             t = _require(G, target, f"Source {target} is not in G")
             return _bfs_lengths(G, t, None, reverse=True)
-        t = _require(G, target, f"Node {target} not found in graph")
-        return _dijkstra_lengths(G, [t], None, weight, reverse=True)
+        if method == "dijkstra":
+            t = _require(G, target, f"Node {target} not found in graph")
+            return _dijkstra_lengths(G, [t], None, weight, reverse=True)
+        return _bf()._reverse_bellman_ford_lengths(G, target, weight)
     if target is None:
         if method == "unweighted":
             return single_source_shortest_path_length(G, source)
-        return single_source_dijkstra_path_length(G, source, weight=weight)
+        if method == "dijkstra":
+            return single_source_dijkstra_path_length(G, source, weight=weight)
+        return _bf().single_source_bellman_ford_path_length(G, source, weight=weight)
     if method == "unweighted":
         return len(bidirectional_shortest_path(G, source, target)) - 1
-    return dijkstra_path_length(G, source, target, weight)
+    if method == "dijkstra":
+        return dijkstra_path_length(G, source, target, weight)
+    return _bf().bellman_ford_path_length(G, source, target, weight)
 
 
 @networkx_algorithm(linear_time=True)
@@ -515,7 +539,7 @@ _ALL_PAIRS_METHODS = ["floyd-warshall", "floyd-warshall-numpy"]
 def _can_run_average(G, weight=None, method=None):
     if callable(weight):
         return "a callable weight is not supported; give an edge attribute name"
-    if method in ("bellman-ford", *_ALL_PAIRS_METHODS):
+    if method in _ALL_PAIRS_METHODS:
         return f"method {method!r} is not implemented by edgecase"
     return True
 
@@ -538,6 +562,10 @@ def average_shortest_path_length(G, weight=None, method=None):
         raise nx.NetworkXError("Graph is not connected.")
     if method == "unweighted":
         total = _adjacency(G).distance_sum(False)
-    else:
+    elif method == "dijkstra":
         total = _adjacency(G, weight).distance_sum(True)
+    else:
+        # (Python's own sum over the distance dicts, in NetworkX's order)
+        path_length = _bf().single_source_bellman_ford_path_length
+        total = sum(d for u in G.nodes for d in path_length(G, u, weight=weight).values())
     return total / (n * (n - 1))

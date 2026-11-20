@@ -367,3 +367,130 @@ def test_path_adjacency_from_an_edgecase_graph():
     assert levels == [0, 1, 2]
     _, unweighted = PathAdjacency.from_graph(rust_graph, weighted=False)[0].arcs()[1:]
     assert unweighted == [1.0] * 5
+
+
+def negative_weight_graph(cls, seed, cycle=False, n=14):
+    """A graph with negative weights: on a DAG's edges (no negative cycle) unless `cycle`."""
+    rng = random.Random(seed)
+    G = cls()
+    nodes = list(range(n))
+    rng.shuffle(nodes)
+    G.add_nodes_from(nodes)
+    edges = [(u, v) for u in range(n) for v in range(n) if u != v and rng.random() < 0.25]
+    if cls().is_multigraph():
+        edges += rng.sample(edges, len(edges) // 4)
+    rng.shuffle(edges)
+    for u, v in edges:
+        negative = G.is_directed() and u < v and rng.random() < 0.3
+        G.add_edge(u, v, weight=rng.choice([-2, -1]) if negative else rng.choice([0, 1, 2, 3]))
+        G.add_edge(u, v, cost=rng.random() * (-1 if negative else 1))
+    if cycle:
+        G.add_edge(n - 1, 0, weight=-50, cost=-50.0)
+    return G
+
+
+@pytest.mark.parametrize("cls", GRAPH_CLASSES)
+@pytest.mark.parametrize("seed", range(3))
+@pytest.mark.parametrize("weight", ["weight", "cost", None])
+def test_bellman_ford_family(cls, seed, weight):
+    G = negative_weight_graph(cls, seed)
+    nodes = list(G)
+    for source in nodes[:4]:
+        for heuristic in [False, True]:
+            assert_same(
+                nx.bellman_ford_predecessor_and_distance,
+                G,
+                source,
+                weight=weight,
+                heuristic=heuristic,
+            )
+        assert_same(nx.single_source_bellman_ford, G, source, weight=weight)
+        assert_same(nx.single_source_bellman_ford_path_length, G, source, weight=weight)
+        assert_same(nx.goldberg_radzik, G, source, weight=weight)
+        for target in nodes[-3:]:
+            assert_same(nx.bellman_ford_path, G, source, target, weight=weight)
+            assert_same(nx.bellman_ford_path_length, G, source, target, weight=weight)
+            assert_same(nx.single_source_bellman_ford, G, source, target, weight=weight)
+            assert_same(nx.all_shortest_paths, G, source, target, weight=weight)
+            for method in ["dijkstra", "bellman-ford"]:
+                assert_same(nx.shortest_path, G, source, target, weight, method)
+                assert_same(nx.shortest_path_length, G, source, target, weight, method)
+                assert_same(nx.all_shortest_paths, G, source, target, weight, method)
+        assert_same(nx.single_source_all_shortest_paths, G, source, weight, "bellman-ford")
+        assert_same(nx.shortest_path, G, source, weight=weight, method="bellman-ford")
+        assert_same(nx.shortest_path, G, target=source, weight=weight, method="bellman-ford")
+        assert_same(nx.shortest_path_length, G, target=source, weight=weight, method="bellman-ford")
+    assert_same(nx.all_pairs_bellman_ford_path_length, G, weight=weight)
+    assert_same(nx.all_pairs_bellman_ford_path, G, weight=weight)
+    assert_same(nx.all_pairs_all_shortest_paths, G, weight=weight, method="bellman-ford")
+    assert_same(nx.johnson, G, weight=weight)
+    for heuristic in [False, True]:
+        assert_same(nx.negative_edge_cycle, G, weight=weight, heuristic=heuristic)
+    assert_same(nx.find_negative_cycle, G, nodes[0], weight=weight)
+
+
+@pytest.mark.parametrize("cls", [nx.DiGraph, nx.MultiDiGraph, nx.Graph])
+@pytest.mark.parametrize("seed", range(3))
+def test_negative_cycles(cls, seed):
+    G = negative_weight_graph(cls, seed, cycle=True)
+    nodes = list(G)
+    for weight in ["weight", "cost"]:
+        for source in nodes[:4]:
+            for heuristic in [False, True]:
+                assert_same(
+                    nx.bellman_ford_predecessor_and_distance,
+                    G,
+                    source,
+                    weight=weight,
+                    heuristic=heuristic,
+                )
+            assert_same(nx.goldberg_radzik, G, source, weight=weight)
+            assert_same(nx.find_negative_cycle, G, source, weight=weight)
+            assert_same(nx.single_source_bellman_ford, G, source, weight=weight)
+        for heuristic in [False, True]:
+            assert_same(nx.negative_edge_cycle, G, weight=weight, heuristic=heuristic)
+        assert_same(nx.johnson, G, weight=weight)
+    G.add_edge(nodes[2], nodes[2], weight=-1)  # (a negative self-loop)
+    assert_same(nx.negative_edge_cycle, G)
+    assert_same(nx.goldberg_radzik, G, nodes[0])
+    assert_same(nx.find_negative_cycle, G, nodes[2])
+
+
+def test_goldberg_radzik_follows_python_set_order():
+    # String nodes: the order of NetworkX's sets of relabeled nodes depends on their hashes
+    G = negative_weight_graph(nx.DiGraph, 5, n=30)
+    G = nx.relabel_nodes(G, {n: f"node {n}" for n in G})
+    for source in list(G)[:5]:
+        assert_same(nx.goldberg_radzik, G, source)
+        assert_same(nx.goldberg_radzik, G, source, weight="cost")
+
+
+def test_bellman_ford_errors():
+    G = nx.DiGraph([(0, 1, {"weight": -1}), (1, 2, {"weight": 2})])
+    G.add_node(3)
+    cases = [
+        (nx.bellman_ford_path, (0, 3)),
+        (nx.bellman_ford_path, (9, 0)),
+        (nx.bellman_ford_path, (9, 9)),
+        (nx.bellman_ford_path_length, (0, 3)),
+        (nx.bellman_ford_path_length, (9, 9)),
+        (nx.bellman_ford_path_length, (9, 0)),
+        (nx.single_source_bellman_ford, (9,)),
+        (nx.single_source_bellman_ford, (0, 3)),
+        (nx.single_source_bellman_ford_path_length, (9,)),
+        (nx.bellman_ford_predecessor_and_distance, (9,)),
+        (nx.goldberg_radzik, (9,)),
+        (nx.find_negative_cycle, (0,)),
+        (nx.find_negative_cycle, (9,)),
+        (nx.all_shortest_paths, (0, 3, "weight", "nope")),
+        (nx.all_shortest_paths, (0, 3, "weight", "bellman-ford")),
+    ]
+    for func, args in cases:
+        nx_result, ec_result = both(func, G, *args)
+        assert ec_result == nx_result, func
+    assert_same(nx.single_source_all_shortest_paths, G, 0, "weight", "nope")
+    assert_same(nx.bellman_ford_predecessor_and_distance, nx.DiGraph([(0, 0)]), 0)
+    assert_same(nx.goldberg_radzik, nx.empty_graph(1), 0)
+    assert_same(nx.johnson, nx.DiGraph())
+    assert_same(nx.negative_edge_cycle, nx.empty_graph(3))
+    assert_same(nx.average_shortest_path_length, nx.cycle_graph(6), "weight", "bellman-ford")
