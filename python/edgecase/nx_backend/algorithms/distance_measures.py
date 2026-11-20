@@ -107,10 +107,10 @@ def _number(value, integral):
     return value
 
 
-def _stats(G, sources, weight, reverse=False):
+def _stats(G, sources, weight, reverse=False, by_arcs=False):
     """`source_stats()` from `sources` (positions); `integral` says if distances are ints."""
-    adj = _adjacency(G, weight)
-    reached, sums, maxima, failed = adj.source_stats(sources, weight is not None, reverse)
+    adj = _adjacency(G, weight, reverse and not by_arcs)
+    reached, sums, maxima, failed = adj.source_stats(sources, weight is not None, reverse, by_arcs)
     return reached, sums, maxima, failed, weight is None or adj.integral
 
 
@@ -450,8 +450,11 @@ def closeness_centrality(G, u=None, distance=None, wf_improved=True, *, sp=None)
             raise nx.NodeNotFound(f"Node {u} not found in graph")
         nodes = [u]
         sources = [position]
-    # A directed graph's closeness counts distances *to* each node
-    reached, sums, _, failed, integral = _stats(G, sources, distance, reverse=directed)
+    # A directed graph's closeness counts distances *to* each node, searching NetworkX's
+    # `G.reverse()` copy (whose predecessors are in arc order, not `G._pred` order)
+    reached, sums, _, failed, integral = _stats(
+        G, sources, distance, reverse=directed, by_arcs=True
+    )
     if failed is not None:
         raise _contradiction()
     len_G = len(G)
@@ -484,11 +487,14 @@ def harmonic_centrality(G, nbunch=None, distance=None, sources=None):
     members = [False] * len(G)
     for u in nbunch:
         members[key_to_id[u] - 1] = True
-    adj = _adjacency(G, distance)
+    # (transposed, a directed graph is searched backwards: NetworkX's reverse view, whose
+    # successors are `G._pred`)
+    reverse = transposed and G.is_directed()
+    adj = _adjacency(G, distance, reverse)
     per_node, touched, _, failed = adj.inverse_distance_sums(
         [key_to_id[v] - 1 for v in sources],
         distance is not None,
-        transposed and G.is_directed(),
+        reverse,
         members,
         transposed,
     )

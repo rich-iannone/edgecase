@@ -16,12 +16,6 @@ from edgecase.nx_backend.interface import backend_interface  # noqa: E402
 GRAPH_CLASSES = [nx.Graph, nx.DiGraph, nx.MultiGraph, nx.MultiDiGraph]
 
 
-def path_cost(G, path, weight):
-    """The length of `path` as NetworkX's Dijkstra measures it."""
-    cost = nx.algorithms.shortest_paths.weighted._weight_function(G, weight)
-    return sum(cost(u, v, G[u][v]) for u, v in zip(path, path[1:]))
-
-
 @pytest.fixture(autouse=True)
 def no_conversion_cache():
     cache = nx.config.cache_converted_graphs
@@ -112,24 +106,37 @@ def test_unweighted(G):
 
 @pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
 def test_unweighted_towards_a_target(G):
+    # (a directed graph's predecessors follow the recorded `G._pred` order)
     for node in list(G)[:5]:
-        if not G.is_directed():
-            # A directed graph's predecessors are ordered differently (see the module)
-            assert_same(nx.single_target_shortest_path, G, node, cutoff=2)
-            assert_same(nx.shortest_path, G, target=node)
-            for source in list(G)[-4:]:
-                assert_same(nx.bidirectional_shortest_path, G, source, node)
-            assert_same(nx.single_target_shortest_path_length, G, node)
-            assert_same(nx.shortest_path_length, G, target=node)
-        else:
-            # The same lengths, in another order
-            for func in [nx.single_target_shortest_path_length, nx.shortest_path_length]:
-                expected, actual = (
-                    both(func, G, node)
-                    if func is not nx.shortest_path_length
-                    else both(func, G, target=node)
-                )
-                assert actual == expected
+        assert_same(nx.single_target_shortest_path, G, node, cutoff=2)
+        assert_same(nx.shortest_path, G, target=node)
+        for source in list(G)[-4:]:
+            assert_same(nx.bidirectional_shortest_path, G, source, node)
+        assert_same(nx.single_target_shortest_path_length, G, node)
+        assert_same(nx.shortest_path_length, G, target=node)
+
+
+def test_predecessor_order_differs_from_arc_order():
+    # 3's predecessors were added as 2, 0, 1; its arcs come from 0, 1, 2 (node order)
+    G = nx.DiGraph()
+    G.add_nodes_from(range(5))
+    G.add_edges_from([(2, 3), (0, 3), (1, 3), (4, 0), (4, 1), (4, 2)])
+    assert list(G.pred[3]) == [2, 0, 1]
+    assert_same(nx.single_target_shortest_path, G, 3)
+    assert_same(nx.shortest_path, G, target=3)
+    assert_same(nx.shortest_path, G, target=3, weight="weight")
+    assert_same(nx.bidirectional_shortest_path, G, 4, 3)
+    assert_same(nx.bidirectional_dijkstra, G, 4, 3)
+    assert nx.single_target_shortest_path(G, 3, backend="edgecase")[4] == [4, 2, 3]
+    # Without the recorded order, predecessors come in node order: another valid answer
+    config = nx.config.backends.edgecase
+    previous = config.preserve_pred_order
+    config.preserve_pred_order = False
+    try:
+        paths = nx.single_target_shortest_path(G, 3, backend="edgecase")
+    finally:
+        config.preserve_pred_order = previous
+    assert paths[4] == [4, 0, 3]
 
 
 @pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
@@ -146,17 +153,8 @@ def test_dijkstra(G, weight):
             assert_same(nx.dijkstra_path, G, source, target, weight=weight)
             assert_same(nx.dijkstra_path_length, G, source, target, weight=weight)
             assert_same(nx.shortest_path_length, G, source, target, weight=weight)
-            if G.is_directed():
-                # Possibly another path of the same length (see test_unweighted_towards...)
-                nx_result, ec_result = both(nx.bidirectional_dijkstra, G, source, target, weight)
-                if isinstance(nx_result[1], list):
-                    assert ec_result[0] == nx_result[0]
-                    assert path_cost(G, ec_result[1], weight) == nx_result[0]
-                else:
-                    assert ec_result == nx_result
-            else:
-                assert_same(nx.bidirectional_dijkstra, G, source, target, weight)
-                assert_same(nx.shortest_path, G, source, target, weight=weight)
+            assert_same(nx.bidirectional_dijkstra, G, source, target, weight)
+            assert_same(nx.shortest_path, G, source, target, weight=weight)
     sources = set(nodes[2:5])
     assert_same(nx.multi_source_dijkstra, G, sources, weight=weight)
     assert_same(nx.multi_source_dijkstra, G, sources, target=nodes[-1], weight=weight)
@@ -164,12 +162,8 @@ def test_dijkstra(G, weight):
     assert_same(nx.all_pairs_dijkstra, G, weight=weight)
     assert_same(nx.all_pairs_dijkstra_path_length, G, cutoff=2, weight=weight)
     assert_same(nx.shortest_path, G, weight=weight)
-    if not G.is_directed():
-        assert_same(nx.shortest_path, G, target=nodes[0], weight=weight)
-        assert_same(nx.shortest_path_length, G, target=nodes[0], weight=weight)
-    else:
-        expected, actual = both(nx.shortest_path_length, G, target=nodes[0], weight=weight)
-        assert actual == expected  # (in another order)
+    assert_same(nx.shortest_path, G, target=nodes[0], weight=weight)
+    assert_same(nx.shortest_path_length, G, target=nodes[0], weight=weight)
 
 
 @pytest.mark.parametrize("cls", GRAPH_CLASSES)

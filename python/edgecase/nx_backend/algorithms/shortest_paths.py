@@ -6,11 +6,11 @@ search level by level in discovery order, and Dijkstra with a heap ordered by di
 then insertion. So the results are NetworkX's exactly: the same paths among equally short
 ones, the same predecessor lists and the same dict order.
 
-One caveat: a directed graph's predecessors (used by `single_target_*`, by the backward half
-of the bidirectional searches, and by `shortest_path(G, target=t)`) are ordered by source
-node, because the conversion keeps only the successor order (`G._succ`); NetworkX orders
-them by when each edge was added (`G._pred`). Ties among equally short paths can then be
-broken differently.
+A directed graph's backward searches (`single_target_*`, the backward half of the
+bidirectional searches, `shortest_path(G, target=t)`) follow the predecessor order the
+conversion recorded (`EdgecaseGraph.pred_order`, NetworkX's `G._pred`). Without it (with
+`nx.config.backends.edgecase.preserve_pred_order = False`) predecessors are ordered by
+source node, and ties among equally short paths can be broken differently.
 
 Weights are read from the edge attribute named by `weight` (1 where absent; a value of None
 hides the edge), as NetworkX does; on a multigraph a step costs the least of its parallel
@@ -64,10 +64,11 @@ _BATCH_ENTRIES = 4_000_000
 # Helpers
 
 
-def _adjacency(G, weight=None):
+def _adjacency(G, weight=None, reverse=False):
     """The `PathAdjacency` of `G`, weighted by edge attribute `weight` (None: all 1).
 
-    Built on first use and kept on the graph (which is never mutated).
+    Built on first use and kept on the graph (which is never mutated). With `reverse` (for
+    searches over predecessors), a directed graph's recorded predecessor order is added.
     """
     cache = G.__dict__.get("_path_adjacencies")
     if cache is None:
@@ -78,6 +79,14 @@ def _adjacency(G, weight=None):
         adj = cache[weight] = PathAdjacency(
             len(G.nodes), G.src, G.dst, weights, directed=G.directed
         )
+    if reverse and G.directed and not adj.has_predecessor_order:
+        pred_order = getattr(G, "pred_order", None)
+        if pred_order is not None:
+            pred_nodes, counts, preds = pred_order
+            get_id = G.key_to_id.__getitem__
+            adj.set_predecessor_order(
+                list(map(get_id, pred_nodes)), counts, list(map(get_id, preds))
+            )
     return adj
 
 
@@ -190,11 +199,12 @@ def _unless_all_pairs(G, source=None, target=None, *args, **kwargs):
 
 
 def _bfs_lengths(G, source, cutoff, reverse=False):
-    return _adjacency(G).bfs_lengths(G.nodes, source, _cutoff(cutoff), reverse)
+    return _adjacency(G, reverse=reverse).bfs_lengths(G.nodes, source, _cutoff(cutoff), reverse)
 
 
 def _bfs_paths(G, source, cutoff, reverse=False):
-    order, _, parents = _adjacency(G).bfs_levels(source, _cutoff(cutoff), reverse, True)
+    adj = _adjacency(G, reverse=reverse)
+    order, _, parents = adj.bfs_levels(source, _cutoff(cutoff), reverse, True)
     return _paths(_keys(G, order), parents, reverse=reverse)
 
 
@@ -248,7 +258,7 @@ def _bidirectional_bfs(G, source, target):
     """The node positions on NetworkX's bidirectional BFS path (None if there is none)."""
     s = _require(G, source, f"Source {source} is not in G")
     t = _require(G, target, f"Target {target} is not in G")
-    return _adjacency(G).bidirectional_bfs(s, t)
+    return _adjacency(G, reverse=True).bidirectional_bfs(s, t)
 
 
 @networkx_algorithm(linear_time=True)
@@ -296,12 +306,13 @@ def _sources(G, sources):
 
 
 def _dijkstra_lengths(G, sources, cutoff, weight, reverse=False):
-    return _adjacency(G, weight).dijkstra_lengths(G.nodes, sources, cutoff, reverse)
+    adj = _adjacency(G, weight, reverse)
+    return adj.dijkstra_lengths(G.nodes, sources, cutoff, reverse)
 
 
 def _dijkstra_paths(G, sources, cutoff, weight, reverse=False):
     """`(dist, paths)` from `sources` (positions)."""
-    adj = _adjacency(G, weight)
+    adj = _adjacency(G, weight, reverse)
     order, dist, parents = adj.dijkstra(sources, cutoff, None, "paths", reverse)
     roots = len(set(sources))
     keys = _keys(G, order)
@@ -422,7 +433,7 @@ def bidirectional_dijkstra(G, source, target, weight="weight"):
     t = _require(G, target, f"Target {target} is not in G")
     if source == target:
         return (0, [source])
-    found = _adjacency(G, weight).bidirectional_dijkstra(s, t)
+    found = _adjacency(G, weight, reverse=True).bidirectional_dijkstra(s, t)
     if found is None:
         raise nx.NetworkXNoPath(f"No path between {source} and {target}.")
     length, path = found
