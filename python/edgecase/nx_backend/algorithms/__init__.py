@@ -11,6 +11,7 @@ from edgecase.nx_backend.algorithms import (
     convert_matrix,
     core,
     cuts,
+    dag,
     dfs_structure,
     distance_measures,
     flow,
