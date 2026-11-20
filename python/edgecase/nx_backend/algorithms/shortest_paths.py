@@ -25,7 +25,7 @@ from math import inf
 import networkx as nx
 
 from edgecase._core import PathAdjacency
-from edgecase.nx_backend.registry import networkx_algorithm
+from edgecase.nx_backend.registry import networkx_algorithm, prefer_converted_graph
 
 __all__ = [
     "all_pairs_dijkstra",
@@ -159,9 +159,31 @@ def _can_run_weight(func):
     return can_run
 
 
-def _weighted(func):
+def _weighted(func=None, *, should_run=None):
     """Register a function that takes `weight` (an edge attribute name)."""
-    return networkx_algorithm(func, can_run=_can_run_weight(func))
+    if func is None:
+        return lambda f: _weighted(f, should_run=should_run)
+    return networkx_algorithm(func, can_run=_can_run_weight(func), should_run=should_run)
+
+
+# Automatic dispatch (`should_run`): single-source breadth-first searches cost about as
+# much as converting the graph, and single-pair searches usually look at a small part of
+# it, so on a graph not yet converted NetworkX runs them itself (measured in the shortest-
+# path benchmark: 0.3x and ~0.02x with conversion; 5x and ~9x on a converted graph).
+# Single-source Dijkstra (1.4-1.9x with conversion) and the all-pairs functions always run.
+
+
+def _when_target_given(G, *args, **kwargs):
+    """`should_run` for functions that stop early once a `target` is reached."""
+    target = kwargs.get("target", args[1] if len(args) > 1 else None)
+    return True if target is None else prefer_converted_graph(G)
+
+
+def _unless_all_pairs(G, source=None, target=None, *args, **kwargs):
+    """`should_run` for `shortest_path(_length)`: always for all pairs, else as above."""
+    if source is None and target is None:
+        return True
+    return prefer_converted_graph(G)
 
 
 # Unweighted (breadth-first search)
@@ -176,13 +198,13 @@ def _bfs_paths(G, source, cutoff, reverse=False):
     return _paths(_keys(G, order), parents, reverse=reverse)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def single_source_shortest_path_length(G, source, cutoff=None):
     s = _require(G, source, f"Source {source} is not in G")
     return _bfs_lengths(G, s, cutoff)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def single_target_shortest_path_length(G, target, cutoff=None):
     t = _require(G, target, f"Target {target} is not in G")
     return _bfs_lengths(G, t, cutoff, reverse=True)
@@ -199,13 +221,13 @@ def all_pairs_shortest_path_length(G, cutoff=None):
         )
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def single_source_shortest_path(G, source, cutoff=None):
     s = _require(G, source, f"Source {source} not in G")
     return _bfs_paths(G, s, cutoff)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def single_target_shortest_path(G, target, cutoff=None):
     t = _require(G, target, f"Target {target} not in G")
     return _bfs_paths(G, t, cutoff, reverse=True)
@@ -229,7 +251,7 @@ def _bidirectional_bfs(G, source, target):
     return _adjacency(G).bidirectional_bfs(s, t)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def bidirectional_shortest_path(G, source, target):
     path = _bidirectional_bfs(G, source, target)
     if path is None:
@@ -237,7 +259,7 @@ def bidirectional_shortest_path(G, source, target):
     return _keys(G, path)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def predecessor(G, source, target=None, cutoff=None, return_seen=None):
     s = _require(G, source, f"Source {source} not in G")
     # (NetworkX ignores a falsy cutoff such as 0)
@@ -289,13 +311,13 @@ def _dijkstra_paths(G, sources, cutoff, weight, reverse=False):
     )
 
 
-@_weighted
+@_weighted(should_run=prefer_converted_graph)
 def dijkstra_path(G, source, target, weight="weight"):
     length, path = single_source_dijkstra(G, source, target=target, weight=weight)
     return path
 
 
-@_weighted
+@_weighted(should_run=prefer_converted_graph)
 def dijkstra_path_length(G, source, target, weight="weight"):
     s = _require(G, source, f"Node {source} not found in graph")
     if source == target:
@@ -318,7 +340,7 @@ def single_source_dijkstra_path_length(G, source, cutoff=None, weight="weight"):
     return multi_source_dijkstra_path_length(G, {source}, cutoff=cutoff, weight=weight)
 
 
-@_weighted
+@_weighted(should_run=_when_target_given)
 def single_source_dijkstra(G, source, target=None, cutoff=None, weight="weight"):
     return multi_source_dijkstra(G, {source}, cutoff=cutoff, target=target, weight=weight)
 
@@ -334,7 +356,7 @@ def multi_source_dijkstra_path_length(G, sources, cutoff=None, weight="weight"):
     return _dijkstra_lengths(G, _sources(G, sources), cutoff, weight)
 
 
-@_weighted
+@_weighted(should_run=_when_target_given)
 def multi_source_dijkstra(G, sources, target=None, cutoff=None, weight="weight"):
     positions = _sources(G, sources)
     if target in sources:
@@ -394,7 +416,7 @@ def all_pairs_dijkstra_path(G, cutoff=None, weight="weight"):
         yield n, paths
 
 
-@_weighted
+@_weighted(should_run=prefer_converted_graph)
 def bidirectional_dijkstra(G, source, target, weight="weight"):
     s = _require(G, source, f"Source {source} is not in G")
     t = _require(G, target, f"Target {target} is not in G")
@@ -424,7 +446,7 @@ def _check_method(method, weight):
     return "unweighted" if weight is None else method
 
 
-@networkx_algorithm(can_run=_can_run_generic)
+@networkx_algorithm(can_run=_can_run_generic, should_run=_unless_all_pairs)
 def shortest_path(G, source=None, target=None, weight=None, method="dijkstra"):
     method = _check_method(method, weight)
     if source is None:
@@ -447,7 +469,7 @@ def shortest_path(G, source=None, target=None, weight=None, method="dijkstra"):
     return bidirectional_dijkstra(G, source, target, weight)[1]
 
 
-@networkx_algorithm(can_run=_can_run_generic)
+@networkx_algorithm(can_run=_can_run_generic, should_run=_unless_all_pairs)
 def shortest_path_length(G, source=None, target=None, weight=None, method="dijkstra"):
     method = _check_method(method, weight)
     if source is None:
@@ -470,7 +492,7 @@ def shortest_path_length(G, source=None, target=None, weight=None, method="dijks
     return dijkstra_path_length(G, source, target, weight)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def has_path(G, source, target):
     return _bidirectional_bfs(G, source, target) is not None
 

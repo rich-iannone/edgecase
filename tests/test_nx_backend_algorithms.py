@@ -222,3 +222,27 @@ def test_linear_time_functions_with_automatic_dispatch():
     finally:
         nx.config.backend_priority.algos = priority
         BackendInterface.connected_components = staticmethod(original)
+
+
+def test_shortest_path_should_run():
+    from edgecase.nx_backend.interface import backend_interface as bi
+
+    G = nx.path_graph(5)
+    declines = [
+        ("single_source_shortest_path_length", (G, 0), {}),
+        ("has_path", (G, 0, 4), {}),
+        ("dijkstra_path", (G, 0, 4), {}),
+        ("single_source_dijkstra", (G, 0, 4), {}),
+        ("single_source_dijkstra", (G, 0), {"target": 4}),
+        ("shortest_path", (G, 0), {}),
+    ]
+    for name, args, kwargs in declines:
+        assert isinstance(bi.should_run(name, args, kwargs), str), name
+    runs = [
+        ("single_source_dijkstra", (G, 0), {}),
+        ("all_pairs_shortest_path_length", (G,), {}),
+        ("shortest_path", (G,), {}),
+        ("shortest_path_length", (G,), {"weight": "weight"}),
+    ]
+    for name, args, kwargs in runs:
+        assert bi.should_run(name, args, kwargs) is True, name
