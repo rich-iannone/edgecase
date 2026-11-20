@@ -297,9 +297,7 @@ def test_callable_weight_is_left_to_networkx():
     assert isinstance(reason, str)
     assert backend_interface.can_run("dijkstra_path", (G, 0, 2), {"weight": "w"}) is True
     assert isinstance(backend_interface.can_run("shortest_path", (G, 0, 2, weight), {}), str)
-    assert isinstance(
-        backend_interface.can_run("shortest_path", (G, 0, 2, "w", "bellman-ford"), {}), str
-    )
+    assert backend_interface.can_run("shortest_path", (G, 0, 2, "w", "bellman-ford"), {}) is True
     # The dispatcher then runs NetworkX's own code
     assert nx.dijkstra_path(G, 0, 2, weight=weight) == [0, 1, 2]
 
