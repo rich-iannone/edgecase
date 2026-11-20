@@ -42,6 +42,16 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::pagerank, m)?)?;
+    // Kernels with NetworkX's semantics, for the NetworkX backend
+    m.add_function(wrap_pyfunction!(algorithms::nx_compat::nx_pagerank, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_betweenness_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_strongly_connected_components,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::centrality::knotty_centrality,
         m
