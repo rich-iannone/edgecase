@@ -584,3 +584,19 @@ class TestComponentExtras:
         g = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
         assert len(g.node_connected_component("C")) == 1
         assert g.steps[-1].delta.nodes_selected == ["C"]
+
+
+class TestDeepGraphs:
+    """Searches must not recurse once per node: the stack overflowed and killed Python."""
+
+    def test_strongly_connected_components_of_a_long_cycle(self):
+        from edgecase._core import Graph as RustGraph
+
+        n = 3_000_000
+        sources = list(range(1, n + 1))
+        targets = list(range(2, n + 1)) + [1]
+        g = RustGraph.from_edge_arrays(n, sources, targets, directed=True)
+        assert g.count_strongly_connected_components() == 1
+        assert g.is_strongly_connected()
+        [component] = g.strongly_connected_components()
+        assert len(component) == n

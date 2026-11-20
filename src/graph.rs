@@ -478,6 +478,156 @@ impl Graph {
         }
     }
 
+    /// Build a graph in one call from parallel arrays of edge endpoints.
+    ///
+    /// This is the bulk constructor for converters (such as the NetworkX backend): one call
+    /// instead of one `add_node()`/`add_edge()` call per element. The nodes are unlabeled and get
+    /// the IDs `1..=num_nodes`; entry `i` is an edge from `sources[i]` to `targets[i]` with
+    /// weight `weights[i]` (`None` for no weight), and edges get the IDs `1, 2, ...` in the order
+    /// they are kept. Each node's neighbors (`neighbors()`) are listed in entry order. With
+    /// `require_weights=True` a `None` weight is an error.
+    ///
+    /// With `symmetric=True` (undirected graphs only) the arrays list every edge in both
+    /// orientations, the way an adjacency structure does (a self-loop once): only the entries
+    /// with `source <= target` become edges, but every entry adds its target to its source's
+    /// neighbors, so each node keeps the neighbor order of the adjacency structure. The listing
+    /// must really be symmetric (only unequal numbers of `source < target` and `source >
+    /// target` entries are detected); otherwise edges and neighbor lists disagree.
+    #[staticmethod]
+    #[pyo3(signature = (num_nodes, sources, targets, weights=None, directed=false, symmetric=false,
+                        require_weights=false))]
+    fn from_edge_arrays(
+        num_nodes: u64,
+        sources: Vec<u64>,
+        targets: Vec<u64>,
+        weights: Option<Vec<Option<f64>>>,
+        directed: bool,
+        symmetric: bool,
+        require_weights: bool,
+    ) -> PyResult<Self> {
+        use pyo3::exceptions::{PyMemoryError, PyValueError};
+
+        if sources.len() != targets.len() {
+            return Err(PyValueError::new_err(
+                "sources and targets must have the same length",
+            ));
+        }
+        if let Some(ref weights) = weights {
+            if weights.len() != sources.len() {
+                return Err(PyValueError::new_err(
+                    "weights must have the same length as sources",
+                ));
+            }
+            for &weight in weights {
+                if require_weights && weight.is_none() {
+                    return Err(PyValueError::new_err("Edge weight must not be None"));
+                }
+                check_edge_weight(weight)?;
+            }
+        }
+        if directed && symmetric {
+            return Err(PyValueError::new_err(
+                "symmetric=True is only valid for undirected graphs",
+            ));
+        }
+        // Every node is allocated up front, so refuse absurd counts before allocating
+        if num_nodes > u32::MAX as u64 {
+            return Err(PyValueError::new_err(format!(
+                "num_nodes must be at most {}, got {}",
+                u32::MAX,
+                num_nodes
+            )));
+        }
+        if let Some((&source, &target)) = sources
+            .iter()
+            .zip(targets.iter())
+            .find(|(&s, &t)| s == 0 || s > num_nodes || t == 0 || t > num_nodes)
+        {
+            return Err(PyValueError::new_err(format!(
+                "Edge ({}, {}) refers to a node outside 1..={}",
+                source, target, num_nodes
+            )));
+        }
+        // A cheap check that a symmetric listing has both orientations of each edge (it does
+        // not catch every mismatch: the input must really be symmetric)
+        if symmetric {
+            let forward = sources.iter().zip(&targets).filter(|(s, t)| s < t).count();
+            let backward = sources.iter().zip(&targets).filter(|(s, t)| s > t).count();
+            if forward != backward {
+                return Err(PyValueError::new_err(
+                    "symmetric=True needs every edge listed in both orientations",
+                ));
+            }
+        }
+
+        let n = num_nodes as usize;
+        let capacity = if symmetric {
+            sources.len() / 2 + 1
+        } else {
+            sources.len()
+        };
+        let mut graph = Graph::new(directed, weights.is_some());
+        let out_of_memory = |_| PyMemoryError::new_err("not enough memory for the graph");
+        graph.nodes.try_reserve(n).map_err(out_of_memory)?;
+        graph.adjacency_list.try_reserve(n).map_err(out_of_memory)?;
+        graph
+            .node_creation_order
+            .try_reserve(n)
+            .map_err(out_of_memory)?;
+        graph.edges.try_reserve(capacity).map_err(out_of_memory)?;
+        graph
+            .edge_creation_order
+            .try_reserve(capacity)
+            .map_err(out_of_memory)?;
+
+        // Neighbor lists, indexed by node ID
+        let mut adjacency: Vec<Vec<u64>> = Vec::new();
+        adjacency.try_reserve_exact(n + 1).map_err(out_of_memory)?;
+        adjacency.resize_with(n + 1, Vec::new);
+        let mut edge_id = 1;
+        for (i, (&source, &target)) in sources.iter().zip(targets.iter()).enumerate() {
+            adjacency[source as usize].push(target);
+            if symmetric {
+                // The other orientation is its own entry; an undirected self-loop is listed
+                // twice among a node's neighbors, as `add_edge()` lists it
+                if source == target {
+                    adjacency[source as usize].push(source);
+                }
+                if source > target {
+                    continue;
+                }
+            } else if !directed {
+                adjacency[target as usize].push(source);
+            }
+            let weight = weights.as_ref().and_then(|w| w[i]);
+            graph.edges.push(Edge {
+                id: edge_id,
+                source,
+                target,
+                weight,
+                attributes: None,
+            });
+            graph.edge_creation_order.push(edge_id);
+            edge_id += 1;
+        }
+        graph.next_edge_id = edge_id;
+
+        for (id, neighbors) in (1..=num_nodes).zip(adjacency.into_iter().skip(1)) {
+            graph.nodes.insert(
+                id,
+                Node {
+                    id,
+                    label: None,
+                    attributes: None,
+                },
+            );
+            graph.adjacency_list.insert(id, neighbors);
+            graph.node_creation_order.push(id);
+        }
+        graph.next_node_id = num_nodes + 1;
+        Ok(graph)
+    }
+
     /// Add a node to the graph
     fn add_node(&mut self, mut node: Node) -> PyResult<u64> {
         // IDs and labels are unique: check both before changing anything (an existing ID used to
@@ -5033,59 +5183,77 @@ impl Graph {
     /// Get k-core decomposition (coreness for each node)
     /// k-core is maximal subgraph where all nodes have degree >= k
     /// Coreness is the highest k for which a node belongs to the k-core
+    ///
+    /// A node's degree counts every edge end at it: parallel edges count separately, a
+    /// self-loop counts twice, and on a directed graph in- and out-edges both count (the
+    /// convention of NetworkX's `core_number` and igraph's `coreness(mode="all")`).
+    ///
+    /// Batagelj and Zaversnik's bin-sort algorithm, O(n + m). (This used to peel the
+    /// minimum-degree nodes one round at a time, scanning every remaining node per round,
+    /// O(n^2) on a long path; on directed graphs it counted only out-edges but lowered the
+    /// degrees of successors, so its results matched no definition.)
     #[inline]
     pub fn get_coreness(&self) -> FxHashMap<u64, usize> {
-        let n = self.nodes.len();
-        let mut coreness: FxHashMap<u64, usize> =
-            FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut degrees: FxHashMap<u64, usize> =
-            FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for &id in self.nodes.keys() {
-            degrees.insert(id, self.degree(id));
+        let ids = self.sorted_node_ids();
+        let n = ids.len();
+        let position: FxHashMap<u64, usize> =
+            ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        // Every edge end, as neighbor lists over positions
+        let mut neighbors: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for edge in &self.edges {
+            let (Some(&s), Some(&t)) = (position.get(&edge.source), position.get(&edge.target))
+            else {
+                continue;
+            };
+            neighbors[s].push(t);
+            neighbors[t].push(s);
+        }
+        let mut degree: Vec<usize> = neighbors.iter().map(|list| list.len()).collect();
+
+        // Nodes sorted by degree (bin sort): `bin_start[d]` is where degree d starts in `order`
+        let max_degree = degree.iter().copied().max().unwrap_or(0);
+        let mut bin_start = vec![0usize; max_degree + 2];
+        for &d in &degree {
+            bin_start[d + 1] += 1;
+        }
+        for d in 0..=max_degree {
+            bin_start[d + 1] += bin_start[d];
+        }
+        let mut fill = bin_start.clone();
+        let mut order = vec![0usize; n];
+        let mut place = vec![0usize; n];
+        for v in 0..n {
+            place[v] = fill[degree[v]];
+            order[place[v]] = v;
+            fill[degree[v]] += 1;
         }
 
-        let mut remaining: FxHashSet<u64> =
-            FxHashSet::with_capacity_and_hasher(n, Default::default());
-        remaining.extend(self.nodes.keys().copied());
-        let mut k = 0;
-
-        while !remaining.is_empty() {
-            // Find minimum degree among remaining nodes
-            let min_deg = remaining
-                .iter()
-                .map(|id| degrees.get(id).unwrap())
-                .min()
-                .copied()
-                .unwrap_or(0);
-
-            k = k.max(min_deg);
-
-            // Remove all nodes with degree <= min_deg
-            let mut to_remove = Vec::with_capacity(remaining.len());
-            for &node in &remaining {
-                if *degrees.get(&node).unwrap() <= min_deg {
-                    to_remove.push(node);
-                }
-            }
-
-            for &node in &to_remove {
-                coreness.insert(node, k);
-                remaining.remove(&node);
-
-                // Update degrees of neighbors
-                if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for &neighbor in neighbors {
-                        if remaining.contains(&neighbor) {
-                            if let Some(deg) = degrees.get_mut(&neighbor) {
-                                *deg = deg.saturating_sub(1);
-                            }
-                        }
+        // Peel in degree order; a neighbor with a higher degree loses one and moves to the
+        // front of its bin, which keeps `order` sorted
+        for i in 0..n {
+            let v = order[i];
+            for k in 0..neighbors[v].len() {
+                let u = neighbors[v][k];
+                if degree[u] > degree[v] {
+                    let du = degree[u];
+                    let pu = place[u];
+                    let pw = bin_start[du];
+                    let w = order[pw];
+                    if u != w {
+                        place[u] = pw;
+                        place[w] = pu;
+                        order[pu] = w;
+                        order[pw] = u;
                     }
+                    bin_start[du] += 1;
+                    degree[u] -= 1;
                 }
             }
         }
-
-        coreness
+        ids.iter()
+            .enumerate()
+            .map(|(i, &id)| (id, degree[i]))
+            .collect()
     }
 
     /// Get local clustering coefficient for each node

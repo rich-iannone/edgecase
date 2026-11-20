@@ -5,6 +5,11 @@
 //! `Graph.dfs()` use, so these functions agree with them (and with NetworkX when edges are added
 //! in the same order). `mode` selects the direction on directed graphs: "out" follows edges,
 //! "in" follows them backward, "all" ignores direction (out-neighbors first, then in-neighbors).
+//!
+//! With `adjacency_order=True`, successors (and the neighbors of an undirected graph) are visited
+//! in the order of the graph's neighbor lists (`Graph.neighbors()`) instead. That is the same for
+//! a graph built edge by edge, but a graph built by `Graph.from_edge_arrays()` from NetworkX's
+//! adjacency keeps NetworkX's neighbor order there, which its traversals follow.
 
 use crate::algorithms::path_queries::IndexedGraph;
 use crate::graph::Graph;
@@ -22,15 +27,41 @@ fn parse_mode(mode: &str) -> PyResult<(bool, bool)> {
     }
 }
 
+/// Each node's successors (neighbors, if undirected) in the order of the graph's neighbor
+/// lists, as positions; self-loops included
+fn adjacency_lists(graph: &Graph, g: &IndexedGraph) -> Vec<Vec<usize>> {
+    let lists = graph.get_adjacency_list();
+    g.ids
+        .iter()
+        .map(|id| {
+            lists
+                .get(id)
+                .map(|nbrs| nbrs.iter().filter_map(|w| g.idx.get(w).copied()).collect())
+                .unwrap_or_default()
+        })
+        .collect()
+}
+
 /// Neighbor lists for a traversal in the requested direction (undirected graphs: both ways).
-fn neighbor_lists(graph: &Graph, mode: &str) -> PyResult<(IndexedGraph, Vec<Vec<usize>>)> {
+fn neighbor_lists(
+    graph: &Graph,
+    mode: &str,
+    adjacency_order: bool,
+) -> PyResult<(IndexedGraph, Vec<Vec<usize>>)> {
     let (use_out, use_in) = parse_mode(mode)?;
     let g = IndexedGraph::new(graph, false);
     let directed = graph.is_directed();
+    let mut ordered = if adjacency_order && (use_out || !directed) {
+        adjacency_lists(graph, &g)
+    } else {
+        Vec::new()
+    };
     let lists = (0..g.len())
         .map(|v| {
             let mut out: Vec<usize> = Vec::new();
-            if use_out || !directed {
+            if (use_out || !directed) && adjacency_order {
+                out.append(&mut ordered[v]);
+            } else if use_out || !directed {
                 out.extend(g.out[v].iter().map(|&(w, _)| w));
             }
             if directed && use_in {
@@ -45,7 +76,11 @@ fn neighbor_lists(graph: &Graph, mode: &str) -> PyResult<(IndexedGraph, Vec<Vec<
 /// `neighbor_lists` with repeats removed, keeping each neighbor's first position, and with
 /// self-loops kept (a node is its own neighbor once): what NetworkX's `G.neighbors()` gives
 /// on a graph built from the same edges.
-fn distinct_neighbor_lists(graph: &Graph, mode: &str) -> PyResult<(IndexedGraph, Vec<Vec<usize>>)> {
+fn distinct_neighbor_lists(
+    graph: &Graph,
+    mode: &str,
+    adjacency_order: bool,
+) -> PyResult<(IndexedGraph, Vec<Vec<usize>>)> {
     let (use_out, use_in) = parse_mode(mode)?;
     let g = IndexedGraph::new(graph, false);
     let directed = graph.is_directed();
@@ -53,11 +88,16 @@ fn distinct_neighbor_lists(graph: &Graph, mode: &str) -> PyResult<(IndexedGraph,
     let (mut out, mut inn) = (vec![Vec::new(); n], vec![Vec::new(); n]);
     for e in graph.get_edges_internal() {
         let (s, t) = (g.idx[&e.source], g.idx[&e.target]);
-        out[s].push(t);
-        inn[t].push(s);
-        if !directed {
-            out[t].push(s);
+        if !adjacency_order {
+            out[s].push(t);
+            if !directed {
+                out[t].push(s);
+            }
         }
+        inn[t].push(s);
+    }
+    if adjacency_order {
+        out = adjacency_lists(graph, &g);
     }
     let mut lists: Vec<Vec<usize>> = (0..n)
         .map(|v| {
@@ -84,14 +124,15 @@ fn distinct_neighbor_lists(graph: &Graph, mode: &str) -> PyResult<(IndexedGraph,
 /// discovered, and the layers (layer 0 = the sources, layer k = nodes first reached at k hops).
 /// With `depth_limit`, nodes farther than that many hops are not visited.
 #[pyfunction]
-#[pyo3(signature = (graph, sources, depth_limit=None, mode="out"))]
+#[pyo3(signature = (graph, sources, depth_limit=None, mode="out", adjacency_order=false))]
 pub fn bfs_search(
     graph: &Graph,
     sources: Vec<u64>,
     depth_limit: Option<usize>,
     mode: &str,
+    adjacency_order: bool,
 ) -> PyResult<(Vec<(u64, u64)>, Vec<Vec<u64>>)> {
-    let (g, nbrs) = neighbor_lists(graph, mode)?;
+    let (g, nbrs) = neighbor_lists(graph, mode, adjacency_order)?;
     let mut seen = vec![false; g.len()];
     let mut layer: Vec<usize> = Vec::new();
     for &s in &sources {
@@ -131,14 +172,15 @@ pub fn bfs_search(
 /// Returns `(preorder, postorder, tree_edges)`. Tree edges are `(parent, child)` in discovery
 /// order. With `depth_limit`, nodes more than that many hops from their root are not visited.
 #[pyfunction]
-#[pyo3(signature = (graph, source=None, depth_limit=None, mode="out"))]
+#[pyo3(signature = (graph, source=None, depth_limit=None, mode="out", adjacency_order=false))]
 pub fn dfs_search(
     graph: &Graph,
     source: Option<u64>,
     depth_limit: Option<usize>,
     mode: &str,
+    adjacency_order: bool,
 ) -> PyResult<(Vec<u64>, Vec<u64>, Vec<(u64, u64)>)> {
-    let (g, nbrs) = neighbor_lists(graph, mode)?;
+    let (g, nbrs) = neighbor_lists(graph, mode, adjacency_order)?;
     let n = g.len();
     let roots: Vec<usize> = match source {
         Some(s) => vec![g.index_of(s)?],
@@ -191,7 +233,7 @@ pub fn bfs_beam_search(
     width: Option<usize>,
     mode: &str,
 ) -> PyResult<Vec<(u64, u64)>> {
-    let (g, nbrs) = distinct_neighbor_lists(graph, mode)?;
+    let (g, nbrs) = distinct_neighbor_lists(graph, mode, false)?;
     let width = width.unwrap_or(g.len());
     let mut values: Vec<Option<f64>> = vec![None; g.len()];
     let mut score = |i: usize| -> PyResult<f64> {
@@ -249,14 +291,15 @@ pub fn bfs_beam_search(
 /// `(root, root, "reverse")`. Repeated neighbors (parallel edges) are looked at once. With no
 /// `source`, every unvisited node starts a new tree, in ID order.
 #[pyfunction]
-#[pyo3(signature = (graph, source=None, depth_limit=None, mode="out"))]
+#[pyo3(signature = (graph, source=None, depth_limit=None, mode="out", adjacency_order=false))]
 pub fn dfs_labeled_search(
     graph: &Graph,
     source: Option<u64>,
     depth_limit: Option<usize>,
     mode: &str,
+    adjacency_order: bool,
 ) -> PyResult<Vec<(u64, u64, &'static str)>> {
-    let (g, nbrs) = distinct_neighbor_lists(graph, mode)?;
+    let (g, nbrs) = distinct_neighbor_lists(graph, mode, adjacency_order)?;
     let n = g.len();
     let roots: Vec<usize> = match source {
         Some(s) => vec![g.index_of(s)?],

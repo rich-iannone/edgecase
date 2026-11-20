@@ -42,6 +42,35 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::centrality::pagerank, m)?)?;
+    // Kernels with NetworkX's semantics, for the NetworkX backend
+    m.add_function(wrap_pyfunction!(algorithms::nx_compat::nx_pagerank, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_betweenness_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_strongly_connected_components,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_random_shuffles,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_compat::nx_asyn_lpa, m)?)?;
+    m.add_class::<algorithms::nx_compat::NxLouvain>()?;
+    m.add_class::<algorithms::nx_compat::NxWlGraph>()?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_greedy_modularity,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_global_efficiency_sum,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_local_efficiency_sums,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::centrality::knotty_centrality,
         m
@@ -91,6 +120,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::dag::descendants, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::dag::topological_generations,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::dag::topological_generations_partial,
         m
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::dag_longest_path, m)?)?;
@@ -559,6 +592,76 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::k_shortest_paths, m)?)?;
+    m.add_class::<algorithms::path_search::PathAdjacency>()?;
+    m.add_class::<algorithms::path_search::GoldbergRadzik>()?;
+    m.add_class::<algorithms::nx_cliques::CliqueSearch>()?;
+    m.add_class::<algorithms::nx_cliques::AllCliques>()?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_coloring::nx_greedy_color, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_coloring::nx_maximal_independent_set,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_coloring::nx_dominating_set, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_cliques::nx_max_weight_clique,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_cliques::nx_pyset_model_check,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_biconnected_dfs,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_chain_decomposition,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_cycle_basis,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_local_bridges,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_structure::nx_girth, m)?)?;
+    m.add_class::<algorithms::nx_structure::ArcAdjacency>()?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_bipartite_color,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_immediate_dominators,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_is_aperiodic,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_eigenvector_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_katz_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_brandes, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_link_scores,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_community_link_scores,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_load_centrality,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_core, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_shell, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_crust, m)?)?;
@@ -651,6 +754,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::max_flow, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::max_flow_value, m)?)?;
+    m.add_function(wrap_pyfunction!(algorithms::flow::max_flow_details, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::flow::min_cost_flow, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::link_prediction::common_neighbors,

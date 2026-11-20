@@ -50529,7 +50529,8 @@ class Graph:
 
         The k-core is the maximal subgraph where every node has degree >= k. A node's coreness is
         the highest k-value for which it belongs to the k-core. Uses iterative pruning: repeatedly
-        removes nodes with degree < k until all remaining nodes have degree >= k.
+        removes nodes with degree < k until all remaining nodes have degree >= k. On a directed
+        graph a node's degree counts both its in- and out-edges (as in NetworkX's `core_number`).
 
         Higher coreness indicates nodes in denser, more cohesive parts of the graph. The k-core
         decomposition is useful for finding the 'nucleus' of a network.
@@ -50623,7 +50624,8 @@ class Graph:
         time, use `coreness()`; related extractions are `k_shell()` (coreness exactly `k`),
         `k_crust()` (coreness at most `k`), and `k_truss()` (an edge-based analogue).
 
-        Degrees count edges without weights. For directed graphs, degree means out-degree. The
+        Degrees count edges without weights. For directed graphs, a node's degree counts both
+        its in- and out-edges, as `coreness()` and NetworkX's core functions count them. The
         original graph is not modified. The returned graph keeps the node and edge IDs, labels,
         weights and attributes of the original.
 
@@ -50710,7 +50712,8 @@ class Graph:
         edgeless. To get every node's coreness at once, use `coreness()`; see also `k_core()`
         and `k_crust()`.
 
-        Degrees count edges without weights. For directed graphs, degree means out-degree. The
+        Degrees count edges without weights. For directed graphs, a node's degree counts both
+        its in- and out-edges, as `coreness()` and NetworkX's core functions count them. The
         original graph is not modified. The returned graph keeps the node and edge IDs, labels,
         weights and attributes of the original.
 
@@ -50783,7 +50786,8 @@ class Graph:
         the removed core are dropped. To get every node's coreness at once, use `coreness()`;
         see also `k_shell()` for a single layer.
 
-        Degrees count edges without weights. For directed graphs, degree means out-degree. The
+        Degrees count edges without weights. For directed graphs, a node's degree counts both
+        its in- and out-edges, as `coreness()` and NetworkX's core functions count them. The
         original graph is not modified. The returned graph keeps the node and edge IDs, labels,
         weights and attributes of the original.
 

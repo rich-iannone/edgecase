@@ -1,0 +1,110 @@
+---
+title: NetworkX backend
+guide-section: "Interoperability"
+---
+
+[NetworkX](https://networkx.org) can hand its function calls to other libraries, called
+*backends*. EdgeCase is one: when it is installed alongside NetworkX, code written for NetworkX can
+run on EdgeCase's Rust core, unchanged except for how the call is dispatched. This is a different
+route from the conversions in [Other libraries](other-libraries.qmd): the graph stays a NetworkX
+graph in your code, and NetworkX converts it to EdgeCase behind the scenes.
+
+## Dispatching a call
+
+Name the backend in a single call:
+
+```{python}
+import networkx as nx
+
+G = nx.karate_club_graph()
+bc = nx.betweenness_centrality(G, backend="edgecase")
+max(bc, key=bc.get)
+```
+
+Or prefer EdgeCase for every call it implements, for a whole session:
+
+```{python}
+nx.config.backend_priority.algos = ["edgecase"]
+communities = nx.community.louvain_communities(G, seed=42)
+[sorted(c) for c in communities]
+```
+
+```{python}
+#| echo: false
+nx.config.backend_priority.algos = []
+```
+
+Setting the environment variable `NETWORKX_BACKEND_PRIORITY=edgecase` before starting Python does
+the same. Functions that EdgeCase does not implement run in NetworkX as usual.
+
+## Conversion and caching
+
+NetworkX converts a graph to EdgeCase the first time a function needs it, and caches the result
+on the graph (in `G.__networkx_cache__`), so later calls on the same, unchanged graph reuse it.
+Only the attributes a function needs are converted, such as the `weight` of a weighted algorithm.
+
+The conversion costs about as much as one pass over the graph. For functions that cost little
+more than that themselves (connected components, traversals, most single-source searches,
+matrix exports), automatic dispatch uses EdgeCase only when a converted graph is already cached;
+naming the backend with `backend="edgecase"` always uses it.
+
+A converted graph can also be kept explicitly. NetworkX functions given it run on EdgeCase
+without converting again:
+
+```{python}
+from edgecase.nx_backend import from_networkx
+
+EG = from_networkx(
+    G, preserve_edge_attrs=True, preserve_node_attrs=True, preserve_graph_attrs=True
+)
+round(nx.pagerank(EG)[0], 6) == round(nx.pagerank(G)[0], 6)
+```
+
+To pass such a graph to a function EdgeCase does not implement, set
+`nx.config.fallback_to_nx = True`, so NetworkX converts it back.
+
+## What is covered
+
+EdgeCase implements over 200 NetworkX functions, from components, traversals and shortest paths to
+centralities, community detection, flows, matchings, graph hashes, relabeling and matrix exports.
+The current list:
+
+```{python}
+functions = sorted(nx.utils.backends.backend_info["edgecase"]["functions"])
+len(functions), functions[:10]
+```
+
+Each of these functions' NetworkX docstrings also gains a *Backends* section naming EdgeCase.
+
+## The same answers as NetworkX
+
+The backend aims to return exactly what NetworkX returns: the same values (floating-point sums
+included, by adding in NetworkX's order), the same order of dictionaries, lists and generators,
+and the same errors. Randomized algorithms such as Louvain and asynchronous label propagation draw
+the same random numbers from `seed` as NetworkX and return the same partitions.
+
+A few functions can return a different but equally valid answer, or one that differs in an
+unimportant way:
+
+| Function | Difference |
+| :-- | :-- |
+| `leiden_communities`, `leiden_partitions` | a different valid partition for the same `seed` (NetworkX's depends on the iteration order of Python sets) |
+| `max_weight_matching`, `min_weight_matching` | possibly another matching of the same weight and size |
+| `maximum_flow` | possibly another maximum flow; the flow value and `minimum_cut` are the same |
+| `adamic_adar_index`, `resource_allocation_index`, `ra_index_soundarajan_hopcroft` | possibly a difference in the last bit for pairs with three or more common neighbors (NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`) |
+| `generalized_degree` | equal `Counter`s, whose keys can be in another order |
+| shortest-path lengths (Dijkstra, Bellman-Ford) | on graphs that mix integer and float weights, float distances where NetworkX keeps integers on all-integer paths (the values are equal) |
+| `find_cliques`, `greedy_color` (set-ordered strategies), `maximal_independent_set`, `dominating_set` | these reproduce NetworkX's order by modelling CPython's set iteration, so on other interpreters or untested versions (outside CPython 3.10-3.14) NetworkX runs them instead |
+
+## Running NetworkX's test suite on EdgeCase
+
+NetworkX's own tests can be run with EdgeCase as the backend: each NetworkX call that EdgeCase
+implements is converted, run on EdgeCase, and checked by the tests. From a clone of EdgeCase, with
+NetworkX's test dependencies installed:
+
+```bash
+scripts/run_nx_tests.sh -n 8
+```
+
+The suite passes; the few tests marked as expected failures, each with its reason, are listed in
+`python/edgecase/nx_backend/_testing.py`.
