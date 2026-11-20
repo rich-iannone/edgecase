@@ -47,6 +47,7 @@ pub mod network_proximity;
 pub mod network_smoothing;
 pub mod node_vitality;
 pub mod null_models;
+pub mod nx_centrality;
 pub mod nx_compat;
 pub mod path_extras;
 pub mod path_queries;

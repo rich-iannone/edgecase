@@ -584,6 +584,20 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::k_shortest_paths, m)?)?;
     m.add_class::<algorithms::path_search::PathAdjacency>()?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_eigenvector_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_katz_centrality,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_brandes, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_centrality::nx_link_scores,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_core, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_shell, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::structure::k_crust, m)?)?;

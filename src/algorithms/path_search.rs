@@ -149,14 +149,14 @@ struct Dijkstra {
 /// Neumaier-compensated running sum, the algorithm (and so the rounding) of Python's `sum()`
 /// over floats
 #[derive(Default)]
-struct CompensatedSum {
+pub(crate) struct CompensatedSum {
     sum: f64,
     compensation: f64,
 }
 
 impl CompensatedSum {
     #[inline]
-    fn add(&mut self, x: f64) {
+    pub(crate) fn add(&mut self, x: f64) {
         let t = self.sum + x;
         if self.sum.abs() >= x.abs() {
             self.compensation += (self.sum - t) + x;
@@ -166,7 +166,7 @@ impl CompensatedSum {
         self.sum = t;
     }
 
-    fn total(&self) -> f64 {
+    pub(crate) fn total(&self) -> f64 {
         if self.compensation != 0.0 && self.compensation.is_finite() {
             self.sum + self.compensation
         } else {
@@ -205,6 +205,22 @@ pub struct PathAdjacency {
 impl PathAdjacency {
     fn forward(&self) -> &Csr {
         &self.out
+    }
+
+    /// The successor rows `(indptr, indices, weights)` (for other kernels over this
+    /// adjacency): node `v`'s neighbors are `indices[indptr[v]..indptr[v + 1]]`, in order
+    pub(crate) fn rows(&self) -> (&[usize], &[usize], &[f64]) {
+        (&self.out.indptr, &self.out.indices, &self.out.weights)
+    }
+
+    /// The number of nodes
+    pub(crate) fn len(&self) -> usize {
+        self.n
+    }
+
+    /// Whether the graph is directed
+    pub(crate) fn is_directed(&self) -> bool {
+        self.directed
     }
 
     /// The adjacency to search: predecessors (`reverse`; in the order given to
