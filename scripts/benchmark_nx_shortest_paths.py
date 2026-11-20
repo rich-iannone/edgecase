@@ -176,6 +176,42 @@ CASES = [
         2,
     ),
     (
+        "single_source_bellman_ford_path_length",
+        lambda G: nx.single_source_bellman_ford_path_length(G, 0),
+        True,
+        [(10_000, 100_000), (100_000, 1_000_000)],
+        2,
+    ),
+    (
+        "johnson",
+        lambda G: nx.johnson(G),
+        True,
+        [(300, 3_000)],
+        2,
+    ),
+    (
+        "biconnected_components",
+        lambda G: consume(nx.biconnected_components(G)),
+        False,
+        [(10_000, 15_000), (100_000, 150_000)],
+        2,
+    ),
+    (
+        "cycle_basis",
+        lambda G: nx.cycle_basis(G),
+        False,
+        # (the cycles are long: 100k nodes give about 4e8 node references, several GB)
+        [(10_000, 15_000), (30_000, 45_000)],
+        2,
+    ),
+    (
+        "girth",
+        lambda G: nx.girth(G),
+        False,
+        [(2_000, 3_000), (10_000, 15_000)],
+        2,
+    ),
+    (
         "diameter (usebounds)",
         lambda G: nx.diameter(G, usebounds=True),
         False,
