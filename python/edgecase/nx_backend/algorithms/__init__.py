@@ -5,6 +5,7 @@ from edgecase.nx_backend.algorithms import (
     cluster,
     community,
     components,
+    convert_matrix,
     core,
     distance_measures,
     shortest_paths,

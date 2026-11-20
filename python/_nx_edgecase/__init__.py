@@ -12,6 +12,7 @@ suite checks it against the backend's registry, so the two cannot drift apart.
 _FUNCTIONS = frozenset(
     {
         # BEGIN: functions
+        "adjacency_matrix",
         "all_pairs_dijkstra",
         "all_pairs_dijkstra_path",
         "all_pairs_dijkstra_path_length",
@@ -66,6 +67,7 @@ _FUNCTIONS = frozenset(
         "k_shell",
         "k_truss",
         "label_propagation_communities",
+        "laplacian_matrix",
         "louvain_communities",
         "louvain_partitions",
         "modularity",
@@ -73,6 +75,7 @@ _FUNCTIONS = frozenset(
         "multi_source_dijkstra_path",
         "multi_source_dijkstra_path_length",
         "node_connected_component",
+        "normalized_laplacian_matrix",
         "number_connected_components",
         "number_of_isolates",
         "number_strongly_connected_components",
@@ -93,6 +96,9 @@ _FUNCTIONS = frozenset(
         "single_target_shortest_path_length",
         "square_clustering",
         "strongly_connected_components",
+        "to_dict_of_lists",
+        "to_numpy_array",
+        "to_scipy_sparse_array",
         "topological_generations",
         "topological_sort",
         "transitivity",
