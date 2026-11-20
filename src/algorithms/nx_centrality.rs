@@ -570,6 +570,92 @@ pub fn nx_brandes(
 }
 
 // ============================================================================
+// Load centrality
+// ============================================================================
+
+/// One source's load (NetworkX's `_node_betweenness(G, source, cutoff, False, weight)`):
+/// `(node, value)` for each reached node, or None on a negative-weight contradiction
+fn source_load(
+    adjacency: &PathAdjacency,
+    source: usize,
+    rank: &[usize],
+    weighted: bool,
+    cutoff: Option<f64>,
+) -> Option<Vec<(usize, f64)>> {
+    let (nodes, lengths, preds) = adjacency.predecessors_from(source, cutoff, weighted)?;
+    // `onodes.sort()` of (length, node) pairs, ties by node (key order), positive lengths
+    let mut onodes: Vec<(f64, usize)> = nodes
+        .iter()
+        .zip(&lengths)
+        .filter(|&(_, &l)| l > 0.0)
+        .map(|(&v, &l)| (l, v))
+        .collect();
+    onodes.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap_or(Ordering::Equal)
+            .then_with(|| rank[a.1].cmp(&rank[b.1]))
+    });
+    let mut between = vec![0.0f64; adjacency.len()];
+    for &v in &nodes {
+        between[v] = 1.0;
+    }
+    while let Some((_, v)) = onodes.pop() {
+        let pred = &preds[v];
+        let num_paths = pred.len() as f64;
+        for &x in pred {
+            if x == source {
+                break;
+            }
+            between[x] += between[v] / num_paths;
+        }
+    }
+    Some(nodes.iter().map(|&v| (v, between[v] - 1.0)).collect())
+}
+
+/// Load centrality sums as `networkx.load_centrality` (`newman_betweenness_centrality`)
+/// accumulates them before normalizing: per node, the sum over every source (in node order)
+/// of its load from that source. BFS predecessors, or Dijkstra's with `weighted`, within
+/// `cutoff` (for BFS, None means no cutoff, as NetworkX treats a falsy one). `rank` orders
+/// the nodes as NetworkX compares their keys (to break ties among equal distances).
+/// Raises ValueError on a negative-weight contradiction.
+#[pyfunction]
+#[pyo3(signature = (adjacency, rank, weighted=false, cutoff=None))]
+pub fn nx_load_centrality(
+    py: Python<'_>,
+    adjacency: &PathAdjacency,
+    rank: Vec<usize>,
+    weighted: bool,
+    cutoff: Option<f64>,
+) -> PyResult<Vec<f64>> {
+    let n = adjacency.len();
+    if rank.len() != n {
+        return Err(PyValueError::new_err("rank must have one entry per node"));
+    }
+    let totals = py.allow_threads(|| {
+        let mut totals = vec![0.0f64; n];
+        let arcs = adjacency.rows().1.len();
+        let batch = (8_000_000 / (n + arcs).max(1)).clamp(1, 256);
+        let sources: Vec<usize> = (0..n).collect();
+        let run = |&s: &usize| source_load(adjacency, s, &rank, weighted, cutoff);
+        for chunk in sources.chunks(batch) {
+            let loads: Vec<Option<Vec<(usize, f64)>>> =
+                if chunk.len() > 1 && chunk.len() * (n + arcs) > 200_000 {
+                    chunk.par_iter().map(run).collect()
+                } else {
+                    chunk.iter().map(run).collect()
+                };
+            for load in loads {
+                for (v, value) in load? {
+                    totals[v] += value;
+                }
+            }
+        }
+        Some(totals)
+    });
+    totals.ok_or_else(|| PyValueError::new_err(("Contradictory paths found:", "negative weights?")))
+}
+
+// ============================================================================
 // Link prediction
 // ============================================================================
 
@@ -679,6 +765,88 @@ pub fn nx_link_scores(
         }
     });
     Ok(results.into_iter().unzip())
+}
+
+/// Common-neighbor counts by community for NetworkX's Soundarajan-Hopcroft scores and
+/// `within_inter_cluster`, for the node pairs `(us[i], vs[i])`. `communities` holds a code
+/// per node (equal codes for equal communities, negative for a node without one).
+///
+/// Returns `(sums, common, same)` per pair: the number of common neighbors; when the two
+/// nodes share a community, the number of common neighbors in it and the sum of `1 / degree`
+/// over those (in the first node's neighbor order); and `same` = -1 or -2 if the first or
+/// second node has no community, -3 if a common neighbor has none (when they share one).
+#[pyfunction]
+pub fn nx_community_link_scores(
+    py: Python<'_>,
+    adjacency: &PathAdjacency,
+    us: Vec<usize>,
+    vs: Vec<usize>,
+    communities: Vec<i64>,
+) -> PyResult<(Vec<f64>, Vec<i64>, Vec<i64>)> {
+    let n = adjacency.len();
+    if us.len() != vs.len() || us.iter().chain(&vs).any(|&x| x >= n) || communities.len() != n {
+        return Err(PyValueError::new_err(
+            "us and vs must be node positions of the same length, with a community per node",
+        ));
+    }
+    let (indptr, indices, _) = adjacency.rows();
+    let neighbors = |v: usize| &indices[indptr[v]..indptr[v + 1]];
+    let degree = |v: usize| {
+        let row = neighbors(v);
+        row.len() + usize::from(row.contains(&v))
+    };
+    let score = |marks: &mut Vec<usize>, i: usize| -> (f64, i64, i64) {
+        let (u, v) = (us[i], vs[i]);
+        let (cu, cv) = (communities[u], communities[v]);
+        if cu < 0 {
+            return (0.0, 0, -1);
+        }
+        if cv < 0 {
+            return (0.0, 0, -2);
+        }
+        let stamp = i + 1;
+        for &w in neighbors(v) {
+            marks[w] = stamp;
+        }
+        let shared = cu == cv;
+        let (mut common, mut same, mut sum, mut missing) = (0i64, 0i64, 0.0f64, false);
+        for &w in neighbors(u) {
+            if marks[w] == stamp && w != u && w != v {
+                common += 1;
+                if shared {
+                    let cw = communities[w];
+                    if cw < 0 {
+                        missing = true;
+                    } else if cw == cu {
+                        same += 1;
+                        sum += 1.0 / degree(w) as f64;
+                    }
+                }
+            }
+        }
+        (sum, common, if missing { -3 } else { same })
+    };
+    let pairs = us.len();
+    let results: Vec<(f64, i64, i64)> = py.allow_threads(|| {
+        if pairs > 1 && pairs * 16 > 200_000 {
+            (0..pairs)
+                .into_par_iter()
+                .map_init(|| vec![0usize; n], |marks, i| score(marks, i))
+                .collect()
+        } else {
+            let mut marks = vec![0usize; n];
+            (0..pairs).map(|i| score(&mut marks, i)).collect()
+        }
+    });
+    let mut sums = Vec::with_capacity(pairs);
+    let mut common = Vec::with_capacity(pairs);
+    let mut same = Vec::with_capacity(pairs);
+    for (s, c, k) in results {
+        sums.push(s);
+        common.push(c);
+        same.push(k);
+    }
+    Ok((sums, common, same))
 }
 
 #[cfg(test)]

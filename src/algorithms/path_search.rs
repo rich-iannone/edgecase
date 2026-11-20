@@ -533,6 +533,78 @@ impl PathAdjacency {
         None
     }
 
+    /// NetworkX's `predecessor(G, source, cutoff)`: the reached nodes in discovery order,
+    /// their levels and their predecessor lists (see `bfs_predecessors()`)
+    fn predecessor_lists(
+        &self,
+        source: usize,
+        cutoff: Option<f64>,
+    ) -> (Vec<usize>, Vec<usize>, Vec<Vec<usize>>) {
+        let csr = self.forward();
+        let mut level_of = vec![usize::MAX; self.n];
+        let mut position = vec![NONE; self.n];
+        level_of[source] = 0;
+        position[source] = 0;
+        let mut order = vec![source];
+        let mut levels = vec![0usize];
+        let mut preds: Vec<Vec<usize>> = vec![Vec::new()];
+        let mut level = 0usize;
+        let mut start = 0;
+        while start < order.len() {
+            level += 1;
+            let end = order.len();
+            for i in start..end {
+                let v = order[i];
+                for &w in csr.targets(v) {
+                    if level_of[w] == usize::MAX {
+                        level_of[w] = level;
+                        position[w] = order.len();
+                        order.push(w);
+                        levels.push(level);
+                        preds.push(vec![v]);
+                    } else if level_of[w] == level {
+                        preds[position[w]].push(v);
+                    }
+                }
+            }
+            start = end;
+            if cutoff.is_some_and(|c| c <= level as f64) {
+                break;
+            }
+        }
+        (order, levels, preds)
+    }
+
+    /// Predecessors and distances from `source`, as NetworkX's
+    /// `predecessor(G, source, cutoff, return_seen=True)` (BFS) or, with `weighted`,
+    /// `dijkstra_predecessor_and_distance(G, source, cutoff)` give them: the nodes of the
+    /// distance dict in its order, their distances and each node's predecessors (by node).
+    /// None if a negative weight contradicts a finished distance.
+    pub(crate) fn predecessors_from(
+        &self,
+        source: usize,
+        cutoff: Option<f64>,
+        weighted: bool,
+    ) -> Option<(Vec<usize>, Vec<f64>, Vec<Vec<usize>>)> {
+        if weighted {
+            let r = self
+                .run_dijkstra(self.forward(), &[source], cutoff, None, Track::AllPreds)
+                .ok()?;
+            Some((r.order, r.dist, r.preds))
+        } else {
+            let (order, levels, preds) = self.predecessor_lists(source, cutoff);
+            let mut by_node = vec![Vec::new(); self.n];
+            for (&v, p) in order.iter().zip(preds) {
+                by_node[v] = p;
+            }
+            Some((
+                order,
+                levels.into_iter().map(|l| l as f64).collect(),
+                by_node,
+            ))
+        }
+    }
+
     fn sources(&self, sources: Vec<usize>) -> PyResult<Vec<usize>> {
         for &s in &sources {
             self.check_node(s)?;
@@ -976,39 +1048,7 @@ impl PathAdjacency {
         cutoff: Option<f64>,
     ) -> PyResult<(Vec<usize>, Vec<usize>, Vec<Vec<usize>>)> {
         self.check_node(source)?;
-        let csr = self.forward();
-        let mut level_of = vec![usize::MAX; self.n];
-        let mut position = vec![NONE; self.n];
-        level_of[source] = 0;
-        position[source] = 0;
-        let mut order = vec![source];
-        let mut levels = vec![0usize];
-        let mut preds: Vec<Vec<usize>> = vec![Vec::new()];
-        let mut level = 0usize;
-        let mut start = 0;
-        while start < order.len() {
-            level += 1;
-            let end = order.len();
-            for i in start..end {
-                let v = order[i];
-                for &w in csr.targets(v) {
-                    if level_of[w] == usize::MAX {
-                        level_of[w] = level;
-                        position[w] = order.len();
-                        order.push(w);
-                        levels.push(level);
-                        preds.push(vec![v]);
-                    } else if level_of[w] == level {
-                        preds[position[w]].push(v);
-                    }
-                }
-            }
-            start = end;
-            if cutoff.is_some_and(|c| c <= level as f64) {
-                break;
-            }
-        }
-        Ok((order, levels, preds))
+        Ok(self.predecessor_lists(source, cutoff))
     }
 
     /// NetworkX's `bidirectional_shortest_path`: a path from `source` to `target` with the
