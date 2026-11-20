@@ -1449,3 +1449,156 @@ pub fn nx_greedy_modularity(
     }
     Ok((merges, exhausted))
 }
+
+// ============================================================================
+// Efficiency
+// ============================================================================
+
+/// Distinct neighbors of each node (positions), in the order of the graph's neighbor lists
+fn distinct_neighbors(
+    graph: &Graph,
+    ids: &[u64],
+    positions: &FxHashMap<u64, usize>,
+) -> Vec<Vec<usize>> {
+    let lists = graph.get_adjacency_list();
+    let n = ids.len();
+    let mut owner = vec![usize::MAX; n];
+    ids.iter()
+        .enumerate()
+        .map(|(v, id)| {
+            let mut out = Vec::new();
+            if let Some(nbrs) = lists.get(id) {
+                for w in nbrs {
+                    if let Some(&t) = positions.get(w) {
+                        if owner[t] != v {
+                            owner[t] = v;
+                            out.push(t);
+                        }
+                    }
+                }
+            }
+            out
+        })
+        .collect()
+}
+
+/// The sum `networkx.global_efficiency` accumulates over a graph given by its nodes in
+/// iteration order and a neighbor function: `1 / d` for every reachable pair at distance
+/// `d > 0`, added one by one, by source and then in breadth-first discovery order.
+fn efficiency_sum(
+    order: &[usize],
+    neighbors: impl Fn(usize, &mut Vec<usize>),
+    dist: &mut [usize],
+) -> f64 {
+    const UNSEEN: usize = usize::MAX;
+    let mut total = 0.0f64;
+    let mut level: Vec<usize> = Vec::new();
+    let mut next: Vec<usize> = Vec::new();
+    let mut seen: Vec<usize> = Vec::new();
+    let mut nbrs: Vec<usize> = Vec::new();
+    for &s in order {
+        dist[s] = 0;
+        seen.push(s);
+        level.clear();
+        level.push(s);
+        let mut d = 0usize;
+        while !level.is_empty() {
+            d += 1;
+            next.clear();
+            for &v in &level {
+                neighbors(v, &mut nbrs);
+                for &w in &nbrs {
+                    if dist[w] == UNSEEN {
+                        dist[w] = d;
+                        seen.push(w);
+                        next.push(w);
+                        total += 1.0 / d as f64;
+                    }
+                }
+            }
+            std::mem::swap(&mut level, &mut next);
+        }
+        for &v in &seen {
+            dist[v] = UNSEEN;
+        }
+        seen.clear();
+    }
+    total
+}
+
+/// `networkx.global_efficiency(G)` before its final division: the sum of `1 / d` over every
+/// ordered pair at distance `d > 0`, added in NetworkX's order (sources in node order,
+/// targets in breadth-first discovery order over the graph's neighbor lists)
+#[pyfunction]
+pub fn nx_global_efficiency_sum(graph: &Graph) -> f64 {
+    let (ids, positions) = node_positions(graph);
+    let n = ids.len();
+    let nbrs = distinct_neighbors(graph, &ids, &positions);
+    let order: Vec<usize> = (0..n).collect();
+    let mut dist = vec![usize::MAX; n];
+    efficiency_sum(
+        &order,
+        |v, out: &mut Vec<usize>| {
+            out.clear();
+            out.extend_from_slice(&nbrs[v]);
+        },
+        &mut dist,
+    )
+}
+
+/// The sums `networkx.local_efficiency` takes `global_efficiency` of: for each node `v` (in
+/// node order), the graph its neighbors induce, as NetworkX's subgraph view iterates it.
+///
+/// `members` lists each subgraph's nodes (as node IDs) in the order the view iterates them
+/// (Python's set order, which the caller reads from the same set NetworkX builds, or node
+/// order), split by `offsets`. A node's neighbors inside the subgraph come in its own
+/// neighbor order. Returns each subgraph's efficiency sum.
+#[pyfunction]
+pub fn nx_local_efficiency_sums(
+    graph: &Graph,
+    offsets: Vec<usize>,
+    members: Vec<u64>,
+) -> PyResult<Vec<f64>> {
+    let (ids, positions) = node_positions(graph);
+    let n = ids.len();
+    if offsets.len() != n + 1 || offsets.last().copied() != Some(members.len()) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "offsets must split members into one list per node",
+        ));
+    }
+    let members: Vec<usize> = members
+        .iter()
+        .map(|id| {
+            positions.get(id).copied().ok_or_else(|| {
+                pyo3::exceptions::PyValueError::new_err(format!("unknown node ID {}", id))
+            })
+        })
+        .collect::<PyResult<_>>()?;
+    let nbrs = distinct_neighbors(graph, &ids, &positions);
+    let mut mark = vec![usize::MAX; n]; // node -> subgraph (of node v) it belongs to
+    let mut dist = vec![usize::MAX; n];
+    let mut out = Vec::with_capacity(n);
+    for v in 0..n {
+        let (a, b) = (offsets[v], offsets[v + 1]);
+        if a > b || b > members.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err("bad offsets"));
+        }
+        let sub = &members[a..b];
+        for &u in sub {
+            mark[u] = v;
+        }
+        let total = efficiency_sum(
+            sub,
+            |u, list: &mut Vec<usize>| {
+                list.clear();
+                list.extend(nbrs[u].iter().copied().filter(|&w| mark[w] == v));
+            },
+            &mut dist,
+        );
+        for &u in sub {
+            mark[u] = usize::MAX;
+        }
+        out.push(total);
+    }
+    Ok(out)
+}

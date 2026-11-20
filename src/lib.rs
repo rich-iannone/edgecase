@@ -63,6 +63,14 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         m
     )?)?;
     m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_global_efficiency_sum,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_compat::nx_local_efficiency_sums,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
         algorithms::centrality::knotty_centrality,
         m
     )?)?;
