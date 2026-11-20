@@ -44,6 +44,7 @@ _FUNCTIONS = frozenset(
         "dijkstra_path_length",
         "dijkstra_predecessor_and_distance",
         "generalized_degree",
+        "greedy_modularity_communities",
         "has_path",
         "is_connected",
         "is_directed_acyclic_graph",

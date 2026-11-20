@@ -17,6 +17,7 @@ from edgecase.nx_backend.registry import networkx_algorithm
 
 __all__ = [
     "asyn_lpa_communities",
+    "greedy_modularity_communities",
     "is_partition",
     "label_propagation_communities",
     "louvain_communities",
@@ -112,51 +113,61 @@ def partition_quality(G, partition):
 # Louvain
 
 
-def _size(G, weights):
-    """`G.size(weight)` with NetworkX's summation order (weights per arc)."""
-    if weights is None:
-        return G.number_of_edges()
+def _degrees(G, weights):
+    """Weighted degrees per node (in node order) summed as NetworkX sums them.
+
+    Undirected: `G.degree(weight)` (a self-loop counts twice); directed:
+    `(G.out_degree(weight), G.in_degree(weight))`, the in-degrees in NetworkX's
+    predecessor order when the conversion recorded it. `weights` is per arc (None: 1).
+    """
     src, dst = G.src, G.dst
+    if weights is None:
+        weights = [1] * len(src)
     n = len(G.nodes)
     starts = [0] * (n + 2)
     for s in src:
         starts[s + 1] += 1
     for i in range(1, n + 2):
         starts[i] += starts[i - 1]
-    degrees = []
     if G.is_directed():
-        # predecessors' weights in NetworkX's predecessor order when it was recorded
+        out_degrees = [sum(weights[starts[u] : starts[u + 1]]) for u in range(1, n + 1)]
+        in_weights = {}
         if G.pred_order is not None:
             by_pair = {}
             for s, d, w in zip(src, dst, weights):
                 by_pair.setdefault((s, d), []).append(w)
             key_to_id = G.key_to_id
             pred_nodes, counts, preds = G.pred_order
-            in_weights = {}
             k = 0
             for v, count in zip(pred_nodes, counts):
                 vid = key_to_id[v]
-                ws = []
+                ws = in_weights[vid] = []
                 for u in preds[k : k + count]:
                     ws.extend(by_pair[(key_to_id[u], vid)])
                 k += count
-                in_weights[vid] = ws
         else:
-            in_weights = {}
-            for s, d, w in zip(src, dst, weights):
+            for d, w in zip(dst, weights):
                 in_weights.setdefault(d, []).append(w)
-        for u in range(1, n + 1):
-            out = weights[starts[u] : starts[u + 1]]
-            degrees.append(sum(out) + sum(in_weights.get(u, ())))
-    else:
-        multigraph = G.is_multigraph()
-        for u in range(1, n + 1):
-            arcs = range(starts[u], starts[u + 1])
-            deg = sum(weights[starts[u] : starts[u + 1]])
-            loops = [weights[i] for i in arcs if dst[i] == u]
-            if loops:
-                deg = deg + (sum(loops) if multigraph else loops[0])
-            degrees.append(deg)
+        in_degrees = [sum(in_weights.get(u, ())) for u in range(1, n + 1)]
+        return out_degrees, in_degrees
+    multigraph = G.is_multigraph()
+    degrees = []
+    for u in range(1, n + 1):
+        deg = sum(weights[starts[u] : starts[u + 1]])
+        loops = [weights[i] for i in range(starts[u], starts[u + 1]) if dst[i] == u]
+        if loops:
+            deg = deg + (sum(loops) if multigraph else loops[0])
+        degrees.append(deg)
+    return degrees, None
+
+
+def _size(G, weights):
+    """`G.size(weight)` with NetworkX's summation order (weights per arc)."""
+    if weights is None:
+        return G.number_of_edges()
+    degrees, in_degrees = _degrees(G, weights)
+    if in_degrees is not None:
+        degrees = [d + i for d, i in zip(degrees, in_degrees)]
     return sum(degrees) / 2
 
 
@@ -282,3 +293,89 @@ def label_propagation_communities(G):
     ids, labels = semi_synchronous_label_propagation(G.rust_graph())
     label_of = dict(zip(ids, labels))
     return _groups(G, [label_of[i] for i in range(1, len(G.nodes) + 1)]).values()
+
+
+# Greedy modularity (Clauset-Newman-Moore)
+
+
+@networkx_algorithm
+def greedy_modularity_communities(G, weight=None, resolution=1, cutoff=1, best_n=None):
+    from edgecase._core import nx_greedy_modularity
+
+    nodes = G.nodes
+    n = len(nodes)
+    if not G.number_of_edges():
+        return [{v} for v in nodes]
+    if (cutoff < 1) or (cutoff > n):
+        raise ValueError(f"cutoff must be between 1 and {n}. Got {cutoff}.")
+    if best_n is not None:
+        if (best_n < 1) or (best_n > n):
+            raise ValueError(f"best_n must be between 1 and {n}. Got {best_n}.")
+        if best_n < cutoff:
+            raise ValueError(f"Must have best_n >= cutoff. Got {best_n} < {cutoff}")
+        if best_n == 1:
+            return [set(nodes)]
+    else:
+        best_n = n
+    try:
+        # NetworkX breaks ties between equal gains by comparing nodes
+        order = sorted(range(n), key=nodes.__getitem__)
+    except TypeError as exc:
+        raise NotImplementedError(f"nodes that cannot be sorted: {exc}") from exc
+    rank = [0] * n
+    for r, i in enumerate(order):
+        rank[i] = r
+
+    weights = None if weight is None else G.edge_values_of(weight, 1)
+    m = _size(G, weights)
+    q0 = 1 / m
+    out_degrees, in_degrees = _degrees(G, weights)
+    if in_degrees is None:
+        a = b = [deg * q0 * 0.5 for deg in out_degrees]
+    else:
+        a = [deg * q0 for deg in out_degrees]
+        b = [deg * q0 for deg in in_degrees]
+    arcs = G.edge_arcs
+    src, dst = G.src, G.dst
+    try:
+        merges, exhausted = nx_greedy_modularity(
+            n,
+            [src[i] for i in arcs],
+            [dst[i] for i in arcs],
+            [1.0] * len(arcs) if weights is None else [weights[i] for i in arcs],
+            a,
+            b,
+            rank,
+            q0,
+            resolution,
+            G.is_directed(),
+            cutoff,
+            best_n,
+        )
+    except TypeError as exc:
+        raise NotImplementedError(f"edge weights edgecase cannot use: {exc}") from exc
+
+    # The communities after the merges: each absorbed node's community joins its absorber's
+    parent = list(range(n))
+    for u, v in merges:
+        parent[u] = v
+
+    def root(x):
+        while parent[x] != x:
+            parent[x] = parent[parent[x]]
+            x = parent[x]
+        return x
+
+    members = {}
+    for i in range(n):
+        members.setdefault(root(i), []).append(nodes[i])
+    # (in the order of the surviving nodes, as NetworkX's dict keeps them)
+    communities = [frozenset(members[r]) for r in sorted(members)]
+    if exhausted:
+        communities = sorted(communities, key=len, reverse=True)
+        while len(communities) > best_n:
+            comm1, comm2, *rest = communities
+            communities = [comm1 ^ comm2]
+            communities.extend(rest)
+        return communities
+    return sorted(communities, key=len, reverse=True)

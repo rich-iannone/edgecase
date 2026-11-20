@@ -118,3 +118,41 @@ def test_left_to_networkx():
     assert bi.can_run("louvain_communities", (G,), {"seed": random.Random(1)}) is True
     assert bi.can_run("louvain_communities", (G,), {}) is True
     assert isinstance(bi.can_run("label_propagation_communities", (nx.MultiGraph(G),), {}), str)
+
+
+@pytest.mark.parametrize("cls", ALL_CLASSES)
+@pytest.mark.parametrize("seed", range(6))
+def test_greedy_modularity(cls, seed):
+    rng = random.Random(seed)
+    G = random_graph(cls, 50, rng.choice([30, 90, 160]), seed, float_weights=seed % 2 == 1)
+    for kw in [
+        {},
+        {"weight": "weight"},
+        {"resolution": 0.5},
+        {"resolution": 1.7, "weight": "weight"},
+        {"cutoff": 5},
+        {"best_n": 3},
+        {"cutoff": 2, "best_n": 10},
+    ]:
+        expected = nx.community.greedy_modularity_communities(G, **kw)
+        result = nx.community.greedy_modularity_communities(G, **kw, **EC)
+        assert result == expected
+        assert [type(c) for c in result] == [type(c) for c in expected]
+
+
+def test_greedy_modularity_edge_cases():
+    G = nx.karate_club_graph()
+    for kw in [{"cutoff": 0}, {"cutoff": 40}, {"best_n": 0}, {"cutoff": 4, "best_n": 3}]:
+        with pytest.raises(ValueError):
+            nx.community.greedy_modularity_communities(G, **kw, **EC)
+    assert nx.community.greedy_modularity_communities(G, best_n=1, **EC) == [set(G)]
+    assert nx.community.greedy_modularity_communities(nx.empty_graph(3), **EC) == [
+        {0},
+        {1},
+        {2},
+    ]
+    # Ties between equal gains are broken by comparing nodes, as NetworkX does
+    G = nx.cycle_graph(["d", "a", "c", "b", "e", "f"])
+    assert nx.community.greedy_modularity_communities(G, **EC) == (
+        nx.community.greedy_modularity_communities(G)
+    )
