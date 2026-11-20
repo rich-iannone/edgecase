@@ -6,7 +6,7 @@ time), and edgecase on a graph converted beforehand (warm: its search structure 
 built). Each time is the fastest of a few runs.
 
 Usage:
-    python scripts/benchmark_nx_shortest_paths.py [--quick] [--out results.csv]
+    python scripts/benchmark_nx_shortest_paths.py [--quick] [--only NAME...] [--out results.csv]
 """
 
 from __future__ import annotations
@@ -45,6 +45,15 @@ def make_graph(num_nodes, num_edges, directed=False, seed=42):
     return G
 
 
+def make_grid(num_nodes, num_edges=None):
+    """A square grid (large diameter: where `usebounds=True` helps), weighted like above."""
+    side = round(num_nodes**0.5)
+    G = nx.convert_node_labels_to_integers(nx.grid_2d_graph(side, side))
+    for i, (_, _, data) in enumerate(G.edges(data=True)):
+        data["weight"] = (i % 97) / 7 + 1
+    return G
+
+
 def consume(result):
     """Exhaust a generator (all-pairs functions) without keeping its items."""
     if not isinstance(result, dict | list | tuple | int | float):
@@ -52,7 +61,7 @@ def consume(result):
             pass
 
 
-# (function, call(G), weighted, sizes as (nodes, edges), repeats)
+# (function, call(G), weighted, sizes as (nodes, edges), repeats[, graph maker])
 CASES = [
     (
         "single_source_dijkstra_path_length",
@@ -96,18 +105,58 @@ CASES = [
         [(2_000, 20_000)],
         3,
     ),
+    (
+        "closeness_centrality",
+        lambda G: nx.closeness_centrality(G),
+        False,
+        [(500, 5_000), (2_000, 20_000)],
+        3,
+    ),
+    (
+        "closeness_centrality (weighted)",
+        lambda G: nx.closeness_centrality(G, distance="weight"),
+        True,
+        [(500, 5_000), (2_000, 20_000)],
+        3,
+    ),
+    (
+        "harmonic_centrality",
+        lambda G: nx.harmonic_centrality(G),
+        False,
+        [(500, 5_000), (2_000, 20_000)],
+        3,
+    ),
+    (
+        "eccentricity",
+        lambda G: nx.eccentricity(G),
+        False,
+        [(500, 5_000), (2_000, 20_000)],
+        3,
+    ),
+    (
+        "diameter (usebounds)",
+        lambda G: nx.diameter(G, usebounds=True),
+        False,
+        [(10_000, None), (90_000, None)],
+        3,
+        make_grid,
+    ),
 ]
 
 
-def run(cases, quick):
+def run(cases, quick, out=None):
     nx.config.cache_converted_graphs = False
+    commit = subprocess.run(
+        ["git", "rev-parse", "--short=8", "HEAD"], capture_output=True, text=True
+    ).stdout.strip()
     rows = []
-    for name, call, weighted, sizes, repeat in cases:
+    for name, call, weighted, sizes, repeat, *maker in cases:
+        maker = maker[0] if maker else make_graph
         if quick:
             sizes = sizes[:1]
             repeat = min(repeat, 2)
         for num_nodes, num_edges in sizes:
-            G = make_graph(num_nodes, num_edges)
+            G = maker(num_nodes, num_edges)
             E = from_networkx(G, edge_attrs={"weight": 1} if weighted else None)
             call(E)  # builds and caches E's search structure
             with nx.config.backend_priority(algos=[]):
@@ -116,10 +165,12 @@ def run(cases, quick):
                 t_conv = best_time(lambda: call(G), repeat)
             t_cached = best_time(lambda: call(E), repeat)
             row = {
+                "timestamp": datetime.datetime.now().isoformat(timespec="seconds"),
+                "commit": commit,
                 "function": name,
-                "graph": "Graph",
-                "nodes": num_nodes,
-                "edges": num_edges,
+                "graph": "grid" if maker is make_grid else "Graph",
+                "nodes": G.number_of_nodes(),
+                "edges": G.number_of_edges(),
                 "networkx_s": round(t_nx, 6),
                 "edgecase_with_conversion_s": round(t_conv, 6),
                 "edgecase_cached_graph_s": round(t_cached, 6),
@@ -128,32 +179,35 @@ def run(cases, quick):
             }
             print(row, flush=True)
             rows.append(row)
+            if out:
+                write_row(out, row)
     return rows
+
+
+def write_row(path, row):
+    """Append `row` to the CSV file at `path` (with a header if the file is new)."""
+    try:
+        with open(path) as f:
+            new_file = not f.read(1)
+    except FileNotFoundError:
+        new_file = True
+    with open(path, "a", newline="") as f:
+        writer = csv.DictWriter(f, fieldnames=list(row))
+        if new_file:
+            writer.writeheader()
+        writer.writerow(row)
 
 
 def main():
     parser = argparse.ArgumentParser(description=__doc__.splitlines()[0])
     parser.add_argument("--quick", action="store_true", help="smallest size only")
     parser.add_argument("--out", help="append rows to this CSV file")
+    parser.add_argument("--only", nargs="*", help="run the cases whose name starts so")
     args = parser.parse_args()
-    rows = run(CASES, args.quick)
-    if args.out:
-        commit = subprocess.run(
-            ["git", "rev-parse", "--short=8", "HEAD"], capture_output=True, text=True
-        ).stdout.strip()
-        timestamp = datetime.datetime.now().isoformat(timespec="seconds")
-        fields = ["timestamp", "commit", *rows[0]]
-        try:
-            with open(args.out) as f:
-                new_file = not f.read(1)
-        except FileNotFoundError:
-            new_file = True
-        with open(args.out, "a", newline="") as f:
-            writer = csv.DictWriter(f, fieldnames=fields)
-            if new_file:
-                writer.writeheader()
-            for row in rows:
-                writer.writerow({"timestamp": timestamp, "commit": commit, **row})
+    cases = CASES
+    if args.only:
+        cases = [case for case in CASES if case[0].startswith(tuple(args.only))]
+    run(cases, args.quick, args.out)
     return 0
 
 
