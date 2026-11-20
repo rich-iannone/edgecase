@@ -10,7 +10,8 @@ use pyo3::prelude::*;
 use pyo3::types::PyList;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
-use std::collections::VecDeque;
+use std::cmp::Reverse;
+use std::collections::{BinaryHeap, VecDeque};
 
 use crate::algorithms::path_search::PathAdjacency;
 
@@ -583,6 +584,189 @@ impl ArcAdjacency {
         }))
     }
 
+    /// NetworkX's `edge_bfs(G, starts, orientation)`: the edges as `(arc, reverse)` in the
+    /// order NetworkX yields them (orientation as for `edge_dfs()`).
+    #[pyo3(signature = (starts, orientation=None))]
+    fn edge_bfs(
+        &self,
+        py: Python<'_>,
+        starts: Vec<usize>,
+        orientation: Option<&str>,
+    ) -> PyResult<Vec<(usize, bool)>> {
+        let n = self.out_start.len() - 1;
+        if starts.iter().any(|&s| s >= n) {
+            return Err(PyValueError::new_err("start position out of range"));
+        }
+        let (outward, inward) = match (self.directed, orientation) {
+            (false, _) | (true, None) | (true, Some("original")) => (true, false),
+            (true, Some("reverse")) => (false, true),
+            (true, Some("ignore")) => (true, true),
+            _ => return Err(PyValueError::new_err("invalid orientation argument.")),
+        };
+        Ok(py.allow_threads(|| {
+            let mut visited_nodes = vec![false; n];
+            for &s in &starts {
+                visited_nodes[s] = true;
+            }
+            let mut visited_edges = vec![false; self.edge_of_arc.len()];
+            let mut queue: VecDeque<usize> = starts.iter().copied().collect();
+            let mut result = Vec::new();
+            while let Some(parent) = queue.pop_front() {
+                let outs = if outward {
+                    &self.out_arcs[self.out_start[parent]..self.out_start[parent + 1]]
+                } else {
+                    &[][..]
+                };
+                let ins = if inward {
+                    &self.in_arcs[self.in_start[parent]..self.in_start[parent + 1]]
+                } else {
+                    &[][..]
+                };
+                let edges = outs
+                    .iter()
+                    .map(|&a| (a, false))
+                    .chain(ins.iter().map(|&a| (a, true)));
+                for (arc, reverse) in edges {
+                    let child = if reverse {
+                        self.arc_source[arc]
+                    } else {
+                        self.arc_target[arc]
+                    };
+                    if !visited_nodes[child] {
+                        visited_nodes[child] = true;
+                        queue.push_back(child);
+                    }
+                    let id = self.edge_of_arc[arc];
+                    if !visited_edges[id] {
+                        visited_edges[id] = true;
+                        result.push((arc, reverse));
+                    }
+                }
+            }
+            result
+        }))
+    }
+
+    /// NetworkX's `lexicographical_topological_sort`: nodes with no remaining in-edges are
+    /// taken smallest `rank` first (the caller ranks the nodes by NetworkX's sort key).
+    /// Returns the order and whether nodes on a cycle were left over.
+    fn lexicographical_topological_sort(
+        &self,
+        py: Python<'_>,
+        rank: Vec<usize>,
+    ) -> PyResult<(Vec<usize>, bool)> {
+        let n = self.out_start.len() - 1;
+        if rank.len() != n {
+            return Err(PyValueError::new_err("rank must have one entry per node"));
+        }
+        Ok(py.allow_threads(|| {
+            let mut indegree = vec![0usize; n];
+            for &t in &self.arc_target {
+                indegree[t] += 1;
+            }
+            let mut heap: BinaryHeap<Reverse<(usize, usize)>> = (0..n)
+                .filter(|&v| indegree[v] == 0)
+                .map(|v| Reverse((rank[v], v)))
+                .collect();
+            let mut order = Vec::with_capacity(n);
+            while let Some(Reverse((_, node))) = heap.pop() {
+                for &a in &self.out_arcs[self.out_start[node]..self.out_start[node + 1]] {
+                    let child = self.arc_target[a];
+                    indegree[child] -= 1;
+                    if indegree[child] == 0 {
+                        heap.push(Reverse((rank[child], child)));
+                    }
+                }
+                order.push(node);
+            }
+            let left_over = order.len() < n;
+            (order, left_over)
+        }))
+    }
+
+    /// NetworkX's `dag_longest_path` over `topo_order` (positions), with `weights` per arc
+    /// (in arc order): each node's best predecessor in predecessor order (the heaviest of
+    /// parallel edges), a node starting afresh when every way in is negative. Returns the
+    /// path and its length as `dag_longest_path_length` adds it up; None if `topo_order`
+    /// reaches a node before one of its predecessors.
+    fn dag_longest_path(
+        &self,
+        py: Python<'_>,
+        topo_order: Vec<usize>,
+        weights: Vec<f64>,
+    ) -> PyResult<Option<(Vec<usize>, f64)>> {
+        let n = self.out_start.len() - 1;
+        if weights.len() != self.arc_source.len() || topo_order.iter().any(|&v| v >= n) {
+            return Err(PyValueError::new_err(
+                "weights must have one value per arc, topo_order node positions",
+            ));
+        }
+        // The heaviest of a run of parallel arcs (the first of the heaviest)
+        let heaviest = |arcs: &[usize]| -> f64 {
+            let mut best = weights[arcs[0]];
+            for &a in &arcs[1..] {
+                if weights[a] > best {
+                    best = weights[a];
+                }
+            }
+            best
+        };
+        Ok(py.allow_threads(|| {
+            let mut dist: Vec<Option<(f64, usize)>> = vec![None; n];
+            let mut order = Vec::new();
+            for &v in &topo_order {
+                let ins = &self.in_arcs[self.in_start[v]..self.in_start[v + 1]];
+                let mut best: Option<(f64, usize)> = None;
+                let mut k = 0;
+                while k < ins.len() {
+                    let u = self.arc_source[ins[k]];
+                    let start = k;
+                    while k < ins.len() && self.arc_source[ins[k]] == u {
+                        k += 1;
+                    }
+                    let (du, _) = dist[u]?;
+                    let candidate = du + heaviest(&ins[start..k]);
+                    if best.is_none_or(|(b, _)| candidate > b) {
+                        best = Some((candidate, u));
+                    }
+                }
+                let maxu = best.unwrap_or((0.0, v));
+                if dist[v].is_none() {
+                    order.push(v);
+                }
+                dist[v] = Some(if maxu.0 >= 0.0 { maxu } else { (0.0, v) });
+            }
+            // The end: the first node with the greatest distance
+            let mut end = *order.first()?;
+            for &v in &order {
+                if dist[v]?.0 > dist[end]?.0 {
+                    end = v;
+                }
+            }
+            let mut path = Vec::new();
+            let mut u = NONE;
+            let mut v = end;
+            while u != v {
+                path.push(v);
+                u = v;
+                v = dist[v]?.1;
+            }
+            path.reverse();
+            // The length as NetworkX adds it up along the path
+            let mut length = 0.0;
+            for pair in path.windows(2) {
+                let (a, b) = (pair[0], pair[1]);
+                let run: Vec<usize> = self.out_arcs[self.out_start[a]..self.out_start[a + 1]]
+                    .iter()
+                    .copied()
+                    .filter(|&x| self.arc_target[x] == b)
+                    .collect();
+                length += heaviest(&run);
+            }
+            Some((path, length))
+        }))
+    }
+
     /// NetworkX's Hierholzer walk (`_simplegraph_eulerian_circuit` /
     /// `_multigraph_eulerian_circuit`) from `source`, always taking the first remaining edge
     /// of the current node in adjacency order. NetworkX walks a copy: `G.reverse()` with
@@ -725,4 +909,131 @@ pub fn nx_bipartite_color(
         }
         Some((order, colors))
     })
+}
+
+/// NetworkX's `immediate_dominators(G, start)` (Cooper, Harvey and Kennedy's iteration over
+/// the reverse postorder of a depth-first search, predecessors in predecessor order).
+/// Returns the nodes in the order they got a dominator and their immediate dominators.
+#[pyfunction]
+pub fn nx_immediate_dominators(
+    py: Python<'_>,
+    adjacency: &PathAdjacency,
+    start: usize,
+) -> PyResult<(Vec<usize>, Vec<usize>)> {
+    let n = adjacency.len();
+    if start >= n {
+        return Err(PyValueError::new_err("start position out of range"));
+    }
+    Ok(py.allow_threads(|| {
+        let (indptr, indices, _) = adjacency.rows();
+        let (rindptr, rindices, _) = adjacency.reverse_rows();
+        // Depth-first postorder from start (nx.dfs_postorder_nodes)
+        let mut seen = vec![false; n];
+        let mut postorder = Vec::new();
+        let mut stack = vec![(start, indptr[start])];
+        seen[start] = true;
+        while let Some(&(v, k)) = stack.last() {
+            if k < indptr[v + 1] {
+                stack.last_mut().expect("not empty").1 = k + 1;
+                let w = indices[k];
+                if !seen[w] {
+                    seen[w] = true;
+                    stack.push((w, indptr[w]));
+                }
+            } else {
+                postorder.push(v);
+                stack.pop();
+            }
+        }
+        let mut dfn = vec![NONE; n];
+        for (i, &u) in postorder.iter().enumerate() {
+            dfn[u] = i;
+        }
+        let mut order = postorder;
+        order.pop();
+        order.reverse();
+        let mut idom = vec![NONE; n];
+        idom[start] = start;
+        let mut assigned = Vec::new();
+        let intersect = |idom: &[usize], mut u: usize, mut v: usize| {
+            while u != v {
+                while dfn[u] < dfn[v] {
+                    u = idom[u];
+                }
+                while dfn[u] > dfn[v] {
+                    v = idom[v];
+                }
+            }
+            u
+        };
+        let mut changed = true;
+        while changed {
+            changed = false;
+            for &u in &order {
+                let mut new_idom = NONE;
+                for &v in &rindices[rindptr[u]..rindptr[u + 1]] {
+                    if idom[v] != NONE {
+                        new_idom = if new_idom == NONE {
+                            v
+                        } else {
+                            intersect(&idom, new_idom, v)
+                        };
+                    }
+                }
+                if idom[u] != new_idom {
+                    if idom[u] == NONE {
+                        assigned.push(u);
+                    }
+                    idom[u] = new_idom;
+                    changed = true;
+                }
+            }
+        }
+        let dominators = assigned.iter().map(|&u| idom[u]).collect();
+        (assigned, dominators)
+    }))
+}
+
+/// Whether a strongly connected graph is aperiodic (NetworkX's `is_aperiodic` after its
+/// checks): the gcd of `level(u) - level(v) + 1` over its edges, with levels from a search
+/// from `start`, is 1.
+#[pyfunction]
+pub fn nx_is_aperiodic(py: Python<'_>, adjacency: &PathAdjacency, start: usize) -> PyResult<bool> {
+    let n = adjacency.len();
+    if start >= n {
+        return Err(PyValueError::new_err("start position out of range"));
+    }
+    Ok(py.allow_threads(|| {
+        let (indptr, indices, _) = adjacency.rows();
+        let mut level = vec![i64::MIN; n];
+        level[start] = 0;
+        let mut queue = VecDeque::from([start]);
+        while let Some(u) = queue.pop_front() {
+            for &v in &indices[indptr[u]..indptr[u + 1]] {
+                if level[v] == i64::MIN {
+                    level[v] = level[u] + 1;
+                    queue.push_back(v);
+                }
+            }
+        }
+        let gcd = |mut a: i64, mut b: i64| {
+            while b != 0 {
+                (a, b) = (b, a % b);
+            }
+            a.abs()
+        };
+        let mut g = 0i64;
+        for u in 0..n {
+            if level[u] == i64::MIN {
+                continue;
+            }
+            for &v in &indices[indptr[u]..indptr[u + 1]] {
+                g = gcd(g, level[u] - level[v] + 1);
+                if g == 1 {
+                    return true;
+                }
+            }
+        }
+        false
+    }))
 }

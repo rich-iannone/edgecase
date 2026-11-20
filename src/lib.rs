@@ -615,6 +615,14 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         algorithms::nx_structure::nx_bipartite_color,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_immediate_dominators,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_is_aperiodic,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_centrality::nx_eigenvector_centrality,

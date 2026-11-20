@@ -983,6 +983,13 @@ impl PathAdjacency {
         )
     }
 
+    /// The predecessor rows as `(indptr, indices, weights)` (successors for an undirected
+    /// graph), in the predecessor order set by `set_predecessor_order()`, else in arc order
+    fn reverse_arcs(&self) -> (Vec<usize>, Vec<usize>, Vec<f64>) {
+        let csr = self.csr(true);
+        (csr.indptr.clone(), csr.indices.clone(), csr.weights.clone())
+    }
+
     /// The number of nodes
     #[getter]
     fn num_nodes(&self) -> usize {
