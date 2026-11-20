@@ -7,8 +7,9 @@
 //! rounding).
 //!
 //! Nodes are visited in increasing ID order (the NetworkX backend numbers nodes `1..=n` in
-//! NetworkX node order) and neighbors in edge order. Results are vectors indexed by the
-//! position of each node in increasing ID order.
+//! NetworkX node order) and neighbors in the order of the graph's neighbor lists (which
+//! `Graph.from_edge_arrays()` takes from NetworkX's adjacency). Results are vectors indexed by
+//! the position of each node in increasing ID order.
 
 use crate::graph::Graph;
 use pyo3::prelude::*;
@@ -24,8 +25,11 @@ fn node_positions(graph: &Graph) -> (Vec<u64>, FxHashMap<u64, usize>) {
     (ids, positions)
 }
 
-/// Compressed adjacency over node positions: the out-neighbors of node `i` (both ends of an
-/// undirected edge) are `targets[offsets[i]..offsets[i + 1]]`, in edge order.
+/// Compressed adjacency over node positions: the distinct out-neighbors of node `i` (both
+/// ends of an undirected edge) are `targets[offsets[i]..offsets[i + 1]]`, in the order of the
+/// graph's neighbor lists (NetworkX's order for graphs built by `Graph.from_edge_arrays()`
+/// from NetworkX adjacency), and `weights` holds the smallest weight among the edges to each
+/// (as NetworkX's shortest-path searches see a multigraph; a missing weight counts as 1.0).
 struct Adjacency {
     offsets: Vec<usize>,
     targets: Vec<usize>,
@@ -33,78 +37,41 @@ struct Adjacency {
 }
 
 impl Adjacency {
-    /// `distinct`: list each neighbor once, with the smallest weight among the edges to it (as
-    /// NetworkX's shortest-path searches see a multigraph). Missing weights count as 1.0.
-    fn build(graph: &Graph, positions: &FxHashMap<u64, usize>, distinct: bool) -> Self {
-        let n = positions.len();
-        let directed = graph.is_directed();
-        let mut arcs: Vec<(usize, usize, f64)> = Vec::with_capacity(graph.num_edges() * 2);
-        for edge in graph.get_edges_internal() {
-            let (Some(&s), Some(&t)) = (positions.get(&edge.source), positions.get(&edge.target))
-            else {
-                continue;
-            };
-            let w = edge.weight.unwrap_or(1.0);
-            arcs.push((s, t, w));
-            if !directed && s != t {
-                arcs.push((t, s, w));
-            }
-        }
-        // Stable counting sort by source keeps edge order within each node
-        let mut offsets = vec![0usize; n + 1];
-        for &(s, _, _) in &arcs {
-            offsets[s + 1] += 1;
-        }
-        for i in 0..n {
-            offsets[i + 1] += offsets[i];
-        }
-        let mut fill = offsets.clone();
-        let mut targets = vec![0usize; arcs.len()];
-        let mut weights = vec![0.0f64; arcs.len()];
-        for &(s, t, w) in &arcs {
-            targets[fill[s]] = t;
-            weights[fill[s]] = w;
-            fill[s] += 1;
-        }
-        let mut adjacency = Adjacency {
-            offsets,
-            targets,
-            weights,
-        };
-        if distinct {
-            adjacency.dedupe(n);
-        }
-        adjacency
-    }
-
-    /// Keep each node's first edge to every neighbor, with the smallest weight to it
-    fn dedupe(&mut self, n: usize) {
-        let mut slot = vec![usize::MAX; n]; // neighbor -> its index in the output
-        let mut owner = vec![usize::MAX; n]; // neighbor -> node whose list `slot` refers to
+    fn build(
+        graph: &Graph,
+        ids: &[u64],
+        positions: &FxHashMap<u64, usize>,
+        weighted: bool,
+    ) -> Self {
+        let n = ids.len();
+        let lists = graph.get_adjacency_list();
+        let mut owner = vec![usize::MAX; n]; // neighbor -> last node that listed it
         let mut offsets = Vec::with_capacity(n + 1);
-        let mut targets = Vec::with_capacity(self.targets.len());
-        let mut weights = Vec::with_capacity(self.targets.len());
+        let mut targets = Vec::with_capacity(graph.num_edges() * 2);
+        let mut weights = Vec::new();
         offsets.push(0);
-        for v in 0..n {
-            for k in self.offsets[v]..self.offsets[v + 1] {
-                let (t, w) = (self.targets[k], self.weights[k]);
-                if owner[t] == v {
-                    let j = slot[t];
-                    if w < weights[j] {
-                        weights[j] = w;
+        for (v, &id) in ids.iter().enumerate() {
+            if let Some(neighbors) = lists.get(&id) {
+                for &t_id in neighbors {
+                    let Some(&t) = positions.get(&t_id) else {
+                        continue;
+                    };
+                    if owner[t] != v {
+                        owner[t] = v;
+                        targets.push(t);
+                        if weighted {
+                            weights.push(graph.get_edge_weight(id, t_id));
+                        }
                     }
-                } else {
-                    owner[t] = v;
-                    slot[t] = targets.len();
-                    targets.push(t);
-                    weights.push(w);
                 }
             }
             offsets.push(targets.len());
         }
-        self.offsets = offsets;
-        self.targets = targets;
-        self.weights = weights;
+        Adjacency {
+            offsets,
+            targets,
+            weights,
+        }
     }
 
     #[inline]
@@ -452,7 +419,7 @@ pub fn nx_betweenness_centrality(
             .collect::<PyResult<_>>()?,
         None => (0..n).collect(),
     };
-    let adj = Adjacency::build(graph, &positions, true);
+    let adj = Adjacency::build(graph, &ids, &positions, weighted);
 
     // Fixed chunks of sources, each summed in order and then added up in order, so the result
     // does not depend on thread scheduling
@@ -497,7 +464,7 @@ pub fn nx_betweenness_centrality(
 pub fn nx_strongly_connected_components(graph: &Graph) -> Vec<Vec<u64>> {
     let (ids, positions) = node_positions(graph);
     let n = ids.len();
-    let adj = Adjacency::build(graph, &positions, false);
+    let adj = Adjacency::build(graph, &ids, &positions, false);
     const UNSET: usize = 0;
     let mut lowlink = vec![UNSET; n]; // preorder indices start at 1
     let mut found = vec![false; n];
