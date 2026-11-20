@@ -173,3 +173,55 @@ def test_link_prediction_iterator_ebunch_is_consumed_by_the_check():
     for backend in ["networkx", "edgecase"]:
         result = nx.jaccard_coefficient(G, iter([(0, 2), (1, 3)]), backend=backend)
         assert list(result) == []
+
+
+@pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
+@pytest.mark.parametrize("weight", [None, "weight", "cost"])
+def test_load_centrality(G, weight):
+    for normalized in [True, False]:
+        assert_same(nx.load_centrality, G, normalized=normalized, weight=weight)
+    assert_same(nx.load_centrality, G, cutoff=2, weight=weight)
+    assert_same(nx.load_centrality, G, v=list(G)[3], weight=weight)
+    assert_same(nx.load_centrality, G, v="not a node", weight=weight)
+    H = nx.relabel_nodes(G, {n: f"n{n:02d}" for n in G})  # (ties ordered by string keys)
+    assert_same(nx.load_centrality, H, weight=weight)
+
+
+def test_load_centrality_with_unsortable_keys_is_left_to_networkx():
+    G = nx.path_graph(4)
+    G = nx.relabel_nodes(G, {0: "a", 1: 1, 2: (2,), 3: 3.5})
+    with pytest.raises(NotImplementedError):
+        nx.load_centrality(G, backend="edgecase")
+    # Dispatched automatically, NetworkX then runs it (and fails the same way)
+    with nx.config.backend_priority(algos=["edgecase"]):
+        with pytest.raises(TypeError):
+            nx.load_centrality(G)
+    G = nx.relabel_nodes(G, {"a": 0, (2,): 2})
+    assert_same(nx.load_centrality, G)  # (ints and floats compare)
+
+
+@pytest.mark.parametrize("seed", range(3))
+def test_community_link_prediction(seed):
+    rng = random.Random(seed)
+    G = random_graph(nx.Graph, n=25, p=0.25, seed=seed)
+    for n in G:
+        G.nodes[n]["community"] = rng.choice(["a", "b", 3])
+    G.nodes[5]["group"] = 1
+    pairs = [(0, 1), (2, 5), (3, 4), (7, 7)]
+    for func in [nx.cn_soundarajan_hopcroft, nx.ra_index_soundarajan_hopcroft]:
+        expected, actual = both(func, G)
+        assert [p[:2] for p in actual] == [p[:2] for p in expected]
+        for (_, _, x), (_, _, y) in zip(expected, actual):
+            assert type(x) is type(y)
+            assert math.isclose(x, y, rel_tol=1e-15)
+        assert_same(func, G, pairs)
+    assert_same(nx.within_inter_cluster, G)
+    assert_same(nx.within_inter_cluster, G, pairs, delta=0.5)
+    assert_same(nx.within_inter_cluster, G, delta=0)
+    # Missing communities raise as NetworkX does (and name the same node)
+    del G.nodes[2]["community"]
+    for func in [nx.cn_soundarajan_hopcroft, nx.within_inter_cluster]:
+        assert_same(func, G, [(0, 1), (2, 3)])
+        assert_same(func, G, [(0, 1), (3, 2)])
+        assert_same(func, G)
+    assert_same(nx.cn_soundarajan_hopcroft, G, [(0, 1)], community="group")

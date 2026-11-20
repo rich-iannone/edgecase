@@ -6,8 +6,9 @@ and the order of the results are NetworkX's. Adamic-Adar and resource-allocation
 differ from NetworkX's in the last bit when three or more common neighbors contribute:
 NetworkX adds those terms in the order of a Python set.
 
-The community-based scores (Soundarajan-Hopcroft, within-inter-cluster) are left to
-NetworkX.
+The community-based scores (Soundarajan-Hopcroft, within-inter-cluster) compare the
+`community` node attribute's values by equality, as NetworkX does (unhashable values are
+left to NetworkX).
 """
 
 from __future__ import annotations
@@ -22,10 +23,13 @@ from edgecase.nx_backend.registry import networkx_algorithm, prefer_converted_gr
 
 __all__ = [
     "adamic_adar_index",
+    "cn_soundarajan_hopcroft",
     "common_neighbor_centrality",
     "jaccard_coefficient",
     "preferential_attachment",
+    "ra_index_soundarajan_hopcroft",
     "resource_allocation_index",
+    "within_inter_cluster",
 ]
 
 _MAX_BATCH = 4096
@@ -147,3 +151,104 @@ def common_neighbor_centrality(G, ebunch=None, alpha=0.8):
             return alpha * count + (1 - alpha) * n / path_len
 
     return _predictions(G, "common_neighbors", ebunch, finish)
+
+
+# Community-based scores
+
+
+def _community_codes(G, community):
+    """A code per node for its `community` value (equal values, equal codes; -1 if none)."""
+    from edgecase.nx_backend.graph import MISSING
+
+    codes = {}
+    result = []
+    for value in G.node_values_of(community, MISSING):
+        if value is MISSING:
+            result.append(-1)
+            continue
+        try:
+            result.append(codes.setdefault(value, len(codes)))
+        except TypeError:
+            raise NotImplementedError("unhashable community values are left to NetworkX") from None
+    return result
+
+
+def _missing_community(G, i, j, codes):
+    """The error NetworkX raises for the first common neighbor of nodes `i` and `j`
+    (positions) without a community, in the order of NetworkX's set of common neighbors.
+    """
+    nodes = G.nodes
+    indptr, indices, _ = _adjacency(G).arcs()
+    a = dict.fromkeys(nodes[k] for k in indices[indptr[i] : indptr[i + 1]])
+    b = dict.fromkeys(nodes[k] for k in indices[indptr[j] : indptr[j + 1]])
+    for w in a.keys() & b.keys() - {nodes[i], nodes[j]}:
+        if codes[G.key_to_id[w] - 1] < 0:
+            return nx.NetworkXAlgorithmError(f"No community information available for Node {w}")
+    raise AssertionError("a common neighbor without a community was expected")
+
+
+def _community_predictions(G, ebunch, community, finish):
+    """Like `_predictions`, for the community scores: `finish(shared, sums, common, same)`."""
+    if ebunch is None:
+        ebunch = _non_edges(G)
+    else:
+        for u, v in ebunch:
+            if u not in G:
+                raise nx.NodeNotFound(f"Node {u} not in G.")
+            if v not in G:
+                raise nx.NodeNotFound(f"Node {v} not in G.")
+    return _community_scores(G, ebunch, community, finish)
+
+
+def _community_scores(G, ebunch, community, finish):
+    from edgecase._core import nx_community_link_scores
+
+    adjacency = _adjacency(G)
+    codes = _community_codes(G, community)
+    key_to_id = G.key_to_id
+    pairs = iter(ebunch)
+    size = 1
+    while batch := list(islice(pairs, size)):
+        us = [key_to_id[u] - 1 for u, _ in batch]
+        vs = [key_to_id[v] - 1 for _, v in batch]
+        sums, common, same = nx_community_link_scores(adjacency, us, vs, codes)
+        for (u, v), total, c, s, i, j in zip(batch, sums, common, same, us, vs):
+            if s == -1:
+                raise nx.NetworkXAlgorithmError(f"No community information available for Node {u}")
+            if s == -2:
+                raise nx.NetworkXAlgorithmError(f"No community information available for Node {v}")
+            if s == -3:
+                raise _missing_community(G, i, j, codes)
+            yield (u, v, finish(codes[i] == codes[j], total, c, s))
+        size = min(_MAX_BATCH, 2 * size)
+
+
+@networkx_algorithm(should_run=_should_run)
+def cn_soundarajan_hopcroft(G, ebunch=None, community="community"):
+    def finish(shared, total, common, same):
+        return common + same if shared else common
+
+    return _community_predictions(G, ebunch, community, finish)
+
+
+@networkx_algorithm(should_run=_should_run)
+def ra_index_soundarajan_hopcroft(G, ebunch=None, community="community"):
+    def finish(shared, total, common, same):
+        if not shared or same == 0:
+            return 0
+        return total
+
+    return _community_predictions(G, ebunch, community, finish)
+
+
+@networkx_algorithm(should_run=_should_run)
+def within_inter_cluster(G, ebunch=None, delta=0.001, community="community"):
+    if delta <= 0:
+        raise nx.NetworkXAlgorithmError("Delta must be greater than zero")
+
+    def finish(shared, total, common, same):
+        if not shared:
+            return 0
+        return same / ((common - same) + delta)
+
+    return _community_predictions(G, ebunch, community, finish)

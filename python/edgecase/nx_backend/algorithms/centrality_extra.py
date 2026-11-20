@@ -25,6 +25,7 @@ __all__ = [
     "eigenvector_centrality",
     "in_degree_centrality",
     "katz_centrality",
+    "newman_betweenness_centrality",
     "out_degree_centrality",
 ]
 
@@ -313,3 +314,46 @@ def edge_betweenness_centrality_subset(G, sources, targets, normalized=False, we
     if G.is_multigraph():
         b = _add_edge_keys(G, b, weight=weight)
     return b
+
+
+# Load centrality
+
+
+def _load_check(G, v=None, cutoff=None, normalized=True, weight=None):
+    return _CALLABLE if callable(weight) else True
+
+
+@networkx_algorithm(name="newman_betweenness_centrality", can_run=_load_check)
+def newman_betweenness_centrality(G, v=None, cutoff=None, normalized=True, weight=None):
+    """`load_centrality` (registered under NetworkX's name for it)."""
+    from edgecase._core import nx_load_centrality
+
+    nodes = G.nodes
+    n = len(nodes)
+    # NetworkX sorts (distance, node) pairs, so equal distances are ordered by node key
+    try:
+        by_key = sorted(range(n), key=nodes.__getitem__)
+    except TypeError:
+        raise NotImplementedError("node keys that do not sort are left to NetworkX") from None
+    rank = [0] * n
+    for r, i in enumerate(by_key):
+        rank[i] = r
+    if weight is None:
+        # (`nx.predecessor` ignores a falsy cutoff)
+        cutoff = float(cutoff) if cutoff else None
+    totals = nx_load_centrality(_adjacency(G, weight), rank, weight is not None, cutoff)
+    if v is not None:
+        betweenness = totals[G.key_to_id[v] - 1] if v in G else 0.0
+        if normalized:
+            if n <= 2:
+                return betweenness
+            betweenness *= 1.0 / ((n - 1) * (n - 2))
+        return betweenness
+    betweenness = dict(zip(nodes, totals))
+    if normalized:
+        if n <= 2:
+            return betweenness
+        scale = 1.0 / ((n - 1) * (n - 2))
+        for u in betweenness:
+            betweenness[u] *= scale
+    return betweenness

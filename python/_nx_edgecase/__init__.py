@@ -36,6 +36,7 @@ _FUNCTIONS = frozenset(
         "centroid",
         "closeness_centrality",
         "clustering",
+        "cn_soundarajan_hopcroft",
         "common_neighbor_centrality",
         "condensation",
         "conductance",
@@ -100,6 +101,7 @@ _FUNCTIONS = frozenset(
         "multi_source_dijkstra",
         "multi_source_dijkstra_path",
         "multi_source_dijkstra_path_length",
+        "newman_betweenness_centrality",
         "node_boundary",
         "node_connected_component",
         "node_expansion",
@@ -115,6 +117,7 @@ _FUNCTIONS = frozenset(
         "periphery",
         "predecessor",
         "preferential_attachment",
+        "ra_index_soundarajan_hopcroft",
         "radius",
         "resource_allocation_index",
         "shortest_path",
@@ -137,6 +140,7 @@ _FUNCTIONS = frozenset(
         "triangles",
         "volume",
         "weakly_connected_components",
+        "within_inter_cluster",
         # END: functions
     }
 )
