@@ -210,12 +210,26 @@ def _dfs_labeled(G, source, depth_limit):
         yield nodes[u - 1], nodes[v - 1], label
 
 
-def _dfs_edges(G, source, depth_limit):
+def _dfs_search(G, source, depth_limit):
+    """(preorder, postorder, tree edges) as node IDs, from edgecase's plain DFS kernel.
+
+    Its preorder and tree edges are NetworkX's (forward steps); its postorder is NetworkX's
+    only without a depth limit (NetworkX leaves nodes at the limit out of it).
+    """
+    from edgecase._core import dfs_search
+
     if source is not None and source not in G:
         raise _node_error(G, source)
-    for u, v, label in _dfs_labeled(G, source, depth_limit):
-        if label == "forward" and u != v:
-            yield u, v
+    source_id = None if source is None else G.key_to_id[source]
+    if depth_limit is not None and depth_limit < 1:
+        depth_limit = 1  # NetworkX explores the start's neighbors even then
+    return dfs_search(G.rust_graph(), source_id, depth_limit, "out", adjacency_order=True)
+
+
+def _dfs_edges(G, source, depth_limit):
+    nodes = G.nodes
+    for u, v in _dfs_search(G, source, depth_limit)[2]:
+        yield nodes[u - 1], nodes[v - 1]
 
 
 @networkx_algorithm(linear_time=True, can_run=_no_sort_neighbors)
@@ -256,12 +270,27 @@ def dfs_successors(G, source=None, depth_limit=None, *, sort_neighbors=None):
 
 @networkx_algorithm(linear_time=True, can_run=_no_sort_neighbors)
 def dfs_preorder_nodes(G, source=None, depth_limit=None, *, sort_neighbors=None):
-    return (v for u, v, d in _dfs_labeled(G, source, depth_limit) if d == "forward")
+    def preorder():
+        nodes = G.nodes
+        if source is not None and source not in G:
+            yield source  # NetworkX reports the start before failing on it
+        for i in _dfs_search(G, source, depth_limit)[0]:
+            yield nodes[i - 1]
+
+    return preorder()
 
 
 @networkx_algorithm(linear_time=True, can_run=_no_sort_neighbors)
 def dfs_postorder_nodes(G, source=None, depth_limit=None, *, sort_neighbors=None):
-    return (v for u, v, d in _dfs_labeled(G, source, depth_limit) if d == "reverse")
+    if depth_limit is not None:
+        return (v for u, v, d in _dfs_labeled(G, source, depth_limit) if d == "reverse")
+
+    def postorder():
+        nodes = G.nodes
+        for i in _dfs_search(G, source, None)[1]:
+            yield nodes[i - 1]
+
+    return postorder()
 
 
 # Directed acyclic graphs

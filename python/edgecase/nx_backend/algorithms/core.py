@@ -79,7 +79,13 @@ def k_corona(G, k, core_number=None):
     return _core_subgraph(G, corona, k, core_number)
 
 
-@networkx_algorithm
+def _truss_should_run(G, k):
+    # structure::k_truss rescans triangle support every round and removes edges one by one
+    # (O(m) each); it is slower than NetworkX on large graphs (measured ~9x at 50k edges)
+    return "edgecase's k_truss kernel is slower than NetworkX's"
+
+
+@networkx_algorithm(should_run=_truss_should_run)
 def k_truss(G, k):
     import networkx as nx
 
