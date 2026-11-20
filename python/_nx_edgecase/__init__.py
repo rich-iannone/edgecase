@@ -12,6 +12,18 @@ suite checks it against the backend's registry, so the two cannot drift apart.
 _FUNCTIONS = frozenset(
     {
         # BEGIN: functions
+        "betweenness_centrality",
+        "connected_components",
+        "is_connected",
+        "is_strongly_connected",
+        "is_weakly_connected",
+        "node_connected_component",
+        "number_connected_components",
+        "number_strongly_connected_components",
+        "number_weakly_connected_components",
+        "pagerank",
+        "strongly_connected_components",
+        "weakly_connected_components",
         # END: functions
     }
 )
