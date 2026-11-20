@@ -170,11 +170,11 @@ def test_betweenness_centrality_sampled(cls, k, endpoints):
             assert result[v] == pytest.approx(expected[v], rel=1e-9, abs=1e-12)
 
 
-def test_betweenness_zero_weight_ties():
-    # With zero-weight edges NetworkX's Dijkstra also counts paths through finished nodes, so
-    # its answer depends on neighbor order. A directed graph keeps NetworkX's neighbor order
-    # in edgecase, so the answers agree; an undirected one may list neighbors differently.
-    G = nx.DiGraph()
+@pytest.mark.parametrize("cls", ALL_CLASSES)
+def test_betweenness_zero_weight_ties(cls):
+    # With zero-weight edges NetworkX's Dijkstra also counts paths through finished nodes,
+    # so its answer depends on neighbor order, which edgecase keeps
+    G = cls()
     edges = [(0, 1, 0), (1, 2, 0), (0, 2, 0), (2, 3, 1), (3, 3, 0), (2, 0, 0), (1, 0, 0)]
     G.add_weighted_edges_from(edges)
     expected = nx.betweenness_centrality(G, weight="weight")

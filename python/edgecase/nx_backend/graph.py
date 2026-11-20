@@ -6,16 +6,22 @@ undirected graph every edge appears twice (once from each end; a self-loop once)
 are numbered `1..n` in NetworkX node order (edgecase reserves node ID 0), so a node's
 key is `nodes[id - 1]`.
 
-Keeping NetworkX's adjacency order makes the conversion lossless: converting back gives a
-graph whose nodes, neighbors and edge keys iterate in the original order, which matters
-for every order-dependent result (traversals, tie-breaking). The edgecase Rust graph is
-built from these arrays in one call, on first use, once per edge attribute that is used
-as the weight.
+Keeping NetworkX's adjacency order makes the conversion lossless for the attributes that
+were converted: converting back gives a graph whose nodes, neighbors, predecessors and edge
+keys iterate in the original order, which matters for every order-dependent result
+(traversals, tie-breaking). A directed graph's predecessor order is recorded separately
+(it can differ from the order of the arcs into each node); setting
+`nx.config.backends.edgecase.preserve_pred_order = False` skips that, saving 10-15% of the
+conversion time, and predecessors then come back in arc order.
+
+The edgecase Rust graph is built from these arrays in one call, on first use, once per
+edge attribute that is used as the weight; its neighbor lists keep NetworkX's order.
 """
 
 from __future__ import annotations
 
-from itertools import repeat
+import os
+from itertools import chain, islice, repeat
 from operator import methodcaller
 
 __all__ = ["EdgecaseGraph", "from_networkx", "to_networkx"]
@@ -34,6 +40,8 @@ class _Missing:
 
 
 MISSING = _Missing()
+
+_values = methodcaller("values")
 
 
 class EdgecaseGraph:
@@ -81,6 +89,7 @@ class EdgecaseGraph:
         graph=None,
         nx_class=None,
         digraph_storage=None,
+        pred_order=None,
     ):
         self.nodes = nodes
         self.key_to_id = key_to_id
@@ -101,6 +110,9 @@ class EdgecaseGraph:
         # Whether arcs are stored per direction (as in `nx.DiGraph`), which can differ from
         # `directed` for a DiGraph subclass that reports itself undirected (PlanarEmbedding)
         self.digraph_storage = directed if digraph_storage is None else digraph_storage
+        # (nodes, predecessor counts, predecessors) as node keys: each node's predecessors in
+        # NetworkX's order (which can differ from the order of the arcs into it), if recorded
+        self.pred_order = pred_order
         self._rust_graphs = {}
         self._edge_arcs = None
         # The dispatcher caches conversions of this graph (to NetworkX) here; the graph is
@@ -188,7 +200,13 @@ class EdgecaseGraph:
 
         With `weight`, each edge's native weight is its value of that attribute (or
         `default` where it has none; `default=None` leaves those edges without a weight).
-        The graph is cached per `(weight, default)`.
+
+        Raises NotImplementedError when the values cannot be edgecase weights (NaN, `None`
+        where a default applies, or not numbers), so NetworkX runs the call itself and gives
+        its own answer or error.
+
+        The Rust graph is a fixed function of this (immutable) graph, so it is kept here per
+        `(weight, default)`; NetworkX caches the converted graph itself on the input graph.
         """
         cache_key = (weight, default)
         rg = self._rust_graphs.get(cache_key)
@@ -197,14 +215,22 @@ class EdgecaseGraph:
 
             # (Rust reads each value as a float: ints, bools and anything with `__float__`)
             weights = None if weight is None else self.edge_values_of(weight, default)
-            rg = RustGraph.from_edge_arrays(
-                len(self.nodes),
-                self.src,
-                self.dst,
-                weights,
-                directed=self.directed,
-                symmetric=not self.directed,
-            )
+            try:
+                rg = RustGraph.from_edge_arrays(
+                    len(self.nodes),
+                    self.src,
+                    self.dst,
+                    weights,
+                    directed=self.directed,
+                    symmetric=not self.directed,
+                    require_weights=weights is not None and default is not None,
+                )
+            except (TypeError, ValueError) as exc:
+                if weights is None:
+                    raise
+                raise NotImplementedError(
+                    f"edgecase cannot use edge attribute {weight!r} as weights: {exc}"
+                ) from exc
             self._rust_graphs[cache_key] = rg
         return rg
 
@@ -240,6 +266,14 @@ def _overrides_adjacency(G, nx):
     return False
 
 
+def _preserve_pred_order(nx):
+    """Whether conversions record the order of predecessors (see `from_networkx()`)."""
+    if os.environ.get("EDGECASE_NX_ROUNDTRIP", "").lower() in {"1", "true", "yes"}:
+        return True
+    config = getattr(nx.config.backends, "edgecase", None)
+    return bool(getattr(config, "preserve_pred_order", True))
+
+
 def from_networkx(
     G,
     edge_attrs=None,
@@ -255,7 +289,8 @@ def from_networkx(
 
     Parameters follow NetworkX's `convert_from_nx` protocol: `edge_attrs` and
     `node_attrs` map attribute names to defaults (a `None` default means "leave it out
-    where absent"), and `preserve_*_attrs=True` keeps every attribute.
+    where absent"), and `preserve_*_attrs=True` keeps every attribute. The input graph is
+    only read; attribute dicts are copied.
     """
     import networkx as nx
 
@@ -269,14 +304,16 @@ def from_networkx(
 
     directed = G.is_directed()
     multigraph = G.is_multigraph()
+    digraph_storage = isinstance(G, nx.DiGraph)
     nx_class = type(G)
     if _overrides_adjacency(G, nx):
         # Read the graph the class presents, not the one it stores
         adj = G.succ if directed else G.adj
-        adj_items = ((u, adj[u]) for u in adj)
+        pred = None
         nx_class = None
     else:
-        adj_items = G._adj.items()
+        adj = G._adj
+        pred = G._pred if digraph_storage else None
     if nx_class in {nx.Graph, nx.DiGraph, nx.MultiGraph, nx.MultiDiGraph}:
         nx_class = None
 
@@ -287,46 +324,57 @@ def from_networkx(
 
     if preserve_edge_attrs:
         edge_attrs = None
-    edge_getters = []
-    edge_values = {}
+    getters = {}
     if edge_attrs:
         for attr, default in edge_attrs.items():
-            values = edge_values[attr] = []
-            getter = methodcaller("get", attr, MISSING if default is None else default)
-            edge_getters.append((values.extend, getter))
-    edge_dicts = [] if preserve_edge_attrs else None
+            getters[attr] = methodcaller("get", attr, MISSING if default is None else default)
 
-    src = []
-    dst = []
-    add_src = src.extend
-    add_dst = dst.extend
-    keys = None
+    # One pass per array over the adjacency, all in C (`map`/`chain`) rather than a Python
+    # loop per node: arcs are listed node by node, neighbor by neighbor (and key by key)
+    nbr_maps = list(adj.values())
+    if type(adj) is not dict:
+        # Graph views (and the like): copy each node's neighbors, since `len()` of a filtered
+        # view can disagree with what it yields (NetworkX's FilterMultiInner counts
+        # neighbors without checking their edges)
+        nbr_maps = list(map(dict, nbr_maps))
+    src_per_pair = chain.from_iterable(map(repeat, map(get_id, adj), map(len, nbr_maps)))
     if not multigraph:
-        for u, nbrs in adj_items:
-            add_src(repeat(get_id(u), len(nbrs)))
-            add_dst(map(get_id, nbrs))
-            if edge_getters:
-                datadicts = nbrs.values()
-                for extend, getter in edge_getters:
-                    extend(map(getter, datadicts))
-            if edge_dicts is not None:
-                edge_dicts.extend(map(dict, nbrs.values()))
+        src = list(src_per_pair)
+        dst = list(map(get_id, chain.from_iterable(nbr_maps)))
+        keys = None
+        data_maps = nbr_maps
     else:
-        keys = []
-        add_keys = keys.extend
-        for u, nbrs in adj_items:
-            uid = get_id(u)
-            for v, keydict in nbrs.items():
-                count = len(keydict)
-                add_src(repeat(uid, count))
-                add_dst(repeat(get_id(v), count))
-                add_keys(keydict)
-                if edge_getters:
-                    datadicts = keydict.values()
-                    for extend, getter in edge_getters:
-                        extend(map(getter, datadicts))
-                if edge_dicts is not None:
-                    edge_dicts.extend(map(dict, keydict.values()))
+        keydicts = list(chain.from_iterable(map(_values, nbr_maps)))
+        if type(adj) is not dict:
+            keydicts = list(map(dict, keydicts))
+        counts = list(map(len, keydicts))
+        src = list(chain.from_iterable(map(repeat, src_per_pair, counts)))
+        dst_per_pair = map(get_id, chain.from_iterable(nbr_maps))
+        dst = list(chain.from_iterable(map(repeat, dst_per_pair, counts)))
+        keys = list(chain.from_iterable(keydicts))
+        data_maps = keydicts
+
+    # Attribute dicts per arc: streamed for a single use, else listed once
+    listed = None
+    if len(getters) + bool(preserve_edge_attrs) > 1:
+        listed = list(chain.from_iterable(map(_values, data_maps)))
+
+    def arc_data():
+        return listed if listed is not None else chain.from_iterable(map(_values, data_maps))
+
+    edge_values = {attr: list(map(getter, arc_data())) for attr, getter in getters.items()}
+    edge_dicts = list(map(dict, arc_data())) if preserve_edge_attrs else None
+
+    # The order of each node's predecessors, which NetworkX keeps separately from the order
+    # of the arcs into each node (one more pass over the edges, 10-15% of the time)
+    pred_order = None
+    if pred is not None and _preserve_pred_order(nx):
+        pred_maps = list(pred.values())
+        pred_order = (
+            list(pred),
+            list(map(len, pred_maps)),
+            list(chain.from_iterable(pred_maps)),
+        )
 
     node_values = {}
     node_dicts = None
@@ -354,7 +402,8 @@ def from_networkx(
         node_dicts=node_dicts,
         graph=dict(G.graph) if preserve_graph_attrs else None,
         nx_class=nx_class,
-        digraph_storage=isinstance(G, nx.DiGraph),
+        digraph_storage=digraph_storage,
+        pred_order=pred_order,
     )
 
 
@@ -413,6 +462,8 @@ def to_networkx(G):
     else:
         edge_data = (H.edge_attr_dict_factory() for _ in range(num_arcs))
 
+    # Predecessors are filled in afterwards when their order is known
+    fill_pred = G.digraph_storage and G.pred_order is None
     if G.multigraph:
         keys = G.keys
         for u_id, v_id, key, data in zip(G.src, G.dst, keys, edge_data):
@@ -423,7 +474,8 @@ def to_networkx(G):
             if keydict is None:
                 if G.digraph_storage:
                     keydict = u_nbrs[v] = H.edge_key_dict_factory()
-                    H_pred[v][u] = keydict
+                    if fill_pred:
+                        H_pred[v][u] = keydict
                 elif u in H_adj[v]:
                     # The other end of an undirected edge was seen first: share its keydict
                     keydict = u_nbrs[v] = H_adj[v][u]
@@ -431,12 +483,15 @@ def to_networkx(G):
                     keydict = u_nbrs[v] = H.edge_key_dict_factory()
             if key not in keydict:
                 keydict[key] = data
-    elif G.digraph_storage:
+    elif fill_pred:
         for u_id, v_id, data in zip(G.src, G.dst, edge_data):
             u = nodes[u_id - 1]
             v = nodes[v_id - 1]
             H_adj[u][v] = data
             H_pred[v][u] = data
+    elif G.digraph_storage:
+        for u_id, v_id, data in zip(G.src, G.dst, edge_data):
+            H_adj[nodes[u_id - 1]][nodes[v_id - 1]] = data
     else:
         for u_id, v_id, data in zip(G.src, G.dst, edge_data):
             u = nodes[u_id - 1]
@@ -444,4 +499,13 @@ def to_networkx(G):
             v_nbrs = H_adj[v]
             # The other end of an undirected edge shares one attribute dict
             H_adj[u][v] = v_nbrs[u] if u in v_nbrs else data
+
+    if G.digraph_storage and not fill_pred:
+        pred_nodes, pred_counts, pred_keys = G.pred_order
+        preds = iter(pred_keys)
+        for v, count in zip(pred_nodes, pred_counts):
+            if count:
+                v_pred = H_pred[v]
+                for u in islice(preds, count):
+                    v_pred[u] = H_adj[u][v]
     return H

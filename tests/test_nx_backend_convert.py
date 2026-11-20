@@ -10,6 +10,15 @@ from edgecase.nx_backend import EdgecaseGraph, from_networkx, to_networkx
 from edgecase.nx_backend.graph import MISSING
 
 
+@pytest.fixture(autouse=True)
+def _preserve_pred_order():
+    config = nx.config.backends.edgecase
+    before = config.preserve_pred_order
+    config.preserve_pred_order = True
+    yield
+    config.preserve_pred_order = before
+
+
 def roundtrip(G, **kwargs):
     kwargs.setdefault("preserve_edge_attrs", True)
     kwargs.setdefault("preserve_node_attrs", True)
@@ -33,7 +42,12 @@ def assert_identical(G, H):
             else:
                 assert H._adj[u][v] == data
     if G.is_directed():
-        assert {n: set(p) for n, p in H._pred.items()} == {n: set(p) for n, p in G._pred.items()}
+        # Predecessors too keep their order (it can differ from the order of the arcs)
+        assert list(H._pred) == list(G._pred)
+        for v, preds in G._pred.items():
+            assert list(H._pred[v]) == list(preds)
+            for u in preds:
+                assert H._pred[v][u] is H._adj[u][v]
     assert H.number_of_edges() == G.number_of_edges()
 
 
@@ -196,11 +210,76 @@ def test_infinite_and_bool_weights():
     assert sorted(w for *_, w in rg._weighted_edges()) == [1.0, math.inf]
 
 
-def test_nan_weight_is_rejected():
-    G = nx.Graph([(0, 1, {"weight": math.nan})])
+@pytest.mark.parametrize("value", [math.nan, None, "heavy"])
+def test_unusable_weights_leave_the_call_to_networkx(value):
+    # NotImplementedError makes NetworkX run its own implementation (and raise its own error)
+    G = nx.Graph([(0, 1, {"weight": value}), (1, 2)])
     E = from_networkx(G, edge_attrs={"weight": 1})
-    with pytest.raises(ValueError, match="NaN"):
+    with pytest.raises(NotImplementedError, match="weight"):
         E.rust_graph("weight")
+    assert E.rust_graph().num_edges() == 2  # unweighted is fine
+
+
+def test_none_weights_allowed_without_a_default():
+    G = nx.Graph([(0, 1, {"weight": None}), (1, 2, {"weight": 2})])
+    rg = from_networkx(G, edge_attrs={"weight": None}).rust_graph("weight", default=None)
+    assert sorted((w is None) for *_, w in rg._weighted_edges()) == [False, True]
+
+
+def test_predecessor_order_differs_from_arc_order():
+    G = nx.DiGraph()
+    G.add_nodes_from([0, 1, 2])
+    G.add_edge(2, 1)
+    G.add_edge(0, 1)
+    _, H = roundtrip(G)
+    assert list(H.pred[1]) == list(G.pred[1]) == [2, 0]
+    M = nx.MultiDiGraph()
+    M.add_nodes_from([0, 1, 2])
+    M.add_edge(2, 1, key="b")
+    M.add_edge(0, 1, key="a")
+    M.add_edge(2, 1, key="c")
+    _, H = roundtrip(M)
+    assert list(H.in_edges(1, keys=True)) == list(M.in_edges(1, keys=True))
+    # Without recording it, predecessors follow the arcs into the node (by source order)
+    nx.config.backends.edgecase.preserve_pred_order = False
+    E = from_networkx(G)
+    assert E.pred_order is None
+    assert list(to_networkx(E).pred[1]) == [0, 2]
+
+
+def test_rust_neighbor_order_follows_networkx():
+    G = nx.Graph()
+    G.add_edge("x", "y")
+    G.add_edge("z", "w")
+    G.add_edge("z", "x")
+    G.add_edge("z", "z")
+    E = from_networkx(G)
+    rg = E.rust_graph()
+    for node, nbrs in G.adj.items():
+        listed = E.keys_of(rg.neighbors(E.key_to_id[node]))
+        # (a self-loop is listed twice, as edgecase lists undirected self-loops)
+        assert [v for i, v in enumerate(listed) if not (v == node and listed[i - 1] == node)] == (
+            list(nbrs)
+        )
+
+
+def test_from_edge_arrays_validates_input():
+    from edgecase._core import Graph as RustGraph
+
+    for num_nodes in (2**62, 2**40, 2**32):
+        with pytest.raises(ValueError, match="num_nodes"):
+            RustGraph.from_edge_arrays(num_nodes, [], [])
+    # Out-of-range IDs are errors even where symmetric=True skips the entry
+    with pytest.raises(ValueError, match="outside"):
+        RustGraph.from_edge_arrays(2, [5], [1], None, False, True)
+    with pytest.raises(ValueError, match="outside"):
+        RustGraph.from_edge_arrays(2, [0], [1])
+    with pytest.raises(ValueError, match="same length"):
+        RustGraph.from_edge_arrays(2, [1], [])
+    with pytest.raises(ValueError, match="None"):
+        RustGraph.from_edge_arrays(2, [1], [2], [None], require_weights=True)
+    with pytest.raises(ValueError, match="symmetric"):
+        RustGraph.from_edge_arrays(2, [1], [2], directed=True, symmetric=True)
 
 
 def test_graph_views_and_subclasses():
@@ -216,6 +295,19 @@ def test_graph_views_and_subclasses():
     _, H = roundtrip(P)
     assert type(H) is nx.PlanarEmbedding
     assert H.get_data() == P.get_data()
+
+
+@pytest.mark.parametrize("cls", ALL_CLASSES)
+def test_edge_subgraph_views(cls):
+    # A filtered multigraph view's len() can count neighbors whose edges are all filtered out
+    G = cls()
+    G.add_edges_from([(0, 1), (0, 1), (1, 2), (1, 2), (1, 4), (1, 4), (2, 3), (3, 4)])
+    edges = [(0, 1, 0), (0, 1, 1), (1, 2, 0), (1, 4, 1)] if G.is_multigraph() else [(1, 2)]
+    view = G.edge_subgraph(edges)
+    E, H = roundtrip(view)
+    assert E.number_of_edges() == view.number_of_edges()
+    assert sorted(map(str, H.edges)) == sorted(map(str, view.edges))
+    assert list(H) == list(view)
 
 
 def test_graph_presenting_a_different_adjacency():

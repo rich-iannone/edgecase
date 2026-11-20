@@ -38,5 +38,9 @@ def get_info():
         "url": "https://github.com/rich-iannone/edgecase",
         "short_summary": "Rust-accelerated graph algorithms from edgecase.",
         "functions": {name: {} for name in sorted(_FUNCTIONS)},
-        "default_config": {},
+        "default_config": {
+            # Record each node's predecessor order when converting directed graphs, so
+            # converting back reproduces it exactly (False saves 10-15% of the time)
+            "preserve_pred_order": True,
+        },
     }
