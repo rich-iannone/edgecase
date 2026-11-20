@@ -10,7 +10,7 @@ from __future__ import annotations
 
 import networkx as nx
 
-from edgecase.nx_backend.registry import networkx_algorithm
+from edgecase.nx_backend.registry import networkx_algorithm, prefer_converted_graph
 
 __all__ = ["hits"]
 
@@ -55,7 +55,9 @@ def _can_run(
     return True
 
 
-@networkx_algorithm(can_run=_can_run)
+# (Only the matrix construction is faster than NetworkX's, by about converting the graph:
+# measured 0.7-0.8x with the conversion, 1.4-2.8x without, so D6 applies)
+@networkx_algorithm(can_run=_can_run, should_run=prefer_converted_graph)
 def hits(G, max_iter=100, tol=1.0e-8, nstart=None, normalized=True, *, method="power_iteration"):
     if method == "power_iteration":
         return _hits_power_iteration(G, max_iter, tol, nstart, normalized)
