@@ -478,6 +478,109 @@ impl Graph {
         }
     }
 
+    /// Build a graph in one call from parallel arrays of edge endpoints.
+    ///
+    /// This is the bulk constructor for converters (such as the NetworkX backend): one call
+    /// instead of one `add_node()`/`add_edge()` call per element. The nodes are unlabeled and get
+    /// the IDs `1..=num_nodes`; entry `i` is an edge from `sources[i]` to `targets[i]` with
+    /// weight `weights[i]` (`None` for no weight), and edges get the IDs `1, 2, ...` in the order
+    /// they are kept.
+    ///
+    /// With `symmetric=True` (undirected graphs only) the arrays list every edge in both
+    /// orientations, the way an adjacency structure does, and only the entries with
+    /// `source <= target` are kept (so a self-loop, which is listed once, is kept once).
+    #[staticmethod]
+    #[pyo3(signature = (num_nodes, sources, targets, weights=None, directed=false, symmetric=false))]
+    fn from_edge_arrays(
+        num_nodes: u64,
+        sources: Vec<u64>,
+        targets: Vec<u64>,
+        weights: Option<Vec<Option<f64>>>,
+        directed: bool,
+        symmetric: bool,
+    ) -> PyResult<Self> {
+        if sources.len() != targets.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "sources and targets must have the same length",
+            ));
+        }
+        if let Some(ref weights) = weights {
+            if weights.len() != sources.len() {
+                return Err(pyo3::exceptions::PyValueError::new_err(
+                    "weights must have the same length as sources",
+                ));
+            }
+        }
+        if directed && symmetric {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "symmetric=True is only valid for undirected graphs",
+            ));
+        }
+        let mut graph = Graph::new(directed, weights.is_some());
+        let n = num_nodes as usize;
+        graph.nodes.reserve(n);
+        graph.adjacency_list.reserve(n);
+        graph.node_creation_order.reserve(n);
+        for id in 1..=num_nodes {
+            graph.nodes.insert(
+                id,
+                Node {
+                    id,
+                    label: None,
+                    attributes: None,
+                },
+            );
+            graph.adjacency_list.insert(id, Vec::new());
+            graph.node_creation_order.push(id);
+        }
+        graph.next_node_id = num_nodes + 1;
+
+        let capacity = if symmetric {
+            sources.len() / 2 + 1
+        } else {
+            sources.len()
+        };
+        graph.edges.reserve(capacity);
+        graph.edge_creation_order.reserve(capacity);
+        let mut edge_id = 1;
+        for (i, (&source, &target)) in sources.iter().zip(targets.iter()).enumerate() {
+            if symmetric && source > target {
+                continue;
+            }
+            if source == 0 || source > num_nodes || target == 0 || target > num_nodes {
+                return Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "Edge ({}, {}) refers to a node outside 1..={}",
+                    source, target, num_nodes
+                )));
+            }
+            let weight = weights.as_ref().and_then(|w| w[i]);
+            check_edge_weight(weight)?;
+            graph
+                .adjacency_list
+                .get_mut(&source)
+                .expect("node exists")
+                .push(target);
+            if !directed {
+                graph
+                    .adjacency_list
+                    .get_mut(&target)
+                    .expect("node exists")
+                    .push(source);
+            }
+            graph.edges.push(Edge {
+                id: edge_id,
+                source,
+                target,
+                weight,
+                attributes: None,
+            });
+            graph.edge_creation_order.push(edge_id);
+            edge_id += 1;
+        }
+        graph.next_edge_id = edge_id;
+        Ok(graph)
+    }
+
     /// Add a node to the graph
     fn add_node(&mut self, mut node: Node) -> PyResult<u64> {
         // IDs and labels are unique: check both before changing anything (an existing ID used to
