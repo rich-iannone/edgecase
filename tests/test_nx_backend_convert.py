@@ -280,6 +280,9 @@ def test_from_edge_arrays_validates_input():
         RustGraph.from_edge_arrays(2, [1], [2], [None], require_weights=True)
     with pytest.raises(ValueError, match="symmetric"):
         RustGraph.from_edge_arrays(2, [1], [2], directed=True, symmetric=True)
+    # A symmetric listing that lacks the other orientation of an edge
+    with pytest.raises(ValueError, match="both orientations"):
+        RustGraph.from_edge_arrays(3, [2], [1], None, False, True)
 
 
 def test_graph_views_and_subclasses():

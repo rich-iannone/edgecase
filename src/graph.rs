@@ -490,7 +490,9 @@ impl Graph {
     /// With `symmetric=True` (undirected graphs only) the arrays list every edge in both
     /// orientations, the way an adjacency structure does (a self-loop once): only the entries
     /// with `source <= target` become edges, but every entry adds its target to its source's
-    /// neighbors, so each node keeps the neighbor order of the adjacency structure.
+    /// neighbors, so each node keeps the neighbor order of the adjacency structure. The listing
+    /// must really be symmetric (only unequal numbers of `source < target` and `source >
+    /// target` entries are detected); otherwise edges and neighbor lists disagree.
     #[staticmethod]
     #[pyo3(signature = (num_nodes, sources, targets, weights=None, directed=false, symmetric=false,
                         require_weights=false))]
@@ -545,6 +547,17 @@ impl Graph {
                 "Edge ({}, {}) refers to a node outside 1..={}",
                 source, target, num_nodes
             )));
+        }
+        // A cheap check that a symmetric listing has both orientations of each edge (it does
+        // not catch every mismatch: the input must really be symmetric)
+        if symmetric {
+            let forward = sources.iter().zip(&targets).filter(|(s, t)| s < t).count();
+            let backward = sources.iter().zip(&targets).filter(|(s, t)| s > t).count();
+            if forward != backward {
+                return Err(PyValueError::new_err(
+                    "symmetric=True needs every edge listed in both orientations",
+                ));
+            }
         }
 
         let n = num_nodes as usize;
