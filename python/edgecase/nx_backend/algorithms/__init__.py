@@ -5,6 +5,7 @@ from edgecase.nx_backend.algorithms import (
     bellman_ford,
     centrality,
     centrality_extra,
+    cliques,
     cluster,
     community,
     components,
