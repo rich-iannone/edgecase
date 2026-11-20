@@ -254,7 +254,19 @@ def test_negative_arc_between_sources(w):
     G = nx.DiGraph()
     G.add_edge(0, 2, weight=w)
     G.add_edge(2, 3, weight=-2 * w)
+    G.add_node(1)
     expected, actual = both(nx.multi_source_dijkstra_path_length, G, [0, 1])
+    assert repr(ordered(actual)) == repr(ordered(expected))
+    assert list(expected) == [0, 2, 1, 3]
+    # NetworkX then rebuilds paths as if the sources came first (here: KeyError), so the
+    # backend leaves the paths to it
+    assert both(nx.multi_source_dijkstra, G, [0, 1])[0][0] is KeyError
+    with pytest.raises(NotImplementedError):
+        nx.multi_source_dijkstra(G, [0, 1], backend="edgecase")
+    with nx.config.backend_priority(algos=["edgecase"]), pytest.raises(KeyError):
+        nx.multi_source_dijkstra(G, [0, 1])
+    # A source finished after another one reached by a negative arc: NetworkX's key order
+    expected, actual = both(nx.multi_source_dijkstra, G, [0, 1, 2])
     assert repr(ordered(actual)) == repr(ordered(expected))
 
 

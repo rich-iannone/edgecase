@@ -320,12 +320,19 @@ def _dijkstra_paths(G, sources, cutoff, weight, reverse=False):
     """`(dist, paths)` from `sources` (positions)."""
     adj = _adjacency(G, weight, reverse)
     order, dist, parents = adj.dijkstra(sources, cutoff, None, "paths", reverse)
-    roots = len(set(sources))
-    keys = _keys(G, order)
-    return (
-        _distances(G, adj, order, dist, roots),
-        _paths(keys, parents, roots, reverse=reverse),
-    )
+    distinct = list(dict.fromkeys(sources))
+    roots = len(distinct)
+    # (only with negative weights can a node be finished before a source's turn)
+    if order[:roots] != distinct and set(order[:roots]) != set(distinct):
+        # NetworkX rebuilds paths assuming the sources come first: some go missing or it
+        # raises KeyError
+        raise NotImplementedError(
+            "negative weights finish another node before a source; left to NetworkX"
+        )
+    paths = _paths(_keys(G, order), parents, roots, reverse=reverse)
+    if order[:roots] != distinct:
+        paths = dict.fromkeys(_keys(G, distinct)) | paths  # (NetworkX's key order)
+    return (_distances(G, adj, order, dist, roots), paths)
 
 
 @_weighted(should_run=prefer_converted_graph)
