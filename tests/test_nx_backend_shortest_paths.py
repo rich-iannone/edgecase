@@ -1,0 +1,329 @@
+"""The NetworkX backend's shortest paths give NetworkX's exact answers.
+
+Each check calls a NetworkX function twice, once with `backend="edgecase"`, and compares
+the results including dict order and which of several equally short paths is reported.
+"""
+
+import math
+import random
+
+import pytest
+
+nx = pytest.importorskip("networkx")
+
+from edgecase.nx_backend.interface import backend_interface  # noqa: E402
+
+GRAPH_CLASSES = [nx.Graph, nx.DiGraph, nx.MultiGraph, nx.MultiDiGraph]
+
+
+def path_cost(G, path, weight):
+    """The length of `path` as NetworkX's Dijkstra measures it."""
+    cost = nx.algorithms.shortest_paths.weighted._weight_function(G, weight)
+    return sum(cost(u, v, G[u][v]) for u, v in zip(path, path[1:]))
+
+
+@pytest.fixture(autouse=True)
+def no_conversion_cache():
+    cache = nx.config.cache_converted_graphs
+    nx.config.cache_converted_graphs = False
+    yield
+    nx.config.cache_converted_graphs = cache
+
+
+def both(func, *args, **kwargs):
+    """`(networkx result, edgecase result)`, or the exceptions they raise."""
+    results = []
+    for backend in ("networkx", "edgecase"):
+        try:
+            result = func(*args, backend=backend, **kwargs)
+            if not isinstance(result, dict | list | tuple | int | float | bool):
+                result = list(result)  # (a generator)
+        except Exception as exc:
+            result = (type(exc), str(exc))
+        results.append(result)
+    return results
+
+
+def ordered(x):
+    """`x` with every dict replaced by its items, so that comparisons see the order."""
+    if isinstance(x, dict):
+        return [(k, ordered(v)) for k, v in x.items()]
+    if isinstance(x, list | tuple):
+        return [ordered(v) for v in x]
+    return x
+
+
+def assert_same(func, *args, **kwargs):
+    expected, actual = both(func, *args, **kwargs)
+    assert ordered(actual) == ordered(expected)
+    return expected
+
+
+def random_graph(cls, n=14, p=0.25, seed=0, weights=(0, 1, 2, 3)):
+    """A graph with ties among shortest paths, edges added in a random order."""
+    rng = random.Random(seed)
+    G = cls()
+    nodes = list(range(n))
+    rng.shuffle(nodes)
+    G.add_nodes_from(nodes)
+    edges = [(u, v) for u in range(n) for v in range(n) if u != v and rng.random() < p]
+    edges += [(u, u) for u in range(n) if rng.random() < 0.1]
+    if G.is_multigraph():
+        edges += rng.sample(edges, len(edges) // 4)  # parallel edges
+    rng.shuffle(edges)
+    for u, v in edges:
+        G.add_edge(u, v, weight=rng.choice(weights))
+    return G
+
+
+def graphs():
+    for cls in GRAPH_CLASSES:
+        for seed in range(4):
+            yield random_graph(cls, seed=seed)
+    yield random_graph(nx.Graph, seed=7, weights=(0.1, 0.2, 0.30000000000000004, 1.5))
+    yield random_graph(nx.DiGraph, n=30, p=0.1, seed=8)
+
+
+GRAPHS = list(graphs())
+
+
+def graph_id(G):
+    return f"{type(G).__name__}-{G.number_of_nodes()}-{G.number_of_edges()}"
+
+
+@pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
+def test_unweighted(G):
+    for source in list(G)[:5]:
+        for cutoff in (None, 0, 1, 2.5):
+            assert_same(nx.single_source_shortest_path_length, G, source, cutoff=cutoff)
+            assert_same(nx.single_source_shortest_path, G, source, cutoff=cutoff)
+        assert_same(nx.predecessor, G, source)
+        assert_same(nx.predecessor, G, source, cutoff=2)
+        assert_same(nx.predecessor, G, source, return_seen=True)
+        for target in list(G)[-4:]:
+            assert_same(nx.predecessor, G, source, target=target, return_seen=True)
+            assert_same(nx.has_path, G, source, target)
+            assert_same(nx.shortest_path_length, G, source, target)
+    assert_same(nx.all_pairs_shortest_path_length, G, cutoff=2)
+    assert_same(nx.all_pairs_shortest_path, G)
+    assert_same(nx.shortest_path, G)
+    assert_same(nx.shortest_path_length, G)
+
+
+@pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
+def test_unweighted_towards_a_target(G):
+    for node in list(G)[:5]:
+        if not G.is_directed():
+            # A directed graph's predecessors are ordered differently (see the module)
+            assert_same(nx.single_target_shortest_path, G, node, cutoff=2)
+            assert_same(nx.shortest_path, G, target=node)
+            for source in list(G)[-4:]:
+                assert_same(nx.bidirectional_shortest_path, G, source, node)
+            assert_same(nx.single_target_shortest_path_length, G, node)
+            assert_same(nx.shortest_path_length, G, target=node)
+        else:
+            # The same lengths, in another order
+            for func in [nx.single_target_shortest_path_length, nx.shortest_path_length]:
+                expected, actual = (
+                    both(func, G, node)
+                    if func is not nx.shortest_path_length
+                    else both(func, G, target=node)
+                )
+                assert actual == expected
+
+
+@pytest.mark.parametrize("G", GRAPHS, ids=graph_id)
+@pytest.mark.parametrize("weight", ["weight", None, "missing"])
+def test_dijkstra(G, weight):
+    nodes = list(G)
+    for source in nodes[:4]:
+        for cutoff in (None, 0, 2):
+            assert_same(nx.single_source_dijkstra, G, source, cutoff=cutoff, weight=weight)
+            assert_same(nx.single_source_dijkstra_path_length, G, source, cutoff, weight)
+            assert_same(nx.dijkstra_predecessor_and_distance, G, source, cutoff, weight)
+        for target in nodes[-4:]:
+            assert_same(nx.single_source_dijkstra, G, source, target, weight=weight)
+            assert_same(nx.dijkstra_path, G, source, target, weight=weight)
+            assert_same(nx.dijkstra_path_length, G, source, target, weight=weight)
+            assert_same(nx.shortest_path_length, G, source, target, weight=weight)
+            if G.is_directed():
+                # Possibly another path of the same length (see test_unweighted_towards...)
+                nx_result, ec_result = both(nx.bidirectional_dijkstra, G, source, target, weight)
+                if isinstance(nx_result[1], list):
+                    assert ec_result[0] == nx_result[0]
+                    assert path_cost(G, ec_result[1], weight) == nx_result[0]
+                else:
+                    assert ec_result == nx_result
+            else:
+                assert_same(nx.bidirectional_dijkstra, G, source, target, weight)
+                assert_same(nx.shortest_path, G, source, target, weight=weight)
+    sources = set(nodes[2:5])
+    assert_same(nx.multi_source_dijkstra, G, sources, weight=weight)
+    assert_same(nx.multi_source_dijkstra, G, sources, target=nodes[-1], weight=weight)
+    assert_same(nx.multi_source_dijkstra_path_length, G, sources, cutoff=1, weight=weight)
+    assert_same(nx.all_pairs_dijkstra, G, weight=weight)
+    assert_same(nx.all_pairs_dijkstra_path_length, G, cutoff=2, weight=weight)
+    assert_same(nx.shortest_path, G, weight=weight)
+    if not G.is_directed():
+        assert_same(nx.shortest_path, G, target=nodes[0], weight=weight)
+        assert_same(nx.shortest_path_length, G, target=nodes[0], weight=weight)
+    else:
+        expected, actual = both(nx.shortest_path_length, G, target=nodes[0], weight=weight)
+        assert actual == expected  # (in another order)
+
+
+@pytest.mark.parametrize("cls", GRAPH_CLASSES)
+@pytest.mark.parametrize("weight", [None, "weight"])
+def test_average_shortest_path_length(cls, weight):
+    rng = random.Random(5)
+    G = nx.complete_graph(9, create_using=cls)
+    G.remove_edges_from(rng.sample(list(G.edges), 12))
+    for u, v, d in G.edges(data=True):
+        d["weight"] = rng.random()
+    expected = assert_same(nx.average_shortest_path_length, G, weight=weight)
+    assert isinstance(expected, float)  # (and the floats are equal to the last bit)
+    G = nx.path_graph(4, create_using=cls)
+    assert_same(nx.average_shortest_path_length, G, weight=weight)  # not strongly connected
+    assert_same(nx.average_shortest_path_length, nx.empty_graph(0, create_using=cls))
+    assert_same(nx.average_shortest_path_length, nx.empty_graph(1, create_using=cls))
+    assert_same(nx.average_shortest_path_length, G, method="nope")
+
+
+def test_integer_weights_give_integer_distances():
+    G = nx.Graph([(0, 1, {"weight": 2}), (1, 2, {"weight": 3}), (0, 2, {"weight": 9})])
+    dist = nx.single_source_dijkstra_path_length(G, 0, backend="edgecase")
+    assert dist == {0: 0, 1: 2, 2: 5}
+    assert all(type(d) is int for d in dist.values())
+    G[0][1]["weight"] = 2.5
+    dist = nx.single_source_dijkstra_path_length(G, 0, backend="edgecase")
+    assert dist == {0: 0, 1: 2.5, 2: 5.5}
+    assert type(dist[0]) is int  # (a source's distance is the int 0, as in NetworkX)
+    assert nx.dijkstra_path_length(G, 0, 0, backend="edgecase") == 0
+
+
+def test_multigraph_uses_the_cheapest_parallel_edge():
+    G = nx.MultiDiGraph()
+    G.add_edge("a", "b", weight=5)
+    G.add_edge("a", "b", weight=1)
+    G.add_edge("b", "c")  # (weight 1 by default)
+    G.add_edge("a", "c", weight=3)
+    assert_same(nx.single_source_dijkstra, G, "a")
+    assert nx.dijkstra_path(G, "a", "c", backend="edgecase") == ["a", "b", "c"]
+
+
+def test_none_weight_hides_an_edge():
+    G = nx.Graph()
+    G.add_edge(0, 1, weight=None)
+    G.add_edge(1, 2, weight=1)
+    G.add_edge(0, 2, weight=5)
+    assert_same(nx.single_source_dijkstra, G, 0)
+    assert nx.dijkstra_path(G, 0, 1, backend="edgecase") == [0, 2, 1]
+    assert_same(nx.bidirectional_dijkstra, G, 0, 1)
+
+
+def test_negative_weights():
+    G = nx.DiGraph()
+    nx.add_path(G, [0, 1, 2, 3], weight=1)
+    G.add_edge(0, 3, weight=1)
+    G.add_edge(3, 1, weight=-5)
+    for func in [
+        nx.single_source_dijkstra,
+        nx.single_source_dijkstra_path_length,
+        nx.dijkstra_predecessor_and_distance,
+    ]:
+        nx_result, ec_result = both(func, G, 0)
+        assert ec_result == nx_result
+        assert ec_result[0] is ValueError
+    nx_result, ec_result = both(nx.all_pairs_dijkstra_path_length, G)
+    assert ec_result == nx_result
+    assert_same(nx.bidirectional_dijkstra, G, 0, 2)
+    G = nx.cycle_graph(4)
+    G[0][1]["weight"] = -1
+    assert_same(nx.bidirectional_dijkstra, G, 0, 2)
+    assert_same(nx.single_source_dijkstra, G, 3)
+
+
+@pytest.mark.parametrize(
+    "func, args",
+    [
+        (nx.single_source_shortest_path_length, (9,)),
+        (nx.single_source_shortest_path, (9,)),
+        (nx.single_target_shortest_path_length, (9,)),
+        (nx.single_target_shortest_path, (9,)),
+        (nx.bidirectional_shortest_path, (9, 0)),
+        (nx.bidirectional_shortest_path, (0, 9)),
+        (nx.bidirectional_shortest_path, (9, 9)),
+        (nx.predecessor, (9,)),
+        (nx.has_path, (0, 9)),
+        (nx.dijkstra_path, (9, 0)),
+        (nx.dijkstra_path, (0, 9)),
+        (nx.dijkstra_path, (0, 3)),
+        (nx.dijkstra_path_length, (9, 9)),
+        (nx.dijkstra_path_length, (0, 9)),
+        (nx.single_source_dijkstra, (9,)),
+        (nx.single_source_dijkstra, (0, 9)),
+        (nx.multi_source_dijkstra, ([],)),
+        (nx.multi_source_dijkstra, ([0, 9],)),
+        (nx.dijkstra_predecessor_and_distance, (9,)),
+        (nx.bidirectional_dijkstra, (0, 9)),
+        (nx.bidirectional_dijkstra, (9, 0)),
+        (nx.shortest_path, (9,)),
+        (nx.shortest_path, (None, 9)),
+        (nx.shortest_path, (None, 9, "weight")),
+        (nx.shortest_path, (0, 1, None, "nope")),
+        (nx.shortest_path_length, (None, 9)),
+        (nx.shortest_path_length, (0, 9, "weight")),
+        (nx.shortest_path_length, ([1],)),
+    ],
+)
+def test_errors_match(func, args):
+    G = nx.DiGraph([(0, 1), (1, 2)])
+    G.add_node(3)
+    nx_result, ec_result = both(func, G, *args)
+    assert ec_result == nx_result
+
+
+def test_no_path():
+    G = nx.DiGraph([(0, 1), (2, 1)])
+    for func in [nx.bidirectional_shortest_path, nx.dijkstra_path, nx.bidirectional_dijkstra]:
+        nx_result, ec_result = both(func, G, 0, 2)
+        assert ec_result == nx_result
+        assert ec_result[0] is nx.NetworkXNoPath
+    assert nx.has_path(G, 0, 2, backend="edgecase") is False
+    assert nx.has_path(G, 2, 1, backend="edgecase") is True
+
+
+def test_callable_weight_is_left_to_networkx():
+    G = nx.path_graph(3)
+
+    def weight(u, v, d):
+        return 1
+
+    reason = backend_interface.can_run("dijkstra_path", (G, 0, 2, weight), {})
+    assert isinstance(reason, str)
+    assert backend_interface.can_run("dijkstra_path", (G, 0, 2), {"weight": "w"}) is True
+    assert isinstance(backend_interface.can_run("shortest_path", (G, 0, 2, weight), {}), str)
+    assert isinstance(
+        backend_interface.can_run("shortest_path", (G, 0, 2, "w", "bellman-ford"), {}), str
+    )
+    # The dispatcher then runs NetworkX's own code
+    assert nx.dijkstra_path(G, 0, 2, weight=weight) == [0, 1, 2]
+
+
+def test_float_distance_sums_match_networkx_bits():
+    rng = random.Random(3)
+    G = nx.gnm_random_graph(40, 200, seed=3)
+    for _, _, d in G.edges(data=True):
+        d["weight"] = rng.random() * 1e3
+    ec = nx.average_shortest_path_length(G, weight="weight", backend="edgecase")
+    expected = nx.average_shortest_path_length(G, weight="weight", backend="networkx")
+    assert ec == expected
+    assert math.isfinite(ec)
+
+
+def test_generators_are_lazy():
+    G = nx.path_graph(1000)
+    it = nx.all_pairs_shortest_path_length(G, backend="edgecase")
+    node, lengths = next(it)
+    assert node == 0
+    assert lengths[999] == 999
