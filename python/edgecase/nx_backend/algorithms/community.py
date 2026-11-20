@@ -173,19 +173,23 @@ def _size(G, weights):
     return sum(degrees) / 2
 
 
-def _louvain(G, weight, resolution, threshold, seed):
+def _louvain_state(G, weight, resolution):
+    """The level-0 Louvain state (None for a graph without edges).
+
+    Built when the function is called rather than when its generator first runs, so a
+    NotImplementedError (weights edgecase cannot use) reaches the dispatcher, which then
+    lets NetworkX run the call.
+    """
     from edgecase._core import NxLouvain
 
-    nodes = G.nodes
     if G.number_of_edges() == 0:
-        yield [{u} for u in nodes]
-        return
+        return None
     weights = None if weight is None else G.edge_values_of(weight, 1)
     arcs = G.edge_arcs
     src, dst = G.src, G.dst
     try:
-        state = NxLouvain(
-            len(nodes),
+        return NxLouvain(
+            len(G.nodes),
             [src[i] for i in arcs],
             [dst[i] for i in arcs],
             [1.0] * len(arcs) if weights is None else [weights[i] for i in arcs],
@@ -195,6 +199,13 @@ def _louvain(G, weight, resolution, threshold, seed):
         )
     except TypeError as exc:
         raise NotImplementedError(f"edge weights edgecase cannot use: {exc}") from exc
+
+
+def _louvain_levels(G, state, threshold, seed):
+    nodes = G.nodes
+    if state is None:
+        yield [{u} for u in nodes]
+        return
 
     def one_level():
         words, index, extra = _rng_state(seed)
@@ -235,7 +246,7 @@ def _seeded(func):
 
 @_seeded
 def louvain_partitions(G, weight="weight", resolution=1, threshold=0.0000001, seed=None):
-    yield from _louvain(G, weight, resolution, threshold, seed)
+    return _louvain_levels(G, _louvain_state(G, weight, resolution), threshold, seed)
 
 
 @_seeded
@@ -245,7 +256,7 @@ def louvain_communities(
     from collections import deque
     from itertools import islice
 
-    partitions = _louvain(G, weight, resolution, threshold, seed)
+    partitions = _louvain_levels(G, _louvain_state(G, weight, resolution), threshold, seed)
     if max_level is not None:
         if max_level <= 0:
             raise ValueError("max_level argument must be a positive integer or None")
@@ -268,16 +279,20 @@ def _groups(G, labels):
 
 @_seeded
 def asyn_lpa_communities(G, weight=None, seed=None):
-    from edgecase._core import nx_asyn_lpa
-
     weights = None
     if weight is not None:
-        weights = G.edge_values_of(weight, 1)
+        try:
+            weights = [float(w) for w in G.edge_values_of(weight, 1)]
+        except (TypeError, ValueError) as exc:
+            raise NotImplementedError(f"edge weights edgecase cannot use: {exc}") from exc
+    return _asyn_lpa(G, weights, seed)
+
+
+def _asyn_lpa(G, weights, seed):
+    from edgecase._core import nx_asyn_lpa
+
     words, index, extra = _rng_state(seed)
-    try:
-        labels, words, index = nx_asyn_lpa(len(G.nodes), G.src, G.dst, weights, words, index)
-    except (TypeError, ValueError) as exc:
-        raise NotImplementedError(f"edgecase cannot run this graph: {exc}") from exc
+    labels, words, index = nx_asyn_lpa(len(G.nodes), G.src, G.dst, weights, words, index)
     _set_rng_state(seed, words, index, extra)
     yield from _groups(G, labels).values()
 
@@ -394,7 +409,14 @@ def _leiden_can_run(G, *args, metric="cpm", seed=None, **kwargs):
     return _python_random(random._inst if seed is None else seed)
 
 
-def _leiden(G, weight, metric, resolution, seed, theta):
+def _leiden_graph(G, weight):
+    """The Rust graph for Leiden (built eagerly, so unusable weights reach the dispatcher)."""
+    if G.number_of_edges() == 0:
+        return None
+    return G.rust_graph() if weight is None else G.rust_graph(weight, default=1.0)
+
+
+def _leiden(G, rg, metric, resolution, seed, theta):
     """Leiden levels from edgecase's kernel (`community_levels(leiden=True)`).
 
     The partitions are valid Leiden partitions but not NetworkX's for the same seed:
@@ -404,10 +426,9 @@ def _leiden(G, weight, metric, resolution, seed, theta):
     from edgecase._core import community_levels
 
     nodes = G.nodes
-    if G.number_of_edges() == 0:
+    if rg is None:
         yield [{u} for u in nodes]
         return
-    rg = G.rust_graph() if weight is None else G.rust_graph(weight, default=1.0)
     ids, levels = community_levels(
         rg, True, resolution, seed.getrandbits(64), objective=metric, theta=theta
     )
@@ -420,7 +441,7 @@ def _leiden(G, weight, metric, resolution, seed, theta):
 
 @networkx_algorithm(can_run=_leiden_can_run)
 def leiden_partitions(G, *, weight="weight", metric="cpm", resolution=1.0, seed=None, theta=0.01):
-    yield from _leiden(G, weight, metric, resolution, seed, theta)
+    return _leiden(G, _leiden_graph(G, weight), metric, resolution, seed, theta)
 
 
 @networkx_algorithm(can_run=_leiden_can_run)
@@ -437,7 +458,7 @@ def leiden_communities(
     from collections import deque
     from itertools import islice
 
-    partitions = _leiden(G, weight, metric, resolution, seed, theta)
+    partitions = _leiden(G, _leiden_graph(G, weight), metric, resolution, seed, theta)
     if max_level is not None:
         if max_level <= 0:
             raise ValueError("max_level argument must be a positive integer or None")
