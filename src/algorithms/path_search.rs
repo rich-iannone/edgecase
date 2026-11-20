@@ -12,7 +12,7 @@
 //! 0-based node positions (`ID - 1`).
 
 use std::cmp::Ordering;
-use std::collections::BinaryHeap;
+use std::collections::{BinaryHeap, VecDeque};
 use std::sync::OnceLock;
 
 use pyo3::exceptions::{PyIndexError, PyValueError};
@@ -144,6 +144,15 @@ struct Dijkstra {
     seen_order: Vec<usize>,
     /// Per node: its predecessors on shortest paths (`AllPreds`)
     preds: Vec<Vec<usize>>,
+}
+
+/// The state of a Bellman-Ford search: the nodes in the order they got a distance, the
+/// distances and predecessor lists (by node), and the node where a negative cycle showed
+struct BellmanFord {
+    order: Vec<usize>,
+    dist: Vec<f64>,
+    preds: Vec<Vec<usize>>,
+    cycle: Option<usize>,
 }
 
 /// Neumaier-compensated running sum, the algorithm (and so the rounding) of Python's `sum()`
@@ -602,6 +611,108 @@ impl PathAdjacency {
                 levels.into_iter().map(|l| l as f64).collect(),
                 by_node,
             ))
+        }
+    }
+
+    /// NetworkX's `_inner_bellman_ford` (a queue-based Bellman-Ford with its "recent update"
+    /// negative-cycle heuristic) from `sources` over `csr`. With `virtual_source`, searches
+    /// as `negative_edge_cycle` does: from an extra node (position `n`) with an edge of
+    /// weight 1 to every node (and, undirected, back from every node, listed last).
+    fn run_bellman_ford(
+        &self,
+        csr: &Csr,
+        sources: &[usize],
+        heuristic: bool,
+        virtual_source: bool,
+    ) -> BellmanFord {
+        let n = self.n;
+        let total = n + usize::from(virtual_source);
+        let extra = n; // (the virtual source's position)
+        let mut dist = vec![f64::INFINITY; total];
+        let mut has_dist = vec![false; total];
+        let mut order = Vec::new();
+        let mut preds: Vec<Vec<usize>> = vec![Vec::new(); total];
+        let mut pred_edge = vec![NONE; total];
+        let mut recent = vec![(NONE, NONE); total];
+        let mut count = vec![0usize; total];
+        let mut in_q = vec![false; total];
+        let mut queue = VecDeque::new();
+        let starts: Vec<usize> = if virtual_source {
+            vec![extra]
+        } else {
+            sources.to_vec()
+        };
+        for &s in &starts {
+            if !has_dist[s] {
+                has_dist[s] = true;
+                dist[s] = 0.0;
+                order.push(s);
+            }
+            queue.push_back(s);
+            in_q[s] = true;
+        }
+        let mut arcs: Vec<(usize, f64)> = Vec::new();
+        while let Some(u) = queue.pop_front() {
+            in_q[u] = false;
+            if preds[u].iter().any(|&p| in_q[p]) {
+                continue;
+            }
+            let du = dist[u];
+            arcs.clear();
+            if u == extra && virtual_source {
+                arcs.extend((0..n).map(|v| (v, 1.0)));
+            } else {
+                arcs.extend(csr.arcs(u));
+                if virtual_source && !self.directed {
+                    arcs.push((extra, 1.0));
+                }
+            }
+            for &(v, w) in &arcs {
+                let dv = du + w;
+                if dv < if has_dist[v] { dist[v] } else { f64::INFINITY } {
+                    if heuristic {
+                        if recent[u].0 == v || recent[u].1 == v {
+                            preds[v].push(u);
+                            return BellmanFord {
+                                order,
+                                dist,
+                                preds,
+                                cycle: Some(v),
+                            };
+                        }
+                        recent[v] = if pred_edge[v] == u { recent[u] } else { (u, v) };
+                    }
+                    if !in_q[v] {
+                        queue.push_back(v);
+                        in_q[v] = true;
+                        count[v] += 1;
+                        if count[v] == total {
+                            return BellmanFord {
+                                order,
+                                dist,
+                                preds,
+                                cycle: Some(v),
+                            };
+                        }
+                    }
+                    if !has_dist[v] {
+                        has_dist[v] = true;
+                        order.push(v);
+                    }
+                    dist[v] = dv;
+                    preds[v].clear();
+                    preds[v].push(u);
+                    pred_edge[v] = u;
+                } else if has_dist[v] && dv == dist[v] {
+                    preds[v].push(u);
+                }
+            }
+        }
+        BellmanFord {
+            order,
+            dist,
+            preds,
+            cycle: None,
         }
     }
 
@@ -1364,6 +1475,74 @@ impl PathAdjacency {
         }
     }
 
+    /// NetworkX's `_inner_bellman_ford` from `sources` (node positions), with its
+    /// `heuristic`; over predecessors with `reverse`. Returns `(order, dist, preds, cycle)`:
+    /// the nodes in the order they got a distance (NetworkX's `dist` and `pred` order), their
+    /// distances, their predecessor lists, and the node where a negative cycle was detected
+    /// (None if none was; the other results are then the state at that point). With
+    /// `virtual_source`, searches as `negative_edge_cycle` does and returns no nodes.
+    #[pyo3(signature = (sources, heuristic=true, reverse=false, virtual_source=false))]
+    #[allow(clippy::type_complexity)]
+    fn bellman_ford(
+        &self,
+        py: Python<'_>,
+        sources: Vec<usize>,
+        heuristic: bool,
+        reverse: bool,
+        virtual_source: bool,
+    ) -> PyResult<(Vec<usize>, PyObject, Vec<Vec<usize>>, Option<usize>)> {
+        let sources = self.sources(sources)?;
+        let csr = self.csr(reverse);
+        let mut r =
+            py.allow_threads(|| self.run_bellman_ford(csr, &sources, heuristic, virtual_source));
+        if virtual_source {
+            let cycle = r.cycle.map(|_| 0);
+            return Ok((
+                Vec::new(),
+                Vec::<f64>::new().into_pyobject(py)?.into_any().unbind(),
+                Vec::new(),
+                cycle,
+            ));
+        }
+        let dist: Vec<f64> = r.order.iter().map(|&v| r.dist[v]).collect();
+        let preds: Vec<Vec<usize>> = r
+            .order
+            .iter()
+            .map(|&v| std::mem::take(&mut r.preds[v]))
+            .collect();
+        Ok((r.order, self.numbers(py, &dist)?, preds, r.cycle))
+    }
+
+    /// The same adjacency with each step's cost `w` changed to `(w + potentials[u]) -
+    /// potentials[v]` (Johnson's reweighting, in NetworkX's arithmetic)
+    fn reweighted(&self, potentials: Vec<f64>) -> PyResult<PathAdjacency> {
+        if potentials.len() != self.n {
+            return Err(PyValueError::new_err(
+                "potentials must have one value per node",
+            ));
+        }
+        let out = &self.out;
+        let mut weights = Vec::with_capacity(out.weights.len());
+        for u in 0..self.n {
+            for k in out.indptr[u]..out.indptr[u + 1] {
+                weights.push((out.weights[k] + potentials[u]) - potentials[out.indices[k]]);
+            }
+        }
+        Ok(PathAdjacency {
+            n: self.n,
+            directed: self.directed,
+            integral: self.integral && potentials.iter().all(|p| p.fract() == 0.0),
+            hidden: self.hidden,
+            out: Csr {
+                indptr: out.indptr.clone(),
+                indices: out.indices.clone(),
+                weights,
+            },
+            rev: OnceLock::new(),
+            pred_rev: OnceLock::new(),
+        })
+    }
+
     /// Whether every node can reach every other one (strongly connected, for a directed
     /// graph). Hidden arcs count as missing.
     fn is_strongly_connected(&self, py: Python<'_>) -> bool {
@@ -1539,6 +1718,131 @@ impl PathAdjacency {
             });
             (per_node, touched, total, failed)
         }))
+    }
+}
+
+/// NetworkX's `goldberg_radzik` search state (distances and predecessors), advanced one
+/// round at a time by `topo_sort()` and `relax()`. The caller keeps NetworkX's Python set of
+/// relabeled nodes between rounds, because that set's iteration order decides the order in
+/// which `topo_sort()` starts its depth-first searches.
+#[pyclass(module = "edgecase._core")]
+pub struct GoldbergRadzik {
+    adjacency: Py<PathAdjacency>,
+    d: Vec<f64>,
+    /// Per node: its predecessor, ROOT for the source, NONE if not reached
+    pred: Vec<usize>,
+    /// The nodes in the order they got a predecessor entry (NetworkX's `pred` order)
+    pred_order: Vec<usize>,
+}
+
+impl GoldbergRadzik {
+    fn set_pred(&mut self, v: usize, u: usize) {
+        if self.pred[v] == NONE {
+            self.pred_order.push(v);
+        }
+        self.pred[v] = u;
+    }
+}
+
+#[pymethods]
+impl GoldbergRadzik {
+    #[new]
+    fn new(adjacency: Py<PathAdjacency>, source: usize) -> PyResult<Self> {
+        let n = adjacency.get().n;
+        if source >= n {
+            return Err(PyIndexError::new_err("source position out of range"));
+        }
+        let mut d = vec![f64::INFINITY; n];
+        d[source] = 0.0;
+        let mut pred = vec![NONE; n];
+        pred[source] = ROOT;
+        Ok(GoldbergRadzik {
+            adjacency,
+            d,
+            pred,
+            pred_order: vec![source],
+        })
+    }
+
+    /// NetworkX's `topo_sort(relabeled)`, starting a depth-first search from each node of
+    /// `relabeled` in the order given (that of NetworkX's set). Returns the nodes to scan, or
+    /// None if a negative cycle was detected.
+    fn topo_sort(&mut self, py: Python<'_>, relabeled: Vec<usize>) -> Option<Vec<usize>> {
+        let adjacency = self.adjacency.clone_ref(py);
+        let csr = &adjacency.get().out;
+        let n = self.d.len();
+        let mut to_scan = Vec::new();
+        let mut neg_count: Vec<Option<i64>> = vec![None; n];
+        let mut in_stack = vec![false; n];
+        for &u in &relabeled {
+            let du = self.d[u];
+            if csr.arcs(u).all(|(v, w)| du + w >= self.d[v]) {
+                continue;
+            }
+            let mut stack: Vec<(usize, usize)> = vec![(u, csr.indptr[u])];
+            in_stack[u] = true;
+            neg_count[u] = Some(0);
+            while let Some(&(x, k)) = stack.last() {
+                if k == csr.indptr[x + 1] {
+                    to_scan.push(x);
+                    stack.pop();
+                    in_stack[x] = false;
+                    continue;
+                }
+                stack.last_mut().expect("not empty").1 = k + 1;
+                let v = csr.indices[k];
+                let t = self.d[x] + csr.weights[k];
+                if t < self.d[v] {
+                    self.d[v] = t;
+                    self.set_pred(v, x);
+                    let count_x = neg_count[x].expect("on the stack");
+                    match neg_count[v] {
+                        None => {
+                            neg_count[v] = Some(count_x + 1);
+                            stack.push((v, csr.indptr[v]));
+                            in_stack[v] = true;
+                        }
+                        Some(count_v) if in_stack[v] && count_x + 1 > count_v => return None,
+                        Some(_) => {}
+                    }
+                }
+            }
+        }
+        to_scan.reverse();
+        Some(to_scan)
+    }
+
+    /// NetworkX's `relax(to_scan)`: the nodes relabeled, in the order NetworkX adds them to
+    /// its set (with repeats)
+    fn relax(&mut self, py: Python<'_>, to_scan: Vec<usize>) -> Vec<usize> {
+        let adjacency = self.adjacency.clone_ref(py);
+        let csr = &adjacency.get().out;
+        let mut relabeled = Vec::new();
+        for &u in &to_scan {
+            let du = self.d[u];
+            for (v, w) in csr.arcs(u) {
+                if du + w < self.d[v] {
+                    self.d[v] = du + w;
+                    self.set_pred(v, u);
+                    relabeled.push(v);
+                }
+            }
+        }
+        relabeled
+    }
+
+    /// `(nodes, preds, distances)`: the nodes in NetworkX's `pred` order, each one's
+    /// predecessor (None for the source) and distance
+    #[allow(clippy::type_complexity)]
+    fn result(&self, py: Python<'_>) -> PyResult<(Vec<usize>, Vec<Option<usize>>, PyObject)> {
+        let preds = self
+            .pred_order
+            .iter()
+            .map(|&v| (self.pred[v] != ROOT).then_some(self.pred[v]))
+            .collect();
+        let dist: Vec<f64> = self.pred_order.iter().map(|&v| self.d[v]).collect();
+        let distances = self.adjacency.get().numbers(py, &dist)?;
+        Ok((self.pred_order.clone(), preds, distances))
     }
 }
 

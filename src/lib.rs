@@ -584,6 +584,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::paths::k_shortest_paths, m)?)?;
     m.add_class::<algorithms::path_search::PathAdjacency>()?;
+    m.add_class::<algorithms::path_search::GoldbergRadzik>()?;
     m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_centrality::nx_eigenvector_centrality,
