@@ -35,12 +35,13 @@ pub fn count_weakly_connected_components(graph: &Graph) -> usize {
                     }
                 }
 
-                // For directed graphs, also check reverse edges (predecessors)
+                // For directed graphs, also follow edges backwards (predecessors), from the
+                // edge index (this used to scan every edge for every node: O(V·E))
                 if graph.is_directed() {
-                    for edge in graph.get_edges_internal() {
-                        if edge.target == current && !visited.contains(&edge.source) {
-                            visited.insert(edge.source);
-                            queue.push(edge.source);
+                    for &(_, source) in graph.in_pairs(current) {
+                        if !visited.contains(&source) {
+                            visited.insert(source);
+                            queue.push(source);
                         }
                     }
                 }
@@ -185,12 +186,13 @@ pub fn weakly_connected_components(graph: &Graph) -> Vec<Vec<u64>> {
                     }
                 }
 
-                // For directed graphs, also check reverse edges (predecessors)
+                // For directed graphs, also follow edges backwards (predecessors), from the
+                // edge index (this used to scan every edge for every node: O(V·E))
                 if graph.is_directed() {
-                    for edge in graph.get_edges_internal() {
-                        if edge.target == current && !visited.contains(&edge.source) {
-                            visited.insert(edge.source);
-                            queue.push(edge.source);
+                    for &(_, source) in graph.in_pairs(current) {
+                        if !visited.contains(&source) {
+                            visited.insert(source);
+                            queue.push(source);
                         }
                     }
                 }
