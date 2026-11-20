@@ -50,6 +50,7 @@ pub mod null_models;
 pub mod nx_compat;
 pub mod path_extras;
 pub mod path_queries;
+pub mod path_search;
 pub mod paths;
 pub mod percolation;
 pub mod planarity;
