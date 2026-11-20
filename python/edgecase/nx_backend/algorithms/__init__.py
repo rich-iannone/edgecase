@@ -10,6 +10,7 @@ from edgecase.nx_backend.algorithms import (
     convert_matrix,
     core,
     cuts,
+    dfs_structure,
     distance_measures,
     link_analysis,
     link_prediction,
