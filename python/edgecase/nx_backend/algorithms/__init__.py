@@ -16,6 +16,7 @@ from edgecase.nx_backend.algorithms import (
     flow,
     link_analysis,
     link_prediction,
+    matching,
     recognition,
     shortest_paths,
     traversal,
