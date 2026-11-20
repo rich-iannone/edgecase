@@ -103,6 +103,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
         algorithms::dag::topological_generations,
         m
     )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::dag::topological_generations_partial,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::dag_longest_path, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::condensation, m)?)?;
     m.add_function(wrap_pyfunction!(algorithms::dag::reachability_index, m)?)?;
