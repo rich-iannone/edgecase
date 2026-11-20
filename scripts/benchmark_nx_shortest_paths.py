@@ -169,6 +169,13 @@ CASES = [
         2,
     ),
     (
+        "load_centrality",
+        lambda G: nx.load_centrality(G),
+        False,
+        [(500, 5_000), (2_000, 20_000)],
+        2,
+    ),
+    (
         "diameter (usebounds)",
         lambda G: nx.diameter(G, usebounds=True),
         False,
