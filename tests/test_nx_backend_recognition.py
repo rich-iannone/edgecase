@@ -82,6 +82,22 @@ def test_eulerian(cls, seed):
 
 
 @pytest.mark.parametrize("cls", GRAPH_CLASSES)
+def test_eulerian_source_not_in_graph(cls):
+    from edgecase.nx_backend.algorithms.recognition import eulerian_circuit, eulerian_path
+
+    for G in [nx.cycle_graph(4, create_using=cls), nx.path_graph(4, create_using=cls)]:
+        for func in [nx.eulerian_circuit, nx.eulerian_path]:
+            for source in [99, 1.5]:
+                expected = assert_same(func, G, source=source)
+                assert expected[0] in (nx.NetworkXError, KeyError)
+        # A string or tuple is a bunch of nodes to NetworkX's views: left to NetworkX
+        for func in [eulerian_circuit, eulerian_path]:
+            assert isinstance(func.can_run(G, source="x"), str)
+            assert isinstance(func.can_run(G, source=(1, 2)), str)
+            assert func.can_run(G, source=1) is True
+
+
+@pytest.mark.parametrize("cls", GRAPH_CLASSES)
 @pytest.mark.parametrize("seed", range(4))
 def test_bipartite_and_trees(cls, seed):
     rng = random.Random(seed)

@@ -189,6 +189,8 @@ def is_semieulerian(G):
 
 def _walk(G, source, reverse):
     """NetworkX's Eulerian walk from `source` (a key): `(u, v, key)` per step."""
+    if source not in G:
+        raise nx.NetworkXError(f"Node {source} is not in the graph.")
     nodes = G.nodes
     keys = G.keys if G.multigraph else None
     steps = _arc_adjacency(G).eulerian_circuit(G.key_to_id[source] - 1, reverse)
@@ -218,7 +220,18 @@ def _find_path_start(G, reversed_graph):
     return [n for n, d in zip(nodes, degrees) if d % 2 != 0][0]
 
 
-@networkx_algorithm(linear_time=True)
+def _source_can_run(G, source=None, keys=False):
+    if source is not None and source not in G:
+        try:
+            iter(source)
+        except TypeError:
+            return True  # (`_walk` raises NetworkX's error)
+        # NetworkX's degree and edge views then treat `source` as a bunch of nodes
+        return f"source {source!r} is not a node but iterable; left to NetworkX"
+    return True
+
+
+@networkx_algorithm(can_run=_source_can_run, linear_time=True)
 def eulerian_circuit(G, source=None, keys=False):
     if not _is_eulerian(G):
         raise nx.NetworkXError("G is not Eulerian.")
@@ -232,7 +245,7 @@ def eulerian_circuit(G, source=None, keys=False):
             yield (u, v)
 
 
-@networkx_algorithm(linear_time=True)
+@networkx_algorithm(can_run=_source_can_run, linear_time=True)
 def eulerian_path(G, source=None, keys=False):
     if not _has_eulerian_path(G, source):
         raise nx.NetworkXError("Graph has no Eulerian paths.")
