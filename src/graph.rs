@@ -5170,59 +5170,77 @@ impl Graph {
     /// Get k-core decomposition (coreness for each node)
     /// k-core is maximal subgraph where all nodes have degree >= k
     /// Coreness is the highest k for which a node belongs to the k-core
+    ///
+    /// A node's degree counts every edge end at it: parallel edges count separately, a
+    /// self-loop counts twice, and on a directed graph in- and out-edges both count (the
+    /// convention of NetworkX's `core_number` and igraph's `coreness(mode="all")`).
+    ///
+    /// Batagelj and Zaversnik's bin-sort algorithm, O(n + m). (This used to peel the
+    /// minimum-degree nodes one round at a time, scanning every remaining node per round,
+    /// O(n^2) on a long path; on directed graphs it counted only out-edges but lowered the
+    /// degrees of successors, so its results matched no definition.)
     #[inline]
     pub fn get_coreness(&self) -> FxHashMap<u64, usize> {
-        let n = self.nodes.len();
-        let mut coreness: FxHashMap<u64, usize> =
-            FxHashMap::with_capacity_and_hasher(n, Default::default());
-        let mut degrees: FxHashMap<u64, usize> =
-            FxHashMap::with_capacity_and_hasher(n, Default::default());
-        for &id in self.nodes.keys() {
-            degrees.insert(id, self.degree(id));
+        let ids = self.sorted_node_ids();
+        let n = ids.len();
+        let position: FxHashMap<u64, usize> =
+            ids.iter().enumerate().map(|(i, &id)| (id, i)).collect();
+        // Every edge end, as neighbor lists over positions
+        let mut neighbors: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for edge in &self.edges {
+            let (Some(&s), Some(&t)) = (position.get(&edge.source), position.get(&edge.target))
+            else {
+                continue;
+            };
+            neighbors[s].push(t);
+            neighbors[t].push(s);
+        }
+        let mut degree: Vec<usize> = neighbors.iter().map(|list| list.len()).collect();
+
+        // Nodes sorted by degree (bin sort): `bin_start[d]` is where degree d starts in `order`
+        let max_degree = degree.iter().copied().max().unwrap_or(0);
+        let mut bin_start = vec![0usize; max_degree + 2];
+        for &d in &degree {
+            bin_start[d + 1] += 1;
+        }
+        for d in 0..=max_degree {
+            bin_start[d + 1] += bin_start[d];
+        }
+        let mut fill = bin_start.clone();
+        let mut order = vec![0usize; n];
+        let mut place = vec![0usize; n];
+        for v in 0..n {
+            place[v] = fill[degree[v]];
+            order[place[v]] = v;
+            fill[degree[v]] += 1;
         }
 
-        let mut remaining: FxHashSet<u64> =
-            FxHashSet::with_capacity_and_hasher(n, Default::default());
-        remaining.extend(self.nodes.keys().copied());
-        let mut k = 0;
-
-        while !remaining.is_empty() {
-            // Find minimum degree among remaining nodes
-            let min_deg = remaining
-                .iter()
-                .map(|id| degrees.get(id).unwrap())
-                .min()
-                .copied()
-                .unwrap_or(0);
-
-            k = k.max(min_deg);
-
-            // Remove all nodes with degree <= min_deg
-            let mut to_remove = Vec::with_capacity(remaining.len());
-            for &node in &remaining {
-                if *degrees.get(&node).unwrap() <= min_deg {
-                    to_remove.push(node);
-                }
-            }
-
-            for &node in &to_remove {
-                coreness.insert(node, k);
-                remaining.remove(&node);
-
-                // Update degrees of neighbors
-                if let Some(neighbors) = self.adjacency_list.get(&node) {
-                    for &neighbor in neighbors {
-                        if remaining.contains(&neighbor) {
-                            if let Some(deg) = degrees.get_mut(&neighbor) {
-                                *deg = deg.saturating_sub(1);
-                            }
-                        }
+        // Peel in degree order; a neighbor with a higher degree loses one and moves to the
+        // front of its bin, which keeps `order` sorted
+        for i in 0..n {
+            let v = order[i];
+            for k in 0..neighbors[v].len() {
+                let u = neighbors[v][k];
+                if degree[u] > degree[v] {
+                    let du = degree[u];
+                    let pu = place[u];
+                    let pw = bin_start[du];
+                    let w = order[pw];
+                    if u != w {
+                        place[u] = pw;
+                        place[w] = pu;
+                        order[pu] = w;
+                        order[pw] = u;
                     }
+                    bin_start[du] += 1;
+                    degree[u] -= 1;
                 }
             }
         }
-
-        coreness
+        ids.iter()
+            .enumerate()
+            .map(|(i, &id)| (id, degree[i]))
+            .collect()
     }
 
     /// Get local clustering coefficient for each node
