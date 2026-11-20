@@ -52,6 +52,88 @@ pub fn count_weakly_connected_components(graph: &Graph) -> usize {
     component_count
 }
 
+/// Depth-first search from `start` over the unvisited nodes, with an explicit stack (the
+/// recursive version overflowed the thread's stack, killing the process, on long paths).
+/// `on_enter` sees nodes in preorder and `on_finish` in postorder, as a recursive search
+/// would.
+fn dfs_iterative(
+    start: u64,
+    visited: &mut FxHashSet<u64>,
+    adj_list: &FxHashMap<u64, Vec<u64>>,
+    mut on_enter: impl FnMut(u64),
+    mut on_finish: impl FnMut(u64),
+) {
+    let empty: &[u64] = &[];
+    visited.insert(start);
+    on_enter(start);
+    // (node, position of the next neighbor to look at)
+    let mut stack: Vec<(u64, usize)> = vec![(start, 0)];
+    while let Some(top) = stack.last_mut() {
+        let node = top.0;
+        let neighbors = adj_list.get(&node).map_or(empty, |v| v.as_slice());
+        if top.1 < neighbors.len() {
+            let next = neighbors[top.1];
+            top.1 += 1;
+            if visited.insert(next) {
+                on_enter(next);
+                stack.push((next, 0));
+            }
+        } else {
+            stack.pop();
+            on_finish(node);
+        }
+    }
+}
+
+/// Strongly connected components of a directed graph by Kosaraju's algorithm, each in the
+/// order its second search reaches its nodes
+fn kosaraju_components(graph: &Graph) -> Vec<Vec<u64>> {
+    let node_ids: Vec<u64> = graph.get_node_ids();
+    let n = node_ids.len();
+
+    // Step 1: order the nodes by finishing time
+    let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
+    let mut finished: Vec<u64> = Vec::with_capacity(n);
+    let adj_list = graph.get_adjacency_list();
+    for &node_id in &node_ids {
+        if !visited.contains(&node_id) {
+            dfs_iterative(
+                node_id,
+                &mut visited,
+                adj_list,
+                |_| {},
+                |v| finished.push(v),
+            );
+        }
+    }
+
+    // Step 2: transpose the graph (reverse all edges)
+    let mut transposed: FxHashMap<u64, Vec<u64>> =
+        FxHashMap::with_capacity_and_hasher(n, Default::default());
+    for edge in graph.get_edges_internal() {
+        transposed.entry(edge.target).or_default().push(edge.source);
+    }
+
+    // Step 3: search the transposed graph in reverse finishing order; each search is one
+    // component
+    visited.clear();
+    let mut components: Vec<Vec<u64>> = Vec::new();
+    while let Some(node) = finished.pop() {
+        if !visited.contains(&node) {
+            let mut component: Vec<u64> = Vec::new();
+            dfs_iterative(
+                node,
+                &mut visited,
+                &transposed,
+                |v| component.push(v),
+                |_| {},
+            );
+            components.push(component);
+        }
+    }
+    components
+}
+
 /// Count strongly connected components.
 ///
 /// For directed graphs: Uses Kosaraju's algorithm to find maximal sets where
@@ -72,79 +154,7 @@ pub fn count_strongly_connected_components(graph: &Graph) -> Result<usize, Strin
         return Ok(count_weakly_connected_components(graph));
     }
 
-    let node_ids: Vec<u64> = graph.get_node_ids();
-    let n = node_ids.len();
-
-    if n == 0 {
-        return Ok(0);
-    }
-
-    // Step 1: Fill vertices in stack according to their finishing times
-    let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
-    let mut stack: Vec<u64> = Vec::with_capacity(n);
-
-    fn fill_order(
-        node: u64,
-        visited: &mut FxHashSet<u64>,
-        stack: &mut Vec<u64>,
-        adj_list: &FxHashMap<u64, Vec<u64>>,
-    ) {
-        visited.insert(node);
-
-        if let Some(neighbors) = adj_list.get(&node) {
-            for &neighbor in neighbors {
-                if !visited.contains(&neighbor) {
-                    fill_order(neighbor, visited, stack, adj_list);
-                }
-            }
-        }
-
-        stack.push(node);
-    }
-
-    for &node_id in &node_ids {
-        if !visited.contains(&node_id) {
-            fill_order(
-                node_id,
-                &mut visited,
-                &mut stack,
-                graph.get_adjacency_list(),
-            );
-        }
-    }
-
-    // Step 2: Create transposed graph (reverse all edges)
-    let mut transposed: FxHashMap<u64, Vec<u64>> =
-        FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-    for edge in graph.get_edges_internal() {
-        transposed.entry(edge.target).or_default().push(edge.source);
-    }
-
-    // Step 3: Do DFS on transposed graph in reverse finish order
-    visited.clear();
-    let mut component_count = 0;
-
-    fn dfs(node: u64, visited: &mut FxHashSet<u64>, adj_list: &FxHashMap<u64, Vec<u64>>) {
-        visited.insert(node);
-
-        if let Some(neighbors) = adj_list.get(&node) {
-            for &neighbor in neighbors {
-                if !visited.contains(&neighbor) {
-                    dfs(neighbor, visited, adj_list);
-                }
-            }
-        }
-    }
-
-    while let Some(node) = stack.pop() {
-        if !visited.contains(&node) {
-            dfs(node, &mut visited, &transposed);
-            component_count += 1;
-        }
-    }
-
-    Ok(component_count)
+    Ok(kosaraju_components(graph).len())
 }
 
 /// Get all weakly connected components as sets of node IDs.
@@ -222,86 +232,7 @@ pub fn strongly_connected_components(graph: &Graph) -> Result<Vec<Vec<u64>>, Str
         return Ok(weakly_connected_components(graph));
     }
 
-    let node_ids: Vec<u64> = graph.get_node_ids();
-    let n = node_ids.len();
-
-    if n == 0 {
-        return Ok(Vec::new());
-    }
-
-    // Step 1: Fill vertices in stack according to their finishing times
-    let mut visited: FxHashSet<u64> = FxHashSet::with_capacity_and_hasher(n, Default::default());
-    let mut stack: Vec<u64> = Vec::with_capacity(n);
-
-    fn fill_order(
-        node: u64,
-        visited: &mut FxHashSet<u64>,
-        stack: &mut Vec<u64>,
-        adj_list: &FxHashMap<u64, Vec<u64>>,
-    ) {
-        visited.insert(node);
-
-        if let Some(neighbors) = adj_list.get(&node) {
-            for &neighbor in neighbors {
-                if !visited.contains(&neighbor) {
-                    fill_order(neighbor, visited, stack, adj_list);
-                }
-            }
-        }
-
-        stack.push(node);
-    }
-
-    for &node_id in &node_ids {
-        if !visited.contains(&node_id) {
-            fill_order(
-                node_id,
-                &mut visited,
-                &mut stack,
-                graph.get_adjacency_list(),
-            );
-        }
-    }
-
-    // Step 2: Create transposed graph (reverse all edges)
-    let mut transposed: FxHashMap<u64, Vec<u64>> =
-        FxHashMap::with_capacity_and_hasher(n, Default::default());
-
-    for edge in graph.get_edges_internal() {
-        transposed.entry(edge.target).or_default().push(edge.source);
-    }
-
-    // Step 3: Do DFS on transposed graph in reverse finish order, collecting components
-    visited.clear();
-    let mut components: Vec<Vec<u64>> = Vec::new();
-
-    fn dfs_collect(
-        node: u64,
-        visited: &mut FxHashSet<u64>,
-        adj_list: &FxHashMap<u64, Vec<u64>>,
-        component: &mut Vec<u64>,
-    ) {
-        visited.insert(node);
-        component.push(node);
-
-        if let Some(neighbors) = adj_list.get(&node) {
-            for &neighbor in neighbors {
-                if !visited.contains(&neighbor) {
-                    dfs_collect(neighbor, visited, adj_list, component);
-                }
-            }
-        }
-    }
-
-    while let Some(node) = stack.pop() {
-        if !visited.contains(&node) {
-            let mut component: Vec<u64> = Vec::new();
-            dfs_collect(node, &mut visited, &transposed, &mut component);
-            components.push(component);
-        }
-    }
-
-    Ok(components)
+    Ok(kosaraju_components(graph))
 }
 
 /// Check if a directed graph is strongly connected.
