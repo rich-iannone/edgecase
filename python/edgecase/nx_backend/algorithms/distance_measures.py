@@ -6,8 +6,9 @@ search per node in Rust (`PathAdjacency`, in parallel on big graphs) and combine
 distances in NetworkX's order and arithmetic, so floating-point results are equal to the bit.
 
 Breadth-first search counts edges; with a weight attribute the searches are Dijkstra's (as
-in `shortest_paths`, a missing weight is 1). Precomputed `sp`/`e` dicts are used as given,
-while `sp` arguments and callable weights are left to NetworkX.
+in `shortest_paths`, a missing weight is 1). Precomputed eccentricities (`e=`) are used as
+given; precomputed shortest paths (`sp=`), callable weights and centroid's `attr=` (which
+writes node attributes) are left to NetworkX.
 """
 
 from __future__ import annotations
