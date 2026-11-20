@@ -179,3 +179,46 @@ def test_betweenness_zero_weight_ties(cls):
     G.add_weighted_edges_from(edges)
     expected = nx.betweenness_centrality(G, weight="weight")
     assert_close(nx.betweenness_centrality(G, weight="weight", backend="edgecase"), expected)
+
+
+def test_linear_time_functions_prefer_converted_graphs():
+    from edgecase.nx_backend import from_networkx
+    from edgecase.nx_backend.interface import backend_interface
+
+    G = nx.path_graph(5)
+    args = (G,)
+    reason = backend_interface.should_run("connected_components", args, {})
+    assert isinstance(reason, str) and "linear-time" in reason
+    # Not for an edgecase graph, nor once NetworkX has cached a conversion of G
+    assert backend_interface.should_run("connected_components", (from_networkx(G),), {}) is True
+    nx.pagerank(G, backend="edgecase")
+    assert backend_interface.should_run("connected_components", args, {}) is True
+    # Costlier functions always run
+    assert backend_interface.should_run("pagerank", (nx.path_graph(5),), {}) is True
+
+
+def test_linear_time_functions_with_automatic_dispatch():
+    from edgecase.nx_backend.interface import BackendInterface
+
+    calls = []
+    original = BackendInterface.connected_components
+
+    def spy(G):
+        calls.append(G)
+        return original(G)
+
+    spy.can_run = original.can_run
+    spy.should_run = original.should_run
+    BackendInterface.connected_components = staticmethod(spy)
+    priority = list(nx.config.backend_priority.algos)
+    try:
+        nx.config.backend_priority.algos = ["edgecase"]
+        G = nx.path_graph(5)
+        assert list(nx.connected_components(G)) == [set(range(5))]
+        assert not calls  # declined: NetworkX ran it
+        nx.pagerank(G)  # converts G and caches the conversion
+        assert list(nx.connected_components(G)) == [set(range(5))]
+        assert len(calls) == 1
+    finally:
+        nx.config.backend_priority.algos = priority
+        BackendInterface.connected_components = staticmethod(original)

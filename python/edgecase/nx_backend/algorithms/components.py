@@ -45,39 +45,39 @@ def _component_of(G, n):
     raise AssertionError("every node is in a component")  # pragma: no cover
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def connected_components(G):
     yield from _components(G)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def number_connected_components(G):
     return G.rust_graph().count_weakly_connected_components()
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def is_connected(G):
     if len(G) == 0:
         raise _null_graph_error()
     return G.rust_graph().count_weakly_connected_components() == 1
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def node_connected_component(G, n):
     return _component_of(G, n)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def weakly_connected_components(G):
     yield from _components(G)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def number_weakly_connected_components(G):
     return G.rust_graph().count_weakly_connected_components()
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def is_weakly_connected(G):
     if len(G) == 0:
         raise _null_graph_error()
@@ -92,19 +92,19 @@ def _strong_components(G):
         yield {nodes[i - 1] for i in component}
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def strongly_connected_components(G):
     yield from _strong_components(G)
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def number_strongly_connected_components(G):
     from edgecase._core import nx_strongly_connected_components
 
     return len(nx_strongly_connected_components(G.rust_graph()))
 
 
-@networkx_algorithm
+@networkx_algorithm(linear_time=True)
 def is_strongly_connected(G):
     if len(G) == 0:
         raise _null_graph_error()
