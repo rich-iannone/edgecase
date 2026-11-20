@@ -596,6 +596,12 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_class::<algorithms::path_search::GoldbergRadzik>()?;
     m.add_class::<algorithms::nx_cliques::CliqueSearch>()?;
     m.add_class::<algorithms::nx_cliques::AllCliques>()?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_coloring::nx_greedy_color, m)?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_coloring::nx_maximal_independent_set,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_coloring::nx_dominating_set, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_cliques::nx_max_weight_clique,
         m

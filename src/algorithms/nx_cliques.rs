@@ -305,6 +305,23 @@ impl PySetModel {
         self.resize(minused);
     }
 
+    /// `a.difference_update(iterable)` with an iterable that is not a set: each key is
+    /// discarded, then dummies are cleared away as for a set
+    pub(crate) fn difference_update_iterable(&mut self, keys: impl Iterator<Item = (usize, i64)>) {
+        for (k, h) in keys {
+            self.discard(k, h);
+        }
+        if self.fill - self.used <= self.mask / 4 {
+            return;
+        }
+        let minused = if self.used > 50000 {
+            self.used * 2
+        } else {
+            self.used * 4
+        };
+        self.resize(minused);
+    }
+
     /// `a - b` (`set_difference`)
     pub(crate) fn difference(a: &PySetModel, b: &PySetModel) -> PySetModel {
         if (a.used >> 2) > b.used {
