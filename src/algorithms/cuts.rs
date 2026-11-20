@@ -57,7 +57,7 @@ pub fn minimum_cut(
     capacity: Option<&str>,
 ) -> PyResult<(f64, Vec<u64>, Vec<u64>)> {
     check_pair(graph, source, sink)?;
-    let (value, _, side) = edmonds_karp(graph, source, sink, capacity)?;
+    let (value, _, side, _) = edmonds_karp(graph, source, sink, capacity)?;
     let set: FxHashSet<u64> = side.iter().copied().collect();
     let (ids, _) = sorted_ids(graph);
     let rest = ids.into_iter().filter(|id| !set.contains(id)).collect();
@@ -194,7 +194,7 @@ pub fn gomory_hu(graph: &Graph, capacity: Option<&str>) -> PyResult<Vec<(u64, u6
     let mut fl = vec![0.0f64; n];
     for s in 1..n {
         let t = parent[s];
-        let (value, _, side) = edmonds_karp(graph, ids[s], ids[t], capacity)?;
+        let (value, _, side, _) = edmonds_karp(graph, ids[s], ids[t], capacity)?;
         let x: FxHashSet<u64> = side.into_iter().collect();
         fl[s] = value;
         for i in 0..n {
