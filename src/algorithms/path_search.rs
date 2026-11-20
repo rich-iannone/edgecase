@@ -192,8 +192,12 @@ pub struct PathAdjacency {
     /// Some arc was hidden (a `None` weight)
     hidden: bool,
     out: Csr,
-    /// The reverse adjacency (predecessors), built on first use for directed graphs
+    /// The reverse adjacency (predecessors) in arc order (by source node, then the order of
+    /// its arcs), built on first use for directed graphs
     rev: OnceLock<Csr>,
+    /// The reverse adjacency in a given predecessor order (`set_predecessor_order()`), which
+    /// searches over predecessors use when it is set
+    pred_rev: OnceLock<Csr>,
 }
 
 impl PathAdjacency {
@@ -201,9 +205,22 @@ impl PathAdjacency {
         &self.out
     }
 
-    /// The adjacency to search: predecessors (`reverse`) or successors
+    /// The adjacency to search: predecessors (`reverse`; in the order given to
+    /// `set_predecessor_order()`, else in arc order) or successors
     fn csr(&self, reverse: bool) -> &Csr {
         if reverse && self.directed {
+            match self.pred_rev.get() {
+                Some(csr) => csr,
+                None => self.arc_reversed(),
+            }
+        } else {
+            &self.out
+        }
+    }
+
+    /// The predecessors in arc order (successors for an undirected graph)
+    fn arc_reversed(&self) -> &Csr {
+        if self.directed {
             self.rev.get_or_init(|| self.out.reversed())
         } else {
             &self.out
@@ -445,15 +462,14 @@ impl PathAdjacency {
         Ok(dict)
     }
 
-    /// The distances from `source` in search order: BFS levels (`weighted=false`) or
-    /// Dijkstra distances, over predecessors with `reverse`
+    /// The distances from `source` in search order over `csr`: BFS levels
+    /// (`weighted=false`) or Dijkstra distances
     fn ordered_distances(
         &self,
+        csr: &Csr,
         source: usize,
         weighted: bool,
-        reverse: bool,
     ) -> Result<(Vec<usize>, Vec<f64>), Contradiction> {
-        let csr = self.csr(reverse);
         if weighted {
             let r = self.run_dijkstra(csr, &[source], None, None, Track::Lengths)?;
             Ok((r.order, r.dist))
@@ -468,16 +484,16 @@ impl PathAdjacency {
     /// Stops at the first search that hits a contradiction and returns its position.
     fn visit_searches<F>(
         &self,
+        csr: &Csr,
         sources: &[usize],
         weighted: bool,
-        reverse: bool,
         mut visit: F,
     ) -> Option<usize>
     where
         F: FnMut(usize, &[usize], &[f64]),
     {
         let chunk = (4_000_000 / self.n.max(1)).clamp(1, 1024);
-        let run = |&s: &usize| self.ordered_distances(s, weighted, reverse);
+        let run = |&s: &usize| self.ordered_distances(csr, s, weighted);
         let mut start = 0;
         while start < sources.len() {
             let end = (start + chunk).min(sources.len());
@@ -619,6 +635,7 @@ impl PathAdjacency {
                 weights: costs,
             },
             rev: OnceLock::new(),
+            pred_rev: OnceLock::new(),
         })
     }
 
@@ -638,6 +655,90 @@ impl PathAdjacency {
     #[getter]
     fn hidden(&self) -> bool {
         self.hidden
+    }
+
+    /// Whether `set_predecessor_order()` was called
+    #[getter]
+    fn has_predecessor_order(&self) -> bool {
+        self.pred_rev.get().is_some()
+    }
+
+    /// Order each node's predecessors as given (for NetworkX, the order of `G._pred`, which
+    /// can differ from arc order): node `nodes[i]` has the `counts[i]` predecessors that
+    /// follow in `preds` (node IDs `1..=n`). Searches over predecessors then follow this
+    /// order. Predecessors without an arc (or with a hidden one) are skipped, and arcs missing
+    /// from the order keep their arc order after the listed ones. A directed graph's order
+    /// can be set once; an undirected graph has no separate predecessors.
+    fn set_predecessor_order(
+        &self,
+        nodes: Vec<u64>,
+        counts: Vec<usize>,
+        preds: Vec<u64>,
+    ) -> PyResult<()> {
+        if !self.directed || self.pred_rev.get().is_some() {
+            return Ok(());
+        }
+        if nodes.len() != counts.len() || counts.iter().sum::<usize>() != preds.len() {
+            return Err(PyValueError::new_err(
+                "counts must have one entry per node and sum to the number of preds",
+            ));
+        }
+        let n = self.n;
+        let to_position = |id: u64| -> PyResult<usize> {
+            if id == 0 || id as usize > n {
+                Err(PyValueError::new_err(format!(
+                    "Node ID {} is outside 1..={}",
+                    id, n
+                )))
+            } else {
+                Ok(id as usize - 1)
+            }
+        };
+        let arc_rev = self.arc_reversed();
+        // The predecessors listed for each node (positions into `preds`)
+        let mut listed: Vec<Option<(usize, usize)>> = vec![None; n];
+        let mut start = 0;
+        for (&v, &count) in nodes.iter().zip(&counts) {
+            listed[to_position(v)?] = Some((start, start + count));
+            start += count;
+        }
+        let mut slot = vec![NONE; n];
+        let mut indptr = Vec::with_capacity(n + 1);
+        let mut indices = Vec::with_capacity(arc_rev.indices.len());
+        let mut weights = Vec::with_capacity(arc_rev.indices.len());
+        indptr.push(0);
+        for v in 0..n {
+            let row = arc_rev.indptr[v]..arc_rev.indptr[v + 1];
+            for k in row.clone() {
+                slot[arc_rev.indices[k]] = k;
+            }
+            if let Some((a, b)) = listed[v] {
+                for &u in &preds[a..b] {
+                    let u = to_position(u)?;
+                    let k = slot[u];
+                    if k != NONE {
+                        indices.push(u);
+                        weights.push(arc_rev.weights[k]);
+                        slot[u] = NONE;
+                    }
+                }
+            }
+            for k in row {
+                let u = arc_rev.indices[k];
+                if slot[u] != NONE {
+                    indices.push(u);
+                    weights.push(arc_rev.weights[k]);
+                    slot[u] = NONE;
+                }
+            }
+            indptr.push(indices.len());
+        }
+        let _ = self.pred_rev.set(Csr {
+            indptr,
+            indices,
+            weights,
+        });
+        Ok(())
     }
 
     /// Breadth-first search from `source` (NetworkX's `single_source_shortest_path_length`
@@ -1207,12 +1308,13 @@ impl PathAdjacency {
     /// Per source: how many nodes it reaches, the sum of their distances (as Python's
     /// `sum()` over NetworkX's distance dict computes it: exact for ints, compensated in
     /// search order for floats) and the largest distance. BFS levels unless `weighted`;
-    /// over predecessors with `reverse`.
+    /// over predecessors with `reverse`, in arc order with `by_arcs` (the order of
+    /// NetworkX's `G.reverse()` copy) rather than the predecessor order.
     ///
     /// Returns `(reached, sums, maxima, failed)`; `failed` is the position in `sources` of
     /// the first search that hit a negative-weight contradiction (results stop there), else
     /// None.
-    #[pyo3(signature = (sources, weighted=false, reverse=false))]
+    #[pyo3(signature = (sources, weighted=false, reverse=false, by_arcs=false))]
     #[allow(clippy::type_complexity)]
     fn source_stats(
         &self,
@@ -1220,14 +1322,20 @@ impl PathAdjacency {
         sources: Vec<usize>,
         weighted: bool,
         reverse: bool,
+        by_arcs: bool,
     ) -> PyResult<(Vec<usize>, Vec<f64>, Vec<f64>, Option<usize>)> {
         let sources = self.sources(sources)?;
+        let csr = if reverse && by_arcs {
+            self.arc_reversed()
+        } else {
+            self.csr(reverse)
+        };
         let integral = !weighted || self.integral;
         Ok(py.allow_threads(|| {
             let mut reached = Vec::with_capacity(sources.len());
             let mut sums = Vec::with_capacity(sources.len());
             let mut maxima = Vec::with_capacity(sources.len());
-            let failed = self.visit_searches(&sources, weighted, reverse, |_, _, dist| {
+            let failed = self.visit_searches(csr, &sources, weighted, |_, _, dist| {
                 reached.push(dist.len());
                 if integral {
                     sums.push(dist.iter().map(|&x| x as i128).sum::<i128>() as f64);
@@ -1279,11 +1387,12 @@ impl PathAdjacency {
             ));
         }
         let n = self.n;
+        let csr = self.csr(reverse);
         Ok(py.allow_threads(|| {
             let mut per_node = vec![0.0f64; n];
             let mut touched = vec![false; n];
             let mut total = 0.0f64;
-            let failed = self.visit_searches(&sources, weighted, reverse, |i, order, dist| {
+            let failed = self.visit_searches(csr, &sources, weighted, |i, order, dist| {
                 let source = sources[i];
                 for (&u, &d) in order.iter().zip(dist) {
                     if d != 0.0 && members.as_ref().is_none_or(|m| m[u]) {
