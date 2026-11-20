@@ -212,6 +212,13 @@ CASES = [
         2,
     ),
     (
+        "find_cliques",
+        lambda G: consume(nx.find_cliques(G)),
+        False,
+        [(2_000, 20_000), (10_000, 100_000)],
+        2,
+    ),
+    (
         "diameter (usebounds)",
         lambda G: nx.diameter(G, usebounds=True),
         False,
