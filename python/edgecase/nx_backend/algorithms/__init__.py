@@ -7,7 +7,9 @@ from edgecase.nx_backend.algorithms import (
     components,
     convert_matrix,
     core,
+    cuts,
     distance_measures,
     shortest_paths,
     traversal,
+    tree,
 )
