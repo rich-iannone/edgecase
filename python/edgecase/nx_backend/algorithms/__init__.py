@@ -13,6 +13,7 @@ from edgecase.nx_backend.algorithms import (
     cuts,
     dfs_structure,
     distance_measures,
+    flow,
     link_analysis,
     link_prediction,
     recognition,
