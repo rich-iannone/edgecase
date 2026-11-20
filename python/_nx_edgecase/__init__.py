@@ -1,0 +1,30 @@
+"""Tell NetworkX about the edgecase backend.
+
+NetworkX calls `get_info()` (the `networkx.backend_info` entry point) while it is being
+imported, so this package must stay tiny: it must not import `edgecase` (which loads the
+Rust extension and Polars) or `networkx`. The backend itself lives in
+`edgecase.nx_backend` and is loaded only when NetworkX first dispatches to it.
+
+`_FUNCTIONS` lists the NetworkX functions the backend implements; a test in edgecase's
+suite checks it against the backend's registry, so the two cannot drift apart.
+"""
+
+_FUNCTIONS = frozenset(
+    {
+        # BEGIN: functions
+        # END: functions
+    }
+)
+
+
+def get_info():
+    """Backend metadata for NetworkX (the `networkx.backend_info` entry point)."""
+    return {
+        "backend_name": "edgecase",
+        "project": "edgecase",
+        "package": "edgecase",
+        "url": "https://github.com/rich-iannone/edgecase",
+        "short_summary": "Rust-accelerated graph algorithms from edgecase.",
+        "functions": {name: {} for name in sorted(_FUNCTIONS)},
+        "default_config": {},
+    }
