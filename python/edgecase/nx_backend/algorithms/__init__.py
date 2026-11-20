@@ -14,6 +14,7 @@ from edgecase.nx_backend.algorithms import (
     distance_measures,
     link_analysis,
     link_prediction,
+    recognition,
     shortest_paths,
     traversal,
     tree,
