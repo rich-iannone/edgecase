@@ -19,14 +19,15 @@ MUTATES_DURING_ITERATION = (
 )
 
 # test key -> reason
-XFAIL = {}
+XFAIL = {
+    # topological_sort is implemented by edgecase
+    "algorithms/tests/test_dag.py::TestDAG::test_topological_sort6": MUTATES_DURING_ITERATION,
+}
 SKIP = {}
 
 # Only in round-trip mode (EDGECASE_NX_ROUNDTRIP=1), where every dispatchable function
 # converts its graphs
-ROUNDTRIP_XFAIL = {
-    "algorithms/tests/test_dag.py::TestDAG::test_topological_sort6": MUTATES_DURING_ITERATION,
-}
+ROUNDTRIP_XFAIL = {}
 
 
 def _test_keys(item):

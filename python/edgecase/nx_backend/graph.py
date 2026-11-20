@@ -234,6 +234,43 @@ class EdgecaseGraph:
             self._rust_graphs[cache_key] = rg
         return rg
 
+    def reverse_rust_graph(self):
+        """A directed Rust graph with every arc reversed, built on first use.
+
+        Each node's successors in it are the node's predecessors in NetworkX's order when
+        that was recorded (`pred_order`), else in arc order. Unweighted.
+        """
+        rg = self._rust_graphs.get("reverse")
+        if rg is None:
+            from edgecase._core import Graph as RustGraph
+
+            if not self.directed:
+                raise ValueError("only directed graphs have a reverse")
+            if self.pred_order is not None:
+                pred_nodes, counts, preds = self.pred_order
+                get_id = self.key_to_id.__getitem__
+                src = list(chain.from_iterable(map(repeat, map(get_id, pred_nodes), counts)))
+                dst = list(map(get_id, preds))
+                if self.multigraph:
+                    # one arc per key, as for successors
+                    src, dst = self._expand_pred_keys(src, dst)
+            else:
+                src, dst = self.dst, self.src
+            rg = RustGraph.from_edge_arrays(len(self.nodes), src, dst, None, directed=True)
+            self._rust_graphs["reverse"] = rg
+        return rg
+
+    def _expand_pred_keys(self, src, dst):
+        """Repeat each (node, predecessor) pair once per parallel edge."""
+        counts = {}
+        for u, v in zip(self.src, self.dst):
+            counts[(u, v)] = counts.get((u, v), 0) + 1
+        multiplicity = [counts[(u, v)] for v, u in zip(src, dst)]
+        return (
+            list(chain.from_iterable(map(repeat, src, multiplicity))),
+            list(chain.from_iterable(map(repeat, dst, multiplicity))),
+        )
+
     # Results keyed by edgecase node IDs -> keyed by NetworkX node keys
     def key_of(self, node_id):
         return self.nodes[node_id - 1]
