@@ -102,13 +102,14 @@ def _scipy_sparse(G, nodelist=None, dtype=None, weight="weight", format="csr"):
     data = _edge_weights(G, arcs, weight, 1)
     if G.is_directed():
         A = sp.sparse.coo_array(
-            (np.asarray(data), (np.asarray(row, dtype=np.intp), np.asarray(col, dtype=np.intp))),
+            (data, (np.asarray(row, dtype=np.intp), np.asarray(col, dtype=np.intp))),
             shape=(nlen, nlen),
             dtype=dtype,
         )
     else:
-        # symmetrize; self-loop entries get counted twice, so subtract them once (Python
-        # values throughout, so the dtype is inferred from the same values as NetworkX's)
+        # symmetrize; self-loop entries get counted twice, so subtract them once (the
+        # values stay Python values, as NetworkX passes them: SciPy then infers the dtype,
+        # or converts to `dtype`, exactly as for NetworkX, NaN-to-int errors included)
         d = data + data
         r = row + col
         c = col + row
@@ -118,7 +119,7 @@ def _scipy_sparse(G, nodelist=None, dtype=None, weight="weight", format="csr"):
             r += [row[k] for k in loops]
             c += [row[k] for k in loops]
         A = sp.sparse.coo_array(
-            (np.asarray(d), (np.asarray(r, dtype=np.intp), np.asarray(c, dtype=np.intp))),
+            (d, (np.asarray(r, dtype=np.intp), np.asarray(c, dtype=np.intp))),
             shape=(nlen, nlen),
             dtype=dtype,
         )

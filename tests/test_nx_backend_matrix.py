@@ -148,3 +148,16 @@ def test_object_and_structured_dtypes_left_to_networkx():
     assert isinstance(bi.can_run("to_numpy_array", (G,), {"dtype": object}), str)
     assert isinstance(bi.can_run("to_scipy_sparse_array", (G, None, object), {}), str)
     assert bi.can_run("to_numpy_array", (G,), {"dtype": float}) is True
+
+
+def test_nan_weight_with_integer_dtype_raises_as_in_networkx():
+    G = nx.path_graph(3)
+    G[0][1]["weight"] = float("nan")
+    for func in [nx.to_scipy_sparse_array, nx.adjacency_matrix]:
+        with pytest.raises(ValueError):
+            func(G, dtype=int)
+        with pytest.raises(ValueError):
+            func(G, dtype=int, **EC)
+    D = nx.DiGraph(G)
+    with pytest.raises(ValueError):
+        nx.to_scipy_sparse_array(D, dtype=int, **EC)
