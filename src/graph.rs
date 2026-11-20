@@ -484,13 +484,16 @@ impl Graph {
     /// instead of one `add_node()`/`add_edge()` call per element. The nodes are unlabeled and get
     /// the IDs `1..=num_nodes`; entry `i` is an edge from `sources[i]` to `targets[i]` with
     /// weight `weights[i]` (`None` for no weight), and edges get the IDs `1, 2, ...` in the order
-    /// they are kept.
+    /// they are kept. Each node's neighbors (`neighbors()`) are listed in entry order. With
+    /// `require_weights=True` a `None` weight is an error.
     ///
     /// With `symmetric=True` (undirected graphs only) the arrays list every edge in both
-    /// orientations, the way an adjacency structure does, and only the entries with
-    /// `source <= target` are kept (so a self-loop, which is listed once, is kept once).
+    /// orientations, the way an adjacency structure does (a self-loop once): only the entries
+    /// with `source <= target` become edges, but every entry adds its target to its source's
+    /// neighbors, so each node keeps the neighbor order of the adjacency structure.
     #[staticmethod]
-    #[pyo3(signature = (num_nodes, sources, targets, weights=None, directed=false, symmetric=false))]
+    #[pyo3(signature = (num_nodes, sources, targets, weights=None, directed=false, symmetric=false,
+                        require_weights=false))]
     fn from_edge_arrays(
         num_nodes: u64,
         sources: Vec<u64>,
@@ -498,75 +501,92 @@ impl Graph {
         weights: Option<Vec<Option<f64>>>,
         directed: bool,
         symmetric: bool,
+        require_weights: bool,
     ) -> PyResult<Self> {
+        use pyo3::exceptions::{PyMemoryError, PyValueError};
+
         if sources.len() != targets.len() {
-            return Err(pyo3::exceptions::PyValueError::new_err(
+            return Err(PyValueError::new_err(
                 "sources and targets must have the same length",
             ));
         }
         if let Some(ref weights) = weights {
             if weights.len() != sources.len() {
-                return Err(pyo3::exceptions::PyValueError::new_err(
+                return Err(PyValueError::new_err(
                     "weights must have the same length as sources",
                 ));
             }
+            for &weight in weights {
+                if require_weights && weight.is_none() {
+                    return Err(PyValueError::new_err("Edge weight must not be None"));
+                }
+                check_edge_weight(weight)?;
+            }
         }
         if directed && symmetric {
-            return Err(pyo3::exceptions::PyValueError::new_err(
+            return Err(PyValueError::new_err(
                 "symmetric=True is only valid for undirected graphs",
             ));
         }
-        let mut graph = Graph::new(directed, weights.is_some());
-        let n = num_nodes as usize;
-        graph.nodes.reserve(n);
-        graph.adjacency_list.reserve(n);
-        graph.node_creation_order.reserve(n);
-        for id in 1..=num_nodes {
-            graph.nodes.insert(
-                id,
-                Node {
-                    id,
-                    label: None,
-                    attributes: None,
-                },
-            );
-            graph.adjacency_list.insert(id, Vec::new());
-            graph.node_creation_order.push(id);
+        // Every node is allocated up front, so refuse absurd counts before allocating
+        if num_nodes > u32::MAX as u64 {
+            return Err(PyValueError::new_err(format!(
+                "num_nodes must be at most {}, got {}",
+                u32::MAX,
+                num_nodes
+            )));
         }
-        graph.next_node_id = num_nodes + 1;
+        if let Some((&source, &target)) = sources
+            .iter()
+            .zip(targets.iter())
+            .find(|(&s, &t)| s == 0 || s > num_nodes || t == 0 || t > num_nodes)
+        {
+            return Err(PyValueError::new_err(format!(
+                "Edge ({}, {}) refers to a node outside 1..={}",
+                source, target, num_nodes
+            )));
+        }
 
+        let n = num_nodes as usize;
         let capacity = if symmetric {
             sources.len() / 2 + 1
         } else {
             sources.len()
         };
-        graph.edges.reserve(capacity);
-        graph.edge_creation_order.reserve(capacity);
+        let mut graph = Graph::new(directed, weights.is_some());
+        let out_of_memory = |_| PyMemoryError::new_err("not enough memory for the graph");
+        graph.nodes.try_reserve(n).map_err(out_of_memory)?;
+        graph.adjacency_list.try_reserve(n).map_err(out_of_memory)?;
+        graph
+            .node_creation_order
+            .try_reserve(n)
+            .map_err(out_of_memory)?;
+        graph.edges.try_reserve(capacity).map_err(out_of_memory)?;
+        graph
+            .edge_creation_order
+            .try_reserve(capacity)
+            .map_err(out_of_memory)?;
+
+        // Neighbor lists, indexed by node ID
+        let mut adjacency: Vec<Vec<u64>> = Vec::new();
+        adjacency.try_reserve_exact(n + 1).map_err(out_of_memory)?;
+        adjacency.resize_with(n + 1, Vec::new);
         let mut edge_id = 1;
         for (i, (&source, &target)) in sources.iter().zip(targets.iter()).enumerate() {
-            if symmetric && source > target {
-                continue;
-            }
-            if source == 0 || source > num_nodes || target == 0 || target > num_nodes {
-                return Err(pyo3::exceptions::PyValueError::new_err(format!(
-                    "Edge ({}, {}) refers to a node outside 1..={}",
-                    source, target, num_nodes
-                )));
+            adjacency[source as usize].push(target);
+            if symmetric {
+                // The other orientation is its own entry; an undirected self-loop is listed
+                // twice among a node's neighbors, as `add_edge()` lists it
+                if source == target {
+                    adjacency[source as usize].push(source);
+                }
+                if source > target {
+                    continue;
+                }
+            } else if !directed {
+                adjacency[target as usize].push(source);
             }
             let weight = weights.as_ref().and_then(|w| w[i]);
-            check_edge_weight(weight)?;
-            graph
-                .adjacency_list
-                .get_mut(&source)
-                .expect("node exists")
-                .push(target);
-            if !directed {
-                graph
-                    .adjacency_list
-                    .get_mut(&target)
-                    .expect("node exists")
-                    .push(source);
-            }
             graph.edges.push(Edge {
                 id: edge_id,
                 source,
@@ -578,6 +598,20 @@ impl Graph {
             edge_id += 1;
         }
         graph.next_edge_id = edge_id;
+
+        for (id, neighbors) in (1..=num_nodes).zip(adjacency.into_iter().skip(1)) {
+            graph.nodes.insert(
+                id,
+                Node {
+                    id,
+                    label: None,
+                    attributes: None,
+                },
+            );
+            graph.adjacency_list.insert(id, neighbors);
+            graph.node_creation_order.push(id);
+        }
+        graph.next_node_id = num_nodes + 1;
         Ok(graph)
     }
 
