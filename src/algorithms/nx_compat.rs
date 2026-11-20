@@ -1205,3 +1205,247 @@ impl NxLouvain {
         self.inner = (0..k).map(|u| vec![u]).collect();
     }
 }
+
+// ============================================================================
+// Greedy modularity (Clauset-Newman-Moore)
+// ============================================================================
+
+/// A heap priority compared like a Python float: -0.0 and 0.0 are equal (they tie, and the
+/// element breaks the tie), which `f64::total_cmp` alone would not do
+#[derive(Clone, Copy, PartialEq)]
+struct Priority(f64);
+
+impl Priority {
+    fn new(x: f64) -> Self {
+        Priority(x + 0.0) // -0.0 + 0.0 == 0.0
+    }
+}
+
+impl Eq for Priority {}
+impl PartialOrd for Priority {
+    fn partial_cmp(&self, other: &Self) -> Option<Ordering> {
+        Some(self.cmp(other))
+    }
+}
+impl Ord for Priority {
+    fn cmp(&self, other: &Self) -> Ordering {
+        self.0.total_cmp(&other.0)
+    }
+}
+
+/// `networkx.community.greedy_modularity_communities` up to its final sort: the merges
+/// (absorbed community, absorbing community) it makes, as positions, and whether the merging
+/// ran out (NetworkX's `StopIteration` branch) rather than stopped.
+///
+/// `edges` are `G.edges(data=weight, default=1)` (node IDs `1..=n`, in order); `a` and `b`
+/// the per-node `a`/`b` vectors NetworkX computes (equal for undirected graphs); `rank` each
+/// node's position in sorted node order, which breaks ties between equal gains as NetworkX's
+/// `(row, col)` heap elements do. Merging stops as NetworkX's loop does for `cutoff` and
+/// `best_n`. The heaps are ordered sets: popping the least `(priority, element)` is what
+/// NetworkX's `MappedQueue` does, so the merges are the same.
+#[pyfunction]
+#[pyo3(signature = (n, sources, targets, weights, a, b, rank, q0, resolution, directed, cutoff, best_n))]
+#[allow(clippy::too_many_arguments)]
+pub fn nx_greedy_modularity(
+    n: usize,
+    sources: Vec<u64>,
+    targets: Vec<u64>,
+    weights: Vec<f64>,
+    a: Vec<f64>,
+    b: Vec<f64>,
+    rank: Vec<usize>,
+    q0: f64,
+    resolution: f64,
+    directed: bool,
+    cutoff: usize,
+    best_n: usize,
+) -> PyResult<(Vec<(usize, usize)>, bool)> {
+    use std::collections::BTreeSet;
+    if sources.len() != targets.len()
+        || weights.len() != sources.len()
+        || a.len() != n
+        || b.len() != n
+        || rank.len() != n
+    {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "inconsistent input lengths",
+        ));
+    }
+    let mut node_at = vec![usize::MAX; n]; // rank -> node
+    for (v, &r) in rank.iter().enumerate() {
+        if r >= n || node_at[r] != usize::MAX {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "rank must be a permutation",
+            ));
+        }
+        node_at[r] = v;
+    }
+    let sources = positions_of(sources, n)?;
+    let targets = positions_of(targets, n)?;
+    let mut a = a;
+    let mut b = if directed { b } else { Vec::new() };
+
+    // dq_dict
+    let mut dq: Vec<FxHashMap<usize, f64>> = vec![FxHashMap::default(); n];
+    for ((&u, &v), &w) in sources.iter().zip(&targets).zip(&weights) {
+        if u == v {
+            continue;
+        }
+        *dq[u].entry(v).or_insert(0.0) += w;
+        *dq[v].entry(u).or_insert(0.0) += w;
+    }
+    for u in 0..n {
+        let keys: Vec<usize> = dq[u].keys().copied().collect();
+        for v in keys {
+            let (bu, bv) = if directed { (b[u], b[v]) } else { (a[u], a[v]) };
+            let wt = dq[u][&v];
+            dq[u].insert(v, q0 * wt - resolution * (a[u] * bv + bu * a[v]));
+        }
+    }
+    // Row heaps: (priority = -dq, rank of col); H: (priority, rank of row, rank of col)
+    let mut rows: Vec<BTreeSet<(Priority, usize)>> = vec![BTreeSet::new(); n];
+    for u in 0..n {
+        for (&v, &d) in &dq[u] {
+            rows[u].insert((Priority::new(-d), rank[v]));
+        }
+    }
+    let mut heap: BTreeSet<(Priority, usize, usize)> = BTreeSet::new();
+    let mut in_heap: Vec<Option<(Priority, usize)>> = vec![None; n];
+    let top = |rows: &Vec<BTreeSet<(Priority, usize)>>, u: usize| rows[u].first().copied();
+    macro_rules! heap_push {
+        ($row:expr, $entry:expr) => {{
+            let row: usize = $row;
+            if in_heap[row].is_none() {
+                let (p, c): (Priority, usize) = $entry;
+                heap.insert((p, rank[row], c));
+                in_heap[row] = Some((p, c));
+            }
+        }};
+    }
+    macro_rules! heap_remove {
+        ($row:expr) => {{
+            let row: usize = $row;
+            if let Some((p, c)) = in_heap[row].take() {
+                heap.remove(&(p, rank[row], c));
+            }
+        }};
+    }
+    for u in 0..n {
+        if let Some(t) = top(&rows, u) {
+            heap_push!(u, t);
+        }
+    }
+
+    let mut merges: Vec<(usize, usize)> = Vec::new();
+    let mut count = n;
+    let mut exhausted = false;
+    while count > cutoff {
+        if heap.len() <= 1 {
+            exhausted = true;
+            break;
+        }
+        let Some((p, ru, rv)) = heap.pop_first() else {
+            exhausted = true;
+            break;
+        };
+        let (u, v) = (node_at[ru], node_at[rv]);
+        in_heap[u] = None;
+        let gain = -p.0;
+        if gain < 0.0 && count <= best_n {
+            break;
+        }
+        // dq_heap[u].pop(): (u, v) is row u's top
+        rows[u].pop_first();
+        if let Some(t) = top(&rows, u) {
+            heap_push!(u, t);
+        }
+        let vu = (Priority::new(-dq[v][&u]), rank[u]);
+        if top(&rows, v) == Some(vu) {
+            heap_remove!(v);
+            rows[v].remove(&vu);
+            if let Some(t) = top(&rows, v) {
+                heap_push!(v, t);
+            }
+        } else {
+            rows[v].remove(&vu);
+        }
+        merges.push((u, v));
+        count -= 1;
+
+        let u_nbrs: Vec<usize> = dq[u].keys().copied().collect();
+        let v_has: FxHashMap<usize, ()> = dq[v].keys().map(|&k| (k, ())).collect();
+        let mut all: Vec<usize> = u_nbrs
+            .iter()
+            .copied()
+            .chain(dq[v].keys().copied())
+            .filter(|&w| w != u && w != v)
+            .collect();
+        all.sort_unstable();
+        all.dedup();
+        let (bu, bv) = if directed { (b[u], b[v]) } else { (a[u], a[v]) };
+        for w in all {
+            let in_v = v_has.contains_key(&w);
+            let in_u = dq[u].contains_key(&w);
+            let bw = if directed { b[w] } else { a[w] };
+            let dq_vw = if in_u && in_v {
+                dq[v][&w] + dq[u][&w]
+            } else if in_v {
+                dq[v][&w] - resolution * (a[u] * bw + a[w] * bu)
+            } else {
+                dq[u][&w] - resolution * (a[v] * bw + a[w] * bv)
+            };
+            for (row, col) in [(v, w), (w, v)] {
+                let old = dq[row].insert(col, dq_vw);
+                let old_top = top(&rows, row);
+                let entry = (Priority::new(-dq_vw), rank[col]);
+                if in_v {
+                    if let Some(old) = old {
+                        rows[row].remove(&(Priority::new(-old), rank[col]));
+                    }
+                }
+                rows[row].insert(entry);
+                match old_top {
+                    None => heap_push!(row, entry),
+                    Some(old_top) => {
+                        let new_top = top(&rows, row).expect("row is not empty");
+                        if old_top != new_top {
+                            heap_remove!(row);
+                            heap_push!(row, new_top);
+                        }
+                    }
+                }
+            }
+        }
+        for w in u_nbrs {
+            let Some(old) = dq[w].remove(&u) else {
+                continue;
+            };
+            if w == v {
+                continue;
+            }
+            let wu = (Priority::new(-old), rank[u]);
+            let uw = (Priority::new(-dq[u][&w]), rank[w]);
+            for (row, entry) in [(w, wu), (u, uw)] {
+                if top(&rows, row) == Some(entry) {
+                    rows[row].remove(&entry);
+                    heap_remove!(row);
+                    if let Some(t) = top(&rows, row) {
+                        heap_push!(row, t);
+                    }
+                } else {
+                    rows[row].remove(&entry);
+                }
+            }
+        }
+        dq[u].clear();
+        rows[u].clear();
+        heap_remove!(u);
+        a[v] += a[u];
+        a[u] = 0.0;
+        if directed {
+            b[v] += b[u];
+            b[u] = 0.0;
+        }
+    }
+    Ok((merges, exhausted))
+}
