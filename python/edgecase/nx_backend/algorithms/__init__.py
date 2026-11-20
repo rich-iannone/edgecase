@@ -3,6 +3,7 @@
 from edgecase.nx_backend.algorithms import (
     centrality,
     cluster,
+    community,
     components,
     core,
     shortest_paths,
