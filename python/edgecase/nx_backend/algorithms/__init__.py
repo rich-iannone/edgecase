@@ -18,6 +18,7 @@ from edgecase.nx_backend.algorithms import (
     distance_measures,
     flow,
     graph_hashing,
+    isomorphism,
     link_analysis,
     link_prediction,
     matching,
