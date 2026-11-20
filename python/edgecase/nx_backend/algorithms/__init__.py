@@ -2,6 +2,7 @@
 
 from edgecase.nx_backend.algorithms import (
     centrality,
+    centrality_extra,
     cluster,
     community,
     components,
@@ -9,6 +10,8 @@ from edgecase.nx_backend.algorithms import (
     core,
     cuts,
     distance_measures,
+    link_analysis,
+    link_prediction,
     shortest_paths,
     traversal,
     tree,
