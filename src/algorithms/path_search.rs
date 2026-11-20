@@ -20,6 +20,8 @@ use pyo3::prelude::*;
 use pyo3::types::{PyDict, PyInt, PyList};
 use rayon::prelude::*;
 
+use crate::graph::Graph;
+
 /// "No node" (an unset parent)
 const NONE: usize = usize::MAX;
 /// The root of a search tree (a node that has no parent but is reached)
@@ -637,6 +639,81 @@ impl PathAdjacency {
             rev: OnceLock::new(),
             pred_rev: OnceLock::new(),
         })
+    }
+
+    /// The `PathAdjacency` of an edgecase `Graph`, built on demand (it is not kept with the
+    /// graph, so later changes to the graph do not reach it). Returns `(adjacency, node_ids)`:
+    /// position `i` in the adjacency is the node with ID `node_ids[i]` (nodes in creation
+    /// order).
+    ///
+    /// Each node's neighbors are its `neighbors()` list in order, each neighbor once (at its
+    /// first place): parallel edges become one step, and an undirected self-loop (listed
+    /// twice) one step to itself. An undirected edge is a step both ways. With `weighted`
+    /// (default: the graph's own `is_weighted`), a step costs the least weight among the edges
+    /// joining the two nodes, with a missing weight counting as 1 (edgecase's convention; in
+    /// the arc-array constructor a `None` weight hides the arc instead); otherwise every step
+    /// costs 1. For a graph built by `Graph.from_edge_arrays()` from a NetworkX adjacency
+    /// (which keeps its neighbor order) this equals the adjacency built from the same arcs.
+    #[staticmethod]
+    #[pyo3(signature = (graph, weighted=None))]
+    fn from_graph(graph: &Graph, weighted: Option<bool>) -> (PathAdjacency, Vec<u64>) {
+        let weighted = weighted.unwrap_or_else(|| graph.is_weighted());
+        let node_ids = graph.live_node_creation_order();
+        let n = node_ids.len();
+        let position: rustc_hash::FxHashMap<u64, usize> = node_ids
+            .iter()
+            .enumerate()
+            .map(|(i, &id)| (id, i))
+            .collect();
+        let adjacency = graph.get_adjacency_list();
+        let mut stamp = vec![usize::MAX; n];
+        let mut indptr = Vec::with_capacity(n + 1);
+        let mut indices = Vec::new();
+        let mut weights = Vec::new();
+        indptr.push(0);
+        for (i, &u) in node_ids.iter().enumerate() {
+            for &v in adjacency.get(&u).map_or(&[][..], |nbrs| nbrs.as_slice()) {
+                let Some(&j) = position.get(&v) else {
+                    continue;
+                };
+                if stamp[j] == i {
+                    continue;
+                }
+                stamp[j] = i;
+                indices.push(j);
+                weights.push(if weighted {
+                    graph.get_edge_weight(u, v)
+                } else {
+                    1.0
+                });
+            }
+            indptr.push(indices.len());
+        }
+        let adjacency = PathAdjacency {
+            n,
+            directed: graph.is_directed(),
+            integral: !weighted,
+            hidden: false,
+            out: Csr {
+                indptr,
+                indices,
+                weights,
+            },
+            rev: OnceLock::new(),
+            pred_rev: OnceLock::new(),
+        };
+        (adjacency, node_ids)
+    }
+
+    /// The successor rows as `(indptr, indices, weights)`: node `v`'s neighbors are
+    /// `indices[indptr[v]:indptr[v + 1]]` and the steps to them cost the same range of
+    /// `weights` (for inspection and tests)
+    fn arcs(&self) -> (Vec<usize>, Vec<usize>, Vec<f64>) {
+        (
+            self.out.indptr.clone(),
+            self.out.indices.clone(),
+            self.out.weights.clone(),
+        )
     }
 
     /// The number of nodes

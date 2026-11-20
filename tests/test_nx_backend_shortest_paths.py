@@ -321,3 +321,49 @@ def test_generators_are_lazy():
     node, lengths = next(it)
     assert node == 0
     assert lengths[999] == 999
+
+
+@pytest.mark.parametrize("cls", GRAPH_CLASSES)
+def test_path_adjacency_from_graph_agrees_with_arcs(cls):
+    """`PathAdjacency.from_graph()` (an edgecase Graph) equals the arc-array construction."""
+    from edgecase._core import PathAdjacency
+    from edgecase.nx_backend import from_networkx
+    from edgecase.nx_backend.algorithms.shortest_paths import _adjacency
+
+    G = random_graph(cls, seed=3, weights=(1, 2.5, 0.25))
+    G.add_edge(5, 5, weight=4)  # a self-loop
+    G.add_edge(2, 9, weight=0.5)
+    G.add_edge(2, 9, weight=7)  # (a parallel edge on a multigraph)
+    G.add_node("isolated")
+    for weight in [None, "weight"]:
+        E = from_networkx(G, edge_attrs=None if weight is None else {weight: 1})
+        expected = _adjacency(E, weight).arcs()
+        rust_graph = E.rust_graph(weight)
+        adjacency, node_ids = PathAdjacency.from_graph(rust_graph, weighted=weight is not None)
+        assert node_ids == list(range(1, len(G) + 1))
+        assert adjacency.arcs() == expected
+        assert adjacency.num_nodes == len(G)
+        # The searches agree too
+        assert adjacency.source_stats(list(range(len(G))), weight is not None) == _adjacency(
+            E, weight
+        ).source_stats(list(range(len(G))), weight is not None)
+
+
+def test_path_adjacency_from_an_edgecase_graph():
+    from edgecase._core import Graph, PathAdjacency
+
+    # Undirected: 1-2 twice (not adjacent in the edge list), 2-3 without a weight, 3-3
+    rust_graph = Graph.from_edge_arrays(
+        3, [1, 2, 1, 3], [2, 3, 2, 3], [5.0, None, 2.0, 1.5], directed=False
+    )
+    adjacency, node_ids = PathAdjacency.from_graph(rust_graph)
+    assert node_ids == [1, 2, 3]
+    indptr, indices, weights = adjacency.arcs()
+    assert indptr == [0, 1, 3, 5]
+    # each neighbor once, at its first place; the cheapest parallel edge; missing weight 1
+    assert indices == [1, 0, 2, 1, 2]
+    assert weights == [2.0, 2.0, 1.0, 1.0, 1.5]
+    _, levels, _ = adjacency.bfs_levels(0)
+    assert levels == [0, 1, 2]
+    _, unweighted = PathAdjacency.from_graph(rust_graph, weighted=False)[0].arcs()[1:]
+    assert unweighted == [1.0] * 5
