@@ -1602,3 +1602,86 @@ pub fn nx_local_efficiency_sums(
     }
     Ok(out)
 }
+
+// ============================================================================
+// Weisfeiler-Lehman relabeling
+// ============================================================================
+
+/// The neighborhood aggregation of NetworkX's Weisfeiler-Lehman hashes: for each node, its
+/// label followed by the sorted labels of its neighbors (successors, then predecessors, for
+/// a directed graph), each prefixed as NetworkX prefixes them. Hashing the aggregated
+/// labels is left to the caller (Python's `hashlib.blake2b`, as NetworkX uses).
+#[pyclass]
+pub struct NxWlGraph {
+    directed: bool,
+    /// Per node: (neighbor, prefix) for successors (neighbors) and predecessors
+    succ: Vec<Vec<(usize, String)>>,
+    pred: Vec<Vec<(usize, String)>>,
+}
+
+#[pymethods]
+impl NxWlGraph {
+    /// Arcs `src[i] -> dst[i]` (node IDs `1..=n`; both ways for an undirected edge) with an
+    /// optional per-arc edge label (`str` of the edge attribute)
+    #[new]
+    #[pyo3(signature = (n, src, dst, directed, edge_labels=None))]
+    fn new(
+        n: usize,
+        src: Vec<u64>,
+        dst: Vec<u64>,
+        directed: bool,
+        edge_labels: Option<Vec<String>>,
+    ) -> PyResult<Self> {
+        if src.len() != dst.len() || edge_labels.as_ref().is_some_and(|e| e.len() != src.len()) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "src, dst and edge_labels must have the same length",
+            ));
+        }
+        let src = positions_of(src, n)?;
+        let dst = positions_of(dst, n)?;
+        let label = |i: usize| edge_labels.as_ref().map_or(String::new(), |e| e[i].clone());
+        let mut succ: Vec<Vec<(usize, String)>> = vec![Vec::new(); n];
+        let mut pred: Vec<Vec<(usize, String)>> = vec![Vec::new(); n];
+        for i in 0..src.len() {
+            if directed {
+                succ[src[i]].push((dst[i], format!("s_{}", label(i))));
+                pred[dst[i]].push((src[i], format!("p_{}", label(i))));
+            } else {
+                succ[src[i]].push((dst[i], label(i)));
+            }
+        }
+        Ok(NxWlGraph {
+            directed,
+            succ,
+            pred,
+        })
+    }
+
+    /// The aggregated label of every node, in node order
+    fn aggregate(&self, labels: Vec<String>) -> PyResult<Vec<String>> {
+        let n = self.succ.len();
+        if labels.len() != n {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "one label per node is needed",
+            ));
+        }
+        let joined = |list: &[(usize, String)]| -> String {
+            let mut parts: Vec<String> = list
+                .iter()
+                .map(|(v, prefix)| format!("{}{}", prefix, labels[*v]))
+                .collect();
+            parts.sort_unstable();
+            parts.concat()
+        };
+        Ok((0..n)
+            .map(|u| {
+                let mut out = labels[u].clone();
+                out.push_str(&joined(&self.succ[u]));
+                if self.directed {
+                    out.push_str(&joined(&self.pred[u]));
+                }
+                out
+            })
+            .collect())
+    }
+}

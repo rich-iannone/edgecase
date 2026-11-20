@@ -58,6 +58,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::nx_compat::nx_asyn_lpa, m)?)?;
     m.add_class::<algorithms::nx_compat::NxLouvain>()?;
+    m.add_class::<algorithms::nx_compat::NxWlGraph>()?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_compat::nx_greedy_modularity,
         m

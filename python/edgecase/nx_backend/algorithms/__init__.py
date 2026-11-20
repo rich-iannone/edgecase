@@ -15,6 +15,7 @@ from edgecase.nx_backend.algorithms import (
     dfs_structure,
     distance_measures,
     flow,
+    graph_hashing,
     link_analysis,
     link_prediction,
     matching,

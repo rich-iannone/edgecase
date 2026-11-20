@@ -224,6 +224,8 @@ _FUNCTIONS = frozenset(
         "triangles",
         "volume",
         "weakly_connected_components",
+        "weisfeiler_lehman_graph_hash",
+        "weisfeiler_lehman_subgraph_hashes",
         "wiener_index",
         "within_inter_cluster",
         # END: functions
