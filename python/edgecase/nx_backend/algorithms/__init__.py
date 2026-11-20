@@ -7,6 +7,7 @@ from edgecase.nx_backend.algorithms import (
     centrality_extra,
     cliques,
     cluster,
+    coloring,
     community,
     components,
     convert_matrix,
