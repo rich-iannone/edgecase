@@ -17,7 +17,7 @@ use std::sync::OnceLock;
 
 use pyo3::exceptions::{PyIndexError, PyValueError};
 use pyo3::prelude::*;
-use pyo3::types::PyInt;
+use pyo3::types::{PyDict, PyInt, PyList};
 use rayon::prelude::*;
 
 /// "No node" (an unset parent)
@@ -245,7 +245,8 @@ impl PathAdjacency {
             parent_positions.push(0);
         }
         let mut head = 0;
-        while head < order.len() {
+        // (once every node is reached there is nothing left to discover)
+        while head < order.len() && order.len() < self.n {
             let v = order[head];
             let level = levels[head];
             // (as Python's `cutoff > level`, false for a NaN cutoff)
@@ -404,6 +405,44 @@ impl PathAdjacency {
         } else {
             Ok(value.into_pyobject(py)?.into_any().unbind())
         }
+    }
+
+    /// `{nodes[order[i]]: levels[i]}`
+    fn level_dict<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        order: &[usize],
+        levels: &[usize],
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(nodes.py());
+        for (&v, &level) in order.iter().zip(levels) {
+            dict.set_item(nodes.get_item(v)?, level)?;
+        }
+        Ok(dict)
+    }
+
+    /// `{nodes[order[i]]: dist[i]}`: ints if every weight is an int, else floats except for
+    /// the first `roots` nodes (the sources), whose distance is the int 0 as in NetworkX
+    fn distance_dict<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        order: &[usize],
+        dist: &[f64],
+        roots: usize,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let dict = PyDict::new(nodes.py());
+        let integral = self.integral && dist.iter().all(|x| x.is_finite());
+        for (i, (&v, &d)) in order.iter().zip(dist).enumerate() {
+            let key = nodes.get_item(v)?;
+            if integral {
+                dict.set_item(key, d as i64)?;
+            } else if i < roots {
+                dict.set_item(key, 0)?;
+            } else {
+                dict.set_item(key, d)?;
+            }
+        }
+        Ok(dict)
     }
 
     fn sources(&self, sources: Vec<usize>) -> PyResult<Vec<usize>> {
@@ -593,6 +632,89 @@ impl PathAdjacency {
                     .collect()
             }
         }))
+    }
+
+    /// `{node: level}` from `bfs_levels()`, keyed by `nodes[position]` (NetworkX's
+    /// `single_source_shortest_path_length`)
+    #[pyo3(signature = (nodes, source, cutoff=f64::INFINITY, reverse=false))]
+    fn bfs_lengths<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        source: usize,
+        cutoff: f64,
+        reverse: bool,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let (order, levels, _) = self.bfs_levels(nodes.py(), source, cutoff, reverse, false)?;
+        self.level_dict(nodes, &order, &levels)
+    }
+
+    /// `bfs_lengths()` from each of `sources` (searches in parallel when big)
+    #[pyo3(signature = (nodes, sources, cutoff=f64::INFINITY, reverse=false))]
+    fn bfs_lengths_many<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        sources: Vec<usize>,
+        cutoff: f64,
+        reverse: bool,
+    ) -> PyResult<Vec<Bound<'py, PyDict>>> {
+        let results = self.bfs_levels_many(nodes.py(), sources, cutoff, reverse, false)?;
+        results
+            .iter()
+            .map(|(order, levels, _)| self.level_dict(nodes, order, levels))
+            .collect()
+    }
+
+    /// `{node: distance}` from Dijkstra's algorithm from `sources`, keyed by
+    /// `nodes[position]` (NetworkX's `multi_source_dijkstra_path_length`)
+    #[pyo3(signature = (nodes, sources, cutoff=None, reverse=false))]
+    fn dijkstra_lengths<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        sources: Vec<usize>,
+        cutoff: Option<f64>,
+        reverse: bool,
+    ) -> PyResult<Bound<'py, PyDict>> {
+        let sources = self.sources(sources)?;
+        let csr = self.csr(reverse);
+        let result = nodes
+            .py()
+            .allow_threads(|| self.run_dijkstra(csr, &sources, cutoff, None, Track::Lengths))
+            .map_err(|_| contradiction_error())?;
+        let mut distinct = sources.clone();
+        distinct.sort_unstable();
+        distinct.dedup();
+        self.distance_dict(nodes, &result.order, &result.dist, distinct.len())
+    }
+
+    /// `dijkstra_lengths()` from each of `sources` separately (in parallel when big), cut
+    /// short before the first source whose search raises; the second item is True then.
+    #[pyo3(signature = (nodes, sources, cutoff=None))]
+    fn dijkstra_lengths_many<'py>(
+        &self,
+        nodes: &Bound<'py, PyList>,
+        sources: Vec<usize>,
+        cutoff: Option<f64>,
+    ) -> PyResult<(Vec<Bound<'py, PyDict>>, bool)> {
+        let sources = self.sources(sources)?;
+        let csr = self.forward();
+        let run = |s: &usize| {
+            self.run_dijkstra(csr, std::slice::from_ref(s), cutoff, None, Track::Lengths)
+        };
+        let results: Vec<Result<Dijkstra, Contradiction>> = nodes.py().allow_threads(|| {
+            if self.parallel(sources.len()) {
+                sources.par_iter().map(run).collect()
+            } else {
+                sources.iter().map(run).collect()
+            }
+        });
+        let mut dicts = Vec::with_capacity(results.len());
+        for result in results {
+            match result {
+                Ok(r) => dicts.push(self.distance_dict(nodes, &r.order, &r.dist, 1)?),
+                Err(Contradiction) => return Ok((dicts, true)),
+            }
+        }
+        Ok((dicts, false))
     }
 
     /// NetworkX's `predecessor`: breadth-first from `source`, recording every neighbor one

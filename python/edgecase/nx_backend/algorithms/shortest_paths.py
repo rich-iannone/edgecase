@@ -168,8 +168,7 @@ def _weighted(func):
 
 
 def _bfs_lengths(G, source, cutoff, reverse=False):
-    order, levels, _ = _adjacency(G).bfs_levels(source, _cutoff(cutoff), reverse)
-    return dict(zip(_keys(G, order), levels))
+    return _adjacency(G).bfs_lengths(G.nodes, source, _cutoff(cutoff), reverse)
 
 
 def _bfs_paths(G, source, cutoff, reverse=False):
@@ -195,9 +194,9 @@ def all_pairs_shortest_path_length(G, cutoff=None):
     nodes = G.nodes
     cutoff = _cutoff(cutoff)
     for batch in _batches(len(nodes)):
-        results = adj.bfs_levels_many(list(batch), cutoff)
-        for s, (order, levels, _) in zip(batch, results):
-            yield nodes[s], dict(zip(map(nodes.__getitem__, order), levels))
+        yield from zip(
+            map(nodes.__getitem__, batch), adj.bfs_lengths_many(nodes, list(batch), cutoff)
+        )
 
 
 @networkx_algorithm
@@ -275,9 +274,7 @@ def _sources(G, sources):
 
 
 def _dijkstra_lengths(G, sources, cutoff, weight, reverse=False):
-    adj = _adjacency(G, weight)
-    order, dist, _ = adj.dijkstra(sources, cutoff, None, "lengths", reverse)
-    return _distances(G, adj, order, dist, len(set(sources)))
+    return _adjacency(G, weight).dijkstra_lengths(G.nodes, sources, cutoff, reverse)
 
 
 def _dijkstra_paths(G, sources, cutoff, weight, reverse=False):
@@ -362,33 +359,38 @@ def dijkstra_predecessor_and_distance(G, source, cutoff=None, weight="weight"):
     return (pred, _distances(G, adj, order, dist))
 
 
-def _all_pairs_dijkstra(G, cutoff, weight, paths):
-    """Yield `(node, (dist, paths or None))` for every node, as NetworkX's generators."""
+def _all_pairs_dijkstra(G, cutoff, weight):
+    """Yield `(node, (dist, paths))` for every node, as NetworkX's generators."""
     adj = _adjacency(G, weight)
     nodes = G.nodes
     for batch in _batches(len(nodes)):
-        results, failed = adj.dijkstra_many(list(batch), cutoff, paths)
+        results, failed = adj.dijkstra_many(list(batch), cutoff, True)
         for s, (order, dist, parents) in zip(batch, results):
             dist = _distances(G, adj, order, dist)
-            yield nodes[s], (dist, _paths(_keys(G, order), parents) if paths else None)
+            yield nodes[s], (dist, _paths(_keys(G, order), parents))
         if failed:
             raise _contradiction()
 
 
 @_weighted
 def all_pairs_dijkstra(G, cutoff=None, weight="weight"):
-    yield from _all_pairs_dijkstra(G, cutoff, weight, True)
+    yield from _all_pairs_dijkstra(G, cutoff, weight)
 
 
 @_weighted
 def all_pairs_dijkstra_path_length(G, cutoff=None, weight="weight"):
-    for n, (dist, _) in _all_pairs_dijkstra(G, cutoff, weight, False):
-        yield n, dist
+    adj = _adjacency(G, weight)
+    nodes = G.nodes
+    for batch in _batches(len(nodes)):
+        results, failed = adj.dijkstra_lengths_many(nodes, list(batch), cutoff)
+        yield from zip(map(nodes.__getitem__, batch), results)
+        if failed:
+            raise _contradiction()
 
 
 @_weighted
 def all_pairs_dijkstra_path(G, cutoff=None, weight="weight"):
-    for n, (_, paths) in _all_pairs_dijkstra(G, cutoff, weight, True):
+    for n, (_, paths) in _all_pairs_dijkstra(G, cutoff, weight):
         yield n, paths
 
 
