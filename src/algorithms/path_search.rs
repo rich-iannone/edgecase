@@ -445,6 +445,60 @@ impl PathAdjacency {
         Ok(dict)
     }
 
+    /// The distances from `source` in search order: BFS levels (`weighted=false`) or
+    /// Dijkstra distances, over predecessors with `reverse`
+    fn ordered_distances(
+        &self,
+        source: usize,
+        weighted: bool,
+        reverse: bool,
+    ) -> Result<(Vec<usize>, Vec<f64>), Contradiction> {
+        let csr = self.csr(reverse);
+        if weighted {
+            let r = self.run_dijkstra(csr, &[source], None, None, Track::Lengths)?;
+            Ok((r.order, r.dist))
+        } else {
+            let (order, levels, _) = self.bfs(csr, source, f64::INFINITY, false);
+            Ok((order, levels.into_iter().map(|l| l as f64).collect()))
+        }
+    }
+
+    /// Search from each of `sources` (in parallel batches when big) and hand each search's
+    /// `(position in sources, order, distances)` to `visit` in the order of `sources`.
+    /// Stops at the first search that hits a contradiction and returns its position.
+    fn visit_searches<F>(
+        &self,
+        sources: &[usize],
+        weighted: bool,
+        reverse: bool,
+        mut visit: F,
+    ) -> Option<usize>
+    where
+        F: FnMut(usize, &[usize], &[f64]),
+    {
+        let chunk = (4_000_000 / self.n.max(1)).clamp(1, 1024);
+        let run = |&s: &usize| self.ordered_distances(s, weighted, reverse);
+        let mut start = 0;
+        while start < sources.len() {
+            let end = (start + chunk).min(sources.len());
+            let batch = &sources[start..end];
+            let results: Vec<Result<(Vec<usize>, Vec<f64>), Contradiction>> =
+                if self.parallel(batch.len()) {
+                    batch.par_iter().map(run).collect()
+                } else {
+                    batch.iter().map(run).collect()
+                };
+            for (i, result) in results.into_iter().enumerate() {
+                match result {
+                    Ok((order, dist)) => visit(start + i, &order, &dist),
+                    Err(Contradiction) => return Some(start + i),
+                }
+            }
+            start = end;
+        }
+        None
+    }
+
     fn sources(&self, sources: Vec<usize>) -> PyResult<Vec<usize>> {
         for &s in &sources {
             self.check_node(s)?;
@@ -1148,6 +1202,101 @@ impl PathAdjacency {
             Ok((int_total, _)) if integral => Ok(int_total.into_pyobject(py)?.into_any().unbind()),
             Ok((_, float_total)) => Ok(float_total.into_pyobject(py)?.into_any().unbind()),
         }
+    }
+
+    /// Per source: how many nodes it reaches, the sum of their distances (as Python's
+    /// `sum()` over NetworkX's distance dict computes it: exact for ints, compensated in
+    /// search order for floats) and the largest distance. BFS levels unless `weighted`;
+    /// over predecessors with `reverse`.
+    ///
+    /// Returns `(reached, sums, maxima, failed)`; `failed` is the position in `sources` of
+    /// the first search that hit a negative-weight contradiction (results stop there), else
+    /// None.
+    #[pyo3(signature = (sources, weighted=false, reverse=false))]
+    #[allow(clippy::type_complexity)]
+    fn source_stats(
+        &self,
+        py: Python<'_>,
+        sources: Vec<usize>,
+        weighted: bool,
+        reverse: bool,
+    ) -> PyResult<(Vec<usize>, Vec<f64>, Vec<f64>, Option<usize>)> {
+        let sources = self.sources(sources)?;
+        let integral = !weighted || self.integral;
+        Ok(py.allow_threads(|| {
+            let mut reached = Vec::with_capacity(sources.len());
+            let mut sums = Vec::with_capacity(sources.len());
+            let mut maxima = Vec::with_capacity(sources.len());
+            let failed = self.visit_searches(&sources, weighted, reverse, |_, _, dist| {
+                reached.push(dist.len());
+                if integral {
+                    sums.push(dist.iter().map(|&x| x as i128).sum::<i128>() as f64);
+                } else {
+                    let mut sum = CompensatedSum::default();
+                    for &x in dist {
+                        sum.add(x);
+                    }
+                    sums.push(sum.total());
+                }
+                // (Python's max() keeps the first of equal values: the source's 0)
+                maxima.push(dist.iter().copied().fold(f64::NEG_INFINITY, |m, x| {
+                    if x > m {
+                        x
+                    } else {
+                        m
+                    }
+                }));
+            });
+            (reached, sums, maxima, failed)
+        }))
+    }
+
+    /// Sums of inverse distances `1 / d` over the pairs (source, reached node) with `d != 0`,
+    /// added in the order NetworkX's `harmonic_centrality` and `harmonic_diameter` add them:
+    /// sources in the given order, then each search's order. Only reached nodes with
+    /// `members[node]` count (all if None). Each term goes to the reached node, or to the
+    /// source with `at_source`. BFS levels unless `weighted`; over predecessors with
+    /// `reverse`.
+    ///
+    /// Returns `(per_node, touched, total, failed)`: the per-node sums, which nodes got a
+    /// term, the sum of all terms in order, and the position in `sources` of the first
+    /// search that hit a negative-weight contradiction (None if none did).
+    #[pyo3(signature = (sources, weighted=false, reverse=false, members=None, at_source=false))]
+    #[allow(clippy::type_complexity)]
+    fn inverse_distance_sums(
+        &self,
+        py: Python<'_>,
+        sources: Vec<usize>,
+        weighted: bool,
+        reverse: bool,
+        members: Option<Vec<bool>>,
+        at_source: bool,
+    ) -> PyResult<(Vec<f64>, Vec<bool>, f64, Option<usize>)> {
+        let sources = self.sources(sources)?;
+        if members.as_ref().is_some_and(|m| m.len() != self.n) {
+            return Err(PyValueError::new_err(
+                "members must have one entry per node",
+            ));
+        }
+        let n = self.n;
+        Ok(py.allow_threads(|| {
+            let mut per_node = vec![0.0f64; n];
+            let mut touched = vec![false; n];
+            let mut total = 0.0f64;
+            let failed = self.visit_searches(&sources, weighted, reverse, |i, order, dist| {
+                let source = sources[i];
+                for (&u, &d) in order.iter().zip(dist) {
+                    if d != 0.0 && members.as_ref().is_none_or(|m| m[u]) {
+                        let x = 1.0 / d;
+                        let at = if at_source { source } else { u };
+                        per_node[at] = if touched[at] { per_node[at] + x } else { x };
+                        touched[at] = true;
+                        total += x;
+                    }
+                }
+            });
+            (per_node, touched, total, failed)
+        }))
     }
 }
 
