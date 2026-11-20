@@ -187,3 +187,33 @@ def test_trees_and_refused_arguments():
 
     assert isinstance(backend_interface.can_run("diameter", (T, None, False, length), {}), str)
     assert backend_interface.can_run("diameter", (T,), {"weight": "w"}) is True
+
+
+def test_should_run_declines_single_searches_on_unconverted_graphs():
+    from edgecase.nx_backend import from_networkx
+
+    G = nx.path_graph(5)
+    declines = [
+        ("eccentricity", (G, 0), {}),
+        ("eccentricity", (G,), {"v": 3}),
+        ("closeness_centrality", (G, 1), {}),
+        ("harmonic_centrality", (G,), {"nbunch": 2}),
+        ("harmonic_centrality", (G,), {"sources": 2}),
+        ("diameter", (G,), {"e": {0: 1}}),
+        ("center", (G, {0: 1}), {}),
+    ]
+    for name, args, kwargs in declines:
+        assert isinstance(backend_interface.should_run(name, args, kwargs), str), name
+        args = (from_networkx(G), *args[1:])
+        assert backend_interface.should_run(name, args, kwargs) is True, name
+    runs = [
+        ("eccentricity", (G,), {}),
+        ("eccentricity", (G, [0, 1]), {}),
+        ("closeness_centrality", (G,), {}),
+        ("harmonic_centrality", (G,), {"nbunch": [2]}),
+        ("diameter", (G,), {"usebounds": True}),
+        ("barycenter", (G,), {}),
+    ]
+    for name, args, kwargs in runs:
+        name = "centroid" if name == "barycenter" else name
+        assert backend_interface.should_run(name, args, kwargs) is True, name

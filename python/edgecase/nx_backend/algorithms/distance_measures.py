@@ -27,7 +27,7 @@ from edgecase.nx_backend.algorithms.shortest_paths import (
     _dijkstra_lengths,
     _position,
 )
-from edgecase.nx_backend.registry import networkx_algorithm
+from edgecase.nx_backend.registry import networkx_algorithm, prefer_converted_graph
 
 __all__ = [
     "barycenter",
@@ -43,19 +43,28 @@ __all__ = [
 ]
 
 
-def _register(weight_name, *refused):
+def _register(weight_name, *refused, cheap=None):
     """Register a function, leaving calls to NetworkX that give a callable weight (the
     argument `weight_name`) or any of the arguments `refused` (not None).
+
+    `cheap(arguments)` says whether a call does at most about one search (for example one
+    node's eccentricity): with automatic dispatch such calls run on edgecase only when the
+    graph needs no conversion, which would cost about as much as the search (D6).
     """
 
     def decorate(func):
         signature = inspect.signature(func)
 
-        def can_run(*args, **kwargs):
+        def bind(args, kwargs):
             try:
-                arguments = signature.bind(*args, **kwargs).arguments
+                return signature.bind(*args, **kwargs).arguments
             except TypeError:
-                return True  # (the call raises the TypeError itself)
+                return None  # (the call raises the TypeError itself)
+
+        def can_run(*args, **kwargs):
+            arguments = bind(args, kwargs)
+            if arguments is None:
+                return True
             if callable(arguments.get(weight_name)):
                 return "a callable weight is not supported; give an edge attribute name"
             for name in refused:
@@ -63,9 +72,31 @@ def _register(weight_name, *refused):
                     return f"{name}= is not supported by edgecase"
             return True
 
-        return networkx_algorithm(func, can_run=can_run)
+        should_run = None
+        if cheap is not None:
+
+            def should_run(*args, **kwargs):
+                arguments = bind(args, kwargs)
+                if arguments is not None and cheap(arguments):
+                    return prefer_converted_graph(arguments["G"])
+                return True
+
+        return networkx_algorithm(func, can_run=can_run, should_run=should_run)
 
     return decorate
+
+
+def _one_node(G, nbunch):
+    """Whether `nbunch` is a single node of `G` (not a container of nodes)."""
+    try:
+        return nbunch is not None and nbunch in G
+    except TypeError:
+        return False
+
+
+def _given_e(arguments):
+    """Eccentricities given: the call does no search at all."""
+    return arguments.get("e") is not None
 
 
 def _nbunch_iter(G, nbunch):
@@ -117,7 +148,7 @@ def _stats(G, sources, weight, reverse=False, by_arcs=False):
 # Distance measures
 
 
-@_register("weight", "sp")
+@_register("weight", "sp", cheap=lambda a: _one_node(a["G"], a.get("v")))
 def eccentricity(G, v=None, sp=None, weight=None):
     if len(G) == 0:
         raise nx.NetworkXPointlessConcept("Cannot compute eccentricity of a null graph.")
@@ -277,7 +308,7 @@ def _exact_extrema(G, compute, weight):
     return e
 
 
-@_register("weight")
+@_register("weight", cheap=_given_e)
 def diameter(G, e=None, usebounds=False, weight=None):
     if usebounds is True and e is None and not G.is_directed():
         return _extrema_bounding(G, compute="diameter", weight=weight)
@@ -286,7 +317,7 @@ def diameter(G, e=None, usebounds=False, weight=None):
     return max(e.values())
 
 
-@_register("weight")
+@_register("weight", cheap=_given_e)
 def periphery(G, e=None, usebounds=False, weight=None):
     if usebounds is True and e is None and not G.is_directed():
         return _extrema_bounding(G, compute="periphery", weight=weight)
@@ -296,7 +327,7 @@ def periphery(G, e=None, usebounds=False, weight=None):
     return [v for v in e if e[v] == diameter]
 
 
-@_register("weight")
+@_register("weight", cheap=_given_e)
 def radius(G, e=None, usebounds=False, weight=None):
     if usebounds is True and e is None and not G.is_directed():
         return _extrema_bounding(G, compute="radius", weight=weight)
@@ -305,7 +336,7 @@ def radius(G, e=None, usebounds=False, weight=None):
     return min(e.values())
 
 
-@_register("weight")
+@_register("weight", cheap=_given_e)
 def center(G, e=None, usebounds=False, weight=None):
     if usebounds is True and e is None and not G.is_directed():
         return _extrema_bounding(G, compute="center", weight=weight)
@@ -436,7 +467,7 @@ barycenter = centroid
 # Centrality
 
 
-@_register("distance", "sp")
+@_register("distance", "sp", cheap=lambda a: a.get("u") is not None)
 def closeness_centrality(G, u=None, distance=None, wf_improved=True, *, sp=None):
     directed = G.is_directed()
     if u is None:
@@ -474,7 +505,10 @@ def closeness_centrality(G, u=None, distance=None, wf_improved=True, *, sp=None)
     return closeness_dict
 
 
-@_register("distance")
+@_register(
+    "distance",
+    cheap=lambda a: _one_node(a["G"], a.get("nbunch")) or _one_node(a["G"], a.get("sources")),
+)
 def harmonic_centrality(G, nbunch=None, distance=None, sources=None):
     nbunch = set(_nbunch_iter(G, nbunch) if nbunch is not None else G.nodes)
     sources = set(_nbunch_iter(G, sources) if sources is not None else G.nodes)
