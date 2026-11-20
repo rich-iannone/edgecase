@@ -19,6 +19,7 @@ from edgecase.nx_backend.algorithms import (
     link_prediction,
     matching,
     recognition,
+    relabel,
     shortest_paths,
     traversal,
     tree,
