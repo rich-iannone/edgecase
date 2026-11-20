@@ -504,7 +504,8 @@ preserve_graph_attrs=True)`; NetworkX functions given that graph run on EdgeCase
 shortest paths and distance measures, centralities (betweenness, closeness, PageRank, HITS and
 more), clustering and triangles, k-cores, community detection (Louvain, label propagation, greedy
 modularity, Leiden) and quality measures, flows and cuts, matchings, spanning trees,
-assortativity, link prediction, and adjacency and Laplacian matrices. The full list is in
+assortativity, link prediction, Weisfeiler-Lehman hashes, relabeling and ego graphs, and
+adjacency and Laplacian matrices. The full list is in
 `nx.utils.backends.backend_info["edgecase"]["functions"]`, and each of these functions' NetworkX
 docstring gains a *Backends* section naming EdgeCase. Functions EdgeCase does not implement run
 in NetworkX as usual; to pass a converted EdgeCase graph to one of them, set
@@ -513,14 +514,17 @@ in NetworkX as usual; to pass a converted EdgeCase graph to one of them, set
 **Same answers as NetworkX.** The backend reproduces NetworkX's results, including the order of
 dictionaries, lists and generators and the values of floating-point sums, and raises NetworkX's
 errors. Randomized algorithms (Louvain, asynchronous label propagation) draw the same random
-numbers from `seed` as NetworkX does and return the same partitions. The known differences, all
-of them valid answers:
+numbers from `seed` as NetworkX does and return the same partitions. The known differences:
 
 - Leiden finds its own valid partition for a given `seed` (NetworkX's depends on the iteration
   order of Python sets).
 - Where several matchings have the same maximum weight, `max_weight_matching` may pick another.
 - `maximum_flow` returns a valid maximum flow, which can differ from the one NetworkX's chosen
   algorithm finds; the flow value and `minimum_cut` are the same.
+- `adamic_adar_index`, `resource_allocation_index` and `ra_index_soundarajan_hopcroft` can
+  differ from NetworkX in the last bit when two nodes have three or more common neighbors:
+  NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`.
+- `generalized_degree` returns equal `Counter`s whose keys can be in another order.
 
 **When it pays off.** EdgeCase's speedups are largest for algorithms that do a lot of work per
 edge. Some measurements on random graphs (including the conversion unless noted):

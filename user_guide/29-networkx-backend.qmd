@@ -66,7 +66,8 @@ To pass such a graph to a function EdgeCase does not implement, set
 ## What is covered
 
 EdgeCase implements over 200 NetworkX functions, from components, traversals and shortest paths to
-centralities, community detection, flows, matchings and matrix exports. The current list:
+centralities, community detection, flows, matchings, graph hashes, relabeling and matrix exports.
+The current list:
 
 ```{python}
 functions = sorted(nx.utils.backends.backend_info["edgecase"]["functions"])
@@ -82,13 +83,16 @@ included, by adding in NetworkX's order), the same order of dictionaries, lists 
 and the same errors. Randomized algorithms such as Louvain and asynchronous label propagation draw
 the same random numbers from `seed` as NetworkX and return the same partitions.
 
-A few functions can return a different but equally valid answer:
+A few functions can return a different but equally valid answer, or one that differs in an
+unimportant way:
 
 | Function | Difference |
 | :-- | :-- |
 | `leiden_communities`, `leiden_partitions` | a different valid partition for the same `seed` (NetworkX's depends on the iteration order of Python sets) |
 | `max_weight_matching`, `min_weight_matching` | possibly another matching of the same weight and size |
 | `maximum_flow` | possibly another maximum flow; the flow value and `minimum_cut` are the same |
+| `adamic_adar_index`, `resource_allocation_index`, `ra_index_soundarajan_hopcroft` | possibly a difference in the last bit for pairs with three or more common neighbors (NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`) |
+| `generalized_degree` | equal `Counter`s, whose keys can be in another order |
 
 ## Running NetworkX's test suite on EdgeCase
 
