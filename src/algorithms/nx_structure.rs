@@ -565,4 +565,147 @@ impl ArcAdjacency {
             result
         }))
     }
+
+    /// NetworkX's Hierholzer walk (`_simplegraph_eulerian_circuit` /
+    /// `_multigraph_eulerian_circuit`) from `source`, always taking the first remaining edge
+    /// of the current node in adjacency order. NetworkX walks a copy: `G.reverse()` with
+    /// `reverse` (directed graphs), whose edges out of a node are its in-edges in arc order,
+    /// or `G.copy()`, whose edges are in the order the copy re-adds them. Returns `(last_vertex, current_vertex, arc)` per step as NetworkX yields them,
+    /// `arc` being the edge that led to `last_vertex`.
+    #[pyo3(signature = (source, reverse=false))]
+    fn eulerian_circuit(
+        &self,
+        py: Python<'_>,
+        source: usize,
+        reverse: bool,
+    ) -> PyResult<Vec<(usize, usize, usize)>> {
+        let n = self.out_start.len() - 1;
+        if source >= n {
+            return Err(PyValueError::new_err("source position out of range"));
+        }
+        Ok(py.allow_threads(|| {
+            // Each node's edges in the walked graph: (start, arcs)
+            let (start, arcs): (Vec<usize>, Vec<usize>) = if self.directed && reverse {
+                let mut start = vec![0usize; n + 1];
+                for &a in &self.out_arcs {
+                    start[self.arc_target[a] + 1] += 1;
+                }
+                for i in 0..n {
+                    start[i + 1] += start[i];
+                }
+                let mut next = start.clone();
+                let mut arcs = vec![0usize; self.out_arcs.len()];
+                for &a in &self.out_arcs {
+                    let t = self.arc_target[a];
+                    arcs[next[t]] = a;
+                    next[t] += 1;
+                }
+                (start, arcs)
+            } else if self.directed {
+                (self.out_start.clone(), self.out_arcs.clone())
+            } else {
+                // NetworkX walks `G.copy()`, which re-adds the edges node by node, so each
+                // node lists first its neighbors that come before it (in node order) and then
+                // the others in its own order
+                let mut arcs = Vec::with_capacity(self.out_arcs.len());
+                for v in 0..n {
+                    let row = &self.out_arcs[self.out_start[v]..self.out_start[v + 1]];
+                    let mut earlier: Vec<usize> = row
+                        .iter()
+                        .copied()
+                        .filter(|&a| self.arc_target[a] < v)
+                        .collect();
+                    earlier.sort_by_key(|&a| self.arc_target[a]);
+                    arcs.extend(earlier);
+                    arcs.extend(row.iter().copied().filter(|&a| self.arc_target[a] >= v));
+                }
+                (self.out_start.clone(), arcs)
+            };
+            let mut removed = vec![false; self.edge_of_arc.len()];
+            let mut ptr: Vec<usize> = start[..n].to_vec();
+            let mut stack: Vec<(usize, usize)> = vec![(source, NONE)];
+            let mut last: Option<(usize, usize)> = None;
+            let mut steps = Vec::new();
+            while let Some(&(current, current_arc)) = stack.last() {
+                while ptr[current] < start[current + 1]
+                    && removed[self.edge_of_arc[arcs[ptr[current]]]]
+                {
+                    ptr[current] += 1;
+                }
+                if ptr[current] == start[current + 1] {
+                    if let Some((last_vertex, last_arc)) = last {
+                        steps.push((last_vertex, current, last_arc));
+                    }
+                    last = Some((current, current_arc));
+                    stack.pop();
+                } else {
+                    let a = arcs[ptr[current]];
+                    removed[self.edge_of_arc[a]] = true;
+                    let next = if self.directed && reverse {
+                        self.arc_source[a]
+                    } else {
+                        self.arc_target[a]
+                    };
+                    stack.push((next, a));
+                }
+            }
+            steps
+        }))
+    }
+}
+
+/// NetworkX's `bipartite.color`: a depth-first two-coloring from each node with neighbors
+/// (successors, for a directed graph), over predecessors then successors for a directed
+/// graph. Returns the colored nodes in the order colored with their colors (1 for the start
+/// of each search), or None if the graph is not bipartite. (NetworkX then colors the
+/// isolated nodes 0.)
+#[pyfunction]
+pub fn nx_bipartite_color(
+    py: Python<'_>,
+    adjacency: &PathAdjacency,
+) -> Option<(Vec<usize>, Vec<u8>)> {
+    let n = adjacency.len();
+    let directed = adjacency.is_directed();
+    py.allow_threads(|| {
+        let (indptr, indices, _) = adjacency.rows();
+        let (rindptr, rindices) = if directed {
+            let (p, i, _) = adjacency.reverse_rows();
+            (p, i)
+        } else {
+            (indptr, indices)
+        };
+        let mut color = vec![u8::MAX; n];
+        let mut order = Vec::new();
+        let mut colors = Vec::new();
+        for start in 0..n {
+            if color[start] != u8::MAX || indptr[start] == indptr[start + 1] {
+                continue;
+            }
+            color[start] = 1;
+            order.push(start);
+            colors.push(1);
+            let mut queue = vec![start];
+            while let Some(v) = queue.pop() {
+                let c = 1 - color[v];
+                let preds: &[usize] = if directed {
+                    &rindices[rindptr[v]..rindptr[v + 1]]
+                } else {
+                    &[]
+                };
+                for &w in preds.iter().chain(&indices[indptr[v]..indptr[v + 1]]) {
+                    if color[w] != u8::MAX {
+                        if color[w] == color[v] {
+                            return None;
+                        }
+                    } else {
+                        color[w] = c;
+                        order.push(w);
+                        colors.push(c);
+                        queue.push(w);
+                    }
+                }
+            }
+        }
+        Some((order, colors))
+    })
 }

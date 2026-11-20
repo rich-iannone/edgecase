@@ -603,6 +603,10 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     )?)?;
     m.add_function(wrap_pyfunction!(algorithms::nx_structure::nx_girth, m)?)?;
     m.add_class::<algorithms::nx_structure::ArcAdjacency>()?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_bipartite_color,
+        m
+    )?)?;
     m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_centrality::nx_eigenvector_centrality,

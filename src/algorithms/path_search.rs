@@ -222,6 +222,13 @@ impl PathAdjacency {
         (&self.out.indptr, &self.out.indices, &self.out.weights)
     }
 
+    /// The predecessor rows `(indptr, indices, weights)` (successors if undirected), in the
+    /// predecessor order set by `set_predecessor_order()`, else in arc order
+    pub(crate) fn reverse_rows(&self) -> (&[usize], &[usize], &[f64]) {
+        let csr = self.csr(true);
+        (&csr.indptr, &csr.indices, &csr.weights)
+    }
+
     /// The number of nodes
     pub(crate) fn len(&self) -> usize {
         self.n
