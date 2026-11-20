@@ -193,8 +193,7 @@ def cycle_basis(G, root=None):
         r = _position(G, root)
         if r < 0:
             raise KeyError(root)  # (NetworkX looks up G[root])
-    nodes = G.nodes
-    return [[nodes[v] for v in cycle] for cycle in nx_cycle_basis(_adjacency(G), r)]
+    return nx_cycle_basis(_adjacency(G), G.nodes, r)
 
 
 @networkx_algorithm

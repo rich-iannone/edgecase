@@ -7,6 +7,7 @@
 
 use pyo3::exceptions::PyValueError;
 use pyo3::prelude::*;
+use pyo3::types::PyList;
 use rayon::prelude::*;
 use rustc_hash::{FxHashMap, FxHashSet};
 use std::collections::VecDeque;
@@ -174,20 +175,36 @@ pub fn nx_chain_decomposition(
 
 /// NetworkX's `cycle_basis(G, root)`: the cycles (lists of nodes) in the order found. The
 /// search trees start from `root` and then from the last node not yet reached, as NetworkX's
-/// `dict.popitem()` picks them.
+/// `dict.popitem()` picks them. The cycles are lists of `nodes[position]` (the node keys).
 #[pyfunction]
-#[pyo3(signature = (adjacency, root=None))]
-#[allow(clippy::map_entry)]
-pub fn nx_cycle_basis(
-    py: Python<'_>,
+#[pyo3(signature = (adjacency, nodes, root=None))]
+pub fn nx_cycle_basis<'py>(
     adjacency: &PathAdjacency,
+    nodes: &Bound<'py, PyList>,
     root: Option<usize>,
-) -> PyResult<Vec<Vec<usize>>> {
+) -> PyResult<Bound<'py, PyList>> {
     let n = adjacency.len();
-    if root.is_some_and(|r| r >= n) {
-        return Err(PyValueError::new_err("root position out of range"));
+    if root.is_some_and(|r| r >= n) || nodes.len() != n {
+        return Err(PyValueError::new_err(
+            "root position out of range, or not one key per node",
+        ));
     }
-    Ok(py.allow_threads(|| {
+    let cycles = nodes.py().allow_threads(|| cycle_basis(adjacency, root));
+    let result = PyList::empty(nodes.py());
+    for cycle in cycles {
+        let keys: Vec<Bound<'py, PyAny>> = cycle
+            .into_iter()
+            .map(|v| nodes.get_item(v))
+            .collect::<PyResult<_>>()?;
+        result.append(PyList::new(nodes.py(), keys)?)?;
+    }
+    Ok(result)
+}
+
+#[allow(clippy::map_entry)]
+fn cycle_basis(adjacency: &PathAdjacency, root: Option<usize>) -> Vec<Vec<usize>> {
+    let n = adjacency.len();
+    {
         let (indptr, indices, _) = adjacency.rows();
         let mut remaining = vec![true; n];
         let mut last = n; // remaining nodes are among 0..last
@@ -247,7 +264,7 @@ pub fn nx_cycle_basis(
             }
         }
         cycles
-    }))
+    }
 }
 
 /// For each edge `(us[i], vs[i])` of an undirected graph: whether it is a local bridge (its
