@@ -93,6 +93,8 @@ unimportant way:
 | `maximum_flow` | possibly another maximum flow; the flow value and `minimum_cut` are the same |
 | `adamic_adar_index`, `resource_allocation_index`, `ra_index_soundarajan_hopcroft` | possibly a difference in the last bit for pairs with three or more common neighbors (NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`) |
 | `generalized_degree` | equal `Counter`s, whose keys can be in another order |
+| shortest-path lengths (Dijkstra, Bellman-Ford) | on graphs that mix integer and float weights, float distances where NetworkX keeps integers on all-integer paths (the values are equal) |
+| `find_cliques`, `greedy_color` (set-ordered strategies), `maximal_independent_set`, `dominating_set` | these reproduce NetworkX's order by modelling CPython's set iteration, so on other interpreters or untested versions (outside CPython 3.10-3.14) NetworkX runs them instead |
 
 ## Running NetworkX's test suite on EdgeCase
 

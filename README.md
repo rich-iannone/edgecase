@@ -525,6 +525,11 @@ numbers from `seed` as NetworkX does and return the same partitions. The known d
   differ from NetworkX in the last bit when two nodes have three or more common neighbors:
   NetworkX adds over a Python set, whose order for string nodes changes with `PYTHONHASHSEED`.
 - `generalized_degree` returns equal `Counter`s whose keys can be in another order.
+- On graphs that mix integer and float weights, shortest-path lengths are floats where NetworkX
+  keeps integers on all-integer paths (the values are equal).
+- `find_cliques`, the set-ordered `greedy_color` strategies, `maximal_independent_set` and
+  `dominating_set` reproduce NetworkX's order by modelling CPython's set iteration; outside
+  CPython 3.10-3.14 NetworkX runs them instead.
 
 **When it pays off.** EdgeCase's speedups are largest for algorithms that do a lot of work per
 edge. Some measurements on random graphs (including the conversion unless noted):
