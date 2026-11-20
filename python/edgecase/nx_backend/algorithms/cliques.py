@@ -3,7 +3,8 @@
 `find_cliques` follows NetworkX's search, whose order comes from Python sets; the Rust
 search (`edgecase._core.CliqueSearch`) models CPython's set tables with the node keys' own
 hashes, so the cliques and the order of their nodes are NetworkX's. Results are produced in
-batches as the generators are consumed.
+batches as the generators are consumed. Where that model is not verified (see `set_order`),
+these calls are left to NetworkX.
 """
 
 from __future__ import annotations
@@ -11,6 +12,7 @@ from __future__ import annotations
 from collections import defaultdict
 
 from edgecase.nx_backend.algorithms.recognition import _degrees
+from edgecase.nx_backend.algorithms.set_order import set_order_can_run, set_order_reason
 from edgecase.nx_backend.algorithms.shortest_paths import _adjacency
 from edgecase.nx_backend.registry import networkx_algorithm
 
@@ -52,7 +54,7 @@ def _cliques(G, search):
         size = min(_MAX_BATCH, 2 * size)
 
 
-@networkx_algorithm
+@networkx_algorithm(can_run=set_order_can_run)
 def find_cliques(G, nodes=None):
     if len(G) == 0:
         return
@@ -62,7 +64,7 @@ def find_cliques(G, nodes=None):
     yield from _cliques(G, search)
 
 
-@networkx_algorithm
+@networkx_algorithm(can_run=set_order_can_run)
 def find_cliques_recursive(G, nodes=None):
     # (the recursive search visits the cliques in the same order as find_cliques)
     if len(G) == 0:
@@ -93,7 +95,14 @@ def _largest_clique_with(G, node):
     return max(len(c) for c in _cliques(G, search))
 
 
-@networkx_algorithm
+def _node_clique_number_can_run(G, nodes=None, cliques=None, separate_nodes=False):
+    # (the sizes do not depend on the order of the cliques; the dict of all nodes does)
+    if nodes is None and cliques is None and (reason := set_order_reason()) is not None:
+        return reason
+    return True
+
+
+@networkx_algorithm(can_run=_node_clique_number_can_run)
 def node_clique_number(G, nodes=None, cliques=None, separate_nodes=False):
     if cliques is None:
         if nodes is not None:

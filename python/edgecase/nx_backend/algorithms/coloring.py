@@ -4,7 +4,8 @@ The Rust kernels (`edgecase._core.nx_greedy_color`, `nx_maximal_independent_set`
 `nx_dominating_set`) model the Python sets NetworkX's strategies draw nodes from (with the
 node keys' hashes) and CPython's random generator, so colorings and sets are NetworkX's.
 Directed graphs, multigraphs and graphs with self-loops, custom strategy functions and
-`interchange=True` are left to NetworkX for greedy coloring.
+`interchange=True` are left to NetworkX for greedy coloring, and so are the calls that
+follow set order where the set model is not verified (see `set_order`).
 """
 
 from __future__ import annotations
@@ -14,6 +15,7 @@ import random
 import networkx as nx
 
 from edgecase.nx_backend.algorithms.community import _rng_state, _set_rng_state
+from edgecase.nx_backend.algorithms.set_order import set_order_can_run, set_order_reason
 from edgecase.nx_backend.algorithms.shortest_paths import _adjacency
 from edgecase.nx_backend.registry import networkx_algorithm, prefer_converted_graph
 
@@ -36,6 +38,13 @@ _STRATEGIES = {
     "DSATUR": "saturation_largest_first",
 }
 _LINEAR = {"largest_first", "random_sequential", "smallest_last", "connected_sequential"}
+# The strategies that take nodes in set order
+_SET_ORDER = {
+    "smallest_last",
+    "independent_set",
+    "connected_sequential_bfs",
+    "connected_sequential_dfs",
+}
 
 
 def _hashes(G):
@@ -58,6 +67,8 @@ def _greedy_can_run(G, strategy="largest_first", interchange=False):
             return "interchange=True is left to NetworkX"
     if _has_selfloops(G):
         return "greedy coloring of graphs with self-loops is left to NetworkX"
+    if _STRATEGIES.get(strategy) in _SET_ORDER and (reason := set_order_reason()) is not None:
+        return reason
     return True
 
 
@@ -99,7 +110,7 @@ def greedy_color(G, strategy="largest_first", interchange=False):
 def _random_can_run(G, nodes=None, seed=None):
     if type(seed) is not random.Random:
         return f"seed is a {type(seed).__name__}, not a random.Random"
-    return True
+    return set_order_can_run()
 
 
 @networkx_algorithm(can_run=_random_can_run)
@@ -130,7 +141,7 @@ def maximal_independent_set(G, nodes=None, seed=None):
     return indep_nodes
 
 
-@networkx_algorithm(linear_time=True)
+@networkx_algorithm(can_run=set_order_can_run, linear_time=True)
 def dominating_set(G, start_with=None):
     from edgecase._core import nx_dominating_set
 

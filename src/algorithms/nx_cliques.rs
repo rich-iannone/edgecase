@@ -349,10 +349,11 @@ impl PySetModel {
     }
 }
 
-/// A Python-side test hook: apply `ops` to model sets and return each set's iteration order
-/// (to compare with real Python sets). Each op is `(name, target, other_or_key)`: "add",
-/// "discard", "pop", "copy", "and", "iand", "sub", "isub" (`other_or_key` a key for add and
-/// discard, else a set index).
+/// Apply `ops` to model sets and return each set's iteration order and the popped keys, to
+/// compare with real Python sets (the backend's self-test and the tests). Each op is
+/// `(name, target, other_or_key)`: "add", "discard", "pop", "copy", "and", "iand", "sub",
+/// "isub", or "isub_iter" (`difference_update` with a list of the other set's keys);
+/// `other_or_key` is a key for add and discard, else a set index.
 #[pyfunction]
 pub fn nx_pyset_model_check(
     hashes: Vec<i64>,
@@ -378,6 +379,10 @@ pub fn nx_pyset_model_check(
             "isub" => {
                 let other = models[arg].clone();
                 models[target].difference_update(&other);
+            }
+            "isub_iter" => {
+                let other = models[arg].clone();
+                models[target].difference_update_iterable(other.iter());
             }
             _ => return Err(PyValueError::new_err(format!("unknown op {:?}", op))),
         }

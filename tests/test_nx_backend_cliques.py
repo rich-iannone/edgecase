@@ -115,7 +115,9 @@ def test_python_set_model_matches_python_sets(kind):
         ops, popped = [], []
         for _ in range(rng.choice([20, 200, 1000])):
             op = rng.choice(
-                ["add"] * 6 + ["discard"] * 2 + ["pop", "copy", "and", "iand"] + ["sub", "isub"]
+                ["add"] * 6
+                + ["discard"] * 2
+                + ["pop", "copy", "and", "iand", "sub", "isub", "isub_iter"]
             )
             t = rng.randrange(4)
             if op in ("add", "discard"):
@@ -136,9 +138,88 @@ def test_python_set_model_matches_python_sets(kind):
                     real[t] &= real[a]
                 elif op == "sub":
                     real[t] = real[t] - real[a]
-                else:
+                elif op == "isub":
                     real[t] -= real[a]
+                else:
+                    real[t].difference_update(list(real[a]))
         orders, model_popped = nx_pyset_model_check([hash(k) for k in keys], 4, ops)
         index = {k: i for i, k in enumerate(keys)}
         assert orders == [[index[k] for k in s] for s in real]
         assert model_popped == popped
+
+
+@pytest.fixture
+def set_order():
+    from edgecase.nx_backend.algorithms import set_order
+
+    set_order.set_order_reason.cache_clear()
+    yield set_order
+    set_order.set_order_reason.cache_clear()
+
+
+def test_set_order_self_test(set_order):
+    import sys
+
+    low, high = set_order.VERIFIED_VERSIONS
+    if sys.implementation.name != "cpython" or not low <= sys.version_info[:2] <= high:
+        assert isinstance(set_order.set_order_reason(), str)
+    else:
+        assert set_order._self_test()
+        assert set_order.set_order_reason() is None
+
+
+def test_unverified_set_order_is_left_to_networkx(set_order, monkeypatch):
+    from edgecase.nx_backend.algorithms import cliques, coloring
+
+    G = nx.gnp_random_graph(30, 0.3, seed=1)
+    monkeypatch.setattr(set_order, "_self_test", lambda: False)
+    reason = set_order.set_order_reason()
+    assert "does not match" in reason
+    for func, kwargs in [
+        (cliques.find_cliques, {}),
+        (cliques.find_cliques_recursive, {}),
+        (cliques.node_clique_number, {}),
+        (coloring.greedy_color, {"strategy": "smallest_last"}),
+        (coloring.greedy_color, {"strategy": "independent_set"}),
+        (coloring.greedy_color, {"strategy": "connected_sequential"}),
+        (coloring.maximal_independent_set, {"seed": random.Random(1)}),
+        (coloring.dominating_set, {}),
+    ]:
+        assert func.can_run(G, **kwargs) == reason
+    # (results that do not depend on set order still run on edgecase)
+    assert cliques.node_clique_number.can_run(G, nodes=[1, 2]) is True
+    assert coloring.greedy_color.can_run(G, strategy="largest_first") is True
+    assert coloring.greedy_color.can_run(G, strategy="DSATUR") is True
+    with pytest.raises(NotImplementedError):
+        nx.find_cliques(G, backend="edgecase")
+    # Dispatched automatically, NetworkX runs them
+    expected = {
+        "cliques": list(nx.find_cliques(G, backend="networkx")),
+        "coloring": nx.greedy_color(G, "smallest_last", backend="networkx"),
+        "mis": nx.maximal_independent_set(G, seed=7, backend="networkx"),
+        "dominating": nx.dominating_set(G, backend="networkx"),
+    }
+    with nx.config.backend_priority(algos=["edgecase"]):
+        assert list(nx.find_cliques(G)) == expected["cliques"]
+        assert nx.greedy_color(G, "smallest_last") == expected["coloring"]
+        assert nx.maximal_independent_set(G, seed=7) == expected["mis"]
+        assert nx.dominating_set(G) == expected["dominating"]
+
+
+def test_set_order_guard_reasons(set_order, monkeypatch):
+    import sys
+    import types
+
+    def broken():
+        raise RuntimeError("boom")
+
+    monkeypatch.setattr(set_order, "_self_test", broken)
+    assert "self-test failed" in set_order.set_order_reason()
+    set_order.set_order_reason.cache_clear()
+    monkeypatch.setattr(set_order, "VERIFIED_VERSIONS", ((2, 0), (2, 7)))
+    assert "not verified for Python" in set_order.set_order_reason()
+    set_order.set_order_reason.cache_clear()
+    monkeypatch.setattr(sys, "implementation", types.SimpleNamespace(name="pypy"))
+    reason = set_order.set_order_reason()
+    monkeypatch.undo()
+    assert "CPython only" in reason
