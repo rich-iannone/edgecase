@@ -85,16 +85,30 @@ class TestKCore:
         g.add_edge("3", "4")
         g.add_edge("4", "1")
 
-        # In directed graphs, degree counts outgoing edges in adjacency list
-        # So each node in this cycle has out-degree = 1
+        # In directed graphs, degree counts both in- and out-edges (as in NetworkX),
+        # so each node of this cycle has degree 2
         core_1 = g.k_core(1)
 
         assert core_1.count_nodes() == 4  # All nodes have degree >= 1
 
-        # For degree 2, we need more connections
         core_2 = g.k_core(2)
 
-        assert core_2.count_nodes() == 0  # No nodes have degree >= 2 in this cycle
+        assert core_2.count_nodes() == 4  # The whole cycle is its own 2-core
+        assert g.k_core(3).count_nodes() == 0
+
+    def test_k_core_directed_matches_coreness_and_networkx(self):
+        """k_core, k_shell and coreness agree on directed graphs, and match NetworkX"""
+        nx = pytest.importorskip("networkx")
+        g = Graph(directed=True)
+        for label in ["1", "2", "3", "4"]:
+            g.add_node(label=label)
+        for u, v in [("1", "2"), ("2", "3"), ("3", "1"), ("3", "4")]:
+            g.add_edge(u, v)
+        labels = lambda h: sorted(h.get_label_from_id(i) for i in h.get_node_ids())
+        D = nx.DiGraph([(1, 2), (2, 3), (3, 1), (3, 4)])
+        for k in range(4):
+            assert labels(g.k_core(k)) == sorted(map(str, nx.k_core(D, k)))
+        assert labels(g.k_shell(2)) == labels(g.k_core(2)) == ["1", "2", "3"]
 
 
 class TestKShell:

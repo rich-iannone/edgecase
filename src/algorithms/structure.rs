@@ -6,7 +6,10 @@ use rustc_hash::{FxHashMap, FxHashSet};
 
 /// Compute the k-core of the graph.
 ///
-/// The k-core is the maximal subgraph where all nodes have degree >= k.
+/// The k-core is the maximal subgraph where all nodes have degree >= k: the nodes whose
+/// coreness is at least k, with the edges among them. Degrees count every edge end, so on a
+/// directed graph both in- and out-edges (as `get_coreness()`, `k_shell()` and NetworkX's
+/// `k_core` count them). Coreness comes in one O(n + m) pass instead of peeling node by node.
 ///
 /// # Arguments
 /// * `graph` - The input graph
@@ -16,20 +19,23 @@ use rustc_hash::{FxHashMap, FxHashSet};
 /// A new graph containing only the k-core nodes and edges
 #[pyfunction]
 pub fn k_core(graph: &Graph, k: usize) -> PyResult<Graph> {
-    // Start with a copy of all nodes and edges that might be in the k-core
-    let mut core_graph = Graph::new_rust(graph.is_directed(), graph.is_weighted());
+    let coreness = graph.get_coreness();
 
-    // Map old node IDs to new node IDs
+    let mut core_graph = Graph::new_rust(graph.is_directed(), graph.is_weighted());
     let mut node_map: FxHashMap<u64, u64> = FxHashMap::default();
 
-    // Add all nodes first
-    for node in graph.get_nodes().values() {
-        let new_node = node.clone(); // same ID, label and (copied) attributes
-        let new_id = core_graph.add_node_rust(new_node)?;
-        node_map.insert(node.id, new_id);
+    // Nodes with coreness >= k, in ID order
+    for node_id in graph.sorted_node_ids() {
+        if coreness.get(&node_id).is_some_and(|&c| c >= k) {
+            if let Some(node) = graph.get_node(node_id) {
+                let new_node = node.clone(); // same ID, label and (copied) attributes
+                let new_id = core_graph.add_node_rust(new_node)?;
+                node_map.insert(node_id, new_id);
+            }
+        }
     }
 
-    // Add all edges
+    // Edges among them
     for edge in graph.get_edges_internal() {
         if let (Some(&new_source), Some(&new_target)) =
             (node_map.get(&edge.source), node_map.get(&edge.target))
@@ -42,24 +48,6 @@ pub fn k_core(graph: &Graph, k: usize) -> PyResult<Graph> {
                 attributes: edge.clone().attributes,
             };
             core_graph.add_edge_rust(new_edge)?;
-        }
-    }
-
-    // Iteratively remove nodes with degree < k
-    let mut changed = true;
-    while changed {
-        changed = false;
-        let mut nodes_to_remove = Vec::new();
-
-        for &node_id in core_graph.get_nodes().keys() {
-            if core_graph.degree_rust(node_id) < k {
-                nodes_to_remove.push(node_id);
-                changed = true;
-            }
-        }
-
-        for node_id in nodes_to_remove {
-            core_graph.remove_node_rust(node_id)?;
         }
     }
 
