@@ -716,6 +716,67 @@ impl PathAdjacency {
         }
     }
 
+    /// The Dijkstra distance from `source` to `target` with every arc between the two
+    /// (and their self-loops) hidden, as NetworkX's `local_bridges` measures a span; None if
+    /// unreachable, Err on a negative-weight contradiction
+    pub(crate) fn distance_avoiding(
+        &self,
+        source: usize,
+        target: usize,
+    ) -> Result<Option<f64>, ()> {
+        let csr = self.forward();
+        let n = self.n;
+        let pair =
+            |a: usize, b: usize| (a == source || a == target) && (b == source || b == target);
+        let mut finished = vec![false; n];
+        let mut dist_of = vec![0.0f64; n];
+        let mut seen = vec![false; n];
+        let mut seen_dist = vec![f64::INFINITY; n];
+        let mut heap = BinaryHeap::new();
+        let mut count = 0u64;
+        seen[source] = true;
+        seen_dist[source] = 0.0;
+        heap.push(Entry {
+            dist: 0.0,
+            count,
+            node: source,
+        });
+        while let Some(Entry {
+            dist: d, node: v, ..
+        }) = heap.pop()
+        {
+            if finished[v] {
+                continue;
+            }
+            finished[v] = true;
+            dist_of[v] = d;
+            if v == target {
+                return Ok(Some(d));
+            }
+            for (u, cost) in csr.arcs(v) {
+                if pair(v, u) {
+                    continue;
+                }
+                let vu = d + cost;
+                if finished[u] {
+                    if vu < dist_of[u] {
+                        return Err(());
+                    }
+                } else if !seen[u] || vu < seen_dist[u] {
+                    seen[u] = true;
+                    seen_dist[u] = vu;
+                    count += 1;
+                    heap.push(Entry {
+                        dist: vu,
+                        count,
+                        node: u,
+                    });
+                }
+            }
+        }
+        Ok(None)
+    }
+
     fn sources(&self, sources: Vec<usize>) -> PyResult<Vec<usize>> {
         for &s in &sources {
             self.check_node(s)?;

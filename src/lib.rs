@@ -585,6 +585,24 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(algorithms::paths::k_shortest_paths, m)?)?;
     m.add_class::<algorithms::path_search::PathAdjacency>()?;
     m.add_class::<algorithms::path_search::GoldbergRadzik>()?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_biconnected_dfs,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_chain_decomposition,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_cycle_basis,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(
+        algorithms::nx_structure::nx_local_bridges,
+        m
+    )?)?;
+    m.add_function(wrap_pyfunction!(algorithms::nx_structure::nx_girth, m)?)?;
+    m.add_class::<algorithms::nx_structure::ArcAdjacency>()?;
     m.add_function(wrap_pyfunction!(algorithms::nx_centrality::nx_hypot, m)?)?;
     m.add_function(wrap_pyfunction!(
         algorithms::nx_centrality::nx_eigenvector_centrality,

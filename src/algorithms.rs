@@ -49,6 +49,7 @@ pub mod node_vitality;
 pub mod null_models;
 pub mod nx_centrality;
 pub mod nx_compat;
+pub mod nx_structure;
 pub mod path_extras;
 pub mod path_queries;
 pub mod path_search;
