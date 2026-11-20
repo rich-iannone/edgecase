@@ -544,3 +544,664 @@ pub fn nx_strongly_connected_components(graph: &Graph) -> Vec<Vec<u64>> {
     }
     components
 }
+
+// ============================================================================
+// Python's random number generator
+// ============================================================================
+
+/// CPython's `random.Random` generator (MT19937) and the parts of its API NetworkX's
+/// randomized algorithms use (`shuffle`, `choice`), drawing exactly the numbers Python would.
+///
+/// The state comes from, and goes back to, `Random.getstate()`/`setstate()`: 624 words and
+/// the position of the next one.
+pub struct PyRandom {
+    mt: [u32; 624],
+    index: usize,
+}
+
+impl PyRandom {
+    const N: usize = 624;
+    const M: usize = 397;
+
+    pub fn from_state(words: &[u32], index: usize) -> PyResult<Self> {
+        if words.len() != Self::N || index > Self::N {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "a Mersenne Twister state is 624 words and an index of at most 624",
+            ));
+        }
+        let mut mt = [0u32; 624];
+        mt.copy_from_slice(words);
+        Ok(PyRandom { mt, index })
+    }
+
+    pub fn state(&self) -> (Vec<u32>, usize) {
+        (self.mt.to_vec(), self.index)
+    }
+
+    /// `genrand_uint32` in CPython's `_randommodule.c`
+    fn next_u32(&mut self) -> u32 {
+        const UPPER: u32 = 0x8000_0000;
+        const LOWER: u32 = 0x7fff_ffff;
+        const MATRIX_A: u32 = 0x9908_b0df;
+        let mag01 = |y: u32| if y & 1 == 1 { MATRIX_A } else { 0 };
+        if self.index >= Self::N {
+            let mt = &mut self.mt;
+            for kk in 0..Self::N - Self::M {
+                let y = (mt[kk] & UPPER) | (mt[kk + 1] & LOWER);
+                mt[kk] = mt[kk + Self::M] ^ (y >> 1) ^ mag01(y);
+            }
+            for kk in Self::N - Self::M..Self::N - 1 {
+                let y = (mt[kk] & UPPER) | (mt[kk + 1] & LOWER);
+                mt[kk] = mt[kk + Self::M - Self::N] ^ (y >> 1) ^ mag01(y);
+            }
+            let y = (mt[Self::N - 1] & UPPER) | (mt[0] & LOWER);
+            mt[Self::N - 1] = mt[Self::M - 1] ^ (y >> 1) ^ mag01(y);
+            self.index = 0;
+        }
+        let mut y = self.mt[self.index];
+        self.index += 1;
+        y ^= y >> 11;
+        y ^= (y << 7) & 0x9d2c_5680;
+        y ^= (y << 15) & 0xefc6_0000;
+        y ^= y >> 18;
+        y
+    }
+
+    /// `getrandbits(k)` for `0 < k <= 32`
+    fn getrandbits(&mut self, k: u32) -> u32 {
+        self.next_u32() >> (32 - k)
+    }
+
+    /// `_randbelow_with_getrandbits(n)`, for `0 < n < 2**32`
+    pub fn randbelow(&mut self, n: usize) -> usize {
+        let k = usize::BITS - n.leading_zeros();
+        let mut r = self.getrandbits(k) as usize;
+        while r >= n {
+            r = self.getrandbits(k) as usize;
+        }
+        r
+    }
+
+    /// `shuffle(x)`
+    pub fn shuffle<T>(&mut self, x: &mut [T]) {
+        for i in (1..x.len()).rev() {
+            let j = self.randbelow(i + 1);
+            x.swap(i, j);
+        }
+    }
+}
+
+/// Words and index of a Python `Random.getstate()` after drawing `shuffle` permutations of
+/// `0..n` for each n in `sizes` (for tests: compare with Python's own `shuffle`)
+#[pyfunction]
+pub fn nx_random_shuffles(
+    words: Vec<u32>,
+    index: usize,
+    sizes: Vec<usize>,
+) -> PyResult<(Vec<Vec<usize>>, Vec<u32>, usize)> {
+    if sizes.iter().any(|&n| n as u64 > u32::MAX as u64) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "sizes must fit in 32 bits",
+        ));
+    }
+    let mut rng = PyRandom::from_state(&words, index)?;
+    let perms = sizes
+        .iter()
+        .map(|&n| {
+            let mut x: Vec<usize> = (0..n).collect();
+            rng.shuffle(&mut x);
+            x
+        })
+        .collect();
+    let (words, index) = rng.state();
+    Ok((perms, words, index))
+}
+
+/// Neumaier-compensated running sum, the algorithm (and so the rounding) of Python's `sum()`
+/// over floats. (The same as the shortest-path module's; kept separate so the two modules
+/// can change independently.)
+#[derive(Default, Clone, Copy)]
+struct PySum {
+    sum: f64,
+    compensation: f64,
+}
+
+impl PySum {
+    #[inline]
+    fn add(&mut self, x: f64) {
+        let t = self.sum + x;
+        if self.sum.abs() >= x.abs() {
+            self.compensation += (self.sum - t) + x;
+        } else {
+            self.compensation += (x - t) + self.sum;
+        }
+        self.sum = t;
+    }
+
+    fn total(&self) -> f64 {
+        if self.compensation != 0.0 && self.compensation.is_finite() {
+            self.sum + self.compensation
+        } else {
+            self.sum
+        }
+    }
+
+    fn of(values: impl IntoIterator<Item = f64>) -> f64 {
+        let mut s = PySum::default();
+        for x in values {
+            s.add(x);
+        }
+        s.total()
+    }
+}
+
+/// Arcs `src[i] -> dst[i]` (positions, in NetworkX's adjacency order, both ways for an
+/// undirected edge) as per-node ranges: arcs of node `u` are `offsets[u]..offsets[u + 1]`.
+/// Arcs must come node by node in node order (as an adjacency dict lists them).
+fn arc_offsets(n: usize, src: &[usize]) -> PyResult<Vec<usize>> {
+    let mut offsets = vec![0usize; n + 1];
+    for (i, &s) in src.iter().enumerate() {
+        if s >= n || (i > 0 && s < src[i - 1]) {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "arcs must be in node order",
+            ));
+        }
+        offsets[s + 1] += 1;
+    }
+    for u in 0..n {
+        offsets[u + 1] += offsets[u];
+    }
+    Ok(offsets)
+}
+
+/// Positions from 1-based node IDs, checking the range
+fn positions_of(ids: Vec<u64>, n: usize) -> PyResult<Vec<usize>> {
+    ids.into_iter()
+        .map(|id| {
+            if id == 0 || id as usize > n {
+                Err(pyo3::exceptions::PyValueError::new_err(format!(
+                    "node ID {} outside 1..={}",
+                    id, n
+                )))
+            } else {
+                Ok(id as usize - 1)
+            }
+        })
+        .collect()
+}
+
+// ============================================================================
+// Asynchronous label propagation
+// ============================================================================
+
+/// `networkx.community.asyn_lpa_communities`, drawing the same random numbers as NetworkX
+/// from the given `random.Random` state.
+///
+/// Arcs are NetworkX's adjacency in order (`src`, `dst` as node IDs `1..=n`, grouped by
+/// source; successors only for a directed graph). Without `weights` each distinct neighbor
+/// counts once; with them each arc adds its weight. Returns each node's final label (labels
+/// start as node positions) and the generator's state afterwards.
+#[pyfunction]
+#[pyo3(signature = (n, src, dst, weights, words, index))]
+pub fn nx_asyn_lpa(
+    n: usize,
+    src: Vec<u64>,
+    dst: Vec<u64>,
+    weights: Option<Vec<f64>>,
+    words: Vec<u32>,
+    index: usize,
+) -> PyResult<(Vec<usize>, Vec<u32>, usize)> {
+    if src.len() != dst.len() || weights.as_ref().is_some_and(|w| w.len() != src.len()) {
+        return Err(pyo3::exceptions::PyValueError::new_err(
+            "src, dst and weights must have the same length",
+        ));
+    }
+    if n as u64 > u32::MAX as u64 {
+        return Err(pyo3::exceptions::PyValueError::new_err("too many nodes"));
+    }
+    let src = positions_of(src, n)?;
+    let dst = positions_of(dst, n)?;
+    let offsets = arc_offsets(n, &src)?;
+    let mut rng = PyRandom::from_state(&words, index)?;
+    let mut labels: Vec<usize> = (0..n).collect();
+    // label -> slot in the current node's frequency list (`stamp` marks this node's slots)
+    let mut slot = vec![0usize; n];
+    let mut stamp = vec![usize::MAX; n];
+    let mut freq: Vec<(usize, f64)> = Vec::new();
+    let mut nodes: Vec<usize> = Vec::with_capacity(n);
+    let mut cont = true;
+    let mut visit = 0usize;
+    while cont {
+        cont = false;
+        nodes.clear();
+        nodes.extend(0..n);
+        rng.shuffle(&mut nodes);
+        for &node in &nodes {
+            let arcs = offsets[node]..offsets[node + 1];
+            if arcs.is_empty() {
+                continue;
+            }
+            visit += 1;
+            freq.clear();
+            let mut previous = usize::MAX;
+            for k in arcs {
+                let v = dst[k];
+                let w = match &weights {
+                    Some(weights) => weights[k],
+                    None => {
+                        // each distinct neighbor once (a multigraph's parallel arcs are
+                        // consecutive)
+                        if v == previous {
+                            continue;
+                        }
+                        previous = v;
+                        1.0
+                    }
+                };
+                let label = labels[v];
+                if stamp[label] == visit {
+                    freq[slot[label]].1 += w;
+                } else {
+                    stamp[label] = visit;
+                    slot[label] = freq.len();
+                    freq.push((label, w));
+                }
+            }
+            let max_freq = freq
+                .iter()
+                .map(|&(_, f)| f)
+                .fold(f64::NEG_INFINITY, f64::max);
+            let best: Vec<usize> = freq
+                .iter()
+                .filter(|&&(_, f)| f == max_freq)
+                .map(|&(l, _)| l)
+                .collect();
+            if !best.contains(&labels[node]) {
+                labels[node] = best[rng.randbelow(best.len())];
+                cont = true;
+            }
+        }
+    }
+    let (words, index) = rng.state();
+    Ok((labels, words, index))
+}
+
+// ============================================================================
+// Louvain
+// ============================================================================
+
+/// A weighted graph whose neighbor lists keep insertion order, with NetworkX's
+/// `add_edge(u, v, weight=...)` semantics: a new edge is appended at both ends (a self-loop
+/// once); for an existing one only the weight changes.
+struct OrderedGraph {
+    directed: bool,
+    succ: Vec<Vec<(usize, f64)>>,
+    /// Predecessors (directed only), in the order the edges were added
+    pred: Vec<Vec<(usize, f64)>>,
+    /// (u, v) -> index of v in `succ[u]` (both orientations for undirected graphs)
+    slot: FxHashMap<(usize, usize), usize>,
+    /// (v, u) -> index of u in `pred[v]`
+    pred_slot: FxHashMap<(usize, usize), usize>,
+}
+
+impl OrderedGraph {
+    fn new(n: usize, directed: bool) -> Self {
+        OrderedGraph {
+            directed,
+            succ: vec![Vec::new(); n],
+            pred: if directed {
+                vec![Vec::new(); n]
+            } else {
+                Vec::new()
+            },
+            slot: FxHashMap::default(),
+            pred_slot: FxHashMap::default(),
+        }
+    }
+
+    fn len(&self) -> usize {
+        self.succ.len()
+    }
+
+    /// Add `w` to edge (u, v)'s weight, creating it (with weight `w`) if needed
+    fn add_weight(&mut self, u: usize, v: usize, w: f64) {
+        if let Some(&i) = self.slot.get(&(u, v)) {
+            let total = w + self.succ[u][i].1;
+            self.succ[u][i].1 = total;
+            if self.directed {
+                let j = self.pred_slot[&(v, u)];
+                self.pred[v][j].1 = total;
+            } else if u != v {
+                let j = self.slot[&(v, u)];
+                self.succ[v][j].1 = total;
+            }
+            return;
+        }
+        self.slot.insert((u, v), self.succ[u].len());
+        self.succ[u].push((v, w));
+        if self.directed {
+            self.pred_slot.insert((v, u), self.pred[v].len());
+            self.pred[v].push((u, w));
+        } else if u != v {
+            self.slot.insert((v, u), self.succ[v].len());
+            self.succ[v].push((u, w));
+        }
+    }
+
+    /// The edges as `G.edges(data="weight")` lists them
+    fn edges(&self) -> Vec<(usize, usize, f64)> {
+        let mut out = Vec::new();
+        for (u, nbrs) in self.succ.iter().enumerate() {
+            for &(v, w) in nbrs {
+                if self.directed || v >= u {
+                    out.push((u, v, w));
+                }
+            }
+        }
+        out
+    }
+
+    fn self_loop(&self, u: usize) -> Option<f64> {
+        self.slot.get(&(u, u)).map(|&i| self.succ[u][i].1)
+    }
+
+    /// `G.degree(weight="weight")` (undirected) or `G.out_degree(...)`
+    fn out_degrees(&self) -> Vec<f64> {
+        (0..self.len())
+            .map(|u| {
+                let d = PySum::of(self.succ[u].iter().map(|&(_, w)| w));
+                if self.directed {
+                    d
+                } else {
+                    d + self.self_loop(u).unwrap_or(0.0)
+                }
+            })
+            .collect()
+    }
+
+    /// `G.in_degree(weight="weight")` (directed)
+    fn in_degrees(&self) -> Vec<f64> {
+        self.pred
+            .iter()
+            .map(|p| PySum::of(p.iter().map(|&(_, w)| w)))
+            .collect()
+    }
+
+    /// `networkx.community.modularity(G, communities, weight="weight", resolution=...)`,
+    /// summing in community order and, within a community, in node order
+    fn modularity(&self, communities: &[Vec<usize>], resolution: f64) -> f64 {
+        let n = self.len();
+        let out_degree = self.out_degrees();
+        let in_degree = if self.directed {
+            self.in_degrees()
+        } else {
+            out_degree.clone()
+        };
+        let (m, norm) = if self.directed {
+            let m = PySum::of(out_degree.iter().copied());
+            (m, 1.0 / (m * m))
+        } else {
+            let deg_sum = PySum::of(out_degree.iter().copied());
+            (deg_sum / 2.0, 1.0 / (deg_sum * deg_sum))
+        };
+        if m == 0.0 {
+            return 0.0;
+        }
+        let mut member = vec![usize::MAX; n];
+        let mut total = PySum::default();
+        for (c, community) in communities.iter().enumerate() {
+            let mut sorted = community.clone();
+            sorted.sort_unstable();
+            for &u in &sorted {
+                member[u] = c;
+            }
+            // each internal edge once: from its first endpoint in node order
+            let mut inside = PySum::default();
+            for &u in &sorted {
+                for &(v, w) in &self.succ[u] {
+                    if member[v] == c && (self.directed || v >= u) {
+                        inside.add(w);
+                    }
+                }
+            }
+            let out_sum = PySum::of(sorted.iter().map(|&u| out_degree[u]));
+            let in_sum = if self.directed {
+                PySum::of(sorted.iter().map(|&u| in_degree[u]))
+            } else {
+                out_sum
+            };
+            total.add(inside.total() / m - resolution * out_sum * in_sum * norm);
+        }
+        total.total()
+    }
+}
+
+/// Louvain community detection as `networkx.community.louvain_partitions` runs it, level by
+/// level, with the random visiting order of each level drawn from a Python `random.Random`
+/// state as NetworkX draws it, so the partitions are NetworkX's.
+///
+/// Python drives the levels (yielding partitions and checking the modularity threshold) and
+/// calls `one_level()` and `aggregate()`.
+#[pyclass]
+pub struct NxLouvain {
+    graph: OrderedGraph,
+    /// Original nodes (positions) inside each node of `graph`
+    members: Vec<Vec<usize>>,
+    /// This level's communities: nodes of `graph`, and the original nodes in each
+    inner: Vec<Vec<usize>>,
+    partition: Vec<Vec<usize>>,
+    /// Size (total edge weight) of the original graph
+    m: f64,
+    resolution: f64,
+}
+
+#[pymethods]
+impl NxLouvain {
+    /// The level-0 graph: `G.edges(data=weight, default=1)` of the original graph (node IDs
+    /// `1..=n`), merged into a simple graph by adding the weights of parallel edges; `m` is
+    /// the original graph's `size(weight)`.
+    #[new]
+    #[pyo3(signature = (n, sources, targets, weights, directed, m, resolution))]
+    fn new(
+        n: usize,
+        sources: Vec<u64>,
+        targets: Vec<u64>,
+        weights: Vec<f64>,
+        directed: bool,
+        m: f64,
+        resolution: f64,
+    ) -> PyResult<Self> {
+        if sources.len() != targets.len() || weights.len() != sources.len() {
+            return Err(pyo3::exceptions::PyValueError::new_err(
+                "sources, targets and weights must have the same length",
+            ));
+        }
+        let sources = positions_of(sources, n)?;
+        let targets = positions_of(targets, n)?;
+        let mut graph = OrderedGraph::new(n, directed);
+        for ((&u, &v), &w) in sources.iter().zip(&targets).zip(&weights) {
+            graph.add_weight(u, v, w);
+        }
+        let singletons: Vec<Vec<usize>> = (0..n).map(|u| vec![u]).collect();
+        Ok(NxLouvain {
+            graph,
+            members: singletons.clone(),
+            inner: singletons.clone(),
+            partition: singletons,
+            m,
+            resolution,
+        })
+    }
+
+    /// Number of nodes of the current level's graph
+    fn num_nodes(&self) -> usize {
+        self.graph.len()
+    }
+
+    /// The modularity of the singleton partition of the current graph
+    fn singleton_modularity(&self) -> f64 {
+        let singletons: Vec<Vec<usize>> = (0..self.graph.len()).map(|u| vec![u]).collect();
+        self.graph.modularity(&singletons, self.resolution)
+    }
+
+    /// `_one_level()`: move nodes between communities in the visiting order NetworkX draws
+    /// (`random.Random.shuffle` from state `words`/`index`) until no move helps. Returns
+    /// whether any node moved, and the generator's state afterwards.
+    fn one_level(&mut self, words: Vec<u32>, index: usize) -> PyResult<(bool, Vec<u32>, usize)> {
+        let mut rng = PyRandom::from_state(&words, index)?;
+        let g = &self.graph;
+        let n = g.len();
+        let directed = g.directed;
+        let m = self.m;
+        let mut node2com: Vec<usize> = (0..n).collect();
+        let out_degree = g.out_degrees();
+        let in_degree = if directed { g.in_degrees() } else { Vec::new() };
+        let gamma = if directed {
+            self.resolution
+        } else {
+            self.resolution / 2.0
+        };
+        let mut stot = out_degree.clone(); // Stot (undirected) or Stot_out
+        let mut stot_in = in_degree.clone();
+        // Neighbors (no self-loops) with weights, in NetworkX's order
+        let nbrs: Vec<Vec<(usize, f64)>> = (0..n)
+            .map(|u| {
+                if !directed {
+                    return g.succ[u].iter().copied().filter(|&(v, _)| v != u).collect();
+                }
+                let mut list: Vec<(usize, f64)> = Vec::new();
+                let mut at: FxHashMap<usize, usize> = FxHashMap::default();
+                for &(v, w) in g.succ[u].iter().chain(g.pred[u].iter()) {
+                    if v == u {
+                        continue;
+                    }
+                    match at.get(&v) {
+                        Some(&i) => list[i].1 += w,
+                        None => {
+                            at.insert(v, list.len());
+                            list.push((v, 0.0 + w));
+                        }
+                    }
+                }
+                list
+            })
+            .collect();
+        let mut order: Vec<usize> = (0..n).collect();
+        rng.shuffle(&mut order);
+
+        // community -> slot in `by_com` for the node being moved (`stamp` marks this visit)
+        let mut slot = vec![0usize; n];
+        let mut stamp = vec![usize::MAX; n];
+        let mut by_com: Vec<(usize, f64)> = Vec::new();
+        let mut visit = 0usize;
+        let mut improvement = false;
+        let mut moves = 1;
+        while moves > 0 {
+            moves = 0;
+            for &u in &order {
+                visit += 1;
+                by_com.clear();
+                let u_com = node2com[u];
+                for &(v, w) in &nbrs[u] {
+                    let c = node2com[v];
+                    if stamp[c] == visit {
+                        by_com[slot[c]].1 += w;
+                    } else {
+                        stamp[c] = visit;
+                        slot[c] = by_com.len();
+                        by_com.push((c, 0.0 + w));
+                    }
+                }
+                let u_in_com = if stamp[u_com] == visit {
+                    by_com[slot[u_com]].1
+                } else {
+                    0.0
+                };
+                let x = if directed {
+                    stot_in[u_com] -= in_degree[u];
+                    stot[u_com] -= out_degree[u];
+                    out_degree[u] * stot_in[u_com] + in_degree[u] * stot[u_com]
+                } else {
+                    stot[u_com] -= out_degree[u];
+                    stot[u_com] * out_degree[u]
+                };
+                let remove_cost = u_in_com * m - gamma * x;
+                let mut best_gain = remove_cost;
+                let mut best_com = u_com;
+                for &(c, w) in &by_com {
+                    let x = if directed {
+                        out_degree[u] * stot_in[c] + in_degree[u] * stot[c]
+                    } else {
+                        stot[c] * out_degree[u]
+                    };
+                    let gain = w * m - gamma * x;
+                    if gain > best_gain {
+                        best_gain = gain;
+                        best_com = c;
+                    }
+                }
+                if directed {
+                    stot_in[best_com] += in_degree[u];
+                }
+                stot[best_com] += out_degree[u];
+                if best_com != u_com {
+                    node2com[u] = best_com;
+                    improvement = true;
+                    moves += 1;
+                }
+            }
+        }
+
+        // Communities in index order, empty ones dropped
+        let mut inner: Vec<Vec<usize>> = vec![Vec::new(); n];
+        for u in 0..n {
+            inner[node2com[u]].push(u);
+        }
+        let inner: Vec<Vec<usize>> = inner.into_iter().filter(|c| !c.is_empty()).collect();
+        self.partition = inner
+            .iter()
+            .map(|c| {
+                let mut nodes: Vec<usize> = c
+                    .iter()
+                    .flat_map(|&u| self.members[u].iter().copied())
+                    .collect();
+                nodes.sort_unstable();
+                nodes
+            })
+            .collect();
+        self.inner = inner;
+        let (words, index) = rng.state();
+        Ok((improvement, words, index))
+    }
+
+    /// The communities found by the last `one_level()`, as lists of original node IDs
+    fn partition(&self) -> Vec<Vec<u64>> {
+        self.partition
+            .iter()
+            .map(|c| c.iter().map(|&o| o as u64 + 1).collect())
+            .collect()
+    }
+
+    /// Modularity of the last level's communities on the current graph
+    fn inner_modularity(&self) -> f64 {
+        self.graph.modularity(&self.inner, self.resolution)
+    }
+
+    /// `_aggregate_graph()`: one node per community, edges summed between communities
+    fn aggregate(&mut self) {
+        let k = self.inner.len();
+        let mut com = vec![0usize; self.graph.len()];
+        for (i, c) in self.inner.iter().enumerate() {
+            for &u in c {
+                com[u] = i;
+            }
+        }
+        let mut graph = OrderedGraph::new(k, self.graph.directed);
+        for (u, v, w) in self.graph.edges() {
+            graph.add_weight(com[u], com[v], w);
+        }
+        self.graph = graph;
+        self.members = self.partition.clone();
+        self.inner = (0..k).map(|u| vec![u]).collect();
+    }
+}
