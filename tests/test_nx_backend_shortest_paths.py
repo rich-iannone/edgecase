@@ -237,6 +237,27 @@ def test_negative_weights():
     assert_same(nx.single_source_dijkstra, G, 3)
 
 
+@pytest.mark.parametrize("w", [-1, -1.0])
+def test_negative_arc_between_sources(w):
+    # A source reached by a negative arc before it leaves the heap keeps that distance
+    G = nx.DiGraph()
+    G.add_edge(0, 1, weight=w)
+    G.add_edge(1, 2, weight=-w)
+    for func in [
+        nx.multi_source_dijkstra,
+        nx.multi_source_dijkstra_path_length,
+        nx.multi_source_dijkstra_path,
+    ]:
+        expected, actual = both(func, G, [0, 1])
+        assert repr(ordered(actual)) == repr(ordered(expected))
+    # A source left at 0 after a negative-distance node keeps the int 0
+    G = nx.DiGraph()
+    G.add_edge(0, 2, weight=w)
+    G.add_edge(2, 3, weight=-2 * w)
+    expected, actual = both(nx.multi_source_dijkstra_path_length, G, [0, 1])
+    assert repr(ordered(actual)) == repr(ordered(expected))
+
+
 @pytest.mark.parametrize(
     "func, args",
     [

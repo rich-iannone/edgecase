@@ -130,9 +130,15 @@ def _paths(keys, parents, roots=1, reverse=False):
 
 
 def _distances(G, adj, order, dist, roots=1):
-    """`{node: distance}`; roots get the int 0, as in NetworkX, even with float weights."""
+    """`{node: distance}`; roots get the int 0, as in NetworkX, even with float weights.
+
+    The roots are the first `roots` nodes of `order`. Among them, a source that a negative
+    arc reached first keeps its float distance (NetworkX finishes it from that heap entry).
+    """
     if roots and not adj.integral:
-        dist[:roots] = [0] * min(roots, len(dist))
+        for i in range(min(roots, len(dist))):
+            if dist[i] == 0:
+                dist[i] = 0
     return dict(zip(_keys(G, order), dist))
 
 

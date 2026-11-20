@@ -473,21 +473,24 @@ impl PathAdjacency {
     }
 
     /// `{nodes[order[i]]: dist[i]}`: ints if every weight is an int, else floats except for
-    /// the first `roots` nodes (the sources), whose distance is the int 0 as in NetworkX
+    /// sources still at distance 0, whose distance is the int 0 as in NetworkX.
+    ///
+    /// `sources` is sorted. A source reached by a negative arc gets that (float) distance:
+    /// it was finished from a later heap entry, not from its initial `(0, c, source)` one.
     fn distance_dict<'py>(
         &self,
         nodes: &Bound<'py, PyList>,
         order: &[usize],
         dist: &[f64],
-        roots: usize,
+        sources: &[usize],
     ) -> PyResult<Bound<'py, PyDict>> {
         let dict = PyDict::new(nodes.py());
         let integral = self.integral && dist.iter().all(|x| x.is_finite());
-        for (i, (&v, &d)) in order.iter().zip(dist).enumerate() {
+        for (&v, &d) in order.iter().zip(dist) {
             let key = nodes.get_item(v)?;
             if integral {
                 dict.set_item(key, d as i64)?;
-            } else if i < roots {
+            } else if d == 0.0 && sources.binary_search(&v).is_ok() {
                 dict.set_item(key, 0)?;
             } else {
                 dict.set_item(key, d)?;
@@ -1189,7 +1192,7 @@ impl PathAdjacency {
         let mut distinct = sources.clone();
         distinct.sort_unstable();
         distinct.dedup();
-        self.distance_dict(nodes, &result.order, &result.dist, distinct.len())
+        self.distance_dict(nodes, &result.order, &result.dist, &distinct)
     }
 
     /// `dijkstra_lengths()` from each of `sources` separately (in parallel when big), cut
@@ -1216,7 +1219,7 @@ impl PathAdjacency {
         let mut dicts = Vec::with_capacity(results.len());
         for result in results {
             match result {
-                Ok(r) => dicts.push(self.distance_dict(nodes, &r.order, &r.dist, 1)?),
+                Ok(r) => dicts.push(self.distance_dict(nodes, &r.order, &r.dist, &r.order[..1])?),
                 Err(Contradiction) => return Ok((dicts, true)),
             }
         }
