@@ -156,3 +156,41 @@ def test_greedy_modularity_edge_cases():
     assert nx.community.greedy_modularity_communities(G, **EC) == (
         nx.community.greedy_modularity_communities(G)
     )
+
+
+@pytest.mark.parametrize("metric", ["cpm", "modularity"])
+@pytest.mark.parametrize("seed", range(4))
+def test_leiden(metric, seed):
+    G = nx.karate_club_graph()
+    resolution = 0.1 if metric == "cpm" else 1.0
+    levels = list(
+        nx.community.leiden_partitions(G, metric=metric, resolution=resolution, seed=seed, **EC)
+    )
+    assert levels
+    for partition in levels:
+        assert nx.community.is_partition(G, partition)
+    final = levels[-1]
+    for c in final:
+        assert nx.is_connected(G.subgraph(c))
+    if metric == "modularity":
+        assert nx.community.modularity(G, final) > 0.3
+    # The same seed gives the same levels, and max_level cuts them
+    kw = {"metric": metric, "resolution": resolution, "seed": seed}
+    assert nx.community.leiden_communities(G, **kw, **EC) == final
+    for max_level in range(1, len(levels) + 1):
+        assert (
+            nx.community.leiden_communities(G, max_level=max_level, **kw, **EC)
+            == (levels[max_level - 1])
+        )
+
+
+def test_leiden_edge_cases():
+    from edgecase.nx_backend.interface import backend_interface as bi
+
+    assert nx.community.leiden_communities(nx.empty_graph(3), seed=1, **EC) == [{0}, {1}, {2}]
+    with pytest.raises(ValueError, match="max_level"):
+        nx.community.leiden_communities(nx.path_graph(3), max_level=0, **EC)
+    D = nx.DiGraph([(0, 1)])
+    assert isinstance(bi.can_run("leiden_communities", (D,), {}), str)
+    G = nx.path_graph(3)
+    assert isinstance(bi.can_run("leiden_communities", (G,), {"metric": "barber_modularity"}), str)

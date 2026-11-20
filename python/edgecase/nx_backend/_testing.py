@@ -18,8 +18,26 @@ MUTATES_DURING_ITERATION = (
     "iteration to notice; a graph converted to edgecase cannot see later changes"
 )
 
+DIFFERENT_LEIDEN_PARTITION = (
+    "expects NetworkX's exact Leiden partition for a seed; NetworkX visits nodes in the "
+    "iteration order of Python sets and draws its random numbers accordingly, while "
+    "edgecase's Leiden finds a different valid (connected, quality-improving) partition"
+)
+DIFFERENT_LEIDEN_LEVELS = (
+    "counts NetworkX's Leiden levels (it yields the refined partition of every "
+    "aggregation level); edgecase's Leiden yields only the levels at which its partition "
+    "changes, so it can report fewer levels for the same final partition"
+)
+
 # test key -> reason
 XFAIL = {
+    "algorithms/community/tests/test_leiden.py::test_expected_stable_across_code_changes_cpm": (
+        DIFFERENT_LEIDEN_PARTITION
+    ),
+    "algorithms/community/tests/test_leiden.py::test_cpm_node_weights_on_G": (
+        DIFFERENT_LEIDEN_PARTITION
+    ),
+    "algorithms/community/tests/test_leiden.py::test_weights_matter": DIFFERENT_LEIDEN_LEVELS,
     # topological_sort is implemented by edgecase
     "algorithms/tests/test_dag.py::TestDAG::test_topological_sort6": MUTATES_DURING_ITERATION,
 }

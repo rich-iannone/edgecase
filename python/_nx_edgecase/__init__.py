@@ -68,6 +68,8 @@ _FUNCTIONS = frozenset(
         "k_truss",
         "label_propagation_communities",
         "laplacian_matrix",
+        "leiden_communities",
+        "leiden_partitions",
         "louvain_communities",
         "louvain_partitions",
         "modularity",

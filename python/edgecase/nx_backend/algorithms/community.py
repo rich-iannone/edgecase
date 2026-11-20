@@ -20,6 +20,8 @@ __all__ = [
     "greedy_modularity_communities",
     "is_partition",
     "label_propagation_communities",
+    "leiden_communities",
+    "leiden_partitions",
     "louvain_communities",
     "louvain_partitions",
     "modularity",
@@ -379,3 +381,66 @@ def greedy_modularity_communities(G, weight=None, resolution=1, cutoff=1, best_n
             communities.extend(rest)
         return communities
     return sorted(communities, key=len, reverse=True)
+
+
+# Leiden
+
+
+def _leiden_can_run(G, *args, metric="cpm", seed=None, **kwargs):
+    if G.is_directed():
+        return "edgecase's Leiden is for undirected graphs"
+    if metric not in {"cpm", "modularity"}:
+        return f"metric {metric!r} is left to NetworkX"
+    return _python_random(random._inst if seed is None else seed)
+
+
+def _leiden(G, weight, metric, resolution, seed, theta):
+    """Leiden levels from edgecase's kernel (`community_levels(leiden=True)`).
+
+    The partitions are valid Leiden partitions but not NetworkX's for the same seed:
+    NetworkX's implementation visits nodes in the iteration order of Python sets and draws
+    its random numbers accordingly. The kernel's own generator is seeded from `seed`.
+    """
+    from edgecase._core import community_levels
+
+    nodes = G.nodes
+    if G.number_of_edges() == 0:
+        yield [{u} for u in nodes]
+        return
+    rg = G.rust_graph() if weight is None else G.rust_graph(weight, default=1.0)
+    ids, levels = community_levels(
+        rg, True, resolution, seed.getrandbits(64), objective=metric, theta=theta
+    )
+    for labels in levels:
+        communities = {}
+        for node_id, label in zip(ids, labels):
+            communities.setdefault(label, set()).add(nodes[node_id - 1])
+        yield list(communities.values())
+
+
+@networkx_algorithm(can_run=_leiden_can_run)
+def leiden_partitions(G, *, weight="weight", metric="cpm", resolution=1.0, seed=None, theta=0.01):
+    yield from _leiden(G, weight, metric, resolution, seed, theta)
+
+
+@networkx_algorithm(can_run=_leiden_can_run)
+def leiden_communities(
+    G,
+    *,
+    weight="weight",
+    resolution=1.0,
+    max_level=None,
+    seed=None,
+    metric="cpm",
+    theta=0.01,
+):
+    from collections import deque
+    from itertools import islice
+
+    partitions = _leiden(G, weight, metric, resolution, seed, theta)
+    if max_level is not None:
+        if max_level <= 0:
+            raise ValueError("max_level argument must be a positive integer or None")
+        partitions = islice(partitions, max_level)
+    final_partition = deque(partitions, maxlen=1)
+    return final_partition.pop()
