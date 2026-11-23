@@ -9,7 +9,27 @@ module: edgecase
 # Display Name
 # ------------
 # Custom display name for the package in the site navbar/title
-display_name: Edgecase
+display_name: EdgeCase
+
+# Logo
+# ----
+# The navbar's logo (the mark and the wordmark), and the favicon (the mark alone)
+logo:
+  light: assets/logo.light.svg
+  dark: assets/logo.dark.svg
+favicon: assets/logo-mark.light.svg
+
+# Homepage
+# --------
+# The homepage is index.qmd, with the logo and tagline in a hero above it
+homepage: index
+hero:
+  logo:
+    light: assets/logo.light.svg
+    dark: assets/logo.dark.svg
+  logo_height: 120px
+  name: false
+  tagline: "Fast, friendly graph analysis for Python"
 
 # Docstring Parser
 # ----------------
