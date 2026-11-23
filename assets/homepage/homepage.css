@@ -1,0 +1,992 @@
+/* The homepage's showcase (with assets/homepage/homepage.js and backdrop.js) */
+
+.gd-homepage {
+  --ec-accent: #c2410c;
+  --ec-mark: #ea580c;
+  --ec-btn-bg: #c2410c;
+  --ec-btn-bg-hover: #9a3412;
+  --ec-btn-fg: #fff;
+  --ec-accent-soft: rgba(234, 88, 12, 0.08);
+  --ec-accent-line: rgba(234, 88, 12, 0.38);
+  --ec-surface: var(--gd-bg-secondary, #f7f7f9);
+  --ec-panel: var(--gd-bg-primary, #fff);
+  --ec-border: var(--gd-border-color, #e3e3e8);
+  --ec-muted: var(--gd-text-muted, #6c6c78);
+  --ec-lib-edgecase: #ea580c;
+  --ec-lib-igraph: #0891b2;
+  --ec-lib-networkx: #7c3aed;
+  --ec-radius: 12px;
+}
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .gd-homepage,
+body.quarto-dark.gd-homepage {
+  --ec-accent: #fb923c;
+  --ec-mark: #f97316;
+  --ec-btn-bg: #f97316;
+  --ec-btn-bg-hover: #fb923c;
+  --ec-btn-fg: #0d1117;
+  --ec-accent-soft: rgba(249, 115, 22, 0.14);
+  --ec-accent-line: rgba(249, 115, 22, 0.5);
+  --ec-surface: var(--gd-bg-secondary, #161b22);
+  --ec-panel: var(--gd-bg-primary, #0d1117);
+  --ec-border: var(--gd-border-color, #30363d);
+  --ec-lib-edgecase: #ea580c;
+  --ec-lib-igraph: #0aa5c0;
+  --ec-lib-networkx: #8b5cf6;
+}
+
+/* Outputs drawn in both themes (by the page's setup), of which the one for the theme is shown */
+
+.ec-only-dark {
+  display: none;
+}
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .ec-only-light {
+  display: none;
+}
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .ec-only-dark {
+  display: block;
+}
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) img.ec-only-dark {
+  display: inline;
+}
+
+/* The hero's animated backdrop (assets/homepage/backdrop.js): across the page, from under the
+   navbar to below the hero (fading out there), behind the page's content */
+
+.gd-homepage .gd-hero > #ec-backdrop {
+  position: absolute;
+  z-index: -1;
+  pointer-events: none;
+  opacity: 0;
+  transition: opacity 0.8s ease;
+  -webkit-mask-image: linear-gradient(to bottom, #000 55%, transparent);
+  mask-image: linear-gradient(to bottom, #000 55%, transparent);
+}
+
+.gd-homepage .gd-hero > #ec-backdrop.ec-on {
+  opacity: 1;
+}
+
+/* (In dark mode, the page's background is <html>'s alone, so that the backdrop shows over it) */
+body.quarto-dark.gd-homepage,
+body.quarto-dark.gd-homepage :is(#quarto-content, main.content, #quarto-document-content) {
+  background-color: transparent;
+}
+
+@media print {
+  .gd-homepage .gd-hero > #ec-backdrop {
+    display: none;
+  }
+}
+
+/* The lead, the calls to action and the stats */
+
+.gd-homepage #quarto-document-content > p:first-of-type {
+  font-size: 1.15rem;
+  line-height: 1.6;
+}
+
+.ec-cta {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 0.6rem;
+  margin: 1.4rem 0 1.6rem;
+}
+
+.ec-cta > p {
+  display: contents;
+}
+
+.ec-btn {
+  display: inline-flex;
+  align-items: center;
+  padding: 0.5rem 1.05rem;
+  border: 1px solid var(--ec-border);
+  border-radius: 999px;
+  background: var(--ec-panel);
+  color: inherit;
+  font-weight: 600;
+  font-size: 0.95rem;
+  text-decoration: none;
+  transition: border-color 0.15s, background-color 0.15s, transform 0.15s;
+}
+
+.ec-btn:hover {
+  border-color: var(--ec-mark);
+  transform: translateY(-1px);
+}
+
+/* (Over the theme's colors for links in text) */
+.gd-homepage a.ec-btn,
+.gd-homepage a.ec-btn:hover {
+  color: var(--gd-text-primary, #1f2328);
+  text-decoration: none;
+}
+
+.gd-homepage a.ec-btn-primary {
+  background: var(--ec-btn-bg);
+  border-color: var(--ec-btn-bg);
+  color: var(--ec-btn-fg);
+}
+
+.gd-homepage a.ec-btn-primary:hover {
+  background: var(--ec-btn-bg-hover);
+  border-color: var(--ec-btn-bg-hover);
+  color: var(--ec-btn-fg);
+}
+
+.ec-install {
+  display: inline-flex;
+  align-items: center;
+  gap: 0.6rem;
+  padding: 0.45rem 0.85rem;
+  border: 1px dashed var(--ec-border);
+  border-radius: 999px;
+  background: var(--ec-panel);
+  color: inherit;
+  cursor: pointer;
+  font-size: 0.9rem;
+}
+
+.gd-homepage .ec-install code {
+  background: none;
+  color: inherit;
+  padding: 0;
+  font-size: 0.9em;
+}
+
+.ec-install:hover,
+.ec-install.ec-copied {
+  border-color: var(--ec-mark);
+}
+
+.ec-install .bi,
+.ec-prompt {
+  color: var(--ec-muted);
+}
+
+.ec-copied .bi {
+  color: var(--ec-accent);
+}
+
+.ec-stats {
+  display: grid;
+  grid-template-columns: repeat(5, minmax(0, 1fr));
+  gap: 0.5rem;
+  margin: 0 0 2.4rem;
+  padding: 0.9rem 0.6rem;
+  border: 1px solid var(--ec-border);
+  border-radius: var(--ec-radius);
+  background: color-mix(in srgb, var(--ec-panel) 82%, transparent);
+  -webkit-backdrop-filter: blur(6px);
+  backdrop-filter: blur(6px);
+}
+
+.ec-stat {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+}
+
+.ec-stat + .ec-stat {
+  border-left: 1px solid var(--ec-border);
+}
+
+.ec-stat-num {
+  font-size: 1.55rem;
+  font-weight: 700;
+  line-height: 1.2;
+  letter-spacing: -0.01em;
+  font-variant-numeric: tabular-nums;
+}
+
+.ec-stat-label {
+  color: var(--ec-muted);
+  font-size: 0.82rem;
+}
+
+/* The section headings */
+
+.gd-homepage h2.ec-heading {
+  margin-top: 3.2rem;
+  border-bottom: none;
+  font-weight: 700;
+  letter-spacing: -0.01em;
+}
+
+.gd-homepage h2.ec-heading::after {
+  content: "";
+  display: block;
+  width: 2.4rem;
+  height: 3px;
+  margin-top: 0.45rem;
+  border-radius: 3px;
+  background: var(--ec-mark);
+}
+
+.gd-homepage a.ec-more {
+  display: inline-block;
+  margin-right: 1.2rem;
+  color: var(--ec-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.gd-homepage a.ec-more:hover,
+.gd-homepage .ec-card > p:last-child a:hover {
+  color: var(--ec-accent);
+  text-decoration: underline;
+  text-underline-offset: 4px;
+}
+
+/* The tabs (of the stepper) and the chips (of the tour and the race) */
+
+.ec-tabs {
+  display: flex;
+  gap: 0.35rem;
+  margin-bottom: 1rem;
+  padding: 0.3rem;
+  border: 1px solid var(--ec-border);
+  border-radius: 999px;
+  background: var(--ec-surface);
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.ec-tab {
+  position: relative;
+  flex: 1 1 0;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 0.45rem;
+  min-width: max-content;
+  padding: 0.45rem 0.8rem;
+  border: none;
+  border-radius: 999px;
+  background: transparent;
+  color: var(--ec-muted);
+  font-weight: 600;
+  font-size: 0.92rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition: background-color 0.2s, color 0.2s, box-shadow 0.2s;
+}
+
+.ec-tab:hover {
+  color: var(--gd-text-primary, #222);
+}
+
+.ec-tab:focus-visible,
+.ec-chip:focus-visible {
+  outline: 2px solid var(--ec-mark);
+  outline-offset: 1px;
+}
+
+.ec-tab-num {
+  display: inline-grid;
+  place-items: center;
+  width: 1.45rem;
+  height: 1.45rem;
+  border: 1.5px solid currentColor;
+  border-radius: 50%;
+  font-size: 0.75rem;
+  line-height: 1;
+}
+
+.ec-tab.ec-done .ec-tab-num {
+  border-color: var(--ec-accent-line);
+  color: var(--ec-accent);
+}
+
+.ec-tab[aria-selected="true"] {
+  background: var(--ec-panel);
+  color: var(--gd-text-primary, #222);
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.12);
+}
+
+.ec-tab[aria-selected="true"] .ec-tab-num {
+  border-color: var(--ec-btn-bg);
+  background: var(--ec-btn-bg);
+  color: var(--ec-btn-fg);
+}
+
+.ec-tab-progress {
+  position: absolute;
+  left: 18%;
+  right: 18%;
+  bottom: 3px;
+  height: 2px;
+  border-radius: 2px;
+  background: var(--ec-mark);
+  transform: scaleX(0);
+  transform-origin: left;
+  opacity: 0;
+}
+
+.ec-chip .ec-tab-progress {
+  left: 14px;
+  right: 14px;
+  bottom: 2px;
+  background: currentColor;
+}
+
+.ec-playing [aria-selected="true"] > .ec-tab-progress {
+  opacity: 0.7;
+  animation: ec-progress var(--ec-dwell, 5s) linear forwards;
+}
+
+@keyframes ec-progress {
+  to {
+    transform: scaleX(1);
+  }
+}
+
+.ec-chips {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 0.45rem;
+  margin-bottom: 0.9rem;
+}
+
+.ec-chip {
+  position: relative;
+  padding: 0.32rem 0.85rem;
+  border: 1px solid var(--ec-border);
+  border-radius: 999px;
+  background: var(--ec-panel);
+  color: inherit;
+  font-size: 0.86rem;
+  cursor: pointer;
+  overflow: hidden;
+  transition: border-color 0.15s, background-color 0.15s, color 0.15s;
+}
+
+.ec-chip:hover {
+  border-color: var(--ec-mark);
+}
+
+.ec-chip:is([aria-selected="true"], [aria-pressed="true"]) {
+  border-color: var(--ec-btn-bg);
+  background: var(--ec-btn-bg);
+  color: var(--ec-btn-fg);
+}
+
+/* The panels are stacked in one place, so that each is laid out all along; the box is as tall as
+   the one shown, and the others are see-through and inert */
+
+.ec-panels {
+  position: relative;
+  overflow: hidden;
+  transition: height 0.35s ease;
+}
+
+.ec-stack {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-items: start;
+}
+
+.ec-ready > .ec-panels .ec-panel {
+  grid-area: 1 / 1;
+  min-width: 0;
+  opacity: 0;
+  pointer-events: none;
+  transform: translateY(6px);
+  transition: opacity 0.3s ease, transform 0.3s ease;
+}
+
+.ec-ready > .ec-panels .ec-panel.ec-active {
+  opacity: 1;
+  pointer-events: auto;
+  transform: none;
+  transition: opacity 0.35s ease, transform 0.35s ease;
+  z-index: 1;
+}
+
+.ec-panel > p {
+  margin-bottom: 0.8rem;
+  color: var(--ec-muted);
+}
+
+/* The stepper */
+
+.ec-stepper {
+  margin: 1.2rem 0 1rem;
+}
+
+.ec-stepper .cell,
+.ec-queries .cell {
+  border: 1px solid var(--ec-border);
+  border-radius: var(--ec-radius);
+  overflow: hidden;
+  background: var(--ec-panel);
+}
+
+.ec-stepper .cell-output-display {
+  padding: 0.6rem 0.8rem 0.2rem;
+  overflow-x: auto;
+}
+
+.ec-stepper .cell-output-display .ec-plot {
+  margin: 0 auto !important;
+}
+
+.ec-stepper .cell-code,
+.ec-queries .cell-code {
+  position: relative;
+  margin: 0;
+  border-top: 1px solid var(--ec-border);
+  border-radius: 0;
+}
+
+.ec-queries .cell-code {
+  border-top: none;
+  border-bottom: 1px solid var(--ec-border);
+}
+
+.ec-stepper .cell-code pre,
+.ec-queries .cell-code pre {
+  max-height: 17rem;
+  margin: 0;
+  border: none;
+  border-radius: 0;
+  overflow-y: auto;
+}
+
+.ec-stepper .cell-code pre code {
+  display: block;
+  min-width: max-content;
+}
+
+.ec-stepper .cell-code pre code > span {
+  display: block;
+  margin-left: -0.6rem;
+  padding-left: 0.6rem;
+  border-left: 3px solid transparent;
+}
+
+.ec-stepper .cell-code pre code > span.ec-new {
+  border-left-color: var(--ec-mark);
+  background: var(--ec-accent-soft);
+}
+
+.ec-stepper .cell-code pre code > span.ec-folded {
+  display: none;
+}
+
+.ec-stepper .cell-code pre code > span.ec-fold-mark {
+  height: 1.5em;
+  overflow: hidden;
+  color: transparent;
+  cursor: pointer;
+  user-select: none;
+}
+
+.ec-stepper .cell-code pre code > span.ec-fold-mark * {
+  color: transparent !important;
+}
+
+.ec-stepper .cell-code pre code > span.ec-fold-mark::before {
+  content: "⋯ " attr(data-fold);
+  display: block;
+  color: var(--ec-muted);
+  font-style: italic;
+}
+
+.ec-stepper .cell-code pre code > span.ec-fold-mark:hover::before,
+.ec-stepper .cell-code pre code > span.ec-fold-mark:focus-visible::before {
+  color: var(--ec-accent);
+}
+
+.ec-stepper .cell-code pre code > span.ec-fold-mark:focus-visible {
+  outline: 2px solid var(--ec-mark);
+  outline-offset: -2px;
+}
+
+.ec-new-count {
+  position: absolute;
+  top: 0.5rem;
+  right: 0.9rem;
+  z-index: 2;
+  padding: 0.1rem 0.55rem;
+  border-radius: 999px;
+  background: var(--ec-btn-bg);
+  color: var(--ec-btn-fg);
+  font-size: 0.72rem;
+  font-weight: 600;
+  pointer-events: none;
+}
+
+/* The tour of Cypher queries: the chips, the graph (where each query's matches light up), and
+   the query and its result */
+
+.ec-tour {
+  margin: 1.2rem 0 1.4rem;
+  padding: 1rem 1rem 0.6rem;
+  border: 1px solid var(--ec-border);
+  border-radius: var(--ec-radius);
+  background: var(--ec-surface);
+}
+
+.ec-tour > .ec-chips::before {
+  content: "Try a query:";
+  align-self: center;
+  margin-right: 0.2rem;
+  color: var(--ec-muted);
+  font-size: 0.88rem;
+  font-weight: 600;
+}
+
+.ec-stage .cell-output-display {
+  border-radius: 10px;
+  overflow: hidden;
+}
+
+.ec-stage .ec-plot {
+  margin: 0 auto !important;
+}
+
+.ec-stage details.code-fold {
+  margin-bottom: 0.6rem;
+}
+
+.ec-stage svg :is(.ec-edge, .ec-node, .ec-label) {
+  transition: opacity 0.35s ease, fill 0.35s ease, stroke 0.35s ease;
+}
+
+.ec-stage svg.ec-lit .ec-edge {
+  opacity: 0.1;
+}
+
+.ec-stage svg.ec-lit .ec-edge.ec-hit {
+  opacity: 1;
+}
+
+.ec-stage svg.ec-lit .ec-edge.ec-hit :is(line, path) {
+  stroke: var(--ec-mark);
+  stroke-width: 3.4px;
+}
+
+.ec-stage svg.ec-lit .ec-edge.ec-hit polygon {
+  fill: var(--ec-mark);
+}
+
+.ec-stage svg.ec-lit .ec-node {
+  opacity: 0.28;
+}
+
+.ec-stage svg.ec-lit .ec-node.ec-hit {
+  opacity: 1;
+  fill: var(--ec-mark);
+  stroke: var(--ec-accent);
+  stroke-opacity: 1;
+}
+
+.ec-stage svg.ec-lit .ec-label {
+  opacity: 0.4;
+}
+
+.ec-stage svg.ec-lit .ec-label.ec-hit {
+  opacity: 1;
+  font-weight: 700;
+}
+
+.ec-queries {
+  margin-top: 0.8rem;
+}
+
+.ec-queries .cell-output-display {
+  padding: 0.5rem 0.7rem;
+  overflow-x: auto;
+}
+
+/* (Each query's matches, for the graph, are in a cell of their own, with nothing to show) */
+.cell:has(script.ec-hits) {
+  display: none;
+}
+
+/* The marquee of method diagrams: two rows, moving opposite ways, paused when hovered */
+
+.ec-marquee {
+  display: grid;
+  gap: 0.9rem;
+  margin: 1.2rem 0 1rem;
+  -webkit-mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+  mask-image: linear-gradient(to right, transparent, #000 6%, #000 94%, transparent);
+}
+
+.ec-marquee-row {
+  overflow: hidden;
+}
+
+.ec-marquee-track {
+  display: flex;
+  gap: 0.9rem;
+  width: max-content;
+}
+
+.ec-marquee.ec-ready .ec-marquee-track {
+  animation: ec-marquee var(--ec-marquee-time, 60s) linear infinite;
+}
+
+.ec-marquee.ec-ready .ec-reverse .ec-marquee-track {
+  animation-direction: reverse;
+}
+
+.ec-marquee:hover .ec-marquee-track,
+.ec-marquee:focus-within .ec-marquee-track {
+  animation-play-state: paused;
+}
+
+@keyframes ec-marquee {
+  to {
+    transform: translateX(calc(-50% - 0.45rem));
+  }
+}
+
+.gd-homepage a.ec-tile {
+  display: flex;
+  flex-direction: column;
+  flex: 0 0 auto;
+  width: 400px;
+  border: 1px solid var(--ec-border);
+  border-radius: 10px;
+  overflow: hidden;
+  background: var(--ec-panel);
+  color: inherit;
+  text-decoration: none;
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.gd-homepage a.ec-tile:hover,
+.gd-homepage a.ec-tile:focus-visible {
+  border-color: var(--ec-accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.08);
+}
+
+.ec-tile img {
+  width: 100%;
+  height: auto;
+  aspect-ratio: 760 / 220;
+  margin: 0;
+}
+
+/* (Shown as blocks, and only the one for the theme) */
+.ec-tile img.ec-only-light,
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .ec-tile img.ec-only-dark {
+  display: block;
+}
+
+.ec-tile img.ec-only-dark,
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .ec-tile img.ec-only-light {
+  display: none;
+}
+
+.ec-tile-name {
+  padding: 0.4rem 0.75rem 0.45rem;
+  border-top: 1px solid var(--ec-border);
+  font-family: var(--bs-font-monospace, ui-monospace, SFMono-Regular, Menlo, monospace);
+  font-size: 0.82rem;
+}
+
+.ec-tile-name::after {
+  content: " →";
+  color: var(--ec-muted);
+}
+
+/* The benchmark race */
+
+.ec-race {
+  margin: 1.2rem 0 1rem;
+  padding: 1rem 1rem 0.8rem;
+  border: 1px solid var(--ec-border);
+  border-radius: var(--ec-radius);
+  background: var(--ec-surface);
+}
+
+.ec-race-stage {
+  padding: 0.9rem 1rem 0.3rem;
+  border: 1px solid var(--ec-border);
+  border-radius: 10px;
+  background: var(--ec-panel);
+}
+
+.ec-race-head {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: baseline;
+  gap: 0.2rem 0.6rem;
+  margin-bottom: 0.7rem;
+}
+
+.ec-race-task {
+  font-weight: 700;
+}
+
+.ec-race-graph {
+  color: var(--ec-muted);
+  font-size: 0.86rem;
+}
+
+.ec-lane {
+  display: grid;
+  grid-template-columns: 6.2rem minmax(0, 1fr) 5.2rem;
+  align-items: center;
+  gap: 0.75rem;
+  margin-bottom: 0.55rem;
+}
+
+.ec-lane-name {
+  font-weight: 600;
+  font-size: 0.92rem;
+}
+
+.ec-lane-track {
+  position: relative;
+  height: 14px;
+  border-radius: 4px;
+  background: var(--ec-surface);
+}
+
+.ec-lane-bar {
+  position: absolute;
+  inset: 0 auto 0 0;
+  width: 0;
+  min-width: 3px;
+  border-radius: 0 4px 4px 0;
+  background: var(--ec-lane-color);
+}
+
+.ec-lane[data-lib="edgecase"] {
+  --ec-lane-color: var(--ec-lib-edgecase);
+}
+
+.ec-lane[data-lib="igraph"] {
+  --ec-lane-color: var(--ec-lib-igraph);
+}
+
+.ec-lane[data-lib="networkx"] {
+  --ec-lane-color: var(--ec-lib-networkx);
+}
+
+.ec-lane-time {
+  font-variant-numeric: tabular-nums;
+  font-size: 0.9rem;
+  text-align: right;
+  color: var(--ec-muted);
+}
+
+.ec-lane.ec-done .ec-lane-time {
+  color: inherit;
+  font-weight: 700;
+}
+
+.ec-lane.ec-done .ec-lane-time::before {
+  content: "✓ ";
+  color: var(--ec-lane-color);
+}
+
+.ec-race-summary {
+  min-height: 1.6em;
+  margin: 0.6rem 0 0.5rem;
+  opacity: 0;
+  transform: translateY(4px);
+  transition: opacity 0.35s ease, transform 0.35s ease;
+}
+
+.ec-race-summary.ec-shown {
+  opacity: 1;
+  transform: none;
+}
+
+.ec-race-table {
+  margin-top: 0.7rem;
+  font-size: 0.88rem;
+}
+
+.ec-race-table summary {
+  color: var(--ec-muted);
+  cursor: pointer;
+  font-weight: 600;
+}
+
+.ec-race-table table {
+  width: 100%;
+  margin: 0.6rem 0 0.3rem;
+  font-variant-numeric: tabular-nums;
+}
+
+.ec-race-table :is(th, td) {
+  padding: 0.25rem 0.5rem;
+  border-bottom: 1px solid var(--ec-border);
+}
+
+.ec-race-table :is(th, td):not(:first-child) {
+  text-align: right;
+}
+
+.ec-race-note {
+  margin: 0.5rem 0 0;
+  color: var(--ec-muted);
+  font-size: 0.8rem;
+}
+
+/* The features */
+
+.ec-cards {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(15.5rem, 1fr));
+  gap: 1rem;
+  margin: 1.2rem 0 1rem;
+}
+
+.ec-card {
+  display: flex;
+  flex-direction: column;
+  padding: 1.1rem 1.15rem 0.9rem;
+  border: 1px solid var(--ec-border);
+  border-radius: var(--ec-radius);
+  transition: border-color 0.2s, transform 0.2s, box-shadow 0.2s;
+}
+
+.ec-card:hover {
+  border-color: var(--ec-accent-line);
+  transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.06);
+}
+
+.ec-card > p {
+  margin-bottom: 0.6rem;
+  font-size: 0.93rem;
+}
+
+.ec-card > p:last-child {
+  margin-top: auto;
+  margin-bottom: 0;
+}
+
+.gd-homepage .ec-card > p:last-child a {
+  color: var(--ec-accent);
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.ec-card > p:has(> .ec-card-title) {
+  margin: 0.5rem 0 0.35rem;
+}
+
+.ec-card-title {
+  font-size: 1.05rem;
+  font-weight: 700;
+}
+
+.ec-card-icon {
+  display: inline-grid;
+  place-items: center;
+  width: 2.3rem;
+  height: 2.3rem;
+  border-radius: 10px;
+  background: var(--ec-accent-soft);
+  color: var(--ec-accent);
+  font-size: 1.15rem;
+}
+
+/* Getting started */
+
+.ec-start {
+  margin-bottom: 2rem;
+}
+
+.ec-start > :last-child {
+  margin-bottom: 0;
+}
+
+/* Dark mode */
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) .ec-tab[aria-selected="true"] {
+  box-shadow: 0 1px 3px rgba(0, 0, 0, 0.5);
+}
+
+:is(body.quarto-dark, html.quarto-dark, [data-bs-theme="dark"]) :is(.ec-card:hover, a.ec-tile:hover) {
+  box-shadow: 0 6px 18px rgba(0, 0, 0, 0.35);
+}
+
+@media (prefers-reduced-motion: reduce) {
+  .ec-panels,
+  .ec-ready > .ec-panels .ec-panel,
+  .ec-ready > .ec-panels .ec-panel.ec-active,
+  .ec-card,
+  .ec-btn,
+  .gd-homepage a.ec-tile,
+  .ec-race-summary,
+  .ec-stage svg :is(.ec-edge, .ec-node, .ec-label),
+  .gd-homepage .gd-hero > #ec-backdrop {
+    transition: none;
+  }
+
+  .ec-playing [aria-selected="true"] > .ec-tab-progress {
+    animation: none;
+  }
+
+  /* (The marquee holds still, and its rows scroll instead) */
+  .ec-marquee.ec-ready .ec-marquee-track {
+    animation: none;
+  }
+
+  .ec-marquee-row {
+    overflow-x: auto;
+  }
+}
+
+@media (max-width: 767.98px) {
+  .ec-stats {
+    grid-template-columns: repeat(3, minmax(0, 1fr));
+    row-gap: 0.8rem;
+  }
+
+  .ec-stat:nth-child(4) {
+    border-left: none;
+  }
+}
+
+@media (max-width: 575.98px) {
+  .ec-tab {
+    padding: 0.4rem 0.6rem;
+  }
+
+  .ec-tab-name {
+    display: none;
+  }
+
+  .ec-tab[aria-selected="true"] .ec-tab-name {
+    display: inline;
+  }
+
+  .ec-chip .ec-tab-name {
+    display: inline;
+  }
+
+  .ec-stepper .cell-output-display {
+    padding: 0.4rem 0.4rem 0.2rem;
+  }
+
+  .ec-new-count {
+    display: none;
+  }
+
+  .gd-homepage a.ec-tile {
+    width: 300px;
+  }
+
+  .ec-lane {
+    grid-template-columns: 5rem minmax(0, 1fr) 4.6rem;
+    gap: 0.5rem;
+  }
+}
