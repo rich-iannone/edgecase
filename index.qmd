@@ -1,0 +1,577 @@
+---
+title: ""
+jupyter: python3
+---
+
+EdgeCase is a graph analysis library for Python that pairs a fast Rust core with a friendly,
+chainable API. Build a network, run any of more than 700 methods on it, query it with Cypher, and
+get the answers back as Polars DataFrames and publication-ready pictures.
+
+```{=html}
+<link rel="stylesheet" href="assets/homepage/homepage.css">
+<script src="assets/homepage/homepage.js" defer></script>
+<script src="assets/homepage/backdrop.js" defer></script>
+```
+
+```{python}
+#| echo: false
+#| output: false
+import html
+import json
+from pathlib import Path
+
+import great_docs as gd
+from IPython.display import HTML
+
+import edgecase as ec
+
+gd.enable_tbl_preview(n_head=8, n_tail=3)
+
+
+# Each plot and step player on the page is drawn in both themes, and the page shows the one for
+# its theme
+class _Themed:
+    def __init__(self, light, dark):
+        self.light, self.dark = light, dark
+
+    def _repr_html_(self):
+        return (
+            f'<div class="ec-themed ec-only-light">{self.light._repr_html_()}</div>'
+            f'<div class="ec-themed ec-only-dark">{self.dark._repr_html_()}</div>'
+        )
+
+
+def _themed(method):
+    def draw(self, *args, **kwargs):
+        kwargs.pop("theme", None)
+        return _Themed(
+            method(self, *args, theme="light", **kwargs),
+            method(self, *args, theme="dark", **kwargs),
+        )
+
+    return draw
+
+
+ec.Graph.plot = _themed(ec.Graph.plot)
+ec.Graph.play = _themed(ec.Graph.play)
+
+
+# What a query matched in `payments` (its nodes, and its edges in the order a walk along them
+# would take), for the tour to light up in the graph
+def _hits(query, nodes, edges):
+    found = {}
+    for kind, names in (("nodes", nodes), ("edges", edges)):
+        payments.select_match(query, select=names)
+        if kind == "nodes":
+            found[kind] = [int(i) for i in payments.get_selected_node_ids()]
+        else:
+            found[kind] = [int(i) for i in payments.get_selected_edge_ids()]
+        payments.clear_selection()
+    ends = {
+        row["id"]: (row["source"], row["target"])
+        for row in payments.get_edge_df().select("id", "source", "target").iter_rows(named=True)
+    }
+    left = list(found["edges"])
+    walk = []
+    while left:
+        after = [e for e in left if walk and ends[e][0] == ends[walk[-1]][1]]
+        starts = [e for e in left if not any(ends[o][1] == ends[e][0] for o in left if o != e)]
+        nxt = (after or starts or left)[0]
+        walk.append(nxt)
+        left.remove(nxt)
+    found["edges"] = walk
+    return HTML(f'<script type="application/json" class="ec-hits">{json.dumps(found)}</script>')
+```
+
+::: {.ec-cta}
+[Get started](user_guide/02-quick-start.qmd){.ec-btn .ec-btn-primary}
+[Read the User Guide](user_guide/00-get-started.qmd){.ec-btn}
+[Browse the reference](reference/index.qmd){.ec-btn}
+
+```{=html}
+<button type="button" class="ec-install" data-copy="pip install edgecase" aria-label="Copy the install command">
+  <code><span class="ec-prompt">$</span> pip install edgecase</code>
+  <i class="bi bi-clipboard" aria-hidden="true"></i>
+</button>
+```
+:::
+
+```{=html}
+<div class="ec-stats" role="list">
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="700" data-suffix="+">700+</span><span class="ec-stat-label">graph methods</span></div>
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="85">85</span><span class="ec-stat-label">graph generators</span></div>
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="20">20</span><span class="ec-stat-label">real-world datasets</span></div>
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="28">28</span><span class="ec-stat-label">file formats, both ways</span></div>
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="9200" data-suffix="+">9,200+</span><span class="ec-stat-label">tests</span></div>
+</div>
+```
+
+## An analysis, one step at a time {.ec-heading}
+
+An analysis is a chain of methods on a graph, each storing its answer as a node or edge attribute
+for the next to use. Step through this one, on the karate club network that Wayne Zachary studied
+in the 1970s, to see what each step adds; the new lines of code are highlighted.
+
+::::: {.ec-stepper}
+
+:::: {.ec-step}
+[Load]{.ec-step-name}
+
+Start with a graph: here, one of the bundled datasets, the 34 members of a karate club and who
+spent time with whom outside it.
+
+```{python}
+karate = (
+    ec.karate_club()
+)
+
+karate.plot(
+    label_by="label",
+    seed=9,
+)
+```
+::::
+
+:::: {.ec-step}
+[Communities]{.ec-step-name}
+
+Find the club's communities with the Louvain method, and color the members by the one they're in.
+
+```{python}
+karate = (
+    ec.karate_club()
+    .cmty_louvain()
+)
+
+karate.plot(
+    color_by="cmty_louvain",
+    label_by="label",
+    seed=9,
+)
+```
+::::
+
+:::: {.ec-step}
+[Centrality]{.ec-step-name}
+
+Rank the members by PageRank and size them by it: the club's instructor (0) and its
+administrator (33), at the centers of the two factions the club later split into, stand out.
+
+```{python}
+karate = (
+    ec.karate_club()
+    .cmty_louvain()
+    .pagerank()
+)
+
+karate.plot(
+    color_by="cmty_louvain",
+    size_by="pagerank",
+    label_by="label",
+    seed=9,
+)
+```
+::::
+
+:::: {.ec-step}
+[Tabulate]{.ec-step-name}
+
+Every answer is a column in the graph's node table, a Polars DataFrame, ready to sort, filter,
+join, and export.
+
+```{python}
+karate = (
+    ec.karate_club()
+    .cmty_louvain()
+    .pagerank()
+)
+
+(
+    karate.get_node_df()
+    .select("label", "role", "faction", "cmty_louvain", "pagerank")
+    .sort("pagerank", descending=True)
+)
+```
+::::
+
+:::::
+
+[Quick start →](user_guide/02-quick-start.qmd){.ec-more}
+[Node and edge data →](user_guide/07-node-and-edge-data.qmd){.ec-more}
+
+## Ask the graph with Cypher {.ec-heading}
+
+Many questions about a network are questions about a shape: a ring of payments, everyone two
+steps away, the shortest way through. [`match()`](reference/Graph.match.qmd) answers them with
+Cypher, the pattern language of Neo4j, and returns what it finds as a DataFrame. Pick a query to
+see its result, and what it matched in this small network of payments.
+
+:::::: {.ec-tour}
+
+::: {.ec-stage}
+```{python}
+#| code-fold: true
+#| code-summary: "How `payments` is made"
+edges = [
+    ("Dee", "Eve", 80), ("Eve", "Dee", 25), ("Ana", "Dee", 120), ("Dee", "Ben", 60),
+    ("Ben", "Eve", 300), ("Gus", "Dee", 45), ("Eve", "Finn", 2000), ("Ana", "Ben", 9500),
+    ("Ben", "Cruz", 9400), ("Cruz", "Ana", 9300), ("Finn", "Gus", 4950), ("Gus", "Hal", 4900),
+    ("Hal", "Finn", 4850),
+]
+
+# Each tuple is a payment: who paid, who was paid, and how much (the edge's weight)
+payments = ec.Graph.from_edges(edges, directed=True)
+
+payments.plot(label_by="label", seed=38, width=600, height=360)
+```
+:::
+
+::::: {.ec-queries}
+
+:::: {.ec-step}
+[Rings]{.ec-step-name}
+
+Money that goes around a circle of three accounts in large payments, and comes back to where it
+started.
+
+```{python}
+payments.match("""
+    MATCH (a)-[x]->(b)-[y]->(c)-[z]->(a)
+    WHERE x.weight >= 1000 AND y.weight >= 1000 AND z.weight >= 1000
+      AND a.name < b.name AND a.name < c.name
+    RETURN a.name AS a, b.name AS b, c.name AS c
+""")
+```
+
+```{python}
+#| echo: false
+_hits(
+    """MATCH (a)-[x]->(b)-[y]->(c)-[z]->(a)
+    WHERE x.weight >= 1000 AND y.weight >= 1000 AND z.weight >= 1000""",
+    ["a", "b", "c"],
+    ["x", "y", "z"],
+)
+```
+::::
+
+:::: {.ec-step}
+[Who pays Eve]{.ec-step-name}
+
+The accounts that pay Eve, and how much, largest first.
+
+```{python}
+payments.match("""
+    MATCH (a)-[p]->(b {name: "Eve"})
+    RETURN a.name AS payer, p.weight AS amount
+    ORDER BY amount DESC
+""")
+```
+
+```{python}
+#| echo: false
+_hits('MATCH (a)-[p]->(b {name: "Eve"})', ["a", "b"], "p")
+```
+::::
+
+:::: {.ec-step}
+[Two hops from Dee]{.ec-step-name}
+
+Everyone Dee's money reaches in one or two payments, with a variable-length pattern.
+
+```{python}
+payments.match("""
+    MATCH (a {name: "Dee"})-[r*1..2]->(b)
+    WHERE b <> a
+    RETURN DISTINCT b.name AS reached
+""")
+```
+
+```{python}
+#| echo: false
+_hits('MATCH (a {name: "Dee"})-[r*1..2]->(b) WHERE b <> a', ["a", "b"], "r")
+```
+::::
+
+:::: {.ec-step}
+[Top senders]{.ec-step-name}
+
+The three accounts that send the most, with aggregation, ordering and a limit.
+
+```{python}
+payments.match("""
+    MATCH (a)-[p]->()
+    RETURN a.name AS account, count(p) AS payments, sum(p.weight) AS total
+    ORDER BY total DESC
+    LIMIT 3
+""")
+```
+
+```{python}
+#| echo: false
+_hits(
+    """MATCH (a)-[p]->() WITH a, sum(p.weight) AS total ORDER BY total DESC LIMIT 3
+    MATCH (a)-[q]->()""",
+    "a",
+    "q",
+)
+```
+::::
+
+:::: {.ec-step}
+[Shortest route]{.ec-step-name}
+
+The fewest payments that take money from Ana to Hal, as a path, joined to the node table for the
+accounts' names.
+
+```{python}
+(
+    payments.match("""
+        MATCH p = shortestPath((a {name: "Ana"})-[*]->(b {name: "Hal"}))
+        RETURN nodes(p) AS id
+    """)
+    .explode("id")
+    .join(payments.get_node_df(), on="id", maintain_order="left")
+    .select("id", "label")
+)
+```
+
+```{python}
+#| echo: false
+_hits('MATCH p = shortestPath((a {name: "Ana"})-[r*]->(b {name: "Hal"}))', "p", "r")
+```
+::::
+
+:::::
+
+::::::
+
+The same patterns drive [selections](user_guide/08-selections.qmd): select what a pattern
+matches, or nodes and edges by attribute, degree, centrality or neighborhood, and then set
+attributes on them, delete them, [traverse](user_guide/09-traversals.qmd) outward from them, or
+take the subgraph they form.
+
+[Cypher queries →](user_guide/10-cypher.qmd){.ec-more}
+[Selections →](user_guide/08-selections.qmd){.ec-more}
+
+## Every step, recorded {.ec-heading}
+
+A graph keeps a log of the steps taken on it, so an analysis documents itself, and `play()` turns
+the log into an animation. This one searches outward from Ana, finds the rings of large payments,
+and flags the accounts in them. It plays when it comes into view; pause it, or step through it.
+
+::: {.ec-player}
+```{python}
+flagged = (
+    ec.Graph.from_edges(edges, directed=True)
+    .bfs("Ana")
+    .select_match("""
+        MATCH (a)-[x]->(b)-[y]->(c)-[z]->(a)
+        WHERE x.weight >= 1000 AND y.weight >= 1000 AND z.weight >= 1000
+    """)
+    .set_node_attrs_ws(flag="ring")
+    .clear_selection()
+)
+
+flagged.play(seed=38)
+```
+:::
+
+[The step log →](user_guide/26-step-log.qmd){.ec-more}
+
+## Every method, illustrated {.ec-heading}
+
+Nearly every method in the [API reference](reference/index.qmd) opens with a diagram of what it
+computes on a small example graph. Here are some of them; pick one to read about it.
+
+```{python}
+#| echo: false
+_diagrams = [
+    "shortest-path", "pagerank", "betweenness-centrality", "cmty-louvain", "k-core",
+    "minimum-spanning-tree", "maximum-flow", "greedy-color", "bridges", "articulation-points",
+    "count-triangles", "eulerian-circuit", "maximum-weight-matching", "topological-sort",
+    "find-cliques", "closeness-centrality", "astar-path", "edge-coloring", "steiner-tree",
+    "k-truss", "dominating-set", "traveling-salesman", "minimum-cut", "cmty-leiden",
+    "heat-diffusion", "ego-graph", "condensation", "cycle-basis", "bfs-layers",
+    "strongly-connected-components", "influence-maximization", "layout-kamada-kawai",
+]
+
+
+def _tile(name):
+    method = name.replace("-", "_")
+    return (
+        f'<a class="ec-tile" href="reference/Graph.{method}.html">'
+        f'<img class="ec-only-light" src="assets/graphs/{name}.light.svg" alt="" loading="lazy">'
+        f'<img class="ec-only-dark" src="assets/graphs/{name}.dark.svg" alt="" loading="lazy">'
+        f'<span class="ec-tile-name">{method}()</span></a>'
+    )
+
+
+_half = (len(_diagrams) + 1) // 2
+_rows = [_diagrams[:_half], _diagrams[_half:]]
+HTML(
+    '<div class="ec-marquee" role="region" aria-label="Diagrams from the API reference">'
+    + "".join(
+        f'<div class="ec-marquee-row{" ec-reverse" if k else ""}">'
+        f'<div class="ec-marquee-track">{"".join(_tile(name) for name in row)}</div></div>'
+        for k, row in enumerate(_rows)
+    )
+    + "</div>"
+)
+```
+
+[The API reference →](reference/index.qmd){.ec-more}
+[Static plots →](user_guide/22-plotting.qmd){.ec-more}
+
+## Fast where it counts {.ec-heading}
+
+The core algorithms run in Rust. Here's how long EdgeCase, igraph and NetworkX take for some
+common tasks on a co-authorship network of 23,133 scientists (and, for exact betweenness, the
+4,941-node US power grid), shown in proportion: watch a race, or pick a task.
+
+```{python}
+#| echo: false
+_bench = json.loads(Path("assets/readme/benchmarks.json").read_text())
+
+
+def _time(s):
+    return f"{s * 1000:.1f} ms" if s < 1 else f"{s:.2f} s"
+
+
+_meta = _bench["meta"]
+_table = "".join(
+    f"<tr><td>{row['task']}</td><td>{_time(row['edgecase'])}</td><td>{_time(row['igraph'])}</td>"
+    f"<td>{_time(row['networkx'])}</td></tr>"
+    for row in _bench["rows"]
+)
+HTML(
+    f'<div class="ec-race" data-start="Louvain communities" '
+    f'data-bench="{html.escape(json.dumps(_bench))}">'
+    '<details class="ec-race-table"><summary>All the timings</summary><table>'
+    "<thead><tr><th>Task</th><th>EdgeCase</th><th>igraph</th><th>NetworkX</th></tr></thead>"
+    f"<tbody>{_table}</tbody></table>"
+    f'<p class="ec-race-note">Each time is the best of five runs (three for NetworkX), with the '
+    f"results returned to Python, on an {_meta['machine']} with Python {_meta['python']}, "
+    f"NetworkX {_meta['networkx']} and igraph {_meta['igraph']}.</p></details></div>"
+)
+```
+
+Speed doesn't come at the cost of correctness: more than 9,200 tests cover the library, many of
+them checking results against NetworkX on the same graphs, and property-based tests generate
+random graphs and Cypher queries to check what must always hold.
+
+## Everything a graph needs {.ec-heading}
+
+:::: {.ec-cards}
+
+::: {.ec-card}
+[<i class="bi bi-share"></i>]{.ec-card-icon}
+
+[Graphs of every kind]{.ec-card-title}
+
+Directed or undirected, weighted or not, with parallel edges and self-loops, and attributes of any
+type on every node and edge.
+
+[The graph model →](user_guide/03-graph-model.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-diagram-3"></i>]{.ec-card-icon}
+
+[Algorithms]{.ec-card-title}
+
+Paths, centrality, communities, connectivity and flows, matching, coloring, spectral methods and
+more, each storing its answer on the graph.
+
+[Paths and distances →](user_guide/12-paths.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-search"></i>]{.ec-card-icon}
+
+[Cypher and selections]{.ec-card-title}
+
+Find patterns with Cypher, and select nodes and edges to set, delete, traverse or take as a
+subgraph.
+
+[Cypher queries →](user_guide/10-cypher.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-bounding-box-circles"></i>]{.ec-card-icon}
+
+[Plots and layouts]{.ec-card-title}
+
+Self-contained SVG plots in light and dark themes, with more than a dozen layouts and full
+control over the aesthetics.
+
+[Static plots →](user_guide/22-plotting.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-hand-index"></i>]{.ec-card-icon}
+
+[Interactive views]{.ec-card-title}
+
+Drag, zoom and click through a graph, with a GPU renderer for networks of hundreds of thousands
+of nodes.
+
+[Interactive widgets →](user_guide/25-interactive.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-virus"></i>]{.ec-card-icon}
+
+[Domain toolkits]{.ec-card-title}
+
+Network biology, spreading and resilience, and multiplex networks, in the vocabulary of each
+field.
+
+[Network biology →](user_guide/31-network-biology.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-arrow-left-right"></i>]{.ec-card-icon}
+
+[Files and other libraries]{.ec-card-title}
+
+28 readers and 28 writers, from GraphML to DOT, and conversion to and from NetworkX, igraph,
+NumPy, SciPy and pandas.
+
+[File formats →](user_guide/27-file-formats.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-boxes"></i>]{.ec-card-icon}
+
+[Generators and datasets]{.ec-card-title}
+
+85 generators, from classic graphs to random models, and 20 real networks, ready to load.
+
+[Datasets →](user_guide/06-datasets.qmd)
+:::
+
+::: {.ec-card}
+[<i class="bi bi-table"></i>]{.ec-card-icon}
+
+[Summary tables]{.ec-card-title}
+
+Network summaries and centrality rankings as Great Tables, ready for a report.
+
+[Summary tables →](user_guide/29-tables.qmd)
+:::
+
+::::
+
+## Get started {.ec-heading}
+
+::: {.ec-start}
+Install EdgeCase from PyPI:
+
+```bash
+pip install edgecase
+```
+
+Then take the [quick start](user_guide/02-quick-start.qmd), a short tour that builds a graph,
+analyzes a real social network, draws it, and queries it in only a few lines each, or read the
+[User Guide](user_guide/00-get-started.qmd) from the beginning.
+:::
