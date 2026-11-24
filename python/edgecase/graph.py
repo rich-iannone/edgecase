@@ -35349,46 +35349,95 @@ class Graph:
         ValueError
             If `size=` is not `3` or `4`.
 
+        See Also
+        --------
+        motif_significance : Compare the counts with degree-preserving random graphs.
+        triadic_census : Count the 16 types of triad in a directed graph.
+        count_triangles : Count the triangles at each node.
+
         Examples
         --------
-        In this small graph, "A", "B", and "C" form a triangle, and node "D" hangs off "C". The
-        two groups that include "D" ("A-C-D" and "B-C-D") are open paths, so the census finds one
-        triangle and two paths:
+        `A`, `B` and `C` form a triangle, and `D` hangs off `C`. The two groups that include `D`,
+        `A`-`C`-`D` and `B`-`C`-`D`, are open paths, so the census finds one triangle and two
+        paths:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")]
         )
-
-        g.motif_census(size=3)
+        graph.motif_census()
         ```
 
-        With `size=4`, every four-node group is examined. A complete graph on five nodes contains
-        `5` ways to choose four nodes, and each choice is a full four-node clique:
+        ### The six shapes on four nodes
+
+        Four nodes can be connected in six ways. Only the complete one and the one missing an
+        edge get readable names; a graph made of one copy of each shape shows which code stands
+        for which of the others:
 
         ```{python}
-        k5 = ec.Graph()
-        k5.add_full_graph(n=5)
-
-        k5.motif_census(size=4)
+        shapes = {
+            "star": [(1, 2), (1, 3), (1, 4)],
+            "path": [(1, 2), (2, 3), (3, 4)],
+            "square": [(1, 2), (2, 3), (3, 4), (4, 1)],
+            "paw": [(1, 2), (2, 3), (3, 1), (3, 4)],
+            "near clique": [(1, 2), (2, 3), (3, 4), (4, 1), (1, 3)],
+            "clique": [(1, 2), (2, 3), (3, 4), (4, 1), (1, 3), (2, 4)],
+        }
+        gallery = ec.Graph.from_edges(
+            [(f"{name} {u}", f"{name} {v}")
+             for name, pairs in shapes.items() for u, v in pairs]
+        )
+        gallery.set_node_attrs(
+            "shape", {label: label.rsplit(" ", 1)[0]
+                      for label in gallery.get_node_df()["label"]}
+        )
+        gallery.motif_census(size=4)
         ```
 
-        In a directed graph, edge direction distinguishes motifs, so the classes get generic
-        coded names. Here the triangle "A -> B -> C" with shortcut "A -> C" is a feed-forward
-        loop, distinct from the two open paths that pass through "C":
+        ```{python}
+        gallery.plot(color_by="shape", height=300)
+        ```
+
+        ### Building blocks of the karate club
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Of its groups of four members that are connected, most are
+        stars and paths, as in any sparse network, but 85 are one friendship short of a clique
+        and 11 are cliques:
 
         ```{python}
-        dg = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
-        )
+        names = {
+            "motif_4e3_k591": "star",
+            "motif_4e3_k669": "path",
+            "motif_4e4_k1782": "square",
+            "motif_4e4_k735": "paw",
+            "near_clique_4": "near clique",
+            "clique_4": "clique",
+        }
+        karate = ec.karate_club()
 
-        dg.motif_census(size=3)
+        {names[motif]: n for motif, n in karate.motif_census(size=4).items()}
+        ```
+
+        On three nodes, the share of connected groups that are triangles sets networks apart.
+        Teams in a football conference all play one another, so nearly a fifth of the groups
+        are triangles in `football()`, and a quarter in `les_miserables()`, where characters
+        meet in the same scenes:
+
+        ```{python}
+        networks = {
+            "karate": karate,
+            "dolphins": ec.dolphins(),
+            "football": ec.football(),
+            "les_mis": ec.les_miserables(),
+        }
+        {
+            name: round(census["triangle"] / sum(census.values()), 2)
+            for name, graph in networks.items()
+            for census in [graph.motif_census()]
+        }
         ```
         """
         from edgecase._core import motif_census as _motif_census
