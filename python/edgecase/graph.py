@@ -815,6 +815,54 @@ class Graph:
             edges.extend(e for e in zip(labels, labels[1:]) if e not in edges)
         return StepDelta(nodes_selected=nodes, edges_selected=edges, **kw)
 
+    def _store_node_result(
+        self,
+        method: str,
+        params: dict,
+        attr_name: str,
+        values: dict,
+        *,
+        show: str = "metric",
+        default_attr: str | None = None,
+        paths: list[list[int]] | None = None,
+    ) -> None:
+        """
+        Write a method's per-node result to `attr_name`, log the computation and record one step
+        that shows it.
+
+        `values` maps node IDs to results. `show="metric"` records them as scores (so a player
+        shades the nodes by value), `"groups"` as a partition (nodes colored by group) and
+        `"path"` selects the nodes and edges of `paths` instead (a query step). The step's code repeats the
+        call from `params`, adding `attr_name=` when it isn't `default_attr` (the method name, by
+        default).
+        """
+        with self._no_recording():
+            self.set_node_attrs(attr_name, values)
+        self._computations.append((method, params, attr_name))
+        if self._recording_depth:
+            return
+        args = [f"{k}={v!r}" for k, v in params.items() if v is not None]
+        if attr_name != (default_attr or method):
+            args.append(f"attr_name={attr_name!r}")
+        code = f"G.{method}({', '.join(args)})"
+        changed = {attr_name: len(values)}
+        if show == "path":
+            delta = self._path_delta(paths or [], attrs_changed=changed)
+            route = [self._node_label(n) for n in (paths or [[]])[0]]
+            narration = (
+                f"{method}() followed {len(route) - 1} edges from {route[0]} to {route[-1]}."
+                if len(route) > 1 else None
+            )
+            self._record_step(KIND_QUERY, method, code, delta=delta, narration=narration)
+            return
+        labelled = {self._node_label(n): v for n, v in values.items() if v is not None}
+        if show == "groups":
+            delta = StepDelta(attrs_changed=changed, node_groups=labelled)
+        else:
+            metric = {k: float(v) for k, v in labelled.items()}
+            delta = StepDelta(attrs_changed=changed, metric_values=metric)
+        self._record_step(KIND_METRIC, method, code, delta=delta)
+
     def _record_step(
         self,
         kind: str,
