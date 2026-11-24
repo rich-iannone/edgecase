@@ -19413,20 +19413,46 @@ class Graph:
 
         Examples
         --------
-        Two people who attended the same two events have identical neighborhoods, while a third
-        shares only one event with them:
+        Ana and Ben belong to the same two clubs, so their neighborhoods overlap completely; Cruz
+        shares only the choir with each of them:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "cy", "party", "talk", "game"])
-        g.add_edges(
-            [("ann", "party"), ("ann", "talk"), ("bob", "party"), ("bob", "talk"),
-             ("cy", "talk"), ("cy", "game")]
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ana", "Choir"), ("Ben", "Chess"),
+             ("Ben", "Choir"), ("Cruz", "Choir")]
         )
+        people = [graph.get_id_from_label(p) for p in ["Ana", "Ben", "Cruz"]]
+        clustering = graph.latapy_clustering(nodes=people)
 
-        cc = g.latapy_clustering(nodes=["ann", "bob", "cy"])
-        {g.get_label_from_id(n): round(c, 3) for n, c in cc.items()}
+        {graph.get_label_from_id(n): c for n, c in clustering.items()}
+        ```
+
+        ### Events with the same crowd
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. E3 and E5 score highest: the women who attended them also went to the same
+        other events. E9 and E11 score lowest, as they drew women who otherwise went to different
+        events:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        clustering = davis.latapy_clustering(nodes=events)
+        ranked = sorted(clustering, key=clustering.get, reverse=True)
+
+        [(davis.get_label_from_id(n), round(clustering[n], 3)) for n in ranked]
+        ```
+
+        ```{python}
+        davis.set_node_attrs("clustering", clustering).layout_bipartite(
+            nodes=women, aspect_ratio=0.5
+        ).plot(
+            layout="pos", color_by="clustering", color_scale="sequential",
+            label_by="label", height=900,
+        )
         ```
         """
         overlap = {
