@@ -83777,19 +83777,44 @@ class Graph:
             The eigenvalues in increasing order (by real part, then imaginary part, if complex):
             `float` values on undirected graphs, `complex` on directed ones.
 
+        See Also
+        --------
+        modularity_matrix : The matrix whose eigenvalues these are.
+        cmty_l_eigenvec : Communities from the leading eigenvector.
+        bethe_hessian_spectrum : Another spectrum that estimates the number of communities.
+
         Examples
         --------
-        Two dense groups give one large positive eigenvalue, the signal of a two-way split
-        (two communities):
+        Two triangles joined by a bridge give one large positive eigenvalue, the sign of a split
+        in two:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(list("ABCDEF"))
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                         ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
+        )
 
-        [round(v, 3) for v in graph.modularity_spectrum()]
+        [round(v, 3) + 0.0 for v in graph.modularity_spectrum()]
+        ```
+
+        ### Liberal and conservative
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. The largest eigenvalue
+        stands far above the others, the split between the liberal and the conservative books:
+
+        ```{python}
+        books = ec.polbooks()
+
+        [round(v, 2) for v in books.modularity_spectrum()[-5:]]
+        ```
+
+        ```{python}
+        books.layout_forceatlas2(seed=1).plot(
+            layout="pos", color_by="leaning", edge_color_by="leaning"
+        )
         ```
         """
         return rust.modularity_spectrum(self._graph, self._use_weights(weighted))
