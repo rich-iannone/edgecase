@@ -74296,6 +74296,13 @@ class Graph:
             If source or sink doesn't exist, they're the same node, any capacity is negative, or
             an edge lacks the attribute named by `capacity=`.
 
+        See Also
+        --------
+        maximum_flow_value : The total flow alone.
+        minimum_cut : The partition of the nodes that limits the flow.
+        minimum_edge_cut : The edges that limit the flow.
+        minimum_cost_flow : The cheapest flow of a given amount.
+
         Technical Notes
         ---------------
         The Edmonds-Karp variant of Ford-Fulkerson is used: at each step it augments along
@@ -74309,90 +74316,110 @@ class Graph:
 
         Examples
         --------
-        With weighted edges acting as capacities, the flow algorithm finds how much can be routed
-        from `S` to `T`, splitting across parallel paths as needed. Mapping edge IDs back to
-        endpoint labels shows how much each edge carries:
+        On a weighted graph the weights are the capacities. At most 15 units can get from S to T,
+        since that's all the two edges out of S can carry. The result maps each edge ID to the flow
+        on it, and storing it as an edge attribute lines it up with the capacities:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(
-                [
-                    "S",  # source
-                    "A",
-                    "B",
-                    "T",  # sink
-                ]
-            )
-            .add_edges(
-                [
-                    ("S", "A", 10.0),
-                    ("S", "B", 5.0),
-                    ("A", "B", 15.0),
-                    ("A", "T", 10.0),
-                    ("B", "T", 10.0),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("S", "A", 10), ("S", "B", 5), ("A", "B", 15), ("A", "T", 10), ("B", "T", 10)],
+            directed=True,
         )
 
         flow = graph.maximum_flow("S", "T")
-        label = graph.get_label_from_id
-        {
-            (label(graph.get_edge(eid).source), label(graph.get_edge(eid).target)): amount
-            for eid, amount in sorted(flow.items())
-        }
+
+        graph.set_edge_attrs("flow", flow).get_edge_df()
         ```
 
-        Summing the flow on the edges leaving the source gives the total, which matches
-        `maximum_flow_value()`:
+        Nodes are numbered in the order they first appear, so S is 1 and T is 4. Edge 3, from A
+        to B, carries nothing (and so has no entry in the result), because A can send all it gets
+        straight to T.
+
+        ### How much water reaches the city
+
+        The pipeline network is a city's water supply, with each pipe's `capacity` in megaliters a
+        day, which `maximum_flow()` reads without being told. Storing the flow on every pipe, and a
+        "flow/capacity" label, shows how the most water gets from the reservoir to the city:
 
         ```{python}
-        s_id = graph.get_id_from_label("S")
-        total = sum(amount for eid, amount in flow.items() if graph.get_edge(eid).source == s_id)
+        pipeline = ec.pipeline()
 
-        total, graph.maximum_flow_value("S", "T")
+        flow = pipeline.maximum_flow("Reservoir", "City")
+        capacity = pipeline.get_edge_attrs("capacity")
+        pipeline.set_edge_attrs("flow", {e: flow.get(e, 0) for e in capacity})
+        pipeline.set_edge_attrs(
+            "load", {e: f"{flow.get(e, 0):g}/{c}" for e, c in capacity.items()}
+        )
+
+        pipeline.plot(
+            layout="pos", label_by="label", edge_width_by="flow",
+            edge_label_by="load", edge_opacity=0.7, width=700, height=360,
+        )
         ```
 
-        You can use any numeric edge attribute as capacity instead of weight, which is useful when
-        weight already represents something else (like distance). Here the `A -> B -> C` route is
-        limited to 50 by its second edge, and the direct `A -> C` edge adds another 30:
+        The total is 45 ML a day, the 25 and 20 that arrive at the city. Several pipes run full,
+        but only two are the real limit: the pipes across the valley, from West Plant to Valley
+        Junction and from East Plant to Ridge Tank. Every route to the city crosses one of them,
+        and together they carry 45, so they form the minimum cut:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B", {"bandwidth": 100}),
-                    ("B", "C", {"bandwidth": 50}),
-                    ("A", "C", {"bandwidth": 30}),
-                ]
+        cut = pipeline.minimum_edge_cut("Reservoir", "City", capacity="capacity")
+
+        label = pipeline.get_label_from_id
+        sorted((label(u), label(v)) for u, v in cut)
+        ```
+
+        ### Which upgrade helps
+
+        The cut says where new capacity pays off. Adding 10 ML a day to the North Intake pipe,
+        which has room to spare, changes nothing, while adding the same to the West Plant pipe
+        across the valley raises the total to 55:
+
+        ```{python}
+        def with_capacity(source, target, value):
+            return ec.pipeline().set_edge_attrs(
+                "capacity", value, edges=[(source, target)]
             )
-        )
 
-        graph.maximum_flow("A", "C", capacity="bandwidth")
+        (
+            with_capacity("North Intake", "West Plant", 50)
+            .maximum_flow_value("Reservoir", "City"),
+            with_capacity("West Plant", "Valley Junction", 35)
+            .maximum_flow_value("Reservoir", "City"),
+        )
         ```
 
-        For unweighted graphs, every edge has capacity `1.0`, so max flow equals the number of
-        edge-disjoint paths. Both routes `S -> A -> T` and `S -> B -> T` are used, and each of
-        the four edges carries `1.0`:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_edges([("S", "A"), ("S", "B"), ("A", "T"), ("B", "T")], auto_create_nodes=True)
-        )
-
-        graph.maximum_flow("S", "T")
-        ```
+        When only the total matters, `maximum_flow_value()` is quicker to read, and when pipes have
+        a running cost, `minimum_cost_flow()` finds the cheapest way to deliver a given amount.
         """
         from edgecase._core import max_flow as _max_flow
 
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(target, auto_create=False)
-        return dict(_max_flow(self._graph, source_id, sink_id, capacity))
+        flows = dict(_max_flow(self._graph, source_id, sink_id, capacity))
+        if self._recording_depth == 0:
+            s_lbl, t_lbl = self._node_label(source_id), self._node_label(sink_id)
+            args = f"{s_lbl!r}, {t_lbl!r}" + (f", capacity={capacity!r}" if capacity else "")
+            narration = f"maximum_flow() sent flow over {len(flows)} edges from {s_lbl} to {t_lbl}"
+            if self.is_directed():
+                ends = {eid: (e.source, e.target) for eid in flows if (e := self.get_edge(eid))}
+                total = sum(f for eid, f in flows.items() if ends[eid][0] == source_id) - sum(
+                    f for eid, f in flows.items() if ends[eid][1] == source_id
+                )
+                narration += f"; total {total:g}"
+            self._record_step(
+                KIND_QUERY,
+                "maximum_flow",
+                f"G.maximum_flow({args})",
+                delta=StepDelta(
+                    edge_metric_values={self._edge_ends(e): float(f) for e, f in flows.items()}
+                ),
+                result=flows,
+                narration=narration + ".",
+            )
+        return flows
 
     def maximum_flow_value(
         self,
