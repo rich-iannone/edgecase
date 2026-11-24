@@ -24388,7 +24388,7 @@ class Graph:
         graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
         graph.select_edges_by_node(["B"])
 
-        graph.count_selected_edges()
+        sorted(graph.get_selected_edge_ids())
         ```
 
         Labels work just as well as IDs, and several nodes can be given at once. Selecting
