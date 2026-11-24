@@ -61159,6 +61159,11 @@ class Graph:
         Bellman-Ford, as in `predecessor()`); each path follows the first recorded next hop.
         Matches the lengths of NetworkX's `single_target_shortest_path`.
 
+        See Also
+        --------
+        single_target_shortest_path_length : The distances alone.
+        single_source_shortest_path : Shortest paths from a source instead.
+
         Examples
         --------
         In a one-way street network, which routes lead to the station?
@@ -61166,12 +61171,30 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        streets = ec.Graph(directed=True).add_nodes(["home", "park", "shop", "station"])
-        streets.add_edges([("home", "park"), ("park", "station"), ("shop", "home")])
+        streets = ec.Graph.from_edges(
+            [("home", "park"), ("park", "station"), ("shop", "home")],
+            directed=True,
+        )
 
         paths = streets.single_target_shortest_path("station")
-        {streets.get_label_from_id(n): [streets.get_label_from_id(x) for x in p]
-         for n, p in paths.items()}
+        label = streets.get_label_from_id
+        {label(n): [label(x) for x in p] for n, p in paths.items()}
+        ```
+
+        ### Chains of citations
+
+        `citations()` links each paper of a made-up research field to the earlier papers it
+        cites. Following citations back from later papers, the shortest chains that end at
+        Adeyemi 2003 share their last steps, so their first steps make a tree:
+
+        ```{python}
+        papers = ec.citations()
+        chains = papers.single_target_shortest_path("Adeyemi 2003")
+
+        tree = [
+            (chain[0], chain[1]) for chain in chains.values() if len(chain) > 1
+        ]
+        papers.plot(layout="pos", highlight=tree, label_by="label")
         ```
         """
         t, use, nxt, dist = self._target_search(target, cutoff, weighted)
