@@ -72188,30 +72188,25 @@ class Graph:
         ValueError
             If graph is directed.
 
+        See Also
+        --------
+        edge_connectivity : The same value, for directed graphs as well.
+        cohesion : The node-based counterpart.
+        bridges : The edges whose single removal disconnects the graph.
+
         Examples
         --------
-        In a 4-cycle, every node has degree 2, so at least 2 edges must be removed to disconnect
-        it:
+        In a 4-cycle every node has degree 2, so two edges must be removed to disconnect it.
+        Adding the two diagonals gives the complete graph `K_4`, with adhesion 3:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
-        )
+        graph = ec.Graph().add_cycle_graph(4)
+        before = graph.adhesion()
+        graph.add_edges([(1, 3), (2, 4)])
 
-        graph.adhesion()
-        ```
-
-        Adding the two diagonals turns the cycle into the complete graph `K_4`, where every node
-        has degree 3 and the adhesion rises to 3:
-
-        ```{python}
-        graph.add_edge("A", "C").add_edge("B", "D")
-
-        graph.adhesion()
+        before, graph.adhesion()
         ```
 
         A path has a single link holding each part together, and a graph made of two separate
@@ -72222,6 +72217,24 @@ class Graph:
         two_pieces = ec.Graph().add_path_graph(2).add_path_graph(2)
 
         path.adhesion(), two_pieces.adhesion()
+        ```
+
+        ### One friendship from leaving the club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Member 11's only friend in the club is the instructor, so
+        a single ended friendship would leave them out, and the club's adhesion is 1:
+
+        ```{python}
+        karate = ec.karate_club()
+
+        karate.adhesion()
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight=["11", "0"], label_by="label"
+        )
         ```
         """
         return self._graph.get_adhesion()
