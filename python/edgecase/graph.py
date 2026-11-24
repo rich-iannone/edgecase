@@ -76210,34 +76210,61 @@ class Graph:
             The number of distinct colors used in the coloring (`0` for an empty coloring or an
             empty graph).
 
+        See Also
+        --------
+        greedy_color : The coloring the bound comes from.
+        clique_number : A lower bound on the number of colors needed.
+        is_valid_coloring : Check a coloring before taking its bound.
+
         Examples
         --------
-        A triangle requires 3 mutually distinct colors, so its chromatic number (and the upper
-        bound this method returns) is exactly 3:
+        A triangle needs three colors, since every node is next to the other two. A square needs
+        only two, as it alternates around:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        triangle = ec.Graph().add_cycle_graph(3)
+        square = ec.Graph().add_cycle_graph(4)
 
-        # Get upper bound using a default greedy coloring
-        graph.chromatic_number_upper_bound()
+        (
+            triangle.chromatic_number_upper_bound(),
+            square.chromatic_number_upper_bound(),
+        )
         ```
 
-        Supplying a coloring from a different strategy can tighten the bound. On this random
-        graph the default coloring gives 5, while a DSATUR coloring proves that 4 colors suffice:
+        ### How many exam slots a college needs
+
+        `exams()` joins two of a made-up college's courses when some student takes both, so
+        their exams can't share a time slot. With no coloring passed, the bound comes from the
+        default greedy coloring, which needs five slots. DSATUR finds a timetable with four:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_gnm_graph(n=30, m=80, seed=23)
+        exams = ec.exams()
+        dsatur = exams.greedy_color(strategy="dsatur")
 
-        dsatur = graph.greedy_color(strategy="dsatur")
+        (
+            exams.chromatic_number_upper_bound(),
+            exams.chromatic_number_upper_bound(dsatur),
+        )
+        ```
 
-        (graph.chromatic_number_upper_bound(), graph.chromatic_number_upper_bound(dsatur))
+        An upper bound can only say that four slots are enough. Calculus, Physics, Chemistry and
+        Biology all share students with one another, so they need four different slots, and four
+        is the fewest:
+
+        ```{python}
+        clique = exams.maximum_clique()
+        label = exams.get_label_from_id
+
+        exams.clique_number(), sorted(label(n) for n in clique)
+        ```
+
+        ```{python}
+        exams.set_node_attrs("slot", dsatur).plot(
+            color_by="slot", highlight=clique, label_by="label", seed=3,
+            height=420,
+        )
         ```
         """
         if coloring is None:
