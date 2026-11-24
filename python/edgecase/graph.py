@@ -53600,6 +53600,12 @@ class Graph:
             If the group is empty, contains a node that does not exist, or weights are used and
             one is negative.
 
+        See Also
+        --------
+        closeness_centrality : Closeness for single nodes.
+        group_betweenness_centrality : How many paths a group lies on.
+        group_degree_centrality : How many nodes a group is next to.
+
         Examples
         --------
         On a path of seven nodes, two members spread out along it are closer to everyone than
@@ -53608,12 +53614,41 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_path_graph(7)
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"),
+             ("F", "G")]
+        )
 
-        spread = path.group_closeness_centrality([2, 6])
-        bunched = path.group_closeness_centrality([3, 4])
-        round(spread, 3), round(bunched, 3)
+        (
+            path.group_closeness_centrality(["B", "F"]),
+            path.group_closeness_centrality(["C", "D"]),
+        )
         ```
+
+        ### Two depots on the metro
+
+        The metro is weighted by travel time, so group closeness is the number of other stations
+        divided by the total minutes from each to its nearest depot. Central is the best single
+        depot. A second depot next door at Market barely helps, but one at Northpark, at the top
+        of the ring, gives the best pair of all, with each station under six minutes from a depot
+        on average:
+
+        ```{python}
+        metro = ec.metro()
+
+        [
+            metro.group_closeness_centrality(group)
+            for group in (["Central"], ["Central", "Market"], ["Central", "Northpark"])
+        ]
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", label_by="label", highlight=["Central", "Northpark"]
+        )
+        ```
+
+        Pass `weighted=False` to count stops instead of minutes.
         """
         ids = self._group_ids(group)
         value = rust.group_closeness_centrality(self._graph, ids, self._use_weights(weighted))
