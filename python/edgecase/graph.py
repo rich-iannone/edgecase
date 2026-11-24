@@ -23917,49 +23917,58 @@ class Graph:
 
         graph = (
             ec.Graph()
-            .add_node(label="A", type="hub", score=10)
-            .add_node(label="B", type="leaf", score=5)
-            .add_node(label="C", type="hub", score=8)
-            .select_nodes(lambda n: n.attributes.get("type") == "hub")
+            .add_node(label="A", kind="hub", score=10)
+            .add_node(label="B", kind="leaf", score=5)
+            .add_node(label="C", kind="hub", score=8)
+            .select_nodes(lambda n: n.attributes["kind"] == "hub")
         )
 
-        sorted(graph.get_selected_node_ids())
+        label = graph.get_label_from_id
+        sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
-        Filtering on `n.id` instead selects by internal node ID -- useful when IDs carry
-        meaning, such as being assigned in a known order. With `set_op="replace"`, the new
-        selection replaces the earlier one, so node `1` is no longer selected:
+        With `set_op="intersect"`, a second rule narrows the selection. Of the two hubs, only `A`
+        has a score above 9:
 
         ```{python}
-        graph.select_nodes(lambda n: n.id >= 2, set_op="replace")
-
-        sorted(graph.get_selected_node_ids())
-        ```
-
-        With `set_op="intersect"`, a second rule narrows the selection instead. Of the nodes
-        with IDs `2` and `3`, only "C" also has a score above `6`:
-
-        ```{python}
-        graph.select_nodes(lambda n: n.attributes["score"] > 6, set_op="intersect")
-
-        [graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids()]
-        ```
-
-        When some nodes have no attributes, `n.attributes` is `None`, so guard the lookup.
-        The selection then feeds a `*_ws` method -- here only "B", the one node with a score
-        above `5`, gets the new `flag` attribute:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes([("A", {"score": 3}), ("B", {"score": 9}), "C"])
-            .select_nodes(lambda n: n.attributes is not None and n.attributes.get("score", 0) > 5)
-            .set_node_attrs_ws(flag=True)
+        graph.select_nodes(
+            lambda n: n.attributes["score"] > 9, set_op="intersect"
         )
-
-        graph.get_node_df().select("label", "score", "flag")
+        [label(n) for n in graph.get_selected_node_ids()]
         ```
 
+        The predicate can't call methods of the graph itself, since the graph is in use while
+        it runs. Work out what it needs beforehand, as with the degrees here:
+
+        ```{python}
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("C", "D")])
+        degree = {n: graph.get_degree(n) for n in graph.get_node_ids()}
+
+        graph.select_nodes(lambda n: degree[n.id] == 1)
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
+        ```
+
+        ### The Ring line
+
+        `metro()` is a made-up city's metro network, and each station's `lines` attribute lists
+        the lines that stop there. Six stations are on the Ring line, and four of them are
+        interchanges, where a rider can change to another line:
+
+        ```{python}
+        metro = ec.metro()
+        metro.select_nodes(lambda n: "Ring" in n.attributes["lines"])
+        ring = metro.count_selected_nodes()
+
+        metro.select_nodes(
+            lambda n: len(n.attributes["lines"]) > 1, set_op="intersect"
+        )
+        label = metro.get_label_from_id
+        ring, sorted(label(n) for n in metro.get_selected_node_ids())
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight="selection", label_by="label")
+        ```
         """
         self._select("nodes", set_op, lambda: self._graph.select_nodes(predicate))
 
