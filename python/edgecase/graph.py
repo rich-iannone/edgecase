@@ -40071,24 +40071,78 @@ class Graph:
             (`0`, `1`, ..., numbered in order of the lowest node ID in each). If `return_dict=`
             is `False` (default): returns self.
 
+        See Also
+        --------
+        cmty_fast_label_propagation : Label propagation that revisits only changed nodes.
+        cmty_semisync_label_propagation : Label propagation with the same result on every run.
+        harmonic_function : Spread a few known labels to the other nodes.
+
         Examples
         --------
-        Two cliques joined by a single edge each settle on one label:
+        Two triangles joined by a single edge each settle on one label:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-                        ("D", "E")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        communities = graph.cmty_label_propagation(seed=3, return_dict=True)
-        {graph.get_label_from_id(n): c for n, c in sorted(communities.items())}
+        (
+            graph.cmty_label_propagation(seed=1)
+            .get_node_df()
+            .select("label", "cmty_label_propagation")
+        )
         ```
+
+        ### One network, many answers
+
+        `dolphins()` is a social network of 62 bottlenose dolphins in Doubtful Sound, New Zealand,
+        linked when they were seen together often. The visiting order and the tie-breaking are
+        random, so each seed can settle on different communities:
+
+        ```{python}
+        import polars as pl
+
+        dolphins = ec.dolphins().layout_kamada_kawai()
+
+        rows = []
+        for seed in range(1, 9):
+            found = dolphins.cmty_label_propagation(seed=seed, return_dict=True)
+            rows.append({
+                "seed": seed,
+                "communities": len(set(found.values())),
+                "modularity": dolphins.modularity(found),
+            })
+
+        pl.DataFrame(rows)
+        ```
+
+        Seed 1 (left) finds six communities. With seed 8 (right), two labels have spread over all
+        but two dolphins, and the modularity drops from `0.52` to `0.38`. Running several
+        seeds and keeping the best, or using `cmty_leiden()`, gives a steadier answer:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        dolphins.cmty_label_propagation(seed=1, attr_name="seed_1")
+        dolphins.plot(
+            layout="pos", color_by="seed_1", edge_color_by="seed_1",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        dolphins.cmty_label_propagation(seed=8, attr_name="seed_8")
+        dolphins.plot(
+            layout="pos", color_by="seed_8", edge_color_by="seed_8",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         if max_iter < 1:
             raise ValueError(f"max_iter must be at least 1, got {max_iter}")
