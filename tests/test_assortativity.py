@@ -633,6 +633,17 @@ class TestDegreeAndAttributeMixing:
             )
             assert sum(matrix, []) == pytest.approx(ref.flatten().tolist())
 
+    def test_mixing_dicts_sorted(self):
+        # Both levels used to follow edge order, which put degree 4 before 3 in friends()
+        friends = ec.friends()
+        for mixing in (
+            friends.degree_mixing_dict(),
+            friends.degree_mixing_dict(normalized=True),
+            friends.attribute_mixing_dict("age_group"),
+        ):
+            assert list(mixing) == sorted(mixing)
+            assert all(list(row) == sorted(row) for row in mixing.values())
+
     def test_examples_and_errors(self):
         assert ec.Graph().add_path_graph(4).degree_mixing_dict() == {1: {2: 2}, 2: {1: 2, 2: 2}}
         matrix, degrees = ec.Graph().add_star_graph(4).degree_mixing_matrix()
