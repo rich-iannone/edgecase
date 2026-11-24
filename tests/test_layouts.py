@@ -89,8 +89,9 @@ class TestNetworkXParity:
     def test_circular(self):
         g = ec.karate_club()
         G = to_nx(g)
-        assert max_diff(g.layout_circular(return_dict=True), nx.circular_layout(G)) < self.TOL
-        ours = g.layout_circular(scale=2, center=(1, -1), return_dict=True)
+        ours = g.layout_circular(order="id", return_dict=True)
+        assert max_diff(ours, nx.circular_layout(G)) < self.TOL
+        ours = g.layout_circular(order="id", scale=2, center=(1, -1), return_dict=True)
         assert max_diff(ours, nx.circular_layout(G, scale=2, center=(1, -1))) < self.TOL
 
     @pytest.mark.parametrize(
@@ -310,6 +311,62 @@ class TestShared:
 
 
 class TestSimpleLayouts:
+    @staticmethod
+    def circle_order(pos):
+        return sorted(pos, key=lambda nid: (math.atan2(pos[nid][1], pos[nid][0]) + 1e-9) % math.tau)
+
+    @staticmethod
+    def chord_crossings(g, pos):
+        rank = {nid: i for i, nid in enumerate(TestSimpleLayouts.circle_order(pos))}
+        chords = [
+            tuple(sorted((rank[s], rank[t]))) for _, s, t in g.get_edges_as_tuples() if s != t
+        ]
+        return sum(
+            (a < c < b) != (a < d < b)
+            for i, (a, b) in enumerate(chords)
+            for c, d in chords[i + 1 :]
+            if len({a, b, c, d}) == 4
+        )
+
+    def test_circular_follows_a_depth_first_search(self):
+        # a tree in breadth-first numbering crosses itself in ID order, but not in DFS order
+        tree = ec.Graph().add_balanced_tree(2, 3)
+        assert self.circle_order(tree.layout_circular(return_dict=True)) == [
+            1, 2, 4, 8, 9, 5, 10, 11, 3, 6, 12, 13, 7, 14, 15,
+        ]
+        assert self.chord_crossings(tree, tree.layout_circular(return_dict=True)) == 0
+        assert self.chord_crossings(tree, tree.layout_circular(order="id", return_dict=True)) > 0
+        karate = ec.karate_club()
+        dfs = self.chord_crossings(karate, karate.layout_circular(return_dict=True))
+        ids = self.chord_crossings(karate, karate.layout_circular(order="id", return_dict=True))
+        assert dfs < ids / 2
+
+    def test_circular_keeps_rings_and_pieces_in_id_order(self):
+        for g in [ec.Graph().add_cycle_graph(9), ec.Graph().add_wheel_graph(9)]:
+            assert self.circle_order(g.layout_circular(return_dict=True)) == list(range(1, 10))
+        # each piece is searched in turn, from its lowest ID; direction is ignored
+        g = ec.Graph(directed=True).add_nodes(["a", "b", "c", "d", "e"])
+        g.add_edges([("d", "a"), ("e", "b"), ("c", "e")])
+        pos = g.layout_circular(return_dict=True)
+        assert self.circle_order(pos) == [1, 4, 2, 5, 3]
+
+    def test_circular_given_order(self):
+        g = ec.Graph().add_nodes(["a", "b", "c", "d"])
+        pos = g.layout_circular(order=["c", "a", 4, "b"], return_dict=True)
+        assert self.circle_order(pos) == [3, 1, 4, 2]
+        g.layout_circular(order=["c", "a", 4, "b"])
+        assert g.steps[-1].code == "G.layout_circular(order=['c', 'a', 4, 'b'], attr_name='pos')"
+        g.layout_circular()
+        assert g.steps[-1].code == "G.layout_circular(attr_name='pos')"
+
+    @pytest.mark.parametrize(
+        "order", ["bfs", ["a", "b", "c"], ["a", "b", "c", "c"], ["a", "b", "c", "x"]]
+    )
+    def test_circular_bad_order(self, order):
+        g = ec.Graph().add_nodes(["a", "b", "c", "d"])
+        with pytest.raises(ValueError):
+            g.layout_circular(order=order)
+
     def test_random_is_reproducible_and_bounded(self):
         g = ec.Graph().add_path_graph(200)
         a = g.layout_random(seed=7, return_dict=True)
@@ -604,3 +661,55 @@ class TestStoredLayoutPlotting:
         order = g.bfs(1, return_list=True)
         result = g.plot_traversal(visit_order=order, source=1, layout="pos")
         assert "<svg" in result.svg
+
+
+class TestComponentPacking:
+    """The default plot layout lays out each component alone and packs them."""
+
+    @staticmethod
+    def _boxes(positions, components):
+        boxes = []
+        for comp in components:
+            xs = [positions[str(n)][0] for n in comp]
+            ys = [positions[str(n)][1] for n in comp]
+            boxes.append((min(xs), min(ys), max(xs), max(ys)))
+        return boxes
+
+    def test_components_do_not_overlap(self):
+        from edgecase.svg_renderer import _force_directed_layout
+
+        edges = [(0, 1), (1, 2), (2, 0), (3, 4), (4, 5), (5, 6), (6, 3), (7, 8)]
+        ids = [str(i) for i in range(10)]
+        pos = _force_directed_layout(
+            ids, [(str(s), str(t)) for s, t in edges], 600.0, 400.0, seed=1
+        )
+        assert set(pos) == set(ids)
+        comps = [[0, 1, 2], [3, 4, 5, 6], [7, 8], [9]]
+        boxes = self._boxes(pos, comps)
+        for i, a in enumerate(boxes):
+            for b in boxes[i + 1 :]:
+                apart = a[2] < b[0] or b[2] < a[0] or a[3] < b[1] or b[3] < a[1]
+                assert apart
+
+    def test_pieces_fill_the_frame(self):
+        # Two equal pieces laid out together were pushed into opposite corners and drawn
+        # small; packed, each spans a good part of the frame
+        from edgecase.svg_renderer import _force_directed_layout
+
+        ring = [(i, (i + 1) % 8) for i in range(8)]
+        edges = ring + [(s + 8, t + 8) for s, t in ring]
+        ids = [str(i) for i in range(16)]
+        pos = _force_directed_layout(
+            ids, [(str(s), str(t)) for s, t in edges], 600.0, 400.0, seed=3
+        )
+        for x0, y0, x1, y1 in self._boxes(pos, [range(8), range(8, 16)]):
+            assert max(x1 - x0, y1 - y0) > 150
+
+    def test_reproducible_with_seed(self):
+        from edgecase.svg_renderer import _force_directed_layout
+
+        ids = [str(i) for i in range(6)]
+        edges = [("0", "1"), ("1", "2"), ("3", "4")]
+        a = _force_directed_layout(ids, edges, 600.0, 400.0, seed=5)
+        b = _force_directed_layout(ids, edges, 600.0, 400.0, seed=5)
+        assert a == b
