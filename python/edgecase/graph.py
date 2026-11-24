@@ -25719,36 +25719,57 @@ class Graph:
         int
             Number of selected edges; `0` if nothing is selected.
 
+        See Also
+        --------
+        get_selected_edge_ids : The IDs of the selected edges.
+        count_selected_nodes : The number of selected nodes.
+
         Examples
         --------
-        Three of these four edges have a weight above `0.5`, so the count is `3`:
+        A count of the selected edges, here the two heavier than 0.5:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 0.9), ("B", "C", 0.4), ("C", "D", 0.7), ("D", "A", 0.6)])
-            .select_edges(lambda e: e.weight > 0.5)
+        graph = ec.Graph.from_edges(
+            [("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)]
         )
+        graph.select_edges(lambda e: e.weight > 0.5)
 
         graph.count_selected_edges()
         ```
 
-        A predicate that matches nothing gives `0`. This cycle has no explicit weights, so
-        every edge's `weight` is `None` and no edge passes the guarded test:
+        A rule that matches nothing gives 0:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_cycle_graph(n=10)
-            .select_edges(lambda e: e.weight is not None and e.weight > 0.7)
-        )
-
+        graph.select_edges(lambda e: e.weight > 1, set_op="replace")
         graph.count_selected_edges()
         ```
 
+        ### Small and large payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Counting the payments of at least a few amounts shows two kinds.
+        Of the 35, 16 are under 100 and three more under 1,000, and the other 16 are 1,000 or
+        more, all but one of those 2,000 or more:
+
+        ```{python}
+        payments = ec.payments()
+        counts = {}
+        for amount in [100, 1000, 2000, 5000]:
+            payments.select_edges(
+                lambda e: e.attributes["amount"] >= amount, set_op="replace"
+            )
+            counts[amount] = payments.count_selected_edges()
+        counts
+        ```
+
+        ```{python}
+        payments.select_edges(
+            lambda e: e.attributes["amount"] < 100, set_op="replace"
+        )
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         return self._graph.count_selected_edges()
 
