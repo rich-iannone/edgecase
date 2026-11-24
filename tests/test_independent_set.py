@@ -1,5 +1,6 @@
 import pytest
 from edgecase import Graph
+from edgecase.errors import NodeNotFoundError
 
 
 class TestIsIndependentSet:
@@ -138,6 +139,21 @@ class TestIsIndependentSet:
 
         with pytest.raises(ValueError, match="does not exist"):
             graph.is_independent_set([9999])
+
+    def test_accepts_labels(self):
+        """Labels resolve to node IDs, and can be mixed with IDs."""
+        graph = Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        a_id = graph.get_id_from_label("A")
+
+        assert graph.is_independent_set(["A", "C"])
+        assert not graph.is_independent_set([a_id, "C", "D"])
+
+    def test_unknown_label_raises(self):
+        """An unknown label raises NodeNotFoundError."""
+        graph = Graph.from_edges([("A", "B")])
+
+        with pytest.raises(NodeNotFoundError):
+            graph.is_independent_set(["A", "Z"])
 
     def test_directed_graph(self):
         """Independent set check works for directed graphs."""
