@@ -270,6 +270,21 @@ class TestWalktrapModularity:
         # Complete graph has no clear structure
         assert -0.1 <= Q <= 0.1, f"Complete graph modularity should be ~0, got {Q:.4f}"
 
+    @pytest.mark.parametrize(
+        "dataset, steps, n_communities, expected",
+        [
+            ("karate_club", 2, 4, 0.41979),
+            ("karate_club", 5, 3, 0.39440),
+            ("dolphins", 4, 4, 0.48885),
+            ("florentine_families", 4, 4, 0.39750),
+        ],
+    )
+    def test_matches_igraph(self, dataset, steps, n_communities, expected):
+        """Same partitions as igraph's `community_walktrap()` (Pons-Latapy, with self-loops)."""
+        G = getattr(ec, dataset)().cmty_walktrap(steps=steps)
+        assert G.get_node_df()["cmty_walktrap"].n_unique() == n_communities
+        assert G.modularity("cmty_walktrap") == pytest.approx(expected, abs=1e-5)
+
 
 class TestWalktrapProperties:
     """Test algorithmic properties."""
@@ -455,9 +470,9 @@ class TestWalktrapEdgeCases:
 
         communities = G.cmty_walktrap(return_dict=True)
 
-        # Cycle has no clear structure, likely 1 community
+        # A cycle has no clear structure: three pairs and two halves tie on modularity
         num_communities = len(set(communities.values()))
-        assert 1 <= num_communities <= 2
+        assert 1 <= num_communities <= 3
 
     def test_path_graph(self):
         """Path graph (linear chain)."""
