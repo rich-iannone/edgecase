@@ -75891,44 +75891,67 @@ class Graph:
         bool
             `True` if no edge joins two nodes of the same color, `False` otherwise.
 
+        See Also
+        --------
+        greedy_color : Find a coloring in which no edge joins two nodes of the same color.
+        is_valid_edge_coloring : The same check for a coloring of the edges.
+        chromatic_number_upper_bound : The number of colors a coloring uses.
+
         Examples
         --------
-        On a path `A-B-C`, alternating colors between neighbors produces a valid coloring.
-        Building the dictionary from label lookups keeps the node IDs straight:
+        On a path `A`-`B`-`C`, the two ends can share a color but neighbors can't. The coloring
+        maps node IDs to colors, so it's built from the labels:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
         a, b, c = (graph.get_id_from_label(x) for x in ["A", "B", "C"])
 
-        # Valid coloring (alternating colors)
         valid = {a: 0, b: 1, c: 0}
-
-        # Returns True
-        graph.is_valid_coloring(valid)
+        clash = {a: 0, b: 0, c: 1}
+        graph.is_valid_coloring(valid), graph.is_valid_coloring(clash)
         ```
 
-        Assigning the same color to two adjacent nodes (`A` and `B`) makes the coloring invalid:
+        Only colored nodes are checked, so a coloring that leaves out `C` still passes:
 
         ```{python}
-        # Invalid coloring (adjacent nodes share a color)
-        invalid = {a: 0, b: 0, c: 1}
-
-        # Returns False
-        graph.is_valid_coloring(invalid)
+        graph.is_valid_coloring({a: 0, b: 1})
         ```
 
-        Only colored nodes are checked, so a partial coloring that leaves out `C` still passes.
-        The output of `greedy_color()` is always valid:
+        ### Checking a change to a timetable
+
+        `exams()` joins two of a made-up college's courses when some student takes both, so
+        their exams can't share a time slot. Starting from a four-slot timetable found by
+        `greedy_color()`, the lecturer of Web Design asks to move its exam to slot 0. That puts
+        it with Data Visualization, which shares students with it:
 
         ```{python}
-        (graph.is_valid_coloring({a: 0, b: 1}), graph.is_valid_coloring(graph.greedy_color()))
+        exams = ec.exams()
+        slots = exams.greedy_color(strategy="dsatur")
+
+        web = exams.get_id_from_label("Web Design")
+        moved = {**slots, web: 0}
+
+        edges = exams.get_edges_as_tuples()
+        clash = [e for e, u, v in edges if moved[u] == moved[v]]
+
+        label = exams.get_label_from_id
+        pairs = [(label(u), label(v)) for e, u, v in edges if e in clash]
+        exams.is_valid_coloring(moved), pairs
+        ```
+
+        ```{python}
+        exams.set_node_attrs("slot", moved).plot(
+            color_by="slot", highlight_edges=clash, label_by="label", seed=3,
+            height=420,
+        )
+        ```
+
+        Web Design shares students with no other course, so any other slot works:
+
+        ```{python}
+        exams.is_valid_coloring({**slots, web: 2})
         ```
         """
         from edgecase._core import is_valid_coloring as rust_is_valid_coloring
