@@ -109,6 +109,17 @@ class TestNodeDataFrameStructure:
         # a subgraph with no nodes keeps the columns too
         assert ec.Graph().add_path_graph(4).k_core(5).get_node_df().columns[0] == "id"
 
+    def test_edge_df_with_labels(self):
+        """`labels=True` names the endpoints by label, falling back to the ID."""
+        g = ec.Graph().add_nodes(["A", "B"]).add_node()
+        g.add_edge("A", "B", rel="friend").add_edge("B", 3)
+        df = g.get_edge_df(labels=True)
+        assert df.select("source", "target").rows() == [("A", "B"), ("B", "3")]
+        assert df.columns == g.get_edge_df().columns
+        assert df["rel"].to_list() == ["friend", None]
+        empty = ec.Graph().get_edge_df(labels=True)
+        assert empty.schema["source"] == pl.Utf8
+
 
 class TestAddNodeWithType:
     """Tests for add_node() method with type parameter."""
