@@ -55803,54 +55803,82 @@ class Graph:
         prudent. Directed graphs are supported and reinterpret the centrality in terms of
         in-degree influence patterns.
 
+        See Also
+        --------
+        alpha_centrality : A close relative with outside status.
+        katz_centrality : The same family with a positive decay.
+
         Examples
         --------
-        With `beta > 0` (cooperative relations), being connected to powerful nodes
-        makes you powerful -- so the hub of a star, connected to everyone, comes out on
-        top:
+        With a negative `beta=` (competitive relations, as in exchange or bargaining networks), a
+        tie to a weak partner adds power. On a path, the middle nodes each have an end node, with
+        no other partner, to bargain with:
 
         ```{python}
         import edgecase as ec
 
-        # Create star: center connected to 3 leaves
-        g = (
-            ec.Graph(directed=True)
-            .add_nodes(["center", "leaf1", "leaf2", "leaf3"])
-            .add_edges([("center", "leaf1"), ("center", "leaf2"), ("center", "leaf3")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        (
+            path.bonacich_power_centrality(beta=0.2, attr_name="cooperative")
+            .bonacich_power_centrality(beta=-0.2, attr_name="competitive")
+            .get_node_df()
+            .select("label", "cooperative", "competitive")
+        )
+        ```
+
+        ### Powerful friends, or weak partners
+
+        The sign of `beta=` says what a tie to a powerful node is worth. In Zachary's karate
+        club, members 8 and 13 are friends with both leaders: sixth and seventh with
+        `beta=0.1`, when powerful friends add power, but near the bottom with `beta=-0.1`,
+        when their partners have plenty of alternatives. Members 24 and 25, tied only to
+        members with few ties of their own, climb:
+
+        ```{python}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .bonacich_power_centrality(beta=0.1, attr_name="cooperative")
+            .bonacich_power_centrality(beta=-0.1, attr_name="competitive")
         )
 
-        g.bonacich_power_centrality(return_dict=True, beta=0.1)
+        (
+            club.get_node_df()
+            .with_columns(
+                pl.col("cooperative", "competitive")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .filter(pl.col("label").is_in(["8", "13", "24", "25"]))
+            .select("label", "degree", "cooperative_rank", "competitive_rank")
+        )
         ```
 
-        With `beta < 0` (competitive relations, as in exchange or bargaining networks),
-        connecting to weak partners increases your own power instead -- so the two
-        endpoints of this path, each with only one alternative, gain more power than
-        the middle nodes:
+        Coloring each member by the places gained (or, below zero, lost) when `beta=` turns
+        negative shows who gains from weak partners, out on the edges of the club, and who loses
+        from strong ones, between the leaders:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        places = club.get_node_df().with_columns(
+            pl.col("cooperative", "competitive")
+            .rank("min", descending=True)
+            .cast(pl.Int64)
+        )
+        climb = dict(
+            zip(places["label"], places["cooperative"] - places["competitive"])
+        )
 
-        g.bonacich_power_centrality(return_dict=True, beta=-0.2)
+        club.set_node_attrs("climb", climb).plot(
+            layout="pos", color_by="climb", color_scale="diverging",
+            label_by="label",
+        )
         ```
 
-        Choosing `beta` close to `1/λ_max` makes the result approximate eigenvector
-        centrality, since both converge toward the same principal eigenvector as beta
-        approaches that limit:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("B", "D")])
-
-        max_deg = max(g.get_degree(node=nid) for nid in g.get_node_ids())
-        g.bonacich_power_centrality(return_dict=True, beta=0.9/max_deg)
-        ```
-
-        ```{python}
-        g.eigen_centrality(return_dict=True)
-        ```
+        Keep `|beta|` below `1 / lambda_max`, the reciprocal of the largest adjacency eigenvalue
+        (about `0.15` for the karate club), where the system becomes singular.
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
@@ -55867,15 +55895,13 @@ class Graph:
         if attr_name is None:
             attr_name = "bonacich_power_centrality"
 
-        self.set_node_attrs(attr_name, result)
-
         # Track computation
         params = {}
         if beta != 0.1:
             params["beta"] = beta
         if normalized:
             params["normalized"] = normalized
-        self._computations.append(("bonacich_power_centrality", params, attr_name))
+        self._store_node_result("bonacich_power_centrality", params, attr_name, result)
 
         return self
 
