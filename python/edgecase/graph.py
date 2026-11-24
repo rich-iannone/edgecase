@@ -61564,6 +61564,11 @@ class Graph:
         diagonal entry reveals a negative cycle. Distances match NetworkX's `floyd_warshall`
         (which also lists unreachable pairs as infinity).
 
+        See Also
+        --------
+        all_pairs_shortest_path_length : All-pairs distances from repeated single-source searches.
+        johnson : All-pairs paths for sparse graphs with negative weights.
+
         Examples
         --------
         A shortcut with a negative cost makes the long way round the cheapest:
@@ -61571,11 +61576,49 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)], directed=True
+        )
 
-        dist = g.floyd_warshall()
-        dist[g.get_id_from_label("A")][g.get_id_from_label("B")]
+        dist = graph.floyd_warshall()
+        dist[graph.get_id_from_label("A")][graph.get_id_from_label("B")]
+        ```
+
+        ### Travel times between every pair of stations
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. The distances between every pair of stations give each station's
+        average trip to the others. From Central it takes under 7 minutes on average, while from
+        the Airport it takes almost 17:
+
+        ```{python}
+        metro = ec.metro()
+        dist = metro.floyd_warshall()
+
+        average = {
+            n: sum(row.values()) / (len(row) - 1) for n, row in dist.items()
+        }
+        metro.set_node_attrs("average_minutes", average)
+
+        metro.plot(
+            layout="pos", color_by="average_minutes", color_scale="sequential",
+            label_by="label",
+        )
+        ```
+
+        With `return_predecessors=True`, the method also returns, for each pair, the station
+        before the destination on a fastest route, from which the route can be rebuilt:
+
+        ```{python}
+        dist, pred = metro.floyd_warshall(return_predecessors=True)
+        start = metro.get_id_from_label("Westgate")
+        end = metro.get_id_from_label("Airport")
+
+        route = [end]
+        while route[-1] != start:
+            route.append(pred[start][route[-1]])
+
+        [metro.get_label_from_id(n) for n in reversed(route)], dist[start][end]
         ```
         """
         use = self._use_weights(weighted)
