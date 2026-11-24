@@ -76558,48 +76558,68 @@ class Graph:
         one returned may differ). The greedy method sorts the edges in $O(E \log E)$ and is a
         $\tfrac{1}{2}$-approximation (Preis, 1999).
 
+        See Also
+        --------
+        minimum_weight_matching : The cheapest of the largest matchings.
+        maximal_matching : A quick matching that can't be extended.
+        bipartite_maximum_matching : A faster method for bipartite graphs.
+
         Examples
         --------
-        In this path the heaviest edge B-C is a trap: taking it blocks both A-B and C-D, which
-        together weigh more. The exact matching takes the outer pair:
+        In this path the heaviest edge `B`-`C` is a trap: taking it blocks both `A`-`B` and
+        `C`-`D`, which together weigh more. The exact method takes the outer pair, and the
+        greedy method takes `B`-`C`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)])
-
-        exact = g.maximum_weight_matching()
-        greedy = g.maximum_weight_matching(method="greedy")
+        g = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("B", "C", 5.0), ("C", "D", 4.0)]
+        )
 
         def total(ids):
             return sum(g.get_edge(e).weight for e in ids)
 
-        # Returns (8.0, 5.0): the greedy method locks in B-C
+        exact = g.maximum_weight_matching()
+        greedy = g.maximum_weight_matching(method="greedy")
         total(exact), total(greedy)
         ```
 
-        With `maxcardinality=True`, the matching must use as many edges as possible, even if
-        that lowers the total weight. Here the heavy edge A-B alone (weight 10) beats the two
-        light edges A-C and B-D (total 2), but only the light pair matches every node:
+        With `maxcardinality=True`, the matching first takes as many edges as it can. Here the
+        heavy edge `A`-`B` alone outweighs the two light ones, but only the light pair matches
+        every node:
 
         ```{python}
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B", 10.0), ("A", "C", 1.0), ("B", "D", 1.0)])
+        g = ec.Graph.from_edges(
+            [("A", "B", 10.0), ("A", "C", 1.0), ("B", "D", 1.0)]
+        )
 
         [
-            [g.get_edge(e).weight for e in g.maximum_weight_matching(maxcardinality=mc)]
+            total(g.maximum_weight_matching(maxcardinality=mc))
             for mc in (False, True)
         ]
         ```
 
-        On an unweighted graph, the result is a maximum matching. A 4 x 4 grid has a perfect
-        matching of 8 edges:
+        ### Pairing old friends
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends, with the year each friendship began. Weighting each friendship by
+        the years it has lasted, the best pairing puts together friends of 53 years in all. The
+        longest friendship, Hugo and Tara's, since 2017, isn't one of the pairs: with them
+        together, the best the others can do brings the total down to 50:
 
         ```{python}
-        grid = ec.Graph().add_grid_2d(4, 4)
-        matching = grid.maximum_weight_matching()
-        len(matching), grid.is_perfect_matching(matching)
+        friends = ec.friends()
+        since = dict(friends.get_edge_df().select("id", "since").iter_rows())
+        years = {e: 2025.0 - y for e, y in since.items()}
+        friends.set_edge_attrs("weight", years)
+
+        pairs = friends.maximum_weight_matching()
+        len(pairs), sum(friends.get_edge(e).weight for e in pairs)
+        ```
+
+        ```{python}
+        friends.plot(highlight_edges=pairs, label_by="label", seed=2)
         ```
         """
         use = self._use_weights(weighted)
