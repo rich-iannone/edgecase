@@ -53816,6 +53816,12 @@ class Graph:
         `k` best remaining gains cannot beat the best group so far. The search is exact; its
         result always equals `group_betweenness_centrality()` of the group returned.
 
+        See Also
+        --------
+        group_betweenness_centrality : Score a group that is already chosen.
+        knotty_centrality : A dense, central core of any size.
+        voterank : Choose spreaders one at a time by voting.
+
         Examples
         --------
         In two triangles joined by a path, the best pair is the two ends of the path, which
@@ -53824,16 +53830,40 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
-                        ("E", "F"), ("F", "G"), ("G", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+             ("E", "F"), ("F", "G"), ("G", "E")]
         )
 
         score, group = graph.prominent_group(2)
-        round(score, 3), [graph.get_label_from_id(n) for n in group]
+        score, [graph.get_label_from_id(n) for n in group]
         ```
+
+        ### Three checkpoints on the metro
+
+        On the metro, the three stations with the most betweenness are Market, Eastfield and
+        Riverside, but Eastfield and Market are next to each other on the line to the Airport,
+        and as a group the three lie on 57% of the fastest routes between the other stations.
+        The best three, Market, Museum and Old Town, sit around Central to the east, north and
+        west, and between them cover 75% of the routes:
+
+        ```{python}
+        metro = ec.metro()
+
+        score, group = metro.prominent_group(3)
+
+        (
+            score,
+            [metro.get_label_from_id(n) for n in group],
+            metro.group_betweenness_centrality(["Market", "Eastfield", "Riverside"]),
+        )
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", label_by="label", highlight=group)
+        ```
+
+        For large graphs, `greedy=True` builds the group one node at a time.
 
         Notes
         -----
