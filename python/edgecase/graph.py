@@ -32204,29 +32204,82 @@ class Graph:
         Parameters
         ----------
         return_dict
-            If `True`, return the TOM as a nested dictionary. Otherwise return `self` for chaining.
+            If `True`, return the TOM as a nested dictionary. Otherwise store each node's row
+            as a `topological_overlap` node attribute and return `self` for chaining.
 
         Returns
         -------
         dict or Graph
             A `{node_id: {node_id: tom_value}}` nested dictionary, both levels in the order of
-            `get_node_ids()`, or `self`.
+            `get_node_ids()`, or `self`, with each node's `topological_overlap` attribute a
+            list of `{"node": node_id, "overlap": tom_value}` records, largest first (ties in
+            node ID order), the node itself included.
+
+        See Also
+        --------
+        overlap_similarity : Shared neighbors over the smaller neighborhood.
+        jaccard_similarity : Shared neighbors over all neighbors.
+        cmty_louvain : Find communities, as WGCNA finds modules.
 
         Examples
         --------
+        `A` and `B` are joined and share their one other neighbor, so their overlap is `1.0`.
+        `A` and `D` aren't joined but share `C`, `D`'s only neighbor, so theirs is $1 / (1 + 1)$,
+        one shared neighbor over one more than the smaller degree:
+
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
         )
+        label = graph.get_label_from_id
+        tom = graph.topological_overlap(return_dict=True)
+        row = tom[graph.get_id_from_label("A")]
 
-        tom = g.topological_overlap(return_dict=True)
-        a_id = g.get_id_from_label("A")
-        b_id = g.get_id_from_label("B")
-        tom[a_id][b_id]
+        dict(sorted((label(n), t) for n, t in row.items()))
+        ```
+
+        ### A link counts as sharing
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Hugo and Tara are a couple, and each has the other and the same
+        four friends. Mara and Pablo aren't friends, but have the same three. The Jaccard index
+        counts only shared friends, so it scores Mara and Pablo higher, while the topological
+        overlap counts the couple's own link as one more thing they share:
+
+        ```{python}
+        friends = ec.friends()
+        node = friends.get_id_from_label
+        tom = friends.topological_overlap(return_dict=True)
+        jaccard = friends.jaccard_similarity()
+
+        {
+            f"{a}-{b}": (
+                tom[node(a)][node(b)], round(jaccard[node(a)][node(b)], 2)
+            )
+            for a, b in [("Hugo", "Tara"), ("Mara", "Pablo")]
+        }
+        ```
+
+        Without `return_dict=True`, each person's row is stored as a `topological_overlap` node
+        attribute, largest first:
+
+        ```{python}
+        friends = friends.topological_overlap()
+
+        friends.get_node_df().select("label", "topological_overlap").head(3)
+        ```
+
+        Colored by their overlap with Hugo, Tara stands out from everyone else:
+
+        ```{python}
+        label = friends.get_label_from_id
+        hugo = tom[node("Hugo")]
+        others = {label(n): t for n, t in hugo.items() if label(n) != "Hugo"}
+        friends = friends.set_node_attrs("like_hugo", others)
+
+        friends.plot(color_by="like_hugo", label_by="label", seed=8)
         ```
         """
         from edgecase._core import topological_overlap_matrix as _topological_overlap_matrix
@@ -32234,6 +32287,20 @@ class Graph:
         result = _topological_overlap_matrix(self._graph)
 
         if not return_dict:
+            # Store each row as a list of {"node", "overlap"} records, largest first. A dict keyed
+            # by integer node ID can't become a DataFrame column, so get_node_df() would fail
+            self.set_node_attrs(
+                "topological_overlap",
+                {
+                    node_id: [
+                        {"node": other_id, "overlap": tom}
+                        for other_id, tom in sorted(
+                            inner.items(), key=lambda item: (-item[1], item[0])
+                        )
+                    ]
+                    for node_id, inner in result.items()
+                },
+            )
             self._computations.append(("topological_overlap", {}, "topological_overlap"))
 
         if self._recording_depth == 0:
