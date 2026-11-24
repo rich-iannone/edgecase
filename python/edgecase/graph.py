@@ -51730,55 +51730,67 @@ class Graph:
         downstream mixing. Isolated nodes get a value of $0$ by convention. A weighted
         extension exists (Barrat et al., 2004) but is not yet implemented here.
 
+        See Also
+        --------
+        degree_centrality : A node's own degree.
+        assortativity_degree : Whether nodes link to others of like degree.
+
         Examples
         --------
-        **Path Graph - Undirected**
-
-        In a 5-node path, each end node has one neighbor of degree `2`, giving an
-        average neighbor degree of `2.0`; the second node has two neighbors of degree
-        `1` and `2`, averaging to `1.5`:
+        On a path of five nodes, the end nodes' only neighbors have degree `2`, and the second
+        and fourth nodes have one neighbor of degree `1` and one of degree `2`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-
-        g.add_nodes(['0', '1', '2', '3', '4'])
-        g.add_edges([('0', '1'), ('1', '2'), ('2', '3'), ('3', '4')])
-
-        g.average_neighbor_degree(return_dict=True)
-        ```
-
-        **Directed Graph - Different source/target mode combinations**
-
-        `source_mode=` picks which neighbors to look at, and `target_mode=` picks how their
-        degree is measured -- so "out-out" and "in-in" can tell very different stories
-        about the same graph:
-
-        ```{python}
-        g = ec.Graph(directed=True)
-        g.add_nodes(['A', 'B', 'C'])
-        g.add_edges([('A', 'B'), ('B', 'C'), ('C', 'A')])
-
-        g.average_neighbor_degree(source_mode="out", target_mode="out", return_dict=True)
-        ```
-
-        ```{python}
-        g.average_neighbor_degree(source_mode="in", target_mode="in", return_dict=True)
-        ```
-
-        **Store in Graph and Chain**
-
-        ```{python}
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(['A', 'B', 'C'])
-            .add_edges([('A', 'B'), ('B', 'C')])
-            .average_neighbor_degree(attr_name='knn')
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
-        g.get_node_attrs('knn')
+        path.average_neighbor_degree().get_node_df().select(
+            "label", "degree", "average_neighbor_degree"
+        )
         ```
+
+        ### Friends of the leaders
+
+        In Zachary's karate club, member 11's only friend is the instructor (member 0), who has
+        16, so its average neighbor degree is `16`. The leaders themselves have the lowest: most
+        of their friends have only a few ties. Averaging over all the members with each degree
+        shows the trend, with low-degree members tied to high-degree ones:
+
+        ```{python}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .average_neighbor_degree()
+        )
+
+        (
+            club.get_node_df()
+            .group_by("degree")
+            .agg(
+                members=pl.len(),
+                average_neighbor_degree=pl.col("average_neighbor_degree").mean(),
+            )
+            .sort("degree")
+        )
+        ```
+
+        A falling trend like this is a disassortative graph; `assortativity_degree()` sums it up in
+        one coefficient. Colored by average neighbor degree, the leaders are among the lightest, and member 11
+        and the members tied only to members 32 and 33 among the darkest:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="average_neighbor_degree", label_by="label"
+        )
+        ```
+
+        On a directed graph, `source_mode=` picks the neighbors (successors, predecessors or
+        both) and `target_mode=` picks the degree to average over them.
         """
         from edgecase import _core as rust
 
@@ -51799,15 +51811,12 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
         # Track computation
         params = {}
         if self.is_directed():
             params["source_mode"] = source_mode
             params["target_mode"] = target_mode
-        self._computations.append(("average_neighbor_degree", params, attr_name))
+        self._store_node_result("average_neighbor_degree", params, attr_name, result_ids)
 
         return self
 
