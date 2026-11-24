@@ -50769,40 +50769,75 @@ class Graph:
         rejected because their matrix exponentials have different structural
         interpretations.
 
+        See Also
+        --------
+        communicability_betweenness_centrality : How much a node carries of these walks.
+        subgraph_centrality : The walks from a node back to itself.
+        shortest_path_length : Distance by the shortest path alone.
+
         Examples
         --------
-        Adjacent nodes have more walks connecting them than nodes two hops apart, so
-        their communicability score comes out higher:
+        Communicability counts the walks between two nodes, weighting a walk of length `k` by
+        `1 / k!`. Neighbors have the most short walks between them, so `A` communicates more
+        with `B` than with `C`:
 
         ```{python}
         import edgecase as ec
 
-        # Create a path graph: 1 -- 2 -- 3
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["1", "2", "3"])
-        graph.add_edges([("1", "2"), ("2", "3")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
 
-        comm = graph.communicability()
-        id1 = graph.get_id_from_label("1")
-        id2 = graph.get_id_from_label("2")
-        id3 = graph.get_id_from_label("3")
+        comm = path.communicability()
+        a, b, c = (path.get_id_from_label(x) for x in "ABC")
 
-        comm[id1][id2], comm[id1][id3]
+        round(comm[a][b], 3), round(comm[a][c], 3)
         ```
 
-        Summing a node's communicability with every other node gives a sense of how
-        well connected it is overall -- unsurprisingly high for a hub:
+        ### Which leader?
+
+        In Zachary's karate club, comparing each member's communicability with the
+        administrator (member 33) and with the instructor (member 0) predicts which side they
+        took when the club split. The log of the ratio is positive for every member who joined
+        the administrator and negative for every member who stayed with the instructor. These
+        are the members closest to the line:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D"])
-        graph.add_edges([("A", "B"), ("B", "C"), ("B", "D")])
+        import math
 
-        comm = graph.communicability()
-        b_id = graph.get_id_from_label("B")
+        import polars as pl
 
-        sum(comm[b_id].values())
+        club = ec.karate_club().layout_kamada_kawai()
+
+        comm = club.communicability()
+        instructor = club.get_id_from_label("0")
+        administrator = club.get_id_from_label("33")
+
+        lean = {
+            club.get_label_from_id(n): math.log(row[administrator] / row[instructor])
+            for n, row in comm.items()
+        }
+        club = club.set_node_attrs("lean", lean)
+
+        (
+            club.get_node_df()
+            .select("label", "faction", "lean")
+            .sort(pl.col("lean").abs())
+            .head(5)
+        )
         ```
+
+        Colored by the lean, the administrator's side comes out red and the instructor's blue,
+        with the members near the line in gray between them:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="lean", color_scale="diverging",
+            color_midpoint=0, label_by="label",
+        )
+        ```
+
+        Members 2 and 33 aren't friends, but they have more communicability than any two members
+        except 32 and 33, the instructor and 2, and the instructor and 1. For a node's
+        communicability with itself, see `subgraph_centrality()`.
         """
         from edgecase._core import communicability as rust_communicability
 
