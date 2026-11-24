@@ -41753,7 +41753,7 @@ class Graph:
 
     def local_and_global_consistency(
         self,
-        label_name: str = "label",
+        label_name: str,
         alpha: float = 0.99,
         max_iter: int = 30,
         weighted: bool | None = None,
@@ -41775,7 +41775,9 @@ class Graph:
         Parameters
         ----------
         label_name
-            Node attribute holding the known labels (default `"label"`).
+            Node attribute holding the known labels; nodes without it (or with `None`) are
+            unlabeled. As with `harmonic_function()`, this can't be the `label` column of node
+            names.
         alpha
             How much each node listens to its neighbors versus its own initial label, between 0
             and 1 (default 0.99).
@@ -41803,21 +41805,85 @@ class Graph:
         $(1 - \alpha)(I - \alpha S)^{-1} Y$. This is NetworkX's `local_and_global_consistency`
         exactly (exact ties go to the class seen first).
 
+        See Also
+        --------
+        harmonic_function : Spread known labels, holding them fixed.
+        cmty_label_propagation : Spread labels with none known in advance.
+
         Examples
         --------
+        Two triangles joined by a single edge, with one node of each labeled in the `group`
+        attribute. Each label spreads over its own triangle:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-             ("D", "E")]
-        )
-        g.set_node_attrs("label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"})
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
+        graph.set_node_attrs("group", {"A": "red", "F": "blue"})
 
-        predicted = g.local_and_global_consistency()
-        {g.get_label_from_id(n): label for n, label in predicted.items()}
+        predicted = graph.local_and_global_consistency(label_name="group")
+        {graph.get_label_from_id(n): group for n, group in predicted.items()}
+        ```
+
+        ### Two labels from the edge of the club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Giving the faction of members 16 and 26 only, both on the edge of the club,
+        `harmonic_function()` misplaces six of the instructor's friends. Local and global
+        consistency misplaces only member 2, who has friends on both sides:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+        karate.set_node_attrs("known", {"16": 1, "26": 2})
+
+        harmonic = karate.harmonic_function(label_name="known")
+        lgc = karate.local_and_global_consistency(label_name="known")
+        karate.set_node_attrs("harmonic", harmonic).set_node_attrs("lgc", lgc)
+
+        members = karate.get_node_df()
+
+        def misplaced(column):
+            wrong = members.filter(pl.col(column) != pl.col("faction"))
+            return wrong["label"].to_list()
+
+        misplaced("harmonic"), misplaced("lgc")
+        ```
+
+        The labeled members are drawn larger:
+
+        ```{python}
+        karate.set_node_attrs("size", 1)
+        karate.set_node_attrs("size", 2, nodes=["16", "26"])
+        karate.plot(
+            layout="pos", color_by="lgc", size_by="size", label_by="label"
+        )
+        ```
+
+        ### How much to listen to the neighbors
+
+        `alpha=` sets how much each node's scores come from its neighbors rather than its own
+        starting label. With a low `alpha`, a label barely spreads beyond the labeled members'
+        neighborhoods, and more members are placed wrong:
+
+        ```{python}
+        rows = []
+        for alpha in (0.1, 0.5, 0.9, 0.99):
+            guess = karate.local_and_global_consistency(
+                label_name="known", alpha=alpha
+            )
+            karate.set_node_attrs("guess", guess)
+            members = karate.get_node_df()
+            wrong = members.filter(pl.col("guess") != pl.col("faction")).height
+            rows.append({"alpha": alpha, "wrong": wrong})
+
+        pl.DataFrame(rows)
         ```
         """
         return self._classify("consistency", label_name, alpha, max_iter, weighted)
