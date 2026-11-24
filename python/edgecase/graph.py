@@ -77380,19 +77380,48 @@ class Graph:
         The check collects the endpoints of the given edges and compares them with the node
         set, in $O(V + k)$ time for $k$ edges. Edge direction is ignored.
 
+        See Also
+        --------
+        minimum_edge_cover : Find the fewest edges that touch every node.
+        is_vertex_cover : Check that a set of nodes touches every edge.
+        is_matching : Check that no two edges share a node.
+
         Examples
         --------
-        The two outer edges of the path A-B-C-D cover all four nodes, while the middle edge
-        alone misses A and D:
+        The two outer edges of the path `A`-`B`-`C`-`D` touch all four nodes, while the middle
+        edge alone misses `A` and `D`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        ab, bc, cd = (g.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("B", "C"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        ab, bc, cd = (
+            path.find_edge_ids(u, v)[0]
+            for u, v in [("A", "B"), ("B", "C"), ("C", "D")]
+        )
 
-        g.is_edge_cover([ab, cd]), g.is_edge_cover([bc])
+        path.is_edge_cover([ab, cd]), path.is_edge_cover([bc])
+        ```
+
+        ### Someone for every task, a task for everyone
+
+        `teams()` links the 8 workers of a made-up software team, and the contractor Quinn, to
+        the 8 tasks of a release that each can do. The cheapest assignment covers every task
+        but leaves Luis without one, so it isn't an edge cover. Pairing Luis with Mei on Design
+        makes it one:
+
+        ```{python}
+        team = ec.teams(contractor=True)
+        plan = team.bipartite_minimum_weight_full_matching()
+        paired = plan + team.find_edge_ids("Luis", "Design")
+
+        team.is_edge_cover(plan), team.is_edge_cover(paired)
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight_edges=paired, label_by="label", height=300
+        )
         ```
         """
         covered: set[int] = set()
