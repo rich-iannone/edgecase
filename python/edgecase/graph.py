@@ -36827,18 +36827,54 @@ class Graph:
             If `return_dict=` is `True`: a dictionary mapping node IDs to scores in `[0, 1]`.
             If `return_dict=` is `False` (default): returns self.
 
+        See Also
+        --------
+        clustering_coefficient : Clustering by triangles.
+        generalized_degree : Each node's edges by how many triangles they lie in.
+        edge_clustering_coefficient : Clustering of each edge, by triangles or squares.
+
         Examples
         --------
-        A 4-cycle has no triangles at all, but every node sits on its one square:
+        A 4-cycle has no triangles, so its ordinary clustering is 0 everywhere, but every node
+        sits on its one square:
 
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_cycle_graph(4)
+        square = ec.Graph().add_cycle_graph(4).square_clustering()
+        square.clustering_coefficient()
 
-        triangles = square.clustering_coefficient(return_dict=True)
-        squares = square.square_clustering(return_dict=True)
-        sorted(triangles.items()), sorted(squares.items())
+        square.get_node_df().select(
+            "label", "clustering_coefficient", "square_clustering"
+        )
+        ```
+
+        ### Who could cover for whom
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do. Edges only run between a worker and a task, so there are no triangles, but
+        two workers who can both do two tasks close a square. Kofi scores 1: every pair of Kofi's
+        tasks, Database, DevOps and Security, is a pair that Omar can do as well. Mei and Luis
+        score 0, since no one shares two of their tasks:
+
+        ```{python}
+        team = ec.teams().square_clustering()
+
+        (
+            team.get_node_df()
+            .filter(side="worker")
+            .sort("square_clustering", descending=True)
+            .select("label", "role", "degree", "square_clustering")
+        )
+        ```
+
+        The tasks that only Omar and Kofi can do score highest after Kofi:
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", color_by="square_clustering", label_by="label",
+            height=300,
+        )
         ```
         """
         scores = rust.square_clustering(self._graph)
