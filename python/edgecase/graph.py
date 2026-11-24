@@ -65110,24 +65110,48 @@ class Graph:
         ValueError
             If the label does not exist in the graph.
 
+        See Also
+        --------
+        descendants : Every node reachable from a node.
+        lowest_common_ancestor : The lowest ancestor that two nodes share.
+        has_path : Check if one node can reach another.
+
         Examples
         --------
-        In a small build pipeline, packaging depends on compiling and testing, which in turn
-        depend on fetching the source:
+        In a small build pipeline, packaging needs the tests and the compiled code, which in turn
+        need the source:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["fetch", "compile", "test", "package", "docs"])
-            .add_edges([
-                ("fetch", "compile"), ("compile", "test"),
-                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
-            ])
+        graph = ec.Graph.from_edges(
+            [("fetch", "compile"), ("compile", "test"), ("test", "package"),
+             ("compile", "package"), ("fetch", "docs")],
+            directed=True,
         )
-
         [graph.get_label_from_id(n) for n in graph.ancestors("package")]
+        ```
+
+        ### Everything a course requires
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. The ancestors of a course are all the
+        courses to take before it, directly or not. CS460 needs nine, four of them from the math
+        sequence:
+
+        ```{python}
+        courses = ec.courses()
+        before = courses.ancestors("CS460")
+
+        [courses.get_label_from_id(n) for n in before]
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight={"accent": "CS460", "soft": before},
+            label_by="label", height=420,
+        )
         ```
         """
         node_id = self._resolve_node_id(node, auto_create=False)
