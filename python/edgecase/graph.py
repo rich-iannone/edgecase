@@ -19512,6 +19512,12 @@ class Graph:
         neighbors, and $L_3$ by extending every edge both ways. Matches NetworkX's
         `bipartite.robins_alexander_clustering`.
 
+        See Also
+        --------
+        latapy_clustering : Clustering for each node of a bipartite graph.
+        butterflies : Count the squares each node is part of.
+        add_bipartite_configuration_model : A random bipartite graph with the same degrees.
+
         Examples
         --------
         A complete bipartite graph $K_{2,3}$ has every 3-path closed by a square:
