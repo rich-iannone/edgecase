@@ -62170,63 +62170,81 @@ class Graph:
         ValueError
             If `source=` does not exist in the graph.
 
+        See Also
+        --------
+        dfs : Visit nodes depth-first, following each branch to its end.
+        bfs_layers : Group the nodes by hop distance from the sources.
+        bfs_edges, bfs_tree : The edges of the search tree, as a list or a new graph.
+        single_source_shortest_path_length : Distances that take edge weights into account.
+
         Examples
         --------
-        A binary tree makes the level-by-level nature of BFS easy to see: the root comes first,
-        then both of its children, then all four grandchildren, and so on:
+        Starting from A, BFS visits A's neighbors B and C before going any further, then the nodes
+        two steps away, D and E, and finally F. Each node's place in that order is stored in the
+        `bfs_order` column:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_balanced_tree(k=2, h=3)
-
-        graph.bfs(source=1, return_list=True)
-        ```
-
-        With the default `return_list=False`, the visit position is stored as the `bfs_order`
-        node attribute instead. Reading it back shows that the root got position `0` and its two
-        children got `1` and `2`:
-
-        ```{python}
-        graph.bfs(source=1)
-
-        positions = graph.get_node_attrs("bfs_order")
-        {node: positions[node] for node in [1, 2, 3]}
-        ```
-
-        Because the default returns the graph, the traversal slots into a method chain. Here the
-        visit order drives node size, so nodes discovered later are drawn larger:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_balanced_tree(k=2, h=3)
-            .bfs(source=1, attr_name="discovered")
-            .rescale_node_attrs(
-                node_attr_from="discovered",
-                node_attr_to="size",
-                range=[0.5, 2.0]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "E"), ("D", "F")]
         )
 
-        # The root is discovered first, so it gets the smallest size
-        graph.get_node(1).attributes["size"]
+        graph.bfs("A").get_node_df().select("label", "bfs_order")
         ```
 
-        On a directed graph, BFS only follows edges forward. Starting in the middle of a
-        directed chain `A -> B -> C -> D` reaches `C` and `D`, but never goes back to `A`:
+        `return_list=True` returns the node IDs in visit order instead:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph.bfs("A", return_list=True)
+        ```
+
+        ### Watching the search spread
+
+        Every traversal is recorded in the step log, so `play()` can replay it one visit at a time.
+        Here BFS starts from Central station on the metro map, which stores each station's map
+        position in `pos`. Step through to see the frontier move outward, finishing every station
+        one stop away before it reaches any that are two stops away:
+
+        ```{python}
+        metro = ec.metro()
+
+        metro.note("Visit every station one stop away first.").bfs("Central")
+        metro.play(layout="pos")
+        ```
+
+        ### Stops from Central
+
+        `bfs_layers()` groups the nodes by their distance in hops, the layers the search finished one
+        after another. Storing each station's layer as an attribute and coloring by it:
+
+        ```{python}
+        layers = metro.bfs_layers("Central")
+        hops = {node: i for i, layer in enumerate(layers) for node in layer}
+
+        metro.set_node_attrs("hops", hops).plot(
+            layout="pos", color_by="hops", color_scale="sequential", label_by="label"
+        )
+        ```
+
+        Every station is within four stops of Central. The farthest are Hillcrest and Garden on the
+        Green line, and Airport at the end of the Airport line.
+
+        ### Directed graphs
+
+        On a directed graph, BFS only follows edges forward. Starting in the middle of the chain
+        A → B → C → D reaches C and D, but never goes back to A:
+
+        ```{python}
+        chain = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D")], directed=True
         )
 
-        order = graph.bfs(source="B", return_list=True)
-        [graph.get_label_from_id(nid) for nid in order]
+        chain.bfs("B").get_node_df().select("label", "bfs_order")
         ```
+
+        BFS counts stops, not minutes: it ignores edge weights. To order the stations by travel
+        time instead, use `single_source_shortest_path_length()`.
         """
         start_id = self._resolve_node_id(source, auto_create=False)
         visited_order = self._graph.bfs(start_id)
