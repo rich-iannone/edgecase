@@ -19404,6 +19404,13 @@ class Graph:
         operations, $O(\sum_v \sum_{u \in N_2(v)} \deg)$ overall. Matches NetworkX's
         `bipartite.latapy_clustering` (also called `bipartite.clustering`).
 
+        See Also
+        --------
+        robins_alexander_clustering : The same idea for the whole graph, as one number.
+        square_clustering : Clustering by squares, for any graph.
+        clustering_coefficient : Clustering by triangles, for graphs that aren't bipartite.
+        node_redundancy : How much the neighbors of a node are linked without it.
+
         Examples
         --------
         Two people who attended the same two events have identical neighborhoods, while a third
