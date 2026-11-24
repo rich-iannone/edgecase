@@ -69304,7 +69304,9 @@ class Graph:
         result is always finite. This matches `closeness_vitality()`, which computes the same
         value for every node at once.
 
-        Higher values indicate more important nodes. Vitality is useful for:
+        The distances to and from the node itself drop out of the total, which raises its
+        score, while pairs that have to detour around it lower the score, so a node whose loss
+        forces long detours can score below zero. Vitality is useful for:
 
         - ranking nodes by how much the network's overall reachability depends on them
         - assessing what is lost if a specific station, server, or person drops out
@@ -69324,9 +69326,8 @@ class Graph:
         Returns
         -------
         float
-            The vitality score for the node. Higher values indicate more vital nodes. Always
-            finite, even when removing the node disconnects the graph. A graph with a single
-            node gives `0.0`.
+            The vitality score for the node. Always finite, even when removing the node
+            disconnects the graph. A graph with a single node gives `0.0`.
 
         Raises
         ------
@@ -69347,63 +69348,69 @@ class Graph:
         without the node), the cost is $O(V \cdot (V + E))$ per call. To score every node,
         call `closeness_vitality()` once rather than looping over this method.
 
+        See Also
+        --------
+        closeness_vitality : The vitality of every node at once.
+        wiener_index : The total distance whose change the vitality measures.
+        articulation_points : The nodes whose removal disconnects the graph.
+
         Examples
         --------
-        On a 5-node path, the middle node has the highest vitality (`36.0`): removing it splits
-        the path in two, and every long distance across the middle drops out of the total:
+        On a 5-node path, the middle node has the highest vitality: removing it splits the path
+        in two, and every long distance across the middle drops out of the total. An endpoint
+        scores lower, since removing it only shortens the path:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)
-        nodes = sorted(graph.get_node_ids())
+        path = ec.Graph().add_path_graph(5)
 
-        # The middle node: removing it splits the path in two
-        graph.node_vitality(nodes[2])
+        path.node_vitality(3), path.node_vitality(1)
         ```
 
-        An endpoint scores lower (`20.0`), since removing it only shortens the path:
+        The hub of a star lies on every path between leaves, so it outscores any one leaf:
 
         ```{python}
-        graph.node_vitality(nodes[0])
+        star = ec.Graph().add_star_graph(4)
+
+        star.node_vitality(1), star.node_vitality(2)
         ```
 
-        The same pattern shows up in a star graph: the hub lies on every path between leaves,
-        so it outscores any individual leaf (`18.0` versus `10.0`):
+        On an undirected chain `A - B - C`, removing `B` wipes out all six ordered distances
+        (`1 + 1 + 1 + 1 + 2 + 2`). On the directed version, only the three forward pairs are
+        connected, so `B` scores half as much:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_star_graph(4)
-        nodes = sorted(graph.get_node_ids())
+        pairs = [("A", "B"), ("B", "C")]
+        chain = ec.Graph.from_edges(pairs)
+        one_way = ec.Graph.from_edges(pairs, directed=True)
 
-        graph.node_vitality(nodes[0]), graph.node_vitality(nodes[1])
+        chain.node_vitality("B"), one_way.node_vitality("B")
         ```
 
-        Node labels work just as well as IDs. On an undirected chain `A - B - C`, removing `B`
-        wipes out all six ordered distances (`1 + 1 + 1 + 1 + 2 + 2`):
+        ### Stations the network can't do without
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Riverside scores highest, since closing it cuts off the harbor,
+        and every trip to the harbor drops out of the total. Market scores lowest, and below
+        zero: closing it strands no one, but it lengthens so many other trips that the total
+        grows:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        metro = ec.metro()
+        vitality = {n: metro.node_vitality(n) for n in metro.get_node_ids()}
+
+        label = metro.get_label_from_id
+        ranked = sorted(vitality, key=vitality.get, reverse=True)
+        [label(n) for n in ranked[:2]], [label(n) for n in ranked[-2:]]
+        ```
+
+        ```{python}
+        metro.set_node_attrs("vitality", vitality)
+        metro.plot(
+            layout="pos", color_by="vitality", color_scale="diverging",
+            color_midpoint=0, label_by="label",
         )
-
-        graph.node_vitality("B")
-        ```
-
-        On the directed version of the same chain, only the three forward pairs are connected,
-        so `B` scores half as much:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.node_vitality("B")
         ```
         """
         from edgecase._core import node_vitality
