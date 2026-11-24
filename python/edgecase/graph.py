@@ -38825,8 +38825,9 @@ class Graph:
         ![Walktrap communities](../assets/graphs/cmty-walktrap.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the single edge C to D. Short random walks stay trapped inside each cluster, so Walktrap returns the two clusters as communities, drawn as tinted regions in teal and the accent color. The card lists community 0 as D, E, F, G and community 1 as A, B, C." width="100%"}
 
         The Walktrap algorithm exploits the property that random walks tend to stay trapped within
-        densely connected communities. It computes distances between nodes based on random walk
-        probabilities, then uses hierarchical clustering to identify community structure.
+        densely connected communities. It computes distances between communities from where short
+        random walks out of them end up, and repeatedly merges the two adjacent communities that
+        are closest, keeping the level of the hierarchy with the highest modularity.
 
         Works only with undirected graphs. On a disconnected graph each connected component is
         clustered separately, so a community never spans two components and an isolated node is
@@ -38864,66 +38865,92 @@ class Graph:
         ---------------
         Walktrap (Pons and Latapy, 2005) rests on a simple observation: a random walk on a
         graph tends to get *trapped* inside densely connected regions before escaping
-        through sparse bridges. The algorithm builds the $t$-step transition matrix $P^t$
-        from the row-stochastic $P_{ij} = 1/\deg(i)$, defines a random-walk distance
-        $d(i, j) = \sqrt{\sum_k \dfrac{(P^t_{ik} - P^t_{jk})^2}{\deg(k)}}$ that grows small
-        whenever two nodes send walks to similar destinations, then feeds those distances
-        into Ward's agglomerative hierarchical clustering. The dendrogram is finally cut at
-        the level of maximum modularity. Small `steps` values (2 or 3) surface fine-grained
-        local communities; larger values (5 to 8) reveal coarser structure. Nothing about
-        the procedure is random despite the name, and the $O(n^2)$ distance matrix is the
-        practical scaling ceiling around $10\,000$ nodes. Self-loops and multi-edges are not
-        currently supported.
+        through sparse bridges. Each node first gets a self-loop, so a walk can pause, and the
+        transition probabilities are $P_{ij} = 1/d(i)$ for each neighbor $j$ of $i$, where
+        $d(i)$ is the degree plus one. For a community $C$, $P^t_{C\cdot}$ is the distribution
+        of a $t$-step walk started from a node of $C$ chosen at random, and two communities
+        are close when
+        $r(C_1, C_2) = \sqrt{\sum_k (P^t_{C_1 k} - P^t_{C_2 k})^2 / d(k)}$ is small. Starting
+        from one community per node, the algorithm merges the pair of *adjacent* communities
+        that least increases the within-community spread,
+        $\Delta\sigma = \frac{1}{n} \frac{|C_1| |C_2|}{|C_1| + |C_2|} r(C_1, C_2)^2$, and
+        finally cuts the resulting dendrogram at the level of maximum modularity. Small
+        `steps` values (2 or 3) surface fine-grained local communities; larger values (5 to
+        8) reveal coarser structure. Nothing about the procedure is random despite the
+        name. The results match igraph's `community_walktrap()`, apart from the choice
+        between merges or levels that tie exactly. Self-loops in the graph are ignored, and
+        parallel edges each count.
+
+        See Also
+        --------
+        cmty_fast_greedy : Merge communities by modularity gain instead.
+        cmty_louvain : Optimize modularity by local moves.
+        modularity : The score that picks the level of the hierarchy.
 
         Examples
         --------
-        Random walks starting inside either triangle tend to stay there, since crossing
-        the bridge is comparatively rare -- so Walktrap recovers the same two
-        communities:
+        Walks that start in either triangle tend to stay there, since few of them cross the bridge,
+        so Walktrap finds the two triangles:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        # Two cliques connected by a bridge
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                         ("D", "E"), ("E", "F"), ("F", "D"),
-                         ("C", "D")])  # Bridge
-
-        communities = graph.cmty_walktrap(return_dict=True)
-        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
+        graph.cmty_walktrap().get_node_df().select("label", "cmty_walktrap")
         ```
 
-        Fewer `steps` favors detecting finer, more local structure, while more `steps`
-        looks at longer-range patterns -- on a graph this small, both settings still
-        land on the same two communities:
+        ### How long a walk?
+
+        `dolphins()` is a social network of 62 bottlenose dolphins in Doubtful Sound, New Zealand,
+        linked when they were seen together often. The number of `steps=` sets how far the walks
+        look. Very short walks see only each dolphin's close companions, and many dolphins are left
+        in small communities, or alone. From three steps on, there are four to seven communities,
+        and modularity stays near 0.5:
 
         ```{python}
-        local_cmty = graph.cmty_walktrap(return_dict=True, steps=2)
-        global_cmty = graph.cmty_walktrap(return_dict=True, steps=6)
+        import polars as pl
 
-        len(set(local_cmty.values())), len(set(global_cmty.values()))
+        dolphins = ec.dolphins().layout_kamada_kawai()
+
+        rows = []
+        for steps in (2, 3, 4, 5, 6):
+            dolphins.cmty_walktrap(steps=steps, attr_name="walktrap")
+            rows.append({
+                "steps": steps,
+                "communities": dolphins.get_node_df()["walktrap"].n_unique(),
+                "modularity": dolphins.modularity("walktrap"),
+            })
+
+        pl.DataFrame(rows)
         ```
 
-        Storing the result as a node attribute and chaining into `colorize_node_attrs()`
-        visualizes the communities directly:
+        Four steps (left), the default, give four communities. Five steps (right) give seven,
+        which cut across the four in places, for almost the same modularity:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
-
-        (
-            graph
-            .cmty_walktrap(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="tableau")
-            .describe()
+        dolphins.cmty_walktrap(attr_name="four_steps")
+        dolphins.plot(
+            layout="pos", color_by="four_steps", edge_color_by="four_steps",
+            show_labels=False, width=320, height=360, legend=False,
         )
         ```
+
+        ```{python}
+        dolphins.cmty_walktrap(steps=5, attr_name="five_steps")
+        dolphins.plot(
+            layout="pos", color_by="five_steps", edge_color_by="five_steps",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         communities = self._graph.get_cmty_walktrap(steps)
 
@@ -38934,14 +38961,11 @@ class Graph:
         if return_dict:
             return communities
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
         # Track computation
         params = {}
         if steps != 4:
             params["steps"] = steps
-        self._computations.append(("cmty_walktrap", params, attr_name))
+        self._store_node_result("cmty_walktrap", params, attr_name, communities, show="groups")
 
         return self
 
