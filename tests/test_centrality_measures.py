@@ -1093,6 +1093,11 @@ class TestCentralityStepHooks:
         assert step.kind == KIND_QUERY and step.delta.nodes_selected == ["2", "4"]
         g.voterank(count=2)
         assert g.steps[-1].delta.node_groups == {"2": 0, "4": 1}
+        # One sub-step per round, each selecting the spreaders elected so far
+        assert [sub.delta.nodes_selected for sub in g.steps[-1].sub_steps] == [
+            ["2"],
+            ["2", "4"],
+        ]
         n = len(g.steps)
         g.effective_size(return_dict=True)
         assert len(g.steps) == n
