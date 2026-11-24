@@ -6,10 +6,13 @@ aesthetic: filled circles, thin semi-transparent edges, minimal chrome.
 
 from __future__ import annotations
 
+import dataclasses
+import hashlib
 import html as html_mod
 import json
 import math
 import random
+import re
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -48,12 +51,13 @@ DARK = Theme(
 )
 
 THEMES = {"light": LIGHT, "dark": DARK}
+THEME_NAMES = ("auto", "light", "dark")
 LAYOUTS = ("force", "circular", "random")
 LAYOUT_MODES = ("progressive", "stable")
 
 
 def _check_style(
-    layout: str, theme: str, layout_mode: Optional[str] = None, stored_ok: bool = False
+    layout: str, theme: Optional[str], layout_mode: Optional[str] = None, stored_ok: bool = False
 ) -> None:
     """Raise `ValueError` for an unknown `layout=`, `theme=` or `layout_mode=` (they used to
     fall back silently to "force", "light" and "progressive"-like behavior).
@@ -62,10 +66,117 @@ def _check_style(
     holding positions; `_stored_layout()` checks it against the graph."""
     if layout not in LAYOUTS and not (stored_ok and isinstance(layout, str) and layout):
         raise ValueError(f"Unknown layout {layout!r}; use one of {', '.join(map(repr, LAYOUTS))}")
-    if theme not in THEMES:
-        raise ValueError(f"Unknown theme {theme!r}; use 'light' or 'dark'")
+    if theme is not None and theme not in THEME_NAMES:
+        raise ValueError(f"Unknown theme {theme!r}; use 'auto', 'light' or 'dark'")
     if layout_mode is not None and layout_mode not in LAYOUT_MODES:
         raise ValueError(f"Unknown layout_mode {layout_mode!r}; use 'progressive' or 'stable'")
+
+
+# Pages that say which color scheme they show, which overrides the system setting: Quarto (and
+# great-docs) and Bootstrap pages, JupyterLab and Notebook 7, VS Code notebooks, and Colab
+_LIGHT_PAGES = (
+    'html.quarto-light, body.quarto-light, html[data-bs-theme="light"], '
+    '[data-jp-theme-light="true"], body.vscode-light, body.vscode-high-contrast-light, '
+    'html[theme="light"]'
+)
+_DARK_PAGES = (
+    'html.quarto-dark, body.quarto-dark, html[data-bs-theme="dark"], '
+    '[data-jp-theme-light="false"], body.vscode-dark, '
+    "body.vscode-high-contrast:not(.vscode-high-contrast-light), "
+    'html[theme="dark"]'
+)
+_VAR_RE = re.compile(r"var\((--ect-[0-9a-f]{8})\)")
+
+
+class _Colors:
+    """The colors of one rendering in the light, dark or automatic theme.
+
+    `pick(light, dark)` gives the color (or opacity) to use. For a fixed theme, that is one of the
+    two values. For `"auto"`, it is a CSS variable that `finish()` defines twice, with the light
+    value and with the dark one, choosing between them by the page's color scheme where the page
+    sets one (see `_LIGHT_PAGES` and `_DARK_PAGES`), or else by the system's. One rendering then
+    suits both, and follows the page when its reader switches between them.
+
+    `theme=None` is `"auto"` on screen and `"light"` in saved files, since programs other than
+    browsers don't apply CSS variables.
+    """
+
+    def __init__(self, theme: Optional[str]) -> None:
+        self.auto = theme in (None, "auto")
+        self.dark = theme == "dark"
+        self.save_light = theme is None
+        self._vars: Dict[Tuple[Any, Any], str] = {}
+        if self.auto:
+            self.theme = Theme(
+                name="auto",
+                **{
+                    f.name: self.pick(getattr(LIGHT, f.name), getattr(DARK, f.name))
+                    for f in dataclasses.fields(Theme)
+                    if f.name != "name"
+                },
+            )
+        else:
+            self.theme = DARK if self.dark else LIGHT
+
+    def pick(self, light, dark):
+        if not self.auto:
+            return dark if self.dark else light
+        if light == dark:
+            return light
+        # Named after its values, so that the definitions of every rendering on a page agree
+        name = self._vars.setdefault(
+            (light, dark), "--ect-" + hashlib.sha1(f"{light}|{dark}".encode()).hexdigest()[:8]
+        )
+        return f"var({name})"
+
+    def tint(self, color: str, alpha: str = "22") -> str:
+        """`color` (a hex color or a variable from `pick()`) at the opacity of the hex `alpha`."""
+        if color.startswith("#"):
+            return color + alpha
+        return f"color-mix(in srgb, {color} {int(alpha, 16) / 2.55:.0f}%, transparent)"
+
+    def scheme(self) -> str:
+        """The `color-scheme` for the browser-drawn parts (sliders, menus, scroll bars)."""
+        return self.pick("light", "dark")
+
+    def _css(self) -> str:
+        light = ";".join(f"{name}:{lt}" for (lt, _), name in self._vars.items())
+        dark = ";".join(f"{name}:{dk}" for (_, dk), name in self._vars.items())
+        # Each rule outranks the ones before it whatever the order of the renderings on the page
+        # (by its specificity), and the page's scheme outranks the system's. Dark comes last, so
+        # that it wins should a page somehow carry both markers
+        return (
+            f":where(.ec-theme){{{light}}}"
+            f"@media (prefers-color-scheme: dark){{.ec-theme{{{dark}}}}}"
+            f":is({_LIGHT_PAGES}) .ec-theme{{{light}}}"
+            f":is({_DARK_PAGES}) .ec-theme{{{dark}}}"
+        )
+
+    def finish(self, svg_str: str, html_str: str, output: Optional[str]) -> "StepPlayer":
+        """The `StepPlayer` for the rendering, saved to `output=` when that is given."""
+        for_files = None
+        if self.save_light:
+            values = {name: lt for (lt, _), name in self._vars.items()}
+            for_files = tuple(
+                _VAR_RE.sub(lambda m: str(values[m.group(1)]), markup)
+                for markup in (svg_str, html_str)
+            )
+        if self.auto and self._vars:
+            style = f'<style class="ec-theme-vars">{self._css()}</style>'
+            # The SVG carries its own definitions, so that it works on its own, too
+            head_end = svg_str.index(">", svg_str.index("<svg")) + 1
+            head = svg_str[:head_end]
+            if ' class="' in head:
+                head = head.replace(' class="', ' class="ec-theme ', 1)
+            else:
+                head = head.replace("<svg", '<svg class="ec-theme"', 1)
+            svg_str = head + style + svg_str[head_end:]
+            html_str = f'<div class="ec-theme" style="display:contents">{style}{html_str}</div>'
+        result = StepPlayer(svg_str, html_str, for_files)
+        if output:
+            result.save(output)
+        return result
+
 
 # Default node color when no color_by mapping
 DEFAULT_NODE_COLOR = "#4e79a7"
@@ -88,9 +199,13 @@ class StepPlayer:
     Jupyter via `_repr_html_` and can be saved with `.save()`.
     """
 
-    def __init__(self, svg_str: str, html_str: str) -> None:
+    def __init__(
+        self, svg_str: str, html_str: str, for_files: Optional[Tuple[str, str]] = None
+    ) -> None:
         self._svg = svg_str
         self._html = html_str
+        # The SVG and HTML that `save()` writes instead, if they differ (for the default theme)
+        self._for_files = for_files
 
     @property
     def svg(self) -> str:
@@ -104,7 +219,8 @@ class StepPlayer:
 
     def save(self, path: str) -> None:
         p = Path(path)
-        content = self._html if p.suffix == ".html" else self._svg
+        svg_str, html_str = self._for_files or (self._svg, self._html)
+        content = html_str if p.suffix == ".html" else svg_str
         p.write_text(content, encoding="utf-8")
 
     def __repr__(self) -> str:
@@ -116,11 +232,40 @@ class StepPlayer:
 # ---------------------------------------------------------------------------
 
 
+def _circle_order(nodes: list, edges) -> list:
+    """The nodes in the order a depth-first search meets them, for going around a circle.
+
+    `nodes` come in the preferred order: each search starts from the first node not yet met and
+    moves on to neighbors in that order. Edge direction is ignored. Linked nodes then tend to sit
+    next to each other: a tree has no crossing edges, and a ring numbered in order stays a ring.
+    """
+    rank = {v: i for i, v in enumerate(nodes)}
+    adj: Dict[Any, set] = {v: set() for v in nodes}
+    for s, t in edges:
+        if s != t and s in adj and t in adj:
+            adj[s].add(t)
+            adj[t].add(s)
+    seen: set = set()
+    order = []
+    for root in nodes:
+        stack = [root]
+        while stack:
+            v = stack.pop()
+            if v in seen:
+                continue
+            seen.add(v)
+            order.append(v)
+            # pushed last-first, so the earliest neighbor is visited next
+            stack.extend(sorted(adj[v] - seen, key=rank.__getitem__, reverse=True))
+    return order
+
+
 def _circular_layout(
     node_ids: List[str],
     width: float,
     height: float,
     padding: float = 60,
+    edges: Optional[List[Tuple[str, str]]] = None,
 ) -> Dict[str, Tuple[float, float]]:
     n = len(node_ids)
     if n == 0:
@@ -128,6 +273,13 @@ def _circular_layout(
     if n == 1:
         return {node_ids[0]: (width / 2, height / 2)}
 
+    # Node IDs come in storage order, which isn't the order the nodes were added, so start from
+    # ID order, and with the edges go around the circle in depth-first order from there, as
+    # `layout_circular()` does, so that linked nodes sit near each other
+    if all(nid.isdigit() for nid in node_ids):
+        node_ids = sorted(node_ids, key=int)
+    if edges is not None:
+        node_ids = _circle_order(node_ids, edges)
     cx, cy = width / 2, height / 2
     r = min(width, height) / 2 - padding
     positions = {}
@@ -575,6 +727,126 @@ def _turn_to_fill(
     return {idx: (x * c - y * s, x * s + y * c) for idx, (x, y) in raw.items()}
 
 
+def _force_layout_raw(
+    n: int,
+    edges: List[Tuple[int, int]],
+    iterations: int,
+    seed: Optional[int],
+) -> Dict[int, Tuple[float, float]]:
+    """Force-directed positions keyed by node index, from the Rust engine or the Python one."""
+    raw = None
+    try:
+        from edgecase._core import force_directed_layout_rust
+
+        raw = force_directed_layout_rust(n, edges, min(iterations, 500), seed=seed)
+    except Exception:
+        pass
+    if not raw:
+        raw = _fruchterman_reingold_python(n, edges, iterations, seed=seed)
+    return raw
+
+
+def _index_components(n: int, edges: List[Tuple[int, int]]) -> List[List[int]]:
+    """The connected components of nodes `0..n`, largest first, ties by their first node."""
+    parent = list(range(n))
+
+    def find(i: int) -> int:
+        while parent[i] != i:
+            parent[i] = parent[parent[i]]
+            i = parent[i]
+        return i
+
+    for s, t in edges:
+        rs, rt = find(s), find(t)
+        if rs != rt:
+            parent[max(rs, rt)] = min(rs, rt)
+    groups: Dict[int, List[int]] = {}
+    for i in range(n):
+        groups.setdefault(find(i), []).append(i)
+    return sorted(groups.values(), key=lambda c: (-len(c), c[0]))
+
+
+def _pack_components(
+    components: List[List[int]],
+    edges: List[Tuple[int, int]],
+    width: float,
+    height: float,
+    iterations: int,
+    seed: Optional[int],
+) -> Dict[int, Tuple[float, float]]:
+    """Lay out each component alone and pack them in rows to fill a `width` by `height` frame.
+
+    Each piece is sized by the square root of its node count, so nodes are spaced alike in
+    all of them. The pieces go into rows, largest first, and the row width that lets the
+    whole be drawn largest in the frame is kept.
+    """
+    which = {}
+    for ci, comp in enumerate(components):
+        for j, i in enumerate(comp):
+            which[i] = (ci, j)
+    comp_edges: List[List[Tuple[int, int]]] = [[] for _ in components]
+    for s, t in edges:
+        ci, js = which[s]
+        comp_edges[ci].append((js, which[t][1]))
+
+    gap = 1.2
+    pieces = []  # (positions relative to the piece's corner, piece width, piece height)
+    for comp, cedges in zip(components, comp_edges):
+        if len(comp) == 1:
+            pieces.append(({comp[0]: (0.0, 0.0)}, 0.0, 0.0))
+            continue
+        raw = _force_layout_raw(len(comp), cedges, iterations, seed)
+        raw = _turn_to_fill(raw, width, height)
+        xs = [p[0] for p in raw.values()]
+        ys = [p[1] for p in raw.values()]
+        extent = max(max(xs) - min(xs), max(ys) - min(ys)) or 1.0
+        size = 1.2 * math.sqrt(len(comp))
+        f = size / extent
+        rel = {comp[j]: ((x - min(xs)) * f, (y - min(ys)) * f) for j, (x, y) in raw.items()}
+        pieces.append((rel, (max(xs) - min(xs)) * f, (max(ys) - min(ys)) * f))
+
+    def shelve(row_width: float):
+        rows: List[List[int]] = [[]]
+        used = 0.0
+        for k, (_, w, _h) in enumerate(pieces):
+            if rows[-1] and used + gap + w > row_width:
+                rows.append([])
+                used = 0.0
+            used += (gap if rows[-1] else 0.0) + w
+            rows[-1].append(k)
+        return rows
+
+    def extent_of(rows):
+        total_w = max(sum(pieces[k][1] for k in row) + gap * (len(row) - 1) for row in rows)
+        total_h = sum(max(pieces[k][2] for k in row) for row in rows) + gap * (len(rows) - 1)
+        return total_w, total_h
+
+    best_rows, best_scale = None, -1.0
+    widths = sorted({sum(p[1] for p in pieces[: k + 1]) + gap * k for k in range(len(pieces))})
+    for row_width in widths:
+        rows = shelve(row_width)
+        total_w, total_h = extent_of(rows)
+        scale = min(width / max(total_w, 1e-9), height / max(total_h, 1e-9))
+        if scale > best_scale * (1 + 1e-9):
+            best_rows, best_scale = rows, scale
+
+    total_w, _ = extent_of(best_rows)
+    out: Dict[int, Tuple[float, float]] = {}
+    y0 = 0.0
+    for row in best_rows:
+        row_h = max(pieces[k][2] for k in row)
+        row_w = sum(pieces[k][1] for k in row) + gap * (len(row) - 1)
+        x0 = (total_w - row_w) / 2
+        for k in row:
+            rel, w, h = pieces[k]
+            dy = y0 + (row_h - h) / 2
+            for i, (x, y) in rel.items():
+                out[i] = (x0 + x, dy + y)
+            x0 += w + gap
+        y0 += row_h + gap
+    return out
+
+
 def _force_directed_layout(
     node_ids: List[str],
     edges: List[Tuple[str, str]],
@@ -593,26 +865,22 @@ def _force_directed_layout(
         if s in id_to_idx and t in id_to_idx:
             indexed_edges.append((id_to_idx[s], id_to_idx[t]))
 
-    raw = None
-    try:
-        from edgecase._core import force_directed_layout_rust
-
-        raw = force_directed_layout_rust(
-            len(node_ids), indexed_edges, min(iterations, 500), seed=seed
-        )
-    except Exception:
-        pass
-
-    if not raw:
-        raw = _fruchterman_reingold_python(len(node_ids), indexed_edges, iterations, seed=seed)
-
-    if not raw:
-        return _circular_layout(node_ids, width, height)
-
     pad = 60.0
     usable_w = width - 2 * pad
     usable_h = height - 2 * pad
-    raw = _turn_to_fill(raw, usable_w, usable_h)
+
+    components = _index_components(len(node_ids), indexed_edges)
+    if len(components) > 1:
+        # Laid out together, the pieces push each other to the corners of the frame and each
+        # is drawn small, so each piece is laid out alone and the pieces are packed
+        raw = _pack_components(components, indexed_edges, usable_w, usable_h, iterations, seed)
+    else:
+        raw = _force_layout_raw(len(node_ids), indexed_edges, iterations, seed)
+        if raw:
+            raw = _turn_to_fill(raw, usable_w, usable_h)
+
+    if not raw:
+        return _circular_layout(node_ids, width, height)
 
     xs = [pos[0] for pos in raw.values()]
     ys = [pos[1] for pos in raw.values()]
@@ -697,6 +965,331 @@ def _build_color_map(
     for i, val in enumerate(unique):
         mapping[val] = colors[i % len(colors)]
     return mapping
+
+
+# ---------------------------------------------------------------------------
+# Color scales and highlighting
+# ---------------------------------------------------------------------------
+
+COLOR_SCALES = ("sequential", "diverging", "categorical")
+
+# Each stop of a numeric color scale is (position, light-theme color, dark-theme color). The
+# sequential scale is one blue, from light to dark on the light surface and the other way on the
+# dark one, so that high values stand out on both; its lightest (or darkest) step still stands
+# clear of the surface. The diverging scale runs from blue through a neutral gray to red
+SEQUENTIAL_STOPS = ((0.0, "#86b6ef", "#184f95"), (1.0, "#0d366b", "#cde2fb"))
+DIVERGING_STOPS = (
+    (-1.0, "#1c5cab", "#5598e7"),
+    (0.0, "#d3d1cb", "#4a4944"),
+    (1.0, "#b42318", "#f0706a"),
+)
+# Nodes and edges with no value on a numeric scale
+MISSING_COLOR = ("#d1d5db", "#4b5563")
+
+# highlight=: what it picks out is in the accent color (or keeps its mapped color), a "soft"
+# element in a lighter version of it, and everything else is muted
+HIGHLIGHT_LEVELS = ("accent", "soft")
+ACCENT_COLOR = ("#c2410c", "#f97316")
+MUTED_NODE_COLOR = ("#d4d4d8", "#3f3f46")
+MUTED_LABEL_COLOR = ("#a1a1aa", "#71717a")
+
+
+def _srgb_to_oklab(hex_color: str) -> Tuple[float, float, float]:
+    h = hex_color.lstrip("#")
+    lin = []
+    for i in (0, 2, 4):
+        c = int(h[i : i + 2], 16) / 255.0
+        lin.append(c / 12.92 if c <= 0.04045 else ((c + 0.055) / 1.055) ** 2.4)
+    r, g, b = lin
+    l_ = (0.4122214708 * r + 0.5363325363 * g + 0.0514459929 * b) ** (1 / 3)
+    m_ = (0.2119034982 * r + 0.6806995451 * g + 0.1073969566 * b) ** (1 / 3)
+    s_ = (0.0883024619 * r + 0.2817188376 * g + 0.6299787005 * b) ** (1 / 3)
+    return (
+        0.2104542553 * l_ + 0.7936177850 * m_ - 0.0040720468 * s_,
+        1.9779984951 * l_ - 2.4285922050 * m_ + 0.4505937099 * s_,
+        0.0259040371 * l_ + 0.7827717662 * m_ - 0.8086757660 * s_,
+    )
+
+
+def _oklab_to_srgb(lab: Tuple[float, float, float]) -> str:
+    L, a, b = lab
+    l_ = (L + 0.3963377774 * a + 0.2158037573 * b) ** 3
+    m_ = (L - 0.1055613458 * a - 0.0638541728 * b) ** 3
+    s_ = (L - 0.0894841775 * a - 1.2914855480 * b) ** 3
+    rgb = (
+        4.0767416621 * l_ - 3.3077115913 * m_ + 0.2309699292 * s_,
+        -1.2684380046 * l_ + 2.6097574011 * m_ - 0.3413193965 * s_,
+        -0.0041960863 * l_ - 0.7034186147 * m_ + 1.7076147010 * s_,
+    )
+    out = []
+    for c in rgb:
+        c = min(max(c, 0.0), 1.0)
+        c = c * 12.92 if c <= 0.0031308 else 1.055 * c ** (1 / 2.4) - 0.055
+        out.append(round(c * 255))
+    return "#" + "".join(f"{c:02x}" for c in out)
+
+
+def _mix(c1: str, c2: str, t: float) -> str:
+    """The color `t` of the way from hex `c1` to hex `c2`, mixed in OKLab."""
+    a, b = _srgb_to_oklab(c1), _srgb_to_oklab(c2)
+    return _oklab_to_srgb(tuple(x + (y - x) * t for x, y in zip(a, b)))
+
+
+def _scale_color(stops, t: float) -> Tuple[str, str]:
+    """The (light, dark) colors at position `t` of a scale's `stops`, in steps of a hundredth of
+    the scale, so that a plot needs at most one color variable per step."""
+    lo, hi = stops[0][0], stops[-1][0]
+    t = round(min(max(t, lo), hi) * 100) / 100
+    for (p0, l0, d0), (p1, l1, d1) in zip(stops, stops[1:]):
+        if t <= p1:
+            f = (t - p0) / (p1 - p0)
+            return _mix(l0, l1, f), _mix(d0, d1, f)
+    return stops[-1][1], stops[-1][2]
+
+
+def _is_number(v) -> bool:
+    return isinstance(v, (int, float)) and not isinstance(v, bool) and math.isfinite(v)
+
+
+def _color_scale(values: List[Any], scale: Optional[str], param: str) -> str:
+    """The scale for mapping `values` to colors: `scale` if given, else sequential for
+    numbers among which there is a fraction (a float), and categorical for anything else."""
+    if scale is not None:
+        if scale not in COLOR_SCALES:
+            raise ValueError(
+                f"Unknown color_scale {scale!r}; use one of {', '.join(map(repr, COLOR_SCALES))}"
+            )
+        present = [v for v in values if v is not None]
+        if scale != "categorical" and not all(_is_number(v) for v in present):
+            raise ValueError(f"color_scale={scale!r} needs numeric values of {param}")
+        return scale
+    present = [v for v in values if v is not None]
+    numeric = present and all(_is_number(v) for v in present)
+    if numeric and any(isinstance(v, float) for v in present):
+        return "sequential"
+    return "categorical"
+
+
+def _numeric_colors(
+    values: List[Any], scale: str, midpoint: Optional[float]
+) -> Tuple[List[Tuple[str, str]], Tuple[float, float, Optional[float]]]:
+    """(light, dark) colors for `values` on the sequential or diverging `scale`, and the
+    (low, high, midpoint) the scale's ends stand for."""
+    nums = [v for v in values if _is_number(v)]
+    if not nums:
+        return [MISSING_COLOR] * len(values), (0.0, 0.0, None)
+    lo, hi = min(nums), max(nums)
+    if scale == "diverging":
+        mid = 0.0 if midpoint is None else float(midpoint)
+        extent = max(abs(hi - mid), abs(mid - lo)) or 1.0
+        out = [
+            _scale_color(DIVERGING_STOPS, (v - mid) / extent) if _is_number(v) else MISSING_COLOR
+            for v in values
+        ]
+        return out, (mid - extent, mid + extent, mid)
+    span = (hi - lo) or 1.0
+    out = [
+        _scale_color(SEQUENTIAL_STOPS, (v - lo) / span) if _is_number(v) else MISSING_COLOR
+        for v in values
+    ]
+    return out, (lo, hi, None)
+
+
+def _sorted_values(values: List[Any]) -> List[Any]:
+    """The distinct `values` in order (`None` last), or in order of first appearance should they
+    not be comparable."""
+    unique = list(dict.fromkeys(v for v in values if v is not None))
+    try:
+        unique.sort()
+    except TypeError:
+        pass
+    if any(v is None for v in values):
+        unique.append(None)
+    return unique
+
+
+def _is_marked(v) -> bool:
+    """Whether an attribute value picks its node or edge out for `highlight=`: any value but a
+    missing one (`None` or NaN) or `False`. A 0 counts, being, e.g., the first node of a path."""
+    return v is not None and v is not False and not (isinstance(v, float) and math.isnan(v))
+
+
+def _graph_edges(graph) -> Dict[int, Tuple[int, int, Dict[str, Any], Optional[float]]]:
+    """{edge ID: (source, target, attributes, weight)}."""
+    out = {}
+    for eid in graph.get_edge_ids():
+        e = graph.get_edge(eid)
+        out[eid] = (e.source, e.target, dict(e.attributes) if e.attributes else {}, e.weight)
+    return out
+
+
+def _resolve_highlight(
+    graph, highlight, highlight_edges
+) -> Dict[str, Tuple[set, set]]:
+    """{level: (node IDs, edge IDs)} picked out by `highlight=` and `highlight_edges=`, for each
+    of `HIGHLIGHT_LEVELS`.
+
+    `highlight=` takes nodes: one node (an ID or a label), a list of them, `"selection"` (the
+    selected nodes and edges), or the name of a node or edge attribute (the nodes or edges whose
+    value `_is_marked()`). A list in which each node is joined to the next is a path, and its
+    edges are picked out as well; so are those of an attribute whose marked values are distinct
+    whole numbers, taken in their order (as `shortest_path_order` holds a path). A list can also
+    hold `(u, v)` pairs, for the edges between them. `highlight_edges=` takes edges: an edge ID,
+    a list of edge IDs or `(u, v)` pairs (or a dict keyed by edge IDs, as `maximum_flow()`
+    returns), or the name of an edge attribute. Either can be a dict mapping `"accent"` and
+    `"soft"` to such values. The ends of a picked-out edge are picked out at its level, too, and
+    what is picked out at both levels is accent.
+    """
+    out = {level: (set(), set()) for level in HIGHLIGHT_LEVELS}
+    graph_edges = None
+    node_attrs = None
+
+    def edges_info():
+        nonlocal graph_edges
+        if graph_edges is None:
+            graph_edges = _graph_edges(graph)
+        return graph_edges
+
+    def nodes_info():
+        nonlocal node_attrs
+        if node_attrs is None:
+            node_attrs = {}
+            for nid in graph.get_node_ids(limit=None):
+                obj = graph.get_node(nid)
+                node_attrs[nid] = dict(obj.attributes) if obj and obj.attributes else {}
+        return node_attrs
+
+    def node_id(ref, param):
+        if isinstance(ref, bool) or not isinstance(ref, (int, str)):
+            raise TypeError(f"{param}= takes node IDs or labels, got {ref!r}")
+        try:
+            return graph._resolve_node_id(ref)
+        except Exception:
+            raise ValueError(f"{param}={ref!r}: no such node") from None
+
+    def pair_edges(u, v, param):
+        a, b = node_id(u, param), node_id(v, param)
+        eids = list(graph.find_edge_ids(a, b))
+        if not graph.is_directed() and not eids:
+            eids = list(graph.find_edge_ids(b, a))
+        if not eids:
+            raise ValueError(f"{param}: no edge joins {u!r} and {v!r}")
+        return eids
+
+    def path_edges(ids):
+        found = []
+        for a, b in zip(ids, ids[1:]):
+            eids = list(graph.find_edge_ids(a, b))
+            if not graph.is_directed() and not eids:
+                eids = list(graph.find_edge_ids(b, a))
+            if not eids:
+                return []
+            found.extend(eids)
+        return found
+
+    def edge_attr_marked(name):
+        info = edges_info()
+        if not any(name in attrs for _, _, attrs, _ in info.values()):
+            return None
+        return {eid for eid, (_, _, attrs, _) in info.items() if _is_marked(attrs.get(name))}
+
+    def nodes_spec(spec):
+        param = "highlight"
+        if isinstance(spec, str):
+            if spec == "selection":
+                return set(graph.get_selected_node_ids()), set(graph.get_selected_edge_ids())
+            attrs = nodes_info()
+            if any(spec in a for a in attrs.values()):
+                marked = {nid: a[spec] for nid, a in attrs.items() if _is_marked(a.get(spec))}
+                edges = set()
+                vals = list(marked.values())
+                if (
+                    len(vals) >= 2
+                    and all(isinstance(v, int) and not isinstance(v, bool) for v in vals)
+                    and len(set(vals)) == len(vals)
+                ):
+                    edges = set(path_edges(sorted(marked, key=marked.get)))
+                return set(marked), edges
+            edges = edge_attr_marked(spec)
+            if edges is not None:
+                return set(), edges
+            try:
+                return {graph._resolve_node_id(spec)}, set()
+            except Exception:
+                raise ValueError(
+                    f"highlight={spec!r} is neither a node nor the name of a node or edge "
+                    f"attribute (or 'selection')"
+                ) from None
+        if isinstance(spec, int) and not isinstance(spec, bool):
+            return {node_id(spec, param)}, set()
+        if isinstance(spec, dict):
+            spec = list(spec)
+        try:
+            items = list(spec)
+        except TypeError:
+            raise TypeError(f"highlight= takes nodes, edges or an attribute name, got {spec!r}")
+        nodes, edges, ordered = set(), set(), []
+        for item in items:
+            if isinstance(item, tuple) and len(item) == 2:
+                edges.update(pair_edges(item[0], item[1], param))
+            else:
+                ordered.append(node_id(item, param))
+        nodes.update(ordered)
+        if not isinstance(spec, (set, frozenset)) and len(ordered) == len(items):
+            edges.update(path_edges(ordered))
+        return nodes, edges
+
+    def edges_spec(spec):
+        param = "highlight_edges"
+        if isinstance(spec, str):
+            if spec == "selection":
+                return set(), set(graph.get_selected_edge_ids())
+            edges = edge_attr_marked(spec)
+            if edges is None:
+                raise ValueError(f"highlight_edges={spec!r}: no edge has an attribute {spec!r}")
+            return set(), edges
+        if isinstance(spec, int) and not isinstance(spec, bool):
+            spec = [spec]
+        if isinstance(spec, dict):
+            spec = list(spec)
+        try:
+            items = list(spec)
+        except TypeError:
+            raise TypeError(f"highlight_edges= takes edges or an attribute name, got {spec!r}")
+        edges = set()
+        for item in items:
+            if isinstance(item, tuple) and len(item) == 2:
+                edges.update(pair_edges(item[0], item[1], param))
+            elif isinstance(item, int) and not isinstance(item, bool):
+                if not graph.has_edge_id(item):
+                    raise ValueError(f"highlight_edges: no edge has the ID {item!r}")
+                edges.add(item)
+            else:
+                raise TypeError(
+                    f"highlight_edges= takes edge IDs or (u, v) pairs, got {item!r}"
+                )
+        return set(), edges
+
+    for value, resolve in ((highlight, nodes_spec), (highlight_edges, edges_spec)):
+        if value is None:
+            continue
+        if isinstance(value, dict) and value and set(value) <= set(HIGHLIGHT_LEVELS):
+            levels = list(value.items())
+        else:
+            levels = [("accent", value)]
+        for level, spec in levels:
+            if spec is None:
+                continue
+            nodes, edges = resolve(spec)
+            out[level][0].update(nodes)
+            out[level][1].update(edges)
+
+    for level in HIGHLIGHT_LEVELS:
+        for eid in out[level][1]:
+            out[level][0].update(graph.get_node_ids_by_edge_id(eid))
+    out["soft"][0].difference_update(out["accent"][0])
+    out["soft"][1].difference_update(out["accent"][1])
+    return out
 
 
 # ---------------------------------------------------------------------------
@@ -1109,11 +1702,15 @@ def _svg_node(
     node_id: str,
     attrs_json: str,
     border_opacity: float = 0.3,
+    border: Optional[str] = None,
+    border_width: float = 1.5,
 ) -> str:
-    border = _darken(fill, 0.3)
+    """A node's circle. `border` defaults to a darker `fill`, which must then be a hex color."""
+    if border is None:
+        border = _darken(fill, 0.3)
     return (
         f'<circle cx="{x:.1f}" cy="{y:.1f}" r="{r:.1f}" '
-        f'fill="{fill}" stroke="{border}" stroke-width="1.5" '
+        f'fill="{fill}" stroke="{border}" stroke-width="{border_width:g}" '
         f'stroke-opacity="{border_opacity}" '
         f"data-node=\"{html_mod.escape(str(node_id))}\" data-attrs='{attrs_json}' "
         f'/>'
@@ -1138,6 +1735,117 @@ def _svg_label(
         f'font-family="{FONT_FAMILY}" font-size="{font_size:.1f}" '
         f'fill="{color}" pointer-events="none">{escaped}</text>'
     )
+
+
+# ---------------------------------------------------------------------------
+# Legend
+# ---------------------------------------------------------------------------
+
+LEGEND_MAX_ITEMS = 12
+_LEGEND_FONT = 11.0
+_LEGEND_ROW = 17.0
+_LEGEND_PAD = 12.0
+_LEGEND_RAMP = 90.0
+_LEGEND_MAX_CHARS = 22
+
+
+def _fmt_num(v: float) -> str:
+    r = _round_sig(float(v), 3)
+    return str(int(r)) if float(r).is_integer() and abs(r) < 1e15 else f"{r:g}"
+
+
+def _legend_text(text: str) -> str:
+    return text if len(text) <= _LEGEND_MAX_CHARS else text[: _LEGEND_MAX_CHARS - 1] + "…"
+
+
+def _text_width(text: str, size: float = _LEGEND_FONT) -> float:
+    return len(text) * size * 0.58
+
+
+def _svg_legend(
+    blocks: List[Dict[str, Any]], colors: "_Colors", th: Theme
+) -> Tuple[str, float, float]:
+    """The legend for `blocks` (as `render_plot()` gathers them), drawn from (0, 0) in pixels, and
+    its width and height.
+
+    A `"swatches"` block lists `(shape, (light, dark), text)` items, the shape being `"node"` (a
+    dot) or `"edge"` (a line). A `"ramp"` block draws its `scale` as a bar, labelled with the
+    values its `ends` stand for (and the midpoint of a diverging scale), and a gray dot for nodes
+    without a value when it is `missing` one.
+    """
+    parts = []
+    y = _LEGEND_PAD
+    widest = 0.0
+    text_x = 22.0
+    font = f'font-family="{FONT_FAMILY}" font-size="{_LEGEND_FONT:g}"'
+
+    def text(x, ty, s, weight=""):
+        w = f' font-weight="{weight}"' if weight else ""
+        return (
+            f'<text x="{x:.1f}" y="{ty:.1f}" {font}{w} fill="{th.label_color}" '
+            f'dominant-baseline="middle">{html_mod.escape(s)}</text>'
+        )
+
+    for block in blocks:
+        title = _legend_text(str(block["title"]))
+        parts.append(text(0, y, title, "600"))
+        widest = max(widest, _text_width(title) * 1.05)
+        y += _LEGEND_ROW
+        if block["kind"] == "swatches":
+            for shape, pair, label in block["items"]:
+                c = colors.pick(*pair)
+                if shape == "node":
+                    border = colors.pick(_darken(pair[0], 0.3), _darken(pair[1], 0.3))
+                    parts.append(
+                        f'<circle cx="7" cy="{y:.1f}" r="5" fill="{c}" stroke="{border}" '
+                        f'stroke-width="1" stroke-opacity="0.4"/>'
+                    )
+                else:
+                    parts.append(
+                        f'<line x1="0" y1="{y:.1f}" x2="14" y2="{y:.1f}" stroke="{c}" '
+                        f'stroke-width="3" stroke-linecap="round"/>'
+                    )
+                label = _legend_text(label)
+                parts.append(text(text_x, y, label))
+                widest = max(widest, text_x + _text_width(label))
+                y += _LEGEND_ROW
+        else:
+            lo, hi, mid = block["ends"]
+            stops = DIVERGING_STOPS if block["scale"] == "diverging" else SEQUENTIAL_STOPS
+            first = stops[0][0]
+            stop_marks = []
+            for k in range(11):
+                light, dark = _scale_color(stops, first + (stops[-1][0] - first) * k / 10)
+                stop_marks.append(
+                    f'<stop offset="{k / 10:g}" stop-color="{colors.pick(light, dark)}"/>'
+                )
+            # Named after its colors, so that equal ramps on one page can share the name
+            grad = "ec-ramp-" + hashlib.sha1("".join(stop_marks).encode()).hexdigest()[:8]
+            top = y - _LEGEND_FONT / 2
+            parts.append(
+                f'<defs><linearGradient id="{grad}" x1="0" y1="1" x2="0" y2="0">'
+                + "".join(stop_marks)
+                + "</linearGradient></defs>"
+                f'<rect x="2" y="{top:.1f}" width="10" height="{_LEGEND_RAMP:g}" rx="2" '
+                f'fill="url(#{grad})"/>'
+            )
+            marks = [(top, _fmt_num(hi)), (top + _LEGEND_RAMP, _fmt_num(lo))]
+            if mid is not None:
+                marks.insert(1, (top + _LEGEND_RAMP / 2, _fmt_num(mid)))
+            for ty, label in marks:
+                parts.append(text(text_x, ty, label))
+                widest = max(widest, text_x + _text_width(label))
+            y = top + _LEGEND_RAMP + _LEGEND_ROW
+            if block.get("missing"):
+                pair = MISSING_COLOR
+                parts.append(
+                    f'<circle cx="7" cy="{y:.1f}" r="5" fill="{colors.pick(*pair)}"/>'
+                )
+                parts.append(text(text_x, y, "no value"))
+                widest = max(widest, text_x + _text_width("no value"))
+                y += _LEGEND_ROW
+        y += _LEGEND_ROW / 2
+    return "".join(parts), widest + 2 * _LEGEND_PAD, y
 
 
 # ---------------------------------------------------------------------------
@@ -1289,7 +1997,7 @@ def render_plot(
     label_by: str = "id",
     edge_label_by: Optional[str] = None,
     curved_edges: bool = False,
-    theme: str = "light",
+    theme: Optional[str] = None,
     palette: str = "tableau",
     width: int = 700,
     height: int = 500,
@@ -1302,11 +2010,23 @@ def render_plot(
     show_labels: bool = True,
     output: Optional[str] = None,
     seed: Optional[int] = None,
+    edge_width_by: Optional[str] = None,
+    color_scale: Optional[str] = None,
+    color_midpoint: Optional[float] = None,
+    highlight=None,
+    highlight_edges=None,
+    legend: bool = True,
 ) -> "StepPlayer":
     """Render a graph as a static SVG wrapped in a StepPlayer."""
 
     _check_style(layout, theme, stored_ok=True)
-    th = THEMES.get(theme, LIGHT)
+    if color_scale is not None and color_scale not in COLOR_SCALES:
+        raise ValueError(
+            f"Unknown color_scale {color_scale!r}; use one of "
+            f"{', '.join(map(repr, COLOR_SCALES))}"
+        )
+    colors = _Colors(theme)
+    th = colors.theme
     if color_by or edge_color_by:
         from edgecase.colors import get_palette
 
@@ -1323,10 +2043,7 @@ def render_plot(
             f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
             f'font-size="14">Empty graph</text></svg>'
         )
-        result = StepPlayer(svg, svg)
-        if output:
-            result.save(output)
-        return result
+        return colors.finish(svg, svg, output)
 
     n = len(node_ids)
     if edge_width == 1.2:
@@ -1349,14 +2066,14 @@ def render_plot(
     label_values = _plot_node_values(graph, node_ids, node_data, label_by, "label_by")
     size_by_values = _plot_node_values(graph, node_ids, node_data, size_by, "size_by")
     color_by_values = _plot_node_values(graph, node_ids, node_data, color_by, "color_by")
-    edge_color_values = _plot_node_values(
-        graph, node_ids, node_data, edge_color_by, "edge_color_by"
-    )
 
     # Edge data (supports multi-edges between same pair)
     is_directed = graph.is_directed()
     edges: List[Tuple[str, str]] = []
     edge_attrs_list: List[Dict] = []
+    # Each edge's ID and weight (None for an edge drawn without its edge object)
+    edge_id_list: List[Optional[int]] = []
+    edge_weights: List[Optional[float]] = []
     # The start of each edge's tooltip: its ID, ends (named as their labels are drawn, and in the
     # order stored) and weight. Its attributes follow
     edge_tip_heads: List[Dict] = []
@@ -1396,25 +2113,56 @@ def render_plot(
                     edges.append((str(nid), str(nb)))
                     edge_attrs_list.append({})
                     edge_tip_heads.append(tip_head(nid, nb))
+                    edge_id_list.append(None)
+                    edge_weights.append(None)
                 else:
                     for eid in eids:
                         edges.append((str(nid), str(nb)))
+                        edge_id_list.append(eid)
                         try:
                             e_obj = graph.get_edge(eid)
                             edge_attrs_list.append(
                                 dict(e_obj.attributes) if e_obj and e_obj.attributes else {}
                             )
                             edge_tip_heads.append(tip_head(nid, nb, e_obj))
+                            edge_weights.append(e_obj.weight)
                         except Exception:
                             edge_attrs_list.append({})
                             edge_tip_heads.append(tip_head(nid, nb))
+                            edge_weights.append(None)
+
+    def edge_values(key):
+        """Each edge's value of the edge attribute `key` (or its weight, for `"weight"`), or
+        `None` if no edge has the attribute."""
+        if any(key in a for a in edge_attrs_list):
+            return [a.get(key) for a in edge_attrs_list]
+        if key == "weight" and any(w is not None for w in edge_weights):
+            return list(edge_weights)
+        return None
+
+    # edge_color_by= names an edge attribute, or else a node attribute whose groups the edges
+    # take on
+    edge_color_attr_values = edge_values(edge_color_by) if edge_color_by else None
+    edge_color_values = (
+        _plot_node_values(graph, node_ids, node_data, edge_color_by, "edge_color_by")
+        if edge_color_by and edge_color_attr_values is None
+        else {str(nid): None for nid in node_ids}
+    )
+    edge_width_values = None
+    if edge_width_by:
+        edge_width_values = edge_values(edge_width_by)
+        if edge_width_values is None:
+            raise ValueError(
+                f"edge_width_by={edge_width_by!r}: no edge has an attribute {edge_width_by!r}"
+            )
+
 
     # Convert node_ids to strings for consistency
     str_ids = [str(nid) for nid in node_ids]
 
     # --- Layout ---
     if layout == "circular":
-        positions = _circular_layout(str_ids, float(width), float(height))
+        positions = _circular_layout(str_ids, float(width), float(height), edges=edges)
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     elif layout not in LAYOUTS:
@@ -1433,34 +2181,152 @@ def render_plot(
 
     # --- Aesthetic mappings ---
 
-    # Color mapping
-    color_map = {}
+    # Color mapping. `node_colors` holds each node's (light, dark) colors; the legend's blocks
+    # gather in `legend_blocks`
+    legend_blocks: List[Dict[str, Any]] = []
+    node_colors: Dict[str, Tuple[str, str]] = {}
     node_community = {}
     if color_by:
-        cat_values = []
-        for nid in str_ids:
-            val = color_by_values[nid]
-            cat_values.append(val)
-            node_community[nid] = val
-        palette_map = _build_color_map(cat_values, palette)
-        for nid, val in zip(str_ids, cat_values):
-            color_map[nid] = palette_map.get(val, DEFAULT_NODE_COLOR)
+        cat_values = [color_by_values[nid] for nid in str_ids]
+        scale = _color_scale(cat_values, color_scale, "color_by")
+        if scale == "categorical":
+            for nid, val in zip(str_ids, cat_values):
+                node_community[nid] = val
+            # Nodes without a value are gray, as on a numeric scale, rather than taking a hue
+            order = _sorted_values(cat_values)
+            present = [v for v in order if v is not None]
+            palette_map = _build_color_map(present, palette)
+            pairs = {v: (palette_map[v],) * 2 for v in present}
+            pairs[None] = MISSING_COLOR
+            for nid, val in zip(str_ids, cat_values):
+                node_colors[nid] = pairs.get(val, (DEFAULT_NODE_COLOR,) * 2)
+            legend_blocks.append(
+                {
+                    "title": color_by,
+                    "kind": "swatches",
+                    "items": [
+                        ("node", pairs[v], "no value" if v is None else str(v)) for v in order
+                    ],
+                }
+            )
+        else:
+            mapped, ends = _numeric_colors(cat_values, scale, color_midpoint)
+            node_colors = dict(zip(str_ids, mapped))
+            legend_blocks.append(
+                {
+                    "title": color_by,
+                    "kind": "ramp",
+                    "scale": scale,
+                    "ends": ends,
+                    "missing": any(not _is_number(v) for v in cat_values),
+                }
+            )
     else:
         for nid in str_ids:
-            color_map[nid] = DEFAULT_NODE_COLOR
+            node_colors[nid] = (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR)
+    color_map = {nid: colors.pick(*pair) for nid, pair in node_colors.items()}
 
-    # Edge color mapping (community-aware)
+    # Edge color mapping: by an edge attribute's values, or by the groups of the endpoints
     edge_community = {}
-    if edge_color_by:
+    edge_attr_colors: Optional[List[Optional[Tuple[str, str]]]] = None
+    if edge_color_attr_values is not None:
+        scale = _color_scale(edge_color_attr_values, None, "edge_color_by")
+        if scale == "categorical":
+            order = _sorted_values(edge_color_attr_values)
+            present = [v for v in order if v is not None]
+            ecb_palette = _build_color_map(present, palette)
+            edge_attr_colors = [
+                (ecb_palette[v],) * 2 if v is not None else None for v in edge_color_attr_values
+            ]
+            legend_blocks.append(
+                {
+                    "title": edge_color_by,
+                    "kind": "swatches",
+                    "items": [("edge", (ecb_palette[v],) * 2, str(v)) for v in present],
+                }
+            )
+        else:
+            mapped, ends = _numeric_colors(edge_color_attr_values, scale, None)
+            edge_attr_colors = [
+                pair if _is_number(v) else None for pair, v in zip(mapped, edge_color_attr_values)
+            ]
+            legend_blocks.append(
+                {"title": edge_color_by, "kind": "ramp", "scale": scale, "ends": ends}
+            )
+            # A color scale reads poorly through the default, faint edges
+            if edge_opacity == 0.4:
+                edge_opacity = 0.85
+    elif edge_color_by:
         for nid in str_ids:
             edge_community[nid] = edge_color_values[nid]
         ecb_vals = [v for v in edge_community.values() if v is not None]
-        ecb_palette = _build_color_map(ecb_vals, palette) if ecb_vals else {}
+        order = _sorted_values(ecb_vals)
+        ecb_palette = _build_color_map(order, palette) if ecb_vals else {}
         ecb_node_colors = {
             nid: ecb_palette.get(edge_community.get(nid), th.edge_color) for nid in str_ids
         }
-        default_cross = "#e07a7a" if theme != "dark" else "#b45555"
-        ecb_cross_color = cross_community_color or default_cross
+        default_cross = ("#52525b", "#a1a1aa")
+        ecb_cross_color = cross_community_color or colors.pick(*default_cross)
+        cross_item = (
+            "edge",
+            (cross_community_color,) * 2 if cross_community_color else default_cross,
+            "between groups",
+        )
+        if edge_color_by == color_by and legend_blocks and legend_blocks[0]["kind"] == "swatches":
+            legend_blocks[0]["items"].append(cross_item)
+        else:
+            legend_blocks.append(
+                {
+                    "title": edge_color_by,
+                    "kind": "swatches",
+                    "items": [("edge", (ecb_palette[v],) * 2, str(v)) for v in order]
+                    + [cross_item],
+                }
+            )
+
+    # Edge widths from edge_width_by=, from half to two and a half times the base width
+    edge_widths = [edge_width] * len(edges)
+    if edge_width_values is not None:
+        nums = [v for v in edge_width_values if _is_number(v)]
+        if nums:
+            lo, hi = min(nums), max(nums)
+            span = (hi - lo) or 1.0
+            edge_widths = [
+                edge_width * (0.5 + 2.0 * (v - lo) / span) if _is_number(v) else edge_width
+                for v in edge_width_values
+            ]
+
+    # Highlighting: each node's and edge's level ("accent", "soft", or None for muted)
+    node_level: Dict[str, Optional[str]] = {}
+    edge_level: List[Optional[str]] = []
+    if highlight is not None or highlight_edges is not None:
+        picked = _resolve_highlight(graph, highlight, highlight_edges)
+        for nid in str_ids:
+            node_level[nid] = None
+        edge_level = [None] * len(edges)
+        index_of_edge = {eid: i for i, eid in enumerate(edge_id_list) if eid is not None}
+        for level in reversed(HIGHLIGHT_LEVELS):
+            for nid in picked[level][0]:
+                node_level[str(nid)] = level
+            for eid in picked[level][1]:
+                if eid in index_of_edge:
+                    edge_level[index_of_edge[eid]] = level
+
+    # Legends are shown only for what they can tell apart: a palette's colors repeat after
+    # its length, so a categorical block with more values than that is left out
+    if not legend:
+        legend_blocks = []
+    else:
+        from edgecase.colors import get_palette
+
+        n_colors = len(get_palette(palette)) if color_by or edge_color_by else 0
+        legend_blocks = [
+            b
+            for b in legend_blocks
+            if b["kind"] == "ramp"
+            or sum(1 for item in b["items"] if item[2] != "between groups")
+            <= min(n_colors, LEGEND_MAX_ITEMS)
+        ]
 
     # Size mapping
     radii = {}
@@ -1501,13 +2367,22 @@ def render_plot(
             label_map[nid] = nid if value is None else str(value)
 
     # --- Compute viewBox ---
+    # The legend gets a column of its own at the right, so that it never covers the drawing
+    legend_svg, legend_w = "", 0
+    if legend_blocks:
+        legend_svg, legend_w, _ = _svg_legend(legend_blocks, colors, th)
+    legend_w = min(legend_w, width * 0.4)
     vb = _compute_viewbox(
         positions,
         radii,
         labels=label_map if show_labels else None,
         label_space=20 if show_labels else 0,
-        frame=(width, height),
+        frame=(width - legend_w, height),
     )
+    if legend_blocks:
+        # Viewbox units per pixel
+        unit = vb[3] / height
+        vb = (vb[0], vb[1], vb[2] + legend_w * unit, vb[3])
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
     # --- Build SVG ---
@@ -1539,8 +2414,16 @@ def render_plot(
         [{**head, **e_attrs} for head, e_attrs in zip(edge_tip_heads, edge_attrs_list)]
     )
 
+    # Highlighted elements are drawn over the muted ones, and accent over soft
+    level_rank = {None: 0, "soft": 1, "accent": 2}
+    accent = colors.pick(*ACCENT_COLOR)
+
     # Edges first (painter's algorithm)
-    for i, (src, tgt) in enumerate(edges):
+    edge_order = range(len(edges))
+    if edge_level:
+        edge_order = sorted(edge_order, key=lambda j: level_rank[edge_level[j]])
+    for i in edge_order:
+        src, tgt = edges[i]
         if src not in positions or tgt not in positions:
             continue
         x1, y1 = positions[src]
@@ -1550,7 +2433,10 @@ def render_plot(
 
         # Edge color
         e_color = th.edge_color
-        if edge_color_by and edge_community:
+        if edge_attr_colors is not None:
+            if edge_attr_colors[i] is not None:
+                e_color = colors.pick(*edge_attr_colors[i])
+        elif edge_color_by and edge_community:
             src_comm = edge_community.get(src)
             tgt_comm = edge_community.get(tgt)
             if src_comm is not None and src_comm == tgt_comm:
@@ -1563,6 +2449,26 @@ def render_plot(
             and node_community.get(src) is not None
         ):
             e_color = color_map.get(src, th.edge_color)
+
+        e_width = edge_widths[i]
+        e_opacity = edge_opacity
+        if edge_level:
+            level = edge_level[i]
+            if level is None:
+                e_color = th.edge_color
+                e_opacity = edge_opacity * 0.5
+            else:
+                # A highlighted edge keeps a color that edge_color_by= gives it, or else takes
+                # the accent (rather than its group's color from color_by=, so that a path or
+                # matching is all of one color)
+                if not edge_color_by or e_color == th.edge_color:
+                    e_color = accent
+                if level == "accent":
+                    e_width = max(e_width * 2.0, 1.5)
+                    e_opacity = max(edge_opacity, 0.9)
+                else:
+                    e_width = max(e_width * 1.3, 1.0)
+                    e_opacity = max(edge_opacity, 0.5)
 
         attrs_j = _attrs_json(edge_tips[i])
         eid = f"{src}-{tgt}-{i}"
@@ -1577,8 +2483,8 @@ def render_plot(
                     y1,
                     r_src,
                     e_color,
-                    edge_width,
-                    edge_opacity,
+                    e_width,
+                    e_opacity,
                     is_directed,
                     eid,
                     attrs_j,
@@ -1598,11 +2504,12 @@ def render_plot(
                     r_src,
                     r_dst,
                     e_color,
-                    edge_width,
-                    edge_opacity,
+                    e_width,
+                    e_opacity,
                     is_directed,
                     eid,
                     attrs_j,
+                    bow=0.2 + bow,
                 )
             )
         elif abs(bow) > 1e-6:
@@ -1615,8 +2522,8 @@ def render_plot(
                     r_src,
                     r_dst,
                     e_color,
-                    edge_width,
-                    edge_opacity,
+                    e_width,
+                    e_opacity,
                     is_directed,
                     eid,
                     attrs_j,
@@ -1630,8 +2537,8 @@ def render_plot(
                     r_src,
                     r_dst,
                     e_color,
-                    edge_width,
-                    edge_opacity,
+                    e_width,
+                    e_opacity,
                     is_directed,
                     eid,
                     attrs_j,
@@ -1647,8 +2554,8 @@ def render_plot(
                     r_src,
                     r_dst,
                     e_color,
-                    edge_width,
-                    edge_opacity,
+                    e_width,
+                    e_opacity,
                     is_directed,
                     eid,
                     attrs_j,
@@ -1657,16 +2564,24 @@ def render_plot(
 
     # Edge labels (stretch goal)
     if edge_label_by:
+        edge_label_values = edge_values(edge_label_by) or []
+        # Each edge's place among the edges between the same two nodes, numbered as in
+        # `_compute_edge_fans()`
+        fan_members: Dict[Tuple[str, str], List[int]] = {}
+        for i, (src, tgt) in enumerate(edges):
+            if src != tgt:
+                fan_members.setdefault((min(src, tgt), max(src, tgt)), []).append(i)
+        fan_place = {i: (k, m) for m in fan_members.values() for k, i in enumerate(m)}
         for i, (src, tgt) in enumerate(edges):
             if src not in positions or tgt not in positions:
                 continue
-            e_attrs = edge_attrs_list[i] if i < len(edge_attrs_list) else {}
-            label_val = e_attrs.get(edge_label_by)
+            label_val = edge_label_values[i] if i < len(edge_label_values) else None
             if label_val is None:
                 continue
             x1, y1 = positions[src]
             x2, y2 = positions[tgt]
             eid = f"{src}-{tgt}-{i}"
+            k, fan = fan_place.get(i, (0, [i]))
 
             if curved_edges:
                 # For textPath, text reads left-to-right along the path.
@@ -1682,7 +2597,7 @@ def render_plot(
                         px_e, py_e = -uy_e, ux_e
                         r_src = radii.get(src, node_size)
                         r_dst = radii.get(tgt, node_size)
-                        bow_val = 0.2
+                        bow_val = 0.2 + edge_bows[i]
                         cmx = (x1 + x2) / 2 + px_e * d_e * bow_val
                         cmy = (y1 + y2) / 2 + py_e * d_e * bow_val
                         # Reversed: swap start/end
@@ -1709,19 +2624,56 @@ def render_plot(
                     f'<textPath href="#{text_path_ref}" startOffset="50%" text-anchor="middle">'
                     f"{html_mod.escape(str(label_val))}</textPath></text>"
                 )
+            elif len(fan) >= 3 and math.dist((x1, y1), (x2, y2)) > 1e-6:
+                # Three or more edges between two nodes leave no room beside the inner ones, so
+                # each label sits on its own edge, ringed by the background. The labels step
+                # along the edges too, in the order of the curves, each step the length of a
+                # label's box measured along the edges, so that neighbors don't overlap however
+                # the edges are angled (as far as the edges are long enough)
+                a_x, a_y, b_x, b_y = (x1, y1, x2, y2) if src <= tgt else (x2, y2, x1, y1)
+                dist = math.dist((a_x, a_y), (b_x, b_y))
+                box_w = max(
+                    _text_width(str(edge_label_values[j]), 10)
+                    for j in fan
+                    if j < len(edge_label_values) and edge_label_values[j] is not None
+                )
+                step = (box_w * abs(b_x - a_x) + 11 * abs(b_y - a_y)) / dist + 3
+                rank = k - (len(fan) - 1) / 2
+                t = 0.5 + rank * min(step / dist, 0.7 / (len(fan) - 1))
+                # The edge's offset from the straight line, on the side of the A-to-B normal
+                v = edge_bows[i] if src <= tgt else -edge_bows[i]
+                bulge = dist * v * 2 * t * (1 - t)
+                mx = a_x + (b_x - a_x) * t - (b_y - a_y) / dist * bulge
+                my = a_y + (b_y - a_y) * t + (b_x - a_x) / dist * bulge
+                svg_parts.append(
+                    f'<text x="{mx:.1f}" y="{my + 3.5:.1f}" text-anchor="middle" '
+                    f'font-family="{FONT_FAMILY}" font-size="10" '
+                    f'fill="{th.label_color}" fill-opacity="0.7" stroke="{th.bg}" '
+                    f'stroke-width="3" stroke-linejoin="round" paint-order="stroke" '
+                    f'pointer-events="none">{html_mod.escape(str(label_val))}</text>'
+                )
             else:
-                # Midpoint label for straight edges
+                # Midpoint label, offset perpendicular to the edge. A parallel edge is drawn as a
+                # curve, so its label goes by the middle of the curve, on the outside of it. Beside
+                # a steep edge, the text starts or ends at that point, so it stays clear of the line
                 mx = (x1 + x2) / 2
                 my = (y1 + y2) / 2
-                # Offset perpendicular to edge
+                anchor = "middle"
                 dx, dy = x2 - x1, y2 - y1
                 dist = math.sqrt(dx * dx + dy * dy)
                 if dist > 1e-6:
                     px, py = -dy / dist, dx / dist
-                    mx += px * 8
-                    my += py * 8
+                    bow = edge_bows[i]
+                    offset = 8 + dist * abs(bow) / 2 if abs(bow) > 1e-6 else 8
+                    if bow < -1e-6:
+                        px, py = -px, -py
+                    mx += px * offset
+                    my += py * offset
+                    if abs(px) > 0.7:
+                        anchor = "start" if px > 0 else "end"
+                        my += 3
                 svg_parts.append(
-                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="middle" '
+                    f'<text x="{mx:.1f}" y="{my:.1f}" text-anchor="{anchor}" '
                     f'font-family="{FONT_FAMILY}" font-size="10" '
                     f'fill="{th.label_color}" fill-opacity="0.7" '
                     f'pointer-events="none">{html_mod.escape(str(label_val))}</text>'
@@ -1739,17 +2691,50 @@ def render_plot(
     node_tips = dict(zip(str_ids, _tooltip_rows(node_tips)))
 
     # Nodes on top
-    for nid in str_ids:
+    node_order = list(str_ids)
+    if node_level:
+        node_order.sort(key=lambda v: level_rank[node_level[v]])
+    surface = (LIGHT.bg, DARK.bg)
+    for nid in node_order:
         if nid not in positions:
             continue
         x, y = positions[nid]
         r = radii.get(nid, node_size)
-        fill = color_map.get(nid, DEFAULT_NODE_COLOR)
-        svg_parts.append(_svg_node(x, y, r, fill, nid, _attrs_json(node_tips[nid])))
+        light, dark = node_colors.get(nid, (DEFAULT_NODE_COLOR, DEFAULT_NODE_COLOR))
+        border_opacity, border_width = 0.3, 1.5
+        if node_level:
+            level = node_level[nid]
+            if not color_by:
+                light, dark = ACCENT_COLOR
+            if level is None:
+                light, dark = MUTED_NODE_COLOR
+            elif level == "soft":
+                # A ring of the color around a pale version of it
+                ring = colors.pick(light, dark)
+                light, dark = _mix(light, surface[0], 0.7), _mix(dark, surface[1], 0.7)
+                border_opacity, border_width = 1.0, 2.0
+        fill = colors.pick(light, dark)
+        border = colors.pick(_darken(light, 0.3), _darken(dark, 0.3))
+        if node_level and node_level[nid] == "soft":
+            border = ring
+        svg_parts.append(
+            _svg_node(
+                x,
+                y,
+                r,
+                fill,
+                nid,
+                _attrs_json(node_tips[nid]),
+                border_opacity=border_opacity,
+                border=border,
+                border_width=border_width,
+            )
+        )
 
     # Labels
     if show_labels:
         font_size = max(8, min(13, node_size * 0.7))
+        muted_label = colors.pick(*MUTED_LABEL_COLOR)
         for nid in str_ids:
             if nid not in positions:
                 continue
@@ -1757,8 +2742,16 @@ def render_plot(
             r = radii.get(nid, node_size)
 
             text = label_map[nid]
+            color = muted_label if node_level and node_level[nid] is None else th.label_color
 
-            svg_parts.append(_svg_label(x, y, r, text, th.label_color, font_size))
+            svg_parts.append(_svg_label(x, y, r, text, color, font_size))
+
+    if legend_blocks:
+        svg_parts.append(
+            f'<g class="ec-legend" transform="translate('
+            f"{vb[0] + vb[2] - (legend_w - _LEGEND_PAD) * unit:.1f} "
+            f'{vb[1]:.1f}) scale({unit:.4f})">{legend_svg}</g>'
+        )
 
     svg_parts.append("</svg>")
     svg_str = "\n".join(svg_parts)
@@ -1766,10 +2759,7 @@ def render_plot(
     # --- HTML wrapper with hover tooltips ---
     html_str = _generate_html_wrapper(svg_str, th, width, height)
 
-    result = StepPlayer(svg_str, html_str)
-    if output:
-        result.save(output)
-    return result
+    return colors.finish(svg_str, html_str, output)
 
 
 # ---------------------------------------------------------------------------
@@ -1960,7 +2950,7 @@ def render_traversal(
     tree_edges: Optional[List[Tuple[str, str]]] = None,
     algorithm: str = "",
     layout: str = "force",
-    theme: str = "light",
+    theme: Optional[str] = None,
     width: int = 700,
     height: int = 500,
     node_size: float = 18.0,
@@ -1976,18 +2966,18 @@ def render_traversal(
     uid = f"tv{_traversal_counter}"
 
     _check_style(layout, theme, stored_ok=True)
-    th = THEMES.get(theme, LIGHT)
+    colors = _Colors(theme)
+    th = colors.theme
 
     # --- Theme-dependent traversal colors ---
-    is_dark = theme == "dark"
-    unvisited_fill = "#4b5563" if is_dark else "#d1d5db"
-    frontier_fill = "#60a5fa" if is_dark else "#93c5fd"
-    current_fill = "#3b82f6" if is_dark else "#2563eb"
-    accent = "#60a5fa" if is_dark else "#2563eb"
-    tree_edge_color = "#60a5fa" if is_dark else "#2563eb"
-    current_edge_color = "#93c5fd" if is_dark else "#1d4ed8"
-    nontree_visited_edge = "#64748b" if is_dark else "#cbd5e1"
-    unvisited_edge_opacity = 0.35 if is_dark else 0.2
+    unvisited_fill = colors.pick("#d1d5db", "#4b5563")
+    frontier_fill = colors.pick("#93c5fd", "#60a5fa")
+    current_fill = colors.pick("#2563eb", "#3b82f6")
+    accent = colors.pick("#2563eb", "#60a5fa")
+    tree_edge_color = colors.pick("#2563eb", "#60a5fa")
+    current_edge_color = colors.pick("#1d4ed8", "#93c5fd")
+    nontree_visited_edge = colors.pick("#cbd5e1", "#64748b")
+    unvisited_edge_opacity = colors.pick(0.2, 0.35)
 
     # --- Extract graph data (same pattern as render_plot) ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -2051,7 +3041,7 @@ def render_traversal(
 
     # --- Layout ---
     if layout == "circular":
-        positions = _circular_layout(str_ids, float(width), float(height))
+        positions = _circular_layout(str_ids, float(width), float(height), edges=edges)
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     elif layout not in LAYOUTS:
@@ -2081,10 +3071,12 @@ def render_traversal(
         positions = _remove_overlaps(positions, radii, padding=overlap_pad, seed=seed)
 
     # --- Compute viewBox ---
+    # Nodes show their labels, or their IDs if they have none
     label_map = {}
     if show_labels:
-        for nid in str_ids:
-            label_map[nid] = str(nid)
+        for nid in node_ids:
+            obj = graph.get_node(nid)
+            label_map[str(nid)] = str(obj.label) if obj and obj.label else str(nid)
     vb = _compute_viewbox(
         positions,
         radii,
@@ -2357,7 +3349,7 @@ def render_traversal(
                 f'font-size="{font_size:.1f}" fill="{th.label_color}" '
                 f'opacity="0.3" pointer-events="none" '
                 f'style="transition: opacity 0.3s ease">'
-                f"{html_mod.escape(str(nid))}</text>"
+                f"{html_mod.escape(label_map[nid])}</text>"
             )
 
     svg_parts.append("</svg>")
@@ -2376,7 +3368,7 @@ def render_traversal(
         node_safe_ids,
         color_map,
         algorithm,
-        is_dark,
+        colors,
         is_directed,
         unvisited_fill,
         frontier_fill,
@@ -2390,17 +3382,14 @@ def render_traversal(
         width,
     )
 
-    result = StepPlayer(svg_str, html_str)
-    if output:
-        result.save(output)
-    return result
+    return colors.finish(svg_str, html_str, output)
 
 
-def _panel_style(th: Theme, is_dark: bool) -> str:
+def _panel_style(th: Theme, colors: _Colors) -> str:
     """CSS for a player's outer box: a card in the theme's colors, like `render_steps()`'s."""
-    border = "#30363d" if is_dark else "#d0d7de"
+    border = colors.pick("#d0d7de", "#30363d")
     return (
-        f"background:{th.bg};color:{th.label_color};color-scheme:{'dark' if is_dark else 'light'};"
+        f"background:{th.bg};color:{th.label_color};color-scheme:{colors.scheme()};"
         f"border:1px solid {border};border-radius:8px;overflow:hidden"
     )
 
@@ -2417,7 +3406,7 @@ def _generate_traversal_html_wrapper(
     node_safe_ids: Dict[str, str],
     color_map: Dict[str, str],
     algorithm: str,
-    is_dark: bool,
+    colors: _Colors,
     is_directed: bool,
     unvisited_fill: str,
     frontier_fill: str,
@@ -2454,15 +3443,15 @@ def _generate_traversal_html_wrapper(
         edge_safe_keys[ek] = f"{_sanitize_svg_id(src)}-{_sanitize_svg_id(tgt)}"
     edge_safe_json = json.dumps(edge_safe_keys)
 
-    btn_bg = "#374151" if is_dark else "#e5e7eb"
-    btn_fg = "#e5e7eb" if is_dark else "#374151"
+    btn_bg = colors.pick("#e5e7eb", "#374151")
+    btn_fg = colors.pick("#374151", "#e5e7eb")
     ctrl_accent = accent
 
     # The controls sit on the theme's background, not the page's, which can be dark under a light
     # theme (or vice versa) and leave the text unreadable. `color-scheme` does the same for the
     # browser-drawn parts (the slider's track and the speed menu)
     return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY};
-  {_panel_style(th, is_dark)}">
+  {_panel_style(th, colors)}">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;align-items:center;gap:8px;padding:8px 10px;
@@ -2509,7 +3498,7 @@ def _generate_traversal_html_wrapper(
   var UF='{unvisited_fill}',FF='{frontier_fill}',CF='{current_fill}';
   var ACC='{accent}',TEC='{tree_edge_color}',CEC='{current_edge_color}';
   var NVE='{nontree_visited_edge}',EC='{th.edge_color}';
-  var UEO={unvisited_edge_opacity};
+  var UEO='{unvisited_edge_opacity}';
 
   function el(id){{ return document.getElementById(id); }}
 
@@ -2820,7 +3809,7 @@ class TraversalRecorder:
     def plot(
         self,
         layout: str = "force",
-        theme: str = "light",
+        theme: Optional[str] = None,
         width: int = 700,
         height: int = 500,
         node_size: float = 18.0,
@@ -2855,7 +3844,7 @@ def render_traversal_chain(
     graph,
     chain_steps: List[Dict[str, Any]],
     layout: str = "force",
-    theme: str = "light",
+    theme: Optional[str] = None,
     width: int = 700,
     height: int = 500,
     node_size: float = 18.0,
@@ -2876,17 +3865,17 @@ def render_traversal_chain(
     uid = f"tc{_chain_counter}"
 
     _check_style(layout, theme, stored_ok=True)
-    th = THEMES.get(theme, LIGHT)
-    is_dark = theme == "dark"
+    colors = _Colors(theme)
+    th = colors.theme
 
     # --- Theme colors ---
-    unvisited_fill = "#4b5563" if is_dark else "#d1d5db"
-    accent = "#60a5fa" if is_dark else "#2563eb"
-    accent_light = "#93c5fd" if is_dark else "#bfdbfe"
-    prev_accent = "#818cf8" if is_dark else "#a5b4fc"
-    selected_edge_color = "#60a5fa" if is_dark else "#2563eb"
-    related_edge_color = "#60a5fa" if is_dark else "#93c5fd"
-    unvisited_edge_opacity = 0.25 if is_dark else 0.12
+    unvisited_fill = colors.pick("#d1d5db", "#4b5563")
+    accent = colors.pick("#2563eb", "#60a5fa")
+    accent_light = colors.pick("#bfdbfe", "#93c5fd")
+    prev_accent = colors.pick("#a5b4fc", "#818cf8")
+    selected_edge_color = colors.pick("#2563eb", "#60a5fa")
+    related_edge_color = colors.pick("#93c5fd", "#60a5fa")
+    unvisited_edge_opacity = colors.pick(0.12, 0.25)
 
     # --- Extract graph data ---
     node_ids = list(graph.get_node_ids(limit=None))
@@ -3019,7 +4008,7 @@ def render_traversal_chain(
 
     # --- Layout ---
     if layout == "circular":
-        positions = _circular_layout(str_ids, float(width), float(height))
+        positions = _circular_layout(str_ids, float(width), float(height), edges=edges)
     elif layout == "random":
         positions = _random_layout(str_ids, float(width), float(height), seed=seed)
     elif layout not in LAYOUTS:
@@ -3321,7 +4310,7 @@ def render_traversal_chain(
         str_ids=str_ids,
         node_safe_ids=node_safe_ids,
         edge_keys=edge_keys,
-        is_dark=is_dark,
+        colors=colors,
         is_directed=is_directed,
         unvisited_fill=unvisited_fill,
         accent=accent,
@@ -3334,10 +4323,7 @@ def render_traversal_chain(
         svg_width=width,
     )
 
-    result = StepPlayer(svg_str, html_str)
-    if output:
-        result.save(output)
-    return result
+    return colors.finish(svg_str, html_str, output)
 
 
 def _generate_chain_html_wrapper(
@@ -3349,7 +4335,7 @@ def _generate_chain_html_wrapper(
     str_ids: List[str],
     node_safe_ids: Dict[str, str],
     edge_keys: List[str],
-    is_dark: bool,
+    colors: _Colors,
     is_directed: bool,
     unvisited_fill: str,
     accent: str,
@@ -3366,20 +4352,20 @@ def _generate_chain_html_wrapper(
     steps_json = json.dumps(js_steps)
     safe_ids_json = json.dumps(node_safe_ids)
 
-    btn_bg = "#374151" if is_dark else "#e5e7eb"
-    btn_fg = "#e5e7eb" if is_dark else "#374151"
+    btn_bg = colors.pick("#e5e7eb", "#374151")
+    btn_fg = colors.pick("#374151", "#e5e7eb")
 
     # Build step log HTML
     step_log_lines = []
     for i, step in enumerate(chain_steps):
         sel_type = step["selection_type"]
         if sel_type == "nodes":
-            badge_bg = "#dbeafe" if not is_dark else "#1e3a5f"
-            badge_fg = "#1e40af" if not is_dark else "#93c5fd"
+            badge_bg = colors.pick("#dbeafe", "#1e3a5f")
+            badge_fg = colors.pick("#1e40af", "#93c5fd")
             badge_label = "nodes"
         else:
-            badge_bg = "#fef3c7" if not is_dark else "#78350f"
-            badge_fg = "#92400e" if not is_dark else "#fcd34d"
+            badge_bg = colors.pick("#fef3c7", "#78350f")
+            badge_fg = colors.pick("#92400e", "#fcd34d")
             badge_label = "edges"
         ids_display = ", ".join(str(x) for x in step["ids"][:8])
         if len(step["ids"]) > 8:
@@ -3422,7 +4408,7 @@ def _generate_chain_html_wrapper(
 
     # On the theme's background, as in `_generate_traversal_html_wrapper()`
     return f"""<div class="ec-plot" style="width:fit-content;max-width:min({svg_width}px,100%);margin:1em auto;font-family:{FONT_FAMILY};
-  {_panel_style(th, is_dark)}">
+  {_panel_style(th, colors)}">
 <style>.ec-plot > svg {{ display:block; max-width:100%; height:auto; }}</style>
 {svg_str}
 <div style="display:flex;gap:6px;padding:8px 10px 2px;flex-wrap:wrap;align-items:center">
@@ -3478,7 +4464,7 @@ def _generate_chain_html_wrapper(
     selEdge:'{selected_edge_color}',
     relEdge:'{related_edge_color}',
     edgeDefault:'{th.edge_color}',
-    unvisitedEdgeOp:{unvisited_edge_opacity},
+    unvisitedEdgeOp:'{unvisited_edge_opacity}',
     edgeWidth:{edge_width}
   }};
 
@@ -3530,7 +4516,7 @@ def _generate_chain_html_wrapper(
     if(pill){{ pill.style.background=COLORS.accent; pill.style.color='white'; pill.style.borderColor=COLORS.accent; }}
     // Highlight log line
     var lg=el(U+'-log-'+k);
-    if(lg){{ lg.style.opacity='1'; lg.style.background='{accent_light}22'; }}
+    if(lg){{ lg.style.opacity='1'; lg.style.background='{colors.tint(accent_light)}'; }}
 
     if(step.sel==='nodes'){{
       // Show previous-step nodes with dashed ring
@@ -3636,6 +4622,41 @@ def _generate_chain_html_wrapper(
 # ---------------------------------------------------------------------------
 
 _step_counter = 0
+
+
+def _delta_json(delta) -> dict:
+    """A step delta in the compact form the step player reads."""
+    delta_obj = {
+        "na": list(delta.nodes_added),
+        "nr": list(delta.nodes_removed),
+        "ea": [list(e) for e in delta.edges_added],
+        "er": [list(e) for e in delta.edges_removed],
+    }
+    if delta.attrs_changed:
+        delta_obj["ac"] = {
+            k: _delta_val_repr(v) for k, v in delta.attrs_changed.items()
+        }
+    if delta.nodes_mutated:
+        delta_obj["nm"] = list(delta.nodes_mutated)
+    if delta.edges_mutated:
+        delta_obj["em"] = [list(e) for e in delta.edges_mutated]
+    if delta.nodes_selected:
+        delta_obj["sn"] = list(delta.nodes_selected)
+    if delta.edges_selected:
+        delta_obj["se"] = [list(e) for e in delta.edges_selected]
+    if delta.metric_values:
+        delta_obj["mv"] = {
+            k: round(v, 4) if v is not None else 0.0
+            for k, v in delta.metric_values.items()
+        }
+    if delta.node_groups:
+        delta_obj["ng"] = dict(delta.node_groups)
+    if delta.edge_metric_values:
+        delta_obj["emv"] = [
+            [src, tgt, round(v, 4) if v is not None else 0.0]
+            for (src, tgt), v in delta.edge_metric_values.items()
+        ]
+    return delta_obj
 
 
 def _delta_val_repr(v):
@@ -3951,7 +4972,7 @@ def render_steps(
     full_steps: Optional[list] = None,
     baseline: Optional[tuple] = None,
     layout: str = "force",
-    theme: str = "light",
+    theme: Optional[str] = None,
     width: int = 700,
     height: int = 500,
     node_size: float = 16.0,
@@ -3962,6 +4983,8 @@ def render_steps(
     layout_mode: str = "progressive",
     output: Optional[str] = None,
     seed: Optional[int] = None,
+    highlight=None,
+    highlight_edges=None,
 ) -> "StepPlayer":
     """Render an interactive step-through visualization of recorded graph steps."""
     if isinstance(speed, bool) or not isinstance(speed, (int, float)) or not speed > 0:
@@ -3970,11 +4993,11 @@ def render_steps(
     _step_counter += 1
     uid = f"stv{_step_counter}"
 
-    _check_style(layout, theme, layout_mode)
-    th = THEMES.get(theme, LIGHT)
-    is_dark = th.name == "dark"
-    sel_color = "#a78bfa" if is_dark else "#7c3aed"
-    node_color = "#60a5fa" if is_dark else DEFAULT_NODE_COLOR
+    _check_style(layout, theme, layout_mode, stored_ok=True)
+    colors = _Colors(theme)
+    th = colors.theme
+    sel_color = colors.pick("#7c3aed", "#a78bfa")
+    node_color = colors.pick(DEFAULT_NODE_COLOR, "#60a5fa")
 
     if not steps:
         svg = (
@@ -3985,10 +5008,7 @@ def render_steps(
             f'fill="{th.label_color}" font-family="{FONT_FAMILY}" '
             f'font-size="14">No steps recorded</text></svg>'
         )
-        result = StepPlayer(svg, svg)
-        if output:
-            result.save(output)
-        return result
+        return colors.finish(svg, svg, output)
 
     is_directed = graph.is_directed()
 
@@ -4062,9 +5082,18 @@ def render_steps(
 
     # --- Layout (on maximal graph state — all nodes/edges that ever appeared) ---
     if layout == "circular":
-        positions = _circular_layout(all_label_ids, float(width), float(height))
+        positions = _circular_layout(
+            all_label_ids, float(width), float(height), edges=all_edge_ids
+        )
     elif layout == "random":
         positions = _random_layout(all_label_ids, float(width), float(height), seed=seed)
+    elif layout not in LAYOUTS:
+        # Stored positions for the nodes the graph still has; ones deleted since are spread at
+        # random, as they have no position of their own
+        present = graph.get_node_ids(limit=None)
+        positions = _stored_layout(graph, present, layout, float(width), float(height))
+        gone = [nid for nid in all_label_ids if nid not in positions]
+        positions.update(_random_layout(gone, float(width), float(height), seed=seed))
     else:
         fr_iters = 800 if n > 300 else (600 if n > 150 else 400)
         positions = _force_directed_layout(
@@ -4076,9 +5105,9 @@ def render_steps(
             seed=seed,
         )
 
-    # Overlap removal (force layout only)
+    # Overlap removal (force and random layouts only)
     radii = {nid: node_size for nid in all_label_ids}
-    if layout not in ("circular",) and n >= 2:
+    if layout in ("force", "random") and n >= 2:
         positions = _remove_overlaps(positions, radii, padding=2.0, seed=seed)
 
     # Progressive layout: one frame per structurally distinct state, animated between steps.
@@ -4142,36 +5171,33 @@ def render_steps(
     vb_str = f"{vb[0]:.1f} {vb[1]:.1f} {vb[2]:.1f} {vb[3]:.1f}"
 
     # --- Build SVG ---
+    # Glows for added, removed, selected and mutated elements. Edges get their own copies over
+    # the whole canvas: a filter region sized to the element's bounding box is empty for a
+    # horizontal or vertical line, which hides the line altogether.
+    canvas = 'filterUnits="userSpaceOnUse" x="{:.1f}" y="{:.1f}" width="{:.1f}" height="{:.1f}"'
+    glow_defs = "".join(
+        f'<filter id="{uid}-glow-{name}{suffix}" {region}>'
+        f'<feGaussianBlur stdDeviation="{blur}" result="blur"/>'
+        f'<feFlood flood-color="{color}" flood-opacity="{alpha}" result="color"/>'
+        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
+        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
+        f"</filter>"
+        for name, color, alpha, blur in (
+            ("add", "#22c55e", 0.6, 3),
+            ("rm", "#ef4444", 0.6, 3),
+            ("sel", sel_color, 0.5, 3),
+            ("mut", "#f59e0b", 0.5, 2.5),
+        )
+        for suffix, region in (
+            ("", 'x="-50%" y="-50%" width="200%" height="200%"'),
+            ("-e", canvas.format(*bg_box)),
+        )
+    )
     svg_parts = [
         f'<svg id="{uid}-svg" xmlns="http://www.w3.org/2000/svg" '
         f'width="{width}" height="{height}" viewBox="{vb_str}" '
         f'style="font-family:{FONT_FAMILY};">',
-        f"<defs>"
-        f'<filter id="{uid}-glow-add" x="-50%" y="-50%" width="200%" height="200%">'
-        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
-        f'<feFlood flood-color="#22c55e" flood-opacity="0.6" result="color"/>'
-        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
-        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f"</filter>"
-        f'<filter id="{uid}-glow-rm" x="-50%" y="-50%" width="200%" height="200%">'
-        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
-        f'<feFlood flood-color="#ef4444" flood-opacity="0.6" result="color"/>'
-        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
-        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f"</filter>"
-        f'<filter id="{uid}-glow-sel" x="-50%" y="-50%" width="200%" height="200%">'
-        f'<feGaussianBlur stdDeviation="3" result="blur"/>'
-        f'<feFlood flood-color="{sel_color}" flood-opacity="0.5" result="color"/>'
-        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
-        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f"</filter>"
-        f'<filter id="{uid}-glow-mut" x="-50%" y="-50%" width="200%" height="200%">'
-        f'<feGaussianBlur stdDeviation="2.5" result="blur"/>'
-        f'<feFlood flood-color="#f59e0b" flood-opacity="0.5" result="color"/>'
-        f'<feComposite in="color" in2="blur" operator="in" result="glow"/>'
-        f'<feMerge><feMergeNode in="glow"/><feMergeNode in="SourceGraphic"/></feMerge>'
-        f"</filter>"
-        f"</defs>",
+        f"<defs>{glow_defs}</defs>",
         f'<rect x="{bg_box[0]:.1f}" y="{bg_box[1]:.1f}" width="{bg_box[2]:.1f}" '
         f'height="{bg_box[3]:.1f}" fill="{th.bg}"/>',
     ]
@@ -4251,23 +5277,34 @@ def render_steps(
     svg_str = "\n".join(svg_parts)
 
     # --- Step data JSON (expand traverse sub-steps) ---
-    # Prepend an initial step showing the empty graph state
+    # Prepend an initial step showing the empty graph state, or the graph as it was when the
+    # log was cleared
     dir_label = "directed" if is_directed else "undirected"
+    if base_nodes:
+        counts = (
+            f"{len(base_nodes)} node{'s' if len(base_nodes) != 1 else ''}, "
+            f"{len(base_edges)} edge{'s' if len(base_edges) != 1 else ''}"
+        )
+        init_code = f"# Graph when the step log was cleared: {counts}"
+        init_narration = f"The graph as it was when the step log was cleared: {counts}."
+    else:
+        init_code = f"Graph(directed={'True' if is_directed else 'False'})"
+        init_narration = f"Empty {dir_label} graph."
     step_data = [
         {
             "kind": "init",
             "method": "",
-            "code": f"Graph(directed={'True' if is_directed else 'False'})",
-            "narration": f"Empty {dir_label} graph.",
-            "nodes": [],
-            "edges": [],
+            "code": init_code,
+            "narration": init_narration,
+            "nodes": sorted(base_nodes),
+            "edges": [list(e) for e in sorted(base_edges)],
             "delta": {"na": [], "nr": [], "ea": [], "er": []},
         }
     ]
     group_counter = 0
     for i, step in enumerate(steps):
-        base_nodes = step_states[i]["nodes"]
-        base_edges = step_states[i]["edges"]
+        state_nodes = step_states[i]["nodes"]
+        state_edges = step_states[i]["edges"]
         step_data_mark = len(step_data)
 
         if step.kind == "traverse" and step.sub_steps:
@@ -4303,6 +5340,10 @@ def render_steps(
             gid = group_counter
             n_subs = len(step.sub_steps)
             parent_code = step.code
+            # A note() on the traversal leads its first frame
+            from edgecase.steps import auto_narrate
+
+            own_note = step.narration if step.narration != auto_narrate(step) else None
 
             visited_so_far: set = set()
             visit_order: list = []
@@ -4329,9 +5370,13 @@ def render_steps(
                         "kind": "traverse",
                         "method": step.method,
                         "code": sub.code,
-                        "narration": sub.narration,
-                        "nodes": base_nodes,
-                        "edges": base_edges,
+                        "narration": (
+                            f"{own_note} {sub.narration}"
+                            if j == 0 and own_note
+                            else sub.narration
+                        ),
+                        "nodes": state_nodes,
+                        "edges": state_edges,
                         "group": {
                             "id": gid,
                             "pos": j,
@@ -4351,47 +5396,41 @@ def render_steps(
                     }
                 )
         else:
-            delta_obj = {
-                "na": list(step.delta.nodes_added),
-                "nr": list(step.delta.nodes_removed),
-                "ea": [list(e) for e in step.delta.edges_added],
-                "er": [list(e) for e in step.delta.edges_removed],
-            }
-            if step.delta.attrs_changed:
-                delta_obj["ac"] = {
-                    k: _delta_val_repr(v) for k, v in step.delta.attrs_changed.items()
-                }
-            if step.delta.nodes_mutated:
-                delta_obj["nm"] = list(step.delta.nodes_mutated)
-            if step.delta.edges_mutated:
-                delta_obj["em"] = [list(e) for e in step.delta.edges_mutated]
-            if step.delta.nodes_selected:
-                delta_obj["sn"] = list(step.delta.nodes_selected)
-            if step.delta.edges_selected:
-                delta_obj["se"] = [list(e) for e in step.delta.edges_selected]
-            if step.delta.metric_values:
-                delta_obj["mv"] = {
-                    k: round(v, 4) if v is not None else 0.0
-                    for k, v in step.delta.metric_values.items()
-                }
-            if step.delta.node_groups:
-                delta_obj["ng"] = dict(step.delta.node_groups)
-            if step.delta.edge_metric_values:
-                delta_obj["emv"] = [
-                    [src, tgt, round(v, 4) if v is not None else 0.0]
-                    for (src, tgt), v in step.delta.edge_metric_values.items()
+            # Other steps with sub-steps (such as the rounds of `voterank()`) get a frame per
+            # sub-step, bracketed as a group like a traversal
+            frames = [(step.code, step.narration, step.delta, None)]
+            if step.sub_steps:
+                from edgecase.steps import auto_narrate
+
+                group_counter += 1
+                own_note = step.narration if step.narration != auto_narrate(step) else None
+                frames = [
+                    (
+                        sub.code,
+                        f"{own_note} {sub.narration}" if j == 0 and own_note else sub.narration,
+                        sub.delta,
+                        {
+                            "id": group_counter,
+                            "pos": j,
+                            "total": len(step.sub_steps),
+                            "parent_code": step.code,
+                        },
+                    )
+                    for j, sub in enumerate(step.sub_steps)
                 ]
-            step_data.append(
-                {
+            for code, narration, delta, group in frames:
+                frame = {
                     "kind": step.kind,
                     "method": step.method,
-                    "code": step.code,
-                    "narration": step.narration,
-                    "nodes": base_nodes,
-                    "edges": base_edges,
-                    "delta": delta_obj,
+                    "code": code,
+                    "narration": narration,
+                    "nodes": state_nodes,
+                    "edges": state_edges,
+                    "delta": _delta_json(delta),
                 }
-            )
+                if group is not None:
+                    frame["group"] = group
+                step_data.append(frame)
         if step_frames:
             for sd in step_data[step_data_mark:]:
                 sd["lf"] = step_frames[i]
@@ -4412,6 +5451,23 @@ def render_steps(
             "delta": {"na": [], "nr": [], "ea": [], "er": []},
         }
     )
+    if highlight is not None or highlight_edges is not None:
+        # What highlight= picks out in the graph as it is now, by label, for the final frame
+        picked = _resolve_highlight(graph, highlight, highlight_edges)
+
+        def ends(eid):
+            e = graph.get_edge(eid)
+            return [id_to_label.get(str(e.source)), id_to_label.get(str(e.target))]
+
+        step_data[-1]["hl"] = {
+            level[0] + key: sorted(
+                [id_to_label[str(nid)] for nid in picked[level][0]]
+                if key == "n"
+                else [ends(eid) for eid in picked[level][1]]
+            )
+            for level in HIGHLIGHT_LEVELS
+            for key in ("n", "e")
+        }
     if step_frames:
         step_data[0]["lf"] = step_frames[0]
         step_data[-1]["lf"] = step_frames[-1]
@@ -4421,46 +5477,60 @@ def render_steps(
     # --- Build HTML ---
     bg = th.bg
     fg = th.label_color
-    accent = "#60a5fa" if is_dark else "#4e79a7"
-    border = "#30363d" if is_dark else "#d0d7de"
-    code_bg = "#161b22" if is_dark else "#f6f8fa"
-    narr_fg = "#8b949e" if is_dark else "#656d76"
-    ctrl_bg = "#0d1117" if is_dark else "#f0f3f6"
+    accent = colors.pick("#4e79a7", "#60a5fa")
+    border = colors.pick("#d0d7de", "#30363d")
+    code_bg = colors.pick("#f6f8fa", "#161b22")
+    narr_fg = colors.pick("#656d76", "#8b949e")
+    ctrl_bg = colors.pick("#f0f3f6", "#0d1117")
 
     # Traversal colors
-    trav_current = "#3b82f6" if is_dark else "#2563eb"
-    trav_frontier = "#60a5fa" if is_dark else "#93c5fd"
-    trav_unvisited = "#4b5563" if is_dark else "#d1d5db"
-    trav_tree_edge = "#60a5fa" if is_dark else "#2563eb"
+    trav_current = colors.pick("#2563eb", "#3b82f6")
+    trav_frontier = colors.pick("#93c5fd", "#60a5fa")
+    trav_unvisited = colors.pick("#d1d5db", "#4b5563")
+    trav_tree_edge = colors.pick("#2563eb", "#60a5fa")
 
-    kw_color = "#cba6f7" if is_dark else "#8839ef"
-    fn_color = "#89b4fa" if is_dark else "#1e66f5"
-    str_color = "#a6e3a1" if is_dark else "#40a02b"
-    num_color = "#fab387" if is_dark else "#fe640b"
-    bool_color = "#fab387" if is_dark else "#fe640b"
-    cmt_color = "#6c7086" if is_dark else "#9ca0b0"
+    # Highlight colors for the final frame, as in plot()
+    hl_accent = colors.pick(*ACCENT_COLOR)
+    hl_soft = colors.pick(_mix(ACCENT_COLOR[0], LIGHT.bg, 0.7), _mix(ACCENT_COLOR[1], DARK.bg, 0.7))
+    hl_muted = colors.pick(*MUTED_NODE_COLOR)
+
+    kw_color = colors.pick("#8839ef", "#cba6f7")
+    fn_color = colors.pick("#1e66f5", "#89b4fa")
+    str_color = colors.pick("#40a02b", "#a6e3a1")
+    num_color = colors.pick("#fe640b", "#fab387")
+    bool_color = colors.pick("#fe640b", "#fab387")
+    cmt_color = colors.pick("#9ca0b0", "#6c7086")
 
     # Metric color ramp (low → high)
-    if is_dark:
-        metric_lo_r, metric_lo_g, metric_lo_b = 51, 65, 85     # slate-700
-        metric_hi_r, metric_hi_g, metric_hi_b = 96, 165, 250   # blue-400
+    # slate-300 to blue-600 (slate-700 to blue-400 in the dark theme)
+    metric_ends = [((203, 213, 225), (51, 65, 85)), ((37, 99, 235), (96, 165, 250))]
+    if colors.auto:
+        # Mixed by the browser, since the two ends are variables
+        lo, hi = (colors.pick(f"rgb{light}", f"rgb{dark}") for light, dark in metric_ends)
+        metric_js = f"return 'color-mix(in srgb, {lo}, {hi} '+(t*100).toFixed(1)+'%)';"
     else:
-        metric_lo_r, metric_lo_g, metric_lo_b = 203, 213, 225   # slate-300
-        metric_hi_r, metric_hi_g, metric_hi_b = 37, 99, 235     # blue-600
+        lo, hi = (list(colors.pick(light, dark)) for light, dark in metric_ends)
+        metric_js = (
+            f"var lo={lo},hi={hi};\n"
+            "    var r=Math.round(lo[0]+(hi[0]-lo[0])*t);\n"
+            "    var g=Math.round(lo[1]+(hi[1]-lo[1])*t);\n"
+            "    var b=Math.round(lo[2]+(hi[2]-lo[2])*t);\n"
+            "    return 'rgb('+r+','+g+','+b+')';"
+        )
 
     # Timeline segment colors by kind
     tl_colors = {
-        "init": "#94a3b8" if is_dark else "#64748b",
-        "done": "#94a3b8" if is_dark else "#64748b",
+        "init": colors.pick("#64748b", "#94a3b8"),
+        "done": colors.pick("#64748b", "#94a3b8"),
         "build_nodes": "#22c55e",
         "build_edges": "#22c55e",
         "remove": "#ef4444",
         "mutate": "#f59e0b",
-        "select": "#a78bfa" if is_dark else "#7c3aed",
+        "select": colors.pick("#7c3aed", "#a78bfa"),
         "traverse": "#3b82f6",
         "transform": "#06b6d4",
         "generate": "#06b6d4",
-        "annotate": "#6b7280" if is_dark else "#9ca3af",
+        "annotate": colors.pick("#9ca3af", "#6b7280"),
         "query": "#8b5cf6",
         "metric": "#8b5cf6",
     }
@@ -4507,7 +5577,7 @@ def render_steps(
             parent_code = grp["parent_code"]
             sl_items.append(
                 f'<div class="sl-group-header" data-group="{grp["id"]}">'
-                f'<span class="sl-badge" style="background:{c}22;color:{c}">'
+                f'<span class="sl-badge" style="background:{colors.tint(c)};color:{c}">'
                 f'{sd["kind"]}</span>'
                 f'<span class="sl-method">{parent_code}</span>'
                 f'<span class="sl-group-count">{grp["total"]} steps</span>'
@@ -4540,7 +5610,7 @@ def render_steps(
             sl_items.append(
                 f'<div class="{cls}" data-idx="{i}" title="{narr_esc}">'
                 f'<span class="sl-num">{i + 1}</span>'
-                f'<span class="sl-badge" style="background:{c}22;color:{c}">'
+                f'<span class="sl-badge" style="background:{colors.tint(c)};color:{c}">'
                 f"{sd['kind']}</span>"
                 f'<span class="sl-method">{method}</span>'
                 f"</div>"
@@ -4552,7 +5622,7 @@ def render_steps(
 
     # The font size and line height are set here so that a page's (e.g., a docs site's larger text)
     # don't spread out the panel below the drawing
-    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};font-size:13px;line-height:1.4;max-width:{width}px;margin:1em auto;overflow:hidden;color-scheme:{'dark' if is_dark else 'light'};">
+    html = f"""<div id="{uid}" style="font-family:{FONT_FAMILY};font-size:13px;line-height:1.4;max-width:{width}px;margin:1em auto;overflow:hidden;color-scheme:{colors.scheme()};">
 <style>
 #{uid} .step-panel {{
   border:1px solid {border};
@@ -4662,7 +5732,7 @@ def render_steps(
   display:none;
   position:fixed;
   top:0;left:0;right:0;bottom:0;
-  background:rgba(0,0,0,{".6" if is_dark else ".4"});
+  background:rgba(0,0,0,{colors.pick(".4", ".6")});
   z-index:9999;
   align-items:center;
   justify-content:center;
@@ -4749,7 +5819,7 @@ def render_steps(
 #{uid} .step-controls button:hover {{ opacity:0.85; }}
 #{uid} .step-controls .replay-btn {{
   display:none;
-  background:{"#6b7280" if is_dark else "#9ca3af"};
+  background:{colors.pick("#9ca3af", "#6b7280")};
 }}
 #{uid} .step-controls input[type=range] {{
   flex:1;
@@ -4779,7 +5849,7 @@ def render_steps(
   font-size:11px;
   font-weight:600;
   margin-bottom:6px;
-  background:{accent}22;
+  background:{colors.tint(accent)};
   color:{accent};
 }}
 #{uid} .step-delta {{
@@ -4798,34 +5868,34 @@ def render_steps(
   margin-bottom:2px;
 }}
 #{uid} .delta-add {{
-  background:{"#16533822" if is_dark else "#dcfce7"};
-  color:{"#4ade80" if is_dark else "#15803d"};
+  background:{colors.pick("#dcfce7", "#16533822")};
+  color:{colors.pick("#15803d", "#4ade80")};
 }}
 #{uid} .delta-rm {{
-  background:{"#45181822" if is_dark else "#fee2e2"};
-  color:{"#f87171" if is_dark else "#b91c1c"};
+  background:{colors.pick("#fee2e2", "#45181822")};
+  color:{colors.pick("#b91c1c", "#f87171")};
 }}
 #{uid} .delta-attr {{
-  background:{"#42290622" if is_dark else "#fef3c7"};
-  color:{"#fbbf24" if is_dark else "#b45309"};
+  background:{colors.pick("#fef3c7", "#42290622")};
+  color:{colors.pick("#b45309", "#fbbf24")};
 }}
 #{uid} .delta-sel {{
-  background:{"#2e1a6522" if is_dark else "#ede9fe"};
-  color:{"#a78bfa" if is_dark else "#6d28d9"};
+  background:{colors.pick("#ede9fe", "#2e1a6522")};
+  color:{colors.pick("#6d28d9", "#a78bfa")};
 }}
 #{uid} .step-tooltip {{
   display:none;
   position:absolute;
   pointer-events:none;
   z-index:100;
-  background:{"#1e293b" if is_dark else "#fff"};
+  background:{colors.pick("#fff", "#1e293b")};
   border:1px solid {border};
   border-radius:6px;
   padding:6px 10px;
   font-size:11.5px;
   line-height:1.5;
   color:{fg};
-  box-shadow:0 2px 8px rgba(0,0,0,{".3" if is_dark else ".12"});
+  box-shadow:0 2px 8px rgba(0,0,0,{colors.pick(".12", ".3")});
   max-width:220px;
   white-space:nowrap;
 }}
@@ -4873,13 +5943,13 @@ def render_steps(
   width:80%;
   max-height:80%;
   overflow-y:auto;
-  background:{"rgba(15,23,42,0.92)" if is_dark else "rgba(255,255,255,0.94)"};
+  background:{colors.pick("rgba(255,255,255,0.94)", "rgba(15,23,42,0.92)")};
   backdrop-filter:blur(12px);
   -webkit-backdrop-filter:blur(12px);
   border-radius:0 8px 8px 0;
-  border:1px solid {"rgba(255,255,255,0.08)" if is_dark else "rgba(0,0,0,0.08)"};
+  border:1px solid {colors.pick("rgba(0,0,0,0.08)", "rgba(255,255,255,0.08)")};
   border-left:none;
-  box-shadow:0 4px 24px rgba(0,0,0,{".4" if is_dark else ".12"});
+  box-shadow:0 4px 24px rgba(0,0,0,{colors.pick(".12", ".4")});
   z-index:60;
   padding:6px 0;
   font-size:11.5px;
@@ -4896,10 +5966,10 @@ def render_steps(
   transition:background 0.1s ease;
 }}
 #{uid} .sl-item:hover {{
-  background:{"rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.04)"};
+  background:{colors.pick("rgba(0,0,0,0.04)", "rgba(255,255,255,0.06)")};
 }}
 #{uid} .sl-item.active {{
-  background:{accent}22;
+  background:{colors.tint(accent)};
   border-left:2px solid {accent};
 }}
 #{uid} .sl-num {{
@@ -4931,7 +6001,7 @@ def render_steps(
   padding:6px 10px 2px 10px;
   font-size:11px;
   opacity:0.8;
-  border-top:1px solid {"rgba(255,255,255,0.06)" if is_dark else "rgba(0,0,0,0.06)"};
+  border-top:1px solid {colors.pick("rgba(0,0,0,0.06)", "rgba(255,255,255,0.06)")};
   margin-top:2px;
 }}
 #{uid} .sl-group-count {{
@@ -5011,6 +6081,7 @@ def render_steps(
   var COL_UNVISITED='{trav_unvisited}';
   var COL_TREE_EDGE='{trav_tree_edge}';
   var COL_EDGE='{th.edge_color}';
+  var COL_ACC='{hl_accent}',COL_ACC_SOFT='{hl_soft}',COL_MUTED='{hl_muted}';
 
   var svg=document.getElementById('{uid}-svg');
   var codeEl=document.getElementById('{uid}-codetext');
@@ -5314,6 +6385,7 @@ def render_steps(
   var GLOW_RM='url(#{uid}-glow-rm)';
   var GLOW_MUT='url(#{uid}-glow-mut)';
   var GLOW_SEL='url(#{uid}-glow-sel)';
+  var GLOW_ADD_E='url(#{uid}-glow-add-e)',GLOW_RM_E='url(#{uid}-glow-rm-e)',GLOW_SEL_E='url(#{uid}-glow-sel-e)';
   var COL_ADD='#22c55e';
   var COL_RM='#ef4444';
   var COL_MUT='#f59e0b';
@@ -5324,12 +6396,7 @@ def render_steps(
   function groupColor(k){{ return GROUP_COLS[((k%GROUP_COLS.length)+GROUP_COLS.length)%GROUP_COLS.length]; }}
 
   function metricColor(t){{
-    var lo=[{metric_lo_r},{metric_lo_g},{metric_lo_b}];
-    var hi=[{metric_hi_r},{metric_hi_g},{metric_hi_b}];
-    var r=Math.round(lo[0]+(hi[0]-lo[0])*t);
-    var g=Math.round(lo[1]+(hi[1]-lo[1])*t);
-    var b=Math.round(lo[2]+(hi[2]-lo[2])*t);
-    return 'rgb('+r+','+g+','+b+')';
+    {metric_js}
   }}
 
   function hlPy(c){{
@@ -5487,6 +6554,19 @@ def render_steps(
     }});
     var hasSel=selN.size>0||selE.size>0;
 
+    // What highlight= picks out (final frame only): accent and soft nodes and edges
+    var hl=s.hl||null;
+    function edgeSet(list){{
+      var out=new Set();
+      (list||[]).forEach(function(e){{
+        out.add(e[0]+'\\0'+e[1]);
+        if(!directed) out.add(e[1]+'\\0'+e[0]);
+      }});
+      return out;
+    }}
+    var hlAN=new Set(hl?hl.an:[]),hlSN=new Set(hl?hl.sn:[]);
+    var hlAE=edgeSet(hl?hl.ae:null),hlSE=edgeSet(hl?hl.se:null);
+
     // Metric values — compute normalized [0,1] range
     var mv=d.mv||null;
     var mvMin=0,mvMax=1;
@@ -5510,7 +6590,8 @@ def render_steps(
         if(!directed) emv.set(e[1]+'\\0'+e[0],e[2]);
       }});
       var evals=d.emv.map(function(e){{return e[2];}});
-      emvMin=Math.min.apply(null,evals);
+      // Scaled from zero, so the smallest value (such as the least flow) still shows
+      emvMin=Math.min(0,Math.min.apply(null,evals));
       emvMax=Math.max.apply(null,evals);
       if(emvMax===emvMin) emvMax=emvMin+1;
     }}
@@ -5546,6 +6627,18 @@ def render_steps(
           el.setAttribute('fill',COL_UNVISITED);
           el.setAttribute('opacity','0.4');
           el.setAttribute('r','{node_size:.1f}');
+        }}
+      }} else if(hl){{
+        el.setAttribute('opacity','1');
+        el.setAttribute('r','{node_size:.1f}');
+        if(hlAN.has(lbl)){{
+          el.setAttribute('fill',COL_ACC);
+          el.setAttribute('r','{node_size * 1.15:.1f}');
+        }} else if(hlSN.has(lbl)){{
+          el.setAttribute('fill',COL_ACC_SOFT);
+          el.setAttribute('stroke',COL_ACC);
+        }} else {{
+          el.setAttribute('fill',COL_MUTED);
         }}
       }} else if(addedN.has(lbl)){{
         el.setAttribute('opacity','1');
@@ -5609,6 +6702,9 @@ def render_steps(
       }} else if(tv && !tvVisited.has(lbl) && !tvFrontier.has(lbl) && lbl!==tv.current){{
         el.setAttribute('opacity','0.3');
         el.setAttribute('fill','{th.label_color}');
+      }} else if(hl){{
+        el.setAttribute('opacity',hlAN.has(lbl)||hlSN.has(lbl)?'1':'0.45');
+        el.setAttribute('fill','{th.label_color}');
       }} else if(addedN.has(lbl)){{
         el.setAttribute('opacity','1');
         el.setAttribute('fill',COL_ADD);
@@ -5651,12 +6747,13 @@ def render_steps(
       var el=edges[i];
       var key=el.getAttribute('data-src')+'\\0'+el.getAttribute('data-tgt');
       el.removeAttribute('filter');
+      if(el.tagName!=='polygon') el.setAttribute('stroke-opacity','0.4');
       if(removedE.has(key)){{
         el.setAttribute('opacity','0.4');
         el.setAttribute('stroke',COL_RM);
         el.setAttribute('stroke-width','{edge_width * 1.5:.1f}');
         el.setAttribute('stroke-dasharray','4 3');
-        el.setAttribute('filter',GLOW_RM);
+        el.setAttribute('filter',GLOW_RM_E);
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_RM);
       }} else if(!ve.has(key)){{
         el.setAttribute('opacity','0');
@@ -5682,19 +6779,29 @@ def render_steps(
           el.setAttribute('stroke-width','{edge_width:.1f}');
           if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_EDGE);
         }}
+      }} else if(hl){{
+        el.removeAttribute('stroke-dasharray');
+        var lvl=hlAE.has(key)?2:(hlSE.has(key)?1:0);
+        var hc=lvl?COL_ACC:COL_EDGE;
+        el.setAttribute('opacity',['0.2','0.55','1'][lvl]);
+        if(lvl===2&&el.tagName!=='polygon') el.setAttribute('stroke-opacity','0.9');
+        el.setAttribute('stroke',hc);
+        var hw=[{edge_width:.1f},{edge_width * 1.6:.1f},{edge_width * 2.5:.1f}];
+        el.setAttribute('stroke-width',''+hw[lvl]);
+        if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',hc);
       }} else if(addedE.has(key)){{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_ADD);
         el.setAttribute('stroke-width','{edge_width * 2:.1f}');
         el.removeAttribute('stroke-dasharray');
-        el.setAttribute('filter',GLOW_ADD);
+        el.setAttribute('filter',GLOW_ADD_E);
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_ADD);
       }} else if(selE.has(key)){{
         el.setAttribute('opacity','1');
         el.setAttribute('stroke',COL_SEL);
         el.setAttribute('stroke-width','{edge_width * 2.5:.1f}');
         el.removeAttribute('stroke-dasharray');
-        el.setAttribute('filter',GLOW_SEL);
+        el.setAttribute('filter',GLOW_SEL_E);
         if(el.hasAttribute('fill')&&el.tagName==='polygon') el.setAttribute('fill',COL_SEL);
       }} else if(hasSel){{
         var dimEdge=true;
@@ -5893,7 +7000,4 @@ def render_steps(
 </script>
 </div>"""
 
-    result = StepPlayer(svg_str, html)
-    if output:
-        result.save(output)
-    return result
+    return colors.finish(svg_str, html, output)
