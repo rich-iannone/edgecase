@@ -20296,6 +20296,11 @@ class Graph:
         Each component is 2-colored by breadth-first search and compared with `nodes`, in
         $O(V + E)$. Matches NetworkX's `bipartite.is_bipartite_node_set`.
 
+        See Also
+        --------
+        bipartite_sets : The two sides of a bipartite graph.
+        is_bipartite : Check whether the graph can be split into two sides.
+
         Examples
         --------
         ```{python}
