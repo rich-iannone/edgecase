@@ -65199,24 +65199,50 @@ class Graph:
         ValueError
             If the label does not exist in the graph.
 
+        See Also
+        --------
+        ancestors : Every node that can reach a node.
+        transitive_closure : Join every node to all its descendants.
+        has_path : Check if one node can reach another.
+
         Examples
         --------
-        Changing `compile` in this build pipeline affects testing and packaging, but not the
-        documentation, which only depends on the fetched source:
+        In a small build pipeline, a change to the source affects every later step:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["fetch", "compile", "test", "package", "docs"])
-            .add_edges([
-                ("fetch", "compile"), ("compile", "test"),
-                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
-            ])
+        graph = ec.Graph.from_edges(
+            [("fetch", "compile"), ("compile", "test"), ("test", "package"),
+             ("compile", "package"), ("fetch", "docs")],
+            directed=True,
         )
+        [graph.get_label_from_id(n) for n in graph.descendants("fetch")]
+        ```
 
-        [graph.get_label_from_id(n) for n in graph.descendants("compile")]
+        ### Courses that a course opens up
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Every other CS course requires CS101,
+        directly or not, while Calculus I (MATH101) opens up the rest of the math sequence and
+        three CS courses:
+
+        ```{python}
+        courses = ec.courses()
+        after = courses.descendants("MATH101")
+
+        (
+            len(courses.descendants("CS101")),
+            [courses.get_label_from_id(n) for n in after],
+        )
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight={"accent": "MATH101", "soft": after},
+            label_by="label", height=420,
+        )
         ```
         """
         node_id = self._resolve_node_id(node, auto_create=False)
