@@ -69,10 +69,10 @@ fn spans(n: usize, pairs: impl Iterator<Item = (usize, usize)>) -> bool {
 /// them. Karp's contraction only needs an ordered group, so the triple works exactly, without
 /// large additive constants.
 #[derive(Clone, Copy, Debug)]
-struct W {
-    f: i64,
-    k: i64,
-    w: f64,
+pub(crate) struct W {
+    pub(crate) f: i64,
+    pub(crate) k: i64,
+    pub(crate) w: f64,
 }
 
 impl W {
@@ -97,7 +97,7 @@ impl W {
 /// Maximum-weight branching (Edmonds 1967, with Karp's 1971 cycle contraction) on nodes
 /// `0..n`. Returns indices into `edges`. Only positive-weight edges can be chosen; ties go
 /// to the earliest edge.
-fn max_branching(n: usize, edges: &[(usize, usize, W)]) -> Vec<usize> {
+pub(crate) fn max_branching(n: usize, edges: &[(usize, usize, W)]) -> Vec<usize> {
     // Heaviest positive in-edge of every node
     let mut best: Vec<Option<usize>> = vec![None; n];
     for (i, &(u, v, w)) in edges.iter().enumerate() {
