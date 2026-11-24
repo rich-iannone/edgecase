@@ -24598,44 +24598,52 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_last_nodes_created : Select the nodes made last.
+        set_edge_attrs_ws : Set attributes on the selected edges.
+
         Examples
         --------
-        The four edges of this path are created in order, so selecting the last two picks out
-        `C-D` and `D-E`:
+        The edges of this path are made in order, so the last two are `C`-`D` and `D`-`E`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-            .select_last_edges_created(n=2)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
+        graph.select_last_edges_created(2)
 
-        [
-            (graph.get_label_from_id(e.source), graph.get_label_from_id(e.target))
-            for e in (graph.get_edge(eid) for eid in sorted(graph.get_selected_edge_ids()))
-        ]
+        sorted(graph.get_selected_edge_ids())
         ```
 
-        A batch of edges added later can be tagged without touching the original ones.
-        Here two "late" edges are added and marked, so the edge table shows `late` only on
-        the last two rows:
+        ### Payments still pending
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Three payments arrive on the last day of the month and are still
+        being processed. Selecting the last three edges made marks them as pending, without
+        touching the others:
 
         ```{python}
-        graph = (
-            graph
-            .clear_selection()
-            .add_edge("A", "C")
-            .add_edge("C", "E")
-            .select_last_edges_created(2)
-            .set_edge_attrs_ws(late=True)
+        payments = ec.payments()
+        (
+            payments
+            .add_edges([
+                ("Lena", "Ivy", {"amount": 2800, "date": "2026-03-19"}),
+                ("Max", "Cafe", {"amount": 9, "date": "2026-03-19"}),
+                ("Eve", "Grocer", {"amount": 71, "date": "2026-03-19"}),
+            ])
+            .select_last_edges_created(3)
+            .set_edge_attrs_ws(pending=True)
         )
 
-        graph.get_edge_df().select("id", "source", "target", "late")
+        payments.get_edge_df().select("amount", "date", "pending").tail(4)
         ```
 
+        ```{python}
+        payments.plot(highlight_edges="pending", label_by="label", seed=3)
+        ```
         """
         self._check_non_negative(n=n)
         self._select("edges", set_op, lambda: self._graph.select_last_edges_created(n))
