@@ -83020,17 +83020,59 @@ class Graph:
             `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
             and columns, in increasing order.
 
+        See Also
+        --------
+        laplacian_spectrum : The eigenvalues of this matrix.
+        normalized_laplacian_matrix : The Laplacian rescaled by the degrees.
+        directed_laplacian_matrix : A symmetric Laplacian for directed graphs.
+        bethe_hessian_matrix : A regularized Laplacian, equal to this one at `r = 1`.
+
         Examples
         --------
-        Every row of a Laplacian sums to zero:
+        Every row of a Laplacian sums to zero, the degree on the diagonal against a `-1` for
+        each neighbor:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        star = ec.Graph().add_star_graph(4)
+        star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
         matrix, nodes = star.laplacian_matrix()
+        labels = [star.get_label_from_id(n) for n in nodes]
 
-        matrix, [sum(row) for row in matrix]
+        pl.DataFrame(matrix, schema=labels, orient="row").insert_column(
+            0, pl.Series("node", labels)
+        )
+        ```
+
+        ### Counting the friendships between the clubs
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. With `x` set to `1` for the chess players and `0` for the
+        climbers, `xᵀLx` adds up the squared change in `x` across every friendship, which counts
+        the friendships between the two clubs:
+
+        ```{python}
+        friends = ec.friends()
+        club = friends.get_node_attrs("club")
+        lap, nodes = friends.laplacian_matrix()
+        x = [float(club[n] == "Chess") for n in nodes]
+
+        sum(
+            x[i] * lap[i][j] * x[j]
+            for i in range(len(x)) for j in range(len(x))
+        )
+        ```
+
+        ```{python}
+        cross = [
+            (s, t) for _, s, t in friends.get_edges_as_tuples()
+            if club[s] != club[t]
+        ]
+
+        friends.plot(
+            highlight=cross, color_by="club", label_by="label", seed=8
+        )
         ```
         """
         matrix, ids = rust.laplacian_matrix(self._graph, False, self._use_weights(weighted))
