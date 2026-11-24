@@ -51877,92 +51877,76 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to harmonic centrality scores.
             If `return_dict=` is `False` (the default): returns self for method chaining.
 
+        See Also
+        --------
+        closeness_centrality : The reciprocal of the average distance.
+        local_reaching_centrality : The share of nodes a node can reach.
+
         Examples
         --------
-        Calculate harmonic centrality in a simple network:
+        On a path, each node adds `1 / d` for every other node at distance `d`. The end nodes
+        score `1 + 1/2 + 1/3`, and `normalized=True` divides by the `n - 1 = 3` other nodes:
 
         ```{python}
         import edgecase as ec
 
-        # Create a star network
-        graph = (
-            ec.Graph()
-            .add_nodes(["Center", "A", "B", "C"])
-            .add_edges([("Center", "A"), ("Center", "B"), ("Center", "C")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        (
+            path.harmonic_centrality()
+            .harmonic_centrality(normalized=True, attr_name="normalized")
+            .get_node_df()
+            .select("label", "harmonic_centrality", "normalized")
+        )
+        ```
+
+        ### Travel times on the metro
+
+        The metro is weighted by travel time, so here each station adds `1 / minutes` for every
+        other station. Central, a few minutes from most of the network, scores highest, and the
+        Airport, at the end of a long run, lowest:
+
+        ```{python}
+        metro = ec.metro().harmonic_centrality()
+
+        metro.plot(layout="pos", color_by="harmonic_centrality", label_by="label")
+        ```
+
+        ### When the line is cut
+
+        Harmonic centrality copes with a disconnected graph, since an unreachable station only
+        adds `0`. With the Riverside-Harbor link closed, Harbor, Docks and Shipyard are cut off.
+        Closeness computed only over the stations each one can reach (`wf_improved=False`) puts
+        Harbor first, two short hops from its two neighbors; harmonic centrality puts the three
+        last:
+
+        ```{python}
+        import polars as pl
+
+        cut = (
+            ec.metro()
+            .delete_edge("Riverside", "Harbor")
+            .harmonic_centrality()
+            .closeness_centrality(wf_improved=False)
         )
 
-        scores = graph.harmonic_centrality(return_dict=True)
-        center_id = graph.get_id_from_label("Center")
-
-        # Center has highest harmonic centrality
-        scores[center_id]
-        ```
-
-        Compare with normalized version:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        (
+            cut.get_node_df()
+            .with_columns(
+                pl.col("harmonic_centrality", "closeness_centrality")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .filter(pl.col("label").is_in(["Central", "Market", "Harbor", "Docks"]))
+            .select(
+                "label", "harmonic_centrality_rank", "closeness_centrality_rank"
+            )
         )
-
-        graph.harmonic_centrality(return_dict=True)
         ```
 
-        Normalizing divides by `n - 1`, compressing the same scores into `[0, 1]`:
-
-        ```{python}
-        graph.harmonic_centrality(normalized=True, return_dict=True)
-        ```
-
-        Use with cutoff for local neighborhoods:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-        )
-
-        # Only consider paths of length 2 or less
-        graph.harmonic_centrality(cutoff=2, return_dict=True)
-        ```
-
-        Chain with other operations:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-            .harmonic_centrality(attr_name="harmonic", normalized=True)
-        )
-
-        # Access the stored values
-        ndf = graph.get_node_df()
-
-        # Returns DataFrame with label and harmonic centrality columns
-        ndf[["label", "harmonic"]]
-        ```
-
-        For directed graphs, use mode to control direction:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.harmonic_centrality(mode="out", return_dict=True)
-        ```
-
-        Following edges backward instead changes which nodes look central:
-
-        ```{python}
-        graph.harmonic_centrality(mode="in", return_dict=True)
-        ```
+        The default `closeness_centrality()` corrects for this by scaling each score by the share
+        of the graph a node can reach. To count only nearby nodes, pass `cutoff=` a maximum
+        distance.
         """
         result_ids = rust.harmonic_centrality(
             self._graph,
@@ -51979,9 +51963,6 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
         # Track computation
         params = {}
         if mode != "out":
@@ -51992,7 +51973,7 @@ class Graph:
             params["cutoff"] = cutoff
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("harmonic_centrality", params, attr_name))
+        self._store_node_result("harmonic_centrality", params, attr_name, result_ids)
 
         return self
 
