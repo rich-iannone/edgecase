@@ -72274,34 +72274,54 @@ class Graph:
         ValueError
             If graph is directed.
 
+        See Also
+        --------
+        node_connectivity : The same value, for directed graphs as well.
+        adhesion : The edge-based counterpart.
+        articulation_points : The nodes whose single removal disconnects the graph.
+
         Examples
         --------
         A 4-cycle stays connected after removing any one node, but removing two opposite nodes
-        disconnects it, so its cohesion is 2:
+        disconnects it:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
-        )
-
-        graph.cohesion()
+        ec.Graph().add_cycle_graph(4).cohesion()
         ```
 
-        Cohesion can be lower than adhesion. Two triangles that share a single node `C` need two
-        edge removals to disconnect, but removing node `C` alone splits them:
+        Cohesion can be lower than adhesion. Two triangles that share the node `C` need two edge
+        removals to disconnect, but removing `C` alone splits them:
 
         ```{python}
-        bowtie = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        bowtie = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("C", "D"), ("D", "E"), ("E", "C"),
+            ]
         )
 
         bowtie.cohesion(), bowtie.adhesion()
+        ```
+
+        ### The member holding the club together
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Its cohesion is 1: without the instructor, member 11, whose
+        only friend in the club is the instructor, would be cut off from everyone else:
+
+        ```{python}
+        karate = ec.karate_club()
+
+        critical = karate.articulation_points()
+        karate.cohesion(), [karate.get_label_from_id(n) for n in critical]
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight=critical, label_by="label"
+        )
         ```
         """
         return self._graph.get_cohesion()
