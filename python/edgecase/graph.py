@@ -19149,6 +19149,13 @@ class Graph:
             If the graph is not bipartite (it contains an odd-length cycle, such as a triangle,
             or a self-loop).
 
+        See Also
+        --------
+        is_bipartite : Check whether the graph can be split into two sides.
+        is_bipartite_node_set : Check whether a given set of nodes is one side.
+        layout_bipartite : Place the two sides in two rows.
+        bipartite_projection : Link the nodes of one side through the other.
+
         Examples
         --------
         A small gene-disease network splits into its genes and its diseases. Mapping the IDs
