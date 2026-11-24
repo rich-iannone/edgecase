@@ -35874,30 +35874,68 @@ class Graph:
         ValueError
             If the graph is undirected.
 
+        See Also
+        --------
+        triads_by_type : List the triples of each type.
+        triad_type : Classify one triad.
+        motif_census : Count the connected subgraphs of three or four nodes.
+        reciprocity : The share of edges that run both ways.
+
         Examples
         --------
-        A three-node cycle is a single cyclic triad; reversing one edge makes it transitive:
+        A cycle of three nodes is a single cyclic triad (`030C`); reversing one edge makes it
+        transitive (`030T`):
 
         ```{python}
         import edgecase as ec
 
-        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-
-        flow = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        flow.add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
+        flow = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
+        )
 
         cycle.triadic_census()["030C"], flow.triadic_census()["030T"]
         ```
 
-        On a larger network, the non-empty types tell the story at a glance:
+        ### Rings among the payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Of its 816 triads, most are empty (`003`) or hold a single payment
+        (`012`). Two accounts paying a third (`021U`) is common, since many people pay the
+        Grocer, but only two triads are cycles of payments:
 
         ```{python}
-        graph = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D", "E"])
-        graph.add_edges([("A", "B"), ("B", "A"), ("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"),
-                         ("E", "C")])
+        payments = ec.payments()
 
-        {k: v for k, v in graph.triadic_census().items() if v}
+        {code: n for code, n in payments.triadic_census().items() if n}
+        ```
+
+        Those two cycles are the rings that the bank is looking for, each passing several
+        thousand around three accounts on consecutive days:
+
+        ```{python}
+        rings = [("Ana", "Ben"), ("Ben", "Cruz"), ("Cruz", "Ana"),
+                 ("Finn", "Gus"), ("Gus", "Hal"), ("Hal", "Finn")]
+
+        payments.plot(
+            highlight=rings,
+            color_by="kind", label_by="label", seed=11, height=420,
+        )
+        ```
+
+        ### Hierarchy in a nervous system
+
+        `celegans_neural()` is the network of a worm's neurons that Watts and Strogatz used.
+        Signals mostly flow one way through it, from sensory neurons to motor neurons, and its
+        triads show this: transitive triads, where a neuron reaches another both directly and
+        through a third, outnumber cycles of three by more than 25 to 1:
+
+        ```{python}
+        census = ec.celegans_neural().triadic_census()
+
+        census["030T"], census["030C"]
         ```
         """
         census = dict(rust.triadic_census(self._graph))
