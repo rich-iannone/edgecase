@@ -202,18 +202,17 @@ The `layout=` argument chooses how the nodes are placed:
 - `"random"` scatters the nodes uniformly over the canvas
 - any other string names a node attribute that holds `(x, y)` coordinates
 
-The circular layout ignores the structure of the graph entirely, which is sometimes the point: it
-shows every edge as a chord of the circle, so dense and sparse patterns are easy to compare, and the
-positions don't depend on a random seed:
+The circular layout shows every edge as a chord of the circle, so dense and sparse patterns are
+easy to compare, and the positions don't depend on a random seed:
 
 ```{python}
 florentine.plot(layout="circular")
 ```
 
-The order of the nodes around the circle follows the graph's internal storage order. A
-deliberate order, in which linked nodes sit close together, concentrates the edges along the rim
-and makes the drawing much easier to read; [Layouts](layouts.qmd#circles-and-shells) shows how
-to arrange the circle in a chosen order. The fourth option is the most flexible. The `layout_*()` methods, such as
+The nodes go around the circle in the order a depth-first search meets them, so linked nodes
+tend to sit close together and many edges run along the rim, which makes the drawing easier to
+read; [Layouts](layouts.qmd#circles-and-shells) shows how to arrange the circle in another order.
+The fourth option is the most flexible. The `layout_*()` methods, such as
 [`layout_kamada_kawai()`](../reference/Graph.layout_kamada_kawai.qmd) or
 [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd), compute positions with more
 specialized algorithms and store them in the `"pos"` node attribute, which `layout="pos"` then
@@ -286,7 +285,7 @@ the text; the palettes for colored nodes are described in [Aesthetics](aesthetic
 `plot()` works well up to a few hundred nodes and a few thousand edges. Beyond that, two things go
 wrong. The drawing becomes a dense ball in which little can be seen, and the force-directed layout,
 which considers every pair of nodes, becomes slow: the 4,941 nodes of the power grid network take
-about twenty seconds. For the 198 musicians and 2,743 collaborations of the jazz network, small
+about twenty seconds. For the 198 bands and 2,742 links of the jazz network, small
 nodes, no labels, and faint edges are already needed:
 
 ```{python}
