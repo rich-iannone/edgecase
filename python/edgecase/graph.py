@@ -23901,6 +23901,12 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_edges : Select the edges that pass a test.
+        select_match : Select the nodes or edges that a pattern matches.
+        set_node_attrs_ws : Set attributes on the selected nodes.
+
         Examples
         --------
         The predicate receives each node's `Node` object, so any of its properties -- `id`,
