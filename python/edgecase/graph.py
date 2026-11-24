@@ -84584,48 +84584,52 @@ class Graph:
         complete graph achieves the maximum of $1$. The computation runs an unweighted BFS
         from every node, so cost is $O(V(V + E))$ time and $O(V)$ extra space per source.
 
+        See Also
+        --------
+        local_efficiency : The same measure within each node's neighborhood.
+        mean_distance : The average distance between the pairs that can reach each other.
+        harmonic_centrality : The sum of `1 / distance` from one node.
+        articulation_points : The nodes whose removal cuts the graph apart.
+
         Examples
         --------
-        A complete graph has every pair of nodes directly connected, so its global efficiency is
-        at its maximum of 1:
+        Every pair adds `1 / distance`: on a path of four nodes the three neighboring pairs add
+        `1`, the two pairs two apart `1/2`, and the ends `1/3`, which over six pairs averages
+        `0.722`. Adding a chord between the ends brings every node within one or two hops:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_full_graph(5)
-
-        # Returns 1.0
-        graph.global_efficiency()
-        ```
-
-        Sparser topologies have longer average shortest paths and therefore lower efficiency; a
-        star graph is more efficient than a path of the same size, since every node is at most
-        2 hops from any other through the hub:
-
-        ```{python}
-        path = ec.Graph()
-        path.add_path_graph(10)
-
-        star = ec.Graph()
-        star.add_star_graph(10)
-
-        # Path efficiency is lower than star efficiency
-        (path.global_efficiency(), star.global_efficiency())
-        ```
-
-        Unreachable pairs count as `0`. With two separate edges, only 4 of the 12 ordered node
-        pairs can reach each other (each at distance 1), so the efficiency is `4 / 12`, about
-        `0.333`, rather than `1.0`:
-
-        ```{python}
-        split = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
         )
 
-        split.global_efficiency()
+        round(path.global_efficiency(), 3), round(cycle.global_efficiency(), 3)
+        ```
+
+        ### Closing a station
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Closing Central, where the Red and Blue lines cross, hardly lowers the efficiency, as the
+        Ring line takes trips around it. Closing Riverside, the last station before the only
+        river crossing, lowers it the most of any station: Harbor, Docks and Shipyard are cut off,
+        and every trip to them counts `0`:
+
+        ```{python}
+        def efficiency(closed=None):
+            metro = ec.metro()
+            if closed:
+                metro = metro.delete_node(closed)
+            return round(metro.global_efficiency(), 3)
+
+        efficiency(), efficiency("Central"), efficiency("Riverside")
+        ```
+
+        ```{python}
+        ec.metro().plot(
+            layout="pos", highlight=["Central", "Riverside"], label_by="label"
+        )
         ```
         """
         from edgecase._core import global_efficiency
