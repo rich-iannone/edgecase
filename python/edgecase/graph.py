@@ -19520,14 +19520,49 @@ class Graph:
 
         Examples
         --------
-        A complete bipartite graph $K_{2,3}$ has every 3-path closed by a square:
+        Two people in the same two clubs close a square. Along a chain of clubs, no path of
+        three edges closes:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
-        g.add_edges([(u, v) for u in "ab" for v in "xyz"])
-        g.robins_alexander_clustering()
+        square = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ana", "Choir"), ("Ben", "Chess"),
+             ("Ben", "Choir")]
+        )
+        chain = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
+        )
+
+        square.robins_alexander_clustering(), chain.robins_alexander_clustering()
+        ```
+
+        ### Meeting again
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Women who met at one event tended to meet at others, and the coefficient is
+        well above that of random attendance, where each woman attends as many events and each
+        event draws as many women as in the data:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        attended = [davis.get_degree(n) for n in women]
+        drew = [davis.get_degree(n) for n in events]
+
+        random = [
+            ec.Graph()
+            .add_bipartite_configuration_model(attended, drew, seed=s)
+            .robins_alexander_clustering()
+            for s in range(5)
+        ]
+
+        (
+            round(davis.robins_alexander_clustering(), 3),
+            [round(c, 3) for c in random],
+        )
         ```
         """
         nbrs = self._neighbor_sets()
