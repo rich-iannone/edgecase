@@ -27097,41 +27097,60 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_out_edge : Move the selection to outgoing edges.
+        trav_in_edge : Move the selection to incoming edges.
+        reciprocity : The share of edges that are returned.
+
         Examples
         --------
-        In this small follower network, Ann and Bob follow each other while Cat's follow of
-        Ann is one-way. With `add_to_selection=False` (the default), selecting the two edges
-        that leave Ann and Cat and traversing leaves only `Bob->Ann` selected, since
-        `Cat->Ann` has no reverse (in the exported table, Ann is node `1` and Bob is node
-        `2`):
+        The selection moves from each selected edge to the edges that run the other way between
+        the same two nodes. `A`-->`B` has a reverse, `B`-->`A`, but `C`-->`A` has none:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Ann", "Bob", "Cat"])
-            .add_edges([("Ann", "Bob"), ("Bob", "Ann"), ("Cat", "Ann")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "A"), ("C", "A")], directed=True
         )
+        label = graph.get_label_from_id
 
-        ann_to_bob = graph.find_edge_ids(source="Ann", target="Bob")
-        cat_to_ann = graph.find_edge_ids(source="Cat", target="Ann")
-        graph.select_edges_by_id(ann_to_bob + cat_to_ann)
-
-        graph.trav_reverse_edge()
-        graph.get_edge_df_ws()
+        graph.select_edges_by_id([1, 3]).trav_reverse_edge()
+        [
+            (label(e.source), label(e.target))
+            for e in map(graph.get_edge, graph.get_selected_edge_ids())
+        ]
         ```
 
-        With `add_to_selection=True`, the reverse edges are added alongside the originals
-        instead of replacing them, so all three edges end up selected (`Ann->Bob`,
-        `Cat->Ann`, and the newly found `Bob->Ann`):
+        With `add_to_selection=True`, the reverse edges join the ones selected before, so all
+        three are selected:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_edges_by_id(ann_to_bob + cat_to_ann)
-        graph.trav_reverse_edge(add_to_selection=True)
+        graph.select_edges_by_id([1, 3], set_op="replace")
+        graph.trav_reverse_edge(add_to_selection=True).count_selected_edges()
+        ```
 
-        graph.count_selected_edges()
+        ### Who pays each other
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Selecting every payment and moving to the reverses keeps the ones
+        that were paid back the other way. There are four, between Dee and Eve and between Max
+        and Nia:
+
+        ```{python}
+        payments = ec.payments()
+        payments.select_edges_by_id(payments.get_edge_ids()).trav_reverse_edge()
+
+        label = payments.get_label_from_id
+        sorted(
+            (label(e.source), label(e.target))
+            for e in map(payments.get_edge, payments.get_selected_edge_ids())
+        )
+        ```
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
         ```
         """
         self._graph.trav_reverse_edge(add_to_selection)
