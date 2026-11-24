@@ -131,18 +131,21 @@ def from_matrix_market(
 
     # Read the file and parse edges
     edges = []
+    seen_size_line = False
     with open(filepath, "r", encoding="utf-8") as f:
         for line in f:
             line = line.strip()
 
-            # Skip comments
-            if line.startswith("%"):
+            # Skip comments and blank lines
+            if not line or line.startswith("%"):
                 continue
 
             parts = line.split()
 
-            # Skip header line (rows cols nonzeros)
-            if len(parts) == 3 and all(p.isdigit() for p in parts):
+            # Skip the size line (rows cols nonzeros), the first line after the comments; an
+            # integer-valued entry looks the same, so it can't be told apart by its shape
+            if not seen_size_line:
+                seen_size_line = True
                 continue
 
             # Parse edge data
