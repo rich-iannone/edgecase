@@ -83324,19 +83324,62 @@ class Graph:
         Matches NetworkX's `magnetic_laplacian_matrix()`; NetworkX rejects multigraphs, while
         parallel edges add their weights here.
 
+        See Also
+        --------
+        magnetic_spectrum : The eigenvalues of this matrix.
+        directed_laplacian_matrix : A real symmetric Laplacian for directed graphs.
+        laplacian_matrix : The matrix this one is at `q = 0`, with directions ignored.
+
         Examples
         --------
         A directed triangle: each one-way edge gives the phase $\pm i$ at the default
-        `q = 0.25`:
+        `q = 0.25`, and its mirror cell the conjugate:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
         matrix, nodes = cycle.magnetic_laplacian_matrix()
-        [[complex(round(z.real, 3) + 0.0, round(z.imag, 3) + 0.0) for z in row] for row in matrix]
+        labels = [cycle.get_label_from_id(n) for n in nodes]
+
+        def show(z):
+            return str(complex(round(z.real, 3) + 0.0, round(z.imag, 3) + 0.0))
+
+        pl.DataFrame(
+            [[show(z) for z in row] for row in matrix],
+            schema=labels, orient="row",
+        ).insert_column(0, pl.Series("node", labels))
+        ```
+
+        ### One-way and two-way
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Only Max and Nia, and Dee and Eve, paid each other, and their four
+        entries are real. Every pair with payments going one way only gets an imaginary entry:
+
+        ```{python}
+        payments = ec.payments()
+        mag, nodes = payments.magnetic_laplacian_matrix()
+        label = payments.get_label_from_id
+        n = len(nodes)
+
+        real = [
+            (label(nodes[i]), label(nodes[j]))
+            for i in range(n) for j in range(n)
+            if i != j and mag[i][j] != 0 and mag[i][j].imag == 0
+        ]
+        imaginary = sum(
+            mag[i][j].imag != 0 for i in range(n) for j in range(n)
+        )
+
+        real, imaginary
+        ```
+
+        ```{python}
+        payments.plot(highlight=real, label_by="label", seed=3)
         ```
         """
         if not self.is_directed():
