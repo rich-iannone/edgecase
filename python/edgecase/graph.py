@@ -33172,19 +33172,52 @@ class Graph:
         case the reverse order is a perfect elimination ordering. Results match NetworkX's
         `is_chordal`.
 
+        See Also
+        --------
+        complete_to_chordal_graph : Add edges to make a graph chordal.
+        chordal_graph_cliques : List the maximal cliques of a chordal graph.
+        is_perfect_graph : Check if every induced subgraph colors with its largest clique.
+
         Examples
         --------
-        A square is the smallest graph that is not chordal; adding a diagonal makes it chordal:
+        A square has a cycle of four with no chord, so it isn't chordal. A diagonal cuts it into
+        two triangles:
 
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
         before = square.is_chordal()
         square.add_edge("A", "C")
 
         before, square.is_chordal()
+        ```
+
+        ### Ready for a junction tree
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its moral graph, which joins the parents of each variable and drops
+        the directions, is chordal, so a junction tree can be built from it without adding edges.
+        `exams()`, which joins two of a made-up college's courses when some student takes both,
+        isn't:
+
+        ```{python}
+        moral = ec.causal().moral_graph()
+        exams = ec.exams()
+
+        moral.is_chordal(), exams.is_chordal()
+        ```
+
+        In `exams()`, Philosophy, Literature, Economics, History and Biology form a cycle of five
+        courses with no chord:
+
+        ```{python}
+        hole = ["Philosophy", "Literature", "Economics", "History", "Biology"]
+        exams.plot(
+            highlight=[*hole, hole[0]], label_by="label", seed=3, height=420
+        )
         ```
         """
         value = rust.is_chordal(self._graph)
