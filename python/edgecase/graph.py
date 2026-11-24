@@ -78556,64 +78556,50 @@ class Graph:
         algorithm then extends. For the largest possible set, `maximum_independent_set()`
         runs a different (still greedy but degree-aware) heuristic.
 
+        See Also
+        --------
+        maximum_independent_set : Look for the largest independent set instead.
+        find_maximal_independent_sets : Draw many maximal independent sets at once.
+        is_independent_set : Check a set of nodes.
+        dominating_set : Every maximal independent set is also dominating.
+
         Examples
         --------
-        On a 5-node path `1-2-3-4-5`, a maximal independent set picks nodes that are never
-        adjacent. Depending on the order, it has 2 nodes (like `2` and `4`) or 3 nodes (`1`,
-        `3`, and `5`). Showing the labels makes the chosen nodes easy to check:
+        On a path of five nodes, a maximal independent set has either two nodes, such as `B` and
+        `D`, or three, `A`, `C` and `E`; which one comes back depends on the seed:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)
-
-        mis = graph.maximal_independent_set(seed=23)
-
-        [graph.get_label_from_id(nid) for nid in mis]
-        ```
-
-        Different seeds can give different sets, all of them valid and maximal:
-
-        ```{python}
-        results = [graph.maximal_independent_set(seed=s) for s in range(5)]
-        [(len(r), graph.is_independent_set(r)) for r in results]
-        ```
-
-        Passing a starting node forces the algorithm to build its set around it, which is
-        useful when you already know one node must be included:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(6)
-
-        first_node = graph.get_node_ids()[0]
-        mis = graph.maximal_independent_set(nodes=[first_node], seed=23)
-
-        # Returns True: the requested starting node is always included
-        first_node in mis
-        ```
-
-        This scheduling-style example treats conflicting jobs as connected nodes, so a maximal
-        independent set identifies a batch of jobs that can all run at the same time:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["Job_A", "Job_B", "Job_C", "Job_D"])
-            .add_edges(
-                [
-                    ("Job_A", "Job_B"),  # A conflicts with B
-                    ("Job_B", "Job_C"),  # B conflicts with C
-                    ("Job_C", "Job_D"),  # C conflicts with D
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
-        parallel_jobs = graph.maximal_independent_set(seed=23)
+        label = graph.get_label_from_id
 
-        # Returns the labels of jobs that can run simultaneously
-        [graph.get_label_from_id(nid) for nid in parallel_jobs]
+        [
+            [label(n) for n in graph.maximal_independent_set(seed=s)]
+            for s in range(3)
+        ]
+        ```
+
+        ### Filling a slot
+
+        `exams()` joins two of the 14 courses at a made-up college when some student takes both,
+        so their exams can't share a time slot. Starting from Calculus, the method adds exams
+        until no other can join without a conflict, which gives a slot for Calculus and four
+        more exams:
+
+        ```{python}
+        exams = ec.exams()
+        calculus = exams.get_id_from_label("Calculus")
+        slot = exams.maximal_independent_set(nodes=[calculus], seed=1)
+
+        [exams.get_label_from_id(n) for n in slot]
+        ```
+
+        ```{python}
+        exams.plot(highlight=slot, label_by="label", seed=5)
         ```
         """
         from edgecase._core import maximal_independent_set
