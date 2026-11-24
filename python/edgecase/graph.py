@@ -80634,38 +80634,48 @@ class Graph:
         root (see `maximum_spanning_arborescence()`). It runs in $O(V E)$ time. Ties between
         equally cheap arborescences may be broken differently than in NetworkX.
 
+        See Also
+        --------
+        maximum_spanning_arborescence : The arborescence with the largest total weight.
+        iter_spanning_arborescences : The arborescences in order of weight, beyond the cheapest.
+        directed_steiner_tree : A cheap arborescence that reaches only some of the nodes.
+
         Examples
         --------
-        One-way links between four relay stations, weighted by cost. The cheapest way to
-        reach every station starts at A, the only station with no incoming link:
+        `B` can be reached straight from the root `A`, or by way of `C`. The direct edge is
+        cheaper, so the arborescence takes it:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [
-                ("A", "B", 4.0), ("A", "C", 1.0), ("C", "B", 2.0),
-                ("B", "D", 3.0), ("C", "D", 6.0), ("D", "C", 1.0),
-            ]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("A", "C", 2.0), ("C", "B", 3.0)], directed=True
         )
-
-        tree = g.minimum_spanning_arborescence()
-        tree.get_edges_str_repr(use_labels=True)
+        graph.minimum_spanning_arborescence().get_edges_str_repr(use_labels=True)
         ```
 
-        The total cost is 1 + 2 + 3 = 6, cheaper than any tree using the direct edge A -> B:
+        ### The cheapest pipes to keep running
+
+        `pipeline()` is a made-up city's water supply, with each pipe's running `cost`. Keeping
+        water flowing from the Reservoir to every station needs one pipe into each of the other
+        ten, and the cheapest choice costs 13:
 
         ```{python}
-        sum(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
+        pipeline = ec.pipeline()
+        cheapest = pipeline.minimum_spanning_arborescence(weight_attr="cost")
+
+        cheapest.count_edges(), cheapest.get_edge_df()["cost"].sum()
         ```
 
-        If the direct link A -> B has to stay in service, `include=` forces it into the tree.
-        B no longer needs C, and the cheapest tree with that link costs 4 + 1 + 3 = 8:
-
         ```{python}
-        g.minimum_spanning_arborescence(include=[("A", "B")]).get_edges_str_repr(use_labels=True)
+        pipeline.plot(
+            layout="pos",
+            highlight_edges=cheapest.get_edge_ids(),
+            edge_label_by="cost",
+            label_by="label",
+            width=700,
+            height=360,
+        )
         ```
         """
         return self._branching(
