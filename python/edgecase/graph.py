@@ -1251,6 +1251,20 @@ class Graph:
 
         graph.steps
         ```
+
+        ### Starting a replay from a finished graph
+
+        A replay normally starts from an empty graph and shows it being built. To start from the
+        whole network instead, clear the log once it's loaded. The nodes and edges that exist at
+        that point are present from the first frame, and only the analysis is replayed:
+
+        ```{python}
+        metro = ec.metro().clear_steps()
+
+        metro.note("Spread out from Central, one stop at a time.").bfs("Central")
+
+        metro.play(layout="pos")
+        ```
         """
         import weakref
 
