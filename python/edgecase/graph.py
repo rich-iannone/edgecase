@@ -70369,8 +70369,10 @@ class Graph:
 
         ![Node connectivity](../assets/graphs/node-connectivity.light.svg){.lightbox fig-alt="Two diamonds that share the hub node D, drawn in the accent color. Removing D alone disconnects the graph, so the node connectivity is 1, smaller than the edge connectivity of 2. The card shows the cut D and the value 1." width="100%"}
 
-        Returns the minimum number of nodes whose removal disconnects the graph. This is computed as
-        the minimum pairwise node connectivity over all pairs of non-adjacent nodes.
+        Returns the minimum number of nodes whose removal disconnects the graph. This is the
+        smallest local node connectivity over pairs of non-adjacent nodes. Only pairs that
+        include one of the first `k + 1` nodes need checking, where `k` is the smallest value
+        found so far, since a cut of `k` nodes must leave one of them out (Even, 1975).
 
         On a directed graph, "disconnected" means not strongly connected: some remaining node can
         no longer reach another along edge directions. A digraph that is only weakly connected
@@ -70381,7 +70383,7 @@ class Graph:
         Uses Menger's theorem: node connectivity equals the maximum number of node-disjoint paths.
         Implementation transforms the problem to max-flow.
 
-        Time complexity: `O(V^4)` for complete enumeration of pairs.
+        Time complexity: `O(k * V)` maximum flows, where `k` is the connectivity.
 
         Returns
         -------
@@ -70389,38 +70391,61 @@ class Graph:
             Minimum number of nodes needed to disconnect the graph. Returns `0` if already
             disconnected. Returns `n-1` for complete graph `K_n`.
 
+        See Also
+        --------
+        node_connectivity_between : The connectivity between two given nodes.
+        edge_connectivity : The fewest edges whose removal disconnects the graph.
+        all_node_cuts : Every smallest set of nodes whose removal disconnects the graph.
+        k_components : The groups of nodes with at least a given connectivity.
+
         Examples
         --------
-        A cycle graph needs at least 2 nodes removed to disconnect it, since every node has exactly
-        two neighbors offering alternate paths:
+        A cycle falls apart only when two of its nodes are removed, while in the complete graph
+        `K_5` every node but one would have to go:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
+        cycle = ec.Graph().add_cycle_graph(6)
+        k5 = ec.Graph().add_full_graph(5)
 
-        # Returns 2
-        graph.node_connectivity()
+        cycle.node_connectivity(), k5.node_connectivity()
         ```
 
-        A complete graph `K_5` is maximally connected: you'd need to remove all but one of the
-        other 4 nodes to isolate any node:
+        On a directed graph the nodes must still reach each other along edge directions. A
+        one-way ring is broken by removing any one node, but with each edge doubled back the
+        ring needs two:
 
         ```{python}
-        graph = ec.Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
+        pairs = [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        one_way = ec.Graph.from_edges(pairs, directed=True)
+        both_ways = ec.Graph.from_edges(
+            pairs + [(v, u) for u, v in pairs], directed=True
+        )
 
-        # Returns 4
-        graph.node_connectivity()
+        one_way.node_connectivity(), both_ways.node_connectivity()
+        ```
+
+        ### Closures that split the metro
+
+        `metro()` is a made-up city's metro network. Closing a single station, such as Riverside,
+        can split it, so its connectivity is 1. Its core of 15 stations, the largest
+        biconnected block, needs two closures:
+
+        ```{python}
+        metro = ec.metro()
+        core = max(metro.biconnected_components(), key=len)
+
+        metro.node_connectivity(), metro.subgraph(core).node_connectivity()
+        ```
+
+        Closing Old Town and Northpark together is one way to split the core, cutting Westgate,
+        Mill Lane and Hillcrest off from the rest:
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight=["Old Town", "Northpark"], label_by="label"
+        )
         ```
         """
         return self._graph.node_connectivity()
