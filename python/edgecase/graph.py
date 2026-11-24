@@ -52301,39 +52301,107 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to degree centrality
             scores. If `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        group_degree_centrality : Degree centrality for a group of nodes.
+        eigen_centrality : Weigh each neighbor by its own importance.
+        average_neighbor_degree : The degree of a node's neighbors.
+
         Examples
         --------
-        The hub of a star is adjacent to every other node, so its degree centrality is `1`;
-        each leaf touches one of the four other nodes and scores `0.25`:
+        The hub of a star (node 1 here) is adjacent to every other node, so its degree centrality
+        is `1`; each leaf touches one of the four other nodes and scores `0.25`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Hub", "A", "B", "C", "D"])
-            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D")])
-        )
+        star = ec.Graph().add_star_graph(n=5)
 
-        scores = graph.degree_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): score for nid, score in sorted(scores.items())}
+        star.degree_centrality().get_node_df().select("label", "degree_centrality")
         ```
 
-        In a directed graph, in-degree and out-degree centrality can rank nodes very
-        differently. Here everyone follows "Celebrity", who follows no one back:
+        ### Who has the most ties
+
+        In Zachary's karate club, the instructor (member 0) and the club's administrator (member
+        33) each count about half the club among their friends, far more than anyone else:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Celebrity", "Fan1", "Fan2", "Fan3"])
-            .add_edges([("Fan1", "Celebrity"), ("Fan2", "Celebrity"), ("Fan3", "Celebrity")])
-            .add_edge("Fan1", "Fan2")
+        club = ec.karate_club().layout_kamada_kawai().degree_centrality()
+
+        (
+            club.get_node_df()
+            .select("label", "role", "degree", "degree_centrality")
+            .sort("degree_centrality", descending=True)
+            .head(5)
+        )
+        ```
+
+        ### Ties aren't everything
+
+        Degree counts ties, but not where they lead. Comparing it with betweenness (the share of
+        shortest routes through a member) and closeness (how few steps they are from everyone)
+        tells the leaders apart: the administrator has one more friend, but the instructor sits on
+        more of the routes between members and is closer to everyone:
+
+        ```{python}
+        (
+            club.betweenness_centrality()
+            .closeness_centrality()
+            .get_node_df()
+            .select(
+                "label", "degree_centrality", "betweenness_centrality",
+                "closeness_centrality",
+            )
+            .sort("betweenness_centrality", descending=True)
+            .head(6)
+        )
+        ```
+
+        Member 31 has only six friends, but among them are both leaders, so it ranks fifth by
+        betweenness. Member 2 has ten, five in each faction, and is nearly as close to everyone as
+        the instructor. Drawn sized by degree (left) and by betweenness (right), and colored by
+        the faction each member joined when the club split, the instructor stands out more on the
+        right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        club.plot(
+            layout="pos", size_by="degree_centrality", color_by="faction",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        club.plot(
+            layout="pos", size_by="betweenness_centrality", color_by="faction",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ### In and out
+
+        In a directed graph, `mode=` picks the edges to count. Here every fan follows "Celebrity",
+        who follows no one back, so Celebrity has the top in-degree score and an out-degree score
+        of `0`:
+
+        ```{python}
+        follows = (
+            ec.Graph.from_edges(
+                [("Fan1", "Celebrity"), ("Fan2", "Celebrity"),
+                 ("Fan3", "Celebrity"), ("Fan1", "Fan2")],
+                directed=True,
+            )
             .degree_centrality(mode="in", attr_name="in_deg")
             .degree_centrality(mode="out", attr_name="out_deg")
         )
 
-        graph.get_node_df().select(["label", "in_deg", "out_deg"])
+        follows.get_node_df().select("label", "in_deg", "out_deg")
         ```
+
+        Use `degrees()` for the raw counts, which aren't divided by `n - 1`.
         """
         if mode not in ("all", "total", "in", "out"):
             raise ValueError(f"Invalid mode {mode!r}. Must be 'all', 'in', or 'out'")
