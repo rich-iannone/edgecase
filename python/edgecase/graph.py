@@ -58345,6 +58345,11 @@ class Graph:
         virtual source joined to every node, as in NetworkX); if distances still improve after
         $V$ rounds, a negative cycle exists. It runs in $O(VE)$ time.
 
+        See Also
+        --------
+        find_negative_cycle : The nodes of one negative cycle.
+        bellman_ford_shortest_path : Shortest paths with negative weights, if no cycle is negative.
+
         Examples
         --------
         Three currencies whose exchange rates, as negative log-rates, admit an arbitrage loop:
@@ -58352,10 +58357,40 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        fx = ec.Graph(directed=True, weighted=True).add_nodes(["USD", "EUR", "GBP"])
-        fx.add_edges([("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)])
+        fx = ec.Graph.from_edges(
+            [("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)],
+            directed=True,
+        )
 
         fx.negative_edge_cycle()
+        ```
+
+        ### Checking a table of exchange rates
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate. Its stale euro–pound quotes make an arbitrage loop, while
+        with `arbitrage=False` they are corrected:
+
+        ```{python}
+        (
+            ec.currency().negative_edge_cycle(),
+            ec.currency(arbitrage=False).negative_edge_cycle(),
+        )
+        ```
+
+        Negative weights alone don't make a negative cycle. In the corrected rates, the 9 quotes
+        with a rate above 1 (highlighted) have negative weights, but every cycle loses more to the
+        spreads along it than these gain:
+
+        ```{python}
+        fx = ec.currency(arbitrage=False)
+        edges = fx.get_edge_df()
+        gains = edges.filter(edges["weight"] < 0)["id"].to_list()
+
+        fx.plot(
+            highlight_edges=gains, label_by="label",
+            curved_edges=True, seed=4,
+        )
         ```
         """
         value = rust.negative_edge_cycle(self._graph, self._use_weights(weighted))
