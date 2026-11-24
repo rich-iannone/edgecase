@@ -66086,21 +66086,53 @@ class Graph:
         node of `z` outside `included` must be reachable (by open paths given `z`) from both `x`
         and `y`, so dropping it would open a path. It runs in $O(V + E)$ time.
 
+        See Also
+        --------
+        is_d_separator : Check a separator, minimal or not.
+        find_minimal_d_separator : Find a minimal separator.
+
         Examples
         --------
-        In the chain A -> B -> C -> D, either B or C alone separates A from D, so both are
-        minimal, while {B, C} separates but is not minimal:
+        `B` alone separates the ends of a chain, so adding `D` to it gives a separator that isn't
+        minimal:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("D", "C")], directed=True
+        )
+        (
+            graph.is_minimal_d_separator("A", "C", ["B"]),
+            graph.is_minimal_d_separator("A", "C", ["B", "D"]),
+        )
+        ```
+
+        ### Nothing to spare
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Blood pressure and Genetics separate Age from Heart disease, and
+        neither can be left out. Adding Medication still separates them, but no longer
+        minimally:
+
+        ```{python}
+        causal = ec.causal()
+        pair = ("Age", "Heart disease")
 
         (
-            g.is_minimal_d_separator("A", "D", ["B"]),
-            g.is_minimal_d_separator("A", "D", ["B", "C"]),
-            g.is_d_separator("A", "D", ["B", "C"]),
+            causal.is_minimal_d_separator(*pair, ["Blood pressure", "Genetics"]),
+            causal.is_minimal_d_separator(
+                *pair, ["Blood pressure", "Genetics", "Medication"]
+            ),
+        )
+        ```
+
+        ```{python}
+        causal.plot(
+            layout="pos",
+            highlight={"accent": ["Blood pressure", "Genetics"],
+                       "soft": ["Age", "Heart disease"]},
+            label_by="label", height=360,
         )
         ```
         """
