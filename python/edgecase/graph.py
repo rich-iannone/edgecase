@@ -61261,16 +61261,42 @@ class Graph:
         A single search over reversed edges. Matches NetworkX's
         `single_target_shortest_path_length`.
 
+        See Also
+        --------
+        single_target_shortest_path : The paths themselves.
+        single_source_shortest_path_length : The distances from a source instead.
+
         Examples
         --------
+        In a one-way street network, how far is the station from each place that can reach it?
+
         ```{python}
         import edgecase as ec
 
-        streets = ec.Graph(directed=True).add_nodes(["home", "park", "shop", "station"])
-        streets.add_edges([("home", "park"), ("park", "station"), ("shop", "home")])
+        streets = ec.Graph.from_edges(
+            [("home", "park"), ("park", "station"), ("shop", "home")],
+            directed=True,
+        )
 
         lengths = streets.single_target_shortest_path_length("station")
         {streets.get_label_from_id(n): d for n, d in lengths.items()}
+        ```
+
+        ### How far back a paper reaches
+
+        `citations()` links each paper of a made-up research field to the earlier papers it
+        cites. Of the 17 papers published after Adeyemi 2003, 11 lead back to it through a chain
+        of citations, the longest of them five citations long:
+
+        ```{python}
+        papers = ec.citations()
+        lengths = papers.single_target_shortest_path_length("Adeyemi 2003")
+        papers.set_node_attrs("citations_away", lengths)
+
+        papers.plot(
+            layout="pos", color_by="citations_away", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         t, use, _, dist = self._target_search(target, cutoff, weighted)
