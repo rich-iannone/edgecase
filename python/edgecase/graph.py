@@ -2601,6 +2601,13 @@ class Graph:
         """
         return self._resolve_node_id(node, auto_create=False)
 
+    def _seed_ids(self, seeds: dict) -> dict:
+        """Key a dictionary of per-node values by node ID, resolving any string labels."""
+        return {
+            self._resolve_node_id(node) if isinstance(node, str) else node: value
+            for node, value in seeds.items()
+        }
+
     def _resolve_node_id(self, node: Union[int, str], auto_create: bool = False) -> int:
         """
         Resolve a node identifier (int or str) to a u64 ID.
