@@ -84979,33 +84979,58 @@ class Graph:
         $A$; only undirected inputs are supported since the definition assumes a real
         symmetric spectrum.
 
+        See Also
+        --------
+        subgraph_centrality : Each node's share of the index.
+        adjacency_spectrum : The eigenvalues the index is built from.
+
         Examples
         --------
-        A single edge (`K_2`) has eigenvalues `1` and `-1`, so its Estrada index is
-        `exp(1) + exp(-1) ≈ 3.086`:
+        A single edge has eigenvalues `1` and `-1`, so its Estrada index is
+        `exp(1) + exp(-1)`; with no edges, every eigenvalue is `0` and the index is the number of
+        nodes:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        g.add_edge("A", "B")
+        edge = ec.Graph.from_edges([("A", "B")])
+        empty = ec.Graph().add_nodes(["A", "B"])
 
-        # Returns approximately 3.086
-        g.estrada_index()
+        round(edge.estrada_index(), 3), empty.estrada_index()
         ```
 
-        A graph with no edges at all has every eigenvalue equal to zero, so its Estrada index
-        always equals the number of nodes:
+        ### Folded molecules
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. Estrada introduced the index in 2000 to measure how
+        folded a protein chain is, and a compact molecule scores higher than a long one with the
+        same atoms: the branched isobutane higher than the chain of butane:
 
         ```{python}
-        isolated = ec.Graph()
-        for i in range(5):
-            isolated.add_node()
+        molecules = ec.molecules()
 
-        # Returns 5.0
-        isolated.estrada_index()
+        [
+            (name, round(molecules[name].estrada_index(), 3))
+            for name in ["butane", "isobutane"]
+        ]
+        ```
+
+        The index is the sum of the subgraph centralities of the atoms. In caffeine, the atoms
+        of the two rings, which close the most short walks, add the most, and the three carbons
+        and two oxygens hanging off the rings the least:
+
+        ```{python}
+        caffeine = molecules["caffeine"].subgraph_centrality()
+        centrality = caffeine.get_node_attrs("subgraph_centrality")
+
+        round(sum(centrality.values()), 3), round(caffeine.estrada_index(), 3)
+        ```
+
+        ```{python}
+        caffeine.plot(
+            color_by="subgraph_centrality", color_scale="sequential",
+            label_by="label", seed=1,
+        )
         ```
         """
         from edgecase._core import estrada_index
