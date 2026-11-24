@@ -6205,13 +6205,15 @@ class Graph:
         """
         scale, center = self._layout_frame(scale, center)
         ids, pairs, _ = self._planarity_input()
-        grid = rust.planar_layout(len(ids), pairs)
-        if grid is None:
+        drawing = rust.planar_layout(len(ids), pairs, refine)
+        if drawing is None:
             raise ValueError("The graph is not planar, so it has no drawing without crossings")
         coords = self._rescale_positions(
-            {nid: (float(x), float(y)) for nid, (x, y) in zip(ids, grid)}, scale, center
+            {nid: (float(x), float(y)) for nid, (x, y) in zip(ids, drawing)}, scale, center
         )
-        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)))
+        params = self._changed(
+            refine=(refine, True), scale=(scale, 1.0), center=(center, (0.0, 0.0))
+        )
         return self._layout_result("layout_planar", coords, attr_name, return_dict, params)
 
     def layout_spring(
