@@ -57943,6 +57943,12 @@ class Graph:
             `None` for an empty graph, or a directed graph where no node reaches its whole
             component.
 
+        See Also
+        --------
+        diameter : The largest eccentricity.
+        center : The nodes whose eccentricity equals the radius.
+        eccentricity : Each node's distance to the node farthest from it.
+
         Examples
         --------
         In a star, the hub reaches every other node in one hop, so the radius is `1`:
@@ -57950,11 +57956,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
-        )
+        graph = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
 
         graph.radius()
         ```
@@ -57964,7 +57966,7 @@ class Graph:
 
         ```{python}
         path = ec.Graph().add_path_graph(5)
-        (path.radius(), path.diameter())
+        path.radius(), path.diameter()
         ```
 
         An isolated node reaches nothing, so it is skipped and the star's radius of `1` stands.
@@ -57972,19 +57974,32 @@ class Graph:
 
         ```{python}
         graph.add_node(label="loner")
-        (graph.radius(), graph.radius(unconnected=False))
+        graph.radius(), graph.radius(unconnected=False)
         ```
 
         In a directed graph only nodes that reach their whole component count. Along the path
         `A -> B -> C` that is just `A`, whose farthest node is two hops away:
 
         ```{python}
-        chain = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
         chain.radius()
+        ```
+
+        ### The center of the metro
+
+        `metro()` is a made-up city's metro network. Its radius is four stops: from Central or
+        Riverside, every station is at most four stops away. These two stations are the center,
+        which `center()` returns:
+
+        ```{python}
+        metro = ec.metro()
+        middle = metro.center()
+
+        metro.radius(), [metro.get_label_from_id(n) for n in middle]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=middle, label_by="label")
         ```
         """
         return self._graph.get_radius_with_unconnected(unconnected)
