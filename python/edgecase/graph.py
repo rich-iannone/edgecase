@@ -68507,39 +68507,57 @@ class Graph:
         bool
             `True` if the graph has an Eulerian circuit, `False` otherwise.
 
+        See Also
+        --------
+        eulerian_circuit : The circuit itself.
+        is_semieulerian : Check for an Eulerian path that can't return to its start.
+        eulerize : Duplicate edges until the graph is Eulerian.
+
         Examples
         --------
-        A cycle graph has an Eulerian circuit because every node has even degree (exactly 2):
+        Every node of a square has two edges, so a walk can cross each edge once and end where it
+        started. A path's two ends have one edge each, so it can't:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(5)
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
 
-        # Returns True (all degrees are 2)
-        graph.is_eulerian()
+        square.is_eulerian(), path.is_eulerian()
         ```
 
-        A path graph fails the test, since its two endpoints have odd degree (1):
+        ### Euler's answer
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. Its people asked whether a walk could cross
+        every bridge exactly once and return home. Every land mass has an odd number of bridges,
+        so it can't:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(5)
+        konigsberg = ec.konigsberg()
+        label = konigsberg.get_label_from_id
+        bridges = {
+            label(n): konigsberg.get_degree(n) for n in konigsberg.get_node_ids()
+        }
 
-        # Returns False (endpoints have odd degree)
-        graph.is_eulerian()
+        bridges, konigsberg.is_eulerian()
         ```
 
-        For directed graphs, the requirement is that in-degree equals out-degree at every node,
-        which a directed cycle naturally satisfies:
+        ```{python}
+        konigsberg.plot(
+            layout="pos", color_by="kind", label_by="label",
+            edge_label_by="bridge",
+        )
+        ```
+
+        Doubling two bridges with `eulerize()` leaves every land mass with an even number, and
+        then the round trip exists:
 
         ```{python}
-        graph = ec.Graph(directed=True)
-        graph.add_cycle_graph(4)
-
-        # Returns True (in-degree = out-degree for all)
-        graph.is_eulerian()
+        konigsberg.eulerize().is_eulerian()
         ```
         """
         from edgecase._core import is_eulerian
