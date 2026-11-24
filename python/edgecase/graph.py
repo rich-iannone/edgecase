@@ -26701,24 +26701,61 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_in : Move the selection against incoming edges.
+        trav_both : Move the selection to neighbors either way.
+        trav_out_until : Walk forward until a node passes a test.
+        trav_out_edge : Move the selection to outgoing edges.
+
         Examples
         --------
-        Starting from "A" and moving along outgoing edges reaches "B", replacing the node
-        selection with whatever the traversal finds:
+        The selection moves from `A` along its outgoing edges, to `B` and `C`. `A` is no longer
+        selected:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C"])
-        graph.add_edges([("A", "B"), ("B", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("D", "A")], directed=True
+        )
+        graph.select_nodes_by_id([graph.get_id_from_label("A")]).trav_out()
 
-        node_a_id = graph.get_id_from_label("A")
-        graph.select_nodes_by_id([node_a_id]).trav_out()
-
-        graph.get_selected_node_ids()
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
+        Each call takes one more step. A second one goes on to `D`, the only node that `B` or
+        `C` points to:
+
+        ```{python}
+        graph.trav_out()
+        [graph.get_label_from_id(n) for n in graph.get_selected_node_ids()]
+        ```
+
+        ### Following the money
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Dee pays four accounts: Ben, Eve, the Grocer and the Cafe. One step
+        further on, Ben pays Cruz and Eve, and Eve pays Finn, the two shops and Dee back:
+
+        ```{python}
+        payments = ec.payments()
+        label = payments.get_label_from_id
+
+        payments.select_nodes_by_id([payments.get_id_from_label("Dee")])
+        first = payments.trav_out().get_selected_node_ids()
+        second = payments.trav_out().get_selected_node_ids()
+
+        sorted(label(n) for n in first), sorted(label(n) for n in second)
+        ```
+
+        The first step is drawn pale and the second in full:
+
+        ```{python}
+        payments.plot(
+            highlight={"accent": second, "soft": first}, label_by="label", seed=3
+        )
+        ```
         """
         self._graph.trav_out()
 
