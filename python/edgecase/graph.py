@@ -69901,6 +69901,11 @@ class Graph:
         ValueError
             If the graph is directed, or weights are used and one is negative.
 
+        See Also
+        --------
+        bridges : The edges whose removal disconnects the graph.
+        edge_betweenness_centrality : Another way to find the edges between groups.
+
         Examples
         --------
         Two triangles joined directly by C-D and the long way round through G. The edges
@@ -69910,16 +69915,53 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("D", "E"), ("E", "F"), ("F", "D"),
-                        ("C", "D"), ("A", "G"), ("G", "F"), ("E", "H")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+                ("C", "D"), ("A", "G"), ("G", "F"), ("E", "H"),
+            ]
         )
 
         ends = graph.get_node_ids_by_edge_id
         label = graph.get_label_from_id
-        [("-".join(label(n) for n in ends(e)), span) for e, span in graph.local_bridges()]
+        [
+            ("-".join(label(n) for n in ends(e)), span)
+            for e, span in graph.local_bridges()
+        ]
+        ```
+
+        With `with_span=False`, only the edge IDs are returned:
+
+        ```{python}
+        graph.local_bridges(with_span=False)
+        ```
+
+        ### Weak ties across the split
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Eleven friendships share no mutual friend, and seven of them ran between the
+        factions, among the ten friendships that crossed the split:
+
+        ```{python}
+        karate = ec.karate_club()
+        weak_ties = karate.local_bridges(with_span=False)
+
+        nodes = karate.get_node_df()
+        faction = dict(zip(nodes["id"], nodes["faction"]))
+        crossing = [
+            e for e in weak_ties
+            if len({faction[n] for n in karate.get_node_ids_by_edge_id(e)}) == 2
+        ]
+        len(weak_ties), len(crossing)
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", highlight_edges=weak_ties,
+            label_by="label",
+        )
         ```
         """
         found = rust.local_bridges(self._graph, self._use_weights(weighted))
