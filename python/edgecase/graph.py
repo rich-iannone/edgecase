@@ -4509,7 +4509,7 @@ class Graph:
         self,
         steps: Optional[list] = None,
         layout: str = "force",
-        theme: str = "light",
+        theme: Optional[str] = None,
         width: int = 700,
         height: int = 500,
         node_size: float = 16.0,
@@ -4520,6 +4520,8 @@ class Graph:
         layout_mode: str = "progressive",
         output: Optional[str] = None,
         seed: Optional[int] = None,
+        highlight=None,
+        highlight_edges=None,
     ):
         """
         Replay the step log as an interactive step-through visualization.
