@@ -3915,7 +3915,7 @@ class Graph:
 
         # Bipartite check (only for undirected graphs)
         if not self.is_directed():
-            info["Bipartite"] = self.is_bipartite()
+            info["Bipartite"] = self._graph.is_bipartite()
 
         return info
 
