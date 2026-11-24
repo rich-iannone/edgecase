@@ -39,9 +39,12 @@ standard example of some idea. Their nodes carry the names or attributes of the 
 | Loader | Nodes | Edges | Description |
 |---|---|---|---|
 | [`karate_club()`](../reference/karate_club.qmd) | 34 | 78 | Friendships among the members of a university karate club that split in two. Node attributes `faction` and `role`. |
-| [`florentine_families()`](../reference/florentine_families.qmd) | 15 | 20 | Marriage ties among the leading families of Renaissance Florence, labelled by family name. |
+| [`florentine_families()`](../reference/florentine_families.qmd) | 15 | 20 | Marriage ties among the leading families of Renaissance Florence, labelled by family name. `ties="business"` gives their 15 business ties instead, and `ties="all"` both, with an edge attribute `rel` saying which. |
 | [`les_miserables()`](../reference/les_miserables.qmd) | 77 | 254 | Characters of Victor Hugo's novel, joined when they appear in the same chapter. Weighted by the number of shared chapters. |
 | [`davis_southern_women()`](../reference/davis_southern_women.qmd) | 32 | 89 | Eighteen women and the fourteen social events they attended. Bipartite, with a `bipartite` attribute of `0` for women and `1` for events. |
+| [`dolphins()`](../reference/dolphins.qmd) | 62 | 159 | Frequent associations among bottlenose dolphins in Doubtful Sound, New Zealand, labelled by the dolphins' names. |
+| [`football()`](../reference/football.qmd) | 115 | 613 | Games between American college football teams in the 2000 season, labelled by team. Node attribute `conference`. |
+| [`polbooks()`](../reference/polbooks.qmd) | 105 | 441 | Books about US politics often bought together on Amazon, labelled by title. Node attribute `leaning` (liberal, neutral or conservative). |
 
 The Florentine families are the textbook case for betweenness centrality. The Medici were neither
 the wealthiest nor the most powerful family in Florence, but they married into families that had
@@ -82,20 +85,31 @@ other pair. [Network biology](network-biology.qmd) and the reference page for
 [`bipartite_projection()`](../reference/Graph.bipartite_projection.qmd) have more on two-mode
 networks.
 
+The football and political books networks come with a known grouping of their nodes, which makes
+them standard tests for community detection. Readers mostly buy books from their own side, so the
+books' leanings are strongly assortative:
+
+```{python}
+ec.polbooks().assortativity_nominal("leaning")
+```
+
+A value of 1 would mean that books were only ever bought with books of the same leaning, and 0
+that leanings were mixed at random. At 0.72, a method that finds two large communities in this
+network is mostly recovering the liberal and conservative books.
+
 ## Networks from data repositories
 
-The remaining datasets come from two widely used public collections, the
-[Stanford Large Network Dataset Collection](https://snap.stanford.edu/data/) (SNAP) and
-[Network Repository](https://networkrepository.com). They are distributed as edge lists, so their
-nodes have no attributes, and each node is labelled with its number in the original file.
+The remaining datasets come from widely used public collections: the
+[Stanford Large Network Dataset Collection](https://snap.stanford.edu/data/) (SNAP),
+[Network Repository](https://networkrepository.com), and Mark Newman's network data. They are
+distributed as edge lists, so their nodes have no attributes, and each node is labelled with its
+number in the original file.
 
 | Loader | Nodes | Edges | Directed | Description |
 |---|---|---|---|---|
-| [`dolphins()`](../reference/dolphins.qmd) | 62 | 159 | no | Frequent associations among bottlenose dolphins in Doubtful Sound, New Zealand |
-| [`football()`](../reference/football.qmd) | 35 | 119 | no | Games between American college football teams |
-| [`polbooks()`](../reference/polbooks.qmd) | 105 | 441 | no | Books about US politics frequently bought together on Amazon |
-| [`jazz()`](../reference/jazz.qmd) | 198 | 2,743 | no | Collaborations among jazz musicians |
-| [`celegans()`](../reference/celegans.qmd) | 453 | 2,041 | no | The metabolic network of the nematode *C. elegans* |
+| [`jazz()`](../reference/jazz.qmd) | 198 | 2,742 | no | Jazz bands linked by the musicians they shared |
+| [`celegans()`](../reference/celegans.qmd) | 453 | 2,040 | no | The metabolic network of the nematode *C. elegans* |
+| [`celegans_neural()`](../reference/celegans_neural.qmd) | 297 | 2,345 | yes | The neural network of *C. elegans*, weighted by connection strength |
 | [`power_grid()`](../reference/power_grid.qmd) | 4,941 | 6,594 | no | The power grid of the western United States |
 | [`ca_grqc()`](../reference/ca_grqc.qmd) | 5,242 | 28,980 | no | Co-authorships in the general relativity section of arXiv |
 | [`internet()`](../reference/internet.qmd) | 6,474 | 13,895 | no | Links between autonomous systems of the Internet, January 2000 |
@@ -185,8 +199,10 @@ undirected one, and `weighted=True` keeps the weights of a weighted file:
 ec.load_dataset("wiki_vote", directed=False).is_directed()
 ```
 
-The registry holds only the networks distributed as data files, so the four classic networks with
-attributes are available only through their own loaders. `load_dataset("karate")` loads the same
+The registry holds only the networks distributed as data files, so the Florentine families,
+*Les Misérables* and the Southern Women are available only through their own loaders. The other
+classic networks are in the registry, but `load_dataset()` reads only their file, so it gives
+numbered nodes without the names and attributes: `load_dataset("karate")` loads the same
 friendships as `karate_club()`, but without the `faction` and `role` attributes.
 
 Datasets are stored in the Matrix Market format, and
@@ -198,7 +214,8 @@ disk. To load your own Matrix Market files, use
 ## Choosing a dataset
 
 For learning a method or checking that it behaves as expected, start with a classic network whose
-answer is known: the karate club for communities, the Florentine families for centrality, the
-Southern Women for bipartite methods, and *Les Misérables* for anything weighted. Move to the
+answer is known: the karate club, the football teams and the political books for communities,
+the Florentine families for centrality, the Southern Women for bipartite methods, *Les Misérables*
+for anything weighted, and the *C. elegans* neural network for directed, weighted methods. Move to the
 repository networks to see how a method copes with a larger, messier graph, and to
 [generators](generators.qmd) when you need a graph whose structure you control exactly.
