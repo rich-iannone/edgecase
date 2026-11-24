@@ -66675,20 +66675,53 @@ class Graph:
         edges is the period (Jarvis and Shier, 1996), $O(V + E)$. Matches NetworkX's
         `is_aperiodic`.
 
+        See Also
+        --------
+        is_strongly_connected : Check that every node can reach every other.
+        strongly_connected_components : The strongly connected parts of a graph.
+
         Examples
         --------
-        A directed 4-cycle has period 4; adding a chord that closes a 3-cycle makes the period
-        gcd(3, 4) = 1:
+        A directed cycle of four has period 4. Adding a chord that closes a cycle of three
+        makes the period the greatest common divisor of 3 and 4, which is 1:
 
         ```{python}
         import edgecase as ec
 
-        ring = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        ring = ec.Graph(directed=True).add_cycle_graph(4)
         before = ring.is_aperiodic()
-        ring.add_edge("C", "A")
+        ring.add_edge(3, 1)
 
         before, ring.is_aperiodic()
+        ```
+
+        ### Money that comes back
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The ring of Ana, Ben and Cruz on its own is periodic: money that
+        leaves Ana comes back only after a multiple of three payments. The strongly connected
+        core of eight accounts, which adds the other ring and the mutual pair Dee and Eve, has
+        cycles of length 2 and 3 and so is aperiodic:
+
+        ```{python}
+        payments = ec.payments()
+
+        def accounts(*names):
+            return payments.subgraph(
+                [payments.get_id_from_label(name) for name in names]
+            )
+
+        ring = accounts("Ana", "Ben", "Cruz")
+        core = accounts("Ana", "Ben", "Cruz", "Dee", "Eve", "Finn", "Gus", "Hal")
+
+        ring.is_aperiodic(), core.is_aperiodic()
+        ```
+
+        ```{python}
+        core.plot(
+            highlight=[("Dee", "Eve"), ("Eve", "Dee")], label_by="label",
+            height=360,
+        )
         ```
         """
         from math import gcd
