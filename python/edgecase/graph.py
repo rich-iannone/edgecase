@@ -3967,10 +3967,10 @@ class Graph:
             Edge line width in pixels, applied to every edge. Default is `2.0`.
         layout
             Layout algorithm. `"force"` (default) lets vis-network's physics simulation position
-            the nodes. `"circular"` places nodes evenly on a circle and `"random"` places them at
-            random (unseeded) starting positions; with `static=False`, the physics simulation can
-            still move nodes away from these starting positions. Any other value raises
-            `ValueError`.
+            the nodes. `"circular"` places nodes evenly on a circle in depth-first order (see
+            `layout_circular()`) and `"random"` places them at random (unseeded) starting
+            positions; with `static=False`, the physics simulation can still move nodes away from
+            these starting positions. Any other value raises `ValueError`.
         static
             If `True`, disables physics simulation and interactivity (no node dragging, no
             animation). The graph will be rendered in a fixed position after initial layout. Useful
