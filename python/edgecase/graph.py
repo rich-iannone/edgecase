@@ -70219,6 +70219,11 @@ class Graph:
             If the graph is not connected (not strongly connected, if directed), or weights are
             used and one is negative.
 
+        See Also
+        --------
+        center : The nodes with the smallest largest distance to the others.
+        closeness_centrality : Score every node by its average distance to the others.
+
         Examples
         --------
         A star with a long tail: the tail end G is far from everything, so the center (which
@@ -70228,15 +70233,35 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C", "X", "D", "E", "F", "G"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C"), ("hub", "X"),
-                        ("hub", "D"), ("D", "E"), ("E", "F"), ("F", "G")])
+        graph = ec.Graph.from_edges(
+            [
+                ("hub", "A"), ("hub", "B"), ("hub", "C"), ("hub", "X"),
+                ("hub", "D"), ("D", "E"), ("E", "F"), ("F", "G"),
+            ]
         )
 
         label = graph.get_label_from_id
         [label(n) for n in graph.center()], [label(n) for n in graph.barycenter()]
+        ```
+
+        ### The best place to meet
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Counting stops, Central and Riverside tie for the smallest total
+        distance to every other station; counting minutes, Central wins on its own:
+
+        ```{python}
+        metro = ec.metro()
+        label = metro.get_label_from_id
+
+        (
+            [label(n) for n in metro.barycenter(weighted=False)],
+            [label(n) for n in metro.barycenter()],
+        )
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=metro.barycenter(), label_by="label")
         ```
         """
         use_weights = self._use_weights(weighted)
