@@ -5196,6 +5196,7 @@ class Graph:
 
     def layout_circular(
         self,
+        order: Union[str, list[Union[int, str]]] = "dfs",
         scale: float = 1.0,
         center: tuple[float, float] = (0.0, 0.0),
         attr_name: Optional[str] = None,
