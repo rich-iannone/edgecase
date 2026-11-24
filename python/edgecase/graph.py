@@ -79626,8 +79626,8 @@ class Graph:
 
         A Steiner tree is a minimum weight tree that connects a specified set of terminal nodes. It
         may include additional non-terminal nodes (called Steiner nodes) if they help reduce the
-        total weight. This implementation uses Mehlhorn's algorithm which provides a
-        2-approximation.
+        total weight. The tree is a 2-approximation, never more than twice the weight of the
+        best one, which it then tries to improve.
 
         Parameters
         ----------
@@ -79660,72 +79660,62 @@ class Graph:
         ---------------
         The Steiner tree problem, finding the cheapest tree that spans a designated set of
         *terminal* nodes and may route through non-terminal "Steiner" nodes, is
-        $\mathsf{NP}$-hard even on planar graphs. This implementation uses Mehlhorn's
-        (1988) 2-approximation, which builds a metric closure of the terminals using
-        shortest paths, takes an MST of that closure, and expands the tree edges back to
-        their underlying subgraph paths, running in $O(|T| \cdot (E + V) \log V)$ time. The
-        result is guaranteed to weigh no more than twice the true optimum; that ratio is
-        tight in the worst case but is usually much better on structured inputs.
+        $\mathsf{NP}$-hard even on planar graphs. This implementation uses the
+        2-approximation of Kou, Markowsky and Berman (1981), which builds a metric closure of
+        the terminals using shortest paths, takes an MST of that closure, expands the tree
+        edges back to their underlying paths and takes an MST of their union, running in
+        $O(|T| \cdot (E + V) \log V)$ time. On undirected graphs the tree is then improved:
+        its nodes are spanned again by an MST over every edge between them, which can use
+        edges that lie on none of the shortest paths, and leaves that aren't terminals are
+        trimmed, for as long as that makes the tree lighter. Neither step can make it heavier,
+        so the result is guaranteed to weigh no more than twice the true optimum; that ratio
+        is tight in the worst case but is usually much better on structured inputs.
         Two-terminal inputs degenerate to a shortest path between the pair.
+
+        See Also
+        --------
+        directed_steiner_tree : The same, following edge directions from a root.
+        minimum_spanning_tree : A cheapest tree that connects every node.
 
         Examples
         --------
-        **Network Design: Connecting Data Centers**
-
-        The three data centers aren't directly connected to each other, but they can all be
-        joined through a shared backbone of routers; the Steiner tree finds the cheapest such
-        connection, using routers as intermediate "Steiner nodes" where helpful:
+        To connect `A` and `C`, the tree goes through `B`, since the direct edge costs more
+        than the two short ones. `D` isn't needed, so it is left out:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["DC1", "DC2", "DC3", "Router1", "Router2", "Router3"])
-
-        g.add_edges(
-            [
-                ("DC1", "Router1", 10.0),
-                ("DC2", "Router1", 15.0),
-                ("DC3", "Router2", 12.0),
-                ("Router1", "Router2", 5.0),
-                ("Router2", "Router3", 8.0),
-                ("Router1", "Router3", 20.0),
-            ]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0), ("C", "D", 1.0)],
         )
-
-        terminals = ["DC1", "DC2", "DC3"]
-        steiner = g.steiner_tree(terminals)
-
-        # Returns the number of edges needed to connect all three data centers
-        steiner.count_edges()
+        graph.steiner_tree(["A", "C"]).get_edges_str_repr(use_labels=True)
         ```
 
-        **Phylogenetics: Connecting Key Species**
+        ### Linking four stations
 
-        The same idea applies to evolutionary trees: connecting just the primates pulls in their
-        shared common ancestor as a Steiner node, while leaving the more distantly related mouse
-        out of the tree entirely:
+        `metro()` is a made-up city's metro network, with each track's travel time in minutes
+        as its weight. To link the Airport, Docks, Westgate and Northpark, the tree passes
+        through seven other stations, with 42 minutes of track:
 
         ```{python}
-        g = ec.Graph(weighted=True)
-        species = ["Human", "Chimp", "Gorilla", "Mouse", "CommonAncestor1", "CommonAncestor2"]
-        g.add_nodes(species)
+        metro = ec.metro()
+        stops = ["Airport", "Docks", "Westgate", "Northpark"]
+        tree = metro.steiner_tree(stops)
 
-        g.add_edges(
-            [
-                ("Human", "CommonAncestor1", 1.0),
-                ("Chimp", "CommonAncestor1", 1.2),
-                ("CommonAncestor1", "CommonAncestor2", 3.0),
-                ("Gorilla", "CommonAncestor2", 2.5),
-                ("Mouse", "CommonAncestor2", 10.0),
-            ]
+        tree.count_edges(), tree.get_edge_df()["minutes"].sum()
+        ```
+
+        This is an approximation, never more than twice the best. Here the best tree takes 39
+        minutes, reaching Northpark by way of University and the Museum rather than from
+        Westgate:
+
+        ```{python}
+        metro.plot(
+            layout="pos",
+            highlight={"accent": stops},
+            highlight_edges={"soft": tree.get_edge_ids()},
+            label_by="label",
         )
-
-        primates = ["Human", "Chimp", "Gorilla"]
-        tree = g.steiner_tree(primates)
-
-        # Returns the number of edges connecting the primates and their shared ancestors
-        tree.count_edges()
         ```
         """
         from edgecase._core import steiner_tree as _steiner_tree
