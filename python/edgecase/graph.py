@@ -53202,6 +53202,11 @@ class Graph:
         potential difference across it, read from the inverse of the grounded Laplacian. The
         sum runs over ordered source-target pairs, $O(|S| |T|)$ per edge.
 
+        See Also
+        --------
+        edge_current_flow_betweenness_centrality : The flow between all pairs of nodes.
+        edge_betweenness_centrality_subset : Count shortest paths only.
+
         Examples
         --------
         On a ring of six nodes, current from `A` to `D` splits evenly between the two halves, so
@@ -53211,22 +53216,43 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        ring = ec.Graph().add_nodes(list("ABCDEF"))
-        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+        ring = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"),
+             ("F", "A")]
+        )
 
-        label = ring.get_label_from_id
-
-        def carried(target):
-            scores = ring.edge_current_flow_betweenness_centrality_subset(
-                ["A"], [target], normalized=False, return_dict=True
+        (
+            ring.edge_current_flow_betweenness_centrality_subset(
+                ["A"], ["D"], normalized=False, attr_name="to_D"
             )
-            return {
-                "-".join(label(n) for n in ring.get_node_ids_by_edge_id(e)): round(s, 3)
-                for e, s in scores.items()
-            }
-
-        carried("D"), carried("B")
+            .edge_current_flow_betweenness_centrality_subset(
+                ["A"], ["B"], normalized=False, attr_name="to_B"
+            )
+            .get_edge_df(labels=True)
+            .select("source", "target", "to_D", "to_B")
+        )
         ```
+
+        In Zachary's karate club, the current between the two leaders, members 0 and 33, mostly
+        crosses the edges through their four friends in common, but the edge from the instructor
+        to member 2, on none of those shortest routes, carries more than some of them:
+
+        ```{python}
+        club = ec.karate_club().edge_current_flow_betweenness_centrality_subset(
+            ["0"], ["33"], normalized=False
+        )
+
+        (
+            club.get_edge_df(labels=True)
+            .select(
+                "source", "target", "edge_current_flow_betweenness_centrality_subset"
+            )
+            .sort("edge_current_flow_betweenness_centrality_subset", descending=True)
+            .head(6)
+        )
+        ```
+
+        For all pairs of nodes, use `edge_current_flow_betweenness_centrality()`.
         """
         src = [self._resolve_node_id(s, auto_create=False) for s in sources]
         tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
