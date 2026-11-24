@@ -66200,26 +66200,69 @@ class Graph:
         reachable from `x` by open paths, then those also reachable from `y`. Each step is a
         graph search, so the whole computation runs in $O(V + E)$ time.
 
+        See Also
+        --------
+        is_d_separator : Check a separator.
+        is_minimal_d_separator : Check that a separator is minimal.
+
         Examples
         --------
-        Age influences heart health only through exercise (directly, and via weight), so
-        conditioning on exercise alone separates them:
+        In a chain with a shortcut through `D`, both `B` and `D` are needed:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["age", "exercise", "weight", "heart"])
-        g.add_edges([("age", "exercise"), ("exercise", "weight"), ("weight", "heart"),
-                     ("exercise", "heart")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")], directed=True
+        )
+        found = graph.find_minimal_d_separator("A", "C")
 
-        [g.get_label_from_id(n) for n in g.find_minimal_d_separator("age", "heart")]
+        [graph.get_label_from_id(n) for n in found]
         ```
 
-        With a direct edge from age to heart health, nothing can separate them:
+        ### What to adjust for
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. To separate Exercise from Heart disease, Weight blocks the causal
+        path and Age the backdoor path through Blood pressure:
 
         ```{python}
-        g.add_edge("age", "heart")
-        g.find_minimal_d_separator("age", "heart") is None
+        causal = ec.causal()
+        found = causal.find_minimal_d_separator("Exercise", "Heart disease")
+
+        [causal.get_label_from_id(n) for n in found]
+        ```
+
+        Blood pressure and Heart disease share the cause Genetics, which can't be measured. To
+        estimate the effect of one on the other, drop the arrow between them and look for a set
+        that separates them in what is left, blocking every backdoor path. Genetics is the only
+        one, so with the separator restricted to the observed variables, none exists:
+
+        ```{python}
+        import polars as pl
+
+        backdoor = ec.causal().delete_edge("Blood pressure", "Heart disease")
+        observed = (
+            backdoor.get_node_df().filter(pl.col("observed"))["id"].to_list()
+        )
+
+        pair = ("Blood pressure", "Heart disease")
+        found = backdoor.find_minimal_d_separator(*pair)
+
+        (
+            [backdoor.get_label_from_id(n) for n in found],
+            backdoor.find_minimal_d_separator(*pair, restricted=observed),
+        )
+        ```
+
+        ```{python}
+        causal.plot(
+            layout="pos", color_by="observed",
+            highlight=[
+                ("Genetics", "Blood pressure"), ("Genetics", "Heart disease")
+            ],
+            label_by="label", height=360,
+        )
         ```
         """
         x, y, included, restricted = self._dsep_sets(x, y, included, restricted)
