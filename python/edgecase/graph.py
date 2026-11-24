@@ -68063,79 +68063,59 @@ class Graph:
         especially useful for visualizing the essential dependency structure of a DAG
         without the visual clutter of edges implied by transitivity.
 
+        See Also
+        --------
+        transitive_closure : Every edge with the same reachability.
+        topological_sort : Order the nodes so that every edge points forward.
+
         Examples
         --------
-        The direct edge `A -> C` is redundant here because `C` is already reachable via
-        `A -> B -> C`, so the reduction removes it:
+        The reduction drops the arrow from `A` to `C`, since `A` already reaches `C` through `B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("A", "C"),  # Redundant: A can reach C via B
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
         )
+        reduced = graph.transitive_reduction()
 
-        reduction = graph.transitive_reduction()
-
-        # Returns 2 (A->C removed, out of the original 3 edges)
-        reduction.count_edges()
+        reduced.count_edges(), reduced.has_edge("A", "C")
         ```
 
-        The same idea simplifies a dependency graph down to its direct dependencies, dropping
-        edges that are already implied by transitivity:
+        ### A redundant prerequisite
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. CS201 lists CS101 as a prerequisite, but it
+        also requires CS102, which requires CS101. The reduction drops that one arrow, and the
+        order in which courses can be taken doesn't change:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["app", "lib", "utils", "core"])
-            .add_edges(
-                [
-                    ("app", "lib"),
-                    ("lib", "utils"),
-                    ("utils", "core"),
-                    ("app", "core"),  # Redundant (app -> lib -> utils -> core)
-                    ("lib", "core"),  # Redundant (lib -> utils -> core)
-                ]
-            )
+        courses = ec.courses()
+        reduced = courses.transitive_reduction()
+
+        (
+            courses.count_edges(),
+            reduced.count_edges(),
+            reduced.has_edge("CS101", "CS201"),
         )
-
-        reduction = graph.transitive_reduction()
-
-        # Returns 3 (down from 5), keeping only the direct dependency chain
-        reduction.count_edges()
         ```
 
-        Because a unique transitive reduction only exists for acyclic graphs, calling this on a
-        graph with a cycle raises an error:
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight=[("CS101", "CS201")],
+            label_by="label", height=420,
+        )
+        ```
+
+        So the two chains of prerequisites from CS101 to CS460 become one:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "A"),  # Creates a cycle
-                ]
-            )
+        len(courses.all_simple_paths("CS101", "CS460")), len(
+            reduced.all_simple_paths("CS101", "CS460")
         )
-
-        error_message = None
-        try:
-            graph.transitive_reduction()
-        except ValueError as e:
-            # The graph contains a cycle, so no reduction is defined
-            error_message = str(e)
-
-        error_message
         ```
         """
         from edgecase._core import transitive_reduction
