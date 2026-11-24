@@ -63802,15 +63802,54 @@ class Graph:
         Iterative depth-first search over edges with a per-node edge iterator. $O(V + E)$.
         Matches NetworkX's `edge_dfs`.
 
+        See Also
+        --------
+        dfs_edges : Only the edges that reach a new node.
+        edge_bfs : Every edge in breadth-first order.
+        dfs_labeled_edges : Every step of the search, labeled by kind.
+
         Examples
         --------
+        Every edge reachable from A is visited once, the edge back from C to A included:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")], directed=True
+        )
 
-        [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v, _ in g.edge_dfs("A")]
+        label = graph.get_label_from_id
+        [(label(u), label(v)) for u, v, _ in graph.edge_dfs("A")]
+        ```
+
+        ### Everything a paper builds on
+
+        `citations()` links each paper of a made-up research field to the earlier papers it
+        cites. Following citations from Kim 2017 reaches every citation among the papers it
+        builds on, directly or not:
+
+        ```{python}
+        papers = ec.citations()
+        links = papers.edge_dfs("Kim 2017")
+
+        len(links)
+        ```
+
+        ```{python}
+        papers.plot(
+            layout="pos", highlight_edges=[e for _, _, e in links],
+            label_by="label",
+        )
+        ```
+
+        With `orientation="reverse"`, the search follows the citations backward, from Moreau
+        2000 to every paper that builds on it:
+
+        ```{python}
+        later = papers.edge_dfs("Moreau 2000", orientation="reverse")
+
+        len(later)
         ```
         """
         result = self._edge_traversal(source, orientation, depth_first=True)
