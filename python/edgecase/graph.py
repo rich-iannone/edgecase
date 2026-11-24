@@ -38535,8 +38535,7 @@ class Graph:
 
         The graph must be undirected and edge weights are ignored (every edge counts once). An
         isolated node gets a community of its own (so an edgeless graph puts every node in its
-        own community), and an empty graph gives an empty result. The community assignments are always written to the node DataFrame, even when
-        `return_dict=True`.
+        own community), and an empty graph gives an empty result.
 
         Parameters
         ----------
@@ -38571,54 +38570,66 @@ class Graph:
         final community count can be smaller than what agglomerative methods produce. Use
         `cmty_fast_greedy()` or `cmty_louvain()` beyond a few tens of thousands of nodes.
 
+        See Also
+        --------
+        spectral_modularity_bipartition : The first split alone.
+        cmty_louvain : Optimize modularity by local moves instead.
+        modularity : The score that each split raises.
+
         Examples
         --------
-        The eigenvector split finds the natural division at the bridge edge, giving each
-        triangle its own community:
+        Two triangles joined by a single edge: the leading eigenvector has one sign on each
+        triangle, and neither triangle splits further:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        # Build two complete triangles
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                         ("C", "D"),  # Bridge
-                         ("D", "E"), ("E", "F"), ("F", "D")])
-
-        communities = graph.cmty_l_eigenvec(return_dict=True)
-        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
+        graph.cmty_l_eigenvec().get_node_df().select("label", "cmty_l_eigenvec")
         ```
 
-        Storing the result as a node attribute and chaining into `colorize_node_attrs()`
-        visualizes the communities directly:
+        ### Splitting the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. The first split, by the sign of each member's entry in the leading eigenvector,
+        separates the two factions exactly (`spectral_modularity_bipartition()` returns this split
+        alone). Each side then splits once more, so all four communities lie within one faction:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
+        karate = ec.karate_club().cmty_l_eigenvec()
 
         (
-            graph
-            .cmty_l_eigenvec(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Spectral")
-            .describe()
+            karate.get_node_df()
+            .group_by("cmty_l_eigenvec", "faction")
+            .len()
+            .sort("cmty_l_eigenvec", "faction")
         )
         ```
 
-        On Zachary's karate club, recursive bisection goes beyond the famous two-faction split
-        and settles on four communities. Counting the members of each shows their sizes:
+        Coloring the edges by community shows the friendships between communities in gray:
 
         ```{python}
-        from collections import Counter
+        karate.layout_kamada_kawai().plot(
+            layout="pos",
+            color_by="cmty_l_eigenvec",
+            edge_color_by="cmty_l_eigenvec",
+            label_by="label",
+        )
+        ```
 
-        karate = ec.karate_club()
-        communities = karate.cmty_l_eigenvec(return_dict=True)
+        The four communities score higher on modularity than the two factions:
 
-        sorted(Counter(communities.values()).items())
+        ```{python}
+        (
+            round(karate.modularity("cmty_l_eigenvec"), 3),
+            round(karate.modularity("faction"), 3),
+        )
         ```
         """
         communities = self._graph.get_cmty_l_eigenvec()
@@ -38630,11 +38641,7 @@ class Graph:
         if return_dict:
             return communities
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        self._computations.append(("cmty_l_eigenvec", {}, attr_name))
+        self._store_node_result("cmty_l_eigenvec", {}, attr_name, communities, show="groups")
 
         return self
 
