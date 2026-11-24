@@ -55431,50 +55431,85 @@ class Graph:
             normalized so that their squares sum to `1`. If `return_dict=` is `False` (default):
             returns self for method chaining.
 
+        See Also
+        --------
+        katz_centrality : A version that works on directed acyclic graphs.
+        pagerank : A version with teleportation, for directed graphs.
+        hub_centrality : Hubs and authorities for directed graphs.
+
         Examples
         --------
-        In this graph a triangle (A, B, C) has a pendant node D attached to C. C scores highest:
-        it has the most neighbors and they are well connected. D has only one neighbor, but
-        because that neighbor is C it still gets a non-trivial score:
+        A triangle (A, B, C) has a pendant node D attached to C. C scores highest: it has the
+        most neighbors and they are well connected. D has only one neighbor, but because that
+        neighbor is C it still gets a fair score:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
 
-        scores = graph.eigen_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
+        graph.eigen_centrality().get_node_df().select("label", "eigen_centrality")
         ```
 
-        A star graph is bipartite, so a plain power iteration would bounce between two vectors.
-        Iterating with `A + I` avoids that, and the default settings reach the exact values: the
-        hub scores `1 / sqrt(2)`, about `0.707`, and the three leaves share the rest equally:
+        ### Well connected to the well connected
+
+        In *Les Misérables*, two characters are linked when they appear in the same chapter.
+        Gavroche, not Valjean, has the top score here, and most of the others near the top are
+        the students at the barricade, who all appear with one another:
 
         ```{python}
-        star = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
-        )
+        import polars as pl
 
-        scores = star.eigen_centrality(return_dict=True)
-        {star.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
-        ```
+        lesmis = ec.les_miserables().eigen_centrality().pagerank().cmty_louvain()
 
-        Storing the scores under a custom name and chaining into an aesthetic method is a common
-        pattern for sizing nodes by importance:
-
-        ```{python}
         (
-            graph
-            .eigen_centrality(attr_name="centrality")
-            .rescale_node_attrs(node_attr_from="centrality", node_attr_to="size", range=[0.5, 2.0])
-            .get_node_df()
-            .select(["label", "centrality", "size"])
+            lesmis.get_node_df()
+            .with_columns(
+                pagerank_rank=pl.col("pagerank").rank("min", descending=True)
+            )
+            .select("label", "degree", "eigen_centrality", "pagerank_rank")
+            .sort("eigen_centrality", descending=True)
+            .head(8)
+        )
+        ```
+
+        Valjean has the most links, but many are to minor characters; Gavroche's run into the
+        tight circle of the barricade, where every score lifts the others. PageRank splits a
+        node's rank among its links, so a crowded circle gains less from itself, and it has three
+        of the barricade group in its top ten; eigenvector centrality has eight. Colored by
+        community, the scores pile up in one of them:
+
+        ```{python}
+        lesmis.plot(
+            color_by="cmty_louvain", size_by="eigen_centrality", label_by="label",
+            seed=3,
+        )
+        ```
+
+        ### How far the score reaches
+
+        A node's score is the sum of its neighbors' scores divided by the largest eigenvalue, so
+        it falls off fast away from the densest part of a graph. On a five-node clique with a
+        five-node tail, eigenvector centrality is divided by about four with each step down the
+        tail, while PageRank keeps the tail close to the clique:
+
+        ```{python}
+        lollipop = (
+            ec.Graph().add_lollipop_graph(m=5, n=5).eigen_centrality().pagerank()
+        )
+
+        lollipop.get_node_df().select("label", "eigen_centrality", "pagerank")
+        ```
+
+        Sized and colored by eigenvector centrality, only the clique and the first step of the
+        tail stand out:
+
+        ```{python}
+        lollipop.plot(
+            size_by="eigen_centrality", color_by="eigen_centrality",
+            label_by="label", seed=1,
         )
         ```
         """
@@ -55496,16 +55531,13 @@ class Graph:
         if return_dict:
             return centrality
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, centrality)
-
         # Track computation
         params = {}
         if max_iter != 100:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
-        self._computations.append(("eigen_centrality", params, attr_name))
+        self._store_node_result("eigen_centrality", params, attr_name, centrality)
 
         return self
 
