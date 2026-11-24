@@ -65785,24 +65785,54 @@ class Graph:
         climbs up to and including the start: the start is then in its own frontier. The cost is
         proportional to the total size of the frontiers after computing the dominators.
 
+        See Also
+        --------
+        immediate_dominators : The last node that every path to a node passes.
+
         Examples
         --------
-        In an if/else, the frontier of each branch is the merge node where the branches rejoin:
+        In an if/else, the frontier of each branch is the node where the branches rejoin:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["entry", "if", "then", "else", "merge", "exit"])
-        g.add_edges(
-            [
-                ("entry", "if"), ("if", "then"), ("if", "else"),
-                ("then", "merge"), ("else", "merge"), ("merge", "exit"),
-            ]
+        graph = ec.Graph.from_edges(
+            [("entry", "if"), ("if", "then"), ("if", "else"), ("then", "merge"),
+             ("else", "merge"), ("merge", "exit")],
+            directed=True,
         )
+        label = graph.get_label_from_id
+        {
+            label(n): [label(m) for m in frontier]
+            for n, frontier in graph.dominance_frontiers("entry").items()
+        }
+        ```
 
-        frontiers = g.dominance_frontiers("entry")
-        {g.get_label_from_id(n): sorted(g.get_label_from_id(f) for f in fs)
-         for n, fs in frontiers.items()}
+        ### Where a branch rejoins the plan
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done. A task's dominance frontier holds the tasks where
+        its part of the plan meets work that doesn't go through it. The design's frontier is the
+        training and the health inspection, which also wait on the hiring and the suppliers:
+
+        ```{python}
+        cafe = ec.project()
+        label = cafe.get_label_from_id
+        frontiers = cafe.dominance_frontiers("Start")
+
+        {
+            label(n): sorted(label(m) for m in frontiers[n])
+            for n in [cafe.get_id_from_label(t) for t in ["Design", "Plan menu"]]
+        }
+        ```
+
+        ```{python}
+        cafe.plot(
+            layout="pos",
+            highlight={"accent": "Design",
+                       "soft": list(frontiers[cafe.get_id_from_label("Design")])},
+            label_by="label", height=360,
+        )
         ```
         """
         sid = self._resolve_node_id(source, auto_create=False)
