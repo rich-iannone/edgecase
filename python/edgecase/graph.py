@@ -33389,16 +33389,62 @@ class Graph:
 
         Examples
         --------
-        A triangle with a pendant node is split, with the triangle as the clique and the pendant
-        node as the independent set, while the square is not:
+        A triangle with a pendant node splits into the triangle (a clique) and the pendant node
+        (an independent set). A square can't be split that way:
 
         ```{python}
         import edgecase as ec
 
-        kite = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        kite.add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        kite = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
+        )
 
         kite.is_split_graph(), ec.Graph().add_cycle_graph(4).is_split_graph()
+        ```
+
+        ### A core and a periphery
+
+        The three partners of a small firm all work with one another, and each of its five
+        clients works with one or two of them. Clients don't work together, so the firm splits
+        into a clique, the partners, and an independent set, the clients:
+
+        ```{python}
+        firm = ec.Graph.from_edges(
+            [("Ana", "Ben"), ("Ana", "Cho"), ("Ben", "Cho"), ("Dee", "Ana"),
+             ("Eli", "Ana"), ("Eli", "Ben"), ("Fay", "Ben"), ("Gus", "Cho"),
+             ("Hal", "Cho"), ("Hal", "Ana")]
+        )
+        firm.set_node_attrs(
+            "role", {n: "partner" if n in ("Ana", "Ben", "Cho") else "client"
+                     for n in firm.get_node_df()["label"]}
+        )
+        firm.is_split_graph()
+        ```
+
+        Once Dee and Fay start working together (right), Dee, Ana, Ben and Fay form a cycle of
+        four with no chord, and the graph is no longer split:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        firm.layout_kamada_kawai().plot(
+            layout="pos", color_by="role", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        firm.add_edge("Dee", "Fay")
+        firm.plot(
+            layout="pos", color_by="role", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ```{python}
+        firm.is_split_graph()
         ```
         """
         _, deg = self._simple_degrees()
