@@ -33687,14 +33687,57 @@ class Graph:
         decomposition, so the width is the largest clique size minus one. Matches NetworkX's
         `chordal_graph_treewidth`.
 
+        See Also
+        --------
+        chordal_graph_cliques : List the maximal cliques of a chordal graph.
+        tree_decomposition : A tree decomposition of any graph.
+        complete_to_chordal_graph : Add edges to make a graph chordal.
+
         Examples
         --------
+        Two triangles sharing an edge, with a pendant node, have treewidth 2, one less than
+        their largest clique:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"), ("D", "E")])
-        g.chordal_graph_treewidth()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"),
+             ("D", "E")]
+        )
+        graph.chordal_graph_treewidth()
+        ```
+
+        ### The cost of exact inference
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its moral graph, which joins the parents of each variable, is
+        chordal with treewidth 4: Blood pressure and its four causes form a clique of five, so
+        exact inference works with tables over five variables at once. Leaving out the
+        unmeasured Genetics brings it down to 3:
+
+        ```{python}
+        full = ec.causal()
+        known = ec.causal().delete_node("Genetics")
+
+        (
+            full.moral_graph().chordal_graph_treewidth(),
+            known.moral_graph().chordal_graph_treewidth(),
+        )
+        ```
+
+        Without Genetics, the largest clique is Blood pressure with Age, Weight and Medication:
+
+        ```{python}
+        from itertools import combinations
+
+        moral = known.moral_graph()
+        largest = max(moral.chordal_graph_cliques(), key=len)
+
+        moral.plot(
+            layout="pos", highlight=list(combinations(largest, 2)),
+            label_by="label", height=360,
+        )
         ```
         """
         cliques = rust.chordal_graph_cliques(self._graph)
