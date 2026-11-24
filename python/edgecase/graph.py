@@ -31848,25 +31848,70 @@ class Graph:
         - community detection (nodes with similar neighborhoods)
         - recommendation systems (find similar users/items)
 
+        See Also
+        --------
+        jaccard_similarity : Shared neighbors over all neighbors, which ranks pairs the same.
+        overlap_similarity : Shared neighbors over the smaller neighborhood.
+        pairwise_similarity : A matrix of scores for chosen nodes.
+
         Examples
         --------
-        "A" and "D" both connect to "B" and "C", so their neighborhoods overlap
-        completely -- Dice rates that as a perfect `1.0` similarity:
+        `A` knows `C` and `D`, and `B` knows them and `E`, so the two share 2 of their 2 + 3
+        neighbors. The coefficient is twice that share, `4 / 5`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("D", "B"), ("D", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
+        scores = graph.dice_similarity()[graph.get_id_from_label("A")]
 
-        sim = graph.dice_similarity()
+        dict(sorted((label(n), s) for n, s in scores.items()))
+        ```
 
-        a_id = graph.get_id_from_label("A")
-        d_id = graph.get_id_from_label("D")
-        sim[a_id][d_id]
+        ### The same order as Jaccard
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Ada has three friends and Dev four, and all three of Ada's are
+        Dev's. That gives them a Jaccard index of `3 / 4` and a Dice coefficient of `6 / 7`:
+
+        ```{python}
+        friends = ec.friends()
+        node = friends.get_id_from_label
+        ada, dev = node("Ada"), node("Dev")
+
+        (
+            friends.jaccard_similarity()[ada][dev],
+            friends.dice_similarity()[ada][dev],
+        )
+        ```
+
+        The Dice coefficient is $2J / (1 + J)$ for the Jaccard index $J$, which only ever rises
+        with $J$, so the two rank every pair in the same order:
+
+        ```{python}
+        jaccard, dice = friends.jaccard_similarity(), friends.dice_similarity()
+
+        sorted(
+            ((u, v) for u in jaccard for v in jaccard[u] if u < v),
+            key=lambda pair: jaccard[pair[0]][pair[1]],
+        ) == sorted(
+            ((u, v) for u in dice for v in dice[u] if u < v),
+            key=lambda pair: dice[pair[0]][pair[1]],
+        )
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={
+                "accent": ["Ada", "Dev"],
+                "soft": [(person, "Dev") for person in
+                         ["Ben", "Cleo", "Ella", "Femi"]],
+            },
+            label_by="label", seed=8,
+        )
         ```
         """
         return self._graph.get_dice_similarity()
