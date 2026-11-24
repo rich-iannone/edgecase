@@ -83511,17 +83511,53 @@ class Graph:
         ValueError
             If the graph is directed, or `r=` is omitted on a graph without edges.
 
+        See Also
+        --------
+        bethe_hessian_spectrum : The eigenvalues of this matrix.
+        laplacian_matrix : The matrix this one is at `r = 1`.
+
         Examples
         --------
         At `r = 1` the Bethe Hessian is the Laplacian:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        path = ec.Graph().add_path_graph(4)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
         bethe, nodes = path.bethe_hessian_matrix(r=1)
+        labels = [path.get_label_from_id(n) for n in nodes]
 
-        bethe, bethe == path.laplacian_matrix()[0]
+        pl.DataFrame(bethe, schema=labels, orient="row").insert_column(
+            0, pl.Series("node", labels)
+        )
+        ```
+
+        ```{python}
+        bethe == path.laplacian_matrix()[0]
+        ```
+
+        ### The diagonal and the friendships
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The default `r` comes from the degrees, and the many
+        friends of the instructor and the administrator push it up to 6.77. Each friendship
+        gets `-r`, and the diagonal `r² - 1` plus the member's number of friends:
+
+        ```{python}
+        karate = ec.karate_club()
+        bethe, nodes = karate.bethe_hessian_matrix()
+        labels = [karate.get_label_from_id(n) for n in nodes]
+        i, j = labels.index("0"), labels.index("1")
+
+        round(-bethe[i][j], 2), [
+            round(bethe[k][k] - karate.get_degree(nodes[k]), 2)
+            for k in (i, j)
+        ]
+        ```
+
+        ```{python}
+        karate.plot(size_by="degree", label_by="label", seed=1)
         ```
         """
         matrix, ids, _ = rust.bethe_hessian_matrix(self._graph, r, self._use_weights(weighted))
