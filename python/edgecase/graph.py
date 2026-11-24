@@ -77878,29 +77878,74 @@ class Graph:
         and medium graphs. Unlike NetworkX, the edges do not store the shortest paths
         themselves; use `shortest_path()` to recover one.
 
+        See Also
+        --------
+        traveling_salesman : Plan a round trip on the closure.
+        all_pairs_shortest_path_length : The same distances as a nested dict.
+        steiner_tree : Another approximation built on the closure.
+
         Examples
         --------
-        In a path A-B-C-D with unit weights, the closure adds the shortcuts A-C (2), B-D (2)
-        and A-D (3):
+        The closure of a path joins every pair of nodes, weighted by the distance along the path:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0)])
+        path = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 1.0)], weighted=True
+        )
 
-        closure = g.metric_closure()
-        closure.get_edges_str_repr(use_labels=True), closure.get_edge_attrs_by_id("weight")
+        path.metric_closure().get_edge_df(labels=True).select(
+            "source", "target", "weight"
+        )
         ```
 
-        The closure satisfies the triangle inequality even when the original weights do not
-        (the direct edge A-C below is longer than going through B):
+        ### A mileage chart
+
+        `towns()` holds 12 towns of a made-up county and the 26 roads between them. Like the
+        mileage chart of a road atlas, the closure gives the distance by road between every pair
+        of towns, 66 in all. The farthest apart are Ashby and Millbrook, at opposite corners of
+        the county:
 
         ```{python}
-        tri = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
-        tri.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
-        closure = tri.metric_closure()
-        closure.get_edge(closure.find_edge_ids("A", "C")[0]).weight
+        import polars as pl
+
+        towns = ec.towns()
+        closure = towns.metric_closure()
+
+        (
+            closure.get_edge_df(labels=True)
+            .select("source", "target", km=pl.col("weight"))
+            .sort("km", descending=True)
+            .head(3)
+        )
+        ```
+
+        Dividing each distance by the straight line between the towns shows the detours. The road
+        from Bramford to Elmwick is 38% longer than the straight line, the most of any pair: no
+        road joins them, and the shortest route goes by way of Calder:
+
+        ```{python}
+        import math
+
+        pos = closure.get_node_attrs("pos")
+        km = closure.get_edge_attrs("weight")
+        ends = closure.get_node_ids_by_edge_id
+
+        def detour(edge):
+            u, v = ends(edge)
+            return km[edge] / math.dist(pos[u], pos[v])
+
+        worst = max(km, key=detour)
+        pair = [closure.get_label_from_id(n) for n in ends(worst)]
+
+        pair, round(detour(worst), 2)
+        ```
+
+        ```{python}
+        towns.shortest_path("Bramford", "Elmwick").plot(
+            layout="pos", highlight="shortest_path_order", label_by="label"
+        )
         ```
         """
         result = Graph._from_rust(rust.metric_closure(self._graph, self._use_weights(weighted)))
