@@ -20541,43 +20541,46 @@ class Graph:
 
         Examples
         --------
-        In this small people-film network, the people are partition `0` and the films are
-        partition `1`. "Film2" was watched by three of the four people, so it scores `0.75`,
-        while "Film3" (one viewer) scores `0.25`:
+        Ana and Cruz each belong to one of the two clubs, and Ben to both:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
-            .add_edges(
-                [
-                    ("Ann", "Film1"),
-                    ("Bob", "Film1"),
-                    ("Bob", "Film2"),
-                    ("Cal", "Film2"),
-                    ("Cal", "Film3"),
-                    ("Dee", "Film2"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
         )
+        share = graph.bipartite_degree_centrality(which=0, return_dict=True)
 
-        scores = graph.bipartite_degree_centrality(which=1, return_dict=True)
-        {graph.get_label_from_id(nid): score for nid, score in sorted(scores.items())}
+        {graph.get_label_from_id(n): s for n, s in sorted(share.items())}
         ```
 
-        On the people side the denominator is the three films, so "Bob" and "Cal" (two films
-        each) score `2/3` and the others `1/3`. Calling the method for both partitions with the
-        same `attr_name=` fills a single column covering every node:
+        ### The biggest events
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Calling the method for each side with the same `attr_name=` scores both sides
+        in one column. E8 drew 14 of the 18 women, a larger share than any woman's 8 of the 14
+        events:
 
         ```{python}
-        (
-            graph
-            .bipartite_degree_centrality(which=0, attr_name="bip_degree")
-            .bipartite_degree_centrality(which=1, attr_name="bip_degree")
-            .get_node_df()
-            .select(["label", "bip_degree"])
+        davis = (
+            ec.davis_southern_women()
+            .bipartite_degree_centrality(which=0, attr_name="share")
+            .bipartite_degree_centrality(which=1, attr_name="share")
+        )
+        share = davis.get_node_attrs("share")
+        ranked = sorted(share, key=lambda n: (-share[n], n))
+
+        [(davis.get_label_from_id(n), round(share[n], 3)) for n in ranked[:5]]
+        ```
+
+        ```{python}
+        women, events = davis.bipartite_sets()
+
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos", color_by="share", color_scale="sequential",
+            label_by="label", height=900,
         )
         ```
         """
