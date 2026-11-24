@@ -84480,16 +84480,52 @@ class Graph:
         ValueError
             If the graph is directed, empty or disconnected, or has a negative weight.
 
+        See Also
+        --------
+        algebraic_connectivity : Another spectral measure of how well connected a graph is.
+        kirchhoff_index : The sum of the resistance distances, a related measure.
+
         Examples
         --------
-        A complete graph is navigated faster than a cycle of the same size:
+        A random walk reaches its target sooner on a triangle than on a path of the same three
+        nodes:
 
         ```{python}
         import edgecase as ec
 
-        complete = ec.Graph().add_full_graph(6).kemeny_constant()
-        cycle = ec.Graph().add_cycle_graph(6).kemeny_constant()
-        round(complete, 3), round(cycle, 3)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
+
+        round(path.kemeny_constant(), 3), round(triangle.kemeny_constant(), 3)
+        ```
+
+        ### A rider who never checks the map
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Its edges are weighted by travel time, so `weighted=False` gives a rider who takes any
+        track out of a station with the same chance. A new track from the Airport straight to
+        Harbor, across the river, shortens the rider's trips. A new one joining the two dead ends
+        beyond Harbor, Docks and Shipyard, makes them longer, as the rider now circles there
+        before finding the way back:
+
+        ```{python}
+        def kemeny(link=None):
+            metro = ec.metro()
+            if link:
+                metro = metro.add_edge(*link)
+            return round(metro.kemeny_constant(weighted=False), 2)
+
+        kemeny(), kemeny(("Airport", "Harbor")), kemeny(("Docks", "Shipyard"))
+        ```
+
+        ```{python}
+        links = [("Airport", "Harbor"), ("Docks", "Shipyard")]
+
+        (
+            ec.metro()
+            .add_edges(links)
+            .plot(layout="pos", highlight=links, label_by="label")
+        )
         ```
         """
         value = rust.kemeny_constant(self._graph, self._use_weights(weighted))
