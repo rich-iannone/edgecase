@@ -11,8 +11,12 @@
 //! 2. Balance the remaining block with power-of-two diagonal scaling (`balanc`).
 //! 3. Reduce to upper Hessenberg form (Householder, via nalgebra).
 //! 4. Run the Francis double-shift QR iteration with exceptional shifts (`hqr`).
+//!
+//! It also has `symmetric_eigen()`, a replacement for nalgebra's symmetric
+//! eigendecomposition, which can mismatch eigenvalues and eigenvectors.
 
-use nalgebra::{Complex, DMatrix};
+use nalgebra::linalg::SymmetricTridiagonal;
+use nalgebra::{Complex, DMatrix, Dyn, SymmetricEigen};
 
 /// Maximum QR iterations spent on a single eigenvalue before giving up
 const MAX_ITERATIONS_PER_EIGENVALUE: usize = 60;
@@ -309,6 +313,97 @@ fn hessenberg_eigenvalues(h: &DMatrix<f64>) -> Option<Vec<Complex<f64>>> {
     Some((1..=n).map(|i| Complex::new(wr[i], wi[i])).collect())
 }
 
+/// Most QL sweeps spent on a single eigenvalue before falling back to nalgebra
+const MAX_QL_SWEEPS_PER_EIGENVALUE: usize = 60;
+
+/// Eigenvalues and eigenvectors of a real symmetric matrix
+///
+/// A drop-in for `nalgebra::SymmetricEigen::new` wherever the eigenvectors are used.
+/// nalgebra 0.33 can pair a 2x2 block's eigenvalues with each other's eigenvectors
+/// (its issue #1109, fixed in 0.34, which needs a newer Rust than our MSRV): on the
+/// football Laplacian, `λ₂` came back with the constant eigenvector. This keeps
+/// nalgebra's Householder tridiagonalization and diagonalizes the tridiagonal matrix
+/// with the implicit QL iteration (EISPACK's `tql2`), accumulating the rotations into
+/// the eigenvectors. Eigenvalues are in no particular order, column `j` of
+/// `eigenvectors` belonging to `eigenvalues[j]`.
+pub fn symmetric_eigen(matrix: DMatrix<f64>) -> SymmetricEigen<f64, Dyn> {
+    let n = matrix.nrows();
+    assert_eq!(n, matrix.ncols(), "matrix must be square");
+    if n <= 1 {
+        return SymmetricEigen {
+            eigenvectors: DMatrix::identity(n, n),
+            eigenvalues: matrix.diagonal(),
+        };
+    }
+    let (mut z, mut d, off) = SymmetricTridiagonal::new(matrix.clone()).unpack();
+    // e[i] couples d[i] and d[i + 1]; the trailing zero simplifies the sweeps
+    let mut e: Vec<f64> = off.iter().copied().chain(std::iter::once(0.0)).collect();
+    let norm = (0..n).fold(0.0f64, |acc, i| acc.max(d[i].abs() + e[i].abs()));
+    let tol = f64::EPSILON * norm;
+
+    for l in 0..n {
+        let mut sweeps = 0;
+        loop {
+            // Find the first negligible coupling at or after l
+            let mut m = l;
+            while m + 1 < n && e[m].abs() > tol {
+                m += 1;
+            }
+            if m == l {
+                break;
+            }
+            sweeps += 1;
+            if sweeps > MAX_QL_SWEEPS_PER_EIGENVALUE {
+                return SymmetricEigen::new(matrix);
+            }
+            // Wilkinson-style shift from the leading 2x2 block
+            let mut g = (d[l + 1] - d[l]) / (2.0 * e[l]);
+            let mut r = g.hypot(1.0);
+            g = d[m] - d[l] + e[l] / (g + r.copysign(g));
+            let (mut s, mut c, mut p) = (1.0, 1.0, 0.0);
+            let mut split = false;
+            for i in (l..m).rev() {
+                let f = s * e[i];
+                let b = c * e[i];
+                r = f.hypot(g);
+                e[i + 1] = r;
+                if r == 0.0 {
+                    // The block split during the sweep; start over on the smaller one
+                    d[i + 1] -= p;
+                    e[m] = 0.0;
+                    split = true;
+                    break;
+                }
+                s = f / r;
+                c = g / r;
+                g = d[i + 1] - p;
+                r = (d[i] - g) * s + 2.0 * c * b;
+                p = s * r;
+                d[i + 1] = g + p;
+                g = c * r - b;
+                // Rotate columns i and i + 1 of the eigenvectors (contiguous, column-major)
+                let (left, right) = z.as_mut_slice().split_at_mut((i + 1) * n);
+                let (zi, zj) = (&mut left[i * n..], &mut right[..n]);
+                for k in 0..n {
+                    let f = zj[k];
+                    zj[k] = s * zi[k] + c * f;
+                    zi[k] = c * zi[k] - s * f;
+                }
+            }
+            if split {
+                continue;
+            }
+            d[l] -= p;
+            e[l] = g;
+            e[m] = 0.0;
+        }
+    }
+    SymmetricEigen {
+        eigenvectors: z,
+        eigenvalues: d,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -455,5 +550,43 @@ mod tests {
         assert!((sum.re - m.trace()).abs() < 1e-9 && sum.im.abs() < 1e-9);
         let det = m.clone().determinant();
         assert!((product.re - det).abs() < 1e-8 * det.abs().max(1.0) && product.im.abs() < 1e-8);
+    }
+
+    /// Largest entries of `M V - V Λ` and `VᵀV - I`
+    fn symmetric_errors(m: &DMatrix<f64>) -> (f64, f64) {
+        let n = m.nrows();
+        let eig = symmetric_eigen(m.clone());
+        let v = &eig.eigenvectors;
+        let residual = (m * v - v * DMatrix::from_diagonal(&eig.eigenvalues)).amax();
+        let orthogonality = (v.transpose() * v - DMatrix::<f64>::identity(n, n)).amax();
+        (residual, orthogonality)
+    }
+
+    #[test]
+    fn test_symmetric_eigen_pairs_values_with_vectors() {
+        // nalgebra issue #1109: SymmetricEigen mismatches eigenvalues and eigenvectors
+        let m = DMatrix::from_row_slice(
+            4,
+            4,
+            &[
+                -19884.07, -10.07188, 11.277279, -188560.63, -10.07188, 12.518197, 1.3770627,
+                -102.97504, 11.277279, 1.3770627, 14.587362, 113.26099, -188560.63, -102.97504,
+                113.26099, -1788112.3,
+            ],
+        );
+        let (residual, orthogonality) = symmetric_errors(&m);
+        assert!(residual < 1e-8 * 1788112.3, "residual {}", residual);
+        assert!(orthogonality < 1e-12);
+
+        for n in [1, 2, 3, 8, 40] {
+            let a = DMatrix::from_fn(n, n, |i, j| ((i * 7 + j * 3 + i * j) % 11) as f64 - 5.0);
+            let (residual, orthogonality) = symmetric_errors(&(&a + a.transpose()));
+            assert!(residual < 1e-11 && orthogonality < 1e-12, "n = {}", n);
+        }
+        // Repeated eigenvalues: the complete graph K6 (5, then -1 five times)
+        let k = DMatrix::from_fn(6, 6, |i, j| if i == j { 0.0 } else { 1.0 });
+        let (residual, orthogonality) = symmetric_errors(&k);
+        assert!(residual < 1e-12 && orthogonality < 1e-12);
+        assert_eq!(symmetric_eigen(DMatrix::zeros(0, 0)).eigenvalues.len(), 0);
     }
 }
