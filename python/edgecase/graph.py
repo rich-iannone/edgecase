@@ -34814,20 +34814,56 @@ class Graph:
         $O(k^2 s)$ for $k$ cliques of size up to $s$. Matches NetworkX's `make_max_clique_graph`
         (which numbers the cliques 0, 1, ... instead of labeling them by members).
 
+        See Also
+        --------
+        find_cliques : List the maximal cliques that become its nodes.
+        cmty_k_clique : Communities of adjacent cliques of size k.
+
         Examples
         --------
-        Two triangles sharing node C, plus a tail C-D: three maximal cliques, all overlapping at
-        C:
+        Two triangles share node `C`, and a tail `C`-`D` hangs off it. All three maximal cliques
+        hold `C`, so the clique graph is a triangle:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "F"), ("F", "C"),
-                     ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "E"), ("E", "F"),
+             ("F", "C"), ("C", "D")]
+        )
+        cliques = graph.clique_graph()
 
-        cg = g.clique_graph()
-        sorted(cg.get_label_from_id(n) for n in cg.get_node_ids()), cg.count_edges()
+        cliques.get_edges_str_repr(use_labels=True)
+        ```
+
+        ### How tight groups connect
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Its 21 maximal cliques become the nodes of the clique graph, with
+        an edge for each pair that shares a member:
+
+        ```{python}
+        friends = ec.friends()
+        groups = friends.clique_graph()
+
+        groups.count_nodes(), groups.count_edges()
+        ```
+
+        Coloring each clique by the clubs of its members shows where the clubs meet. Four cliques
+        mix them, and all four hold Hugo and Tara, which joins them in the clique graph too:
+
+        ```{python}
+        club = dict(friends.get_node_df().select("id", "club").iter_rows())
+
+        def clubs(members):
+            found = {club[n] for n in members}
+            return found.pop() if len(found) == 1 else "Both"
+
+        mix = {n: clubs(groups.get_node(n).attributes["clique"])
+               for n in groups.get_node_ids()}
+        groups.set_node_attrs("clubs", mix).plot(
+            color_by="clubs", label_by="label", seed=1, height=480
+        )
         ```
         """
         with self._no_recording():
