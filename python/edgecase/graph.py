@@ -33273,9 +33273,16 @@ class Graph:
         (the polynomial recognition algorithm of Chudnovsky et al., 2005, runs in O(n⁹) and is
         not practical). Results match NetworkX's `is_perfect_graph()`.
 
+        See Also
+        --------
+        is_chordal : Check for chordless cycles of four or more nodes.
+        clique_number : The size of a largest clique.
+        greedy_color : Color the nodes so that no edge joins two of a color.
+
         Examples
         --------
-        Even cycles are bipartite and so perfect; odd cycles of length 5 or more are odd holes:
+        Even cycles are bipartite and so perfect, and odd cycles of five or more nodes are odd
+        holes:
 
         ```{python}
         import edgecase as ec
@@ -33283,11 +33290,41 @@ class Graph:
         {n: ec.Graph().add_cycle_graph(n).is_perfect_graph() for n in range(3, 9)}
         ```
 
-        A seven-cycle's complement is an odd antihole, so it is not perfect either, though it
-        has no odd hole:
+        A seven-cycle's complement is an odd antihole, so it isn't perfect either, though it has
+        no odd hole:
 
         ```{python}
         ec.Graph().add_cycle_graph(7).complement().is_perfect_graph()
+        ```
+
+        ### More slots than the largest clique
+
+        `exams()` joins two of a made-up college's courses when some student takes both, so
+        their exams can't share a time slot. Four slots are enough, and four courses all clash,
+        so the timetable needs exactly as many slots as its largest clique. But the graph isn't
+        perfect:
+
+        ```{python}
+        exams = ec.exams()
+        exams.is_perfect_graph()
+        ```
+
+        Philosophy, Literature, Economics, History and Biology form a cycle of five with no
+        chords, an odd hole. No three of them all clash, yet they need three slots:
+
+        ```{python}
+        hole = ["Philosophy", "Literature", "Economics", "History", "Biology"]
+        part = exams.subgraph([exams.get_id_from_label(c) for c in hole])
+
+        slots = part.greedy_color(strategy="dsatur")
+        part.clique_number(), len(set(slots.values()))
+        ```
+
+        ```{python}
+        exams.plot(
+            highlight=[*hole, hole[0]], size_by="students", label_by="label",
+            seed=3, height=420,
+        )
         ```
         """
         value = rust.is_perfect_graph(self._graph)
