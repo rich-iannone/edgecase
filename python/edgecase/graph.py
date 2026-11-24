@@ -55618,59 +55618,71 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to centrality scores, which
             sum to `1`. If `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        katz_centrality : The same measure with a constant baseline.
+        bonacich_power_centrality : Let ties to well-connected nodes count against a node.
+        eigen_centrality : The limit with no outside status.
+
         Examples
         --------
-        Lower `alpha=` values keep the focus on a node's immediate neighborhood, while higher
-        values let influence propagate further through the network. On a star graph
-        (`λ_max = sqrt(3)`, so `alpha=` must stay below about `0.577`), raising `alpha=` from
-        `0.05` to `0.5` increases the hub's share from about `0.27` to about `0.36`:
+        Alpha centrality follows outgoing edges, so in this small directed acyclic graph `A`,
+        which reaches every other node, ranks first, and the sink `E`, which reaches nothing,
+        keeps only its baseline share:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
+        dag = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"),
+             ("D", "E")],
+            directed=True,
         )
 
-        low = graph.alpha_centrality(alpha=0.05, return_dict=True)
-        high = graph.alpha_centrality(alpha=0.5, return_dict=True)
-
-        {
-            graph.get_label_from_id(nid): (round(low[nid], 3), round(high[nid], 3))
-            for nid in sorted(low)
-        }
+        dag.alpha_centrality(alpha=0.8).get_node_df().select(
+            "label", "alpha_centrality"
+        )
         ```
 
-        Alpha centrality works on directed acyclic graphs, where eigenvector centrality breaks
-        down. Here A points to B, C, and D; B and C point to D; and D points to E. Scores follow
-        outgoing edges, so A, which can reach every other node, ranks first and the sink E,
-        which reaches nothing, keeps only its baseline share:
+        ### Reach in a citation network
+
+        In the `citations()` network, each paper points to the papers it cites, so alpha
+        centrality counts the chains of citations leading out from each paper. It's the mirror
+        image of `katz_centrality()`, which counts the chains leading in:
 
         ```{python}
-        dag = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
+        import polars as pl
+
+        citations = (
+            ec.citations()
+            .alpha_centrality(alpha=0.5)
+            .katz_centrality(alpha=0.5)
         )
 
-        scores = dag.alpha_centrality(alpha=0.8, return_dict=True)
-        {dag.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
-        ```
+        cites = pl.col("label").map_elements(
+            citations.get_out_degree, return_dtype=pl.Int64
+        )
 
-        Storing the result as a node attribute lets it chain directly into visualization
-        methods like `colorize_node_attrs()`:
-
-        ```{python}
         (
-            graph
-            .alpha_centrality(attr_name="alpha_cent")
-            .colorize_node_attrs(node_attr_from="alpha_cent", node_attr_to="fillcolor")
-            .get_node_df()
-            .select(["label", "alpha_cent", "fillcolor"])
+            citations.get_node_df()
+            .with_columns(cites=cites)
+            .select("label", "cites", "alpha_centrality", "katz_centrality")
+            .sort("alpha_centrality", descending=True)
+            .head(5)
         )
         ```
+
+        The survey, Hughes 2020, which cites eleven papers, has the widest reach. Osei 2021 cites
+        only three, but one of them is the survey. Drawn as a timeline, with the years running
+        left to right, the scores rise toward the recent papers, while the two oldest papers,
+        which cite nothing, have only their baseline:
+
+        ```{python}
+        citations.plot(layout="pos", color_by="alpha_centrality", label_by="label")
+        ```
+
+        An `alpha=` close to `1 / lambda_max`, the reciprocal of the largest adjacency eigenvalue,
+        makes the ranking approach `eigen_centrality()`; on an acyclic graph, any value converges.
         """
         centrality, converged = self._graph.get_alpha_centrality(alpha, max_iter, tol)
         if not converged:
@@ -55692,8 +55704,6 @@ class Graph:
         if attr_name is None:
             attr_name = "alpha_centrality"
 
-        self.set_node_attrs(attr_name, centrality)
-
         # Track computation
         params = {}
         if alpha != 0.1:
@@ -55702,7 +55712,7 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
-        self._computations.append(("alpha_centrality", params, attr_name))
+        self._store_node_result("alpha_centrality", params, attr_name, centrality)
 
         return self
 
