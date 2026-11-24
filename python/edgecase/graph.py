@@ -46722,7 +46722,7 @@ class Graph:
 
     def network_smooth(
         self,
-        scores: dict[int, float],
+        scores: dict[Union[int, str], float],
         alpha: float = 0.5,
         max_iter: int = 100,
         tol: float = 1e-6,
@@ -46762,8 +46762,9 @@ class Graph:
         Parameters
         ----------
         scores
-            Dictionary mapping node IDs to initial scores. Nodes not in the dictionary default to
-            `0.0`, and keys that are not node IDs in the graph are ignored.
+            Dictionary mapping nodes, as integer IDs or string labels, to initial scores. Nodes not
+            in the dictionary default to `0.0`. Integer keys that are not in the graph are ignored,
+            and an unknown label raises an error.
         alpha
             Smoothing strength between `0` and `1`. The default is `0.5`. Higher values give more
             weight to network neighbors and spread the signal further; lower values preserve the
@@ -46833,14 +46834,13 @@ class Graph:
         """
         from edgecase._core import network_smooth as _network_smooth
 
-        result = _network_smooth(self._graph, scores, alpha, max_iter, tol)
+        result = _network_smooth(self._graph, self._seed_ids(scores), alpha, max_iter, tol)
         if return_dict:
             return result
         if attr_name is None:
             attr_name = "network_smooth"
-        self.set_node_attrs(attr_name, result)
-        self._computations.append(
-            ("network_smooth", {"alpha": alpha, "max_iter": max_iter, "tol": tol}, attr_name)
+        self._store_node_result(
+            "network_smooth", {"alpha": alpha, "max_iter": max_iter, "tol": tol}, attr_name, result
         )
         return self
 
