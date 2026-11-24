@@ -1,3 +1,5 @@
+import random
+
 import pytest
 from edgecase import Graph
 
@@ -288,3 +290,96 @@ class TestCohesiveBlocksComplexStructures:
         # Tree should have cohesion 1, no higher-order sub-blocks
         assert len(blocks) == 1
         assert cohesions[0] == 1
+
+
+class TestCohesiveBlocksExact:
+    """Exact blocks, parents and agreement with connectivity and k-components."""
+
+    def test_nested_blocks_of_figure_graph(self):
+        """K_4 inside a ring inside the whole graph, as in the docstring figure."""
+        G = Graph.from_edges(
+            [
+                ("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+                ("C", "D"), ("C", "E"), ("E", "F"), ("F", "G"), ("D", "G"),
+                ("G", "H"),
+            ]
+        )  # fmt: skip
+        blocks, cohesions, parents = G.find_cohesive_blocks()
+        labels = [sorted(G.get_label_from_id(n) for n in b) for b in blocks]
+        assert labels == [list("ABCDEFGH"), list("ABCDEFG"), list("ABCD")]
+        assert cohesions == [1, 2, 3]
+        assert parents == [None, 0, 1]
+
+    def test_parents_offset_across_components(self):
+        """Parent indices of a later component point into its own blocks."""
+        G = Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("E", "F"), ("F", "G"), ("G", "E"), ("G", "H"),
+            ]
+        )  # fmt: skip
+        blocks, cohesions, parents = G.find_cohesive_blocks()
+        assert cohesions == [1, 2, 1, 2]
+        assert parents == [None, 0, None, 2]
+        for child, parent in enumerate(parents):
+            if parent is not None:
+                assert set(blocks[child]) < set(blocks[parent])
+
+    def test_edge_directions_ignored(self):
+        """A directed triangle has the blocks of an undirected one."""
+        G = Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")], directed=True)
+        blocks, cohesions, parents = G.find_cohesive_blocks()
+        assert [len(b) for b in blocks] == [3]
+        assert cohesions == [2]
+        assert parents == [None]
+
+    def test_karate_club_matches_networkx_k_components(self):
+        """The maximal blocks at each level are NetworkX's k-components."""
+        nx = pytest.importorskip("networkx")
+        import edgecase as ec
+
+        G = ec.karate_club()
+        blocks, cohesions, _ = G.find_cohesive_blocks()
+        assert sorted(zip(map(len, blocks), cohesions)) == [
+            (5, 3), (6, 2), (10, 4), (18, 3), (28, 2), (34, 1),
+        ]  # fmt: skip
+
+        nxg = nx.Graph([(u, v) for _, u, v in G.get_edges_as_tuples()])
+        expected = {
+            k: sorted(sorted(c) for c in comps) for k, comps in nx.k_components(nxg).items()
+        }
+        found = {k: sorted(comps) for k, comps in G.k_components().items()}
+        assert found == expected
+
+    @pytest.mark.parametrize("seed", range(40))
+    def test_block_cohesion_is_its_connectivity(self, seed):
+        """Each block's cohesion is the node connectivity of its subgraph."""
+        nx = pytest.importorskip("networkx")
+        rng = random.Random(seed)
+        nxg = nx.gnp_random_graph(rng.randint(2, 12), rng.uniform(0.2, 0.8), seed=seed)
+        G = Graph()
+        for v in nxg:
+            G.add_node(label=str(v))
+        for u, v in nxg.edges():
+            G.add_edge(str(u), str(v))
+        to_nx = {G.get_id_from_label(str(v)): v for v in nxg}
+
+        blocks, cohesions, parents = G.find_cohesive_blocks()
+        for block, cohesion, parent in zip(blocks, cohesions, parents):
+            sub = nxg.subgraph(to_nx[n] for n in block)
+            if len(block) > 1:
+                assert nx.node_connectivity(sub) == cohesion
+            if parent is not None:
+                assert cohesions[parent] < cohesion
+                assert set(block) < set(blocks[parent])
+
+    def test_k_components_are_maximal_blocks(self):
+        """k_components() keeps the largest blocks of cohesion at least k."""
+        import edgecase as ec
+
+        G = ec.les_miserables()
+        blocks, cohesions, _ = G.find_cohesive_blocks()
+        for k, comps in G.k_components().items():
+            candidates = [set(b) for b, c in zip(blocks, cohesions) if c >= k]
+            maximal = [s for s in candidates if not any(s < t for t in candidates)]
+            assert sorted(map(sorted, maximal)) == sorted(map(sorted, comps))
