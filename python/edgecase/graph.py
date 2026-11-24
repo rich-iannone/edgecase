@@ -68899,22 +68899,52 @@ class Graph:
         ValueError
             If `source=` does not exist.
 
+        See Also
+        --------
+        eulerian_path : The path itself.
+        is_semieulerian : Check for a path but no circuit.
+        is_eulerian : Check for a circuit.
+
         Examples
         --------
-        A path graph can be traced end to end, but only from one of its ends:
+        A path can be walked end to end, but only from one of its ends:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_path_graph(4)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
 
-        path.has_eulerian_path(), path.has_eulerian_path(source=1), path.has_eulerian_path(source=2)
+        (
+            path.has_eulerian_path(),
+            path.has_eulerian_path("A"),
+            path.has_eulerian_path("B"),
+        )
         ```
 
-        A star with three leaves has four odd nodes, so no single stroke covers it:
+        ### Where the walk can start
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. With every land mass odd, no walk crosses
+        each bridge exactly once. Closing the Honigbrücke leaves only the banks odd, so the walk
+        exists, and starts on one of them:
 
         ```{python}
-        ec.Graph().add_star_graph(4).has_eulerian_path()
+        closed = ec.konigsberg().delete_edge("Kneiphof", "Lomse")
+
+        (
+            ec.konigsberg().has_eulerian_path(),
+            {
+                start: closed.has_eulerian_path(start)
+                for start in ["North Bank", "South Bank", "Kneiphof", "Lomse"]
+            },
+        )
+        ```
+
+        ```{python}
+        closed.plot(
+            layout="pos", highlight=["North Bank", "South Bank"],
+            label_by="label", edge_label_by="bridge",
+        )
         ```
         """
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
