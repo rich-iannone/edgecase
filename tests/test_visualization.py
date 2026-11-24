@@ -2,6 +2,7 @@
 
 import html
 import json
+import math
 import re
 
 import pytest
@@ -14,8 +15,10 @@ def _abc_path():
 
 
 def _drawing(player) -> str:
-    """A step player's HTML without its per-call widget ID, so two calls can be compared."""
-    return re.sub(r"\b(?:stv|tv|tc)\d+", "uid", player._repr_html_())
+    """A step player's HTML (or some markup) without its per-call widget ID, so two calls can be
+    compared."""
+    markup = player if isinstance(player, str) else player._repr_html_()
+    return re.sub(r"\b(?:stv|tv|tc)\d+", "uid", markup)
 
 
 class TestColorizeNodeAttrs:
@@ -165,7 +168,7 @@ class TestPlay:
         """Regression: a page's larger text spread out the panel below the drawing, past a fixed
         height that cut off its last line, and the play and next buttons had the same arrow."""
         html = _abc_path().play()._repr_html_()
-        root = re.match(r'<div id="\w+" style="([^"]*)"', html).group(1)
+        root = re.search(r'<div id="\w+" style="([^"]*)"', html).group(1)
         assert "font-size:13px;line-height:1.4" in root
         assert "height:130px" not in html
         buttons = dict(re.findall(r'<button id="\w+-(prev|play|next)"[^>]*>(.*?)</button>', html))
@@ -183,6 +186,29 @@ class TestPlay:
         with pytest.raises(ValueError, match="speed must be a positive number"):
             _abc_path().play(speed=0)
 
+    def test_stored_layout(self):
+        """play() draws nodes where a layout_*() method put them, the same in every frame."""
+        g = _abc_path()
+        g.set_node_attrs("xy", {"A": [0.0, 0.0], "B": [1.0, 0.0], "C": [2.0, 0.0]})
+        html = g.play(layout="xy")._repr_html_()
+        spots = re.findall(r'class="step-node" data-label="(\w)" cx="([\d.]+)" cy="([\d.]+)"', html)
+        assert [(lbl, float(x), float(y)) for lbl, x, y in spots] == [
+            ("A", 60.0, 250.0),
+            ("B", 350.0, 250.0),
+            ("C", 640.0, 250.0),
+        ]
+        assert "var LAYOUTS=[];" in html
+        with pytest.raises(ValueError, match="Unknown layout 'nope'"):
+            g.play(layout="nope")
+
+    def test_edge_glows_cover_the_canvas(self):
+        """Regression: a glow sized to a horizontal edge's bounding box (zero height) hid the
+        edge, so selected edges along a row were not drawn at all."""
+        html = _abc_path().play()._repr_html_()
+        for name in ("add", "rm", "sel"):
+            assert re.search(rf'<filter id="\w+-glow-{name}-e" filterUnits="userSpaceOnUse"', html)
+        assert "setAttribute('filter',GLOW_SEL_E)" in html
+
     def test_clear_steps_keeps_existing_elements(self):
         """Regression: nodes and edges from before clear_steps() never appeared in play()."""
         g = _abc_path().clear_steps()
@@ -192,6 +218,12 @@ class TestPlay:
         assert "No steps recorded" not in html
         for label in "ABCD":
             assert f'"{label}"' in html
+        # They are on the first frame too, rather than an empty graph
+        first = json.loads(re.search(r"var STEPS=(\[.*?\]);\n", html, re.S).group(1))[0]
+        assert (first["nodes"], first["edges"]) == (["A", "B", "C"], [["A", "B"], ["B", "C"]])
+        assert first["narration"] == (
+            "The graph as it was when the step log was cleared: 3 nodes, 2 edges."
+        )
 
     @pytest.mark.parametrize("layout", ["force", "random"])
     def test_seed_makes_stable_layout_reproducible(self, layout):
@@ -205,6 +237,19 @@ class TestPlay:
         assert _drawing(sub.play(layout_mode="stable", seed=7)) == _drawing(
             sub.play(layout_mode="stable", seed=7)
         )
+
+    def test_traversal_note_leads_its_first_frame(self):
+        """Regression: a note() on a traversal was dropped, since the player shows one frame per
+        visited node, each with its own narration."""
+        def visits(graph):
+            html = graph.play()._repr_html_()
+            steps = json.loads(re.search(r"var STEPS=(\[.*?\]);\n", html, re.S).group(1))
+            return [s["narration"] for s in steps if s["kind"] == "traverse"]
+
+        noted = _abc_path().note("Spread out from A.").bfs("A")
+        assert visits(noted) == ["Spread out from A. Start at A", "Visit B from A", "Visit C from B"]
+        # Without a note, the first frame keeps its own narration alone
+        assert visits(_abc_path().bfs("A"))[0] == "Start at A"
 
     def test_progressive_layout_reproducible_without_seed(self):
         g = ec.Graph().add_nodes(list("ABCDE")).add_edges([("A", "B"), ("B", "C"), ("C", "D")])
@@ -294,6 +339,93 @@ class TestPlotTraversal:
         assert f"color-scheme:{theme}" in outer
 
 
+def _renderings(theme, **opts):
+    """Every renderer's output for `theme=`."""
+    g = ec.karate_club().bfs(source=1)
+    rec = g.record_traversal()
+    rec.select_nodes_by_id([1]).trav_out()
+    return {
+        "plot": g.plot(theme=theme, seed=1, **opts),
+        "play": g.play(theme=theme, seed=1, **opts),
+        "plot_traversal": g.plot_traversal(source=1, theme=theme, seed=1, **opts),
+        "recorder": rec.plot(theme=theme, seed=1, **opts),
+    }
+
+
+class TestAutoTheme:
+    """theme="auto" (and the default, theme=None) gives one rendering for light and dark pages."""
+
+    @pytest.mark.parametrize("theme", [None, "auto"])
+    def test_colors_are_variables(self, theme):
+        from edgecase.svg_renderer import DARK, LIGHT
+
+        for name, out in _renderings(theme).items():
+            for markup in (out.svg, out._repr_html_()):
+                assert "var(--ect-" in markup, name
+                # both palettes are defined, the dark one for dark systems and dark pages
+                style = re.search(r'<style class="ec-theme-vars">(.*?)</style>', markup).group(1)
+                assert LIGHT.bg in style and DARK.bg in style
+                assert "@media (prefers-color-scheme: dark)" in style
+                assert "body.quarto-dark" in style and '[data-jp-theme-light="false"]' in style
+                assert f'fill="{LIGHT.bg}"' not in markup and f'fill="{DARK.bg}"' not in markup
+            assert out.svg.startswith('<svg class="ec-theme"'), name
+            assert out._repr_html_().startswith('<div class="ec-theme"'), name
+
+    @pytest.mark.parametrize("theme", ["light", "dark"])
+    def test_fixed_themes_use_plain_colors(self, theme):
+        for name, out in _renderings(theme).items():
+            assert "var(--" not in out._repr_html_() and "ec-theme" not in out._repr_html_(), name
+
+    def test_default_saves_the_light_theme(self, tmp_path):
+        """Other programs than browsers don't apply CSS variables, so files get plain colors."""
+        default, light = _renderings(None), _renderings("light")
+        for name, out in default.items():
+            out.save(tmp_path / f"{name}.svg")
+            out.save(tmp_path / f"{name}.html")
+            saved = (tmp_path / f"{name}.svg").read_text()
+            assert _drawing(saved) == _drawing(light[name].svg), name
+            assert "var(--" not in (tmp_path / f"{name}.html").read_text(), name
+        ec.karate_club().plot(seed=1, output=str(tmp_path / "out.svg"))
+        light_plot = ec.karate_club().plot(theme="light", seed=1)
+        assert (tmp_path / "out.svg").read_text() == light_plot.svg
+
+    def test_explicit_auto_saves_auto(self, tmp_path):
+        out = ec.karate_club().plot(theme="auto", seed=1, output=str(tmp_path / "out.svg"))
+        assert (tmp_path / "out.svg").read_text() == out.svg
+
+    def test_same_drawing_same_markup(self):
+        """The variables are named after their colors, so seeded drawings stay reproducible and
+        renderings on one page don't redefine each other's variables."""
+
+        def variables(markup):
+            style = re.search(r'<style class="ec-theme-vars">(.*?)</style>', markup).group(1)
+            light, dark = (
+                dict(re.findall(r"(--ect-\w+):([^;}]+)", block))
+                for block in re.findall(r"\.ec-theme\)?\{([^}]*)\}", style)[:2]
+            )
+            return {name: (light[name], dark[name]) for name in light}
+
+        g = ec.karate_club()
+        assert g.plot(seed=1).svg == g.plot(seed=1).svg
+        plot, play = variables(g.plot(seed=1).svg), variables(g.play(seed=1)._repr_html_())
+        shared = plot.keys() & play.keys()
+        assert shared and all(plot[name] == play[name] for name in shared)
+
+    def test_page_scheme_outranks_the_system(self):
+        """The system's scheme applies only where the page doesn't set one, whatever the order of
+        the renderings: the base rule has no specificity, the page markers the most."""
+        svg = ec.karate_club().plot(seed=1).svg
+        style = re.search(r'<style class="ec-theme-vars">(.*?)</style>', svg).group(1)
+        order = [":where(.ec-theme){", "@media (prefers-color-scheme: dark){.ec-theme{"]
+        order += [":is(html.quarto-light", ":is(html.quarto-dark"]
+        positions = [style.index(rule) for rule in order]
+        assert positions == sorted(positions)
+
+    def test_unknown_theme_lists_auto(self):
+        with pytest.raises(ValueError, match="use 'auto', 'light' or 'dark'"):
+            _abc_path().plot(theme="blue")
+
+
 class TestUnknownStyleOptionsRaise:
     """Regression: unknown layout=/theme=/layout_mode= fell back silently, and edge_color_by=
     was ignored when no node had the attribute."""
@@ -316,3 +448,406 @@ class TestUnknownStyleOptionsRaise:
 
     def test_edge_color_by_accepts_builtins(self):
         assert "<svg" in _abc_path().plot(edge_color_by="degree", seed=1).svg
+
+
+def _node_fills(svg: str) -> dict:
+    """{node ID: fill} of a plot's node circles."""
+    return {
+        int(nid): fill
+        for fill, nid in re.findall(r'<circle [^>]*?fill="([^"]+)"[^>]*?data-node="(\d+)"', svg)
+    }
+
+
+def _edge_strokes(svg: str) -> dict:
+    """{edge ID: (stroke, stroke width)} of a plot's edges, read off each drawn edge and the
+    hover target that follows it."""
+    found = re.findall(
+        r'<(?:line|path) [^>]*?stroke="([^"]+)" stroke-width="([\d.]+)"[^>]*?/>'
+        r"(?:<polygon [^>]*/></g>)?\s*"
+        r'<(?:line|path) [^>]*?stroke="transparent"[^>]*?data-attrs=\'(\{[^\']*\})\'',
+        svg,
+    )
+    return {json.loads(attrs)["id"]: (stroke, float(w)) for stroke, w, attrs in found}
+
+
+def _chain():
+    """a - b - c - d - e, with a branch c - x."""
+    return ec.Graph.from_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "e"), ("c", "x")])
+
+
+def _ids(graph) -> dict:
+    """{label: node ID}."""
+    return {row["label"]: row["id"] for row in graph.get_node_df().iter_rows(named=True)}
+
+
+class TestHighlight:
+    """highlight= and highlight_edges= pick out nodes and edges in the accent color and mute
+    the rest."""
+
+    ACCENT = "#c2410c"
+    MUTED = "#d4d4d8"
+
+    def _plot(self, graph, **opts):
+        return graph.plot(theme="light", seed=1, legend=False, **opts).svg
+
+    def _picked(self, graph, **opts):
+        from edgecase.svg_renderer import _resolve_highlight
+
+        picked = _resolve_highlight(graph, opts.get("highlight"), opts.get("highlight_edges"))
+        label = {nid: graph.get_node(nid).label for nid in graph.get_node_ids()}
+        ends = {
+            eid: tuple(label[n] for n in graph.get_node_ids_by_edge_id(eid))
+            for eid in graph.get_edge_ids()
+        }
+        return {
+            level: ({label[n] for n in nodes}, {ends[e] for e in edges})
+            for level, (nodes, edges) in picked.items()
+        }
+
+    def test_path_of_nodes_takes_its_edges(self):
+        picked = self._picked(_chain(), highlight=["a", "b", "c"])
+        assert picked["accent"] == ({"a", "b", "c"}, {("a", "b"), ("b", "c")})
+        assert picked["soft"] == (set(), set())
+
+    def test_nodes_not_in_a_row_take_no_edges(self):
+        nodes, edges = self._picked(_chain(), highlight=["a", "c", "e"])["accent"]
+        assert nodes == {"a", "c", "e"} and edges == set()
+
+    def test_one_node_by_id_or_label(self):
+        g = _chain()
+        by_label = self._picked(g, highlight="d")["accent"]
+        by_id = self._picked(g, highlight=_ids(g)["d"])["accent"]
+        assert by_label == by_id == ({"d"}, set())
+
+    def test_pairs_pick_out_edges_and_their_ends(self):
+        nodes, edges = self._picked(_chain(), highlight=[("c", "x"), ("a", "b")])["accent"]
+        assert nodes == {"a", "b", "c", "x"} and edges == {("c", "x"), ("a", "b")}
+
+    def test_path_order_attribute(self):
+        """An attribute of distinct whole numbers, like shortest_path_order, is a path."""
+        g = _chain().shortest_path("a", "e")
+        nodes, edges = self._picked(g, highlight="shortest_path_order")["accent"]
+        assert nodes == {"a", "b", "c", "d", "e"}
+        assert edges == {("a", "b"), ("b", "c"), ("c", "d"), ("d", "e")}
+
+    def test_marked_attribute_values(self):
+        g = _chain()
+        g.set_node_attrs("flag", dict(zip([_ids(g)[n] for n in "abcd"], [0, None, False, 1])))
+        nodes, edges = self._picked(g, highlight="flag")["accent"]
+        # 0 counts, while None and False don't; two values not adjacent make no path
+        assert nodes == {"a", "d"} and edges == set()
+
+    def test_edge_attribute_and_selection(self):
+        g = _chain()
+        ids = _ids(g)
+        g.set_edge_attrs("spur", {g.find_edge_ids(ids["c"], ids["x"])[0]: True})
+        assert self._picked(g, highlight="spur")["accent"] == ({"c", "x"}, {("c", "x")})
+        assert self._picked(g, highlight_edges="spur")["accent"] == ({"c", "x"}, {("c", "x")})
+        g.select_nodes_by_id([ids["a"], ids["e"]])
+        assert self._picked(g, highlight="selection")["accent"][0] == {"a", "e"}
+
+    def test_edge_ids_and_dicts(self):
+        g = _chain()
+        first, *_, last = sorted(g.get_edge_ids())
+        for spec in (first, [first], {first: 3.5}):
+            assert self._picked(g, highlight_edges=spec)["accent"] == ({"a", "b"}, {("a", "b")})
+        both = self._picked(g, highlight_edges=[("a", "b"), last])["accent"][1]
+        assert both == {("a", "b"), ("c", "x")}
+
+    def test_levels(self):
+        picked = self._picked(
+            _chain(),
+            highlight={"accent": ["a", "b"], "soft": ["b", "c", "d"]},
+        )
+        # what both levels pick out is accent
+        assert picked["accent"] == ({"a", "b"}, {("a", "b")})
+        assert picked["soft"] == ({"c", "d"}, {("b", "c"), ("c", "d")})
+
+    @pytest.mark.parametrize(
+        "opts",
+        [
+            {"highlight": "nobody"},
+            {"highlight": ["a", "nobody"]},
+            {"highlight": [("a", "e")]},
+            {"highlight_edges": "no_such_attr"},
+        ],
+    )
+    def test_unknown_things_raise(self, opts):
+        with pytest.raises(ValueError):
+            self._plot(_chain(), **opts)
+
+    def test_drawing(self):
+        g = _chain()
+        svg = self._plot(g, highlight=["a", "b", "c"])
+        fills = _node_fills(svg)
+        ids = _ids(g)
+        assert {fills[ids[n]] for n in "abc"} == {self.ACCENT}
+        assert {fills[ids[n]] for n in "dex"} == {self.MUTED}
+        strokes = _edge_strokes(svg)
+        ab = g.find_edge_ids(ids["a"], ids["b"])[0]
+        de = g.find_edge_ids(ids["d"], ids["e"])[0]
+        assert strokes[ab][0] == self.ACCENT and strokes[de][0] != self.ACCENT
+        assert strokes[ab][1] > strokes[de][1]
+
+    def test_accent_nodes_keep_their_group_color(self):
+        g = _chain()
+        ids = _ids(g)
+        g.set_node_attrs(
+            "team", {nid: "red" if lbl in "abc" else "blue" for lbl, nid in ids.items()}
+        )
+        plain = _node_fills(self._plot(g, color_by="team"))
+        fills = _node_fills(self._plot(g, color_by="team", highlight=["a", "b"]))
+        assert fills[ids["a"]] == plain[ids["a"]] != self.ACCENT
+        assert fills[ids["c"]] == self.MUTED
+
+    def test_soft_nodes_are_pale_and_ringed(self):
+        g = _chain()
+        ids = _ids(g)
+        svg = self._plot(g, highlight={"soft": "e"})
+        circle = re.search(rf'<circle [^>]*data-node="{ids["e"]}"[^>]*>', svg).group(0)
+        assert f'stroke="{self.ACCENT}"' in circle
+        assert 'fill="#c2410c"' not in circle and f'fill="{self.MUTED}"' not in circle
+
+    def test_play_final_frame(self):
+        g = _chain().bfs("a")
+        html = g.play(highlight=["a", "b"], highlight_edges={"soft": [("c", "x")]})._repr_html_()
+        steps = json.loads(re.search(r"var STEPS=(\[.*?\]);\n", html, re.S).group(1))
+        assert all("hl" not in s for s in steps[:-1])
+        assert steps[-1]["hl"] == {
+            "an": ["a", "b"],
+            "ae": [["a", "b"]],
+            "sn": ["c", "x"],
+            "se": [["c", "x"]],
+        }
+        assert "var COL_ACC='#c2410c'" not in html  # auto theme: a variable
+        assert "COL_ACC=" in html
+
+    def test_play_without_highlight_is_unchanged(self):
+        g = _chain()
+        assert _drawing(g.play(seed=1)) == _drawing(g.play(seed=1, highlight=None))
+
+
+class TestColorScales:
+    """Numeric color_by= gets a color scale, and the legend explains the colors."""
+
+    def _graph(self, values):
+        g = _chain()
+        g.set_node_attrs("score", dict(zip(sorted(g.get_node_ids()), values)))
+        return g
+
+    def test_floats_get_a_sequential_scale(self):
+        from edgecase.svg_renderer import SEQUENTIAL_STOPS
+
+        g = self._graph([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        fills = _node_fills(g.plot(color_by="score", theme="light", seed=1).svg)
+        ids = sorted(g.get_node_ids())
+        assert fills[ids[0]] == SEQUENTIAL_STOPS[0][1]
+        assert fills[ids[-1]] == SEQUENTIAL_STOPS[-1][1]
+        assert len(set(fills.values())) == 6
+
+    def test_dark_theme_runs_the_other_way(self):
+        from edgecase.svg_renderer import SEQUENTIAL_STOPS
+
+        g = self._graph([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        fills = _node_fills(g.plot(color_by="score", theme="dark", seed=1).svg)
+        assert fills[sorted(g.get_node_ids())[-1]] == SEQUENTIAL_STOPS[-1][2]
+
+    def test_whole_numbers_are_groups_unless_asked(self):
+        g = self._graph([3, 1, 2, 1, 3, 2])
+        svg = g.plot(color_by="score", theme="light", seed=1).svg
+        assert "linearGradient" not in svg and len(set(_node_fills(svg).values())) == 3
+        svg = g.plot(color_by="score", color_scale="sequential", theme="light", seed=1).svg
+        assert "linearGradient" in svg
+
+    def test_diverging_is_symmetric_about_the_midpoint(self):
+        from edgecase.svg_renderer import DIVERGING_STOPS
+
+        g = self._graph([-1.0, -0.5, 0.0, 0.5, 2.0, 0.25])
+        ids = sorted(g.get_node_ids())
+        fills = _node_fills(
+            g.plot(color_by="score", color_scale="diverging", theme="light", seed=1).svg
+        )
+        assert fills[ids[2]] == DIVERGING_STOPS[1][1]  # 0 is the neutral middle
+        assert fills[ids[4]] == DIVERGING_STOPS[2][1]  # the more extreme end is full color
+        assert fills[ids[0]] != DIVERGING_STOPS[0][1]
+        fills = _node_fills(
+            g.plot(color_by="score", color_scale="diverging", color_midpoint=0.5, theme="light").svg
+        )
+        assert fills[ids[3]] == DIVERGING_STOPS[1][1]
+
+    def test_missing_values_are_gray(self):
+        from edgecase.svg_renderer import MISSING_COLOR
+
+        g = self._graph([0.1, None, 0.3, 0.4, 0.5, 0.6])
+        svg = g.plot(color_by="score", theme="light", seed=1).svg
+        assert _node_fills(svg)[sorted(g.get_node_ids())[1]] == MISSING_COLOR[0]
+        assert "no value" in svg
+
+    def test_missing_groups_are_gray(self):
+        """Regression: nodes without a group took a palette hue, and a "none" legend entry."""
+        from edgecase.svg_renderer import MISSING_COLOR
+
+        g = self._graph(["a", None, "b", None, "a", "b"])
+        svg = g.plot(color_by="score", theme="light", seed=1).svg
+        fills = _node_fills(svg)
+        ids = sorted(g.get_node_ids())
+        assert fills[ids[1]] == fills[ids[3]] == MISSING_COLOR[0]
+        assert len({fills[ids[0]], fills[ids[2]], MISSING_COLOR[0]}) == 3
+        assert "no value" in svg and ">none</text>" not in svg
+
+    def test_bad_scales_raise(self):
+        g = self._graph([0.1, 0.2, 0.3, 0.4, 0.5, 0.6])
+        with pytest.raises(ValueError, match="Unknown color_scale"):
+            g.plot(color_scale="rainbow")
+        g.set_node_attrs("kind", {nid: "x" for nid in sorted(g.get_node_ids())})
+        with pytest.raises(ValueError, match="needs numeric values"):
+            g.plot(color_by="kind", color_scale="sequential")
+
+    def test_groups_take_colors_in_sorted_order(self):
+        """The same values get the same colors however the nodes are ordered."""
+        a = self._graph(["pear", "apple", "fig", "apple", "pear", "fig"])
+        b = self._graph(["fig", "pear", "apple", "fig", "apple", "pear"])
+        color = {}
+        for g in (a, b):
+            fills = _node_fills(g.plot(color_by="score", theme="light", seed=1).svg)
+            for nid, fill in fills.items():
+                value = g.get_node(nid).attributes["score"]
+                assert color.setdefault(value, fill) == fill
+
+
+class TestLegend:
+    def test_swatches_for_groups(self):
+        svg = ec.karate_club().plot(color_by="faction", seed=1).svg
+        legend = svg[svg.index('<g class="ec-legend"') :]
+        assert ">faction</text>" in legend
+
+    def test_ramp_for_scales(self):
+        svg = ec.karate_club().pagerank().plot(color_by="pagerank", seed=1).svg
+        assert 'class="ec-legend"' in svg and "linearGradient" in svg
+
+    def test_legend_false_and_no_colors(self):
+        g = ec.karate_club()
+        assert 'class="ec-legend"' not in g.plot(color_by="faction", legend=False, seed=1).svg
+        assert 'class="ec-legend"' not in g.plot(seed=1).svg
+
+    def test_left_out_when_colors_repeat(self):
+        """A legend can't tell apart more groups than the palette has colors."""
+        svg = ec.karate_club().plot(color_by="label", seed=1).svg
+        assert 'class="ec-legend"' not in svg
+
+    def test_widens_the_canvas_not_the_drawing(self):
+        g = ec.karate_club()
+        plain = g.plot(color_by="faction", legend=False, seed=1, theme="light").svg
+        with_legend = g.plot(color_by="faction", seed=1, theme="light").svg
+
+        def view_box(svg):
+            return [float(v) for v in re.search(r'viewBox="([^"]+)"', svg).group(1).split()]
+
+        assert view_box(with_legend)[2] > view_box(plain)[2]
+
+    def test_gradient_stops_follow_the_auto_theme(self):
+        svg = ec.karate_club().pagerank().plot(color_by="pagerank", seed=1).svg
+        stops = re.findall(r'<stop [^>]*stop-color="([^"]+)"', svg)
+        assert stops and all(s.startswith("var(--ect-") for s in stops)
+
+
+class TestEdgeAesthetics:
+    def test_edge_color_by_edge_attribute(self):
+        g = ec.pipeline()
+        strokes = _edge_strokes(g.plot(edge_color_by="cost", theme="light", seed=1).svg)
+        cost = {row["id"]: row["cost"] for row in g.get_edge_df().iter_rows(named=True)}
+        by_value = {}
+        for eid, (stroke, _) in strokes.items():
+            assert by_value.setdefault(cost[eid], stroke) == stroke
+        assert len(set(by_value.values())) == len(by_value) > 1
+
+    def test_numeric_edge_attribute_gets_a_scale(self):
+        g = ec.pipeline()
+        g.set_edge_attrs("load", {eid: eid / 10 for eid in g.get_edge_ids()})
+        svg = g.plot(edge_color_by="load", theme="light", seed=1).svg
+        assert "linearGradient" in svg and '<g opacity="0.85">' in svg
+
+    def test_edge_width_by(self):
+        g = ec.pipeline()
+        strokes = _edge_strokes(g.plot(edge_width_by="capacity", theme="light", seed=1).svg)
+        cap = {row["id"]: row["capacity"] for row in g.get_edge_df().iter_rows(named=True)}
+        widest = max(strokes, key=lambda e: strokes[e][1])
+        narrowest = min(strokes, key=lambda e: strokes[e][1])
+        assert cap[widest] == max(cap.values()) and cap[narrowest] == min(cap.values())
+        assert strokes[widest][1] > strokes[narrowest][1]
+
+    def test_cross_group_edges_default_to_gray(self):
+        """Regression: edges between groups were salmon, close to the palette's red group."""
+        g = ec.karate_club()
+        for theme, gray in [("light", "#52525b"), ("dark", "#a1a1aa")]:
+            svg = g.plot(color_by="faction", edge_color_by="faction", theme=theme, seed=1).svg
+            strokes = {stroke for stroke, _ in _edge_strokes(svg).values()}
+            assert gray in strokes and len(strokes) == 3
+
+    def test_edge_label_by_weight(self):
+        """Regression: `edge_label_by="weight"` drew no labels, since the weight isn't an
+        attribute."""
+        g = ec.Graph.from_edges([("A", "B", 2.5), ("B", "C", 7.25)])
+        svg = g.plot(edge_label_by="weight", theme="light", seed=1).svg
+        assert ">2.5</text>" in svg and ">7.25</text>" in svg
+
+    def test_parallel_edge_labels_apart(self):
+        """Regression: the labels of parallel edges were drawn on top of each other, at the
+        middle of the straight line between the nodes instead of by each curve."""
+        g = ec.Graph.from_edges([("A", "B", 3.0), ("A", "B", 4.0)])
+        for curved in (False, True):
+            svg = g.plot(edge_label_by="weight", curved_edges=curved, seed=1).svg
+            if curved:
+                paths = re.findall(r'<textPath href="#([^"]+)"', svg)
+                ds = {
+                    re.search(rf'id="{re.escape(p)}"[^>]*\bd="([^"]+)"', svg).group(1)
+                    for p in paths
+                }
+                assert len(ds) == 2
+            else:
+                at = re.findall(r'<text x="([\d.-]+)" y="([\d.-]+)"[^>]*>[34]\.0</text>', svg)
+                (xa, ya), (xb, yb) = [(float(x), float(y)) for x, y in at]
+                assert math.hypot(xa - xb, ya - yb) > 20
+
+    @pytest.mark.parametrize("end", [(4, 0), (0, 4), (3, 3)])
+    def test_many_parallel_edge_labels_apart(self, end):
+        """Regression: with three or more edges between two nodes, the labels of the inner
+        edges were drawn on top of each other and of the outer ones."""
+        g = ec.Graph()
+        # A third node far away keeps the edges short, as in a larger drawing
+        g.add_node(label="A", pos=[0, 0]).add_node(label="B", pos=list(end))
+        g.add_node(label="C", pos=[12, 12])
+        for w in range(5):
+            g.add_edge("A", "B", amount=100 + w)
+        svg = g.plot(layout="pos", edge_label_by="amount", seed=1).svg
+        at = re.findall(r'<text x="([\d.-]+)" y="([\d.-]+)"[^>]*>10\d</text>', svg)
+        spots = [(float(x), float(y)) for x, y in at]
+        assert len(spots) == 5
+        for i, (xa, ya) in enumerate(spots):
+            for xb, yb in spots[i + 1 :]:
+                assert abs(xa - xb) > 18 or abs(ya - yb) > 10
+
+    def test_circular_layout_follows_id_order(self):
+        """Regression: layout="circular" placed the nodes in storage order, so a cycle graph
+        was drawn with its edges crossing the circle instead of as a ring."""
+        svg = ec.Graph().add_cycle_graph(12).plot(layout="circular").svg
+        spots = re.findall(r'<circle cx="([\d.]+)" cy="([\d.]+)"[^>]*data-node="(\d+)"', svg)
+        pos = {int(n): (float(x), float(y)) for x, y, n in spots}
+        steps = [math.dist(pos[i], pos[i % 12 + 1]) for i in range(1, 13)]
+        assert max(steps) - min(steps) < 1
+
+    def test_circular_layout_follows_the_edges(self):
+        """Regression: in ID order, a tree numbered breadth-first had its edges crossing the
+        circle. The depth-first order of `layout_circular()` keeps parents next to children."""
+        svg = ec.Graph().add_balanced_tree(2, 3).plot(layout="circular").svg
+        spots = re.findall(r'<circle cx="([\d.]+)" cy="([\d.]+)"[^>]*data-node="(\d+)"', svg)
+        pos = {int(n): (float(x), float(y)) for x, y, n in spots}
+        cx = sum(x for x, _ in pos.values()) / len(pos)
+        cy = sum(y for _, y in pos.values()) / len(pos)
+        around = sorted(pos, key=lambda n: math.atan2(pos[n][0] - cx, cy - pos[n][1]) % math.tau)
+        start = around.index(1)
+        assert around[start:] + around[:start] == [1, 2, 4, 8, 9, 5, 10, 11, 3, 6, 12, 13, 7, 14, 15]
+
+    def test_edge_width_by_unknown_raises(self):
+        with pytest.raises(ValueError, match="no edge has an attribute"):
+            ec.pipeline().plot(edge_width_by="nope")
