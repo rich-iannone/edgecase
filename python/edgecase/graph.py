@@ -73509,6 +73509,11 @@ class Graph:
         ValueError
             If `S=` is empty, a node does not exist, or the graph has no edges.
 
+        See Also
+        --------
+        cut_size : The cut without normalization.
+        conductance : The cut relative to the volume of the smaller side.
+
         Examples
         --------
         One of seven edges crosses between the triangles, so 1 / 14 of all edge ends lie on the
@@ -73517,14 +73522,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         graph.mixing_expansion(["A", "B", "C"]) == 1 / 14
+        ```
+
+        ### How mixed the club was
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Only 6% of the ends of the club's friendships lie on friendships between the
+        factions, drawn in gray:
+
+        ```{python}
+        karate = ec.karate_club()
+        nodes = karate.get_node_df()
+        instructor_side = nodes.filter(nodes["faction"] == 1)["id"].to_list()
+
+        round(karate.mixing_expansion(instructor_side), 3)
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", edge_color_by="faction",
+            label_by="label",
+        )
         ```
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
