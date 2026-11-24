@@ -63244,15 +63244,45 @@ class Graph:
         ---------------
         Read off the tree edges of `dfs_edges()`. Matches NetworkX's `dfs_predecessors`.
 
+        See Also
+        --------
+        dfs_successors : The same tree, from each node to the nodes it reached.
+        bfs_predecessors : The predecessors from a breadth-first search.
+
         Examples
         --------
+        Each node maps to the node the search reached it from. DFS reaches C from B, going as
+        deep as it can before trying A's other neighbor:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("A", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("A", "D")])
 
-        {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.dfs_predecessors("A").items()}
+        label = graph.get_label_from_id
+        {label(c): label(p) for c, p in graph.dfs_predecessors("A").items()}
+        ```
+
+        ### A long chain of prerequisites
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        DFS goes deep, so following the predecessors back from CS460 gives a long chain of
+        courses, each a prerequisite of the next. It goes through CS102, although CS101 is itself
+        a prerequisite of CS201:
+
+        ```{python}
+        courses = ec.courses()
+        before = courses.dfs_predecessors("CS101")
+
+        chain = [courses.get_id_from_label("CS460")]
+        while chain[-1] in before:
+            chain.append(before[chain[-1]])
+
+        [courses.get_label_from_id(n) for n in reversed(chain)]
+        ```
+
+        ```{python}
+        courses.plot(highlight=chain, label_by="label", seed=2)
         ```
         """
         with self._no_recording():
