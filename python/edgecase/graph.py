@@ -58854,6 +58854,7 @@ class Graph:
         target: Union[int, str],
         attr_name: str | None = None,
         return_list: bool = False,
+        weighted: bool | None = None,
     ) -> Union[list[int], "Graph", None]:
         """
         Find shortest path between two nodes.
@@ -58861,7 +58862,7 @@ class Graph:
         ![Shortest path (fewest hops)](../assets/graphs/shortest-path.light.svg){.lightbox fig-alt="The same directed weighted graph with three routes from A to F. shortest_path runs a breadth-first search, so it ignores the weights and returns the two-hop path A, D, F in the accent color, with filled badges giving each node's position 0, 1, 2." width="100%"}
 
         Finds a single shortest route from `source=` to `target=`. The meaning of "shortest"
-        depends on how the graph was created:
+        depends on how the graph was created, unless `weighted=` overrides it:
 
         - for an unweighted graph (the default, `Graph(weighted=False)`), a breadth-first search
           (BFS) finds the path with the fewest hops, and any edge weights are ignored
@@ -58881,9 +58882,8 @@ class Graph:
         Parameters
         ----------
         source
-            Node where the path starts, given as an integer node ID or a string label. An unknown
-            label raises a `ValueError`; an integer ID that is not in the graph makes the method
-            return `None`.
+            Node where the path starts, given as an integer node ID or a string label. An ID or
+            label that isn't in the graph raises a `NodeNotFoundError` (a `ValueError`).
         target
             Node where the path ends, given as an integer node ID or a string label, with the
             same rules as `source=`. If `target=` equals `source=`, the path is just that node.
@@ -58897,6 +58897,11 @@ class Graph:
             If `True`, returns list of node IDs in the path and leaves the node DataFrame
             untouched. If `False` (default), stores positions as node attributes under
             `attr_name=` and returns self for chaining.
+        weighted
+            Whether to measure paths by edge weight or by number of hops. If `None` (default),
+            follows the graph: weights are used on a weighted graph (`Graph(weighted=True)`) and
+            ignored otherwise. Pass `False` for the path with the fewest hops on a weighted
+            graph, or `True` to use the weights of an unweighted one.
 
         Returns
         -------
@@ -58911,79 +58916,88 @@ class Graph:
         ValueError
             If `source=` or `target=` is an ID or label that does not exist in the graph.
 
+        See Also
+        --------
+        shortest_path_length : The distance alone, without the path.
+        all_shortest_paths : Every path that ties for shortest.
+        k_shortest_paths : The shortest path, the next shortest, and so on.
+        astar_path : A shortest path found with a distance estimate to guide the search.
+        bellman_ford_shortest_path : Shortest paths with negative edge weights.
+
         Examples
         --------
-        This directed graph has three routes from A to F: through B and C (three hops, total
-        weight 4), through D (two hops, weight 6), and through E (two hops, weight 5). On an
-        unweighted graph only hops count, so the method returns a two-hop route even though
-        the weights are set:
+        On a weighted graph the route with the lowest total weight wins: A, B, C, F costs 4, while
+        the shorter-looking route through D costs 6. `return_list=True` gives the node IDs along it:
 
         ```{python}
         import edgecase as ec
 
-        def build_routes(weighted):
-            return (
-                ec.Graph(directed=True, weighted=weighted)
-                .add_nodes(["A", "B", "C", "D", "E", "F"])
-                .add_edges(
-                    [
-                        ("A", "B", 1.0),
-                        ("B", "C", 2.0),
-                        ("C", "F", 1.0),
-                        ("A", "D", 3.0),
-                        ("D", "F", 3.0),
-                        ("A", "E", 2.0),
-                        ("E", "F", 3.0),
-                    ]
-                )
-            )
-
-        graph = build_routes(weighted=False)
-        path = graph.shortest_path("A", "F", return_list=True)
-        [graph.get_label_from_id(nid) for nid in path]
-        ```
-
-        Building the same graph with `weighted=True` switches to Dijkstra's algorithm, and the
-        longer but cheaper route through B and C (total weight 4) wins:
-
-        ```{python}
-        weighted_graph = build_routes(weighted=True)
-        path = weighted_graph.shortest_path("A", "F", return_list=True)
-        [weighted_graph.get_label_from_id(nid) for nid in path]
-        ```
-
-        With `return_list=False` (the default), each node on the path gets its position as a
-        node attribute, and every other node gets a null value. This is handy for coloring the
-        route in a plot:
-
-        ```{python}
-        graph.shortest_path("A", "F")
-        graph.get_node_df().select(["label", "shortest_path_order"])
-        ```
-
-        Chaining multiple calls stores each path under its own attribute name:
-
-        ```{python}
-        grid = (
-            ec.Graph()
-            .add_grid_2d(rows=4, cols=4)
-            .shortest_path(1, 16, attr_name="corner_to_corner")
-            .shortest_path(4, 13, attr_name="other_diagonal")
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1), ("B", "C", 2), ("C", "F", 1), ("A", "D", 3), ("D", "F", 3)],
+            directed=True,
         )
 
-        grid.get_node_attrs("corner_to_corner")
+        graph.shortest_path("A", "F", return_list=True)
         ```
 
-        Edges are followed only in their direction, so there is no path from F back to A. Both
-        modes then return `None` (not the graph):
+        Without it, each node on the path gets its position in the `shortest_path_order` column,
+        and every other node gets a null:
 
         ```{python}
-        (graph.shortest_path("F", "A", return_list=True), graph.shortest_path("F", "A"))
+        graph.shortest_path("A", "F").get_node_df().select("label", "shortest_path_order")
         ```
+
+        ### Fastest isn't fewest stops
+
+        The metro network is weighted by travel time, so its shortest path is the fastest route.
+        `weighted=False` counts stops instead. From Westgate to Lakeside, the two disagree:
+
+        ```{python}
+        metro = ec.metro()
+
+        (
+            metro.shortest_path_length("Westgate", "Lakeside"),
+            metro.shortest_path_length("Westgate", "Lakeside", weighted=False),
+        )
+        ```
+
+        The fastest route takes 18 minutes and the one with the fewest stops takes 4 stops. Drawing
+        each on the map shows why: the fastest route (left) goes through downtown on the Red line,
+        6 stops in all, while the fewest stops (right) take the Green line around the north side,
+        which is slower at 22 minutes:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        metro.shortest_path("Westgate", "Lakeside", attr_name="fastest")
+        metro.plot(
+            layout="pos", highlight="fastest", label_by="label",
+            width=340, height=300,
+        )
+        ```
+
+        ```{python}
+        metro.shortest_path("Westgate", "Lakeside", attr_name="fewest", weighted=False)
+        metro.plot(
+            layout="pos", highlight="fewest", label_by="label",
+            width=340, height=300,
+        )
+        ```
+
+        :::
+
+        Which is better depends on what a stop costs the traveler. For the next-best routes, use
+        `k_shortest_paths()`, and when several routes tie for shortest, `all_shortest_paths()` lists
+        them all. On a large map, `astar_path()` finds the same route faster with a distance
+        estimate to steer it.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
-        path_ids = rust.shortest_path(self._graph, source_id, target_id)
+        if weighted is None or self._use_weights(weighted) == self.is_weighted():
+            path_ids = rust.shortest_path(self._graph, source_id, target_id)
+        else:
+            found = rust.astar(self._graph, source_id, target_id, None, bool(weighted))
+            path_ids = None if found is None else found[1]
 
         # If no path exists, return None regardless of return_list
         if path_ids is None:
@@ -58998,11 +59012,14 @@ class Graph:
 
         # Create dict mapping node_id -> position in path
         positions = {node_id: idx for idx, node_id in enumerate(path_ids)}
-        self.set_node_attrs(attr_name, positions)
 
         # Track computation
         params = {"source": source, "target": target}
-        self._computations.append(("shortest_path", params, attr_name))
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._store_node_result(
+            "shortest_path", params, attr_name, positions, show="path", paths=[path_ids], default_attr="shortest_path_order"
+        )
 
         return self
 
