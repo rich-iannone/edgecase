@@ -30841,27 +30841,59 @@ class Graph:
         `tol`. Each iteration costs two dense $n \times n$ matrix products, $O(n^3)$, so
         the method is meant for graphs of up to a few thousand nodes.
 
+        See Also
+        --------
+        simrank_star_similarity : A variant that also counts paths of uneven length.
+        panther_similarity : Similarity from sharing sampled random paths.
+        jaccard_similarity : Similarity from shared neighbors only.
+
         Examples
         --------
-        Two students who take the same courses are similar, even though they are not linked to
-        each other:
+        Two nodes are similar when their neighbors are. `A` and `B` know the same two nodes, so
+        they score high. `A` and `C` are joined, but random walkers from the two, moving in step,
+        can never meet, so they score `0`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "cy", "math", "art", "bio"])
-        g.add_edges(
-            [("ann", "math"), ("ann", "art"), ("bob", "math"), ("bob", "art"), ("cy", "bio")]
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
 
-        round(g.simrank_similarity("ann", "bob"), 3), g.simrank_similarity("ann", "cy")
+        scores = graph.simrank_similarity("A")
+
+        dict(sorted((label(n), round(s, 3)) for n, s in scores.items()))
         ```
 
-        With only `source=`, the scores against every node come back as a dictionary:
+        ### Like Mara
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. SimRank counts how soon two random walkers, one from each person,
+        meet. Pablo, who has all of Mara's friends, is the most similar to her, ahead of her
+        friend Nico and of Sven, who shares one friend with her:
 
         ```{python}
-        scores = g.simrank_similarity("math")
-        {g.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        mara = friends.simrank_similarity("Mara")
+        others = {
+            label(n): round(s, 2) for n, s in mara.items() if label(n) != "Mara"
+        }
+
+        sorted(others.items(), key=lambda item: -item[1])[:5]
+        ```
+
+        ```{python}
+        friends = friends.set_node_attrs("like_mara", others)
+
+        friends.plot(color_by="like_mara", label_by="label", seed=8)
+        ```
+
+        A single pair gives a single score:
+
+        ```{python}
+        round(friends.simrank_similarity("Mara", "Pablo"), 3)
         ```
         """
         ids, rows = rust.simrank(
