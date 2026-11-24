@@ -25137,43 +25137,49 @@ class Graph:
         ValueError
             If an ID or label in `node_ids=` is not found in the graph.
 
+        See Also
+        --------
+        deselect_edges : Remove edges from the selection.
+        invert_node_selection : Select the nodes that aren't selected.
+        clear_selection : Clear the whole selection.
+
         Examples
         --------
-        Selecting every node in this 5-node path and then deselecting the two endpoints
-        leaves only the middle three nodes selected:
+        This selects `B` and its neighbors, then deselects `B`, which leaves just the neighbors.
+        Nodes can be given as labels or IDs:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_path_graph(5)
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph.select_nodes_in_neighborhood("B").deselect_nodes(["B"])
 
-        all_ids = list(graph.get_node_creation_order())
-        graph.select_nodes_by_id(all_ids)
-
-        first_id, last_id = all_ids[0], all_ids[4]
-        graph.deselect_nodes([first_id, last_id])
-
-        graph.count_selected_nodes()
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
-        Labels work just as well as IDs. A common pattern is to take a neighborhood and then
-        remove its center, leaving just the direct neighbors of "B" -- "A" and "C":
+        ### The instructor's circle
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The instructor (member `0`) and the 16 members linked to
+        them make up the instructor's neighborhood. Deselecting the instructor leaves the 16
+        members:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-            .select_nodes_in_neighborhood("B", k=1)
-            .deselect_nodes(["B"])
+        karate = ec.karate_club()
+        (
+            karate
+            .select_nodes_in_neighborhood("0")
+            .deselect_nodes(["0"])
         )
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        karate.count_selected_nodes()
         ```
 
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight="selection", label_by="label"
+        )
+        ```
         """
         # Resolve labels to IDs; unknown IDs or labels raise before anything changes
         resolved_ids = [self._node_id_or_raise(nid) for nid in node_ids]
