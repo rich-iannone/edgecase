@@ -63079,15 +63079,43 @@ class Graph:
         Read off the tree edges of `bfs_edges()`, $O(V + E)$. Matches NetworkX's
         `bfs_predecessors`.
 
+        See Also
+        --------
+        bfs_successors : The same tree, from each node to the nodes it reached.
+        dfs_predecessors : The predecessors from a depth-first search.
+        predecessor : Every predecessor on a shortest path, not just one.
+
         Examples
         --------
+        Each node maps to the node the search reached it from:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("C", "D")])
 
-        {g.get_label_from_id(c): g.get_label_from_id(p) for c, p in g.bfs_predecessors("A").items()}
+        label = graph.get_label_from_id
+        {label(c): label(p) for c, p in graph.bfs_predecessors("A").items()}
+        ```
+
+        ### The way back to Central
+
+        `metro()` is a made-up city's metro network. Following the predecessors back from any
+        station retraces a route to Central with the fewest stops:
+
+        ```{python}
+        metro = ec.metro()
+        before = metro.bfs_predecessors("Central")
+
+        route = [metro.get_id_from_label("Airport")]
+        while route[-1] in before:
+            route.append(before[route[-1]])
+
+        [metro.get_label_from_id(n) for n in route]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=route, label_by="label")
         ```
         """
         with self._no_recording():
