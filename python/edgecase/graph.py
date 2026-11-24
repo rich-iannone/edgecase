@@ -59915,6 +59915,11 @@ class Graph:
             If a label does not exist in the graph, or a weighted graph has a negative edge
             weight.
 
+        See Also
+        --------
+        shortest_path : Dijkstra's algorithm, searching from the source only.
+        astar_path : A search guided by a distance estimate.
+
         Examples
         --------
         On a weighted graph the cheaper three-hop route through B and C beats the two-hop route
@@ -59923,11 +59928,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["A", "B", "C", "D", "F"])
-            .add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
-                        ("A", "D", 3.0), ("D", "F", 3.0)])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
+                ("A", "D", 3.0), ("D", "F", 3.0),
+            ],
+            directed=True,
         )
 
         length, path = graph.bidirectional_dijkstra("A", "F")
@@ -59938,6 +59944,23 @@ class Graph:
 
         ```{python}
         graph.bidirectional_dijkstra("F", "A") is None
+        ```
+
+        ### Across the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. The fastest trip from Docks to Northpark takes 16 minutes, across
+        the city center:
+
+        ```{python}
+        metro = ec.metro()
+        minutes, route = metro.bidirectional_dijkstra("Docks", "Northpark")
+
+        minutes, [metro.get_label_from_id(n) for n in route]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=route, label_by="label")
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
