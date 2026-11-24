@@ -4174,7 +4174,7 @@ class Graph:
         label_by: Optional[str] = None,
         edge_label_by: Optional[str] = None,
         curved_edges: bool = False,
-        theme: str = "light",
+        theme: Optional[str] = None,
         palette: str = "tableau",
         width: int = 700,
         height: int = 500,
@@ -4187,6 +4187,12 @@ class Graph:
         show_labels: bool = True,
         output: Optional[str] = None,
         seed: Optional[int] = None,
+        edge_width_by: Optional[str] = None,
+        color_scale: Optional[str] = None,
+        color_midpoint: Optional[float] = None,
+        highlight=None,
+        highlight_edges=None,
+        legend: bool = True,
     ):
         """
         Render the graph as a static SVG image.
