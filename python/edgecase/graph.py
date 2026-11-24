@@ -28663,7 +28663,7 @@ class Graph:
         """
         return self._node_df(self.get_selected_node_ids())
 
-    def get_edge_df(self) -> "pl.DataFrame":
+    def get_edge_df(self, labels: bool = False) -> "pl.DataFrame":
         """
         Get edges as a Polars DataFrame with standardized structure.
 
@@ -28679,6 +28679,13 @@ class Graph:
         - weight is included as a special attribute if present
 
         The DataFrame is always sorted by edge ID in ascending order.
+
+        Parameters
+        ----------
+        labels
+            If `True`, the `source` and `target` columns hold the endpoints' labels (a node
+            without a label shows its ID as a string) instead of their node IDs, which makes the
+            table easier to read. Defaults to `False`.
 
         Returns
         -------
@@ -28746,20 +28753,33 @@ class Graph:
         ```{python}
         df.group_by("rel").agg(pl.col("weight").mean()).sort("rel")
         ```
-        """
-        return self._edge_df(self.get_edge_ids(limit=None))
 
-    def _edge_df(self, edge_ids: list[int]) -> pl.DataFrame:
-        """The `get_edge_df()` table for the given edges."""
+        With `labels=True`, the endpoints are given by label rather than node ID:
+
+        ```{python}
+        graph.get_edge_df(labels=True).select("source", "target", "rel")
+        ```
+        """
+        return self._edge_df(self.get_edge_ids(limit=None), labels=labels)
+
+    def _edge_df(self, edge_ids: list[int], labels: bool = False) -> pl.DataFrame:
+        """The `get_edge_df()` table for the given edges, with endpoint labels if `labels`."""
         if not edge_ids:
             # no rows, but the mandatory columns (and `weight` on a weighted graph)
-            schema = {"id": pl.Int64, "source": pl.Int64, "target": pl.Int64, "rel": pl.Null}
+            end = pl.Utf8 if labels else pl.Int64
+            schema = {"id": pl.Int64, "source": end, "target": end, "rel": pl.Null}
             if self.is_weighted():
                 schema["weight"] = pl.Float64
             return pl.DataFrame(schema=schema)
 
         edges = [self.get_edge(eid) for eid in edge_ids]
         endpoints = [self.get_node_ids_by_edge_id(eid) for eid in edge_ids]
+        if labels:
+            name = {}
+            for nid in {n for ends in endpoints if ends for n in ends}:
+                label = self.get_label_from_id(nid)
+                name[nid] = str(nid) if label is None else str(label)
+            endpoints = [(name[e[0]], name[e[1]]) if e else None for e in endpoints]
         attrs = [(e.attributes or {}) if e else {} for e in edges]
 
         # mandatory columns first (`rel` even if all null), then the other attributes
