@@ -66594,29 +66594,44 @@ class Graph:
         is the number of reachable pairs. This is how NetworkX's `antichain_width()` computes
         it, and the results match.
 
+        See Also
+        --------
+        antichains : List every antichain.
+        topological_generations : Group the nodes into layers.
+
         Examples
         --------
-        In a diamond A -> B, A -> C, B -> D, C -> D, the largest antichain is {B, C}:
+        A diamond has width 2, `B` and `C`, and a chain has width 1:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        diamond = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
+        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
-        g.antichain_width()
+        diamond.antichain_width(), chain.antichain_width()
         ```
 
-        The width of the divisibility order on 1 to 30 is 15, the numbers 16 to 30, none of
-        which divides another:
+        ### How many tasks can run at once
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done. Its width is 5: at most five tasks are free of
+        each other, such as hiring, ordering the equipment, sourcing the suppliers, the
+        build-out and the marketing. By Dilworth's theorem, five is also the fewest chains of
+        tasks that cover the plan, so with five crews each working through a chain, no task
+        would ever wait for a free crew:
 
         ```{python}
-        div = ec.Graph(directed=True).add_nodes([str(i) for i in range(1, 31)])
-        div.add_edges(
-            [(str(a), str(b)) for a in range(1, 31) for b in range(2 * a, 31, a)]
-        )
+        cafe = ec.project()
+        widest = max(cafe.antichains(), key=len)
 
-        div.antichain_width()
+        cafe.antichain_width(), [cafe.get_label_from_id(n) for n in widest]
+        ```
+
+        ```{python}
+        cafe.plot(layout="pos", highlight=widest, label_by="label", height=360)
         ```
         """
         value = rust.antichain_width(self._graph)
