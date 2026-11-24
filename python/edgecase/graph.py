@@ -59537,7 +59537,10 @@ class Graph:
         return {k: int(v) for k, v in raw.items()}
 
     def shortest_path_length(
-        self, source: Union[int, str], target: Union[int, str]
+        self,
+        source: Union[int, str],
+        target: Union[int, str],
+        weighted: bool | None = None,
     ) -> Union[int, float, None]:
         """
         Get the length of the shortest path between two nodes.
@@ -59548,8 +59551,8 @@ class Graph:
         unweighted graph (the default) the distance is the number of hops, returned as an `int`.
         On a weighted graph (`Graph(weighted=True)`) it is the lowest total edge weight, found
         with Dijkstra's algorithm, returned as a `float`; edges without a weight count as `1.0`.
-        This is the same notion of "shortest" that `shortest_path()` uses, so the two always
-        agree.
+        `weighted=` overrides the graph's own setting. This is the same notion of "shortest"
+        that `shortest_path()` uses, so the two always agree.
 
         Directed graphs are followed in edge direction. A node is at distance `0` from itself.
 
@@ -59559,6 +59562,10 @@ class Graph:
             The starting node, as an integer ID or a string label.
         target
             The destination node, as an integer ID or a string label.
+        weighted
+            Whether to measure the distance by edge weight or by number of hops. If `None`
+            (default), follows the graph: weights are used on a weighted graph
+            (`Graph(weighted=True)`) and ignored otherwise.
 
         Returns
         -------
@@ -59571,6 +59578,12 @@ class Graph:
             If a label does not exist in the graph, or a weighted graph has a negative edge
             weight (use `bellman_ford_shortest_path()` for those).
 
+        See Also
+        --------
+        shortest_path : The path itself.
+        single_source_shortest_path_length : The distances from one node to every other.
+        all_pairs_shortest_path_length : The distances between every pair of nodes.
+
         Examples
         --------
         In this directed graph the fewest-hops route from A to F takes two hops, but the
@@ -59579,26 +59592,65 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        edges = [
-            ("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
-            ("A", "D", 3.0), ("D", "F", 3.0),
-        ]
-        hops = ec.Graph(directed=True).add_nodes(list("ABCDF")).add_edges(edges)
-        weights = ec.Graph(directed=True, weighted=True).add_nodes(list("ABCDF")).add_edges(edges)
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B", 1.0), ("B", "C", 2.0), ("C", "F", 1.0),
+                ("A", "D", 3.0), ("D", "F", 3.0),
+            ],
+            directed=True,
+        )
 
-        hops.shortest_path_length("A", "F"), weights.shortest_path_length("A", "F")
+        (
+            graph.shortest_path_length("A", "F", weighted=False),
+            graph.shortest_path_length("A", "F"),
+        )
         ```
 
         Edges only run forward, so there is no way back from F to A:
 
         ```{python}
-        hops.shortest_path_length("F", "A") is None
+        graph.shortest_path_length("F", "A") is None
+        ```
+
+        ### Minutes and stops on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. From Westgate, Docks is the quickest of these places to reach but
+        five stops away, while Garden is only three stops away but takes a minute longer:
+
+        ```{python}
+        import polars as pl
+
+        metro = ec.metro()
+        places = ["Garden", "Lakeside", "Docks", "Airport"]
+
+        pl.DataFrame({
+            "to": places,
+            "minutes": [
+                metro.shortest_path_length("Westgate", p) for p in places
+            ],
+            "stops": [
+                metro.shortest_path_length("Westgate", p, weighted=False)
+                for p in places
+            ],
+        })
+        ```
+
+        The three stops to Garden go over the hills by Hillcrest and Northpark:
+
+        ```{python}
+        trip = metro.shortest_path("Westgate", "Garden", return_list=True)
+        metro.plot(layout="pos", highlight=trip, label_by="label")
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
-        raw = rust.shortest_path_length(self._graph, source_id, target_id)
-        dist = None if raw is None else self._distances_out({0: raw})[0]
+        if weighted is None or self._use_weights(weighted) == self.is_weighted():
+            raw = rust.shortest_path_length(self._graph, source_id, target_id)
+            dist = None if raw is None else self._distances_out({0: raw})[0]
+        else:
+            found = rust.astar(self._graph, source_id, target_id, None, bool(weighted))
+            dist = None if found is None else self._as_number(found[0], bool(weighted))
 
         if self._recording_depth == 0:
             s_lbl, t_lbl = self._node_label(source_id), self._node_label(target_id)
