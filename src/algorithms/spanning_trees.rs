@@ -208,12 +208,14 @@ fn get_label_or_id(graph: &Graph, node_id: u64) -> String {
 
 /// Find an approximate Steiner tree connecting terminal nodes.
 ///
-/// Uses Mehlhorn's 2-approximation algorithm:
+/// Uses the 2-approximation of Kou, Markowsky and Berman, then improves on it:
 /// 1. Compute shortest paths between all pairs of terminal nodes
 /// 2. Build metric closure (complete graph on terminals with shortest path weights)
 /// 3. Find MST of metric closure
 /// 4. Expand MST edges to actual paths in original graph
 /// 5. Find MST of resulting subgraph to remove redundant edges
+/// 6. On undirected graphs, re-span the tree's nodes with an MST over all the edges between
+///    them and trim non-terminal leaves, while that makes the tree cheaper
 ///
 /// # Arguments
 /// * `graph` - The input graph
@@ -358,7 +360,86 @@ pub fn steiner_tree(
         }
     }
 
-    Ok(result_edges)
+    if graph.is_directed() {
+        return Ok(result_edges);
+    }
+
+    // Step 6: improve the tree. Re-span its nodes with a minimum spanning tree over every edge
+    // between them (not just the ones on the shortest paths) and trim the leaves that aren't
+    // terminals, until that stops making it cheaper. Neither step can make the tree dearer, so
+    // the 2-approximation guarantee holds.
+    let terminals: FxHashSet<u64> = terminal_ids.iter().copied().collect();
+    let total = |edges: &[(u64, u64, u64, f64)]| edges.iter().map(|e| e.3).sum::<f64>();
+    let mut best = prune_leaves(result_edges, &terminals);
+    loop {
+        let nodes: FxHashSet<u64> = best.iter().flat_map(|e| [e.1, e.2]).collect();
+        let candidate = prune_leaves(spanning_tree_on(graph, &nodes, weight_attr_ref), &terminals);
+        if total(&candidate) < total(&best) - 1e-12 {
+            best = candidate;
+        } else {
+            break;
+        }
+    }
+
+    Ok(best)
+}
+
+/// A minimum spanning tree of the subgraph of an undirected `graph` induced by `nodes`, using the
+/// cheapest of any parallel edges, as (edge_id, source_id, target_id, weight) tuples
+fn spanning_tree_on(
+    graph: &Graph,
+    nodes: &FxHashSet<u64>,
+    weight_attr: Option<&str>,
+) -> Vec<(u64, u64, u64, f64)> {
+    let mut candidates: Vec<(f64, u64, u64, u64)> = Vec::new();
+    for &a in nodes {
+        for b in graph.neighbors(a).unwrap_or_default() {
+            if a < b && nodes.contains(&b) {
+                if let Some((edge_id, weight)) =
+                    cheapest_edge(graph, a, b, |eid| get_edge_weight(graph, eid, weight_attr))
+                {
+                    if let Some(edge) = graph.get_edge(edge_id) {
+                        candidates.push((weight, edge_id, edge.source, edge.target));
+                    }
+                }
+            }
+        }
+    }
+    candidates.sort_by(|a, b| {
+        a.0.partial_cmp(&b.0)
+            .unwrap_or(Ordering::Equal)
+            .then(a.1.cmp(&b.1))
+    });
+    candidates.dedup_by_key(|c| c.1);
+
+    let mut uf = UnionFind::new();
+    let mut tree = Vec::new();
+    for (weight, edge_id, source, target) in candidates {
+        if uf.union(source, target) {
+            tree.push((edge_id, source, target, weight));
+        }
+    }
+    tree
+}
+
+/// Repeatedly remove the edges that lead to a leaf that isn't a terminal
+fn prune_leaves(
+    mut edges: Vec<(u64, u64, u64, f64)>,
+    terminals: &FxHashSet<u64>,
+) -> Vec<(u64, u64, u64, f64)> {
+    loop {
+        let mut degree: FxHashMap<u64, usize> = FxHashMap::default();
+        for e in &edges {
+            *degree.entry(e.1).or_default() += 1;
+            *degree.entry(e.2).or_default() += 1;
+        }
+        let is_spare = |n: &u64| degree[n] == 1 && !terminals.contains(n);
+        let before = edges.len();
+        edges.retain(|e| !is_spare(&e.1) && !is_spare(&e.2));
+        if edges.len() == before {
+            return edges;
+        }
+    }
 }
 
 /// Convert a path (sequence of node IDs) to (edge_id, source, target, weight) tuples, using the
@@ -877,6 +958,9 @@ pub fn directed_steiner_tree(
         }
     }
 
+    let tree_edges =
+        improve_arborescence(graph, root_id, tree_edges, &terminal_ids, weight_attr_ref);
+
     // Build result edge list
     let mut result: Vec<(u64, u64, u64, f64)> = Vec::with_capacity(tree_edges.len());
     for &eid in &tree_edges {
@@ -888,6 +972,105 @@ pub fn directed_steiner_tree(
 
     result.sort_by_key(|e| e.0);
     Ok(result)
+}
+
+/// Improve the paths that the Shortest-Path Heuristic found: the cheapest arborescence from
+/// `root` over the nodes they reach (Edmonds' algorithm, on every edge among those nodes), with
+/// the branches that lead to no terminal pruned away. The paths themselves form one such
+/// arborescence, so the result never costs more; it is kept only when it costs less.
+fn improve_arborescence(
+    graph: &Graph,
+    root: u64,
+    tree_edges: FxHashSet<u64>,
+    terminals: &[u64],
+    weight_attr: Option<&str>,
+) -> FxHashSet<u64> {
+    let mut nodes: Vec<u64> = vec![root];
+    for &eid in &tree_edges {
+        if let Some(edge) = graph.get_edge(eid) {
+            nodes.push(edge.source);
+            nodes.push(edge.target);
+        }
+    }
+    nodes.sort_unstable();
+    nodes.dedup();
+    let index: FxHashMap<u64, usize> = nodes.iter().enumerate().map(|(i, &n)| (n, i)).collect();
+
+    // Every edge among the nodes, but none into the root, so that the root is the root
+    let mut candidates: Vec<(usize, usize, crate::algorithms::branchings::W)> = Vec::new();
+    let mut candidate_ids: Vec<u64> = Vec::new();
+    for &u in &nodes {
+        let Ok(mut neighbors) = graph.neighbors(u) else {
+            continue;
+        };
+        neighbors.sort_unstable();
+        neighbors.dedup();
+        for v in neighbors {
+            if v == u || v == root || !index.contains_key(&v) {
+                continue;
+            }
+            for eid in graph.find_edge_ids(u, v) {
+                let w = get_edge_weight(graph, eid, weight_attr);
+                // Most edges first, then the least cost
+                candidates.push((
+                    index[&u],
+                    index[&v],
+                    crate::algorithms::branchings::W { f: 0, k: 1, w: -w },
+                ));
+                candidate_ids.push(eid);
+            }
+        }
+    }
+    let chosen = crate::algorithms::branchings::max_branching(nodes.len(), &candidates);
+    if chosen.len() + 1 != nodes.len() {
+        return tree_edges;
+    }
+
+    // Prune the leaves that aren't terminals, until every leaf is one
+    let is_terminal: FxHashSet<u64> = terminals.iter().copied().collect();
+    let mut parent_edge: FxHashMap<u64, u64> = FxHashMap::default();
+    let mut children: FxHashMap<u64, usize> = FxHashMap::default();
+    for &i in &chosen {
+        let (u, v, _) = candidates[i];
+        parent_edge.insert(nodes[v], candidate_ids[i]);
+        *children.entry(nodes[u]).or_insert(0) += 1;
+    }
+    let mut leaves: Vec<u64> = nodes
+        .iter()
+        .copied()
+        .filter(|n| *n != root && !children.contains_key(n) && !is_terminal.contains(n))
+        .collect();
+    while let Some(leaf) = leaves.pop() {
+        let Some(eid) = parent_edge.remove(&leaf) else {
+            continue;
+        };
+        let Some(edge) = graph.get_edge(eid) else {
+            continue;
+        };
+        let up = edge.source;
+        if let Some(c) = children.get_mut(&up) {
+            *c -= 1;
+            if *c == 0 {
+                children.remove(&up);
+                if up != root && !is_terminal.contains(&up) {
+                    leaves.push(up);
+                }
+            }
+        }
+    }
+
+    let improved: FxHashSet<u64> = parent_edge.into_values().collect();
+    let cost = |edges: &FxHashSet<u64>| -> f64 {
+        edges
+            .iter()
+            .map(|&e| get_edge_weight(graph, e, weight_attr))
+            .sum()
+    };
+    if cost(&improved) < cost(&tree_edges) {
+        improved
+    } else {
+        tree_edges
+    }
 }
 
 /// Dijkstra with edge-cost overrides (used for edge reuse in SPH).
