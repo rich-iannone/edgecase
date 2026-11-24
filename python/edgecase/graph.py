@@ -30695,8 +30695,8 @@ class Graph:
             List of `(u, v)` node pairs to score. Each node can be given as a node ID (`int`) or
             label (`str`). Pairs are scored even if `u` and `v` are already connected, and they
             are returned in the order given. If `None` (the default), all pairs of nodes that are
-            not already connected (in either direction) are scored, each unordered pair once, in
-            no particular order. A node that doesn't exist raises a `ValueError`.
+            not already connected (in either direction) are scored, each unordered pair once,
+            smaller node ID first, in node ID order. A node that doesn't exist raises a `ValueError`.
 
         Returns
         -------
@@ -30718,33 +30718,51 @@ class Graph:
         distributions are heavy-tailed but tends to overrank hub-hub pairs that share nothing
         else in common.
 
+        See Also
+        --------
+        common_neighbors : A score from shared neighbors instead of degrees.
+        jaccard_coefficient : Shared neighbors over the two neighborhoods together.
+
         Examples
         --------
-        In a star with hub `1` and leaves `2` to `5`, two leaves each have degree 1, so their
-        score is `1`. Node `6` is isolated (degree 0), so any pair involving it scores `0`:
+        The score is the product of the two degrees, whether or not the two share a neighbor:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_star_graph(5)  # hub node 1 with degree 4
-        graph.add_node()  # node 6, isolated
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        scores = graph.preferential_attachment([("A", "D"), ("B", "E")])
 
-        graph.preferential_attachment([(2, 3), (2, 6)])
+        [(label(u), label(v), s) for u, v, s in scores]
         ```
 
-        Because it ignores neighborhood overlap, preferential attachment can rank a pair highly
-        even when they share no neighbors. Below are two separate stars with hubs `1` and `5`
-        (degree 3 each). The hubs score `9` despite having zero common neighbors, while two
-        leaves of the same star share their hub but score only `1`:
+        ### Popular people
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Preferential attachment bets that people with many friends make
+        more. Here it does badly: the eight friendships that formed a year later were mostly
+        between people with three friends, and none of its top ten pairs became friends:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_star_graph(4)  # hub 1, leaves 2-4
-        graph.add_star_graph(4)  # hub 5, leaves 6-8
+        friends = ec.friends()
+        later = ec.friends(snapshot=2)
+        label = friends.get_label_from_id
+        top = sorted(friends.preferential_attachment(), key=lambda t: -t[2])[:10]
 
-        pairs = [(1, 5), (2, 3)]
-        list(zip(graph.preferential_attachment(pairs), graph.common_neighbors(pairs)))
+        (
+            [(label(u), label(v), s) for u, v, s in top[:3]],
+            sum(later.has_edge(label(u), label(v)) for u, v, _ in top),
+        )
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight=["Ben", "Jules", "Oona"],
+            size_by="degree", label_by="label", seed=8,
+        )
         ```
         """
         from edgecase._core import preferential_attachment
