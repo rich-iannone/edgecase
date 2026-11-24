@@ -40710,15 +40710,65 @@ class Graph:
         (Traag, Waltman and van Eck, 2019); the recorded partition is the moved (unrefined)
         one, mapped back to the original nodes. Mirrors NetworkX's `leiden_partitions`.
 
+        See Also
+        --------
+        cmty_leiden : The final partition only, with a choice of objective.
+        cmty_louvain_levels : The same levels without the refinement step.
+        modularity : The score that each level raises.
+
         Examples
         --------
+        Twelve triangles in a ring, each joined to the next by one edge. The first level finds the
+        twelve triangles, and the second merges neighboring triangles in pairs for a higher
+        modularity:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_smallworld_graph(n=60, k=4, p=0.05, seed=1)
-        levels = g.cmty_leiden_levels(seed=2)
-        [len(set(level.values())) for level in levels]
+        graph = ec.Graph().add_ring_of_cliques(12, 3)
+        levels = graph.cmty_leiden_levels(seed=5)
+
+        [
+            (len(set(level.values())), round(graph.modularity(level), 3))
+            for level in levels
+        ]
         ```
+
+        ### From small groups to large ones
+
+        `dolphins()` is a social network of 62 bottlenose dolphins in Doubtful Sound, New Zealand,
+        linked when they were seen together often. Leiden's first level has eight communities and
+        its second five, with a higher modularity:
+
+        ```{python}
+        dolphins = ec.dolphins().layout_kamada_kawai()
+        levels = dolphins.cmty_leiden_levels(seed=1)
+
+        [
+            (len(set(level.values())), round(dolphins.modularity(level), 3))
+            for level in levels
+        ]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        dolphins.set_node_attrs("level_0", levels[0])
+        dolphins.plot(
+            layout="pos", color_by="level_0", edge_color_by="level_0",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        dolphins.set_node_attrs("level_1", levels[1])
+        dolphins.plot(
+            layout="pos", color_by="level_1", edge_color_by="level_1",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         return self._levels(True, resolution, seed)
 
