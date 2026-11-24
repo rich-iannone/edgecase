@@ -70620,28 +70620,65 @@ class Graph:
         ValueError
             If a node does not exist, `source=` equals `target=`, or `max_paths=` is below 1.
 
+        See Also
+        --------
+        node_disjoint_paths : Paths that share no node either.
+        minimum_cut_value : The number of paths, by Menger's theorem.
+
         Examples
         --------
         Two triangles sharing node C: every path from A to E must pass through C, but there are
-        still two routes that share no edge:
+        still two routes that share no edge, and the count matches the size of the minimum edge
+        cut:
 
         ```{python}
         import edgecase as ec
 
-        bowtie = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        bowtie = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("C", "D"), ("D", "E"), ("E", "C"),
+            ]
         )
 
         label = bowtie.get_label_from_id
-        [[label(n) for n in path] for path in bowtie.edge_disjoint_paths("A", "E")]
+        paths = bowtie.edge_disjoint_paths("A", "E")
+        [[label(n) for n in p] for p in paths], bowtie.minimum_cut_value("A", "E")
         ```
 
-        The count matches the size of the minimum edge cut:
+        With `max_paths=`, the search stops early, which is quicker when only a few routes are
+        needed:
 
         ```{python}
-        len(bowtie.edge_disjoint_paths("A", "E")), bowtie.minimum_cut_value("A", "E")
+        len(bowtie.edge_disjoint_paths("A", "E", max_paths=1))
+        ```
+
+        ### Four ways from Old Town to Market
+
+        `metro()` is a made-up city's metro network. Old Town and Market are joined by four
+        routes that share no stretch of track: through Central, through Riverside, past the
+        Museum, and the long way round over the hills:
+
+        ```{python}
+        metro = ec.metro()
+        routes = metro.edge_disjoint_paths("Old Town", "Market")
+
+        label = metro.get_label_from_id
+        [" - ".join(label(n) for n in route) for route in routes]
+        ```
+
+        ```{python}
+        legs = {
+            (u, v): i + 1 for i, route in enumerate(routes)
+            for u, v in zip(route, route[1:])
+        }
+        metro.set_edge_attrs("route", list(legs.values()), edges=list(legs))
+        metro.set_edge_attrs("on_route", {e: 0 for e in metro.get_edge_ids()})
+        metro.set_edge_attrs("on_route", 1, edges=list(legs))
+        metro.plot(
+            layout="pos", edge_color_by="route", edge_width_by="on_route",
+            edge_opacity=0.9, label_by="label",
+        )
         ```
         """
         if max_paths is not None and max_paths < 1:
