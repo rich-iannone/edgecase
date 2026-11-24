@@ -40479,14 +40479,63 @@ class Graph:
 
         Examples
         --------
-        Zachary's karate club splits into three groups, and the same three on every run:
+        Two triangles joined by a single edge each settle on one label, with no seed to set:
 
         ```{python}
         import edgecase as ec
 
-        club = ec.karate_club()
-        communities = club.cmty_semisync_label_propagation(return_dict=True)
-        sorted(list(communities.values()).count(c) for c in set(communities.values()))
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
+
+        (
+            graph.cmty_semisync_label_propagation()
+            .get_node_df()
+            .select("label", "cmty_semisync_label_propagation")
+        )
+        ```
+
+        ### The karate club, every time
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Running the method twice gives the same communities:
+
+        ```{python}
+        karate = ec.karate_club()
+
+        (
+            karate.cmty_semisync_label_propagation(return_dict=True)
+            == karate.cmty_semisync_label_propagation(return_dict=True)
+        )
+        ```
+
+        Counting the members in each community by faction:
+
+        ```{python}
+        karate.cmty_semisync_label_propagation()
+
+        (
+            karate.get_node_df()
+            .group_by("cmty_semisync_label_propagation", "faction")
+            .len()
+            .sort("cmty_semisync_label_propagation", "faction")
+        )
+        ```
+
+        The instructor's core keeps members 24, 25 and 31 of the administrator's side, and member
+        2 goes the other way. Members 5, 6 and 16, whose only other friends are the instructor and
+        members 4 and 10, form a community of their own:
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos",
+            color_by="cmty_semisync_label_propagation",
+            edge_color_by="cmty_semisync_label_propagation",
+            label_by="label",
+        )
         ```
         """
         ids, labels = rust.semi_synchronous_label_propagation(self._graph)
