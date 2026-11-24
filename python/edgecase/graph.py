@@ -72656,43 +72656,57 @@ class Graph:
             If source or sink node doesn't exist, if they're the same, or if an edge lacks the
             attribute named by `capacity=`.
 
+        See Also
+        --------
+        minimum_edge_cut : The edges of the cut.
+        minimum_cut : The two sides of the cut.
+        edge_disjoint_paths : The paths whose number the cut equals.
+
         Examples
         --------
-        In a simple chain `A - B - C - D` every edge is a bottleneck, so the minimum cut between
-        the two ends is just 1:
+        In a chain `A - B - C - D` every edge is a bottleneck, so the minimum cut between the two
+        ends is 1. Closing the chain into a cycle adds a second, independent route:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        before = chain.minimum_cut_value("A", "D")
+        chain.add_edge("D", "A")
 
-        graph.minimum_cut_value("A", "D")
-        ```
-
-        Closing the chain into a cycle adds a second, independent route from `A` to `D`, so two
-        edges must now be cut:
-
-        ```{python}
-        graph.add_edge("D", "A")
-
-        graph.minimum_cut_value("A", "D")
+        before, chain.minimum_cut_value("A", "D")
         ```
 
         On a directed graph the cut depends on direction. In the chain `A -> B -> C`, one edge
         separates `A` from `C`, while `C` cannot reach `A` at all, giving a cut of `0`:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
-        graph.minimum_cut_value("A", "C"), graph.minimum_cut_value("C", "A")
+        chain.minimum_cut_value("A", "C"), chain.minimum_cut_value("C", "A")
+        ```
+
+        ### Pipes or capacity
+
+        `pipeline()` is a made-up city's water supply, with each pipe's `capacity` in megaliters
+        a day. Two pipes are enough to cut the reservoir off from the city, but with
+        `capacity="capacity"`, the cheapest cut is the one with the least capacity, 45 ML a
+        day, the most the network can deliver:
+
+        ```{python}
+        pipeline = ec.pipeline()
+
+        (
+            pipeline.minimum_cut_value("Reservoir", "City"),
+            pipeline.minimum_cut_value("Reservoir", "City", capacity="capacity"),
+        )
+        ```
+
+        ```{python}
+        pipeline.plot(
+            layout="pos", label_by="label", edge_label_by="capacity",
+            width=700, height=360,
+        )
         ```
         """
         if capacity is not None:
