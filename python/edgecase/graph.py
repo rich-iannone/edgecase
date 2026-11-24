@@ -65576,24 +65576,52 @@ class Graph:
         ValueError
             If the graph is undirected or contains a cycle.
 
+        See Also
+        --------
+        dag_longest_path : The nodes of the longest path.
+
         Examples
         --------
-        The pipeline below cannot finish in under 15 time units, the duration of its critical
-        path through `test`:
+        The longest path of this pipeline takes 15 time units, through the tests:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["fetch", "compile", "test", "package", "docs", "publish"])
-            .add_edges([
-                ("fetch", "compile", 3.0), ("compile", "test", 10.0),
-                ("test", "package", 2.0), ("fetch", "docs", 4.0), ("docs", "publish", 1.0),
-            ])
+        graph = ec.Graph.from_edges(
+            [("fetch", "compile", 3.0), ("compile", "test", 10.0),
+             ("test", "package", 2.0), ("fetch", "docs", 4.0),
+             ("docs", "publish", 1.0)],
+            directed=True,
         )
-
         graph.dag_longest_path_length()
+        ```
+
+        ### Where shortening a task pays off
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done, weighted by the days the first task takes. The
+        café can open after 66 days at the earliest:
+
+        ```{python}
+        ec.project().dag_longest_path_length()
+        ```
+
+        Getting the permits in 5 days instead of 15 brings the opening 10 days closer. Training
+        the staff in 1 day instead of 5 saves only 2, since the health inspection, which takes 3
+        days, then holds up the opening:
+
+        ```{python}
+        permits = ec.project().set_edge_attrs("weight", 5, sources=["Permits"])
+        training = ec.project().set_edge_attrs("weight", 1, sources=["Training"])
+
+        permits.dag_longest_path_length(), training.dag_longest_path_length()
+        ```
+
+        ```{python}
+        training.plot(
+            layout="pos", highlight=training.dag_longest_path(), label_by="label",
+            height=360,
+        )
         ```
         """
         path, length = rust.dag_longest_path(self._graph)
