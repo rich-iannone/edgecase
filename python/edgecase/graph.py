@@ -36717,17 +36717,67 @@ class Graph:
         references and the original graph). The lattice references use the corrected swap
         criterion described in `lattice_reference()`.
 
+        See Also
+        --------
+        small_world_sigma : Compare clustering and path length with random references.
+        lattice_reference : The lattice-like graphs that omega compares against.
+        random_reference : The random graphs that omega compares against.
+
         Examples
         --------
-        A slightly rewired ring lattice is near 0 (small-world), while a random graph scores
-        higher:
+        Omega is near -1 for a lattice, near 0 for a small world and near 1 for a random graph:
 
         ```{python}
         import edgecase as ec
 
-        ws = ec.Graph().add_smallworld_graph(n=60, k=6, p=0.1, seed=1)
-        er = ec.Graph().add_smallworld_graph(n=60, k=6, p=1.0, seed=1)
-        round(ws.small_world_omega(seed=2), 2), round(er.small_world_omega(seed=2), 2)
+        graph = ec.Graph().add_smallworld_graph(n=60, k=6, p=0.2, seed=1)
+        round(graph.small_world_omega(seed=1), 2)
+        ```
+
+        ### Between order and chance
+
+        Rewiring a ring lattice a little at a time moves omega from the lattice end toward the
+        random end, crossing 0 with about a fifth of the edges rewired. Unlike
+        `small_world_sigma()`, which rates the plain ring highly, omega places it near the lattice
+        end:
+
+        ```{python}
+        import polars as pl
+
+        rings = {
+            p: ec.Graph().add_smallworld_graph(n=60, k=6, p=p, seed=1)
+            for p in [0.0, 0.05, 0.2, 0.5, 1.0]
+        }
+        pl.DataFrame({
+            "p": list(rings),
+            "sigma": [g.small_world_sigma(seed=1) for g in rings.values()],
+            "omega": [g.small_world_omega(seed=1) for g in rings.values()],
+        })
+        ```
+
+        The plain ring (left), and the ring with a fifth of its edges rewired (right), where omega
+        is near 0:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        rings[0.0].layout_circular(order="id").plot(
+            layout="pos", show_labels=False, width=320, height=320
+        )
+        ```
+
+        ```{python}
+        rings[0.2].layout_circular(order="id").plot(
+            layout="pos", show_labels=False, width=320, height=320
+        )
+        ```
+
+        :::
+
+        The karate club is close to 0 as well, a small world by this measure:
+
+        ```{python}
+        round(ec.karate_club().small_world_omega(seed=1), 2)
         ```
         """
         value, parts = rust.small_world(self._graph, "omega", iterations, nrand, seed)
