@@ -37509,14 +37509,53 @@ class Graph:
         float
             The correlation coefficient in `[-1, 1]` (NaN if all degrees are equal).
 
+        See Also
+        --------
+        assortativity_degree : The same coefficient on undirected graphs.
+        degree_mixing_matrix : The table the coefficient summarizes.
+        assortativity : The coefficient for any numeric attribute.
+
         Examples
         --------
-        A star is perfectly disassortative:
+        On an undirected graph this is `assortativity_degree()`:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_star_graph(5).degree_pearson_correlation_coefficient()
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", "F")]
+        )
+
+        (
+            round(graph.degree_pearson_correlation_coefficient(), 3),
+            round(graph.assortativity_degree(), 3),
+        )
+        ```
+
+        ### Well-cited papers cite well-cited papers
+
+        `citations()` links each paper of a made-up research field to the earlier papers it
+        cites. By default, the number of papers each paper cites is set against the number of
+        times the papers it cites are cited, and the two are hardly related. Comparing how often
+        the two papers of a citation are cited, with `source_mode="in"`, gives a clear positive
+        correlation:
+
+        ```{python}
+        papers = ec.citations()
+
+        [
+            round(papers.degree_pearson_correlation_coefficient(source, "in"), 2)
+            for source in ["out", "in"]
+        ]
+        ```
+
+        Sized by how often each paper is cited:
+
+        ```{python}
+        cited = {n: papers.get_in_degree(n) for n in papers.get_node_ids()}
+        papers = papers.set_node_attrs("cited", cited)
+
+        papers.plot(layout="pos", size_by="cited", label_by="label")
         ```
         """
         triples = self._degree_pairs(source_mode, target_mode, weighted)
