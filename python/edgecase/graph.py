@@ -1065,14 +1065,43 @@ class Graph:
         first.code, first.narration
         ```
 
-        Use `filter()` to keep only certain kinds of steps, and `to_polars()` to get the log as a
-        DataFrame. After a selection is made, only that `"select"` step survives the filter:
+        ### The log of an analysis
+
+        Analysis methods are recorded too, and each step keeps what it found. On the metro network,
+        a route search and a search for bridges (the links whose loss would cut the network in two)
+        add one step each:
 
         ```{python}
-        graph.select_nodes_by_id([graph.get_id_from_label("B")])
+        metro = ec.metro()
 
-        graph.steps.filter(kind="select").to_polars().select("index", "method", "narration")
+        metro.shortest_path("Westgate", "Airport")
+        metro.bridges()
+
+        metro.steps
         ```
+
+        `filter()` picks steps by `kind=`, `method=`, or the nodes they `involves=`. Airport is on
+        the route and at the end of a bridge, so three steps involve it, counting the one that
+        built the network:
+
+        ```{python}
+        metro.steps.filter(involves="Airport")
+        ```
+
+        A step's `delta` lists the nodes and edges it touched. The bridges step selected five
+        links, which can be drawn straight from it:
+
+        ```{python}
+        found = metro.steps.filter(method="bridges")[-1]
+
+        metro.plot(
+            layout="pos", label_by="label", highlight_edges=found.delta.edges_selected
+        )
+        ```
+
+        The bridges lead out to the Harbor branch and the airport link, the parts of the map
+        reached by a single line of track. `to_polars()` returns the whole log as a DataFrame, and
+        `play()` replays it.
         """
         return self._steps
 
