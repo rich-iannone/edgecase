@@ -39047,20 +39047,26 @@ class Graph:
             If a node is missing from the partition, appears in two groups, or a label or
             attribute does not exist.
 
+        See Also
+        --------
+        partition_quality : Coverage and performance of a partition.
+        constant_potts_model : A score that compares each community with a set density.
+        overlapping_modularity : Modularity for communities that share nodes.
+        bipartite_modularity : Modularity with a null model for bipartite graphs.
+
         Examples
         --------
-        Two triangles joined by a bridge: splitting them apart scores well, while keeping all
-        nodes together scores `0` and a split that cuts the triangles scores below `0`:
+        Splitting two triangles joined by a bridge scores well. Keeping all the nodes together
+        scores `0`, and a split that cuts through both triangles scores below `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
         (
             round(graph.modularity([["A", "B", "C"], ["D", "E", "F"]]), 3),
@@ -39069,13 +39075,76 @@ class Graph:
         )
         ```
 
-        Community detection results can be scored directly, from the stored attribute or the
-        returned dictionary:
+        ### Comparing partitions of the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Scoring that split beside the communities found by four detection methods:
 
         ```{python}
-        graph.cmty_leiden(seed=1)
+        import polars as pl
 
-        graph.modularity("cmty_leiden"), graph.modularity(graph.cmty_louvain(return_dict=True))
+        karate = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .cmty_louvain()
+            .cmty_l_eigenvec()
+            .cmty_fast_greedy()
+            .cmty_girvan_newman()
+        )
+
+        partitions = [
+            "faction", "cmty_louvain", "cmty_l_eigenvec",
+            "cmty_fast_greedy", "cmty_girvan_newman",
+        ]
+
+        pl.DataFrame({
+            "partition": partitions,
+            "communities": [
+                karate.get_node_df()[p].n_unique() for p in partitions
+            ],
+            "modularity": [karate.modularity(p) for p in partitions],
+        })
+        ```
+
+        All four methods score higher than the real split, with more communities. Louvain's four
+        (right) are close to the two factions (left) cut in two, apart from member 9, who joined
+        the administrator but sits with the instructor's friends. A higher modularity does not
+        make a partition truer, only denser inside than chance would give:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="faction", edge_color_by="faction",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="cmty_louvain", edge_color_by="cmty_louvain",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ### Changing the resolution
+
+        `resolution=` changes the score itself. At `0.5` the expected share of edges counts for
+        less, so larger communities pay off and the two factions score higher than Louvain's four.
+        At `2.0` it counts for more, and the factions score below `0`:
+
+        ```{python}
+        pl.DataFrame([
+            {
+                "resolution": r,
+                "faction": karate.modularity("faction", resolution=r),
+                "cmty_louvain": karate.modularity("cmty_louvain", resolution=r),
+            }
+            for r in (0.5, 1.0, 2.0)
+        ])
         ```
         """
         membership = self._membership_from(communities)
