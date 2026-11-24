@@ -74472,43 +74472,71 @@ class Graph:
             If source or sink doesn't exist, they're the same node, any capacity is negative, or
             an edge lacks the attribute named by `capacity=`.
 
+        See Also
+        --------
+        maximum_flow : The flow on each edge.
+        minimum_cut : The cut whose value equals the flow.
+        minimum_cost_flow : The cheapest flow of a given amount.
+
         Examples
         --------
         The only path from `S` to `T` passes through `A`, so the flow is limited by the smaller
-        of the two edge weights along the way:
+        of the two edge weights along the way. A direct `S -> T` edge with capacity `3.0` raises
+        the maximum flow from `5.0` to `8.0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["S", "T", "A"])
-            .add_edges([("S", "A", 10.0), ("A", "T", 5.0)])
+        graph = ec.Graph.from_edges(
+            [("S", "A", 10.0), ("A", "T", 5.0)], directed=True
         )
-
-        graph.maximum_flow_value("S", "T")
-        ```
-
-        Adding a second route raises the total. A direct `S -> T` edge with capacity `3.0`
-        increases the maximum flow from `5.0` to `8.0`:
-
-        ```{python}
+        before = graph.maximum_flow_value("S", "T")
         graph.add_edge("S", "T", weight=3.0)
 
-        graph.maximum_flow_value("S", "T")
+        before, graph.maximum_flow_value("S", "T")
         ```
 
         Capacities can come from any numeric edge attribute via `capacity=`. Here the edges
         carry a `lanes` attribute, and the narrow middle segment limits the flow to `2.0`:
 
         ```{python}
-        roads = (
-            ec.Graph(directed=True)
-            .add_nodes(["Depot", "Bridge", "Town"])
-            .add_edges([("Depot", "Bridge", {"lanes": 4}), ("Bridge", "Town", {"lanes": 2})])
+        roads = ec.Graph.from_edges(
+            [("Depot", "Bridge", {"lanes": 4}), ("Bridge", "Town", {"lanes": 2})],
+            directed=True,
         )
 
         roads.maximum_flow_value("Depot", "Town", capacity="lanes")
+        ```
+
+        ### The pipe the city can least afford to lose
+
+        `pipeline()` is a made-up city's water supply, with each pipe's `capacity` in megaliters
+        a day. At most 45 ML a day reach the city. Closing each pipe in turn shows how much of
+        that would be lost: each of the three pipes along the northern route, from the
+        reservoir through North Intake and West Plant, would cost 25, while three pipes could
+        close with no loss at all:
+
+        ```{python}
+        pipeline = ec.pipeline()
+        full = pipeline.maximum_flow_value("Reservoir", "City")
+
+        loss = {}
+        for pipe, source, target in pipeline.get_edge_df().select(
+            "id", "source", "target"
+        ).rows():
+            closed = ec.pipeline()
+            closed.delete_edge(source, target)
+            loss[pipe] = full - closed.maximum_flow_value("Reservoir", "City")
+
+        full, sorted(loss.values(), reverse=True)
+        ```
+
+        ```{python}
+        pipeline.set_edge_attrs("loss", loss)
+        pipeline.plot(
+            layout="pos", label_by="label", edge_label_by="loss",
+            edge_width_by="loss", width=700, height=360,
+        )
         ```
         """
         from edgecase._core import max_flow_value as _max_flow_value
