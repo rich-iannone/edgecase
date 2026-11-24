@@ -80529,39 +80529,49 @@ class Graph:
         component ranked before both, so the optimum takes all of them whenever it can, and
         excluded edges are dropped up front. It runs in $O(V E)$ time.
 
+        See Also
+        --------
+        minimum_spanning_arborescence : The arborescence with the smallest total weight.
+        maximum_branching : The heaviest forest, without the need for a single root.
+        iter_spanning_arborescences : The arborescences in order of weight.
+
         Examples
         --------
-        C can only be reached through negative-weight edges, so `maximum_branching()` leaves it
-        without a parent. The spanning arborescence has to reach it, and takes the less costly
-        of its two in-edges, B -> C (-2):
+        An arborescence reaches every node from a single root, along the edges. `B` takes its
+        heavier incoming edge, from `C`, and the root `A` reaches it through `C`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B", 3.0), ("B", "C", -2.0), ("A", "C", -5.0), ("C", "D", 4.0)])
-
-        tree = g.maximum_spanning_arborescence()
-        tree.get_edges_str_repr(use_labels=True)
+        graph = ec.Graph.from_edges(
+            [("A", "B", 2.0), ("C", "B", 3.0), ("A", "C", 1.0)], directed=True
+        )
+        graph.maximum_spanning_arborescence().get_edges_str_repr(use_labels=True)
         ```
 
-        The arborescence has `n - 1 = 3` edges and total weight 5, while the maximum branching
-        has only two edges (total 7) and splits into two trees:
+        ### Keeping the widest pipes
+
+        `pipeline()` is a made-up city's water supply, with each pipe's `capacity` in megaliters
+        a day. If every station is to be fed by a single pipe, these are the pipes that keep
+        the most capacity in service, 360 megaliters a day. The East Plant is fed from the Hill
+        Pump, whose pipe is wider than the one from the South Intake:
 
         ```{python}
-        tree.count_edges(), g.maximum_branching().get_edges_str_repr(use_labels=True)
+        pipeline = ec.pipeline()
+        widest = pipeline.maximum_spanning_arborescence(weight_attr="capacity")
+
+        widest.get_edge_df()["capacity"].sum()
         ```
 
-        If no node can reach all the others, there is no spanning arborescence:
-
         ```{python}
-        split = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        split.add_edges([("A", "B"), ("C", "B")])
-        try:
-            split.maximum_spanning_arborescence()
-        except ValueError as err:
-            print(err)
+        pipeline.plot(
+            layout="pos",
+            highlight_edges=widest.get_edge_ids(),
+            edge_label_by="capacity",
+            label_by="label",
+            width=700,
+            height=360,
+        )
         ```
         """
         return self._branching(
