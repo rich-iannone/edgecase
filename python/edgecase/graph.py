@@ -39584,32 +39584,63 @@ class Graph:
         ValueError
             If the graph is directed, a node is in no group, or a label does not exist.
 
+        See Also
+        --------
+        modularity : The score for communities that do not overlap.
+        cmty_k_clique : Find overlapping communities.
+        is_cover : Check whether the communities reach every node.
+
         Examples
         --------
-        Two triangles sharing node C: giving C to both communities scores higher than forcing
-        it into one of them:
+        Two triangles share node C. Giving C to both communities scores higher than forcing it
+        into one of them:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                        ("C", "D"), ("D", "E"), ("E", "C")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"), ("D", "E"), ("E", "C"),
+        ])
+
+        shared = [["A", "B", "C"], ["C", "D", "E"]]
+        forced = [["A", "B", "C"], ["D", "E"]]
 
         (
-            round(graph.overlapping_modularity([["A", "B", "C"], ["C", "D", "E"]]), 3),
-            round(graph.overlapping_modularity([["A", "B", "C"], ["D", "E"]]), 3),
+            round(graph.overlapping_modularity(shared), 3),
+            round(graph.overlapping_modularity(forced), 3),
         )
         ```
 
-        Score the overlapping communities found by clique percolation:
+        ### Scoring clique percolation
+
+        `cmty_k_clique(3)` finds three overlapping communities in `karate_club()`. It leaves out
+        members 9 and 11, who are in no triangle, so each is added as a community of its own to
+        make a cover (see `is_cover()`):
 
         ```{python}
-        cover = graph.cmty_k_clique(3)
-        round(graph.overlapping_modularity(cover), 3)
+        karate = ec.karate_club().layout_kamada_kawai()
+
+        cliques = karate.cmty_k_clique(3)
+        covered = set().union(*cliques)
+        missing = [n for n in karate.get_node_ids() if n not in covered]
+
+        round(karate.overlapping_modularity(cliques + [[n] for n in missing]), 3)
+        ```
+
+        That is far below the `0.419` of Louvain's four communities (see `modularity()`). One of
+        the three communities, chained together from triangles that share an edge, holds 25 of the
+        34 members. Members 0 and 31 are each in two communities:
+
+        ```{python}
+        group = dict.fromkeys(missing, "left out")
+        for i, members in enumerate(cliques):
+            for n in members:
+                group[n] = "shared" if n in group else f"community {i}"
+
+        karate.set_node_attrs("k_clique", group).plot(
+            layout="pos", color_by="k_clique", label_by="label"
+        )
         ```
         """
         cover = self._cover_from(communities)
