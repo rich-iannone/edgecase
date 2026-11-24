@@ -34055,29 +34055,54 @@ class Graph:
 
         Examples
         --------
-        Four friends A to D all know one another, and E knows them all, along with F, G and
-        H, who don't know each other but all know I:
+        `B` and `C` are both linked to `A` and to nothing else, so every other node treats them
+        alike: they form a module. The root is prime, since neither the graph nor its complement
+        falls apart into pieces:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGHI"))
-        g.add_edges([(a, b) for a in "ABCD" for b in "ABCDE" if a < b])
-        g.add_edges([("E", x) for x in "FGH"] + [(x, "I") for x in "FGH"])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("D", "E")]
+        )
+        tree = graph.modular_decomposition()
 
-        tree = g.modular_decomposition()
-        {
-            tree.get_label_from_id(n): (attrs["type"], attrs["nodes"])
-            for n in sorted(tree.get_node_ids(limit=None))
-            if (attrs := tree.get_node(n).attributes)["type"] != "leaf"
-        }
+        tree.get_node_df().select("label", "type", "nodes")
         ```
 
-        The clique A to D is a series module and F, G, H a parallel one; with E and I they
-        are the children of the prime root:
+        ### Interchangeable workers and tasks
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do. A module of workers is a group that can all do the same tasks, and a module
+        of tasks a group that the same workers can do:
 
         ```{python}
-        tree.get_edges_str_repr(use_labels=True)
+        import polars as pl
+
+        team = ec.teams()
+        tree = team.modular_decomposition()
+
+        (
+            tree.get_node_df()
+            .filter(pl.col("type") != "leaf")
+            .select("label", "type", "nodes")
+        )
+        ```
+
+        Priya and Tom are interchangeable, and so are Sara and Hana. Database, DevOps and
+        Security can only be done by Omar and Kofi:
+
+        ```{python}
+        modules = {
+            member: row["label"]
+            for row in tree.get_node_df().iter_rows(named=True)
+            if row["type"] == "parallel"
+            for member in row["nodes"]
+        }
+        team.set_node_attrs("module", modules)
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", color_by="module", label_by="label", height=300,
+        )
         ```
         """
         entries = rust.modular_decomposition(self._graph)
