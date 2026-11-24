@@ -4001,16 +4001,26 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        G = ec.Graph()
-        G.add_nodes(["A", "B", "C"])
-        G.add_edges([("A", "B"), ("B", "C")])
+        club = ec.karate_club().colorize_node_attrs("faction")
 
-        # G.plot_vis()  # Auto-detects notebook vs browser
-        # G.plot_vis(target="browser")  # Open in a browser tab (outside notebooks)
-        # G.plot_vis(layout="circular", static=True)  # Fixed circular arrangement
-        # G.plot_vis(width=400, height=300, node_size=12, edge_width=1)  # Smaller canvas
+        club.get_node_df().select("faction", "color").unique().sort("faction")
         ```
 
+        In a notebook, or on a page like this one, the view appears below the cell. Drag a node to
+        pull its neighbors along, scroll to zoom, and click a node or an edge to list its attributes:
+
+        ```{python}
+        club.plot_vis(width=600, height=420)
+        ```
+
+        The physics keeps running as you drag. `static=True` turns it off once the layout settles,
+        for a view that stays put, and `layout="circular"` starts from a circle instead. Outside a
+        notebook, `plot_vis()` opens the same view in a browser tab, and `target="browser"` does so
+        from a notebook too.
+
+        Each view carries the vis-network library (about 670 KB), so for figures in a report or on a
+        web page `plot()` is lighter, and it can draw the results of an analysis through `color_by=`,
+        `size_by=` and `highlight=`. For graphs of many thousands of nodes, use `plot_cosmo()`.
         """
         from edgecase.viz import plot_graph
 
