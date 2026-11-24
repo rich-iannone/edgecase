@@ -70996,6 +70996,12 @@ class Graph:
         partition, except that it returns nothing for a single-node undirected graph when `k` is
         3 or more.
 
+        See Also
+        --------
+        k_edge_subgraphs : Groups that are k-edge-connected using only their own edges.
+        k_components : The node-connectivity counterpart.
+        bridges : The edges between the 2-edge-connected components.
+
         Examples
         --------
         In two triangles joined by a bridge, `k=2` separates the triangles, and `k=3` separates
@@ -71004,14 +71010,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges(
-            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        [[g.get_label_from_id(n) for n in c] for c in g.k_edge_components(2)], len(
-            g.k_edge_components(3)
+        label = graph.get_label_from_id
+        (
+            [[label(n) for n in c] for c in graph.k_edge_components(2)],
+            len(graph.k_edge_components(3)),
         )
+        ```
+
+        ### The most robustly linked stations
+
+        `metro()` is a made-up city's metro network. Six stations around the city center are
+        joined to each other by three routes that share no stretch of track, so no two
+        closures can separate them. Every other station is in a group of its own:
+
+        ```{python}
+        metro = ec.metro()
+        groups = metro.k_edge_components(3)
+
+        [[metro.get_label_from_id(n) for n in g] for g in groups if len(g) > 1]
+        ```
+
+        ```{python}
+        six = max(groups, key=len)
+        metro.plot(layout="pos", highlight=six, label_by="label")
         ```
         """
         comps = rust.k_edge_components(self._graph, k, False)
