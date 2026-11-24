@@ -19649,29 +19649,49 @@ class Graph:
 
         Examples
         --------
-        Three customers and three products: Ann and Bob both bought tea and jam, and Bob and Cy
-        both bought jam and oats, so there are two butterflies, both through Bob and jam:
+        With two people and three clubs, each person is in a butterfly with each pair of clubs,
+        three in all, and each club in two:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "cy", "tea", "jam", "oat"])
-        g.add_edges(
-            [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "jam"), ("bob", "oat"),
-             ("cy", "oat"), ("cy", "jam")]
+        graph = ec.Graph().add_nodes(["Ana", "Ben", "Chess", "Choir", "Drama"])
+        graph.add_edges(
+            [(p, c) for p in ["Ana", "Ben"] for c in ["Chess", "Choir", "Drama"]]
         )
 
-        {g.get_label_from_id(n): c for n, c in g.butterflies().items()}
+        {graph.get_label_from_id(n): b for n, b in graph.butterflies().items()}
         ```
 
-        In a complete bipartite $K_{3,3}$ every pair from one side and pair from the other form
-        a butterfly, nine in all, and each node is in six of them:
+        ### Pairs of women at pairs of events
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. A butterfly is two women who attended the same two events. Theresa Anderson is
+        in the most of the 341, while Flora Price and Olivia Carleton are in only two, each other
+        and Nora Fayette at E9 and E11:
 
         ```{python}
-        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
-        counts = k33.butterflies()
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        count = davis.butterflies()
+        ranked = sorted(women, key=count.get, reverse=True)
+        label = davis.get_label_from_id
 
-        counts, sum(counts.values()) // 4
+        (
+            sum(count.values()) // 4,
+            [(label(n), count[n]) for n in ranked[:3]],
+            [(label(n), count[n]) for n in ranked[-2:]],
+        )
+        ```
+
+        ```{python}
+        davis.set_node_attrs("butterflies", count).layout_bipartite(
+            nodes=women, aspect_ratio=0.5
+        ).plot(
+            layout="pos", color_by="butterflies", color_scale="sequential",
+            label_by="label", height=900,
+        )
         ```
         """
         counts = rust.butterflies(self._graph)
