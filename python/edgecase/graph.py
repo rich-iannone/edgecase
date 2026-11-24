@@ -77208,25 +77208,47 @@ class Graph:
         total time is $O(E \sqrt{V})$. For non-bipartite graphs, see
         `minimum_weighted_vertex_cover()` for a 2-approximation.
 
+        See Also
+        --------
+        bipartite_maximum_matching : A maximum matching, the same size as the cover.
+        minimum_weighted_vertex_cover : An approximate cover for graphs that aren't bipartite.
+        is_vertex_cover : Check that a set of nodes touches every edge.
+
         Examples
         --------
-        Every edge of this small bipartite graph touches A or E, so two nodes suffice, matching
-        the size of a maximum matching:
+        Every edge of this graph touches `A` or `E`, so two nodes cover them all. By König's
+        theorem, that's the size of a maximum matching:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")])
-
+        g = ec.Graph.from_edges([("A", "D"), ("A", "E"), ("B", "E"), ("C", "E")])
         cover = g.bipartite_vertex_cover()
-        [g.get_label_from_id(n) for n in cover], len(g.bipartite_maximum_matching())
+
+        label = g.get_label_from_id
+        [label(n) for n in cover], len(g.bipartite_maximum_matching())
         ```
 
-        `is_vertex_cover()` confirms that every edge is touched:
+        ### Who needs to be in the room
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do, with an estimate of the hours for each. To review every estimate, a meeting
+        needs, for each one, the worker who gave it or the lead of its task. Seven people are
+        enough: Omar and Kofi, and the leads of the other five tasks. No fewer will do, since the
+        seven pairs of a maximum matching each need someone of their own:
 
         ```{python}
-        g.is_vertex_cover(cover)
+        team = ec.teams()
+        cover = team.bipartite_vertex_cover()
+
+        label = team.get_label_from_id
+        [label(n) for n in cover], len(team.bipartite_maximum_matching())
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight=cover, label_by="label", height=300
+        )
         ```
         """
         cover, matching = rust.bipartite_vertex_cover(self._graph, self._top_ids(top_nodes))
