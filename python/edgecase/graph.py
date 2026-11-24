@@ -49167,7 +49167,7 @@ class Graph:
 
     def personalized_pagerank(
         self,
-        personalization: dict[int, float],
+        personalization: dict[Union[int, str], float],
         damping: float = 0.85,
         max_iter: int = 100,
         tol: float = 1e-6,
@@ -49200,16 +49200,15 @@ class Graph:
         In directed graphs the surfer only moves along edge direction; in undirected graphs it
         can move either way. Edge weights are not used: every outgoing edge is equally likely.
         `random_walk_with_restart()` computes the same scores with `restart_prob = 1 - damping`.
-        The scores are written to the node DataFrame every time, including when
-        `return_dict=True`.
 
         Parameters
         ----------
         personalization
-            Dictionary mapping node IDs to restart probabilities. Values are normalized
-            internally, so they don't need to sum to 1. Nodes not in the dictionary have
-            zero restart probability. Use a single entry for one seed, or several entries with
-            larger values for seeds you trust more. IDs that are not in the graph are ignored.
+            Dictionary mapping seed nodes, as integer IDs or string labels, to restart
+            probabilities. Values are normalized internally, so they don't need to sum to 1.
+            Nodes not in the dictionary have zero restart probability. Use a single entry for one
+            seed, or several entries with larger values for seeds you trust more. Integer IDs
+            that are not in the graph are ignored, and an unknown label raises an error.
         damping
             Probability of following an edge (vs. teleporting back to a seed). Higher values
             let the walk spread further from the seeds. Typical range: `0.5`-`0.95`. The default
@@ -49242,65 +49241,88 @@ class Graph:
         ValueError
             If `personalization=` is empty or its values do not sum to a positive number.
 
+        See Also
+        --------
+        pagerank : The same walk, restarting anywhere.
+        random_walk_with_restart : The same computation, parameterized by `restart_prob=`.
+        heat_diffusion : Spread a signal from the seeds by diffusion instead.
+
         Examples
         --------
-        Starting every restart from `GeneA` keeps most of the rank there. `GeneD` comes second
-        because it is reached both directly from `GeneA` and at the end of the longer path, and
-        as a dead end it sends its rank straight back to `GeneA`:
+        Starting every restart from `GeneA` keeps most of the rank there. `GeneD` comes second,
+        because it is reached both directly from `GeneA` and at the end of the longer path, and as
+        a dead end it sends its rank straight back to `GeneA`. Lowering `damping=` makes the
+        surfer restart more often, so the rank stays closer to the seed, and `GeneC`, two steps
+        away, loses about half of its score:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["GeneA", "GeneB", "GeneC", "GeneD"])
-            .add_edges(
-                [("GeneA", "GeneB"), ("GeneB", "GeneC"), ("GeneC", "GeneD"), ("GeneA", "GeneD")]
+        graph = ec.Graph.from_edges(
+            [("GeneA", "GeneB"), ("GeneB", "GeneC"), ("GeneC", "GeneD"),
+             ("GeneA", "GeneD")],
+            directed=True,
+        )
+
+        (
+            graph.personalized_pagerank({"GeneA": 1.0}, attr_name="damping_85")
+            .personalized_pagerank(
+                {"GeneA": 1.0}, damping=0.5, attr_name="damping_50"
             )
+            .get_node_df()
+            .select("label", "damping_85", "damping_50")
         )
-
-        seed_id = graph.get_id_from_label("GeneA")
-        scores = graph.personalized_pagerank(
-            personalization={seed_id: 1.0},
-            return_dict=True,
-        )
-        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
         ```
 
-        Lowering `damping=` makes the surfer restart more often, so the rank stays even closer
-        to the seed: `GeneA` gains, and `GeneC`, two steps away, loses about half of its score:
+        ### Following the money
+
+        In `payments()`, suppose that Cruz has been flagged for fraud. Seeded at Cruz, the
+        surfer follows the payments out of that account, so the accounts that score highest are
+        the ones Cruz's money flows to: Ana and Ivy, then Jo, Kai and Lena down the chain. The
+        Grocer scores high too, since so many payments end there. Plain PageRank, with no seed,
+        ranks Ivy among the lowest, but seen from Cruz, Ivy ties for second:
 
         ```{python}
-        scores = graph.personalized_pagerank(
-            personalization={seed_id: 1.0},
-            damping=0.5,
-            return_dict=True,
+        import polars as pl
+
+        payments = (
+            ec.payments()
+            .pagerank()
+            .personalized_pagerank({"Cruz": 1.0}, attr_name="from_cruz")
         )
-        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
+
+        (
+            payments.get_node_df()
+            .select("label", "from_cruz", "pagerank")
+            .sort("from_cruz", descending=True)
+            .head(8)
+        )
         ```
 
-        Several seeds can be weighted differently. In two triangles joined by a short path,
-        giving `G` three times the restart weight of `A` pulls most of the rank toward the
-        `E`, `F`, `G` triangle. With `return_dict=False`, the scores land in the node DataFrame:
+        ```{python}
+        payments.plot(color_by="from_cruz", label_by="label", seed=3)
+        ```
+
+        ### Where the money came from
+
+        Reversing the payments sends the surfer back along them, to the accounts that paid Cruz.
+        Ben and Ana, the rest of the ring, come first. Dee comes next, for a single payment of 60
+        to Ben: every payment counts the same, whatever its amount. The scores are drawn here on
+        the payments as they were made:
 
         ```{python}
-        g = ec.Graph()
-        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-        g.add_edges(
-            [
-                ("A", "B"), ("A", "C"), ("B", "C"), ("C", "D"),
-                ("D", "E"), ("E", "F"), ("E", "G"), ("F", "G"),
-            ]
+        to_cruz = payments.reverse().personalized_pagerank(
+            {"Cruz": 1.0}, return_dict=True
         )
 
-        seeds = {g.get_id_from_label("A"): 1.0, g.get_id_from_label("G"): 3.0}
-        g.personalized_pagerank(seeds, attr_name="ppr")
-        g.get_node_df().select(["label", "ppr"])
+        payments.set_node_attrs("to_cruz", to_cruz).plot(
+            color_by="to_cruz", label_by="label", seed=3
+        )
         ```
         """
         result_ids = rust.personalized_pagerank(
             self._graph,
-            personalization,
+            self._seed_ids(personalization),
             damping=damping,
             max_iter=max_iter,
             tol=tol,
@@ -49312,8 +49334,6 @@ class Graph:
         if return_dict:
             return result_ids
 
-        self.set_node_attrs(attr_name, result_ids)
-
         params = {}
         if damping != 0.85:
             params["damping"] = damping
@@ -49321,7 +49341,7 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
-        self._computations.append(("personalized_pagerank", params, attr_name))
+        self._store_node_result("personalized_pagerank", params, attr_name, result_ids)
 
         return self
 
