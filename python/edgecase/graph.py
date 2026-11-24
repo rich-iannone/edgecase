@@ -71786,6 +71786,11 @@ class Graph:
         unit-capacity arc from out-copy to in-copy. With $O(V^2)$ pairs, each solved by Dinic's
         algorithm, the method suits graphs of up to a few hundred nodes.
 
+        See Also
+        --------
+        all_pairs_node_connectivity : The connectivity of every pair.
+        node_connectivity : The smallest connectivity over all pairs.
+
         Examples
         --------
         In a complete graph on five nodes, every pair has its direct edge plus three paths
@@ -71804,6 +71809,36 @@ class Graph:
             ec.Graph().add_cycle_graph(6).average_node_connectivity(),
             ec.Graph().add_path_graph(6).average_node_connectivity(),
         )
+        ```
+
+        ### The best new stretch of track
+
+        `metro()` is a made-up city's metro network. Its connectivity is 1, but on average two
+        stations are joined by 1.66 routes that share no station. Trying every pair of stations
+        not yet linked shows which new stretch of track would raise the average most:
+
+        ```{python}
+        from itertools import combinations
+
+        metro = ec.metro()
+        gains = {}
+        for u, v in combinations(metro.get_node_ids(), 2):
+            if not metro.has_edge(u, v):
+                trial = ec.metro()
+                trial.add_edge(u, v)
+                gains[(u, v)] = trial.average_node_connectivity()
+
+        best = max(gains, key=gains.get)
+        label = metro.get_label_from_id
+        round(metro.average_node_connectivity(), 2), [label(n) for n in best]
+        ```
+
+        Linking Shipyard to the Airport closes a loop through the two branches, which raises the
+        average to 2.06:
+
+        ```{python}
+        metro.add_edge(*best)
+        metro.plot(layout="pos", highlight=[best], label_by="label")
         ```
         """
         value = rust.average_node_connectivity(self._graph)
