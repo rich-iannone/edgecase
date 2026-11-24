@@ -39351,34 +39351,76 @@ class Graph:
             If a node is missing from the partition, appears in two groups, or a label or
             attribute does not exist.
 
+        See Also
+        --------
+        cmty_leiden : Find a partition with a high score, with `objective="cpm"`.
+        modularity : Compare each community with what chance would give instead.
+
         Examples
         --------
-        Two triangles joined by a bridge: with `γ = 0.5`, each triangle (3 edges, 3 nodes)
-        scores `3 - 0.5 · 9 / 2 = 0.75`, so the split beats both one big community and the
-        all-singletons partition:
+        Splitting two triangles joined by a bridge, with `γ = 0.5`: each triangle (3 edges, 3
+        nodes) scores `3 - 0.5 · 9 / 2 = 0.75`, so the split beats both one big community and
+        every node alone:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
         (
-            graph.constant_potts_model([["A", "B", "C"], ["D", "E", "F"]], resolution=0.5),
-            graph.constant_potts_model([["A", "B", "C", "D", "E", "F"]], resolution=0.5),
+            graph.constant_potts_model(
+                [["A", "B", "C"], ["D", "E", "F"]], resolution=0.5
+            ),
+            graph.constant_potts_model(
+                [["A", "B", "C", "D", "E", "F"]], resolution=0.5
+            ),
             graph.constant_potts_model([[n] for n in "ABCDEF"], resolution=0.5),
         )
         ```
 
-        Score a CPM Leiden result at the resolution it was found with:
+        ### A density threshold
+
+        `cmty_leiden(objective="cpm")` finds a partition with a high CPM score. On
+        `karate_club()`, where `faction` records how the club split, the score of the factions
+        falls fast as `γ` rises, since each faction is a large and fairly sparse group:
 
         ```{python}
-        graph.cmty_leiden(objective="cpm", resolution=0.5, seed=1)
-        graph.constant_potts_model("cmty_leiden", resolution=0.5)
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+
+        rows = []
+        for gamma in (0.05, 0.1, 0.2, 0.3):
+            found = karate.cmty_leiden(
+                objective="cpm", resolution=gamma, seed=1, return_dict=True
+            )
+            rows.append({
+                "resolution": gamma,
+                "communities": len(set(found.values())),
+                "leiden": karate.constant_potts_model(found, resolution=gamma),
+                "faction": karate.constant_potts_model(
+                    "faction", resolution=gamma
+                ),
+            })
+
+        pl.DataFrame(rows)
+        ```
+
+        At `0.05`, Leiden finds the two factions, apart from member 9, and scores only a little
+        higher than the real split. At `0.2`, it keeps together only groups with more than one
+        edge for every five pairs, and finds seven communities:
+
+        ```{python}
+        karate.cmty_leiden(objective="cpm", resolution=0.2, seed=1).plot(
+            layout="pos",
+            color_by="cmty_leiden",
+            edge_color_by="cmty_leiden",
+            label_by="label",
+        )
         ```
         """
         membership = self._membership_from(communities)
