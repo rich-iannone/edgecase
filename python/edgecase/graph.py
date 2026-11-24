@@ -1301,6 +1301,11 @@ class Graph:
         None
             The summary is printed to standard output; nothing is returned.
 
+        See Also
+        --------
+        steps : The log as a StepList, with filter() and to_polars().
+        play : Replay the log as an animation.
+
         Examples
         --------
         Each operation gets one line. The `bfs()` call shows its sub-step count, one per node
