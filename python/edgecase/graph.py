@@ -3940,9 +3940,10 @@ class Graph:
         (bundled with EdgeCase, so no internet connection is needed). The graph is written to a
         self-contained HTML file in a temporary location; inside a Jupyter/IPython session that
         HTML is displayed inline below the cell, otherwise it is opened in the default web
-        browser. Nodes are labelled with their node IDs, directed graphs are drawn with arrows,
-        and every edge is drawn: parallel edges between the same pair of nodes are curved apart
-        so each one stays visible.
+        browser. Each node shows its label (or its ID if it has none), directed graphs are drawn
+        with arrows, and every edge is drawn: parallel edges between the same pair of nodes are
+        curved apart so each one stays visible. A node's `color` attribute (a CSS color, as set
+        by `colorize_node_attrs()`) fills it.
 
         `plot_vis()` is meant for hands-on exploration of small and medium graphs: dragging nodes
         around, zooming, and watching the physics simulation settle. For a static,
