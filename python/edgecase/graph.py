@@ -54501,19 +54501,58 @@ class Graph:
         ValueError
             If the graph has fewer than two nodes or no edges, or a weight is not positive.
 
+        See Also
+        --------
+        local_reaching_centrality : The node scores behind the summary.
+        trophic_incoherence_parameter : Another single-number test of hierarchy.
+
         Examples
         --------
-        An out-tree is strongly hierarchical; a directed cycle is not hierarchical at all:
+        An out-tree is strongly hierarchical, and a directed cycle is not hierarchical at all:
 
         ```{python}
         import edgecase as ec
 
-        tree = ec.Graph(directed=True).add_nodes(["r", "a", "b", "c"])
-        tree.add_edges([("r", "a"), ("r", "b"), ("a", "c")])
-        cycle = ec.Graph(directed=True).add_nodes(["a", "b", "c", "d"])
-        cycle.add_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
+        tree = ec.Graph.from_edges(
+            [("r", "a"), ("r", "b"), ("a", "c")], directed=True
+        )
+        cycle = ec.Graph.from_edges(
+            [("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")], directed=True
+        )
 
-        round(tree.global_reaching_centrality(), 3), cycle.global_reaching_centrality()
+        tree.global_reaching_centrality(), cycle.global_reaching_centrality()
+        ```
+
+        ### How hierarchical?
+
+        `citations()` and `courses()` are both strongly hierarchical. A random directed graph
+        with about as many nodes and edges as `citations()` is not:
+
+        ```{python}
+        import polars as pl
+
+        random = ec.Graph(directed=True).add_gnp_graph(n=22, p=0.125, seed=1)
+
+        pl.DataFrame(
+            {
+                "network": ["citations", "courses", "random"],
+                "global_reaching": [
+                    ec.citations().global_reaching_centrality(),
+                    ec.courses().global_reaching_centrality(),
+                    random.global_reaching_centrality(),
+                ],
+            }
+        )
+        ```
+
+        The score averages how far each paper's local reaching centrality falls below the top
+        one. Osei 2021 reaches every paper but Dubois 2012, which no paper cites, through chains
+        of citations, while the oldest papers reach few:
+
+        ```{python}
+        papers = ec.citations().local_reaching_centrality(attr_name="reach")
+
+        papers.plot(layout="pos", color_by="reach", label_by="label")
         ```
         """
         local = rust.local_reaching_centrality(
