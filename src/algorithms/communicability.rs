@@ -11,7 +11,7 @@
 //!   in complex networks. Physica A, 388(5), 764-774.
 
 use crate::graph::Graph;
-use nalgebra::{DMatrix, SymmetricEigen};
+use nalgebra::DMatrix;
 use pyo3::prelude::*;
 use rustc_hash::FxHashMap;
 
@@ -269,7 +269,7 @@ fn matrix_exp_symmetric(matrix: &DMatrix<f64>) -> DMatrix<f64> {
     }
 
     // Compute eigendecomposition
-    let eigen = SymmetricEigen::new(matrix.clone());
+    let eigen = crate::algorithms::eigen::symmetric_eigen(matrix.clone());
     let eigenvalues = &eigen.eigenvalues;
     let eigenvectors = &eigen.eigenvectors;
     let component = component_labels(matrix);
