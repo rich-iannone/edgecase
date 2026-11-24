@@ -80122,74 +80122,51 @@ class Graph:
         theorem lets you count spanning trees analytically as $\det(L^*)$ (a cofactor of the
         Laplacian) when you only need the *number* and not the enumeration itself.
 
+        See Also
+        --------
+        iter_spanning_trees : The spanning trees one at a time, in order of weight.
+        number_of_spanning_trees : Count them without listing them.
+        random_spanning_tree : Draw one of them at random.
+
         Examples
         --------
-        **Reliability Analysis: Finding Backup Paths**
-
-        With one extra diagonal edge added to a 4-cycle, there's more than one way to pick 3
-        edges that connect all 4 nodes without a cycle, and this method enumerates every one of
-        them (8 in total):
+        A triangle has three spanning trees, one for each edge left out:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["A", "B", "C", "D"])
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
-
-        trees = g.all_spanning_trees()
-
-        # Returns the number of distinct spanning trees found
-        len(trees)
+        [
+            t.get_edges_str_repr(use_labels=True)
+            for t in triangle.all_spanning_trees()
+        ]
         ```
 
+        ### Every way to tie the families together
+
+        `florentine_families()` links the leading families of Renaissance Florence by marriage.
+        Taking 14 of its 20 marriages can tie the 15 families together in 1208 ways. In the full
+        network, no two families are more than five marriages apart. Most trees stretch that to
+        eight, and the best keep it to six:
+
         ```{python}
-        # Every tree connects all 4 nodes with exactly 3 edges
-        [tree.count_edges() for tree in trees]
+        from collections import Counter
+
+        families = ec.florentine_families()
+        trees = families.all_spanning_trees(max_trees=2000)
+
+        spread = Counter(t.diameter() for t in trees)
+        len(trees), sorted(spread.items())
         ```
 
-        **Counting Spanning Trees**
-
-        A complete graph on 4 nodes (`K4`) is dense enough to have many different spanning trees
-        -- exactly 16, matching the count predicted by Cayley's formula ($n^{n-2}$ for $n=4$):
+        One of the 77 trees in which every family is within six marriages of every other:
 
         ```{python}
-        g = ec.Graph()
-        nodes = ["A", "B", "C", "D"]
-        g.add_nodes(nodes)
-
-        g.add_edges([(n1, n2) for i, n1 in enumerate(nodes) for n2 in nodes[i + 1:]])
-
-        trees = g.all_spanning_trees()
-
-        # Returns 16
-        len(trees)
-        ```
-
-        Setting `max_trees=` stops the enumeration early, which is the safe way to sample trees
-        from a graph that may have a very large number of them:
-
-        ```{python}
-        len(g.all_spanning_trees(max_trees=5))
-        ```
-
-        **Getting Edge Lists Instead of Graphs**
-
-        For workloads that need to process many trees, returning raw edge lists instead of full
-        `Graph` objects avoids the overhead of constructing a new graph for each one. Here each
-        of the triangle's three spanning trees drops one edge, and summing the weights shows
-        which tree is cheapest:
-
-        ```{python}
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "A", 3.0)])
-
-        tree_edges = g.all_spanning_trees(return_subgraphs=False)
-
-        # Returns the total weight of each spanning tree
-        [sum(w for _, _, w in edges) for edges in tree_edges]
+        best = min(trees, key=lambda t: t.diameter())
+        families.plot(
+            highlight_edges=best.get_edge_ids(), label_by="label", seed=2
+        )
         ```
         """
         from edgecase._core import all_spanning_trees as _all_spanning_trees
