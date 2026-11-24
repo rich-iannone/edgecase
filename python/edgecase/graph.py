@@ -23909,9 +23909,8 @@ class Graph:
 
         Examples
         --------
-        The predicate receives each node's `Node` object, so any of its properties -- `id`,
-        `label`, or `attributes` -- can drive the filter. Here, only "hub"-typed nodes
-        pass, and those are the nodes with IDs `1` and `3`:
+        The predicate gets each node as a `Node` object, so the rule can look at its `id`, `label`
+        or `attributes`. Here it picks the nodes whose `kind` is `"hub"`:
 
         ```{python}
         import edgecase as ec
