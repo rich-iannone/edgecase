@@ -34506,21 +34506,66 @@ class Graph:
         al.). The problem is NP-hard, but the bound prunes well on sparse graphs. The weight
         found matches NetworkX's `max_weight_clique`.
 
+        See Also
+        --------
+        maximum_clique : The clique with the most nodes.
+        find_cliques : List all maximal cliques.
+
         Examples
         --------
-        The triangle A-B-C has three nodes, but B-D is heavier:
+        The triangle `A`, `B`, `C` has the most nodes, but weighs 1 + 2 + 1 = 4. The edge `B`-`D`
+        weighs 2 + 5 = 7, and is the heaviest clique:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(
-            [("A", {"w": 1}), ("B", {"w": 2}), ("C", {"w": 1}), ("D", {"w": 5})]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D")]
         )
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D")])
+        graph.set_node_attrs("w", {"A": 1, "B": 2, "C": 1, "D": 5})
 
-        nodes, weight = g.maximum_weight_clique(node_weight_attr="w")
-        [g.get_label_from_id(n) for n in nodes], weight
+        nodes, weight = graph.maximum_weight_clique(node_weight_attr="w")
+        [graph.get_label_from_id(n) for n in nodes], weight
         ```
+
+        ### The most populous group of towns
+
+        `towns()` holds 12 towns of a made-up county and the 26 roads between them. Two groups of
+        four towns are all joined to one another by direct roads. `maximum_clique()` returns the
+        one around Kestrel Bay. Weighted by population, the group around Calder, the county's
+        largest town, wins with 83,200 people:
+
+        ```{python}
+        towns = ec.towns()
+        label = towns.get_label_from_id
+
+        largest = towns.maximum_clique()
+        heaviest, people = towns.maximum_weight_clique("population")
+
+        [label(n) for n in largest], [label(n) for n in heaviest], people
+        ```
+
+        The largest clique (left) has 48,100 people:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        from itertools import combinations
+
+        towns.plot(
+            layout="pos", highlight=list(combinations(largest, 2)),
+            size_by="population", label_by="label", width=320, height=360,
+        )
+        ```
+
+        ```{python}
+        towns.plot(
+            layout="pos", highlight=list(combinations(heaviest, 2)),
+            size_by="population", label_by="label", width=320, height=360,
+        )
+        ```
+
+        :::
         """
         nodes, weight = rust.max_weight_clique(self._graph, node_weight_attr)
         if weight == int(weight):
