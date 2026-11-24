@@ -74847,49 +74847,70 @@ class Graph:
         int
             Number of strongly connected components.
 
+        See Also
+        --------
+        strongly_connected_components : The components themselves.
+        count_weakly_connected_components : The count that ignores edge directions.
+        is_strongly_connected : Check whether there is just one.
+
         Examples
         --------
-        A directed cycle keeps all its nodes mutually reachable, forming one strongly connected
-        component, while a separate pair connected by a single one-way edge can't reach back and so
-        forms its own component:
+        In a directed cycle, every node can reach every other, so the cycle is one strongly
+        connected component. A node that the cycle reaches but that can't reach back forms a
+        second one:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "X", "Y"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # Cycle: all in same component
-                    ("X", "Y"),  # Separate component
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")], directed=True
         )
 
-        # Returns 2
-        graph.count_strongly_connected_components()
-        ```
-
-        For undirected graphs, every edge is bidirectional, so strong and weak connectivity give
-        the same answer:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "X"])
-            .add_edges([("A", "B")])
+        (
+            graph.count_strongly_connected_components(),
+            graph.count_weakly_connected_components(),
         )
-
-        # Returns 2
-        graph.count_strongly_connected_components()
         ```
 
+        On an undirected graph every edge runs both ways, so the two counts are the same:
+
         ```{python}
-        # Returns 2 (same result as strongly connected, since edges are bidirectional)
-        graph.count_weakly_connected_components()
+        undirected = ec.Graph.from_edges([("A", "B"), ("C", "D")])
+
+        (
+            undirected.count_strongly_connected_components(),
+            undirected.count_weakly_connected_components(),
+        )
+        ```
+
+        ### Where money comes back around
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. If money only ever flowed onward, each account would be a component
+        of its own, and there would be 18. There are 10, since eight accounts pass money around
+        among themselves, and Max and Nia pay each other. Without Finn's payment to Gus, Finn, Gus
+        and Hal would each fall out of the circle, and the count would rise to 13:
+
+        ```{python}
+        payments = ec.payments()
+        before = payments.count_strongly_connected_components()
+
+        without = ec.payments()
+        without.delete_edge("Finn", "Gus")
+
+        before, without.count_strongly_connected_components()
+        ```
+
+        Coloring each account by the size of its component picks out the circle of eight:
+
+        ```{python}
+        size = {
+            n: len(component)
+            for component in payments.strongly_connected_components()
+            for n in component
+        }
+        payments.set_node_attrs("component_size", size)
+        payments.plot(color_by="component_size", label_by="label", seed=3)
         ```
         """
         return self._graph.count_strongly_connected_components()
