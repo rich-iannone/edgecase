@@ -60746,15 +60746,53 @@ class Graph:
         ---------------
         Identical to `astar_path()`; see there.
 
+        See Also
+        --------
+        astar_path : The path itself.
+        shortest_path_length : The same length, without a heuristic.
+
         Examples
         --------
+        Without a heuristic, A* is Dijkstra's algorithm, and the cheaper route from A to D goes
+        through B, at a cost of `4 + 4 = 8` against `2 + 7 = 9` through C:
+
         ```{python}
         import edgecase as ec
 
-        roads = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        roads.add_edges([("A", "B", 4.0), ("B", "D", 4.0), ("A", "C", 2.0), ("C", "D", 7.0)])
+        roads = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("B", "D", 4.0), ("A", "C", 2.0), ("C", "D", 7.0)]
+        )
 
         roads.astar_path_length("A", "D")
+        ```
+
+        ### Travel time on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. No stretch takes fewer minutes than its straight-line length on
+        the map of station positions, so the straight-line distance is a safe heuristic. The
+        fastest trip from Westgate to the Airport takes 23 minutes, while the straight line
+        promises about 15:
+
+        ```{python}
+        import math
+
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        pos = {n: tuple(p) for n, p in zip(nodes["id"], nodes["pos"])}
+
+        def straight_line(node, target):
+            return math.dist(pos[node], pos[target])
+
+        ends = [metro.get_id_from_label(s) for s in ("Westgate", "Airport")]
+        (
+            metro.astar_path_length(*ends, heuristic=straight_line),
+            round(straight_line(*ends), 1),
+        )
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=ends, label_by="label")
         ```
         """
         found = self._astar(source, target, heuristic, weighted)
