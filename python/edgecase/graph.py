@@ -59700,6 +59700,12 @@ class Graph:
         ValueError
             If a label does not exist in the graph.
 
+        See Also
+        --------
+        shortest_path : A path, if there is one.
+        reachability_index : Answer many reachability questions quickly.
+        node_connected_component : Every node reachable from a node, in an undirected graph.
+
         Examples
         --------
         In a directed chain, every node can reach the nodes downstream of it, but not the ones
@@ -59708,13 +59714,33 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        graph.add_node(label="D")
 
-        graph.has_path("A", "C"), graph.has_path("C", "A"), graph.has_path("A", "D")
+        (
+            graph.has_path("A", "C"),
+            graph.has_path("C", "A"),
+            graph.has_path("A", "D"),
+        )
+        ```
+
+        ### A closure on the metro
+
+        `metro()` is a made-up city's metro network. Closing the track between Riverside and Harbor
+        cuts the harbor stations off from the rest of the network:
+
+        ```{python}
+        metro = ec.metro()
+        metro.delete_edge("Riverside", "Harbor")
+
+        metro.has_path("Central", "Docks"), metro.has_path("Harbor", "Docks")
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight=["Harbor", "Docks", "Shipyard"],
+            label_by="label",
+        )
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
