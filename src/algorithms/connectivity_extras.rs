@@ -571,38 +571,18 @@ fn closest_separator(
     Some((sep, inside))
 }
 
-/// Every minimum node cut (separator of size equal to the node connectivity) of a connected
-/// undirected graph, as sorted lists of node IDs. Complete graphs have none.
+/// The node connectivity of a connected, simple undirected graph (sorted adjacency lists)
+/// and every minimum node cut, as sorted lists of node indices. Complete graphs have none.
 ///
 /// With X the k highest-degree nodes (Kanevsky 1993), every minimum cut is X itself or separates
 /// some x in X from a node v not adjacent to x. The minimum x-v separators form a lattice: from
 /// the one closest to x, forcing any of its nodes onto x's side and taking the closest
 /// separator again reaches every other one, each found once per pair.
-#[pyfunction]
-pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
-    if graph.is_directed() {
-        return value_err("all_node_cuts() requires an undirected graph");
-    }
-    let (ids, idx) = sorted_ids(graph);
-    let n = ids.len();
-    let adj = simple_adjacency(graph, &idx, false);
-    let adj: Vec<Vec<usize>> = adj
-        .into_iter()
-        .map(|mut a| {
-            a.sort_unstable();
-            a.dedup();
-            a
-        })
-        .collect();
-    if n <= 1 {
-        return Ok(Vec::new());
-    }
-    if !connected_without(&adj, &vec![false; n]) {
-        return value_err("all_node_cuts() requires a connected graph");
-    }
+fn min_node_cuts(adj: &[Vec<usize>]) -> (i64, FxHashSet<Vec<usize>>) {
+    let n = adj.len();
     let adjacent = |a: usize, b: usize| adj[a].binary_search(&b).is_ok();
     if (0..n).all(|u| adj[u].len() == n - 1) {
-        return Ok(Vec::new());
+        return (n as i64 - 1, FxHashSet::default());
     }
     // node connectivity (Even 1975): min over non-adjacent pairs (v_i, v_j), i <= k
     let arcs: Vec<(usize, usize)> = (0..n)
@@ -626,7 +606,7 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
     for &u in &x_set {
         removed[u] = true;
     }
-    if !connected_without(&adj, &removed) {
+    if !connected_without(adj, &removed) {
         let mut sep = x_set.clone();
         sep.sort_unstable();
         found.insert(sep);
@@ -638,7 +618,7 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
             }
             let mut visited: FxHashSet<Vec<usize>> = FxHashSet::default();
             let mut stack = Vec::new();
-            if let Some(first) = closest_separator(&adj, x, v, &vec![false; n], k) {
+            if let Some(first) = closest_separator(adj, x, v, &vec![false; n], k) {
                 stack.push(first);
             }
             while let Some((sep, inside)) = stack.pop() {
@@ -648,7 +628,7 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
                 for &z in &sep {
                     let mut forced = inside.clone();
                     forced[z] = true;
-                    if let Some(next) = closest_separator(&adj, x, v, &forced, k) {
+                    if let Some(next) = closest_separator(adj, x, v, &forced, k) {
                         if !visited.contains(&next.0) {
                             stack.push(next);
                         }
@@ -658,12 +638,234 @@ pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
             }
         }
     }
+    (k, found)
+}
+
+/// Every minimum node cut (separator of size equal to the node connectivity) of a connected
+/// undirected graph, as sorted lists of node IDs. Complete graphs have none.
+/// See `min_node_cuts()` for the method.
+#[pyfunction]
+pub fn all_node_cuts(graph: &Graph) -> PyResult<Vec<Vec<u64>>> {
+    if graph.is_directed() {
+        return value_err("all_node_cuts() requires an undirected graph");
+    }
+    let (ids, idx) = sorted_ids(graph);
+    let n = ids.len();
+    let adj = simple_adjacency(graph, &idx, false);
+    let adj: Vec<Vec<usize>> = adj
+        .into_iter()
+        .map(|mut a| {
+            a.sort_unstable();
+            a.dedup();
+            a
+        })
+        .collect();
+    if n <= 1 {
+        return Ok(Vec::new());
+    }
+    if !connected_without(&adj, &vec![false; n]) {
+        return value_err("all_node_cuts() requires a connected graph");
+    }
+    let (_, found) = min_node_cuts(&adj);
     let mut cuts: Vec<Vec<usize>> = found.into_iter().collect();
     cuts.sort();
     Ok(cuts
         .into_iter()
         .map(|c| c.into_iter().map(|u| ids[u]).collect())
         .collect())
+}
+
+// ---------------------------------------------------------------------------------------------
+// Cohesive blocks
+// ---------------------------------------------------------------------------------------------
+
+/// The cohesive blocks of the subgraph induced by `nodes` (node IDs of a connected part of the
+/// graph), with edge directions ignored: `(blocks, cohesions, parents)`, parents first.
+///
+/// Follows Moody and White (as igraph does): a node set is split at each of its minimum node
+/// cuts, and each piece, together with the cut, is searched in turn. A piece is a new block
+/// when its connectivity exceeds that of the block it was found in, but it is split further
+/// either way, since denser sets can hide behind a weaker one. A block more cohesive than
+/// `level` has every node of degree above `level`, so each piece is first pruned to its
+/// (level + 1)-core. Blocks inside an at least as cohesive block are dropped as not maximal.
+pub fn cohesive_blocks_of(
+    graph: &Graph,
+    nodes: &[u64],
+) -> (Vec<Vec<u64>>, Vec<usize>, Vec<Option<usize>>) {
+    let (ids, idx) = sorted_ids(graph);
+    let adj: Vec<Vec<usize>> = simple_adjacency(graph, &idx, false)
+        .into_iter()
+        .map(|mut a| {
+            a.sort_unstable();
+            a.dedup();
+            a
+        })
+        .collect();
+    let mut start: Vec<usize> = nodes.iter().map(|v| idx[v]).collect();
+    start.sort_unstable();
+
+    let mut found: Vec<(Vec<usize>, usize)> = Vec::new();
+    let mut seen: FxHashSet<Vec<usize>> = FxHashSet::default();
+    collect_cohesive_blocks(&adj, start, None, &mut found, &mut seen);
+
+    // Parents first: lower cohesion, then larger blocks
+    found.sort_by(|(a, ka), (b, kb)| {
+        ka.cmp(kb)
+            .then_with(|| b.len().cmp(&a.len()))
+            .then_with(|| a.cmp(b))
+    });
+    let contains =
+        |outer: &[usize], inner: &[usize]| inner.iter().all(|x| outer.binary_search(x).is_ok());
+    let kept: Vec<&(Vec<usize>, usize)> = found
+        .iter()
+        .filter(|(block, k)| {
+            !found
+                .iter()
+                .any(|(other, ko)| ko >= k && other.len() > block.len() && contains(other, block))
+        })
+        .collect();
+
+    // Each block's parent is the most cohesive (then smallest) less cohesive block around it
+    let mut parents: Vec<Option<usize>> = Vec::with_capacity(kept.len());
+    for (i, (block, k)) in kept.iter().map(|b| (&b.0, b.1)).enumerate() {
+        let parent = (0..i)
+            .filter(|&j| kept[j].1 < k && contains(&kept[j].0, block))
+            .max_by(|&a, &b| {
+                kept[a]
+                    .1
+                    .cmp(&kept[b].1)
+                    .then_with(|| kept[b].0.len().cmp(&kept[a].0.len()))
+            });
+        parents.push(parent);
+    }
+    let blocks = kept
+        .iter()
+        .map(|(block, _)| block.iter().map(|&u| ids[u]).collect())
+        .collect();
+    let cohesions = kept.iter().map(|(_, k)| *k).collect();
+    (blocks, cohesions, parents)
+}
+
+fn collect_cohesive_blocks(
+    adj: &[Vec<usize>],
+    nodes: Vec<usize>,
+    parent_cohesion: Option<usize>,
+    found: &mut Vec<(Vec<usize>, usize)>,
+    seen: &mut FxHashSet<Vec<usize>>,
+) {
+    if !seen.insert(nodes.clone()) {
+        return;
+    }
+    // The induced subgraph, on local indices
+    let local: FxHashMap<usize, usize> = nodes.iter().enumerate().map(|(i, &u)| (u, i)).collect();
+    let sub: Vec<Vec<usize>> = nodes
+        .iter()
+        .map(|u| {
+            adj[*u]
+                .iter()
+                .filter_map(|w| local.get(w).copied())
+                .collect()
+        })
+        .collect();
+    let n = sub.len();
+
+    let mut pieces: Vec<Vec<usize>> = Vec::new();
+    let k = if n <= 1 {
+        0
+    } else if !connected_without(&sub, &vec![false; n]) {
+        // A piece plus its cut can be disconnected; look inside each part
+        pieces.extend(components_without(&sub, &vec![false; n]));
+        0
+    } else {
+        let (k, cuts) = min_node_cuts(&sub);
+        for cut in cuts {
+            let mut removed = vec![false; n];
+            for &u in &cut {
+                removed[u] = true;
+            }
+            for mut comp in components_without(&sub, &removed) {
+                comp.extend(cut.iter().copied());
+                pieces.push(comp);
+            }
+        }
+        k as usize
+    };
+
+    let level = match parent_cohesion {
+        Some(p) if k <= p => p,
+        _ => {
+            found.push((nodes.clone(), k));
+            k
+        }
+    };
+
+    // A set needs more than `level + 1` nodes to be more than `level`-connected
+    for piece in pieces {
+        if piece.len() <= level + 1 || piece.len() >= n {
+            continue;
+        }
+        let mut removed = vec![true; n];
+        for &u in &piece {
+            removed[u] = false;
+        }
+        prune_to_core(&sub, &mut removed, level + 1);
+        for part in components_without(&sub, &removed) {
+            if part.len() > level + 1 {
+                let mut next: Vec<usize> = part.into_iter().map(|u| nodes[u]).collect();
+                next.sort_unstable();
+                collect_cohesive_blocks(adj, next, Some(level), found, seen);
+            }
+        }
+    }
+}
+
+/// Remove nodes with fewer than `k` neighbors among the rest until none is left (k-core).
+fn prune_to_core(adj: &[Vec<usize>], removed: &mut [bool], k: usize) {
+    let mut degree: Vec<usize> = (0..adj.len())
+        .map(|u| adj[u].iter().filter(|&&w| !removed[w]).count())
+        .collect();
+    let mut stack: Vec<usize> = (0..adj.len())
+        .filter(|&u| !removed[u] && degree[u] < k)
+        .collect();
+    for &u in &stack {
+        removed[u] = true;
+    }
+    while let Some(u) = stack.pop() {
+        for &w in &adj[u] {
+            if !removed[w] {
+                degree[w] -= 1;
+                if degree[w] < k {
+                    removed[w] = true;
+                    stack.push(w);
+                }
+            }
+        }
+    }
+}
+
+/// The connected components of the nodes not in `removed`, as lists of indices.
+fn components_without(adj: &[Vec<usize>], removed: &[bool]) -> Vec<Vec<usize>> {
+    let mut seen = removed.to_vec();
+    let mut out = Vec::new();
+    for start in 0..adj.len() {
+        if seen[start] {
+            continue;
+        }
+        seen[start] = true;
+        let mut comp = vec![start];
+        let mut i = 0;
+        while i < comp.len() {
+            for &w in &adj[comp[i]] {
+                if !seen[w] {
+                    seen[w] = true;
+                    comp.push(w);
+                }
+            }
+            i += 1;
+        }
+        out.push(comp);
+    }
+    out
 }
 
 /// Whether the nodes not in `removed` induce a connected graph (true when at most one is left).
