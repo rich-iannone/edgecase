@@ -74622,138 +74622,126 @@ class Graph:
             sum to a negative number is reachable from `source=` (the cheapest flow is then
             undefined), or an edge lacks the attribute named by `capacity=` or `cost=`.
 
-        Technical Notes --------------- Uses the Successive Shortest Path algorithm with
-        Bellman-Ford relaxation, so negative per-unit costs are permitted alongside the usual
-        non-negative case (a reachable negative-cost cycle raises `ValueError`, since a cheapest
-        path is then undefined). The algorithm runs in $O(V \cdot E \cdot F)$ time in the worst
-        case, where $F$ is the number of augmenting steps. Because it always routes along the
-        *cheapest* residual path from source to sink, the final flow is optimal in total cost for
-        the amount sent. The graph must be directed (call `.to_directed()` first for undirected
-        inputs), and self-loops contribute nothing. Leaving `demand=` at `None` sends the maximum
-        possible flow at minimum cost; setting it to a specific value clamps the total and raises
+        Technical Notes
+        ---------------
+        Uses the Successive Shortest Path algorithm with Bellman-Ford relaxation, so negative
+        per-unit costs are permitted alongside the usual non-negative case (a reachable
+        negative-cost cycle raises `ValueError`, since a cheapest path is then undefined). The
+        algorithm runs in $O(V \cdot E \cdot F)$ time in the worst case, where $F$ is the
+        number of augmenting steps. Because it always routes along the *cheapest* residual
+        path from source to sink, the final flow is optimal in total cost for the amount sent.
+        The graph must be directed (call `.to_directed()` first for undirected inputs), and
+        self-loops contribute nothing. Leaving `demand=` at `None` sends the maximum possible
+        flow at minimum cost; setting it to a specific value clamps the total and raises
         `ValueError` if that demand cannot be met by any admissible flow.
+
+        See Also
+        --------
+        maximum_flow : The largest flow, regardless of cost.
+        minimum_cut : The cut that limits the largest flow.
 
         Examples
         --------
-        With two possible paths from `S` to `T`, the algorithm prefers the cheaper route through
-        `A` (per-unit cost 2) over the more expensive one through `B` (per-unit cost 3), only using
-        the second path once the first path's capacity is saturated. Here the edge weights act as
-        capacities because no `"capacity"` attribute is present:
+        With two possible paths from `S` to `T`, the flow fills the cheaper route through `A`
+        (per-unit cost 2) before the dearer one through `B` (per-unit cost 3). The edge weights
+        act as capacities, since no `"capacity"` attribute is present:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["S", "A", "B", "T"])
-            .add_edges(
-                [
-                    ("S", "A", {"cost": 1.0}),  # capacity 10, cost 1
-                    ("S", "B", {"cost": 2.0}),  # capacity 10, cost 2
-                    ("A", "T", {"cost": 1.0}),  # capacity 10, cost 1
-                    ("B", "T", {"cost": 1.0}),  # capacity 10, cost 1
-                ],
-                weight=10.0,
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("S", "A", 10.0, {"cost": 1.0}),
+                ("S", "B", 10.0, {"cost": 2.0}),
+                ("A", "T", 10.0, {"cost": 1.0}),
+                ("B", "T", 10.0, {"cost": 1.0}),
+            ],
+            directed=True,
         )
 
         total_flow, total_cost, flow_dict = graph.minimum_cost_flow("S", "T")
-
-        # Returns (20.0, 50.0): both paths get used once the cheaper one saturates
-        (total_flow, total_cost)
+        total_flow, total_cost
         ```
 
-        The third element maps edge IDs to flow. Translating the IDs into endpoint labels shows
-        that every edge carries its full capacity of 10:
+        The third element maps edge IDs to flow. Every edge carries its full capacity of 10:
 
         ```{python}
-        {
-            (graph.get_label_from_id(e.source), graph.get_label_from_id(e.target)): f
-            for eid, f in flow_dict.items()
-            for e in [graph.get_edge(eid)]
-        }
+        graph.set_edge_attrs("flow", flow_dict).get_edge_df(labels=True)
         ```
 
-        Passing `demand` sends exactly that much flow (rather than the maximum possible), which is
-        useful when you have a fixed requirement to satisfy at minimum cost:
+        With `demand=`, exactly that much flow is sent, at the least cost. Fifteen units fill
+        the route through `A` and send the rest through `B`:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["S", "A", "T"])
-            .add_edges([("S", "A", {"cost": 5.0}), ("A", "T", {"cost": 3.0})], weight=20.0)
-        )
-
-        # Send exactly 10 units of flow
-        total_flow, total_cost, flow_dict = graph.minimum_cost_flow("S", "T", demand=10.0)
-
-        # Returns (10.0, 80.0): 10 units at a combined per-unit cost of 8
-        (total_flow, total_cost)
+        graph.minimum_cost_flow("S", "T", demand=15.0)[:2]
         ```
 
-        Just like `maximum_flow()`, you can use custom attributes for both capacity and cost instead of
-        the defaults. Here the cheap two-hop route `A -> B -> C` (cost 8 per unit) fills up to its
-        bottleneck of 50 before the pricier direct edge (cost 10) carries the remaining 30:
+        Capacity and cost can come from any attributes. Here the cheap two-hop route
+        `A -> B -> C` (cost 8 per unit) fills up to its bottleneck of 50 before the pricier
+        direct edge (cost 10) carries the remaining 30:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B", {"bandwidth": 100, "price": 5}),
-                    ("B", "C", {"bandwidth": 50, "price": 3}),
-                    ("A", "C", {"bandwidth": 30, "price": 10}),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B", {"bandwidth": 100, "price": 5}),
+                ("B", "C", {"bandwidth": 50, "price": 3}),
+                ("A", "C", {"bandwidth": 30, "price": 10}),
+            ],
+            directed=True,
         )
 
-        total_flow, total_cost, flow_dict = graph.minimum_cost_flow(
-            "A", "C", capacity="bandwidth", cost="price"
-        )
-
-        # Returns (80.0, 700.0): 50 units at cost 8 plus 30 units at cost 10
-        (total_flow, total_cost)
+        graph.minimum_cost_flow("A", "C", capacity="bandwidth", cost="price")[:2]
         ```
 
-        This scales naturally to classic transportation problems, like shipping from warehouses to
-        stores at minimum total cost. A super-source feeds the warehouses (edge capacity = supply)
-        and the stores drain into a super-sink (edge capacity = demand):
+        A transportation problem fits the same mold: a super-source feeds the warehouses, with
+        each edge's capacity its supply, and the stores drain into a super-sink, with each edge's
+        capacity its demand. Meeting the stores' 90 units costs 410, with each store supplied
+        from its nearer warehouse:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(
-                [
-                    "Source",
-                    "W1",  # Warehouse 1
-                    "W2",  # Warehouse 2
-                    "S1",  # Store 1
-                    "S2",  # Store 2
-                    "Sink",
-                ]
-            )
-            .add_edges(
-                [
-                    # Source to warehouses (supply)
-                    ("Source", "W1", 50.0, {"cost": 0.0}),
-                    ("Source", "W2", 60.0, {"cost": 0.0}),
-                    # Warehouses to stores (shipping costs)
-                    ("W1", "S1", 100.0, {"cost": 8.0}),
-                    ("W1", "S2", 100.0, {"cost": 5.0}),
-                    ("W2", "S1", 100.0, {"cost": 4.0}),
-                    ("W2", "S2", 100.0, {"cost": 7.0}),
-                    # Stores to sink (demand)
-                    ("S1", "Sink", 40.0, {"cost": 0.0}),
-                    ("S2", "Sink", 50.0, {"cost": 0.0}),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("Source", "W1", 50.0, {"cost": 0.0}),
+                ("Source", "W2", 60.0, {"cost": 0.0}),
+                ("W1", "S1", 100.0, {"cost": 8.0}),
+                ("W1", "S2", 100.0, {"cost": 5.0}),
+                ("W2", "S1", 100.0, {"cost": 4.0}),
+                ("W2", "S2", 100.0, {"cost": 7.0}),
+                ("S1", "Sink", 40.0, {"cost": 0.0}),
+                ("S2", "Sink", 50.0, {"cost": 0.0}),
+            ],
+            directed=True,
         )
 
-        flow, cost, assignment = graph.minimum_cost_flow("Source", "Sink", demand=90.0)
-
-        # Total shipping cost for meeting the 90-unit demand
+        flow, cost, assignment = graph.minimum_cost_flow(
+            "Source", "Sink", demand=90.0
+        )
         cost
+        ```
+
+        ### Water at the lowest cost
+
+        `pipeline()` is a made-up city's water supply, with each pipe's `capacity` in megaliters
+        a day and a running `cost` per megaliter, both of which `minimum_cost_flow()` reads
+        without being told. The full 45 ML a day cost 285, but 30 ML cost only 170, since the
+        smaller amount can leave the Hill Pump, the dearest pipe, idle:
+
+        ```{python}
+        pipeline = ec.pipeline()
+        _, full_cost, _ = pipeline.minimum_cost_flow("Reservoir", "City")
+        sent, cost, flow = pipeline.minimum_cost_flow(
+            "Reservoir", "City", demand=30
+        )
+
+        full_cost, cost
+        ```
+
+        ```{python}
+        pipeline.set_edge_attrs("flow", flow)
+        pipeline.plot(
+            layout="pos", label_by="label", edge_width_by="flow",
+            edge_label_by="cost", width=700, height=360,
+        )
         ```
         """
         from edgecase._core import min_cost_flow as _min_cost_flow
