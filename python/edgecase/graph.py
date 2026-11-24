@@ -4777,8 +4777,8 @@ class Graph:
         focuses on a single traversal and doesn't read the step log (when BFS is run
         automatically from `source=`, that search is recorded like any other `bfs()` call).
 
-        Nodes are labelled with their node IDs, and the visit order must also be expressed in
-        node IDs (as returned by `bfs()` and `dfs()` with `return_list=True`).
+        Each node shows its label (or its ID if it has none), but the visit order must be
+        expressed in node IDs (as returned by `bfs()` and `dfs()` with `return_list=True`).
 
         Parameters
         ----------
@@ -4806,8 +4806,11 @@ class Graph:
             `"pos"` attribute the `layout_*()` methods set (see `plot()`). Any other value raises
             `ValueError`.
         theme
-            Color theme: `"light"` (default) or `"dark"`, which also selects the colors used for
-            the unvisited, frontier, current and visited states.
+            Color theme: `"auto"`, `"light"` or `"dark"`, which also selects the colors used for
+            the unvisited, frontier, current and visited states. `"auto"` follows the color
+            scheme of the page showing the widget, or else the system's (see `plot()`). If `None`
+            (default), the widget is `"auto"` on screen and light in saved files. Any other value
+            raises `ValueError`.
         width
             SVG canvas width in pixels. Default is `700`.
         height
@@ -4817,7 +4820,7 @@ class Graph:
         edge_width
             Edge stroke width in pixels. Default is `1.5`.
         show_labels
-            Whether to display node labels (node IDs). Default is `True`.
+            Whether to display node labels. Default is `True`.
         output
             Optional file path to save to. A path ending in `.html` saves the interactive widget;
             any other extension saves only the static SVG. Default is `None` (nothing is saved).
