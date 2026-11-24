@@ -75209,17 +75209,53 @@ class Graph:
         goes from it to another component, $O(V + E)$ in total. Matches NetworkX's
         `attracting_components`.
 
+        See Also
+        --------
+        strongly_connected_components : Every strongly connected component.
+        is_attracting_component : Check whether the whole graph is one.
+
         Examples
         --------
-        A random walk on this graph ends up circling B-C or stuck at D:
+        A walk on this graph ends up either going around `B` and `C` or stuck at `D`. `A` can
+        be left, and so it belongs to no attracting component:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "B"), ("A", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "B"), ("A", "D")], directed=True
+        )
 
-        [sorted(g.get_label_from_id(n) for n in c) for c in g.attracting_components()]
+        label = graph.get_label_from_id
+        [sorted(label(n) for n in c) for c in graph.attracting_components()]
+        ```
+
+        A directed cycle is strongly connected with nowhere to go, so the whole graph is one
+        attracting component:
+
+        ```{python}
+        ring = ec.Graph(directed=True).add_cycle_graph(4)
+        len(ring.attracting_components())
+        ```
+
+        ### Where the money ends up
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Every chain of payments ends at one of three businesses that pay no
+        one, so money that reaches them stays there: the Landlord, the Cafe and the Grocer:
+
+        ```{python}
+        payments = ec.payments()
+        sinks = payments.attracting_components()
+
+        label = payments.get_label_from_id
+        [label(n) for c in sinks for n in c]
+        ```
+
+        ```{python}
+        payments.plot(
+            highlight=[n for c in sinks for n in c], label_by="label", seed=3
+        )
         ```
         """
         if not self.is_directed():
