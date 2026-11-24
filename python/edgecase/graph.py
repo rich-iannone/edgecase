@@ -68425,66 +68425,53 @@ class Graph:
         redundant routing, network vulnerability, or edge-covering tours where the walker
         may pass through a hub several times.
 
+        See Also
+        --------
+        count_trails : Count the trails without listing them.
+        all_simple_paths : Paths that never revisit a node.
+        eulerian_path : A trail that crosses every edge exactly once.
+
         Examples
         --------
-        Unlike `count_trails()`, this returns the actual node sequences, so on a triangle we
-        get back both routes from `A` to `C` explicitly (mapped from IDs to labels here):
+        A trail can pass through a node twice, as long as it doesn't reuse an edge. Here the
+        second trail goes around the loop through `B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "E"), ("E", "F"), ("F", "B")],
+            directed=True,
         )
 
-        label = graph.get_label_from_id
-        [[label(n) for n in t] for t in graph.enumerate_trails("A", "C")]
+        [[graph.get_label_from_id(n) for n in t]
+         for t in graph.enumerate_trails("A", "C")]
         ```
 
-        Listing the trails shows how they differ from simple paths. In this directed graph the
-        loop `B -> E -> F -> B` produces a second trail that visits `B` twice:
+        ### The longest walks between two islands
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. There are 25 trails from Kneiphof to Lomse,
+        and the longest cross five bridges:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "D"),
-                    ("B", "E"),
-                    ("E", "F"),
-                    ("F", "B"),  # Loop back to B
-                ]
-            )
+        konigsberg = ec.konigsberg()
+        label = konigsberg.get_label_from_id
+        trails = konigsberg.enumerate_trails("Kneiphof", "Lomse")
+        longest = [t for t in trails if len(t) == 6]
+
+        len(trails), [label(n) for n in longest[0]]
+        ```
+
+        Kneiphof is joined to each bank by two bridges, so a trail can cross to a bank and come
+        straight back. The one above crosses both bridges to the South Bank and both to the North
+        Bank before taking the Honigbrücke to Lomse:
+
+        ```{python}
+        konigsberg.plot(
+            layout="pos", highlight=longest[0], color_by="kind",
+            label_by="label", edge_label_by="bridge",
         )
-
-        label = graph.get_label_from_id
-        [[label(n) for n in t] for t in graph.enumerate_trails("A", "D")]
-        ```
-
-        `max_trails=` bounds how many trails are collected, which matters once a graph is
-        large enough that enumerating every trail would be expensive. Between these two members
-        of the karate club network far more than 100 trails exist, so exactly 100 come back:
-
-        ```{python}
-        G = ec.karate_club()
-        node_ids = list(G.get_node_ids(limit=None))
-
-        trails = G.enumerate_trails(source=node_ids[0], target=node_ids[-1], max_trails=100)
-        len(trails)
-        ```
-
-        With the returned trails in hand, it's easy to summarize how their lengths vary:
-
-        ```{python}
-        lengths = [len(trail) - 1 for trail in trails]  # -1 to count edges, not nodes
-
-        # (shortest, longest) trail length found, in edges
-        (min(lengths), max(lengths))
         ```
         """
         # Convert string node IDs to internal IDs
