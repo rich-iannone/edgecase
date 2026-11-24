@@ -34393,15 +34393,65 @@ class Graph:
         larger ID than its last node, so every clique is produced exactly once, in the same
         order as NetworkX's `enumerate_all_cliques`.
 
+        See Also
+        --------
+        find_cliques : List only the maximal cliques.
+        list_triangles : List the cliques of three.
+
         Examples
         --------
-        A triangle has 7 cliques: three nodes, three edges and the triangle itself:
+        A triangle `A`, `B`, `C` with a tail `C`-`D` has nine cliques: the four nodes, the four
+        edges and the triangle, in order of size:
 
         ```{python}
         import edgecase as ec
 
-        triangle = ec.Graph().add_cycle_graph(3)
-        triangle.enumerate_all_cliques()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
+
+        label = graph.get_label_from_id
+        [[label(n) for n in c] for c in graph.enumerate_all_cliques()]
+        ```
+
+        ### Cliques inside cliques
+
+        Every subset of a clique is a clique, so a large one holds a great many. `les_miserables()`
+        links two characters of Victor Hugo's novel when they appear in the same chapter. It has
+        59 maximal cliques, but 2,922 cliques in all:
+
+        ```{python}
+        from collections import Counter
+
+        novel = ec.les_miserables()
+        cliques = novel.enumerate_all_cliques()
+
+        len(novel.find_cliques()), len(cliques)
+        ```
+
+        Counting them by size gives the network's clique profile. Most have four to six
+        characters:
+
+        ```{python}
+        Counter(len(clique) for clique in cliques)
+        ```
+
+        The two cliques of ten hold 1,023 cliques each. Both are at the barricade, and they share
+        eight characters: Gavroche and seven of the students of the Friends of the ABC. One adds
+        Marius and Mabeuf, the other the students Prouvaire and Grantaire. Drawing the twelve of
+        them on their own:
+
+        ```{python}
+        first, second = [set(c) for c in cliques if len(c) == 10]
+        label = novel.get_label_from_id
+
+        barricade = novel.subgraph(sorted(first | second))
+        barricade.set_node_attrs(
+            "cliques",
+            {label(n): "both" if n in first & second else "one"
+             for n in first | second},
+        )
+        barricade.plot(color_by="cliques", label_by="label", seed=1)
         ```
         """
         cliques = rust.enumerate_all_cliques(self._graph)
