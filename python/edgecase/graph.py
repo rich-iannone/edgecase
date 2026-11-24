@@ -31769,87 +31769,53 @@ class Graph:
         The cost is quadratic in the number of requested nodes, so restricting `nodes=` to the
         nodes you care about is much cheaper than computing the full matrix on a large graph.
 
+        See Also
+        --------
+        jaccard_similarity : Jaccard scores for every pair, as a dict.
+        dice_similarity : Dice scores for every pair, as a dict.
+        simrank_similarity : Similarity from random walks rather than shared neighbors.
+
         Examples
         --------
-        **Comparing Similarity Metrics**
-
-        "A" and "B" here connect to exactly the same two nodes, so every metric agrees
-        they're maximally similar, even though the metrics are computed differently:
+        `A` and `B` share two of the three nodes they know between them, and `E` shares none
+        with either. Rows and columns follow the order of `nodes=`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
+        )
 
-        g.add_nodes(["A", "B", "X", "Y"])
+        graph.pairwise_similarity(["A", "B", "E"])
+        ```
 
-        g.add_edges([("A", "X"), ("A", "Y"), ("B", "X"), ("B", "Y")])
+        ### Four people, two pairs
 
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Ada and Dev, in the chess club, have three friends in common, and
+        Mara and Pablo, climbers, have exactly the same three friends. Neither pair are friends
+        themselves, and the two pairs share no one:
+
+        ```{python}
+        friends = ec.friends()
+        people = ["Ada", "Dev", "Mara", "Pablo"]
+        scores = friends.pairwise_similarity(people)
+
+        [[round(s, 2) for s in row] for row in scores]
+        ```
+
+        The Dice coefficient counts the shared friends twice, so it scores Ada and Dev higher:
+
+        ```{python}
         [
-            g.pairwise_similarity(["A", "B"], method=m)[0][1]
-            for m in ["jaccard", "dice", "cosine"]
+            [round(s, 2) for s in row]
+            for row in friends.pairwise_similarity(people, method="dice")
         ]
         ```
 
-        IDs and labels can be mixed freely in the `nodes=` list. Here ID `1` is node "A", so the
-        result is the same 2 x 2 matrix as comparing "A" with "B":
-
         ```{python}
-        g.pairwise_similarity([1, "B"], method="jaccard")
-        ```
-
-        **Link Prediction with Inverse Log-Weighted**
-
-        P1 and P2 are only connected through a high-degree hub. Adamic-Adar weights that shared
-        hub by `1 / log(4)` because the hub has four neighbors, so the pair scores about `0.72`
-        rather than a full point:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-
-        g.add_nodes(["P1", "P2", "Hub", "P3", "P4"])
-
-        g.add_edges([("P1", "Hub"), ("P2", "Hub"), ("Hub", "P3"), ("Hub", "P4")])
-
-        g.pairwise_similarity(["P1", "P2"], method="invlogweighted")[0][1]
-        ```
-
-        Jaccard treats the same pair as fully similar, since it doesn't account for how
-        widely shared the common neighbor is:
-
-        ```{python}
-        g.pairwise_similarity(["P1", "P2"], method="jaccard")[0][1]
-        ```
-
-        **Directed Graphs Use Out-Neighbors**
-
-        In a directed graph, "A" and "B" both point at "X", so they are identical by Jaccard.
-        "X" only has an outgoing edge to "Y", which neither "A" nor "B" shares, so it scores
-        `0.0` against both:
-
-        ```{python}
-        dg = ec.Graph(directed=True)
-
-        dg.add_nodes(["A", "B", "X", "Y"])
-
-        dg.add_edges([("A", "X"), ("B", "X"), ("X", "Y")])
-
-        dg.pairwise_similarity(["A", "B", "X"])
-        ```
-
-        **Similarity Within a Dense Community**
-
-        Omitting `nodes=` computes the full pairwise matrix. In a small clique, every
-        node shares most of its neighbors with every other node, so similarity is high
-        throughout:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-
-        g.add_nodes([f"C1_{i}" for i in range(5)])
-        g.add_edges([(f"C1_{i}", f"C1_{j}") for i in range(5) for j in range(i + 1, 5)])
-
-        g.pairwise_similarity(method="jaccard")
+        friends.plot(highlight=people, color_by="club", label_by="label", seed=8)
         ```
         """
         if nodes is None:
