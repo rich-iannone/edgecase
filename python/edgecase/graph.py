@@ -56948,22 +56948,54 @@ class Graph:
             If `return_dict=` is `True`: Dictionary mapping node IDs to coreness values
             (non-negative integers). If `return_dict=` is `False`: Returns self for method chaining.
 
+        See Also
+        --------
+        k_core : The subgraph of the nodes with coreness at least `k`.
+        k_shell : The subgraph of the nodes with coreness exactly `k`.
+        k_truss : A stricter core, where each edge must lie in triangles.
+
         Examples
         --------
-        Every node in a complete graph K4 is connected to all three others, so removing
-        any one node still leaves a fully-connected triangle behind -- meaning all four
-        nodes share the maximum possible coreness of `3`:
+        In a complete graph on four nodes, every node keeps three neighbors however the graph is
+        peeled, so all four have coreness 3. A pendant node hanging off the cluster has only one
+        neighbor, so its coreness is 1:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("D", "E")]
         )
 
-        graph.coreness(return_dict=True)
+        label = graph.get_label_from_id
+        {label(n): k for n, k in graph.coreness(return_dict=True).items()}
+        ```
+
+        ### The center of a novel
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. Valjean has the most links, 36, but many of them lead to characters who
+        appear only with Valjean. The innermost core is the twelve characters at the barricade:
+        the students of the Friends of the ABC, with Marius, Gavroche and Mabeuf. Each of them
+        shares chapters with at least nine others of the twelve:
+
+        ```{python}
+        novel = ec.les_miserables()
+        core = novel.coreness(return_dict=True)
+
+        label = novel.get_label_from_id
+        valjean = novel.get_id_from_label("Valjean")
+        top = max(core.values())
+        inner = sorted(label(n) for n, k in core.items() if k == top)
+        core[valjean], top, inner
+        ```
+
+        ```{python}
+        novel.coreness().plot(
+            color_by="coreness", color_scale="sequential", label_by="label",
+            seed=1,
+        )
         ```
         """
         if attr_name is None:
