@@ -24148,6 +24148,12 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_nodes : Select the nodes that pass a test.
+        get_selected_node_ids : The IDs of the selected nodes.
+        transform_to_subgraph_ws : Keep only the selected nodes.
+
         Examples
         --------
         Selecting nodes by ID marks them for follow-up operations like building a
