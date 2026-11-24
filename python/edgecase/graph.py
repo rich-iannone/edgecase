@@ -1200,6 +1200,11 @@ class Graph:
         Graph
             Returns self to enable method chaining.
 
+        See Also
+        --------
+        steps : The step log being cleared.
+        play : Replay the steps recorded since.
+
         Examples
         --------
         Here a generated path graph is treated as setup. After clearing, the log is empty while
