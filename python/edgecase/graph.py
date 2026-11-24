@@ -77100,32 +77100,57 @@ class Graph:
         rows (smaller side) and $c$ columns it runs in $O(r^2 c)$ time, the same optimum that
         NetworkX obtains from SciPy's `linear_sum_assignment`.
 
+        See Also
+        --------
+        bipartite_maximum_matching : The largest matching, when no full one exists.
+        minimum_weight_matching : The same for graphs that aren't bipartite.
+
         Examples
         --------
-        Three couriers and three deliveries, with travel times as weights. The quickest
-        assignment is not the one that gives each courier their nearest delivery:
+        Three couriers and three deliveries, with travel times as weights. Ana's nearest
+        delivery is `d1`, but giving it to Ana leaves Ben and Cho with slow ones. The quickest
+        plan, 11 in all, gives `d1` to Ben:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["Ana", "Ben", "Cho", "d1", "d2", "d3"])
-        g.add_edges(
-            [
-                ("Ana", "d1", 2.0), ("Ana", "d2", 3.0), ("Ana", "d3", 8.0),
-                ("Ben", "d1", 3.0), ("Ben", "d2", 7.0), ("Ben", "d3", 9.0),
-                ("Cho", "d1", 6.0), ("Cho", "d2", 4.0), ("Cho", "d3", 5.0),
-            ]
+        g = ec.Graph.from_edges(
+            [("Ana", "d1", 2.0), ("Ana", "d2", 3.0), ("Ana", "d3", 8.0),
+             ("Ben", "d1", 3.0), ("Ben", "d2", 7.0), ("Ben", "d3", 9.0),
+             ("Cho", "d1", 6.0), ("Cho", "d2", 4.0), ("Cho", "d3", 5.0)]
         )
+        couriers = ["Ana", "Ben", "Cho"]
+        plan = g.bipartite_minimum_weight_full_matching(top_nodes=couriers)
 
-        plan = g.bipartite_minimum_weight_full_matching(top_nodes=["Ana", "Ben", "Cho"])
-        [
-            (g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
-            for e in (g.get_edge(i) for i in plan)
-        ]
+        label = g.get_label_from_id
+        [(label(g.get_edge(e).source), label(g.get_edge(e).target)) for e in plan]
         ```
 
-        The total is 3 + 3 + 5 = 11. Giving Ana her nearest delivery (d1, 2) would leave Ben
-        with d2 or d3 and cost more overall.
+        ### Hiring a contractor
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do, weighted by the hours it would take them. Only seven of the tasks can be
+        covered, so there's no full matching. With `contractor=True`, Quinn joins and can take
+        Security or DevOps. Every task is then covered, in 37 hours at the least, and one of
+        the two designers, Luis, is left free:
+
+        ```{python}
+        team = ec.teams(contractor=True)
+        matched = team.bipartite_minimum_weight_full_matching()
+
+        label = team.get_label_from_id
+        covered = {n for e in matched for n in team.get_node_ids_by_edge_id(e)}
+        (
+            sum(team.get_edge(e).weight for e in matched),
+            [label(n) for n in team.get_node_ids() if n not in covered],
+        )
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight_edges=matched, label_by="label", height=300
+        )
+        ```
         """
         eids = rust.min_weight_full_matching(
             self._graph, self._top_ids(top_nodes), self._use_weights(weighted)
