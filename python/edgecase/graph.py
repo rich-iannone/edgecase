@@ -19462,7 +19462,7 @@ class Graph:
         }
         if mode not in overlap:
             raise ValueError("mode= must be 'dot', 'min' or 'max'")
-        if not self.is_bipartite():
+        if not self._graph.is_bipartite():
             raise ValueError("the graph is not bipartite")
         f = overlap[mode]
         nbrs = self._neighbor_sets()
