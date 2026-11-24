@@ -30140,20 +30140,58 @@ class Graph:
         Each pair costs one neighbor-set intersection. The scores match NetworkX's
         `ra_index_soundarajan_hopcroft`.
 
+        See Also
+        --------
+        resource_allocation_index : The score without communities.
+        cn_soundarajan_hopcroft : Common neighbors with a bonus within the community.
+        cmty_louvain : Find communities to score with.
+
         Examples
         --------
-        A and D share B (degree 2, same community) and C (another community), so only B counts:
+        Only common neighbors in the same community as both nodes count, each as one over its
+        degree. `A` and `D` share `B` and `C`, but only `B` is in their community, and it has
+        two neighbors:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(
-            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
-             ("D", {"community": 0})]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "community", {"A": 1, "B": 1, "D": 1, "C": 2, "E": 2}
+        )
+        label = graph.get_label_from_id
+        scores = graph.ra_index_soundarajan_hopcroft([("A", "D"), ("B", "E")])
 
-        g.ra_index_soundarajan_hopcroft([("A", "D")])[0][2]
+        [(label(u), label(v), s) for u, v, s in scores]
+        ```
+
+        ### Within the circles of friends
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. `cmty_louvain()` splits the network into four circles of friends,
+        stored here as `community`, the attribute this method reads by default. Ben and Jules,
+        and Wes and Oona, share only Hugo and Tara, but each pair spans two circles, so where
+        `resource_allocation_index()` gives them `0.4`, this gives `0`. Nico and Rosa, and their
+        two shared friends, are all in one circle:
+
+        ```{python}
+        friends = ec.friends().cmty_louvain(attr_name="community")
+        label = friends.get_label_from_id
+        pairs = [("Nico", "Rosa"), ("Wes", "Oona"), ("Ben", "Jules")]
+
+        [
+            (label(u), label(v), round(ra, 2), round(sh, 2))
+            for (u, v, ra), (_, _, sh) in zip(
+                friends.resource_allocation_index(pairs),
+                friends.ra_index_soundarajan_hopcroft(pairs),
+            )
+        ]
+        ```
+
+        ```{python}
+        friends.plot(color_by="community", label_by="label", seed=8)
         ```
         """
         return self._link_scores("ra_sh", ebunch, community)
