@@ -33500,19 +33500,60 @@ class Graph:
 
         Examples
         --------
-        Two hubs joined to each other and to three spokes form a complete split graph. Dropping
-        one hub-spoke edge leaves a split graph that is no longer complete:
+        A star is a complete split graph: its center, a clique of one, is joined to every leaf.
+        A triangle with a pendant node is split, but `D` misses `A` and `B`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["hub1", "hub2", "a", "b", "c"])
-        g.add_edges([("hub1", "hub2")])
-        g.add_edges([(h, s) for h in ("hub1", "hub2") for s in ("a", "b", "c")])
-        before = g.is_complete_split_graph()
-        g.delete_edge("hub1", "c")
+        star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
+        kite = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
+        )
 
-        before, g.is_complete_split_graph(), g.is_split_graph()
+        star.is_complete_split_graph(), kite.is_complete_split_graph()
+        ```
+
+        ### Hubs and spokes
+
+        A small airline flies between its two hubs and from each hub to each of four regional
+        airports, with no flights between the regional ones. The hubs reach every airport, and
+        the regional airports reach only the hubs:
+
+        ```{python}
+        hubs, regional = ["Hub 1", "Hub 2"], ["Ayr", "Bray", "Cobh", "Dorn"]
+        routes = ec.Graph.from_edges(
+            [("Hub 1", "Hub 2")] + [(h, r) for h in hubs for r in regional]
+        )
+        routes.set_node_attrs("kind", {**dict.fromkeys(hubs, "hub"),
+                                       **dict.fromkeys(regional, "regional")})
+        routes.is_complete_split_graph()
+        ```
+
+        Dropping the route from Hub 1 to Dorn (right) leaves a split graph, with the hubs still a
+        clique and the regional airports still unlinked, but no longer a complete one:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        routes.layout_kamada_kawai().plot(
+            layout="pos", color_by="kind", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        routes.delete_edge("Hub 1", "Dorn")
+        routes.plot(
+            layout="pos", color_by="kind", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ```{python}
+        routes.is_complete_split_graph(), routes.is_split_graph()
         ```
         """
         nbrs, deg = self._simple_degrees()
