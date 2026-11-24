@@ -24492,25 +24492,20 @@ class Graph:
 
         Examples
         --------
-        Selection follows creation order rather than label order, so this selects
-        whichever two nodes were added most recently -- here "C" and "D":
+        This selects the two nodes added last, here `A` and `B`. It goes by when the nodes were
+        made, not by their labels:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .select_last_nodes_created(2)
-        )
+        graph = ec.Graph().add_nodes(["D", "C", "A", "B"])
+        graph.select_last_nodes_created(2)
 
-        selected = graph.get_selected_node_ids()
-        sorted(graph.get_label_from_id(nid) for nid in selected)
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
-        A typical use is labelling the output of a generator. After adding a 3-node path
-        to an existing node "root", the last three nodes are exactly the ones the generator
-        created, so only they get `batch=2`:
+        A common use is to tag what a generator just added. Only the three nodes of the new path
+        get `batch=2`:
 
         ```{python}
         graph = (
