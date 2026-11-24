@@ -73589,6 +73589,11 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        boundary_expansion : The neighbors outside the set only.
+        node_boundary : The neighbors outside the set.
+
         Examples
         --------
         The triangle A, B, C has four distinct neighbors, counting its own members: A, B and C
@@ -73597,14 +73602,33 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        graph.node_expansion(["A", "B", "C"]), graph.boundary_expansion(["A", "B", "C"])
+        triangle = ["A", "B", "C"]
+        graph.node_expansion(triangle), graph.boundary_expansion(triangle)
+        ```
+
+        ### Neighbors of the city center
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. The seven stations of zone 1 have eleven neighbors between them: all seven
+        themselves, as each has a neighbor inside the zone, plus four stations outside it:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone_1 = nodes.filter(nodes["zone"] == 1)["id"].to_list()
+
+        round(metro.node_expansion(zone_1), 3), metro.node_expansion(zone_1) * 7
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
         """
         s_ids, _, p = self._cut(S)
