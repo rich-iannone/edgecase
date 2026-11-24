@@ -39209,32 +39209,72 @@ class Graph:
             If a node is missing from the partition, appears in two groups, or a label or
             attribute does not exist.
 
+        See Also
+        --------
+        modularity : Compare the edges inside communities with what chance would give.
+        constant_potts_model : A score that compares each community with a set density.
+
         Examples
         --------
-        Two triangles joined by a bridge: the natural split keeps 6 of the 7 edges inside
-        communities and classifies most node pairs correctly, while lumping everything together
-        reaches full coverage at the price of performance:
+        Splitting two triangles joined by a bridge keeps 6 of the 7 edges inside communities and
+        gets most node pairs right. Lumping everything together reaches full coverage, but most
+        pairs in the one community are not joined:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
         split = graph.partition_quality([["A", "B", "C"], ["D", "E", "F"]])
         lumped = graph.partition_quality([["A", "B", "C", "D", "E", "F"]])
+
         [round(x, 3) for x in split], [round(x, 3) for x in lumped]
         ```
 
-        Community detection results can be scored directly:
+        ### Two scores, two biases
+
+        In `karate_club()`, the `faction` attribute records how the club split. Scoring it beside
+        Louvain's communities and the two extremes, one community and every member alone:
 
         ```{python}
-        graph.cmty_leiden(seed=1)
-        graph.partition_quality("cmty_leiden")
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai().cmty_louvain()
+        members = karate.get_node_ids()
+
+        partitions = {
+            "faction": "faction",
+            "cmty_louvain": "cmty_louvain",
+            "one community": [members],
+            "all alone": [[m] for m in members],
+        }
+
+        pl.DataFrame(
+            [
+                (name, *karate.partition_quality(p))
+                for name, p in partitions.items()
+            ],
+            schema=["partition", "coverage", "performance"],
+            orient="row",
+        )
+        ```
+
+        Every member alone scores a higher performance than either real partition, since most
+        pairs of members are not friends, and one community has perfect coverage. The two
+        factions keep the most edges inside of the real partitions: only the 10 friendships drawn
+        in gray cross between them:
+
+        ```{python}
+        karate.plot(
+            layout="pos",
+            color_by="faction",
+            edge_color_by="faction",
+            label_by="label",
+        )
         ```
         """
         membership = self._membership_from(communities)
