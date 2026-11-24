@@ -62612,19 +62612,48 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEF"))
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "E"), ("C", "F")])
-        g.set_node_attrs("score", {"A": 0, "B": 1, "C": 5, "D": 9, "E": 2, "F": 3})
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "E"), ("C", "F")]
+        )
+        graph.set_node_attrs(
+            "score", {"A": 0, "B": 1, "C": 5, "D": 9, "E": 2, "F": 3}
+        )
 
-        label = g.get_label_from_id
-        [(label(p), label(c)) for p, c in g.bfs_beam_edges("A", value="score", width=1)]
+        label = graph.get_label_from_id
+        [
+            (label(p), label(c))
+            for p, c in graph.bfs_beam_edges("A", value="score", width=1)
+        ]
         ```
 
         B is never reached, so neither is its high-scoring neighbor D. A wider beam takes
         both of A's neighbors:
 
         ```{python}
-        [(label(p), label(c)) for p, c in g.bfs_beam_edges("A", value="score", width=2)]
+        [
+            (label(p), label(c))
+            for p, c in graph.bfs_beam_edges("A", value="score", width=2)
+        ]
+        ```
+
+        ### Heading for the Airport
+
+        `metro()` is a made-up city's metro network, which stores each station's map position in
+        `pos`. Scoring each station by how close it is to the Airport on the map, a beam of
+        width 1 always moves to the neighbor nearest the Airport:
+
+        ```{python}
+        import math
+
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        pos = {n: tuple(p) for n, p in zip(nodes["id"], nodes["pos"])}
+        airport = pos[metro.get_id_from_label("Airport")]
+
+        closeness = {n: -math.dist(p, airport) for n, p in pos.items()}
+        steps = metro.bfs_beam_edges("Westgate", value=closeness, width=1)
+
+        metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
         """
         self._check_traversal_args(None, mode)
