@@ -76313,52 +76313,61 @@ class Graph:
             `True` if the edges exist and form a valid matching (no shared endpoints), `False`
             otherwise.
 
+        See Also
+        --------
+        maximal_matching : A matching that no edge can be added to.
+        is_maximal_matching : Check that no edge can be added to a matching.
+        is_perfect_matching : Check that a matching pairs every node.
+
         Examples
         --------
-        Two disjoint edges (`A-B` and `C-D`) share no endpoints, so together they form a valid
-        matching:
+        Two separate edges share no node, so they form a matching. In a path, the two edges
+        meet at `B`, so they don't:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("C", "D")])
+        pairs = ec.Graph.from_edges([("A", "B"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+
+        (
+            pairs.is_matching(pairs.get_edge_ids()),
+            path.is_matching(path.get_edge_ids()),
         )
-
-        edge_ids = graph.get_edge_ids()
-
-        # Returns True (no shared endpoints)
-        graph.is_matching(edge_ids)
         ```
 
-        In a path `A-B-C`, the two edges share node `B`, so they don't form a valid matching:
+        An empty list is a matching too, with no pairs:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        edge_ids = graph.get_edge_ids()
-
-        # Returns False (B is shared)
-        graph.is_matching(edge_ids)
+        path.is_matching([])
         ```
 
-        This makes it easy to sanity-check the output of matching algorithms like
-        `maximal_matching()`:
+        ### Checking a draft assignment
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do, weighted by the hours it would take them. A manager's first draft gives Priya
+        and Tom the Backend task both, which isn't a matching. Moving Tom to Frontend fixes it:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(6)
+        team = ec.teams()
+        draft = {
+            "Priya": "Backend", "Tom": "Backend", "Mei": "Design",
+            "Omar": "Database", "Sara": "Docs", "Kofi": "Security",
+            "Hana": "Testing",
+        }
 
-        matching = graph.maximal_matching()
+        def edges(plan):
+            return [team.find_edge_ids(w, t)[0] for w, t in plan.items()]
 
-        # Returns True: maximal_matching() always produces a valid matching
-        graph.is_matching(matching)
+        fixed = {**draft, "Tom": "Frontend"}
+        team.is_matching(edges(draft)), team.is_matching(edges(fixed))
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight_edges=edges(fixed), label_by="label",
+            height=300,
+        )
         ```
         """
         from edgecase._core import is_matching
