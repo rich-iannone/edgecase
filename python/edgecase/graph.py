@@ -41144,23 +41144,99 @@ class Graph:
         random state; it counts a self-loop's neighbor as being on its own side; and it accepts
         directed graphs. An edgeless graph returns the starting split.
 
+        See Also
+        --------
+        spectral_modularity_bipartition : A good starting split.
+        kernighan_lin_bisection : Swap nodes to cut fewer edges, keeping the sizes equal.
+        modularity : The score that each move raises.
+
         Examples
         --------
-        Two triangles joined by an edge are separated:
+        Two triangles joined by a single edge, from a random starting split, end up as the two
+        triangles:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_barbell_graph(3, 0, label=False)
-        g.greedy_node_swap_bipartition(seed=1)
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
+
+        first, second = graph.greedy_node_swap_bipartition(seed=1)
+
+        (
+            sorted(graph.get_label_from_id(n) for n in first),
+            sorted(graph.get_label_from_id(n) for n in second),
+        )
         ```
 
-        Refining a split of the karate club:
+        ### From a poor start
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Starting from members 0 to 16 against 17 to 33 (left), a
+        split that scores below `0`, the moves raise modularity to `0.372`:
 
         ```{python}
-        g = ec.karate_club()
-        left, right = g.greedy_node_swap_bipartition(init_split=g.spectral_modularity_bipartition())
-        len(left), len(right), round(g.modularity([left, right]), 4)
+        karate = ec.karate_club().layout_kamada_kawai()
+        members = karate.get_node_ids()
+        start = (members[:17], members[17:])
+
+        first, second = karate.greedy_node_swap_bipartition(init_split=start)
+
+        (
+            round(karate.modularity(list(start)), 3),
+            round(karate.modularity([first, second]), 3),
+        )
+        ```
+
+        The result (right) is the two factions recorded in `faction`, apart from member 9, who
+        joined the administrator but has more friends on the instructor's side:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.set_node_attrs("start", 0)
+        karate.set_node_attrs("start", 1, nodes=start[1])
+        karate.plot(
+            layout="pos", color_by="start", edge_color_by="start",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.set_node_attrs("swapped", 0)
+        karate.set_node_attrs("swapped", 1, nodes=list(first))
+        karate.plot(
+            layout="pos", color_by="swapped", edge_color_by="swapped",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ### Refining a spectral split
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both. Starting from `spectral_modularity_bipartition()` raises the modularity of its split
+        from `0.445` to `0.457`, and four books on foreign policy and terrorism change sides:
+
+        ```{python}
+        books = ec.polbooks()
+        spectral = books.spectral_modularity_bipartition()
+        first, second = books.greedy_node_swap_bipartition(init_split=spectral)
+
+        moved = [
+            n for n in books.get_node_ids()
+            if (n in spectral[0]) != (n in first)
+        ]
+
+        (
+            round(books.modularity(list(spectral)), 3),
+            round(books.modularity([first, second]), 3),
+            [books.get_label_from_id(n) for n in moved],
+        )
         ```
         """
         if self.is_directed():
