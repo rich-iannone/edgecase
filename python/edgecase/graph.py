@@ -53922,6 +53922,12 @@ class Graph:
         ValueError
             If `count=` is negative.
 
+        See Also
+        --------
+        degree_centrality : The busiest nodes, chosen without regard to overlap.
+        group_degree_centrality : How many nodes the chosen spreaders are next to.
+        prominent_group : The group with the most group betweenness.
+
         Examples
         --------
         Two stars joined by their hubs: VoteRank elects one hub, then the other, rather than
@@ -53930,14 +53936,53 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["h1", "a", "b", "c", "h2", "d", "e", "f"])
-            .add_edges([("h1", "a"), ("h1", "b"), ("h1", "c"), ("h1", "h2"),
-                        ("h2", "d"), ("h2", "e"), ("h2", "f")])
+        graph = ec.Graph.from_edges(
+            [("h1", "a"), ("h1", "b"), ("h1", "c"), ("h1", "h2"), ("h2", "d"),
+             ("h2", "e"), ("h2", "f")]
         )
 
         [graph.get_label_from_id(n) for n in graph.voterank(count=2)]
+        ```
+
+        ### Spreaders across the metro
+
+        On the metro, VoteRank's first pick is Old Town, one of the five stations with four
+        links. Each winner weakens the votes of its neighbors, so the next picks move away from
+        it: Market, then Northpark at the top of the ring, then Harbor and Eastfield, on the two
+        branches. Replayed, the spreaders are elected one round at a time:
+
+        ```{python}
+        metro = ec.metro()
+
+        spreaders = [metro.get_label_from_id(n) for n in metro.voterank(count=5)]
+
+        metro.play(layout="pos")
+        ```
+
+        The five stations with the most links all sit in the center, so between them they're
+        next to only 6 of the other 15 stations. VoteRank's five are next to 12:
+
+        ```{python}
+        import polars as pl
+
+        busiest = (
+            metro.get_node_df().filter(pl.col("degree") == 4)["label"].to_list()
+        )
+
+        (
+            metro.group_degree_centrality(busiest),
+            metro.group_degree_centrality(spreaders),
+        )
+        ```
+
+        Drawn with VoteRank's spreaders in the accent color and the busiest stations in a softer
+        one, Old Town and Market are in both:
+
+        ```{python}
+        metro.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": spreaders, "soft": busiest},
+        )
         ```
         """
         if count is not None and count < 0:
@@ -53946,12 +53991,31 @@ class Graph:
 
         if self._recording_depth == 0:
             ranks = {self._node_label(n): i for i, n in enumerate(elected)}
+            winners = list(ranks)
+            # One sub-step per round, so that `play()` shows the spreaders elected one by one
+            rounds = [
+                Step(
+                    index=i,
+                    kind=KIND_QUERY,
+                    method="voterank",
+                    code=f"elect {winner}",
+                    narration=(
+                        f"Round 1: {winner} has the most votes and is elected."
+                        if i == 0
+                        else f"Round {i + 1}: {winner} is elected, with the votes of the "
+                        "earlier winners' neighbors weakened."
+                    ),
+                    delta=StepDelta(nodes_selected=winners[: i + 1]),
+                )
+                for i, winner in enumerate(winners)
+            ]
             self._record_step(
                 KIND_QUERY,
                 "voterank",
                 "G.voterank()" if count is None else f"G.voterank(count={count!r})",
-                delta=StepDelta(nodes_selected=list(ranks), node_groups=ranks),
+                delta=StepDelta(nodes_selected=winners, node_groups=ranks),
                 result=elected,
+                sub_steps=rounds,
                 narration=f"VoteRank elected {len(elected)} spreaders: "
                 + ", ".join(list(ranks)[:6])
                 + (" …" if len(elected) > 6 else "")
