@@ -57833,6 +57833,12 @@ class Graph:
             Maximum distance between any two nodes, or `None` if disconnected (when
             `unconnected=False`). Also `None` for an empty graph.
 
+        See Also
+        --------
+        radius : The smallest eccentricity.
+        periphery : The nodes at either end of a longest shortest path.
+        eccentricity : Each node's distance to the node farthest from it.
+
         Examples
         --------
         In a four-node path the farthest pair is A and D, three hops apart:
@@ -57840,11 +57846,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         graph.diameter()
         ```
@@ -57862,13 +57864,32 @@ class Graph:
         `unconnected=False` returns `None`:
 
         ```{python}
-        split = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("D", "E")])
-        )
+        split = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("D", "E")])
 
-        (split.diameter(), split.diameter(unconnected=False))
+        split.diameter(), split.diameter(unconnected=False)
+        ```
+
+        ### The longest trip on the metro
+
+        `metro()` is a made-up city's metro network. Its diameter is seven stops: the trip from
+        Westgate, at the western end of the Red line, to the Airport, at the end of the Airport
+        line. `periphery()` finds the stations at either end of a longest trip:
+
+        ```{python}
+        metro = ec.metro()
+        ends = [metro.get_label_from_id(n) for n in metro.periphery()]
+
+        metro.diameter(), ends
+        ```
+
+        The diameter counts stops, whatever the travel times, so the route is the one with the
+        fewest stops:
+
+        ```{python}
+        trip = metro.shortest_path(
+            "Westgate", "Airport", weighted=False, return_list=True
+        )
+        metro.plot(layout="pos", highlight=trip, label_by="label")
         ```
         """
         return self._graph.get_diameter_with_unconnected(unconnected)
