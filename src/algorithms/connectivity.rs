@@ -357,6 +357,22 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         return Ok(result);
     }
 
+    // Undirected k-components are the maximal cohesive blocks of cohesion at least k
+    if !graph.is_directed() {
+        let (blocks, cohesions, _) =
+            crate::algorithms::connectivity_extras::cohesive_blocks_of(graph, &node_ids);
+        for (block, cohesion) in blocks.into_iter().zip(cohesions) {
+            if block.len() < 2 {
+                continue;
+            }
+            for k in 1..=cohesion {
+                result.entry(k).or_default().push(block.clone());
+            }
+        }
+        keep_maximal(&mut result);
+        return Ok(result);
+    }
+
     // k=1: SCCs for directed, CCs for undirected
     let base_components = if graph.is_directed() {
         strongly_connected_components(graph).map_err(pyo3::exceptions::PyRuntimeError::new_err)?
@@ -384,8 +400,13 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         find_k_components_recursive(graph, component, 1, &mut result)?;
     }
 
-    // Different separator choices can reach the same node set, or a subset of
-    // another set at the same level; k-components are the *maximal* sets.
+    keep_maximal(&mut result);
+    Ok(result)
+}
+
+/// Different separator choices can reach the same node set, or a subset of
+/// another set at the same level; k-components are the *maximal* sets.
+fn keep_maximal(result: &mut FxHashMap<usize, Vec<Vec<u64>>>) {
     for comps in result.values_mut() {
         for c in comps.iter_mut() {
             c.sort_unstable();
@@ -403,8 +424,6 @@ pub fn k_components(graph: &Graph) -> pyo3::PyResult<FxHashMap<usize, Vec<Vec<u6
         }
         *comps = kept;
     }
-
-    Ok(result)
 }
 
 fn find_k_components_recursive(
