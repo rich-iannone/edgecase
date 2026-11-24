@@ -54274,20 +54274,56 @@ class Graph:
         ValueError
             As for `trophic_levels()`.
 
+        See Also
+        --------
+        trophic_levels : The node levels.
+        trophic_differences : The level difference across each edge.
+        global_reaching_centrality : Another single-number test of hierarchy.
+
         Examples
         --------
-        A food chain is perfectly coherent; adding an omnivore link that skips a level makes it
+        A food chain is perfectly coherent. Adding an omnivore link that skips a level makes it
         less so:
 
         ```{python}
         import edgecase as ec
 
-        chain = ec.Graph(directed=True).add_nodes(["plant", "herbivore", "carnivore"])
-        chain.add_edges([("plant", "herbivore"), ("herbivore", "carnivore")])
+        chain = ec.Graph.from_edges(
+            [("plant", "herbivore"), ("herbivore", "carnivore")], directed=True
+        )
         coherent = chain.trophic_incoherence_parameter()
 
         chain.add_edge("plant", "carnivore")
-        coherent, round(chain.trophic_incoherence_parameter(), 3)
+
+        coherent, chain.trophic_incoherence_parameter()
+        ```
+
+        ### Prerequisites and citations
+
+        The prerequisites in `courses()` mostly climb one level at a time, so `q` is fairly low.
+        Citations are far less orderly: a paper can cite last year's work and a classic from
+        twenty years before. Here `citations()` is reversed, so that its edges point from a paper
+        to the later papers that build on it:
+
+        ```{python}
+        cited = ec.citations().reverse()
+
+        (
+            ec.courses().trophic_incoherence_parameter(),
+            cited.trophic_incoherence_parameter(),
+        )
+        ```
+
+        Drawn with each citation as wide as its trophic difference, the widest edges
+        run from the two oldest papers straight to recent ones:
+
+        ```{python}
+        cited = cited.set_edge_attrs("difference", cited.trophic_differences())
+
+        cited.plot(
+            layout="pos", color_by="field", label_by="label",
+            edge_width_by="difference",
+        )
         ```
         """
         levels = rust.trophic_levels(
