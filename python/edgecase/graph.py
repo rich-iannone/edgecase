@@ -30329,8 +30329,8 @@ class Graph:
             List of `(u, v)` node pairs to score. Each node can be given as a node ID (`int`) or
             label (`str`). Pairs are scored even if `u` and `v` are already connected, and they
             are returned in the order given. If `None` (the default), all pairs of nodes that are
-            not already connected (in either direction) are scored, each unordered pair once, in
-            no particular order. A node that doesn't exist raises a `ValueError`.
+            not already connected (in either direction) are scored, each unordered pair once,
+            smaller node ID first, in node ID order. A node that doesn't exist raises a `ValueError`.
 
         Returns
         -------
@@ -30354,43 +30354,56 @@ class Graph:
         (two isolated leaves that share their only neighbor score a perfect $1$). Cost is
         $O(k)$ per pair.
 
+        See Also
+        --------
+        jaccard_similarity : The same score for every pair, as a nested dict.
+        common_neighbors : The number of shared neighbors.
+        adamic_adar_index : A sum that favors shared neighbors with few neighbors.
+
         Examples
         --------
-        On a 5-node path `1-2-3-4-5`, nodes `1` and `3` share neighbor `2` out of two distinct
-        neighbors (`2` and `4`), giving `0.5`. Nodes `2` and `4` share only `3` out of
-        `{1, 3, 5}`, giving `1/3`, and `1` and `4` share nothing:
+        `A` and `D` share 2 of the 3 nodes they know between them, and `B` and `E` share 1 of 2:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_path_graph(5)  # 1-2-3-4-5
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        scores = graph.jaccard_coefficient([("A", "D"), ("B", "E")])
 
-        graph.jaccard_coefficient([(1, 3), (1, 4), (2, 4)])
+        [(label(u), label(v), round(s, 3)) for u, v, s in scores]
         ```
 
-        Normalization changes the ranking compared with raw counts. Below, `Hub1` and `Hub2`
-        share two neighbors but each also has two the other lacks, while the leaves `Lee` and
-        `Max` each have a single neighbor, and it is the same one. Common neighbors favors the
-        hubs (2 vs. 1); Jaccard favors the leaves (`1.0` vs. `2/6`, about `0.33`):
+        ### Seven of eight
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. A year later, in `friends(snapshot=2)`, eight more pairs had
+        become friends. Dividing the friends in common by all the friends the two have between
+        them, the Jaccard coefficient ranks seven of the eight at the top. The eighth, Femi and
+        Vik, had no friends in common:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["Hub1", "Hub2", "A", "B", "C", "D", "E", "F", "Lee", "Max"])
+        friends = ec.friends()
+        later = ec.friends(snapshot=2)
+        label = friends.get_label_from_id
+        top = sorted(friends.jaccard_coefficient(), key=lambda t: -t[2])[:8]
 
-        graph.add_edges(
-            [
-                ("Hub1", "A"), ("Hub1", "B"), ("Hub1", "C"), ("Hub1", "D"),
-                ("Hub2", "A"), ("Hub2", "B"), ("Hub2", "E"), ("Hub2", "F"),
-                ("Lee", "C"), ("Max", "C"),
-            ]
-        )
-
-        pairs = [("Hub1", "Hub2"), ("Lee", "Max")]
         [
-            (cn[2], round(jc[2], 2))
-            for cn, jc in zip(graph.common_neighbors(pairs), graph.jaccard_coefficient(pairs))
+            (label(u), label(v), round(s, 2), later.has_edge(label(u), label(v)))
+            for u, v, s in top
         ]
+        ```
+
+        ```{python}
+        later.plot(
+            highlight={
+                "accent": [(label(u), label(v)) for u, v, _ in top[:7]],
+                "soft": [("Femi", "Vik")],
+            },
+            color_by="club", label_by="label", seed=1,
+        )
         ```
         """
         from edgecase._core import jaccard_coefficient
