@@ -60392,6 +60392,11 @@ class Graph:
             If `sources=` is empty or contains an ID or label that does not exist, or a weighted
             graph has a negative edge weight.
 
+        See Also
+        --------
+        multi_source_shortest_path_length : The distances alone.
+        single_source_shortest_path : Shortest paths from one source.
+
         Examples
         --------
         With sources at both ends of a path, each node is served from the nearer end:
@@ -60399,10 +60404,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")]
         )
 
         paths = graph.multi_source_shortest_path(["A", "F"])
@@ -60414,6 +60417,23 @@ class Graph:
 
         ```{python}
         {label(t): label(p[0]) for t, p in sorted(paths.items())}
+        ```
+
+        ### The nearest depot
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. With train depots at Northpark and Shipyard, the first station of
+        each fastest route is the depot that serves a station soonest:
+
+        ```{python}
+        metro = ec.metro()
+        routes = metro.multi_source_shortest_path(["Northpark", "Shipyard"])
+
+        label = metro.get_label_from_id
+        depot = {n: label(route[0]) for n, route in routes.items()}
+        metro.set_node_attrs("depot", depot)
+
+        metro.plot(layout="pos", color_by="depot", label_by="label")
         ```
         """
         source_ids = [self._resolve_node_id(s, auto_create=False) for s in sources]
