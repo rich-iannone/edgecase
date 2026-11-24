@@ -170,7 +170,7 @@ class TestReciprocity:
         assert g.reciprocity() == 0.0
 
     def test_ratio_mode(self):
-        """Test 'ratio' mode (should be same as default)."""
+        """'ratio' mode counts node pairs: mutual / (mutual + one-way), as in igraph."""
         g = ec.Graph(directed=True)
         g.add_node(label="A")
         g.add_node(label="B")
@@ -179,9 +179,34 @@ class TestReciprocity:
         g.add_edge("B", "A")
         g.add_edge("A", "C")
 
-        recip_default = g.reciprocity("default")
-        recip_ratio = g.reciprocity("ratio")
-        assert abs(recip_default - recip_ratio) < 1e-10
+        assert abs(g.reciprocity("default") - 2 / 3) < 1e-10
+        assert abs(g.reciprocity("ratio") - 1 / 2) < 1e-10
+
+    def test_ratio_mode_ignores_loops_and_parallel_edges(self):
+        """Self-loops and repeated edges don't change the pair counts."""
+        g = ec.Graph(directed=True)
+        for label in "ABC":
+            g.add_node(label=label)
+        g.add_edge("A", "B")
+        g.add_edge("A", "B")
+        g.add_edge("B", "A")
+        g.add_edge("C", "C")
+        g.add_edge("B", "C")
+
+        assert abs(g.reciprocity("ratio") - 1 / 2) < 1e-10
+
+    def test_ratio_mode_matches_r_over_2_minus_r(self):
+        """Without loops or parallel edges, ratio = r / (2 - r)."""
+        g = ec.payments()
+        r = g.reciprocity()
+        assert abs(g.reciprocity("ratio") - r / (2 - r)) < 1e-10
+
+    def test_ratio_mode_only_loops(self):
+        """A graph with only self-loops has no connected pairs."""
+        g = ec.Graph(directed=True)
+        g.add_node(label="A")
+        g.add_edge("A", "A")
+        assert g.reciprocity("ratio") == 0.0
 
     def test_multiple_mutual_pairs(self):
         """Multiple mutual pairs calculation."""
