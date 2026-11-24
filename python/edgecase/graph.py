@@ -41922,24 +41922,88 @@ class Graph:
         ValueError
             If `k` is below `2` or the graph is directed.
 
+        See Also
+        --------
+        is_cover : Check whether the communities reach every node.
+        overlapping_modularity : Score overlapping communities.
+        find_cliques : The maximal cliques that the communities grow from.
+
         Examples
         --------
-        Two triangle-rich groups share node D, which belongs to both communities, while the
-        pendant node G belongs to neither:
+        Two groups rich in triangles share node D, which belongs to both communities, while the
+        pendant node G, in no triangle, belongs to neither:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("D", "E"), ("D", "F"), ("E", "F"), ("F", "G")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+            ("D", "E"), ("D", "F"), ("E", "F"),
+            ("F", "G"),
+        ])
 
         label = graph.get_label_from_id
         [[label(n) for n in community] for community in graph.cmty_k_clique(k=3)]
         ```
+
+        ### Overlapping groups in *Les Misérables*
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the same
+        chapter. With `k=5`, the communities are built from groups of five characters who all
+        appear together, and five characters belong to more than one:
+
+        ```{python}
+        from collections import Counter
+
+        miserables = ec.les_miserables()
+        found = miserables.cmty_k_clique(k=5)
+
+        memberships = Counter(n for community in found for n in community)
+        {
+            miserables.get_label_from_id(n): count
+            for n, count in memberships.items()
+            if count > 1
+        }
+        ```
+
+        Valjean is in four of the five: the students of the ABC at the barricade, the Thénardiers
+        with Javert and the Patron-Minette gang, the people of the Champmathieu trial, and the
+        Gillenormands with Marius and Cosette. The fifth is Fantine with Tholomyès and friends.
+        The characters in several communities are drawn in their own color, and those in none in
+        another:
+
+        ```{python}
+        group = dict.fromkeys(miserables.get_node_ids(), "none")
+        for i, community in enumerate(found, start=1):
+            for n in community:
+                group[n] = "several" if memberships[n] > 1 else f"community {i}"
+
+        miserables.set_node_attrs("k_clique", group).plot(
+            color_by="k_clique", label_by="label", seed=3
+        )
+        ```
+
+        ### Choosing `k`
+
+        A larger `k` asks for tighter groups, and leaves more characters out:
+
+        ```{python}
+        import polars as pl
+
+        rows = []
+        for k in (3, 4, 5, 6):
+            found = miserables.cmty_k_clique(k=k)
+            rows.append({
+                "k": k,
+                "communities": len(found),
+                "characters": len(set().union(*found)),
+            })
+
+        pl.DataFrame(rows)
+        ```
+
+        At `k=3`, 57 of the 77 characters are in some community, and one community holds 46 of
+        them. From `k=4` on, the large community breaks into the story's groups.
         """
         if k < 2:
             raise ValueError(f"k must be at least 2, got {k}")
