@@ -73230,6 +73230,11 @@ class Graph:
         ValueError
             If `S=` is empty, a node does not exist, or a side has zero volume.
 
+        See Also
+        --------
+        cut_size : The cut without normalization.
+        conductance : The cut relative to the volume of the smaller side only.
+
         Examples
         --------
         Splitting the two triangles apart is cheap; splitting off one node is not:
@@ -73237,16 +73242,43 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         triangle = graph.normalized_cut_size(["A", "B", "C"])
         single = graph.normalized_cut_size(["A"])
         round(triangle, 3), round(single, 3)
+        ```
+
+        ### A cut worth making
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. The split between the factions ends ten friendships, and cutting off member 11
+        only one, but weighed against the size of each side, the factions are by far the better
+        cut:
+
+        ```{python}
+        karate = ec.karate_club()
+        nodes = karate.get_node_df()
+        instructor_side = nodes.filter(nodes["faction"] == 1)["id"].to_list()
+
+        (
+            round(karate.normalized_cut_size(instructor_side), 3),
+            round(karate.normalized_cut_size(["11"]), 3),
+        )
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction",
+            highlight_edges=karate.edge_boundary(instructor_side),
+            label_by="label",
+        )
         ```
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
