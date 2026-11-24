@@ -27458,54 +27458,76 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_out_until : Walk forward until a node passes a test.
+        trav_in : Move the selection against incoming edges.
+        ancestors : The nodes that can reach a node.
+
         Examples
         --------
-        Each node in this small directed graph carries a `value`. Starting at `D` and walking
-        backward until a node has `value < 3` passes through `C` (value `3`) and stops at `B`.
-        `A` also qualifies, but it lies upstream of `B`, so it is never reached:
+        Each node here has a `value`. Walking back from `D` against the edges until a node has a
+        value of 5 or more stops at `B`. `A` has a large value too, but it lies past `B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        for label, value in [("A", 1), ("B", 2), ("C", 3), ("D", 9), ("E", 7), ("F", 8)]:
-            graph.add_node(label=label, value=value)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D")], directed=True
+        )
+        graph.set_node_attrs("value", {"A": 8, "B": 6, "C": 1, "D": 2})
 
-        graph.add_edges([("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")])
+        def is_big(node):
+            return graph.get_node(node).attributes["value"] >= 5
 
-        def is_small(node_id):
-            return graph.get_node(node_id).attributes["value"] < 3
-
+        label = graph.get_label_from_id
         start = graph.get_id_from_label("D")
-        graph.select_nodes_by_id([start]).trav_in_until(is_small)
+        graph.select_nodes_by_id([start]).trav_in_until(is_big)
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        [label(n) for n in graph.get_selected_node_ids()]
         ```
 
-        Starting from both leaves, `D` and `F`, and looking for the root (`value == 1`) with
-        `add_to_selection=True, exclude_unmatched=False` selects every ancestor visited on the
-        way back, which here is the whole graph:
+        With `add_to_selection=True` and `exclude_unmatched=False`, the nodes on the way are
+        kept as well:
 
         ```{python}
-        def is_root(node_id):
-            return graph.get_node(node_id).attributes["value"] == 1
+        graph.select_nodes_by_id([start], set_op="replace")
+        graph.trav_in_until(
+            is_big, add_to_selection=True, exclude_unmatched=False
+        )
 
-        leaves = [graph.get_id_from_label("D"), graph.get_id_from_label("F")]
-        graph.clear_selection()
-        graph.select_nodes_by_id(leaves)
-        graph.trav_in_until(is_root, add_to_selection=True, exclude_unmatched=False)
-
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
-        With the defaults instead, only the matching root `A` remains selected:
+        ### Where Lena's money came from
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Walking back from Lena until a business pays in finds Acme, which
+        pays the salaries. It takes seven payments, so with `max_steps=6` the walk finds
+        nothing:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_nodes_by_id(leaves)
-        graph.trav_in_until(is_root)
+        payments = ec.payments()
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        def is_business(node):
+            return payments.get_node(node).attributes["kind"] == "business"
+
+        label = payments.get_label_from_id
+        lena = payments.get_id_from_label("Lena")
+        found = {}
+        for steps in [6, 7]:
+            payments.select_nodes_by_id([lena], set_op="replace")
+            payments.trav_in_until(is_business, max_steps=steps)
+            found[steps] = [label(n) for n in payments.get_selected_node_ids()]
+        found
+        ```
+
+        The shortest way back runs through the chain from Cruz, then Ben and Dee, who is paid a
+        salary by Acme:
+
+        ```{python}
+        path = ["Acme", "Dee", "Ben", "Cruz", "Ivy", "Jo", "Kai", "Lena"]
+        payments.plot(highlight=path, label_by="label", seed=3)
         ```
         """
         selected = self.get_selected_node_ids()
