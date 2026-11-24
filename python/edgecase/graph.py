@@ -50649,75 +50649,57 @@ class Graph:
         betweenness miss, and tends to complement rather than duplicate those first-order
         metrics. Only unweighted graphs are supported, so edge weights are ignored.
 
+        See Also
+        --------
+        closeness_centrality : Distance-based centrality without a random walk.
+        pagerank : A random walk with teleportation.
+
         Examples
         --------
-        Identify central nodes in a path graph (lower values = higher centrality):
+        A random walker returns to the middle of a path at the steadiest intervals, so `C` has
+        the lowest score. Lower scores mean more central nodes:
 
         ```{python}
         import edgecase as ec
 
-        # Create a simple path: 0 - 1 - 2 - 3 - 4
-        graph = ec.Graph()
-
-        graph.add_nodes(['0', '1', '2', '3', '4'])
-        graph.add_edges([('0', '1'), ('1', '2'), ('2', '3'), ('3', '4')])
-
-        soc = graph.second_order_centrality(return_dict=True)
-
-        # Keys are node IDs, not labels -- map back to see which node is most central
-        most_central_id = min(soc, key=soc.get)
-        graph.get_label_from_id(most_central_id)
-        ```
-
-        The middle of the path has the lowest (and therefore most central) value:
-
-        ```{python}
-        soc[most_central_id]
-        ```
-
-        Compare centrality across different graph structures -- a star's center is far
-        more central than any leaf:
-
-        ```{python}
-        star = ec.Graph()
-        star.add_node(label='center')
-
-        star.add_nodes([f'leaf_{i}' for i in range(5)])
-        star.add_edges([('center', f'leaf_{i}') for i in range(5)])
-
-        star_soc = star.second_order_centrality(return_dict=True)
-        center_id = star.get_id_from_label('center')
-        leaf_id = star.get_id_from_label('leaf_0')
-
-        star_soc[center_id], star_soc[leaf_id]
-        ```
-
-        In a complete graph, every node is structurally identical, so all centrality
-        values come out equal:
-
-        ```{python}
-        complete = ec.Graph()
-        complete.add_nodes(['0', '1', '2', '3'])
-        complete.add_edges([(str(i), str(j)) for i in range(4) for j in range(i+1, 4)])
-
-        complete_soc = complete.second_order_centrality(return_dict=True)
-        vals = list(complete_soc.values())
-
-        all(abs(v - vals[0]) < 0.01 for v in vals)
-        ```
-
-        Storing centrality as a node attribute makes it available for later analysis
-        without recomputing:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(['A', 'B', 'C', 'D'])
-            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
-        graph.second_order_centrality(attr_name='soc')
-        graph.get_node_attrs('soc')
+        path.second_order_centrality().get_node_df().select(
+            "label", "second_order_centrality"
+        )
+        ```
+
+        ### Steady returns
+
+        In Zachary's karate club, the administrator (member 33) has the steadiest return times,
+        just ahead of the instructor (member 0):
+
+        ```{python}
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .second_order_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .select("label", "faction", "degree", "second_order_centrality")
+            .sort("second_order_centrality")
+            .head(5)
+        )
+        ```
+
+        Since lower is more central, the darkest members here are the least central. Members 4,
+        5, 6, 10 and 16 reach the rest of the club only through the instructor, so a walker that
+        wanders off into the rest of the club can take a long time to come back to them. Member
+        16, with no tie to the instructor at all, has the second-highest score, after member 11:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="second_order_centrality", label_by="label"
+        )
         ```
         """
         if self.is_directed():
@@ -50739,11 +50721,7 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
-        # Track computation
-        self._computations.append(("second_order_centrality", {}, attr_name))
+        self._store_node_result("second_order_centrality", {}, attr_name, result_ids)
 
         return self
 
