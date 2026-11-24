@@ -25520,36 +25520,51 @@ class Graph:
         list[int]
             List of selected node IDs in no particular order, empty if no nodes are selected.
 
+        See Also
+        --------
+        count_selected_nodes : The number of selected nodes.
+        get_selected_edge_ids : The IDs of the selected edges.
+        get_node_df_ws : The table of the selected nodes.
+
         Examples
         --------
-        In a 5-node star, only the hub has degree `3` or higher, so it's the only node
-        selected:
+        The IDs come back as integers. Map them to labels to read them:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_star_graph(5)
-            .select_nodes_by_degree(min_degree=3)
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
+        graph.select_nodes_by_degree(min_degree=2)
 
-        graph.get_selected_node_ids()
+        ids = graph.get_selected_node_ids()
+        ids, [graph.get_label_from_id(n) for n in ids]
         ```
 
-        IDs are integers, so map them to labels to make the result readable, sorting first for
-        a stable order. Here the nodes with a score above `5` are "B" and "D":
+        With nothing selected, the list is empty:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes({"A": {"score": 2}, "B": {"score": 8}, "C": {"score": 4}, "D": {"score": 7}})
-            .select_nodes(lambda n: n.attributes["score"] > 5)
-        )
-
-        [graph.get_label_from_id(nid) for nid in sorted(graph.get_selected_node_ids())]
+        graph.clear_selection().get_selected_node_ids()
         ```
 
+        ### The stations in zone 1
+
+        `metro()` is a made-up city's metro network, and each station's `zone` attribute is its
+        fare zone. The seven stations of zone 1 are Central and the Ring line around it:
+
+        ```{python}
+        metro = ec.metro()
+        metro.select_nodes(lambda n: n.attributes["zone"] == 1)
+
+        zone_1 = metro.get_selected_node_ids()
+        label = metro.get_label_from_id
+        sorted(label(n) for n in zone_1)
+        ```
+
+        The IDs can be passed on, here to plot the zone:
+
+        ```{python}
+        metro.plot(layout="pos", highlight=zone_1, label_by="label")
+        ```
         """
         return self._graph.get_selected_node_ids()
 
