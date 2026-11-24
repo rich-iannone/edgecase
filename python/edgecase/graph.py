@@ -19265,6 +19265,12 @@ class Graph:
             If the graph is not bipartite, `which=` is not `0` or `1`, or `weighting=` is
             unknown.
 
+        See Also
+        --------
+        biadjacency_matrix : The same information as a matrix of rows and columns.
+        bipartite_sets : The two sides of a bipartite graph.
+        robins_alexander_clustering : How often the links between two sides close into squares.
+
         Examples
         --------
         Project a gene-disease network onto genes; genes become connected if they share
