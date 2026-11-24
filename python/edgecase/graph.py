@@ -64161,6 +64161,11 @@ class Graph:
         ValueError
             If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
 
+        See Also
+        --------
+        dfs_edges : The same edges as a list.
+        bfs_tree : The tree of a breadth-first search.
+
         Examples
         --------
         From a corner of a 3 x 3 grid, the DFS tree snakes through the grid as a single path,
@@ -64174,6 +64179,28 @@ class Graph:
         dfs_depth = len(grid.dfs_tree(1).dag_longest_path()) - 1
         bfs_depth = len(grid.bfs_tree(1).dag_longest_path()) - 1
         dfs_depth, bfs_depth
+        ```
+
+        ### A deep tree on the metro
+
+        `metro()` is a made-up city's metro network. From Central, the DFS tree goes 12 stations
+        deep, while every station in the BFS tree is within four stops of Central:
+
+        ```{python}
+        metro = ec.metro()
+        tree = metro.dfs_tree("Central")
+
+        (
+            len(tree.dag_longest_path()) - 1,
+            len(metro.bfs_tree("Central").dag_longest_path()) - 1,
+        )
+        ```
+
+        The tree keeps the stations' map positions, and drawn on the map it winds around the
+        network, from Central out to Westgate and over the hills before it doubles back:
+
+        ```{python}
+        tree.plot(layout="pos", label_by="label")
         ```
         """
         self._check_traversal_args(depth_limit, mode)
