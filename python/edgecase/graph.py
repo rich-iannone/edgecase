@@ -69218,39 +69218,34 @@ class Graph:
         return path, which costs $O(E(V + E))$ in the worst case. Complete graphs and
         cycles both return `False`; trees return `True`, since every edge of a tree is a bridge.
 
+        See Also
+        --------
+        bridges : The bridges themselves.
+        is_k_edge_connected : The check for more than a single failure.
+
         Examples
         --------
-        A cycle has no single point of failure, so it has no bridges:
+        A cycle has no single point of failure, so it has no bridges, while in a path every
+        edge is one:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(5)
+        cycle = ec.Graph().add_cycle_graph(5)
+        path = ec.Graph().add_path_graph(5)
 
-        graph.has_bridges()
+        cycle.has_bridges(), path.has_bridges()
         ```
 
-        A path is the opposite extreme: every edge is a bridge, since there's only one way to
-        get from one end to the other:
+        Attaching a new node to a cycle by a single edge introduces exactly one bridge, which
+        `bridges()` can then find:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(5)
+        tailed = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("D", "pendant")]
+        )
 
-        graph.has_bridges()
-        ```
-
-        Attaching a new node to the cycle by a single edge introduces exactly one bridge. The
-        check now returns `True`, and `bridges()` can then be used to find out which edge it is:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(4)
-        graph.add_node(label="pendant")
-        graph.add_edge(1, graph.get_id_from_label("pendant"))  # Bridge to the new node
-
-        graph.has_bridges(), len(graph.bridges())
+        tailed.has_bridges(), len(tailed.bridges())
         ```
 
         On a directed graph, an edge stops being a bridge once some path leads back from its
@@ -69262,6 +69257,26 @@ class Graph:
         ring = ec.Graph(directed=True).add_cycle_graph(4)
 
         chain.has_bridges(), ring.has_bridges()
+        ```
+
+        ### No single point of failure
+
+        `metro()` is a made-up city's metro network. The branches out to the harbor and the
+        Airport run on single stretches of track, so the network has bridges. The two new
+        stretches that `k_edge_augmentation()` proposes, from Docks to Shipyard and from
+        Shipyard to the Airport, leave none:
+
+        ```{python}
+        metro = ec.metro()
+        before = metro.has_bridges()
+        new_track = metro.k_edge_augmentation(2)
+        metro.add_edges(new_track)
+
+        before, metro.has_bridges()
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight_edges=new_track, label_by="label")
         ```
         """
         from edgecase._core import has_bridges
