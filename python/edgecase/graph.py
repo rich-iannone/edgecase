@@ -38286,6 +38286,7 @@ class Graph:
         attr_name: str | None = None,
         return_dict: bool = False,
         most_valuable_edge: str | None = None,
+        n_communities: int | None = None,
     ) -> Union[dict[int, int], "Graph"]:
         """
         Detect communities using an optimized Girvan-Newman algorithm.
@@ -38293,8 +38294,9 @@ class Graph:
         ![Girvan-Newman communities](../assets/graphs/cmty-girvan-newman.light.svg){.lightbox fig-alt="Two dense clusters, a triangle A, B, C and a four-node cluster D, E, F, G, joined by the bridge C to D, drawn dashed because it has the highest betweenness and is cut first. It shares cmty_edge_btwns()'s implementation, so the result is identical: community 0 is A, B, C (accent) and community 1 is D, E, F, G (teal)." width="100%"}
 
         Iteratively removes the edge with highest betweenness centrality to reveal hierarchical
-        community structure, returning the partition that maximizes Newman-Girvan modularity.
-        Betweenness is recomputed only for the component that changed, with parallel BFS.
+        community structure, returning the partition that maximizes Newman-Girvan modularity, or
+        another level of the hierarchy with `n_communities=`. In `play()`, each split is a frame of
+        its own. Betweenness is recomputed only for the component that changed, with parallel BFS.
         `cmty_edge_btwns()` runs the same implementation and returns the same partition; this
         method also offers weighted betweenness via `most_valuable_edge="weight"`.
 
@@ -38316,6 +38318,12 @@ class Graph:
             Strategy for selecting which edge to remove. If `"weight"`, uses edge weight in
             the betweenness calculation (Dijkstra instead of BFS). If `None` (default), treats
             the graph as unweighted.
+        n_communities
+            Return the level of the hierarchy with this many communities, instead of the one
+            with the highest modularity. Each removal that disconnects the graph adds one
+            community, so any number from the graph's count of connected components up to its
+            number of nodes is available. If `None` (default), returns the partition with the
+            highest modularity.
 
         Returns
         -------
@@ -38327,37 +38335,108 @@ class Graph:
         Raises
         ------
         ValueError
-            If graph is directed (requires undirected graph).
+            If graph is directed (requires undirected graph), or if no level of the hierarchy
+            has `n_communities=` communities.
+
+        See Also
+        --------
+        cmty_edge_btwns : The same algorithm, returning the partition only.
+        edge_betweenness_centrality : The edge scores that decide which edge goes next.
+        modularity : The score that picks the level of the hierarchy.
 
         Examples
         --------
+        The bridge between these two triangles has the highest betweenness, so it is the first
+        edge removed. That splits the graph into the two triangles, the partition with the highest
+        modularity:
+
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
-                        ("C", "D"),  # Bridge edge
-                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        communities = graph.cmty_girvan_newman(return_dict=True)
-        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
+        (
+            graph.cmty_girvan_newman()
+            .get_node_df()
+            .select("label", "cmty_girvan_newman")
+        )
+        ```
+
+        ### Splitting the karate club
+
+        Girvan and Newman tried their method on Zachary's karate club, which split in two after a
+        dispute between its instructor (member 0) and its administrator (member 33). The `faction`
+        attribute records which side each member joined. Replayed, the club comes apart one split
+        at a time, up to the five communities with the highest modularity:
+
+        ```{python}
+        karate = ec.karate_club().layout_kamada_kawai()
+        karate.clear_steps()
+
+        karate.cmty_girvan_newman().play(layout="pos")
+        ```
+
+        ### Two levels of the hierarchy
+
+        `n_communities=` returns any level of the hierarchy. The first split (left) is nearly the
+        two factions: only member 2, with friends on both sides, ends up on the administrator's
+        side. At the level with the highest modularity (right), the instructor's small group of 4,
+        5, 6, 10 and 16 has broken away, and member 9 is left alone:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.cmty_girvan_newman(n_communities=2, attr_name="first_split")
+        karate.plot(
+            layout="pos", color_by="first_split",
+            edge_color_by="first_split", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="cmty_girvan_newman",
+            edge_color_by="cmty_girvan_newman", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        The five communities score highest on modularity, and the factions score a little more than
+        the first split, which misplaces member 2:
+
+        ```{python}
+        (
+            round(karate.modularity("first_split"), 3),
+            round(karate.modularity("faction"), 3),
+            round(karate.modularity("cmty_girvan_newman"), 3),
+        )
         ```
         """
         from edgecase._core import girvan_newman
 
         dendrogram = girvan_newman(self._graph, most_valuable_edge)
 
-        if not dendrogram:
-            communities: dict[int, int] = {}
+        # The best partition comes first; the rest are the levels, one per community count
+        levels = {len(partition): partition for partition in dendrogram}
+        if n_communities is None:
+            chosen = dendrogram[0] if dendrogram else []
+        elif n_communities in levels:
+            chosen = levels[n_communities]
         else:
-            best_partition = dendrogram[0]
-            communities = {}
-            for comm_id, members in enumerate(best_partition):
-                for node_id in members:
-                    communities[node_id] = comm_id
+            raise ValueError(
+                f"n_communities must be between {min(levels, default=0)} and "
+                f"{max(levels, default=0)}, got {n_communities!r}"
+            )
+        communities: dict[int, int] = {
+            node_id: comm_id for comm_id, members in enumerate(chosen) for node_id in members
+        }
 
         if attr_name is None:
             attr_name = "cmty_girvan_newman"
@@ -38365,11 +38444,68 @@ class Graph:
         if return_dict:
             return communities
 
-        self.set_node_attrs(attr_name, communities)
-
-        self._computations.append(("cmty_girvan_newman", {}, attr_name))
+        params = {"most_valuable_edge": most_valuable_edge, "n_communities": n_communities}
+        self._store_node_result(
+            "cmty_girvan_newman", params, attr_name, communities, show="groups"
+        )
+        if self._recording_depth == 0 and levels:
+            self._steps[-1].sub_steps = self._girvan_newman_frames(
+                levels, len(chosen), best=n_communities is None
+            )
 
         return self
+
+    def _girvan_newman_frames(self, levels: dict, final_count: int, best: bool) -> list:
+        """One sub-step per split of the Girvan-Newman hierarchy, up to `final_count` communities.
+
+        `best=` says that the last level is the one with the highest modularity.
+
+        A community keeps its color when it splits: the larger part stays and the smaller part
+        takes the next color, so a player shows each split as one new color.
+        """
+        frames = []
+        colors: dict[int, int] = {}
+        for count in range(min(levels), final_count + 1):
+            partition = levels[count]
+            if not colors:
+                colors = {n: c for c, members in enumerate(partition) for n in members}
+            else:
+                parts_of: dict[int, list] = {}
+                for members in partition:
+                    parts_of.setdefault(colors[members[0]], []).append(members)
+                next_color = len(set(colors.values()))
+                for color in sorted(parts_of):
+                    parts = sorted(parts_of[color], key=lambda m: (-len(m), min(m)))
+                    for members in parts[1:]:
+                        colors.update(dict.fromkeys(members, next_color))
+                        next_color += 1
+            membership = {n: c for c, members in enumerate(partition) for n in members}
+            q = rust.modularity(self._graph, membership, 1.0)
+            noun = "community" if count == 1 else "communities"
+            if count == min(levels):
+                narration = f"Before any edge is removed, the network has {count} {noun}."
+            elif count == min(levels) + 1:
+                narration = (
+                    "Removing the edges with the highest betweenness, recomputed after each "
+                    f"removal, splits the network into {count} communities (modularity {q:.3f})."
+                )
+            else:
+                narration = f"Further removals give {count} communities (modularity {q:.3f})."
+            if count == final_count and best:
+                narration += " No other level scores higher."
+            frames.append(
+                Step(
+                    index=len(frames),
+                    kind=KIND_METRIC,
+                    method="cmty_girvan_newman",
+                    code=f"{count} {noun}",
+                    narration=narration,
+                    delta=StepDelta(
+                        node_groups={self._node_label(n): c for n, c in colors.items()}
+                    ),
+                )
+            )
+        return frames
 
     def cmty_l_eigenvec(
         self, attr_name: str | None = None, return_dict: bool = False
