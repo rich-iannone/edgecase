@@ -20861,10 +20861,8 @@ class Graph:
         if return_dict:
             return result_ids
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        self._computations.append(
-            ("bipartite_betweenness_centrality", {"which": which}, attr_name)
+        self._store_node_result(
+            "bipartite_betweenness_centrality", {"which": which}, attr_name, result_ids
         )
 
         return self
