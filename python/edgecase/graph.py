@@ -38048,54 +38048,84 @@ class Graph:
         (`cmty_louvain()`) typically reach higher modularity at similar or better cost, but
         Fast Greedy remains attractive when a strictly agglomerative dendrogram is useful.
 
+        See Also
+        --------
+        cmty_louvain : Optimize modularity by local moves, usually to a higher score.
+        cmty_walktrap : Merge communities by random-walk distance instead.
+        modularity : The score that Fast Greedy maximizes, for any partition.
+
         Examples
         --------
-        Two disconnected triangles are the clearest possible case: each becomes its own
-        community, with no edges at all between them:
+        Two triangles joined by a single edge are two communities. Each node's community is stored
+        in the `cmty_fast_greedy` column:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Clique 1
-                        ("D", "E")])  # Clique 2
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        communities = graph.cmty_fast_greedy(return_dict=True)
-        len(set(communities.values()))
+        graph.cmty_fast_greedy().get_node_df().select("label", "cmty_fast_greedy")
         ```
 
-        Raising `resolution=` makes merging stricter. On Zachary's karate club, the default
-        finds three communities, and `resolution=1.5` splits the network further:
+        ### Political books
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. Fast Greedy finds four
+        communities. Counting the books by community and leaning:
 
         ```{python}
-        karate = ec.karate_club()
+        books = ec.polbooks().cmty_fast_greedy()
 
         (
-            len(set(karate.cmty_fast_greedy(return_dict=True).values())),
-            len(set(karate.cmty_fast_greedy(resolution=1.5, return_dict=True).values())),
+            books.get_node_df()
+            .group_by("cmty_fast_greedy", "leaning")
+            .len()
+            .sort("cmty_fast_greedy", "leaning")
         )
         ```
 
-        Storing the result as a node attribute and chaining into `colorize_node_attrs()`
-        visualizes the communities directly:
+        Two large communities hold nearly all the conservative books and nearly all the liberal
+        ones. The other two are small: three books about the Bush family (*The Perfect Wife*, *The
+        Bushes* and *The Faith of George W Bush*), and twelve books on foreign policy from all
+        three leanings, such as *Rise of the Vulcans*, *Soft Power* and *Colossus*. Coloring the
+        edges by community shows the links between communities in gray:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Clique 1
-                        ("D", "E")])  # Clique 2
+        books.layout_kamada_kawai().plot(
+            layout="pos",
+            color_by="cmty_fast_greedy",
+            edge_color_by="cmty_fast_greedy",
+            show_labels=False,
         )
+        ```
 
+        ### Scoring the split
+
+        The four communities score higher on modularity than the three leanings do, since the
+        foreign-policy books are bought together more often than with other books of their leaning:
+
+        ```{python}
         (
-            graph
-            .cmty_fast_greedy(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Set1")
-            .describe()
+            round(books.modularity("cmty_fast_greedy"), 3),
+            round(books.modularity("leaning"), 3),
         )
+        ```
+
+        `resolution=` sets how far the merging goes. Below `1.0` it goes further, to fewer and
+        larger communities, and at `0.5` the Bush-family books join the conservative community.
+        Above `1.0` it stops sooner, with more and smaller communities:
+
+        ```{python}
+        counts = {}
+        for r in (0.5, 1.0, 2.0):
+            found = books.cmty_fast_greedy(resolution=r, return_dict=True)
+            counts[r] = len(set(found.values()))
+
+        counts
         ```
         """
         communities = rust.greedy_modularity(self._graph, resolution=resolution)
@@ -38107,12 +38137,9 @@ class Graph:
         if return_dict:
             return communities
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
         # Track computation
         params = {"resolution": resolution} if resolution != 1.0 else {}
-        self._computations.append(("cmty_fast_greedy", params, attr_name))
+        self._store_node_result("cmty_fast_greedy", params, attr_name, communities, show="groups")
 
         return self
 
