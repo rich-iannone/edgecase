@@ -36347,20 +36347,70 @@ class Graph:
         applied when the four nodes are distinct and the new edges do not exist, and undone if
         it disconnects the first pair. Each round makes up to $2E/(V-1)$ attempts per edge.
 
+        See Also
+        --------
+        lattice_reference : A lattice-like graph with the same degrees.
+        small_world_sigma : Compare clustering and path length with random references.
+        average_clustering_coefficient : The mean clustering over all nodes.
+
         Examples
         --------
-        Rewiring keeps the degrees and the connectivity:
+        Rewiring keeps every node's degree:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.1, seed=1)
-        r = g.random_reference(iterations=5, seed=2)
-        def degree_sequence(graph):
-            return sorted(graph.get_degree(n) for n in graph.get_node_ids(limit=None))
+        graph = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.1, seed=1)
+        reference = graph.random_reference(seed=2)
 
-        degree_sequence(g) == degree_sequence(r), r.is_connected()
+        def degrees(g):
+            return sorted(g.get_degree(n) for n in g.get_node_ids())
+
+        degrees(graph) == degrees(reference), reference.is_connected()
         ```
+
+        ### A club without its factions
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. In a random graph with the same degrees, the members keep
+        their number of friends and their `faction`, but the friendships no longer follow the
+        factions. Only 10 of the 78 friendships crossed between them, and in the reference 36
+        do:
+
+        ```{python}
+        karate = ec.karate_club()
+        reference = karate.random_reference(seed=1)
+
+        def crossing(g):
+            faction = dict(zip(g.get_node_df()["id"], g.get_node_df()["faction"]))
+            return sum(
+                faction[e.source] != faction[e.target]
+                for e in map(g.get_edge, g.get_edge_ids())
+            )
+
+        crossing(karate), crossing(reference)
+        ```
+
+        Its clustering falls from 0.57 to 0.29 as well. Whatever a property's value in the
+        references, the degrees alone account for it:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        reference.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         result = Graph._from_rust(
             rust.reference_graph(self._graph, iterations, False, connectivity, seed)
