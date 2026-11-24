@@ -32966,48 +32966,62 @@ class Graph:
         results come back with each clique's node IDs sorted, but the cliques themselves are
         in arbitrary order.
 
+        See Also
+        --------
+        maximum_clique : Find a single largest clique.
+        enumerate_all_cliques : List every clique, not just the maximal ones.
+        number_of_cliques : Count the maximal cliques at each node.
+        cmty_k_clique : Communities of adjacent cliques of size k.
+
         Examples
         --------
-        A triangle is itself one maximal clique containing all three nodes:
+        A triangle `A`, `B`, `C` with a tail `C`-`D`-`E` has three maximal cliques: the triangle
+        and the two edges of the tail. The edge `A`-`B` is a clique too, but not a maximal one,
+        since `C` is linked to both of its ends:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E")]
         )
-
         cliques = graph.find_cliques()
-        len(cliques)
+
+        [[graph.get_label_from_id(n) for n in clique] for clique in cliques]
         ```
 
+        ### Tight groups in the club
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. It has 36 maximal cliques: 21 triangles, 11 friendships
+        that no third member shares, two cliques of four and two of five:
+
         ```{python}
-        len(cliques[0])
+        from collections import Counter
+
+        karate = ec.karate_club()
+        cliques = karate.find_cliques()
+
+        Counter(len(clique) for clique in cliques)
         ```
 
-        A path graph instead has one clique per edge, since no three nodes are all
-        mutually connected:
+        The two cliques of five (in the accent color) share four members, the instructor `0` and
+        members `1`, `2` and `3`, and add `7` or `13`. The two cliques of four (pale) are on the
+        other side of the club, around the administrator `33` and member `32`:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        from itertools import combinations
+
+        def edges(size):
+            return [
+                pair for clique in cliques if len(clique) == size
+                for pair in combinations(clique, 2)
+            ]
+
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight={"accent": edges(5), "soft": edges(4)},
+            label_by="label",
         )
-
-        len(graph.find_cliques())
-        ```
-
-        A complete graph collapses down to a single clique containing every node:
-
-        ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_full_graph(n=5)
-
-        cliques = graph.find_cliques()
-        len(cliques), len(cliques[0])
         ```
         """
         return self._graph.find_cliques()
