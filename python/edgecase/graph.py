@@ -74933,39 +74933,57 @@ class Graph:
             List of sets, where each set contains the node IDs in a component. Components are
             returned in no particular order.
 
+        See Also
+        --------
+        node_connected_component : The component of a single node.
+        strongly_connected_components : The components that follow edge directions.
+        count_weakly_connected_components : The number of components alone.
+
         Examples
         --------
-        Ignoring edge direction, this graph has two disconnected pairs of nodes, so it returns two
-        node sets:
+        Ignoring edge direction, this graph has two separate pairs of nodes, so it returns two
+        sets of node IDs:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "X", "Y"])
-            .add_edges([("A", "B"), ("X", "Y")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("X", "Y")], directed=True)
 
-        components = graph.weakly_connected_components()
-
-        # Returns 2
-        len(components)
+        label = graph.get_label_from_id
+        [sorted(label(n) for n in c) for c in graph.weakly_connected_components()]
         ```
 
-        Adding an isolated node to a connected chain creates a second, single-node component, which
-        is easy to spot by finding the largest component with `max`:
+        An isolated node next to a chain of 10 is a second component, and `max()` picks out the
+        largest:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_path_graph(10)  # Connected chain of 10 nodes
-        graph.add_node(label="isolated")
+        chain = ec.Graph().add_path_graph(10)
+        chain.add_node(label="isolated")
 
-        components = graph.weakly_connected_components()
-        largest = max(components, key=len)
+        components = chain.weakly_connected_components()
+        len(components), len(max(components, key=len))
+        ```
 
-        # Returns 10 (the connected chain, excluding the isolated node)
-        len(largest)
+        ### Cut off by a closure
+
+        `metro()` is a made-up city's metro network. Closing Riverside cuts the harbor off from
+        the rest of the city: the three harbor stations are left as a piece of their own:
+
+        ```{python}
+        metro = ec.metro()
+        metro.delete_node("Riverside")
+
+        label = metro.get_label_from_id
+        pieces = sorted(metro.weakly_connected_components(), key=len)
+        [sorted(label(n) for n in piece) for piece in pieces[:-1]]
+        ```
+
+        ```{python}
+        piece = {
+            n: f"piece {i + 1}" for i, nodes in enumerate(pieces) for n in nodes
+        }
+        metro.set_node_attrs("piece", piece)
+        metro.plot(layout="pos", color_by="piece", label_by="label")
         ```
         """
         # Convert list of lists to list of sets
