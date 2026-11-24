@@ -59462,6 +59462,12 @@ class Graph:
         graphs. If only distances are needed, `all_pairs_shortest_path_length()` skips the
         reconstruction step and its associated memory.
 
+        See Also
+        --------
+        all_pairs_shortest_path_length : The distances alone.
+        all_pairs_all_shortest_paths : Every path that ties for shortest.
+        betweenness_centrality : Score each node by the share of shortest paths through it.
+
         Examples
         --------
         On a path graph `1-2-3-4` there is only one route between any two nodes, and every path
@@ -59470,8 +59476,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(4)  # Creates 1-2-3-4
+        graph = ec.Graph().add_path_graph(4)
 
         paths = graph.all_pairs_shortest_path()
         paths[1][4], paths[2][4]
@@ -59481,54 +59486,43 @@ class Graph:
         `D` use two edges, but the one through `B` costs `2.0` versus `6.0` through `C`:
 
         ```{python}
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0), ("C", "D", 5.0)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0), ("C", "D", 5.0)]
         )
 
         paths = graph.all_pairs_shortest_path()
         a_id = graph.get_id_from_label("A")
         d_id = graph.get_id_from_label("D")
 
-        # The cheaper A->B->D route is chosen over A->C->D
         [graph.get_label_from_id(nid) for nid in paths[a_id][d_id]]
         ```
 
-        In a star graph, every path between two leaves must pass through the center, since
-        that's the only node connecting them:
+        ### The busiest stations
 
-        ```{python}
-        graph = ec.Graph()
-        graph.add_star_graph(5)  # Star with center node 1
-
-        paths = graph.all_pairs_shortest_path()
-        node_ids = graph.get_node_ids()
-        center = 1
-
-        leaves = [n for n in node_ids if n != center]
-        all(
-            center in paths[source][target]
-            for source in leaves for target in leaves if source < target
-        )
-        ```
-
-        Because all routes are available at once, counting how often each node appears as an
-        intermediate stop takes only a few lines. On a path `1-2-3-4-5`, the middle node is used
-        the most:
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. If every trip takes a fastest route, counting how often each
+        station is passed through shows where the trains are busiest. Market, where the routes
+        to the east meet, is on the most, ahead of Eastfield and Riverside:
 
         ```{python}
         from collections import Counter
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)
+        metro = ec.metro()
+        paths = metro.all_pairs_shortest_path()
 
-        paths = graph.all_pairs_shortest_path()
-        Counter(
-            node
+        through = Counter(
+            station
             for row in paths.values()
-            for path in row.values()
-            for node in path[1:-1]
+            for route in row.values()
+            for station in route[1:-1]
+        )
+        metro.set_node_attrs(
+            "routes_through", {n: through[n] for n in metro.get_node_ids()}
+        )
+
+        metro.plot(
+            layout="pos", color_by="routes_through", color_scale="sequential",
+            label_by="label",
         )
         ```
         """
