@@ -62029,26 +62029,25 @@ class Graph:
         graphs with negative edges reach for `bellman_ford_shortest_path()` and prune
         manually.
 
+        See Also
+        --------
+        shortest_simple_paths : The same paths, one at a time, with no set number.
+        all_shortest_paths : Only the paths that tie for shortest.
+
         Examples
         --------
         With three routes from `A` to `D` of different costs, asking for `k=3` returns all of
-        them, cheapest first. Converting IDs to labels makes the routes easy to read:
+        them, cheapest first:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B", 1.0),
-                    ("B", "D", 1.0),  # Route 1: A->B->D (cost 2.0)
-                    ("A", "C", 1.5),
-                    ("C", "D", 1.0),  # Route 2: A->C->D (cost 2.5)
-                    ("A", "D", 4.0),  # Route 3: A->D (cost 4.0)
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B", 1.0), ("B", "D", 1.0),  # A->B->D (cost 2.0)
+                ("A", "C", 1.5), ("C", "D", 1.0),  # A->C->D (cost 2.5)
+                ("A", "D", 4.0),  # A->D (cost 4.0)
+            ]
         )
 
         paths = graph.k_shortest_paths("A", "D", k=3)
@@ -62058,26 +62057,14 @@ class Graph:
         ]
         ```
 
-        On an unweighted graph, distance is the number of edges. In a 3x3 grid there are six
-        different 4-step routes between opposite corners, so all five requested paths are found:
+        On an unweighted graph, distance is the number of edges. In a 3 x 3 grid there are six
+        different 4-step routes between opposite corners, so all five requested paths are found,
+        each of the minimum length of `4.0` hops:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_grid_2d(rows=3, cols=3)
-        # Grid:
-        # 1 - 2 - 3
-        # |   |   |
-        # 4 - 5 - 6
-        # |   |   |
-        # 7 - 8 - 9
+        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
 
-        paths = graph.k_shortest_paths(1, 9, k=5)
-        len(paths)
-        ```
-
-        Every one of them has the minimum length of `4.0` hops:
-
-        ```{python}
+        paths = grid.k_shortest_paths(1, 9, k=5)
         [distance for _, distance in paths]
         ```
 
@@ -62086,14 +62073,36 @@ class Graph:
         `mid` is a single point of failure:
 
         ```{python}
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["start", "mid", "end"])
-            .add_edges([("start", "mid"), ("mid", "end")], weight=1.0)
-        )
+        chain = ec.Graph.from_edges([("start", "mid", 1.0), ("mid", "end", 1.0)])
 
-        paths = graph.k_shortest_paths("start", "end", k=2)
-        len(paths)
+        len(chain.k_shortest_paths("start", "end", k=2))
+        ```
+
+        ### Backup routes on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. The four fastest routes from Westgate to the Airport differ only
+        in how they cross the city center:
+
+        ```{python}
+        import polars as pl
+
+        metro = ec.metro()
+        routes = metro.k_shortest_paths("Westgate", "Airport", k=4)
+        label = metro.get_label_from_id
+
+        pl.DataFrame({
+            "minutes": [minutes for _, minutes in routes],
+            "via": [
+                " > ".join(label(n) for n in route[3:-3]) for route, _ in routes
+            ],
+        })
+        ```
+
+        The second fastest takes two minutes longer, going through Riverside instead of Central:
+
+        ```{python}
+        metro.plot(layout="pos", highlight=routes[1][0], label_by="label")
         ```
         """
         self._check_non_negative(k=k)
