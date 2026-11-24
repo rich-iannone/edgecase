@@ -60507,6 +60507,12 @@ class Graph:
             If `sources=` is empty or contains an ID or label that does not exist, or a weighted
             graph has a negative edge weight.
 
+        See Also
+        --------
+        multi_source_shortest_path : The paths themselves, starting at the nearest source.
+        single_source_shortest_path_length : The distances from one source.
+        bfs_layers : Group the nodes by hop distance from several sources.
+
         Examples
         --------
         On a 4 x 4 grid with sources in two opposite corners, no node is more than three
@@ -60530,6 +60536,23 @@ class Graph:
             .get_node_df()
             .select(["label", "to_corner"])
             .head(5)
+        )
+        ```
+
+        ### Minutes from the nearest depot
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. With train depots at Northpark and Shipyard, a train can reach any
+        station within 21 minutes:
+
+        ```{python}
+        metro = ec.metro().multi_source_shortest_path_length(
+            ["Northpark", "Shipyard"], attr_name="minutes"
+        )
+
+        metro.plot(
+            layout="pos", color_by="minutes", color_scale="sequential",
+            label_by="label",
         )
         ```
         """
