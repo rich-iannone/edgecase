@@ -69102,56 +69102,86 @@ class Graph:
         `articulation_points()`, and together the two identify a graph's most fragile
         choke points.
 
+        See Also
+        --------
+        has_bridges : Check whether there is any bridge at all.
+        local_bridges : The edges on no triangle, bridges among them.
+        articulation_points : The nodes whose removal disconnects the graph.
+        k_edge_augmentation : The edges to add so that no bridge is left.
+
         Examples
         --------
-        A path graph has no cycles, so removing any single edge splits it in two — every edge
-        is a bridge:
+        A path has no cycles, so removing any single edge splits it in two, and every edge is a
+        bridge. A cycle with a tail has just one, the edge to the tail:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(4)
+        path = ec.Graph().add_path_graph(4)
+        tailed = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("D", "tail")]
+        )
 
-        bridges = graph.bridges()
-
-        # Returns 3 (all edges are bridges in a path)
-        len(bridges)
+        len(path.bridges()), len(tailed.bridges())
         ```
 
-        Attaching a "tail" node to an otherwise cyclic graph creates exactly one bridge: the
-        edge connecting the tail to the cycle, since the cycle itself has no bridges:
+        The result holds edge IDs, which resolve back to the nodes they join:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(4)  # 0-1-2-3-0
-        graph.add_node(label="tail")
-        tail_id = graph.get_id_from_label("tail")
-        nodes = sorted(graph.get_node_ids())
-        graph.add_edge(nodes[-1], tail_id)  # Add a tail
-
-        bridges = graph.bridges()
-
-        # Returns 1 (only the edge to the tail is a bridge)
-        len(bridges)
+        label = tailed.get_label_from_id
+        [
+            [label(n) for n in tailed.get_node_ids_by_edge_id(e)]
+            for e in tailed.bridges()
+        ]
         ```
 
-        The returned IDs can be resolved back to node pairs to see exactly which connections are
-        critical:
+        ### Single stretches of track
+
+        `metro()` is a made-up city's metro network. Five stretches of track are bridges, each
+        the only link to the stations beyond it. Closing each one in turn shows how many
+        stations it would cut off, from one for the Airport line's last stretch to three for the
+        track between Riverside and Harbor:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(3)
+        metro = ec.metro()
+        bridges = metro.bridges()
 
-        bridge_ids = graph.bridges()
+        cut_off = {}
+        for bridge in bridges:
+            closed = ec.metro()
+            closed.delete_edge(*metro.get_node_ids_by_edge_id(bridge))
+            pieces = sorted(closed.weakly_connected_components(), key=len)
+            cut_off[bridge] = len(pieces[0])
 
-        # Each bridge maps back to a (source, target) node pair
-        [graph.get_node_ids_by_edge_id(eid) for eid in bridge_ids]
+        label = metro.get_label_from_id
+        {
+            " - ".join(label(n) for n in metro.get_node_ids_by_edge_id(e)): count
+            for e, count in cut_off.items()
+        }
+        ```
+
+        ```{python}
+        metro.set_edge_attrs("cut_off", cut_off)
+        metro.plot(
+            layout="pos", highlight_edges=bridges, edge_label_by="cut_off",
+            label_by="label",
+        )
         ```
         """
         from edgecase._core import bridges
 
-        return bridges(self._graph)
+        result = bridges(self._graph)
+        if self._recording_depth == 0:
+            n = len(result)
+            self._record_step(
+                KIND_QUERY,
+                "bridges",
+                "G.bridges()",
+                delta=StepDelta(edges_selected=[self._edge_ends(e) for e in result]),
+                result=result,
+                narration=f"bridges() found {n} bridge{'s' if n != 1 else ''}.",
+            )
+        return result
 
     def has_bridges(self) -> bool:
         """
