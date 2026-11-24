@@ -84016,10 +84016,12 @@ class Graph:
 
         The algebraic connectivity (Fiedler, 1973) is the second smallest eigenvalue of the
         Laplacian. It is `0` exactly when the graph is disconnected, and grows the harder the
-        graph is to cut apart: it bounds the edge and node connectivity from below, and controls
-        how fast random walks mix, synchronization spreads, and consensus is reached. Bottleneck
-        graphs (two clusters joined by a thin link, long paths) have small values; expanders and
-        dense graphs have large ones. The matching eigenvector is `fiedler_vector()`.
+        graph is to cut apart: without weights or normalization, it is at most the node
+        connectivity of any graph that isn't complete, and so at most the edge connectivity. It
+        also controls how fast random walks mix, synchronization spreads, and consensus is
+        reached. Bottleneck graphs (two clusters joined by a thin link, long paths) have small
+        values; expanders and dense graphs have large ones. The matching eigenvector is
+        `fiedler_vector()`.
 
         Large graphs use a sparse eigensolver, so this scales to big networks. Matches NetworkX's
         `algebraic_connectivity()`.
@@ -84043,18 +84045,52 @@ class Graph:
         ValueError
             If the graph is directed, has fewer than two nodes, or has a negative weight.
 
+        See Also
+        --------
+        fiedler_vector : The eigenvector that goes with this eigenvalue.
+        laplacian_spectrum : All the smallest eigenvalues, not just the second.
+        edge_connectivity : The fewest edges whose removal disconnects the graph.
+        kemeny_constant : Another spectral measure of how well connected a graph is.
+
         Examples
         --------
-        A cycle is better connected than a path with the same nodes, and a complete graph best
-        of all:
+        Closing a path into a cycle makes it harder to cut apart, and the algebraic connectivity
+        grows:
 
         ```{python}
         import edgecase as ec
 
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
+
+        round(path.algebraic_connectivity(), 3), cycle.algebraic_connectivity()
+        ```
+
+        ### One more friendship
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Only five friendships cross between the clubs, so the algebraic
+        connectivity is low. A new friendship between Femi and Sven, at the two ends of
+        `spectral_ordering()`, raises it the most of any one friendship; a new one within the
+        chess club, between Femi and Ada, hardly changes it:
+
+        ```{python}
+        def connectivity(graph):
+            return round(graph.algebraic_connectivity(), 3)
+
         (
-            round(ec.Graph().add_path_graph(6).algebraic_connectivity(), 3),
-            round(ec.Graph().add_cycle_graph(6).algebraic_connectivity(), 3),
-            round(ec.Graph().add_full_graph(6).algebraic_connectivity(), 3),
+            connectivity(ec.friends()),
+            connectivity(ec.friends().add_edge("Femi", "Sven")),
+            connectivity(ec.friends().add_edge("Femi", "Ada")),
+        )
+        ```
+
+        ```{python}
+        ec.friends().add_edge("Femi", "Sven").plot(
+            highlight=[("Femi", "Sven")], color_by="club",
+            label_by="label", seed=8,
         )
         ```
         """
