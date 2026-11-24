@@ -76800,19 +76800,64 @@ class Graph:
         The check marks the matched nodes and then makes one pass over the edges, looking
         for a non-loop edge whose two endpoints are both unmatched. It runs in $O(V + E)$.
 
+        See Also
+        --------
+        is_matching : Check that no two edges share a node.
+        maximal_matching : Find a maximal matching quickly.
+        bipartite_maximum_matching : The largest matching of a bipartite graph.
+
         Examples
         --------
-        In the path A-B-C-D, the middle edge alone is maximal (both outer edges touch B or
-        C), but not maximum, and the single outer edge A-B is not even maximal:
+        In the path `A`-`B`-`C`-`D`, the middle edge alone is maximal, since both outer edges
+        touch `B` or `C`. It isn't the largest, though: the two outer edges make a matching of
+        two. The edge `A`-`B` alone isn't maximal, since `C`-`D` can be added:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        ab, bc, cd = (g.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("B", "C"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        ab, bc, cd = (
+            path.find_edge_ids(u, v)[0]
+            for u, v in [("A", "B"), ("B", "C"), ("C", "D")]
+        )
 
-        g.is_maximal_matching([bc]), g.is_maximal_matching([ab]), g.is_maximal_matching([ab, cd])
+        (
+            path.is_maximal_matching([bc]),
+            path.is_maximal_matching([ab, cd]),
+            path.is_maximal_matching([ab]),
+        )
+        ```
+
+        ### A plan that can't grow but isn't the best
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do. Giving Omar the Backend task and Kofi the Database task leaves DevOps and
+        Security with no one free to take them, and Hana and Luis with nothing left that they can
+        do. The plan is maximal, with six tasks covered, but seven is possible:
+
+        ```{python}
+        team = ec.teams()
+        plan = {
+            "Omar": "Backend", "Priya": "Testing", "Tom": "Frontend",
+            "Mei": "Design", "Sara": "Docs", "Kofi": "Database",
+        }
+        matched = [team.find_edge_ids(w, t)[0] for w, t in plan.items()]
+
+        (
+            team.is_maximal_matching(matched),
+            len(matched),
+            len(team.bipartite_maximum_matching()),
+        )
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos",
+            highlight={"soft": ["Hana", "Luis", "DevOps", "Security"]},
+            highlight_edges=matched,
+            label_by="label",
+            height=300,
+        )
         ```
         """
         ends = self._matching_ends(edges)
