@@ -34729,17 +34729,53 @@ class Graph:
         Counts memberships in the maximal cliques of `find_cliques()`, as NetworkX's
         `number_of_cliques` does.
 
+        See Also
+        --------
+        node_clique_number : The size of the largest clique at each node.
+        find_cliques : List all maximal cliques.
+
         Examples
         --------
-        Node C sits in the triangle and in the edge C-D:
+        `C` is in two maximal cliques, the triangle and the edge `C`-`D`. The others are in one
+        each:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
+        graph.set_node_attrs("cliques", graph.number_of_cliques())
 
-        {g.get_label_from_id(n): k for n, k in g.number_of_cliques().items()}
+        graph.get_node_df().select("label", "cliques")
+        ```
+
+        ### Members of many circles
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The administrator `33` is in 14 of its 36 maximal cliques,
+        and the instructor `0` in 13. Each belongs to many small groups rather than one large
+        one, while 12 members are in just one clique:
+
+        ```{python}
+        karate = ec.karate_club()
+        karate.set_node_attrs("cliques", karate.number_of_cliques())
+
+        (
+            karate.get_node_df()
+            .sort("cliques", descending=True)
+            .select("label", "role", "degree", "cliques")
+            .head(5)
+        )
+        ```
+
+        Sized by the number of cliques and colored by faction, the two leaders stand out, each at
+        the center of their own side:
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", size_by="cliques", color_by="faction", label_by="label"
+        )
         ```
         """
         result = self._clique_stats(nodes, False)
