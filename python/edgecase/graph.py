@@ -77296,26 +77296,51 @@ class Graph:
         blossom algorithm in $O(V^3)$ time and then, for each unmatched node, adds its incident
         edge with the lowest ID, as NetworkX does with an arbitrary incident edge.
 
+        See Also
+        --------
+        is_edge_cover : Check that a set of edges touches every node.
+        maximum_weight_matching : The matching the cover is built from.
+        minimum_weighted_vertex_cover : Nodes that touch every edge, the other way around.
+
         Examples
         --------
-        In a path of five nodes, a maximum matching covers four of them with two edges, and one
-        more edge is needed for the last node:
+        In a path of five nodes, two edges with no node in common cover four nodes, and one more
+        edge is needed for the last:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
         cover = path.minimum_edge_cover()
+
         len(cover), path.is_edge_cover(cover)
         ```
 
-        A star needs every edge, since each leaf is only touched by its own edge:
+        A star needs every edge, since each leaf is touched only by its own:
 
         ```{python}
         star = ec.Graph().add_star_graph(5)
         len(star.minimum_edge_cover()) == star.count_edges()
+        ```
+
+        ### Inspecting every station
+
+        `metro()` is a made-up city's metro network. An inspector riding a track checks the
+        stations at both ends. Twenty stations would need ten tracks if they paired up exactly,
+        but Docks and Shipyard both hang off Harbor, so the fewest tracks that reach every
+        station is 11:
+
+        ```{python}
+        metro = ec.metro()
+        rides = metro.minimum_edge_cover()
+
+        len(rides)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight_edges=rides, label_by="label")
         ```
         """
         eids = rust.min_edge_cover(self._graph)
