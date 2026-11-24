@@ -34261,12 +34261,14 @@ class Graph:
 
         ![Find induced nodes](../assets/graphs/find-induced-nodes.light.svg){.lightbox fig-alt="A path A, B, C, D, a tree and so chordal, queried from A to D (both outlined). The dashed accent arc is the hypothetical edge A to D: it would close the cycle A, B, C, D, so every node on the induced path between them is returned. B and C are in the accent color and the card lists [A, B, C, D]." width="100%"}
 
-        In a chordal graph, this returns the nodes lying on induced paths (paths with no
-        shortcuts) between `source` and `target`: the nodes that would join a cycle with
-        `source` and `target` if the edge `source`-`target` were added. They identify which
-        variables become connected when two variables are linked in a triangulated graphical
-        model. When `source` and `target` are adjacent, or no induced path of length two or more
-        exists, the result is empty.
+        Adding the edge `source`-`target` to a chordal graph can close cycles with no chord
+        through the nodes of induced paths (paths with no shortcuts) between the two. This
+        returns `source`, `target` and the nodes that, once joined to `source`, make the graph
+        chordal again. They identify which variables become connected when two variables are
+        linked in a triangulated graphical model. Not every node on an induced path need be
+        among them, since one new edge can break several chordless cycles. When `source` and
+        `target` are adjacent, or no induced path of length two or more exists, the result is
+        empty.
 
         Parameters
         ----------
@@ -34294,18 +34296,55 @@ class Graph:
         NetworkX follows Python's set order, so on some graphs the two return different (equally
         valid) node sets; whether the result is empty never differs.
 
+        See Also
+        --------
+        is_chordal : Check that a graph is chordal.
+        complete_to_chordal_graph : Add edges to make a graph chordal.
+        junction_tree : Build a junction tree of a chordal graph.
+
         Examples
         --------
-        In a path A-B-C-D (a tree, hence chordal), the induced path from A to D is the whole
-        path:
+        In a path `A`-`B`-`C`-`D` (a tree, and so chordal), linking `A` to `D` would close a
+        cycle through every node:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         [path.get_label_from_id(n) for n in path.find_induced_nodes("A", "D")]
+        ```
+
+        ### What a new edge costs
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its moral graph is chordal. Linking Diet to Heart disease would
+        break that. Joining Diet to the other nodes found makes it chordal again. Diet is already
+        linked to Exercise, so that means three more edges, to Age, Genetics and Blood pressure:
+
+        ```{python}
+        moral = ec.causal().moral_graph()
+        found = moral.find_induced_nodes("Diet", "Heart disease")
+
+        [moral.get_label_from_id(n) for n in found]
+        ```
+
+        ```{python}
+        moral.plot(
+            layout="pos", highlight={"accent": ["Diet", "Heart disease"],
+                                     "soft": found},
+            label_by="label", height=360,
+        )
+        ```
+
+        Adding those edges gives a chordal graph again:
+
+        ```{python}
+        moral.add_edges(
+            [("Diet", "Heart disease"), ("Diet", "Age"), ("Diet", "Genetics"),
+             ("Diet", "Blood pressure")]
+        )
+        moral.is_chordal()
         ```
         """
         s_id = self._resolve_node_id(source, auto_create=False)
