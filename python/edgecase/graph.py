@@ -54947,23 +54947,64 @@ class Graph:
         ValueError
             If a node does not exist.
 
+        See Also
+        --------
+        constraint : The total constraint on a node.
+        effective_size : The number of non-redundant neighbors.
+
         Examples
         --------
-        Summing local constraint over a node's contacts gives its overall constraint:
+        Summing local constraint over a node's contacts gives its overall `constraint()`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
         )
 
-        a = graph.get_id_from_label("A")
         parts = [graph.local_constraint("A", other) for other in ["B", "C"]]
-        round(sum(parts), 4), round(graph.constraint(return_dict=True)[a], 4)
+
+        total = graph.constraint(return_dict=True)[graph.get_id_from_label("A")]
+
+        round(sum(parts), 4), round(total, 4)
         ```
+
+        ### Which in-law constrains the Strozzi?
+
+        A contact constrains a node more when the node invests a large share of its ties in it,
+        directly or through the node's other contacts. Each of the Strozzi's four in-laws gets a
+        quarter of the family's ties, but the Peruzzi also married into two of the others, so
+        they constrain the Strozzi the most, and the Ridolfi, who married none of them, the
+        least:
+
+        ```{python}
+        florentine = ec.florentine_families()
+
+        in_laws = ["Castellani", "Peruzzi", "Bischeri", "Ridolfi"]
+
+        shares = {
+            family: florentine.local_constraint("Strozzi", family)
+            for family in in_laws
+        }
+        shares
+        ```
+
+        Coloring the Strozzi's ego network by each in-law's share puts the Peruzzi, at the
+        center of the closed triangles, darkest:
+
+        ```{python}
+        (
+            florentine.ego_graph("Strozzi")
+            .set_node_attrs("local_constraint", shares)
+            .plot(color_by="local_constraint", label_by="label", seed=1)
+        )
+        ```
+
+        With no ties among the contacts, each one contributes the square of its share, so each of
+        the Guadagni's four in-laws contributes `(1 / 4) ** 2 = 0.0625`. Local constraint isn't
+        symmetric: `local_constraint("Acciaiuoli", "Medici")` is `1`, since the Medici are the
+        Acciaiuoli's only in-laws, while the reverse is under `0.03`.
         """
         u = self._resolve_node_id(node_1, auto_create=False)
         v = self._resolve_node_id(node_2, auto_create=False)
