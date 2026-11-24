@@ -249,7 +249,7 @@ pub fn symmetric_extremal_eigenpairs(
         let bx = a.mul_block(sign, &x);
         let h = x.transpose() * &bx;
         let h = (&h + h.transpose()) * 0.5;
-        let eig = SymmetricEigen::new(h);
+        let eig = crate::algorithms::eigen::symmetric_eigen(h);
 
         let mut order: Vec<usize> = (0..b).collect();
         order.sort_by(|&i, &j| eig.eigenvalues[i].total_cmp(&eig.eigenvalues[j]));
