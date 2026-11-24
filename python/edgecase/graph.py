@@ -4497,6 +4497,12 @@ class Graph:
             show_labels=show_labels,
             output=output,
             seed=seed,
+            edge_width_by=edge_width_by,
+            color_scale=color_scale,
+            color_midpoint=color_midpoint,
+            highlight=highlight,
+            highlight_edges=highlight_edges,
+            legend=legend,
         )
 
     def play(
