@@ -200,20 +200,21 @@ def bipartite_degree_centrality(s: Scene) -> None:
 
 @figure("bipartite_closeness_centrality", "node-metrics", "Bipartite closeness centrality",
         "The same two-row bipartite graph, with the bottom side E to G shaded by closeness "
-        "to the top side A to D. F reaches B, C and D in one hop and A in three, so it "
-        "scores 0.67, ahead of E 0.50 and G 0.33.")
+        "to the rest of the graph. F reaches B, C and D in one hop and every other node in "
+        "at most three, so it scores 0.80, ahead of E 0.57 and G 0.44.")
 def bipartite_closeness_centrality(s: Scene) -> None:
     _bipartite(s, "g.bipartite_closeness_centrality(which=1)", "score",
-               {"E": 0.5, "F": 0.67, "G": 0.33})
+               {"E": 0.57, "F": 0.8, "G": 0.44})
 
 
 @figure("bipartite_betweenness_centrality", "node-metrics", "Bipartite betweenness centrality",
         "The same two-row bipartite graph, with the bottom side E to G shaded by how often "
-        "each lies on shortest paths between top-side nodes. F joins B, C and D and scores "
-        "2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0.")
+        "each lies on shortest paths, as a share of the most a node on its side could. F "
+        "joins B, C and D and scores 0.85, E, the only way out of A, scores 0.38, and G, "
+        "which only touches D, scores 0.")
 def bipartite_betweenness_centrality(s: Scene) -> None:
     _bipartite(s, "g.bipartite_betweenness_centrality(1)", "score",
-               {"E": 1.33, "F": 2.5, "G": 0.0})
+               {"E": 0.38, "F": 0.85, "G": 0.0})
 
 
 # --- two-mode metrics on the docstrings' people / events graphs ----------------------
