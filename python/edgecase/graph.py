@@ -25372,41 +25372,46 @@ class Graph:
         Graph
             The same graph (modified in place) for method chaining.
 
+        See Also
+        --------
+        invert_edge_selection : Select the edges that aren't selected.
+        deselect_nodes : Remove nodes from the selection.
+
         Examples
         --------
-        On a 10-node path, the two endpoints have degree `1` while every other node has
-        degree `2`. Selecting the endpoints and then inverting leaves the 8 middle nodes
-        selected instead:
+        On a path, the two ends have one neighbor each. Selecting them and inverting the
+        selection leaves the four in the middle:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_path_graph(10)
-            .select_nodes_by_degree(max_degree=1)
-            .invert_node_selection()
-        )
+        graph = ec.Graph().add_path_graph(6)
+        graph.select_nodes_by_degree(max_degree=1).invert_node_selection()
 
         graph.count_selected_nodes()
         ```
 
-        Inverting a neighborhood selects everything outside it. Here the nodes more than one
-        hop away from "A" are selected and then removed, keeping only the ego network of "A":
+        ### Far from the center
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Eleven stations are within two stops of Central. Inverting that selection picks out the
+        other nine, out at the ends of the lines:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("C", "D"), ("D", "E")])
-            .select_nodes_in_neighborhood("A", k=1)
+        metro = ec.metro()
+        (
+            metro
+            .select_nodes_in_neighborhood("Central", k=2)
             .invert_node_selection()
-            .delete_nodes_ws()
         )
 
-        graph.get_node_df().select("id", "label")
+        label = metro.get_label_from_id
+        sorted(label(n) for n in metro.get_selected_node_ids())
         ```
 
+        ```{python}
+        metro.plot(layout="pos", highlight="selection", label_by="label")
+        ```
         """
         self._graph.invert_node_selection()
 
