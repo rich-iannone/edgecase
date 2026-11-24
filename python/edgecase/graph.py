@@ -50280,6 +50280,12 @@ class Graph:
             connective core. Returns `(0.0, [])` for graphs with fewer than 2 nodes or
             zero betweenness centrality.
 
+        See Also
+        --------
+        betweenness_centrality : The node scores that the connective core is built on.
+        group_betweenness_centrality : Betweenness for any chosen group of nodes.
+        prominent_group : The group of a given size with the most group betweenness.
+
         Examples
         --------
         The bridge nodes connecting two triangles form the connective core:
@@ -50287,17 +50293,31 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-            .add_edge("C", "D")  # Bridge
-            .add_edges([("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+             ("E", "F"), ("F", "D")]
         )
 
         score, core = graph.knotty_centrality()
-        labels = [graph.get_label_from_id(nid) for nid in core]
-        (round(score, 4), labels)
+        score, [graph.get_label_from_id(n) for n in core]
+        ```
+
+        ### The knot of the karate club
+
+        In Zachary's karate club, the two members with the most betweenness, the instructor
+        (member 0) and the administrator (member 33), aren't friends, so as a pair they have no
+        density at all. The connective core is the instructor and member 2, a friend with the
+        fourth-highest betweenness who also knows the administrator's side:
+
+        ```{python}
+        club = ec.karate_club().layout_kamada_kawai()
+
+        score, core = club.knotty_centrality()
+        score, [club.get_label_from_id(n) for n in core]
+        ```
+
+        ```{python}
+        club.plot(layout="pos", label_by="label", highlight=core)
         ```
         """
         from edgecase._core import knotty_centrality as _knotty_centrality
