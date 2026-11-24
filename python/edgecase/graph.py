@@ -58129,22 +58129,60 @@ class Graph:
             measured within each node's component. If `return_dict=` is `False`: Returns self for
             method chaining.
 
+        See Also
+        --------
+        diameter : The largest eccentricity.
+        radius : The smallest eccentricity.
+        radiality : Eccentricity turned around and scaled to lie between 0 and 1.
+
         Examples
         --------
-        The middle node "C" reaches every other node in at most two hops, giving it the
-        lowest (most central) eccentricity, while the two end nodes must each reach two
-        hops further in the opposite direction:
+        In a path of five nodes, the middle node C is at most two hops from every other node, the
+        lowest eccentricity, while each end node is four hops from the other end:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
-        graph.eccentricity(return_dict=True)
+        graph.eccentricity().get_node_df().select("label", "eccentricity")
+        ```
+
+        ### The most central stations of the metro
+
+        `metro()` is a made-up city's metro network. Counting stops, no station is more than four
+        stops from Central or Riverside, while a trip from Westgate or the Airport can take seven:
+
+        ```{python}
+        metro = ec.metro().eccentricity()
+
+        metro.plot(
+            layout="pos", color_by="eccentricity", color_scale="sequential",
+            label_by="label",
+        )
+        ```
+
+        ### What a new link changes
+
+        An express from Central to the Airport shortens the longest trip from the Airport and from
+        Westgate, the two ends of the network, by two stops, and from five other stations by one:
+
+        ```{python}
+        before = metro.eccentricity(return_dict=True)
+        metro.add_edge("Central", "Airport", weight=12.0, line="Express")
+        after = metro.eccentricity(return_dict=True)
+
+        closer = [n for n in after if after[n] < before[n]]
+        {metro.get_label_from_id(n): (before[n], after[n]) for n in closer}
+        ```
+
+        Museum joins Central and Riverside in the center, but the far ends of the Blue and Green
+        lines are as remote as before:
+
+        ```{python}
+        metro.plot(layout="pos", highlight=closer, label_by="label")
         ```
         """
         if attr_name is None:
