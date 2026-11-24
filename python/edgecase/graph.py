@@ -20184,6 +20184,11 @@ class Graph:
         One pass over the edges, $O(E + rc)$ for the dense $r \\times c$ result. Matches
         NetworkX's `bipartite.biadjacency_matrix` (returned there as a SciPy sparse array).
 
+        See Also
+        --------
+        bipartite_sets : The two sides of a bipartite graph.
+        bipartite_projection : Link the nodes of one side through the other.
+
         Examples
         --------
         ```{python}
