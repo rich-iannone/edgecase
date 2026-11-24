@@ -56298,44 +56298,64 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to bridging centrality
             scores. If `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        betweenness_centrality : The path half of the score.
+        bridges : The edges whose removal disconnects the graph.
+
         Examples
         --------
         Two four-node cliques (A to D and E to H) are joined through a single connector X. Plain
         betweenness ranks the clique members D and E almost as highly as X, since every path
-        between the cliques passes through all three:
+        between the cliques passes through all three. Bridging centrality multiplies betweenness
+        by a bridging coefficient, which is high for a node whose few neighbors have many ties of
+        their own, so X scores `1` and D and E far less:
 
         ```{python}
+        from itertools import combinations
+
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_nodes(["A", "B", "C", "D", "E", "F", "G", "H", "X"])
+        graph = ec.Graph.from_edges(
+            [*combinations("ABCD", 2), *combinations("EFGH", 2),
+             ("D", "X"), ("X", "E")]
+        )
 
-        for clique in (["A", "B", "C", "D"], ["E", "F", "G", "H"]):
-            for i, u in enumerate(clique):
-                for v in clique[i + 1:]:
-                    graph.add_edge(u, v)
-
-        graph.add_edge("D", "X").add_edge("X", "E")
-
-        between = graph.betweenness_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(between.items())}
+        (
+            graph.bridging_centrality()
+            .betweenness_centrality()
+            .get_node_df()
+            .select("label", "betweenness_centrality", "bridging_centrality")
+        )
         ```
 
-        Bridging centrality separates them clearly. X has only two neighbors, each with high
-        degree, so its bridging coefficient is large, while D and E sit inside dense cliques.
-        After normalization X scores `1.0` and D and E fall to about `0.16`:
+        ### Between the leaders
+
+        In Zachary's karate club, member 19 has the top bridging score, though it is only ninth by
+        betweenness: its three friends are both leaders and member 1, all with many ties of
+        their own. The members next on the list, 8, 31 and 13, also join the two factions:
 
         ```{python}
-        bridging = graph.bridging_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(bridging.items())}
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .bridging_centrality()
+            .betweenness_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .select("label", "degree", "betweenness_centrality", "bridging_centrality")
+            .sort("bridging_centrality", descending=True)
+            .head(5)
+        )
         ```
 
-        With `normalized=False` the raw scores are returned instead, so the top value is no
-        longer pinned to `1.0`:
+        Colored by bridging centrality, the leaders themselves fade, and the members between
+        them stand out:
 
         ```{python}
-        raw = graph.bridging_centrality(normalized=False, return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(raw.items())}
+        club.plot(layout="pos", color_by="bridging_centrality", label_by="label")
         ```
         """
         from edgecase._core import bridging_centrality
@@ -56348,12 +56368,9 @@ class Graph:
         if attr_name is None:
             attr_name = "bridging_centrality"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            self._computations.append(
-                ("bridging_centrality", {"normalized": normalized}, attr_name)
-            )
+        self._store_node_result(
+            "bridging_centrality", {"normalized": normalized}, attr_name, result_ids
+        )
 
         return self
 
