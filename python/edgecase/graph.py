@@ -80751,38 +80751,49 @@ class Graph:
         priority queue keyed by each part's best arborescence returns them in order. Each
         arborescence costs up to $V - 1$ runs of Edmonds' algorithm, $O(V^2 E)$ time.
 
+        See Also
+        --------
+        minimum_spanning_arborescence : The first arborescence alone.
+        iter_spanning_trees : The same, for spanning trees of an undirected graph.
+
         Examples
         --------
-        One-way links between four relay stations, weighted by cost. The three cheapest ways
-        to reach every station, with their costs:
+        This graph has three arborescences, all rooted at `A`. They come out cheapest first:
 
         ```{python}
-        from itertools import islice
-
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [
-                ("A", "B", 4.0), ("A", "C", 1.0), ("C", "B", 2.0),
-                ("B", "D", 3.0), ("C", "D", 6.0), ("D", "C", 1.0),
-            ]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("A", "C", 2.0), ("C", "B", 3.0), ("B", "C", 4.0)],
+            directed=True,
         )
-
-        for tree in islice(g.iter_spanning_arborescences(), 3):
-            cost = sum(tree.get_edge(e).weight for e in tree.get_edge_ids(limit=None))
-            print(cost, tree.get_edges_str_repr(use_labels=True))
+        trees = graph.iter_spanning_arborescences(return_subgraphs=False)
+        [sum(w for *_, w in tree) for tree in trees]
         ```
 
-        Exhausting the iterator counts every spanning arborescence. They all start at A,
-        which has no incoming link, so the count matches `number_of_spanning_trees()` rooted
-        there:
+        ### Ranking the ways to supply a city
+
+        `pipeline()` is a made-up city's water supply, with each pipe's running `cost`. There
+        are 12 ways to feed every station from the Reservoir with one pipe each. Four of them
+        tie as the cheapest, at 13, which leaves room to pick among them for some other reason:
 
         ```{python}
-        (
-            sum(1 for _ in g.iter_spanning_arborescences(return_subgraphs=False)),
-            g.number_of_spanning_trees(root="A", weighted=False),
+        pipeline = ec.pipeline()
+        ranked = list(pipeline.iter_spanning_arborescences(weight_attr="cost"))
+
+        [int(t.get_edge_df()["cost"].sum()) for t in ranked]
+        ```
+
+        The second of the four:
+
+        ```{python}
+        pipeline.plot(
+            layout="pos",
+            highlight_edges=ranked[1].get_edge_ids(),
+            edge_label_by="cost",
+            label_by="label",
+            width=700,
+            height=360,
         )
         ```
         """
