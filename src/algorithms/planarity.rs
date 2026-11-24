@@ -3,7 +3,8 @@
 //! A port of NetworkX's `check_planarity()` (Brandes' left-right planarity test, which yields a
 //! combinatorial embedding when the graph is planar), its edge-removal search for a Kuratowski
 //! subgraph, and `combinatorial_embedding_to_pos()` (triangulation, canonical ordering, and the
-//! Chrobak-Payne shift method, giving integer grid positions without edge crossings).
+//! Chrobak-Payne shift method, giving integer grid positions without edge crossings). The grid
+//! drawing can then be spread out by a force-directed pass that never lets two edges cross.
 //!
 //! Everything works on node indices `0..n` and a simple undirected edge list prepared by the
 //! Python side (no self-loops, no parallel edges). Where NetworkX picks from a hash set or keeps
@@ -827,6 +828,184 @@ fn embedding_to_pos(emb: &Embedding) -> Vec<(i64, i64)> {
     pos
 }
 
+// --- refining a drawing ----------------------------------------------------------------------
+
+type Point = (f64, f64);
+
+/// Twice the signed area of the triangle `p, q, r` (positive when counterclockwise).
+fn orient(p: Point, q: Point, r: Point) -> f64 {
+    (q.0 - p.0) * (r.1 - p.1) - (q.1 - p.1) * (r.0 - p.0)
+}
+
+/// The point of the segment `a-b` closest to `p`.
+fn closest_on_segment(p: Point, a: Point, b: Point) -> Point {
+    let (ax, ay) = (b.0 - a.0, b.1 - a.1);
+    let len2 = ax * ax + ay * ay;
+    if len2 == 0.0 {
+        return a;
+    }
+    let t = (((p.0 - a.0) * ax + (p.1 - a.1) * ay) / len2).clamp(0.0, 1.0);
+    (a.0 + t * ax, a.1 + t * ay)
+}
+
+fn dist(p: Point, q: Point) -> f64 {
+    (p.0 - q.0).hypot(p.1 - q.1)
+}
+
+fn point_segment_dist(p: Point, a: Point, b: Point) -> f64 {
+    dist(p, closest_on_segment(p, a, b))
+}
+
+/// Whether the segments `a-b` and `c-d` come within `tol` of each other.
+fn segments_near(a: Point, b: Point, c: Point, d: Point, tol: f64) -> bool {
+    let (o1, o2) = (orient(a, b, c), orient(a, b, d));
+    let (o3, o4) = (orient(c, d, a), orient(c, d, b));
+    if o1 * o2 < 0.0 && o3 * o4 < 0.0 {
+        return true;
+    }
+    point_segment_dist(a, c, d) < tol
+        || point_segment_dist(b, c, d) < tol
+        || point_segment_dist(c, a, b) < tol
+        || point_segment_dist(d, a, b) < tol
+}
+
+/// Whether `x` lies in the triangle `a, b, c` or within `tol` of its sides.
+fn in_triangle(x: Point, a: Point, b: Point, c: Point, tol: f64) -> bool {
+    let (d1, d2, d3) = (orient(a, b, x), orient(b, c, x), orient(c, a, x));
+    let inside = (d1 >= 0.0 && d2 >= 0.0 && d3 >= 0.0) || (d1 <= 0.0 && d2 <= 0.0 && d3 <= 0.0);
+    inside
+        || point_segment_dist(x, a, b) < tol
+        || point_segment_dist(x, b, c) < tol
+        || point_segment_dist(x, c, a) < tol
+}
+
+/// Spread out a straight-line drawing without crossings, keeping it free of crossings.
+///
+/// Each round moves every node in turn along its Fruchterman-Reingold force (pairs of nodes
+/// repel, edges pull their ends together), plus a push away from edges that pass close by and a
+/// weak pull toward the middle of the drawing, by
+/// at most a temperature that cools linearly to zero. A move is taken only if, as the node slides
+/// to its new place, no other node is swept over by one of its edges and the node itself crosses
+/// no edge, which is exactly what keeps the drawing free of crossings; otherwise the move is
+/// halved and tried again, a few times. Nodes also keep a small gap from the edges they don't
+/// belong to, as far as a move doesn't narrow it. The work per round grows with the square of
+/// the number of edges, so `rounds` should shrink on large graphs.
+fn refine_drawing(pos: &mut [Point], edges: &[(usize, usize)], rounds: usize) {
+    let n = pos.len();
+    if n < 3 || rounds == 0 {
+        return;
+    }
+    let mut adj = vec![Vec::new(); n];
+    for &(u, v) in edges {
+        adj[u].push(v);
+        adj[v].push(u);
+    }
+    let (min_x, max_x) = pos
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.0), b.max(p.0)));
+    let (min_y, max_y) = pos
+        .iter()
+        .fold((f64::MAX, f64::MIN), |(a, b), p| (a.min(p.1), b.max(p.1)));
+    let k = ((max_x - min_x).max(1.0) * (max_y - min_y).max(1.0) / n as f64).sqrt();
+    let gap = 0.05 * k;
+    let tol = 1e-7 * k;
+    let center = ((min_x + max_x) / 2.0, (min_y + max_y) / 2.0);
+
+    let can_move = |pos: &[Point], v: usize, q: Point| -> bool {
+        let p = pos[v];
+        for &(a, b) in edges {
+            if a == v || b == v {
+                continue;
+            }
+            // the node mustn't cross an edge on its way, nor end up near one
+            if segments_near(p, q, pos[a], pos[b], tol) {
+                return false;
+            }
+            let d = point_segment_dist(q, pos[a], pos[b]);
+            if d < gap && d < point_segment_dist(p, pos[a], pos[b]) {
+                return false;
+            }
+        }
+        for &w in &adj[v] {
+            for x in 0..n {
+                if x == v || x == w {
+                    continue;
+                }
+                // the edge mustn't sweep over another node, nor end up near one
+                if in_triangle(pos[x], p, q, pos[w], tol) {
+                    return false;
+                }
+                let d = point_segment_dist(pos[x], q, pos[w]);
+                if d < gap && d < point_segment_dist(pos[x], p, pos[w]) {
+                    return false;
+                }
+            }
+        }
+        true
+    };
+
+    for round in 0..rounds {
+        let temp = k * (1.0 - round as f64 / rounds as f64);
+        for v in 0..n {
+            let p = pos[v];
+            let (mut fx, mut fy) = (0.0, 0.0);
+            for (w, &o) in pos.iter().enumerate() {
+                if w == v {
+                    continue;
+                }
+                let (dx, dy) = (p.0 - o.0, p.1 - o.1);
+                let d = dx.hypot(dy).max(1e-3 * k);
+                let f = k * k / d;
+                fx += dx / d * f;
+                fy += dy / d * f;
+            }
+            for &w in &adj[v] {
+                let (dx, dy) = (p.0 - pos[w].0, p.1 - pos[w].1);
+                let d = dx.hypot(dy).max(1e-3 * k);
+                let f = d * d / k;
+                fx -= dx / d * f;
+                fy -= dy / d * f;
+            }
+            for &(a, b) in edges {
+                if a == v || b == v {
+                    continue;
+                }
+                let c = closest_on_segment(p, pos[a], pos[b]);
+                let (dx, dy) = (p.0 - c.0, p.1 - c.1);
+                let d = dx.hypot(dy).max(1e-3 * k);
+                if d < k {
+                    let f = 3.0 * (k - d) * (k - d) / d;
+                    fx += dx / d * f;
+                    fy += dy / d * f;
+                }
+            }
+            // a pull toward the middle keeps separate pieces and lone nodes from drifting off
+            fx -= p.0 - center.0;
+            fy -= p.1 - center.1;
+            let m = fx.hypot(fy);
+            if m < 1e-12 {
+                continue;
+            }
+            let mut step = m.min(temp);
+            for _ in 0..5 {
+                let q = (p.0 + fx / m * step, p.1 + fy / m * step);
+                if can_move(pos, v, q) {
+                    pos[v] = q;
+                    break;
+                }
+                step /= 2.0;
+            }
+        }
+    }
+}
+
+/// The number of rounds of `refine_drawing()` for a graph of `n` nodes and `m` edges: 300, or
+/// fewer on large graphs, so the refinement stays within about 10^8 steps.
+fn refine_rounds(n: usize, m: usize) -> usize {
+    let work = (n * n + n * m + 2 * m * (m + n)).max(1) as f64;
+    (1.5e8 / work).min(300.0) as usize
+}
+
 /// The indices of a minimal non-planar edge set (a Kuratowski subgraph) of a non-planar graph,
 /// found as NetworkX does: drop each edge in turn, and put it back if the rest became planar.
 fn kuratowski_edges(n: usize, edges: &[(usize, usize)]) -> Vec<usize> {
@@ -910,12 +1089,31 @@ pub fn planar_faces(n: usize, edges: Vec<(usize, usize)>) -> PyResult<Option<Vec
     Ok(Some(faces))
 }
 
-/// Integer grid positions drawing the simple graph on `0..n` without edge crossings, or `None`
-/// if the graph is not planar.
+/// Positions drawing the simple graph on `0..n` without edge crossings, or `None` if the graph
+/// is not planar: the integer grid of the Chrobak-Payne drawing, spread out by
+/// `refine_drawing()` when `refine` is true.
 #[pyfunction]
-pub fn planar_layout(n: usize, edges: Vec<(usize, usize)>) -> PyResult<Option<Vec<(i64, i64)>>> {
+#[pyo3(signature = (n, edges, refine=true))]
+pub fn planar_layout(
+    n: usize,
+    edges: Vec<(usize, usize)>,
+    refine: bool,
+) -> PyResult<Option<Vec<(f64, f64)>>> {
     let adj = simple_adjacency(n, &edges)?;
-    Ok(lr_planarity(&adj).map(|emb| embedding_to_pos(&emb)))
+    let Some(emb) = lr_planarity(&adj) else {
+        return Ok(None);
+    };
+    let mut pos: Vec<Point> = embedding_to_pos(&emb)
+        .into_iter()
+        .map(|(x, y)| (x as f64, y as f64))
+        .collect();
+    if refine && n >= 4 {
+        let simple: Vec<(usize, usize)> = (0..n)
+            .flat_map(|u| adj[u].iter().filter(move |&&v| u < v).map(move |&v| (u, v)))
+            .collect();
+        refine_drawing(&mut pos, &simple, refine_rounds(n, simple.len()));
+    }
+    Ok(Some(pos))
 }
 
 #[cfg(test)]
@@ -986,6 +1184,44 @@ mod tests {
                 assert!(!segments_cross(pos[a], pos[b], pos[c], pos[d]));
             }
         }
+    }
+
+    #[test]
+    fn refining_keeps_the_drawing_crossing_free() {
+        // a 4 x 4 grid: the shift method crowds it, and refining must not fold it over
+        let mut e = Vec::new();
+        for r in 0..4 {
+            for c in 0..4 {
+                let v = 4 * r + c;
+                if c < 3 {
+                    e.push((v, v + 1));
+                }
+                if r < 3 {
+                    e.push((v, v + 4));
+                }
+            }
+        }
+        let emb = lr_planarity(&adj(16, &e)).unwrap();
+        let mut pos: Vec<Point> = embedding_to_pos(&emb)
+            .iter()
+            .map(|&(x, y)| (x as f64, y as f64))
+            .collect();
+        refine_drawing(&mut pos, &e, 300);
+        let side = |p: Point, q: Point, r: Point| {
+            let o = orient(p, q, r);
+            (o > 1e-12) as i32 - (o < -1e-12) as i32
+        };
+        for (i, &(a, b)) in e.iter().enumerate() {
+            for &(c, d) in &e[i + 1..] {
+                if [a, b].contains(&c) || [a, b].contains(&d) {
+                    continue;
+                }
+                let crossed = side(pos[a], pos[b], pos[c]) * side(pos[a], pos[b], pos[d]) < 0
+                    && side(pos[c], pos[d], pos[a]) * side(pos[c], pos[d], pos[b]) < 0;
+                assert!(!crossed);
+            }
+        }
+        assert!(pos.iter().all(|p| p.0.is_finite() && p.1.is_finite()));
     }
 
     #[test]
