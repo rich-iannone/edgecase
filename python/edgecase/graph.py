@@ -37919,48 +37919,62 @@ class Graph:
         every node equally regardless of degree; for a degree-weighted version see
         `transitivity()`.
 
+        See Also
+        --------
+        local_clustering_coefficient : Each node's clustering.
+        transitivity : The fraction of closed triples, weighting busy nodes more.
+        random_reference : A random graph with the same degrees, to compare against.
+
         Examples
         --------
-        Every node in a triangle has its two neighbors connected to each other, so the average
-        clustering is `1.0`:
+        `A` and `B` score 1 and `C` 1/3, and `D`, with a single neighbor, counts as 0, so the
+        average is `(1 + 1 + 1/3 + 0) / 4`:
 
         ```{python}
         import edgecase as ec
 
-        triangle = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
-
-        triangle.average_clustering_coefficient()
+        graph.average_clustering_coefficient()
         ```
 
-        In a star, the leaves are never connected to one another, so the center's coefficient is
-        `0` and the degree-1 leaves also count as `0`, giving an average of `0.0`:
+        ### Clustered beyond chance?
+
+        On its own, the average says little: a network with many links per node has many
+        triangles by chance. Comparing it with random graphs that have the same degrees, from
+        `random_reference()`, says whether it's high for that network. All four networks here are
+        more clustered than chance, from 1.7 times for the karate club to about 5 times for
+        college football, whose teams play mostly within their conferences:
 
         ```{python}
-        star = (
-            ec.Graph()
-            .add_nodes(["center", "A", "B", "C"])
-            .add_edges([("center", "A"), ("center", "B"), ("center", "C")])
-        )
+        import polars as pl
 
-        star.average_clustering_coefficient()
+        rows = []
+        for name in ["karate_club", "dolphins", "les_miserables", "football"]:
+            network = getattr(ec, name)()
+            references = [network.random_reference(seed=s) for s in range(1, 6)]
+            rows.append({
+                "network": name,
+                "clustering": network.average_clustering_coefficient(),
+                "reference": sum(
+                    r.average_clustering_coefficient() for r in references
+                ) / len(references),
+            })
+        pl.DataFrame(rows)
         ```
 
-        Adding a pendant node "D" to the triangle shows how low-degree nodes pull the average
-        down. "A" and "B" still score `1`, "C" now has three neighbors with only one connected
-        pair (`1/3`), and "D" scores `0`, so the mean is `(1 + 1 + 1/3 + 0) / 4`, about `0.583`:
+        The average counts every node the same. In `les_miserables()`, which links two characters
+        of Victor Hugo's novel when they appear in the same chapter, 26 of the 77 score 1, among
+        them many minor characters whose few companions all meet each other. Valjean, who meets
+        36 characters from every part of the book, scores 0.12:
 
         ```{python}
-        tailed = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
+        novel = ec.les_miserables().local_clustering_coefficient()
+        novel.plot(
+            color_by="local_clustering_coefficient", size_by="degree",
+            label_by="label", seed=2, height=600,
         )
-
-        tailed.average_clustering_coefficient()
         ```
         """
         return self._graph.get_avg_clustering_coefficient()
