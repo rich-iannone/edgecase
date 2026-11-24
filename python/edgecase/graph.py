@@ -37018,15 +37018,52 @@ class Graph:
             If `source_mode=` or `target_mode=` is invalid, or set to something other than
             `"in+out"` on an undirected graph.
 
+        See Also
+        --------
+        average_neighbor_degree : The average degree of each node's neighbors.
+        assortativity_degree : One number for the same tendency.
+        degree_mixing_dict : Count links by the degrees at their two ends.
+
         Examples
         --------
-        In a star, the leaves (degree 1) all point to the hub, while the hub's neighbors are
-        all leaves, the hallmark of a disassortative network:
+        `C` and `D` have three neighbors each, and `A`, `B`, `E` and `F` one. Each node with one
+        neighbor is joined to a node with three, while the neighbors of `C` and `D` have
+        `1 + 1 + 3` neighbors between them, `5 / 3` on average:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_star_graph(5).average_degree_connectivity()
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("C", "D"), ("D", "E"), ("D", "F")]
+        )
+
+        graph.average_degree_connectivity()
+        ```
+
+        ### Friends of the well connected
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Member `11` has one friend, the instructor, who has 16. The
+        more friends members have, the fewer their friends have, falling to under 4 for the
+        administrator, who has 17:
+
+        ```{python}
+        karate = ec.karate_club()
+        knn = karate.average_degree_connectivity()
+
+        {k: round(v, 1) for k, v in knn.items()}
+        ```
+
+        Colored by the average number of friends their friends have, the members on the edge of
+        the club are the darkest:
+
+        ```{python}
+        karate = karate.average_neighbor_degree()
+
+        karate.plot(
+            color_by="average_neighbor_degree", size_by="degree",
+            label_by="label", seed=1,
+        )
         ```
         """
         result = rust.average_degree_connectivity(
