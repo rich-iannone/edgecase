@@ -26601,6 +26601,11 @@ class Graph:
             If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
             `None`.
 
+        See Also
+        --------
+        match : The matches of a pattern, as a table.
+        select_match : Select the nodes or edges that a pattern matches.
+
         Examples
         --------
         In a directed graph, `(a)-->(b)-->(c)-->(a)` finds each directed triangle once per
@@ -26609,10 +26614,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "C")],
+            directed=True,
         )
 
         graph.count_matches("MATCH (a)-->(b)-->(c)-->(a)")
@@ -26632,6 +26636,31 @@ class Graph:
         graph.count_matches("MATCH (a)-[r]->(), (a)-[s]->() WHERE id(r) < id(s)")
         ```
 
+        ### Counting loops of money
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. A pattern that comes back to `a` finds money going around, and it
+        counts each loop once from each account in it. So there are two pairs who pay each other
+        (4 matches), and three loops of three payments (9 matches):
+
+        ```{python}
+        payments = ec.payments()
+        {
+            steps: payments.count_matches(pattern)
+            for steps, pattern in [
+                (2, "MATCH (a)-->(b)-->(a)"),
+                (3, "MATCH (a)-->(b)-->(c)-->(a)"),
+            ]
+        }
+        ```
+
+        The pairs are Dee and Eve, and Max and Nia:
+
+        ```{python}
+        payments.plot(
+            highlight=[("Dee", "Eve"), ("Max", "Nia")], label_by="label", seed=3
+        )
+        ```
         """
         parsed, matcher = self._matcher(query, params, label_key, distinct_nodes)
         n, first = Projection(parsed, matcher).count()
