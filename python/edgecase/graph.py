@@ -71191,6 +71191,12 @@ class Graph:
         (quick rejections); otherwise it is k-edge-connected exactly when all nodes form a single
         k-edge-connected component (see `k_edge_components()`).
 
+        See Also
+        --------
+        edge_connectivity : The largest k for which the graph is k-edge-connected.
+        k_edge_augmentation : The edges to add so that the graph becomes k-edge-connected.
+        k_edge_components : The groups of nodes that are k-edge-connected to each other.
+
         Examples
         --------
         A cycle survives any single edge failure but not two; a complete graph on five nodes
@@ -71201,7 +71207,34 @@ class Graph:
 
         ring = ec.Graph().add_cycle_graph(6)
         k5 = ec.Graph().add_full_graph(5)
-        ring.is_k_edge_connected(2), ring.is_k_edge_connected(3), k5.is_k_edge_connected(4)
+
+        (
+            ring.is_k_edge_connected(2),
+            ring.is_k_edge_connected(3),
+            k5.is_k_edge_connected(4),
+        )
+        ```
+
+        ### A city center that survives a closure
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. The whole network is not 2-edge-connected, since the branches out to the harbor
+        and the Airport run on single stretches of track, but the seven stations of zone 1, on
+        their own tracks, survive the closure of any one stretch:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone_1 = nodes.filter(nodes["zone"] == 1)["id"].to_list()
+
+        (
+            metro.is_k_edge_connected(2),
+            metro.subgraph(zone_1).is_k_edge_connected(2),
+        )
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
         """
         if k < 1:
