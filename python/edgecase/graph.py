@@ -70730,6 +70730,12 @@ class Graph:
         ValueError
             If a node does not exist, `source=` equals `target=`, or `max_paths=` is below 1.
 
+        See Also
+        --------
+        edge_disjoint_paths : Paths that may share nodes but not edges.
+        node_connectivity_between : The number of paths, by Menger's theorem.
+        minimum_node_cut : The nodes that limit the number of paths.
+
         Examples
         --------
         In the same bowtie, the shared node C means A and E have only one node-disjoint route,
@@ -70738,25 +70744,64 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        bowtie = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        bowtie = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("C", "D"), ("D", "E"), ("E", "C"),
+            ]
         )
 
-        len(bowtie.node_disjoint_paths("A", "E")), len(bowtie.edge_disjoint_paths("A", "E"))
+        (
+            len(bowtie.node_disjoint_paths("A", "E")),
+            len(bowtie.edge_disjoint_paths("A", "E")),
+        )
         ```
 
         A cube has three node-disjoint routes between opposite corners, one through each
         neighbor of the start:
 
         ```{python}
-        cube = ec.Graph().add_nodes([str(i) for i in range(8)])
-        cube.add_edges([(str(a), str(b)) for a in range(8) for b in range(a + 1, 8)
-                        if bin(a ^ b).count("1") == 1])
+        cube = ec.Graph.from_edges(
+            [
+                (str(a), str(b))
+                for a in range(8) for b in range(a + 1, 8)
+                if bin(a ^ b).count("1") == 1
+            ]
+        )
 
         label = cube.get_label_from_id
         [[label(n) for n in path] for path in cube.node_disjoint_paths("0", "7")]
+        ```
+
+        ### Separate chains of friends
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). The two leaders are joined by ten chains of friendships
+        that share no friendship, but only six that share no member, one through each of the six
+        members of `minimum_node_cut()`:
+
+        ```{python}
+        karate = ec.karate_club()
+        chains = karate.node_disjoint_paths("0", "33")
+
+        label = karate.get_label_from_id
+        len(karate.edge_disjoint_paths("0", "33")), [
+            [label(n) for n in chain] for chain in chains
+        ]
+        ```
+
+        ```{python}
+        links = {
+            (u, v): i + 1 for i, chain in enumerate(chains)
+            for u, v in zip(chain, chain[1:])
+        }
+        karate.set_edge_attrs("chain", list(links.values()), edges=list(links))
+        karate.set_edge_attrs("on_chain", {e: 0 for e in karate.get_edge_ids()})
+        karate.set_edge_attrs("on_chain", 1, edges=list(links))
+        karate.layout_kamada_kawai().plot(
+            layout="pos", edge_color_by="chain", edge_width_by="on_chain",
+            edge_opacity=0.9, label_by="label",
+        )
         ```
         """
         if max_paths is not None and max_paths < 1:
