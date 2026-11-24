@@ -32121,26 +32121,58 @@ class Graph:
         - finding hubs whose neighbors are subsets of others
         - hierarchical community structure
 
+        See Also
+        --------
+        jaccard_similarity : Shared neighbors over all neighbors.
+        cosine_similarity : Shared neighbors over the geometric mean of the degrees.
+        topological_overlap : A similar score that also counts a direct link.
+
         Examples
         --------
-        Unlike Jaccard or Dice, overlap divides by the *smaller* neighborhood size rather
-        than the union or sum, which is what makes it useful for spotting subset
-        relationships between a specialized node and a more general one:
+        `A`'s neighbors are all among `B`'s, so the overlap is `1.0`, however many more `B` has:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "spoke", "extended", "extra"])
-            .add_edges([("hub", "spoke"), ("hub", "extended"), ("spoke", "extra")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
+        scores = graph.overlap_similarity()[graph.get_id_from_label("A")]
 
-        sim = graph.overlap_similarity()
+        dict(sorted((label(n), s) for n, s in scores.items()))
+        ```
 
-        hub_id = graph.get_id_from_label(label="hub")
-        spoke_id = graph.get_id_from_label(label="spoke")
-        sim[hub_id][spoke_id]
+        ### Friends within friends
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Ada's three friends are all friends of Dev's too, who also knows
+        Femi. The overlap coefficient divides by the smaller circle, so it scores them `1.0`,
+        the same as Mara and Pablo, whose friends are identical, while the Jaccard index ranks
+        them lower:
+
+        ```{python}
+        friends = ec.friends()
+        pairs = [("Ada", "Dev"), ("Mara", "Pablo")]
+        overlap = friends.overlap_similarity()
+        jaccard = friends.jaccard_similarity()
+        node = friends.get_id_from_label
+
+        {
+            f"{a}-{b}": (overlap[node(a)][node(b)], jaccard[node(a)][node(b)])
+            for a, b in pairs
+        }
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={
+                "accent": [("Ada", friend) for friend in ["Ben", "Cleo", "Ella"]],
+                "soft": [(friend, "Dev") for friend in
+                         ["Ben", "Cleo", "Ella", "Femi"]],
+            },
+            label_by="label", seed=8,
+        )
         ```
         """
         return self._graph.get_overlap_similarity()
