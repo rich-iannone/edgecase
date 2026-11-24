@@ -24122,10 +24122,11 @@ class Graph:
         Parameters
         ----------
         node_ids
-            A list of integer node IDs to select. Every ID must belong to an existing node; a
-            missing ID raises `KeyError` and leaves the selection unchanged. Strings (labels) are
-            rejected with a `TypeError`. An empty list is allowed (with `set_op="replace"`, it
-            clears the selection).
+            The integer IDs of the nodes to select, as a list or any other iterable, such as a
+            set of IDs from `strongly_connected_components()`. Every ID must belong to an
+            existing node; a missing ID raises `KeyError` and leaves the selection unchanged.
+            Strings (labels) are rejected with a `TypeError`. An empty list is allowed (with
+            `set_op="replace"`, it clears the selection).
         set_op
             How these nodes combine with the current node selection. `"union"` (default) adds them
             to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected nodes
