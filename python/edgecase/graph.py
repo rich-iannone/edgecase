@@ -24997,55 +24997,54 @@ class Graph:
             undirected graph, or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or
             `"difference"`.
 
+        See Also
+        --------
+        select_nodes_by_degree : Select nodes by their degree.
+        betweenness_centrality : How often a node lies on shortest paths.
+        pagerank : The PageRank of each node.
+
         Examples
         --------
-        In this graph "A" has degree `3`, "B" and "C" are tied at `2`, and "D" has degree `1`.
-        Asking for the top two by degree selects "A" plus one of the tied pair, so the count is
-        exactly `2`:
+        In this graph two triangles are joined through `C` and `D`. By betweenness, the top two
+        are `C` and `D`, which lie on the paths from one triangle to the other:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C")])
-            .select_nodes_by_centrality("degree", k=2)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
         )
+        graph.select_nodes_by_centrality("betweenness", k=2)
 
-        graph.count_selected_nodes()
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
-        With `include_ties=True`, both "B" and "C" are kept because they share the score at
-        the cut-off, so the selection grows to three nodes and is deterministic:
+        ### Busy members and go-betweens
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The five members with the most links and the five with
+        the highest betweenness are nearly the same: the instructor (member `0`), the
+        administrator (`33`), and members `2` and `32`. Then member `1`, who has many links but
+        mostly inside the instructor's circle, gives way to `31`, who links the two sides:
 
         ```{python}
-        graph.select_nodes_by_centrality("degree", k=2, include_ties=True)
+        karate = ec.karate_club()
+        label = karate.get_label_from_id
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        top = {}
+        for measure in ["degree", "betweenness"]:
+            karate.select_nodes_by_centrality(measure, k=5, set_op="replace")
+            selected = karate.get_selected_node_ids()
+            top[measure] = sorted(label(n) for n in selected)
+        top
         ```
 
-        Extra keyword arguments are forwarded to `pagerank()` -- here `damping=` is passed
-        through. In this directed graph every other node links to "hub", so it ranks first:
-
         ```{python}
-        web = (
-            ec.Graph(directed=True)
-            .add_nodes(["hub", "p1", "p2", "p3"])
-            .add_edges([("p1", "hub"), ("p2", "hub"), ("p3", "hub"), ("hub", "p1")])
-            .select_nodes_by_centrality("pagerank", k=1, damping=0.85)
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight="selection", label_by="label"
         )
-
-        [web.get_label_from_id(nid) for nid in web.get_selected_node_ids()]
         ```
-
-        The scores are only used for ranking and aren't stored on the nodes. To keep them, run
-        the measure itself:
-
-        ```{python}
-        web.pagerank(damping=0.85).get_node_df().select("label", "pagerank")
-        ```
-
         """
         _check_set_op(set_op)
         for name in ("attr_name", "return_dict"):
