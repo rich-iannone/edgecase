@@ -64880,68 +64880,62 @@ class Graph:
         chained side by side under different attribute labels and later compared without
         recomputation.
 
+        See Also
+        --------
+        random_walk : A random walk that records the nodes visited.
+        generate_random_paths : Many short random walks at once.
+
         Examples
         --------
-        Walking a triangle for 5 steps returns 5 traversed edges, each as an
-        `(edge_id, source_id, target_id)` tuple. Because the graph is undirected, each tuple is
-        oriented in the direction the walker actually moved:
+        Each step is returned as the edge's ID and its two nodes in the order walked, so the
+        third step crosses edge `2` back from `C` to `B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        graph.random_edge_walk("A", steps=5, seed=23, return_list=True)
+        graph.random_edge_walk("A", steps=4, seed=23, return_list=True)
         ```
 
-        Rather than returning the list, the traversal order can be stored on each edge as an
-        attribute. After 100 steps on a 3-edge triangle every edge has been crossed, and each
-        records the position of its most recent crossing:
+        ### A ride at random
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. A rider who leaves Central and takes a random stretch of track at
+        each station crosses these 12:
 
         ```{python}
-        graph.random_edge_walk("A", steps=100, seed=23)
-
-        graph.get_edge_attrs_by_id("random_edge_walk_order")
-        ```
-
-        Because it returns the graph when `return_list=False`, multiple walks can be chained
-        together under different attribute names for comparison. Here both 50-step walks on a
-        6-cycle end up crossing all six edges:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_cycle_graph(6)
-            .random_edge_walk(1, steps=50, seed=23, attr_name="walk1")
-            .random_edge_walk(1, steps=50, seed=123, attr_name="walk2")
+        metro = ec.metro()
+        label = metro.get_label_from_id
+        ride = metro.random_edge_walk(
+            "Central", steps=12, seed=3, return_list=True
         )
 
-        walk1_orders = graph.get_edge_attrs_by_id("walk1")
-        walk2_orders = graph.get_edge_attrs_by_id("walk2")
-
-        # Edges visited by both walks
-        common_edges = set(walk1_orders.keys()) & set(walk2_orders.keys())
-        len(common_edges)
+        [(label(u), label(v)) for _, u, v in ride]
         ```
 
-        Counting crossings over a long walk estimates how heavily each edge is used. On a
-        symmetric triangle, the three edges are crossed roughly equally often:
+        ```{python}
+        metro.plot(
+            layout="pos",
+            highlight_edges=[edge for edge, _, _ in ride],
+            label_by="label",
+        )
+        ```
+
+        Over a long ride, every stretch is crossed about equally often, whatever the stations at
+        its ends. In 5,000 steps over 25 stretches, each is crossed close to 200 times:
 
         ```{python}
         from collections import Counter
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        crossings = Counter(
+            edge for edge, _, _ in
+            metro.random_edge_walk(
+                "Central", steps=5000, seed=1, return_list=True
+            )
         )
 
-        edges = graph.random_edge_walk(source="A", steps=1000, seed=23, return_list=True)
-        Counter(edge_id for edge_id, _, _ in edges)
+        min(crossings.values()), max(crossings.values())
         ```
         """
         self._check_non_negative(steps=steps)
@@ -64959,8 +64953,8 @@ class Graph:
         # Create dict mapping edge_id -> position in traversal
         positions = {edge_id: idx for idx, (edge_id, _, _) in enumerate(edge_tuples)}
 
-        # Set edge attributes
-        self.set_edge_attrs(attr, positions)
+        with self._no_recording():
+            self.set_edge_attrs(attr, positions)
 
         # Track computation
         params = {
@@ -64971,6 +64965,21 @@ class Graph:
             "seed": seed,
         }
         self._computations.append(("random_edge_walk", params, attr))
+        if self._recording_depth == 0:
+            args = ", ".join(f"{k}={v!r}" for k, v in params.items() if v is not None)
+            if attr != "random_edge_walk_order":
+                args += f", attr_name={attr!r}"
+            walk = [start_id] + [tgt for _, _, tgt in edge_tuples]
+            self._record_step(
+                KIND_QUERY,
+                "random_edge_walk",
+                f"G.random_edge_walk({args})",
+                delta=self._path_delta([walk], attrs_changed={attr: len(positions)}),
+                narration=(
+                    f"random_edge_walk() followed {len(edge_tuples)} edges from "
+                    f"{self._node_label(walk[0])} to {self._node_label(walk[-1])}."
+                ),
+            )
 
         return self
 
