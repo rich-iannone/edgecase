@@ -36174,80 +36174,103 @@ class Graph:
             coefficients (`0.0` to `1.0`), or `None` for nodes with degree < `2`. If `return_dict=`
             is `False`, this returns self for method chaining.
 
+        See Also
+        --------
+        clustering_coefficient : The same values, with 0 instead of None for low degree.
+        average_clustering_coefficient : The mean over all nodes.
+        transitivity : The fraction of closed triples in the whole graph.
+        random_reference : A random graph with the same degrees, to compare against.
+
         Examples
         --------
-        Measure clustering in a network:
+        `A` has four neighbors, so six pairs of them could be linked, and only `B`-`C` is: its
+        clustering is 1/6. `B` and `C` score 1, since their two neighbors are linked. `D` and `E`
+        have one neighbor each, so their clustering is undefined:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle: A,B,C
-                        ("A", "D"), ("A", "E")])  # A has additional neighbors
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "D"), ("A", "E")]
         )
+        graph.local_clustering_coefficient()
 
-        clustering = graph.local_clustering_coefficient(return_dict=True)
-        node_a_id = graph.get_id_from_label(label="A")
-        node_b_id = graph.get_id_from_label(label="B")
-        node_d_id = graph.get_id_from_label(label="D")
+        graph.get_node_df().select("label", "local_clustering_coefficient")
+        ```
 
-        # Node A: Lower clustering (not all neighbors connected)
-        # Node B: 1.0 (all neighbors connected)
-        # Node D: None (degree 1, clustering undefined)
-        clustering[node_a_id], clustering[node_b_id], clustering[node_d_id]
+        With `return_dict=True`, nothing is stored and the values come back keyed by node ID,
+        with `None` for the undefined ones:
+
+        ```{python}
+        graph.local_clustering_coefficient(return_dict=True)
+        ```
+
+        ### Friends of friends
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The members with the most friends have the least clustered
+        circles: only 15 of the 136 pairs of the administrator's 17 friends are friends
+        themselves, and 18 of the 120 pairs of the instructor's 16:
+
+        ```{python}
+        karate = ec.karate_club().local_clustering_coefficient()
+
+        (
+            karate.get_node_df()
+            .sort("degree", descending=True)
+            .select("label", "role", "degree", "local_clustering_coefficient")
+            .head(5)
+        )
+        ```
+
+        At the edges of the club, 11 members score 1: all of their friends know each other.
+        Member `11`, with a single friend, has no value and is drawn gray:
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="local_clustering_coefficient",
+            size_by="degree", label_by="label",
+        )
+        ```
+
+        ### More than chance?
+
+        `random_reference()` rewires the club into a random graph where every member keeps the
+        same number of friends. Its triangles mostly fall apart, and the average clustering drops
+        from 0.57 to 0.29:
+
+        ```{python}
+        reference = karate.random_reference(seed=1).local_clustering_coefficient()
+
+        (
+            karate.average_clustering_coefficient(),
+            reference.average_clustering_coefficient(),
+        )
+        ```
+
+        The leaders score a little higher in the reference (right), 0.18 for the instructor and
+        0.20 for the administrator, so what the club has beyond chance is the tight groups at its
+        edges:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="local_clustering_coefficient",
+            size_by="degree", label_by="label",
+            width=320, height=360, legend=False,
+        )
         ```
 
         ```{python}
-        # Convert to labels if needed
-        clustering_by_label = {
-            graph.get_label_from_id(node_id=nid): coeff for nid, coeff in clustering.items()
-        }
-
-        # Returns clustering coefficient for node A
-        clustering_by_label['A']
-        ```
-
-        Store as node attributes and chain:
-
-        ```{python}
-        import edgecase as ec
-
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-            .local_clustering_coefficient()  # Stores as 'local_clustering_coefficient' attribute
+        reference.layout_kamada_kawai().plot(
+            layout="pos", color_by="local_clustering_coefficient",
+            size_by="degree", label_by="label",
+            width=320, height=360, legend=False,
         )
-
-        # Access stored values
-        node = graph.get_node(graph.get_id_from_label("A"))
-
-        # Returns Node A clustering coefficient
-        node.attributes['local_clustering_coefficient']
         ```
 
-        Find highly clustered nodes (hubs):
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
-
-        clustering = graph.local_clustering_coefficient(return_dict=True)
-        hubs = {
-            node_id: coeff
-            for node_id, coeff in clustering.items()
-            if coeff and coeff > 0.5
-        }
-
-        # Returns dictionary of highly clustered node IDs with their coefficients
-        hubs
-        ```
-
+        :::
         """
         if attr_name is None:
             attr_name = "local_clustering_coefficient"
