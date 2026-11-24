@@ -53687,20 +53687,59 @@ class Graph:
         ValueError
             If the group is empty, contains a node that does not exist, or `mode=` is invalid.
 
+        See Also
+        --------
+        degree_centrality : Degree centrality for single nodes.
+        group_betweenness_centrality : How many paths a group lies on.
+        group_closeness_centrality : How close a group is to everyone else.
+        voterank : Choose spreaders whose neighbors overlap little.
+
         Examples
         --------
-        The two hubs of a "double star" reach every leaf between them:
+        The two hubs of a "double star" reach every leaf between them, while a hub and one of its
+        own leaves reach only part of the graph:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["h1", "h2", "a", "b", "c", "d"])
-            .add_edges([("h1", "a"), ("h1", "b"), ("h2", "c"), ("h2", "d"), ("h1", "h2")])
+        graph = ec.Graph.from_edges(
+            [("h1", "a"), ("h1", "b"), ("h2", "c"), ("h2", "d"), ("h1", "h2")]
         )
 
-        graph.group_degree_centrality(["h1", "h2"]), graph.group_degree_centrality(["h1", "a"])
+        (
+            graph.group_degree_centrality(["h1", "h2"]),
+            graph.group_degree_centrality(["h1", "a"]),
+        )
+        ```
+
+        ### Reaching the club
+
+        In Zachary's karate club, the instructor (member 0) and the administrator (member 33)
+        are friends with 29 of the other 32 members. Adding member 32, who has the third-most
+        friends, reaches no one new, because all of them are already friends with the
+        administrator. Member 31 reaches two of the three who are left:
+
+        ```{python}
+        club = ec.karate_club().layout_kamada_kawai()
+
+        [
+            club.group_degree_centrality(group)
+            for group in (["0", "33"], ["0", "33", "32"], ["0", "33", "31"])
+        ]
+        ```
+
+        Drawn with the two leaders in the accent color and their friends in a softer one, the
+        three members out of their reach, 16, 24 and 25, are gray:
+
+        ```{python}
+        friends = sorted(
+            {n for leader in ("0", "33") for n in club.get_neighbors(leader)}
+        )
+
+        club.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": ["0", "33"], "soft": friends},
+        )
         ```
         """
         if mode not in ("all", "total", "in", "out"):
