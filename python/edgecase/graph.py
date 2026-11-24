@@ -40357,19 +40357,63 @@ class Graph:
         empties. Follows NetworkX's `fast_label_propagation_communities`; with a different
         random generator, the result for a given seed differs.
 
+        See Also
+        --------
+        cmty_label_propagation : Asynchronous label propagation, visiting every node each round.
+        cmty_semisync_label_propagation : Label propagation with the same result on every run.
+
         Examples
         --------
+        Two triangles joined by a single edge each settle on one label:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-             ("D", "E")]
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        len(set(g.cmty_fast_label_propagation(seed=1, return_dict=True).values()))
+        (
+            graph.cmty_fast_label_propagation(seed=1)
+            .get_node_df()
+            .select("label", "cmty_fast_label_propagation")
+        )
+        ```
+
+        ### Political books
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. Counting the books in each
+        community by leaning:
+
+        ```{python}
+        books = ec.polbooks().cmty_fast_label_propagation(seed=1)
+
+        (
+            books.get_node_df()
+            .group_by("cmty_fast_label_propagation", "leaning")
+            .len()
+            .sort("cmty_fast_label_propagation", "leaning")
+        )
+        ```
+
+        Two large communities hold almost all the conservative books and almost all the liberal
+        ones. The two small ones mix all three leanings, with most of the neutral books. The
+        modularity, `0.526`, is close to what `cmty_leiden()` reaches on this network:
+
+        ```{python}
+        books.layout_kamada_kawai().plot(
+            layout="pos",
+            color_by="cmty_fast_label_propagation",
+            edge_color_by="cmty_fast_label_propagation",
+            show_labels=False,
+        )
+        ```
+
+        ```{python}
+        round(books.modularity("cmty_fast_label_propagation"), 3)
         ```
         """
         ids, labels = rust.fast_label_propagation(self._graph, self._use_weights(weighted), seed)
