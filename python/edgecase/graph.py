@@ -73737,6 +73737,11 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        edge_boundary : The edges that lead to the boundary.
+        boundary_expansion : The size of the boundary per member.
+
         Examples
         --------
         The boundary of one triangle in the two-triangle graph is the single node across the
@@ -73745,14 +73750,32 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         [graph.get_label_from_id(n) for n in graph.node_boundary(["A", "B", "C"])]
+        ```
+
+        ### One stop out of the center
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. Four stations lie one stop outside zone 1:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone_1 = nodes.filter(nodes["zone"] == 1)["id"].to_list()
+
+        outside = metro.node_boundary(zone_1)
+        [metro.get_label_from_id(n) for n in outside]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=outside, label_by="label")
         ```
         """
         s_ids, t_ids, p = self._cut(S, T)
