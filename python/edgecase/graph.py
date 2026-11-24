@@ -75476,15 +75476,51 @@ class Graph:
         component found. Matches NetworkX's `node_connected_component` (undirected graphs only
         there).
 
+        See Also
+        --------
+        weakly_connected_components : Every component at once.
+        reachable_nodes : The nodes reachable along edge directions.
+
         Examples
         --------
+        The component of `A` holds the nodes that `A` can reach, `A` included, but none from the
+        separate pair `D`-`E`:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("B", "C"), ("D", "E")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("D", "E")])
 
-        sorted(g.get_label_from_id(n) for n in g.node_connected_component("A"))
+        label = graph.get_label_from_id
+        sorted(label(n) for n in graph.node_connected_component("A"))
+        ```
+
+        On a directed graph, edge direction is ignored, so `C` is in the same component as `A`
+        even though neither can reach the other:
+
+        ```{python}
+        one_way = ec.Graph.from_edges([("A", "B"), ("C", "B")], directed=True)
+
+        label = one_way.get_label_from_id
+        sorted(label(n) for n in one_way.node_connected_component("A"))
+        ```
+
+        ### What's left reachable from the harbor
+
+        `metro()` is a made-up city's metro network. Closing the stretch of track between
+        Riverside and Harbor leaves Harbor reachable only from Docks and Shipyard:
+
+        ```{python}
+        metro = ec.metro()
+        metro.delete_edge("Riverside", "Harbor")
+        harbor = metro.node_connected_component("Harbor")
+
+        label = metro.get_label_from_id
+        sorted(label(n) for n in harbor)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=list(harbor), label_by="label")
         ```
         """
         start = self._resolve_node_id(node, auto_create=False)
