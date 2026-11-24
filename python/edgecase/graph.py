@@ -52766,6 +52766,11 @@ class Graph:
         ValueError
             If the graph is directed or disconnected, or a weight is not positive.
 
+        See Also
+        --------
+        closeness_centrality : Count shortest paths only.
+        current_flow_betweenness_centrality : How much current passes through each node.
+
         Examples
         --------
         The hub of a star is electrically closest to everyone:
@@ -52773,11 +52778,57 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        star = ec.Graph().add_star_graph(5)
+        star = ec.Graph().add_star_graph(n=5)
 
-        scores = star.current_flow_closeness_centrality(return_dict=True)
-        {n: round(s, 3) for n, s in sorted(scores.items())}
+        star.current_flow_closeness_centrality().get_node_df().select(
+            "label", "current_flow_closeness_centrality"
+        )
         ```
+
+        ### Many routes, or a short one
+
+        Current-flow closeness measures distance by electrical resistance, which falls with every
+        extra route between two nodes. In Zachary's karate club, the administrator (member 33)
+        ranks first by it, though third by closeness. Member 19, eighth by closeness because its
+        three friends include both leaders, is only fifteenth, since three ties make few routes:
+
+        ```{python}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .current_flow_closeness_centrality()
+            .closeness_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .with_columns(
+                pl.col("current_flow_closeness_centrality", "closeness_centrality")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .filter(pl.col("label").is_in(["0", "33", "19"]))
+            .select(
+                "label", "current_flow_closeness_centrality_rank",
+                "closeness_centrality_rank",
+            )
+        )
+        ```
+
+        Colored by current-flow closeness, the score is highest around the two leaders and
+        lowest for member 11, whose only friend is the instructor:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="current_flow_closeness_centrality",
+            label_by="label",
+        )
+        ```
+
+        Edge weights act as conductances, so pass `weighted=False` when they measure a distance
+        or a cost.
         """
         scores = rust.current_flow_closeness_centrality(
             self._graph, weighted=self._use_weights(weighted)
