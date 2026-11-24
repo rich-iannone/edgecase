@@ -77745,56 +77745,62 @@ class Graph:
         error, but Christofides is the better choice there. The simplex tableau has $k^2$
         columns, so this is meant for at most a few dozen stops.
 
+        See Also
+        --------
+        metric_closure : The complete graph of distances that the route is planned on.
+        steiner_tree : Connect some of the nodes with the least total weight.
+        minimum_spanning_tree : Connect every node with the least total weight.
+        eulerian_circuit : A round trip along every edge instead of to every node.
+
         Examples
         --------
-        Five sites linked by roads, weighted by travel time. The route visits every site and
-        returns to the start, for a total of 2 + 2 + 3 + 2 + 3 = 12:
+        On a star, every trip from one leaf to another passes through the hub, so the walk comes
+        back to it between stops. With `nodes=`, only some nodes are stops, and `cycle=False`
+        drops the most expensive leg of the round trip:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges(
-            [
-                ("A", "B", 2.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "E", 2.0),
-                ("E", "A", 3.0), ("A", "C", 4.0), ("B", "E", 3.0),
-            ]
-        )
+        star = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
+        label = star.get_label_from_id
 
-        route = g.traveling_salesman()
-        [g.get_label_from_id(n) for n in route]
+        tour = star.traveling_salesman()
+        trip = star.traveling_salesman(nodes=["A", "C"], cycle=False)
+
+        [label(n) for n in tour], [label(n) for n in trip]
         ```
 
-        Only some nodes may need a visit. With stops A and D, the round trip passes through B
-        and C (which are not stops) in both directions, because the path is the only way
-        between them:
+        ### A round trip through every town
+
+        `towns()` holds 12 towns of a made-up county and the 26 roads between them. The greedy
+        route always heads for the nearest town not yet visited, strands itself in the north and
+        has to double back. Christofides' algorithm is guaranteed a route at most 1.5 times the
+        shortest, and its route is within 10% of it. Threshold accepting improves the greedy route
+        with random swaps, and here it finds the shortest round trip, 396 km:
 
         ```{python}
-        path = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        path.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0)])
-        [path.get_label_from_id(n) for n in path.traveling_salesman(nodes=["A", "D"])]
+        towns = ec.towns()
+
+        def km(route):
+            return sum(
+                towns.shortest_path_length(u, v) for u, v in zip(route, route[1:])
+            )
+
+        routes = {
+            "greedy": towns.traveling_salesman(method="greedy"),
+            "christofides": towns.traveling_salesman(),
+            "threshold_accepting": towns.traveling_salesman(
+                method="threshold_accepting", seed=1
+            ),
+        }
+
+        {method: km(route) for method, route in routes.items()}
         ```
 
-        With `cycle=False` the most expensive leg of the round trip (E-A or C-D, weight 3) is
-        dropped, leaving a one-way route:
-
         ```{python}
-        [g.get_label_from_id(n) for n in g.traveling_salesman(cycle=False, method="greedy")]
-        ```
+        best = routes["threshold_accepting"]
 
-        On a directed graph, travel costs can depend on the direction. Going clockwise around
-        these three sites costs 2 per leg, but counterclockwise only 1, which the
-        `"asadpour"` method finds:
-
-        ```{python}
-        oneway = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
-        oneway.add_edges(
-            [
-                ("A", "B", 2.0), ("B", "C", 2.0), ("C", "A", 2.0),
-                ("A", "C", 1.0), ("C", "B", 1.0), ("B", "A", 1.0),
-            ]
-        )
-        [oneway.get_label_from_id(n) for n in oneway.traveling_salesman(method="asadpour")]
+        towns.plot(layout="pos", highlight=best, label_by="label")
         ```
         """
         if method is None:
