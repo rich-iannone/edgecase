@@ -55086,63 +55086,62 @@ class Graph:
             If graph is undirected, or if `weighted=` is in effect and an edge has a negative
             weight.
 
+        See Also
+        --------
+        hub_centrality : The other half of HITS.
+        pagerank : A random-walk score for directed graphs.
+
         Examples
         --------
-        In this small citation network, "Paper1" cites both "Paper2" and "Paper3". The two
-        cited papers share the authority equally, while "Paper1" itself, which nothing cites,
-        scores `0`:
+        A points to B, C and D, and B and C point to D as well. D is endorsed by all three hubs
+        and gets the top score. E has an incoming edge too, but only from D, which is a poor hub,
+        so its authority converges to `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Paper1", "Paper2", "Paper3"])
-            .add_edges(
-                [
-                    ("Paper1", "Paper2"),  # Paper1 cites Paper2
-                    ("Paper1", "Paper3"),  # Paper1 cites Paper3
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"),
+             ("D", "E")],
+            directed=True,
         )
 
-        scores = graph.authority_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in scores.items()}
-        ```
-
-        In a slightly larger graph, A points to B, C, and D; B and C also point to D; and D
-        points to E. D is endorsed by all three hubs and gets the top score. E has an incoming
-        edge too, but only from D, which is a poor hub, so its authority converges to `0`:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
+        graph.authority_centrality().get_node_df().select(
+            "label", "authority_centrality"
         )
-
-        scores = graph.authority_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
         ```
 
-        Capping the iterations with `max_iter=` shows the scores before convergence: after two
-        rounds E still has a noticeable authority score, because the early hub scores are
-        essentially out-degrees and D does have an outgoing edge:
+        ### The seminal paper
+
+        In the `citations()` network, Moreau 2000 is cited by nine papers, the survey among them,
+        and is the top authority. Ranking the papers by PageRank as well shows what HITS leaves
+        out:
 
         ```{python}
-        rough = graph.authority_centrality(max_iter=2, return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(rough.items())}
-        ```
+        import polars as pl
 
-        With `return_dict=False` (the default) the scores are stored in the node DataFrame and
-        the graph is returned, ready for further chaining:
+        citations = ec.citations().authority_centrality().pagerank()
 
-        ```{python}
         (
-            graph
-            .authority_centrality(attr_name="authority")
-            .get_node_df()
-            .select(["label", "authority"])
+            citations.get_node_df()
+            .with_columns(
+                pl.col("authority_centrality", "pagerank")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .select("label", "field", "authority_centrality_rank", "pagerank_rank")
+            .sort("pagerank_rank")
+            .head(5)
+        )
+        ```
+
+        Nakamura 2001, the first learning paper, is second by PageRank but only eighteenth by
+        authority. The survey, the best hub by far, cites only networks papers, so HITS
+        concentrates on them, and most of the learning papers score close to `0`:
+
+        ```{python}
+        citations.plot(
+            layout="pos", color_by="authority_centrality", label_by="label"
         )
         ```
         """
@@ -55155,8 +55154,6 @@ class Graph:
         if attr_name is None:
             attr_name = "authority_centrality"
 
-        self.set_node_attrs(attr_name, centrality)
-
         # Track computation
         params = {}
         if max_iter != 100:
@@ -55165,7 +55162,7 @@ class Graph:
             params["tol"] = tol
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("authority_centrality", params, attr_name))
+        self._store_node_result("authority_centrality", params, attr_name, centrality)
 
         return self
 
