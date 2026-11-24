@@ -67956,42 +67956,57 @@ class Graph:
         transitive closure is a common preprocessing step for constant-time ancestor or
         dependency queries.
 
+        See Also
+        --------
+        transitive_reduction : The fewest edges with the same reachability.
+        descendants : Every node reachable from a node.
+        ancestors : Every node that can reach a node.
+
         Examples
         --------
-        In a simple chain `A -> B -> C`, the transitive closure adds a direct `A -> C` edge to
-        reflect that `A` can reach `C` indirectly:
+        The closure adds an arrow wherever one node reaches another through others:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D")], directed=True
         )
-
         closure = graph.transitive_closure()
 
-        # Returns 3 (adds A -> C to the original 2 edges)
-        closure.count_edges()
+        graph.count_edges(), closure.count_edges(), closure.has_edge("A", "D")
         ```
 
-        This makes it easy to answer reachability questions in a dependency graph directly from
-        the edge list, without walking the graph each time:
+        ### Everything a course depends on
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Its closure has an arrow from each course to
+        every course that needs it, directly or not, so arrows into a course count everything that
+        must come before it. CS460 needs 9 courses, and CS101 is needed by 11:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["main", "utils", "config", "base"])
-            .add_edges(
-                [("main", "utils"), ("main", "config"), ("utils", "base"), ("config", "base")]
-            )
+        courses = ec.courses()
+        closure = courses.transitive_closure()
+        before = {n: closure.get_in_degree(n) for n in closure.get_node_ids()}
+
+        (
+            closure.count_edges(),
+            closure.get_in_degree("CS460"),
+            closure.get_out_degree("CS101"),
         )
+        ```
 
-        closure = graph.transitive_closure()
+        Sized by how many courses come before them, the courses grow toward the end of the
+        program:
 
-        # "main" now has a direct edge to every module it can reach, including "base"
-        closure.has_edge("main", "base")
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses = courses.set_node_attrs("before", before)
+
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", size_by="before", color_by="dept",
+            label_by="label", height=420,
+        )
         ```
         """
         from edgecase._core import transitive_closure
