@@ -30450,8 +30450,8 @@ class Graph:
             List of `(u, v)` node pairs to score. Each node can be given as a node ID (`int`) or
             label (`str`). Pairs are scored even if `u` and `v` are already connected, and they
             are returned in the order given. If `None` (the default), all pairs of nodes that are
-            not already connected (in either direction) are scored, each unordered pair once, in
-            no particular order. A node that doesn't exist raises a `ValueError`.
+            not already connected (in either direction) are scored, each unordered pair once,
+            smaller node ID first, in node ID order. A node that doesn't exist raises a `ValueError`.
 
         Returns
         -------
@@ -30474,45 +30474,61 @@ class Graph:
         unbounded above and empirically beats plain common-neighbor counting on many real
         networks. Runs in $O(k)$ per pair.
 
+        See Also
+        --------
+        resource_allocation_index : A sum of one over each shared neighbor's degree, not its log.
+        common_neighbors : The number of shared neighbors.
+        jaccard_coefficient : Shared neighbors over the two neighborhoods together.
+
         Examples
         --------
-        Nodes `2` and `3` share the hub (node `1`) as their only common neighbor. Because the
-        hub has degree 8, its contribution is `1 / ln(8)`, about `0.48`, well below the count
-        of 1 that `common_neighbors()` would give:
+        Each common neighbor counts one over the log of its degree. `A` and `D`'s two common
+        neighbors have two neighbors each, so their score is $2 / \ln 2$:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_node()  # hub, node 1
-        for i in range(2, 10):
-            graph.add_node()
-            graph.add_edge(1, i)  # hub connected to all others
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        scores = graph.adamic_adar_index([("A", "D"), ("B", "E")])
 
-        graph.adamic_adar_index([(2, 3)])
+        [(label(u), label(v), round(s, 3)) for u, v, s in scores]
         ```
 
-        The weighting can reorder candidates. Below, `Ann` and `Bob` share one low-degree
-        contact (`Kim`, degree 2), while `Cat` and `Dan` share two well-connected hubs. Common
-        neighbors ranks `Cat`/`Dan` first (2 vs. 1); Adamic-Adar ranks `Ann`/`Bob` first because
-        the hubs are discounted:
+        ### Friends who know few people
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Four pairs who weren't friends share three friends each, and all
+        four became friends a year later. A shared friend with few friends of their own counts
+        for more, so Gwen and Jules, whose shared friends have 3, 3 and 4 friends, come first,
+        and Iris and Lou, whose shared friends have more, come last:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"])
-        graph.add_nodes([f"x{i}" for i in range(12)])
-
-        graph.add_edge("Ann", "Kim").add_edge("Bob", "Kim")
-        for hub in ["H1", "H2"]:
-            graph.add_edge("Cat", hub).add_edge("Dan", hub)
-            for i in range(6):
-                graph.add_edge(hub, f"x{i}" if hub == "H1" else f"x{i + 6}")
-
-        pairs = [("Ann", "Bob"), ("Cat", "Dan")]
-        [
-            (cn[2], round(aa[2], 3))
-            for cn, aa in zip(graph.common_neighbors(pairs), graph.adamic_adar_index(pairs))
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        pairs = [
+            ("Ada", "Dev"), ("Gwen", "Jules"), ("Iris", "Lou"), ("Mara", "Pablo")
         ]
+
+        def shared(u, v):
+            common = set(friends.get_neighbors(u)) & set(friends.get_neighbors(v))
+            return sorted(friends.get_degree(w) for w in common)
+
+        [
+            (label(u), label(v), round(s, 2), shared(u, v))
+            for u, v, s in friends.adamic_adar_index(pairs)
+        ]
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={
+                "accent": ["Gwen", "Jules"], "soft": ["Iris", "Kemal", "Lou"]
+            },
+            size_by="degree", label_by="label", seed=8,
+        )
         ```
         """
         from edgecase._core import adamic_adar_index
