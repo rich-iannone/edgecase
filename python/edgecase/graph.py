@@ -3986,6 +3986,12 @@ class Graph:
         ValueError
             If `target=` is not one of `"auto"`, `"notebook"` or `"browser"`.
 
+        See Also
+        --------
+        plot : A static SVG drawing, with colors and sizes from attributes.
+        plot_cosmo : A GPU-drawn widget for graphs of many thousands of nodes.
+        colorize_node_attrs : Store a color for each node, which plot_vis() uses.
+
         Examples
         --------
         `plot_vis()` opens an interactive view of the graph -- inline in a notebook, or in a
