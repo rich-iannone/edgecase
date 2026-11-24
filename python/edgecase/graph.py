@@ -82366,63 +82366,50 @@ class Graph:
         surface bipartite-style structures like predator-prey webs or user-item
         recommendation graphs. Building the mixing matrix is a single $O(V + E)$ pass.
 
+        See Also
+        --------
+        attribute_mixing_matrix : The matrix the coefficient is computed from.
+        assortativity : The coefficient for numeric attributes.
+        modularity : How much more often links stay within groups than at random.
+
         Examples
         --------
-        When most edges connect nodes that share the same categorical attribute (students to
-        students, faculty to faculty), the assortativity coefficient is positive -- a sign of
-        homophily:
+        Two of the three links stay within a team, but random links between nodes with these
+        degrees would keep half within one, so the coefficient is only `1/3`:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(["Alice", "Bob", "Carol"], group="students")
-            .add_nodes(["Prof1", "Prof2"], group="faculty")
-            .add_edges(
-                [
-                    ("Alice", "Bob"),
-                    ("Bob", "Carol"),
-                    ("Prof1", "Prof2"),
-                    ("Alice", "Prof1"),  # One cross-group edge
-                ]
-            )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "team", {"A": "red", "B": "red", "C": "blue", "D": "blue"}
         )
 
-        # Returns a positive value: mostly within-group connections
-        g.assortativity_nominal("group")
+        round(graph.assortativity_nominal("team"), 3)
         ```
 
-        Predator-prey relationships show the opposite pattern: predators connect to prey rather
-        than to each other. In an undirected graph where every edge crosses the two categories,
-        the coefficient is strongly negative:
+        ### Clubs, not ages
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. People are friends with people from their own club far more than
+        random friendships would make them, but not with people their own age:
 
         ```{python}
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(["Wolf", "Lion"], type="predator")
-            .add_nodes(["Deer", "Rabbit"], type="prey")
-            .add_edges([("Wolf", "Deer"), ("Wolf", "Rabbit"), ("Lion", "Deer")])
-        )
+        friends = ec.friends()
 
-        # Returns -1.0: every edge joins a predator and a prey
-        g.assortativity_nominal("type")
+        {
+            attr: round(friends.assortativity_nominal(attr), 3)
+            for attr in ["club", "age_group"]
+        }
         ```
 
-        The same edges in a directed graph (all pointing from predator to prey) give `0.0`,
-        because the directed formula expects no same-category edges to begin with. Use an
-        undirected graph when you want to detect this kind of cross-category mixing:
+        Colored by age group, most friendships join people of different ages:
 
         ```{python}
-        g_dir = (
-            ec.Graph(directed=True)
-            .add_nodes(["Wolf", "Lion"], type="predator")
-            .add_nodes(["Deer", "Rabbit"], type="prey")
-            .add_edges([("Wolf", "Deer"), ("Wolf", "Rabbit"), ("Lion", "Deer")])
+        friends.plot(
+            color_by="age_group", edge_color_by="age_group",
+            label_by="label", seed=8,
         )
-
-        # Returns 0.0, not a negative value
-        g_dir.assortativity_nominal("type")
         ```
         """
         return self._graph.get_assortativity_nominal(attribute)
