@@ -37079,19 +37079,25 @@ class Graph:
         return [(int(a), int(b), c) for a, b, c in triples]
 
     @staticmethod
+    def _mixing_order(keys) -> list:
+        try:
+            return sorted(keys)
+        except TypeError:
+            return sorted(keys, key=repr)
+
+    @staticmethod
     def _mixing_from_counts(counts: dict, normalized: bool) -> dict:
+        # Both levels sorted, as in the matrix (edge order put degree 4 before 3)
         total = sum(c for row in counts.values() for c in row.values())
+        order = Graph._mixing_order
         if normalized and total:
-            return {a: {b: c / total for b, c in row.items()} for a, row in counts.items()}
-        return counts
+            counts = {a: {b: c / total for b, c in row.items()} for a, row in counts.items()}
+        return {a: {b: counts[a][b] for b in order(counts[a])} for a in order(counts)}
 
     @staticmethod
     def _mixing_matrix(counts: dict, normalized: bool) -> tuple[list[list[float]], list]:
         keys = set(counts) | {b for row in counts.values() for b in row}
-        try:
-            order = sorted(keys)
-        except TypeError:
-            order = sorted(keys, key=repr)
+        order = Graph._mixing_order(keys)
         pos = {k: i for i, k in enumerate(order)}
         matrix = [[0.0] * len(order) for _ in order]
         for a, row in counts.items():
@@ -37138,17 +37144,56 @@ class Graph:
         Returns
         -------
         dict
-            A nested dictionary `{j: {k: count}}`. Every degree that appears is a key.
+            A nested dictionary `{j: {k: count}}`, both levels sorted. Every degree that appears
+            is a key.
+
+        See Also
+        --------
+        degree_mixing_matrix : The same counts as a matrix.
+        attribute_mixing_dict : Count links by an attribute instead of degree.
+        assortativity_degree : The correlation of these counts.
 
         Examples
         --------
-        In a path of four nodes, the two end edges link degree 1 to degree 2, and the middle
-        edge links degree 2 to degree 2:
+        Each link counts once from each end. `C` has three neighbors and links to `A` and `B`,
+        with two each, and to `D`, with one:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_path_graph(4).degree_mixing_dict()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
+        )
+
+        graph.degree_mixing_dict()
+        ```
+
+        ### The popular five
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Five of them have five friends each, the most anyone has: Ben,
+        Hugo, Jules, Oona and Tara. Counting each friendship from both ends, 14 of their 25 end
+        at another of the five:
+
+        ```{python}
+        friends = ec.friends()
+
+        friends.degree_mixing_dict()
+        ```
+
+        They make 7 of the 10 possible friendships among themselves:
+
+        ```{python}
+        five = ["Ben", "Hugo", "Jules", "Oona", "Tara"]
+        among = [
+            (u, v) for i, u in enumerate(five) for v in five[i + 1 :]
+            if friends.has_edge(u, v)
+        ]
+
+        friends.plot(
+            highlight=among, size_by="degree", color_by="club",
+            label_by="label", seed=8,
+        )
         ```
         """
         counts: dict = {}
