@@ -19030,40 +19030,56 @@ class Graph:
 
         Examples
         --------
-        A simple path can always be 2-colored by alternating colors along the chain, so it's
-        bipartite:
+        A path is bipartite, since its nodes can alternate between two sides along the chain. A
+        triangle isn't: whichever sides A and B take, C is joined to both, so it can't join either:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        graph.is_bipartite()
+        path.is_bipartite(), triangle.is_bipartite()
         ```
 
-        A triangle forces two adjacent nodes to share a color, since an odd-length cycle
-        can never be 2-colored:
+        ### Workers and tasks
+
+        The teams network joins each worker on a software team to the tasks they can do. Every edge
+        runs from a worker to a task, so it's bipartite:
 
         ```{python}
-        triangle = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # closes an odd-length cycle
-                ]
-            )
-        )
+        team = ec.teams()
 
-        triangle.is_bipartite()
+        team.is_bipartite()
         ```
 
+        `bipartite_sets()` recovers the two sides, the workers and the tasks, from the edges alone:
+
+        ```{python}
+        workers, tasks = team.bipartite_sets()
+
+        [team.get_label_from_id(n) for n in tasks]
+        ```
+
+        ### One edge breaks it
+
+        An edge between two workers closes an odd cycle if they can do a task in common. Priya and
+        Tom can both do the backend, so when Priya starts mentoring Tom the graph is no longer
+        bipartite. `is_bipartite()` records its answer in the step log, so `play()` shows the odd
+        cycle it found on its last step, with the workers and tasks drawn in two rows:
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4)
+
+        team.note("Priya starts mentoring Tom.").add_edge("Priya", "Tom")
+        team.is_bipartite()
+
+        team.play(layout="pos", height=320)
+        ```
+
+        Methods for bipartite graphs, such as `bipartite_maximum_matching()`, assume two sides with
+        no edges inside either one. To check a particular split, such as the `side` attribute here,
+        use `is_bipartite_node_set()`.
         """
         return self._graph.is_bipartite()
 
