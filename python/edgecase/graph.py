@@ -59335,6 +59335,13 @@ class Graph:
         demand is usually cheaper; the payoff of computing everything up-front is when many
         pairs are needed or when the same distances feed several downstream metrics.
 
+        See Also
+        --------
+        all_pairs_shortest_path : The paths themselves.
+        floyd_warshall : All-pairs distances, from a dense algorithm.
+        johnson : All-pairs paths with negative weights.
+        mean_distance : The average distance over all pairs.
+
         Examples
         --------
         On an unweighted path `1-2-3-4`, distances are hop counts, so the two ends are `3.0`
@@ -59343,8 +59350,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(4)  # Creates 1-2-3-4
+        graph = ec.Graph().add_path_graph(4)
 
         distances = graph.all_pairs_shortest_path_length()
         distances[1][4], distances[2][4]
@@ -59354,29 +59360,19 @@ class Graph:
         route with the fewest edges. Here the two-edge route through `B` beats the direct edge:
 
         ```{python}
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("A", "C", 5.0)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("A", "C", 5.0)]
         )
 
         distances = graph.all_pairs_shortest_path_length()
-        a_id = graph.get_id_from_label("A")
-        c_id = graph.get_id_from_label("C")
-
-        # A->B->C (total 3.0) is shorter than the direct A->C edge (5.0)
-        distances[a_id][c_id]
+        distances[graph.get_id_from_label("A")][graph.get_id_from_label("C")]
         ```
 
-        In a directed graph, distances follow edge direction. Relabelling the table makes it
+        In a directed graph, distances follow edge direction. Relabeling the table makes it
         easy to see that `A` reaches everything while `C` only reaches itself:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
         label = graph.get_label_from_id
         {
@@ -59385,18 +59381,35 @@ class Graph:
         }
         ```
 
-        Nodes in different components cannot reach each other, so those pairs are simply absent
-        from the result. Node `1` is present as a source, but isolated node `4` is not among its
-        targets:
+        Nodes in different components cannot reach each other, so those pairs are absent from
+        the result:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(3)  # 1-2-3
-        graph.add_node(4)  # Isolated node
+        graph = ec.Graph().add_path_graph(3)
+        graph.add_node(4)
 
         distances = graph.all_pairs_shortest_path_length()
-
         1 in distances, 4 in distances[1]
+        ```
+
+        ### The longest trip from each station
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. The longest of the fastest trips from each station is shortest
+        from Central and Opera, at 14 minutes, while the Airport and Hillcrest, in opposite
+        corners, are 28 minutes apart:
+
+        ```{python}
+        metro = ec.metro()
+        minutes = metro.all_pairs_shortest_path_length()
+
+        longest = {n: max(row.values()) for n, row in minutes.items()}
+        metro.set_node_attrs("longest_trip", longest)
+
+        metro.plot(
+            layout="pos", color_by="longest_trip", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         from edgecase._core import all_pairs_shortest_path_length
