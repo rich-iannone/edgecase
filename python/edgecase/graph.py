@@ -76999,6 +76999,12 @@ class Graph:
         $O(E \sqrt{V})$. By König's theorem the matching size equals the size of a minimum
         vertex cover (see `bipartite_vertex_cover()`).
 
+        See Also
+        --------
+        bipartite_minimum_weight_full_matching : The cheapest matching that covers one side.
+        bipartite_vertex_cover : The smallest cover, as large as the matching.
+        maximum_weight_matching : The same for graphs that aren't bipartite.
+
         Examples
         --------
         Three applicants and three jobs. Ann and Bob can only do the first job between them,
@@ -77007,17 +77013,34 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["Ann", "Bob", "Cy", "Dev", "Ops", "QA"])
-        g.add_edges([("Ann", "Dev"), ("Bob", "Dev"), ("Cy", "Ops"), ("Cy", "QA")])
-
+        g = ec.Graph.from_edges(
+            [("Ann", "Dev"), ("Bob", "Dev"), ("Cy", "Ops"), ("Cy", "QA")]
+        )
         matching = g.bipartite_maximum_matching(top_nodes=["Ann", "Bob", "Cy"])
-        len(matching)
+
+        label = g.get_label_from_id
+        [tuple(label(n) for n in g.get_node_ids_by_edge_id(e)) for e in matching]
         ```
 
-        Listing the pairs shows that Cy takes one of their two jobs:
+        ### One task too many
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do. Only Omar and Kofi can do any of Database, DevOps and Security, and two
+        people can't take three tasks, so at most seven are covered:
 
         ```{python}
-        [tuple(g.get_label_from_id(n) for n in g.get_node_ids_by_edge_id(e)) for e in matching]
+        team = ec.teams()
+        matched = team.bipartite_maximum_matching()
+
+        label = team.get_label_from_id
+        covered = {n for e in matched for n in team.get_node_ids_by_edge_id(e)}
+        len(matched), [label(n) for n in team.get_node_ids() if n not in covered]
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight_edges=matched, label_by="label", height=300
+        )
         ```
         """
         eids = rust.hopcroft_karp_matching(self._graph, self._top_ids(top_nodes))
