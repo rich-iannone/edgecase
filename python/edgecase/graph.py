@@ -37630,39 +37630,61 @@ class Graph:
         network-level statistic Watts and Strogatz (1998) used to identify small-world structure:
         high local clustering combined with short average path lengths.
 
+        See Also
+        --------
+        local_clustering_coefficient : The same values, with None for low degree.
+        average_clustering_coefficient : The mean over all nodes.
+        square_clustering : Clustering by squares instead of triangles.
+
         Examples
         --------
-        Storing values as attributes (the default) still lets you read them back afterward. All
-        three nodes here get a coefficient of `1.0`, since a triangle's neighbors are already fully
-        connected to each other:
+        In a triangle with a tail, `A` and `B` score 1, as their two neighbors are linked. `C`
+        has three neighbors and one linked pair among them, for 1/3. `D` has only one neighbor,
+        and scores 0:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-            .clustering_coefficient()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
+        graph.clustering_coefficient()
 
-        graph.get_node_attrs("clustering_coefficient")
+        graph.get_node_df().select("label", "clustering_coefficient")
         ```
 
-        In a star graph, none of the spokes connect to each other, so the hub's coefficient is
-        `0.0` even though it has several neighbors:
+        `local_clustering_coefficient()` computes the same values, but leaves `D` undefined:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["center", "A", "B", "C"])
-            .add_edges([("center", "A"), ("center", "B"), ("center", "C")])
+        d = graph.get_id_from_label("D")
+        (
+            graph.clustering_coefficient(return_dict=True)[d],
+            graph.local_clustering_coefficient(return_dict=True)[d],
         )
+        ```
 
-        clustering = graph.clustering_coefficient(return_dict=True)
-        center_id = graph.get_id_from_label("center")
+        ### Tight circles
 
-        clustering[center_id]
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Uma's two friends, Wes and Zane, are friends too, so Uma scores 1.
+        None of Rosa's three friends know each other, so Rosa scores 0:
+
+        ```{python}
+        friends = ec.friends().clustering_coefficient()
+
+        (
+            friends.get_node_df()
+            .sort("clustering_coefficient", descending=True)
+            .select("label", "club", "degree", "clustering_coefficient")
+        )
+        ```
+
+        Hugo and Tara, a couple who link the two clubs, score only 0.4. Their friends come from
+        both clubs and don't know each other, so every triangle through one of them includes the
+        other:
+
+        ```{python}
+        friends.plot(color_by="clustering_coefficient", label_by="label", seed=8)
         ```
         """
         if attr_name is None:
