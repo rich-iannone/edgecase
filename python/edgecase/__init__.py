@@ -18,6 +18,7 @@ from edgecase.colors import (
 from edgecase.datasets import (
     ca_grqc,
     celegans,
+    celegans_neural,
     condmat,
     davis_southern_women,
     dolphins,
@@ -42,6 +43,24 @@ from edgecase.datasets import (
     wiki_vote,
 )
 from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
+from edgecase.example_networks import (
+    causal,
+    citations,
+    courses,
+    currency,
+    exams,
+    friends,
+    konigsberg,
+    metro,
+    molecules,
+    offices,
+    org_chart,
+    payments,
+    pipeline,
+    project,
+    teams,
+    towns,
+)
 from edgecase.graph import (
     Edge,
     Graph,
@@ -220,6 +239,7 @@ __all__ = [
     "soc_livejournal",
     "ca_grqc",
     "celegans",
+    "celegans_neural",
     "condmat",
     "dolphins",
     "enron",
@@ -233,6 +253,23 @@ __all__ = [
     "polbooks",
     "power_grid",
     "wiki_vote",
+    # Example networks
+    "causal",
+    "citations",
+    "courses",
+    "currency",
+    "exams",
+    "friends",
+    "konigsberg",
+    "metro",
+    "molecules",
+    "offices",
+    "org_chart",
+    "payments",
+    "pipeline",
+    "project",
+    "teams",
+    "towns",
 ]
 
 # Exclude Rust types from documentation generation (they can't be introspected by quartodoc)
