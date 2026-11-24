@@ -73049,21 +73049,56 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        edge_boundary : The edges of the cut.
+        volume : The size measure that normalizes cuts.
+        conductance : The cut relative to the volume of the smaller side.
+
         Examples
         --------
-        Two triangles joined by one edge have a cut of size 1 between them:
+        Two triangles joined by one edge have a cut of size 1 between them, and splitting a
+        triangle cuts more:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         graph.cut_size(["A", "B", "C"]), graph.cut_size(["A", "B"])
+        ```
+
+        With `T=`, only the edges between the two given sets count. Of the four edges leaving
+        `C` and `D`, one runs to `A`:
+
+        ```{python}
+        graph.cut_size(["C", "D"]), graph.cut_size(["C", "D"], T=["A"])
+        ```
+
+        ### Friendships across the split
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Ten of the club's 78 friendships ran between the two factions:
+
+        ```{python}
+        karate = ec.karate_club()
+        nodes = karate.get_node_df()
+        instructor_side = nodes.filter(nodes["faction"] == 1)["id"].to_list()
+
+        karate.cut_size(instructor_side), karate.count_edges()
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", edge_color_by="faction",
+            label_by="label",
+        )
         ```
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
