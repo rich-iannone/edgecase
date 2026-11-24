@@ -80920,37 +80920,70 @@ class Graph:
         bound on the determinant, combined with the Chinese remainder theorem. Each pass costs
         $O(V^3)$ operations. Weighted determinants use a floating-point LU decomposition.
 
+        See Also
+        --------
+        all_spanning_trees : List the spanning trees.
+        random_spanning_tree : Draw a spanning tree at random.
+
         Examples
         --------
-        A 4-cycle has four spanning trees (drop any one edge), and adding a diagonal raises the
+        A 4-cycle has four spanning trees, one for each edge left out, and a diagonal raises the
         count to eight:
 
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
         before = square.number_of_spanning_trees()
-        square.add_edge("A", "C")
 
-        # Returns (4, 8)
+        square.add_edge("A", "C")
         before, square.number_of_spanning_trees()
         ```
 
-        Cayley's formula gives $6^4 = 1296$ for the complete graph on six nodes:
+        On a directed graph, the count is of the trees reached from `root=`. Rooted at `A`, this
+        graph has two, but rooted at `B` it has only one:
 
         ```{python}
-        ec.Graph().add_full_graph(6).number_of_spanning_trees()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")], directed=True
+        )
+
+        (
+            graph.number_of_spanning_trees(root="A"),
+            graph.number_of_spanning_trees(root="B"),
+        )
         ```
 
-        On a directed graph the count depends on the root. This directed triangle with an extra
-        edge A -> C has two arborescences rooted at A (A -> B -> C, and A -> B with A -> C) but
-        only one rooted at B (B -> C -> A):
+        ### How many tracks the network can lose
+
+        `metro()` is a made-up city's metro network. Its 25 tracks hold 3828 spanning trees, so
+        there are many ways to keep every station reachable while tracks are closed. Since the
+        network is weighted by minutes, `weighted=False` asks for the plain count:
 
         ```{python}
-        d = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        d.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
-        d.number_of_spanning_trees(root="A"), d.number_of_spanning_trees(root="B")
+        metro = ec.metro()
+        total = metro.number_of_spanning_trees(weighted=False)
+        total
+        ```
+
+        Closing a track removes every tree that uses it. The share of trees that use each track
+        is 1 for the five tracks that every route depends on, and 0.47 for the track between
+        Central and Riverside, which has the most alternatives (drawn lightest):
+
+        ```{python}
+        share = {}
+        for edge in metro.get_edge_ids():
+            closed = ec.metro().delete_edge(id=edge)
+            left = closed.number_of_spanning_trees(weighted=False)
+            share[edge] = round(1 - left / total, 2)
+
+        metro.set_edge_attrs("share", share)
+        metro.plot(
+            layout="pos", edge_color_by="share", edge_width=4, edge_opacity=1,
+            label_by="label",
+        )
         ```
         """
         root_id = None
