@@ -50524,24 +50524,64 @@ class Graph:
         result by node pairs in both orientations, which always carry the same value; EdgeCase
         keys it by edge ID.
 
+        See Also
+        --------
+        load_centrality : The same measure for nodes.
+        edge_betweenness_centrality : Splits paths by their number, rather than at each step.
+
         Examples
         --------
-        In a diamond `A-B-D`, `A-C-D` with a tail `D-E`, the load from the tail splits equally
-        over the two sides of the diamond:
+        In a diamond `A-B-D`, `A-C-D` with a tail `D-E`, the load between `A` and the far end of
+        the diamond splits equally over its two sides, so `A-B` and `A-C` score the same, as do
+        `B-D` and `C-D`. The scores are counts of routes, not shares:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
 
-        loads = graph.edge_load_centrality(return_dict=True)
-        label = graph.get_label_from_id
-        {"-".join(label(n) for n in graph.get_node_ids_by_edge_id(e)): x for e, x in loads.items()}
+        (
+            graph.edge_load_centrality()
+            .get_edge_df(labels=True)
+            .select("source", "target", "edge_load_centrality")
+        )
         ```
+
+        ### The busiest friendships
+
+        In Zachary's karate club, the edge from the instructor (member 0) to member 31 carries
+        the most load, as it does the most betweenness:
+
+        ```{python}
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .edge_load_centrality()
+        )
+
+        (
+            club.get_edge_df(labels=True)
+            .select("source", "target", "edge_load_centrality")
+            .sort("edge_load_centrality", descending=True)
+            .head(5)
+        )
+        ```
+
+        Drawn with each edge as wide and as dark as its load, the heaviest edges radiate from the
+        instructor:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="faction", label_by="label", edge_width=2,
+            edge_width_by="edge_load_centrality",
+            edge_color_by="edge_load_centrality",
+        )
+        ```
+
+        For scores as shares of the node pairs, use `edge_betweenness_centrality()`, which
+        normalizes by default.
         """
         if cutoff is not None and cutoff < 1:
             raise ValueError("cutoff must be at least 1")
