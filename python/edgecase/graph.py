@@ -800,6 +800,11 @@ class Graph:
         label = self.get_label_from_id(node_id)
         return str(label) if label else str(node_id)
 
+    def _edge_ends(self, edge_id: int) -> tuple[str, str]:
+        """Labels of an edge's two ends, for step logs."""
+        edge = self.get_edge(edge_id)
+        return (self._node_label(edge.source), self._node_label(edge.target))
+
     def _path_delta(self, paths: list[list[int]], **kw) -> StepDelta:
         """A StepDelta highlighting every node and edge on the given ID paths."""
         nodes: list[str] = []
