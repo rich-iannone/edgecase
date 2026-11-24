@@ -4534,7 +4534,8 @@ class Graph:
         recorded step, showing the code that was run, its narration (auto-generated or set with
         `note()`), and the graph as it looked after that step, with newly added, removed or
         selected elements highlighted. Traversals such as `bfs()` are expanded into one frame per
-        visited node, and a final frame summarizes the finished graph. The player has
+        visited node (a `note()` on the traversal is shown on its first frame), and a final frame
+        summarizes the finished graph. The player has
         previous/next buttons, a play/pause button with a speed menu, a slider, and keyboard
         shortcuts (arrow keys, space, Home/End, and `L` to toggle a list of all steps).
 
@@ -4561,10 +4562,19 @@ class Graph:
             `graph.steps.filter(kind="select").play()`.
         layout
             Layout algorithm: `"force"` (default, a force-directed layout), `"circular"`, or
-            `"random"`. Any other value raises `ValueError`. See `layout_mode=` for how positions
-            evolve across steps, and `seed=` for making them reproducible.
+            `"random"`, or the name of a node attribute holding `(x, y)` positions, such as the
+            `"pos"` attribute the `layout_*()` methods set (see `plot()`). Stored positions are
+            read from the graph as it is now and never move between steps; nodes deleted since
+            have none and are placed at random. Any other value raises `ValueError`. See
+            `layout_mode=` for how positions evolve across steps, and `seed=` for making them
+            reproducible.
         theme
-            Color theme: `"light"` (default) or `"dark"`. Any other value raises `ValueError`.
+            Color theme: `"auto"`, `"light"` or `"dark"`. `"auto"` follows the color scheme of
+            the page showing the player (the light/dark toggle of a Quarto site, or a JupyterLab
+            or VS Code theme), or else the system's, and switches along with it. If `None`
+            (default), the player is `"auto"` on screen while files written with `output=` or
+            `save()` get the light theme, since programs other than browsers don't switch colors.
+            Any other value raises `ValueError`.
         width
             SVG canvas width in pixels. Default is `700`.
         height
@@ -4591,7 +4601,7 @@ class Graph:
             from the previous step's positions, and animates nodes between steps so the graph
             visibly grows and reshapes. `"stable"` computes one layout over every node that ever
             appears, so positions never change. Progressive applies to the `"force"` and
-            `"circular"` layouts; graphs with more than 300 nodes fall back to `"stable"`. Any
+            `"circular"` layouts (stored positions are always stable); graphs with more than 300 nodes fall back to `"stable"`. Any
             other value raises `ValueError`.
         output
             File path to save. A path ending in `.html` saves the full interactive player; any
@@ -4602,6 +4612,18 @@ class Graph:
             gives the same positions. If `None` (default), the `"random"` layout and the stable
             `"force"` layout (see `layout_mode=`) differ between calls, while the progressive
             `"force"` layout is reproducible anyway; a seed then picks a different arrangement.
+        highlight
+            Nodes (and, through them, edges) to pick out on the final frame, as with `plot()`: a
+            node ID or label, a list of them (a list in which each node is adjacent to the next
+            is a path, whose edges are picked out too), `"selection"`, or the name of a node or
+            edge attribute, such as `"shortest_path_order"`. It's resolved on the graph as it is
+            at the end. The final frame then shows these in an accent color and mutes the rest,
+            so that a replay can end on its result. A dict with the keys `"accent"` and `"soft"`
+            gives two levels of emphasis. Default is `None`.
+        highlight_edges
+            Edges to pick out on the final frame, along with their endpoints, as with `plot()`: an
+            edge ID, a list of edge IDs or `(u, v)` pairs, a dict keyed by edge IDs,
+            `"selection"`, or the name of an edge attribute. Default is `None`.
 
         Returns
         -------
