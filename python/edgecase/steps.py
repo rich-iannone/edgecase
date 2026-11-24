@@ -81,12 +81,20 @@ class StepList(list):
             if method is not None:
                 match = match and step.method in method
             if involves is not None:
-                touched = set(step.delta.nodes_added + step.delta.nodes_removed)
-                for src, tgt in step.delta.edges_added + step.delta.edges_removed:
-                    touched.add(src)
-                    touched.add(tgt)
-                for sub in step.sub_steps:
-                    touched.update(sub.delta.nodes_added + sub.delta.nodes_removed)
+                # A node is involved if a step adds, removes, changes or selects it (or an edge
+                # at it), not merely because a score was computed for every node
+                touched = set()
+                for delta in [step.delta] + [sub.delta for sub in step.sub_steps]:
+                    touched.update(
+                        delta.nodes_added + delta.nodes_removed + delta.nodes_mutated
+                        + delta.nodes_selected
+                    )
+                    for src, tgt in (
+                        delta.edges_added + delta.edges_removed + delta.edges_mutated
+                        + delta.edges_selected
+                    ):
+                        touched.add(src)
+                        touched.add(tgt)
                 match = match and bool(touched & set(involves))
 
             if negate:
@@ -156,7 +164,7 @@ class StepList(list):
     def play(
         self,
         layout: str = "force",
-        theme: str = "light",
+        theme: Optional[str] = None,
         width: int = 700,
         height: int = 500,
         node_size: float = 16.0,
@@ -167,6 +175,8 @@ class StepList(list):
         layout_mode: str = "progressive",
         output: Optional[str] = None,
         seed: Optional[int] = None,
+        highlight=None,
+        highlight_edges=None,
     ):
         """Replay this subset of steps as an interactive visualization."""
 
@@ -196,6 +206,8 @@ class StepList(list):
             layout_mode=layout_mode,
             output=output,
             seed=seed,
+            highlight=highlight,
+            highlight_edges=highlight_edges,
         )
 
     def __getitem__(self, key):
