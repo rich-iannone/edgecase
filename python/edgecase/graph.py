@@ -67342,18 +67342,42 @@ class Graph:
         Every pair of in-neighbors of every node is joined, $O(\\sum_v \\deg^-(v)^2)$. Matches
         NetworkX's `moral_graph` (edges compared as unordered pairs).
 
+        See Also
+        --------
+        v_structures : The parents that moralizing joins.
+        junction_tree : A tree of cliques built from the moral graph.
+        is_d_separator : Check if a set of nodes d-separates two others.
+
         Examples
         --------
-        The classic sprinkler network: rain and sprinkler are married because both wet the grass:
+        Moralizing a collider marries the two parents and drops the directions:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["cloudy", "rain", "sprinkler", "wet"])
-        g.add_edges([("cloudy", "rain"), ("cloudy", "sprinkler"), ("rain", "wet"), ("sprinkler", "wet")])
+        graph = ec.Graph.from_edges([("A", "C"), ("B", "C")], directed=True)
+        graph.moral_graph().get_edges_str_repr(use_labels=True)
+        ```
 
-        moral = g.moral_graph()
-        sorted(moral.get_edges_str_repr(use_labels=True))
+        ### Marrying the causes
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its moral graph has 16 edges: the 10 arrows without their
+        directions and 6 between parents with a common child, one for each v-structure. The
+        married pairs come after the original edges:
+
+        ```{python}
+        causal = ec.causal()
+        moral = causal.moral_graph()
+
+        moral.count_edges(), moral.get_edges_str_repr(use_labels=True)[10:]
+        ```
+
+        ```{python}
+        married = moral.get_edge_ids()[causal.count_edges():]
+        moral.plot(
+            layout="pos", highlight_edges=married, label_by="label", height=360
+        )
         ```
         """
         if not self.is_directed():
