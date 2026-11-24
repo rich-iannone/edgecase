@@ -52631,6 +52631,13 @@ class Graph:
         ValueError
             If the graph is directed or disconnected, or a weight is not positive.
 
+        See Also
+        --------
+        betweenness_centrality : Count shortest paths only.
+        approximate_current_flow_betweenness_centrality : A faster estimate for large graphs.
+        edge_current_flow_betweenness_centrality : The same measure for edges.
+        current_flow_betweenness_centrality_subset : Count chosen pairs only.
+
         Examples
         --------
         In a square with one diagonal, shortest-path betweenness gives the corners off the
@@ -52640,17 +52647,68 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
         )
 
-        label = square.get_label_from_id
-        flow = square.current_flow_betweenness_centrality(return_dict=True)
-        paths = square.betweenness_centrality(return_dict=True)
-        {label(n): (round(flow[n], 3), round(paths[n], 3)) for n in sorted(flow)}
+        (
+            square.current_flow_betweenness_centrality()
+            .betweenness_centrality()
+            .get_node_df()
+            .select(
+                "label", "current_flow_betweenness_centrality",
+                "betweenness_centrality",
+            )
+        )
         ```
+
+        ### Alternative routes
+
+        In Zachary's karate club, member 3 is fifteenth by betweenness but eighth by current
+        flow: its six friends sit in the instructor's tight circle, which offers many routes that
+        are nearly as short as the shortest. Member 19, whose three friends include both leaders,
+        goes the other way, from ninth to fifteenth: with so few ties, it carries little of the
+        current on the longer routes:
+
+        ```{python}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .current_flow_betweenness_centrality()
+            .betweenness_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .with_columns(
+                pl.col("current_flow_betweenness_centrality", "betweenness_centrality")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .filter(pl.col("label").is_in(["0", "33", "3", "19"]))
+            .select(
+                "label", "current_flow_betweenness_centrality_rank",
+                "betweenness_centrality_rank",
+            )
+        )
+        ```
+
+        Colored by current flow, the score spreads further through the club than betweenness
+        does:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="current_flow_betweenness_centrality",
+            label_by="label",
+        )
+        ```
+
+        Edge weights act as conductances, so heavier edges carry more current. A weight that
+        measures a cost or a distance, such as the travel times in `metro()`, has the opposite
+        meaning; pass `weighted=False` for such graphs. For large graphs,
+        `approximate_current_flow_betweenness_centrality()` estimates the scores from a sample.
         """
         scores = rust.current_flow_betweenness_centrality(
             self._graph, normalized=normalized, weighted=self._use_weights(weighted)
