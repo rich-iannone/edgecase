@@ -54177,26 +54177,64 @@ class Graph:
         ValueError
             As for `trophic_levels()`.
 
+        See Also
+        --------
+        trophic_levels : The node levels behind the differences.
+        trophic_incoherence_parameter : The spread of the differences.
+
         Examples
         --------
         The owl's two meals differ: the edge from the mouse jumps 1.5 levels, the edge from the
-        fox only 0.5:
+        fox only 0.5. The differences are keyed by edge ID, so they can be stored as an edge
+        attribute:
 
         ```{python}
         import edgecase as ec
 
-        web = (
-            ec.Graph(directed=True)
-            .add_nodes(["grass", "rabbit", "mouse", "fox", "owl"])
-            .add_edges([("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
-                        ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")])
+        web = ec.Graph.from_edges(
+            [("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
+             ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")],
+            directed=True,
         )
 
-        label = web.get_label_from_id
-        {
-            f"{label(s)}->{label(t)}": d
-            for (eid, s, t), d in zip(web.get_edges_as_tuples(), web.trophic_differences().values())
-        }
+        (
+            web.set_edge_attrs("difference", web.trophic_differences())
+            .get_edge_df(labels=True)
+            .select("source", "target", "difference")
+        )
+        ```
+
+        ### Prerequisites that skip a level
+
+        In `courses()`, 12 of the 19 prerequisites climb exactly one level. Of the rest, Algorithms
+        (CS201) needs both Introduction to Programming (CS101) and Data Structures (CS102),
+        which itself needs CS101, so one of its edges climbs 1.33 levels and the other only
+        0.33. Probability and Statistics (STAT201), at level 4, is required by two 300-level
+        courses that it barely climbs to:
+
+        ```{python}
+        import polars as pl
+
+        courses = ec.courses().layout_multipartite(subset_key="level")
+        differences = courses.trophic_differences()
+        courses = courses.set_edge_attrs("difference", differences)
+
+        (
+            courses.get_edge_df(labels=True)
+            .filter(pl.col("difference") != 1)
+            .select("source", "target", "difference")
+            .sort("difference")
+        )
+        ```
+
+        Drawn with each edge as wide as its difference, with the courses in columns
+        by number, the edge from CS201 to Machine Learning (CS360) climbs the most:
+
+        ```{python}
+        courses.plot(
+            layout="pos", color_by="dept", label_by="label",
+            edge_width_by="difference",
+        )
         ```
         """
         levels = rust.trophic_levels(self._graph, weighted=self._use_weights(weighted))
