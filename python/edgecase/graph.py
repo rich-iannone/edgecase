@@ -49347,7 +49347,7 @@ class Graph:
 
     def random_walk_with_restart(
         self,
-        seeds: dict[int, float],
+        seeds: dict[Union[int, str], float],
         restart_prob: float = 0.15,
         max_iter: int = 100,
         tol: float = 1e-6,
@@ -49379,16 +49379,14 @@ class Graph:
 
         In directed graphs the walker only moves along edge direction; in undirected graphs it
         can move either way. Edge weights are not used: every outgoing edge is equally likely.
-        The scores are written to the node DataFrame every time, including when
-        `return_dict=True`.
 
         Parameters
         ----------
         seeds
-            Dictionary mapping seed node IDs to initial scores (e.g., ``-log10(p_value)``
-            from GWAS). Values are normalized internally, so only their relative sizes matter.
-            Nodes not in the dictionary are never restart targets, and IDs that are not in the
-            graph are ignored.
+            Dictionary mapping seed nodes, as integer IDs or string labels, to initial scores
+            (e.g., `-log10(p_value)` from GWAS). Values are normalized internally, so only their
+            relative sizes matter. Nodes not in the dictionary are never restart targets. Integer
+            IDs that are not in the graph are ignored, and an unknown label raises an error.
         restart_prob
             Probability of teleporting back to a seed node at each step. Higher values keep
             the walk closer to the seeds. Typical range: `0.1`-`0.3`. The default is `0.15`,
@@ -49428,57 +49426,90 @@ class Graph:
         Examples
         --------
         In this four-gene ring the walker restarts at `BRCA1`, which therefore scores highest.
-        Its two direct neighbors, `TP53` and `CHEK2`, tie, and `ATM`, two steps away on the
-        opposite side, scores lowest:
+        Its two direct neighbors, `TP53` and `CHEK2`, tie, and `ATM`, two steps away, scores
+        lowest. A higher `restart_prob=` keeps the walker nearer the seed:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["BRCA1", "TP53", "ATM", "CHEK2"])
-            .add_edges([("BRCA1", "TP53"), ("TP53", "ATM"), ("ATM", "CHEK2"), ("BRCA1", "CHEK2")])
+        genes = ec.Graph.from_edges(
+            [("BRCA1", "TP53"), ("TP53", "ATM"), ("ATM", "CHEK2"),
+             ("BRCA1", "CHEK2")]
         )
 
-        seed_id = graph.get_id_from_label("BRCA1")
-        scores = graph.random_walk_with_restart(
-            seeds={seed_id: 1.0},
-            restart_prob=0.15,
-            return_dict=True,
+        (
+            genes.random_walk_with_restart({"BRCA1": 1.0})
+            .random_walk_with_restart(
+                {"BRCA1": 1.0}, restart_prob=0.5, attr_name="rwr_50"
+            )
+            .get_node_df()
+            .select("label", "rwr", "rwr_50")
         )
-        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
         ```
 
-        A higher `restart_prob=` keeps the walker near the seed, so `BRCA1` gets more of the
-        total and `ATM` much less:
-
-        ```{python}
-        scores = graph.random_walk_with_restart(
-            seeds={seed_id: 1.0},
-            restart_prob=0.5,
-            return_dict=True,
-        )
-        {graph.get_label_from_id(nid): round(s, 4) for nid, s in scores.items()}
-        ```
-
-        Seeds can carry GWAS evidence directly. Here `BRCA1` (p = 1e-8) gets twice the weight
-        of `ATM` (p = 1e-4), and with `attr_name=` the scores are stored as a node column. Both
-        seeds now score above the non-seed genes:
+        Seeds can carry GWAS evidence directly. Here `BRCA1` (p = 1e-8) gets twice the weight of
+        `ATM` (p = 1e-4), and both seeds now score above the genes between them:
 
         ```{python}
         import math
 
-        seeds = {
-            graph.get_id_from_label("BRCA1"): -math.log10(1e-8),
-            graph.get_id_from_label("ATM"): -math.log10(1e-4),
-        }
-        graph.random_walk_with_restart(seeds, attr_name="rwr_gwas")
-        graph.get_node_df().select(["label", "rwr_gwas"])
+        seeds = {"BRCA1": -math.log10(1e-8), "ATM": -math.log10(1e-4)}
+
+        (
+            genes.random_walk_with_restart(seeds, attr_name="rwr_gwas")
+            .get_node_df()
+            .select("label", "rwr_gwas")
+        )
+        ```
+
+        ### Customers who bought this also bought
+
+        In `polbooks()`, two books are linked when Amazon customers often bought both. A walk
+        that restarts at one book stays among the books bought with it, so its scores rank the
+        other books as recommendations. From *1000 Years for Revenge*, a neutral book about
+        al-Qaeda, the top picks are neutral and conservative books on terrorism and 9/11:
+
+        ```{python}
+        import polars as pl
+
+        books = ec.polbooks().layout_kamada_kawai()
+        books = books.random_walk_with_restart({"1000 Years for Revenge": 1.0})
+
+        top = (
+            books.get_node_df()
+            .filter(pl.col("label") != "1000 Years for Revenge")
+            .sort("rwr", descending=True)
+            .head(6)
+        )
+        top.select("label", "leaning", "rwr")
+        ```
+
+        Drawn with the book and its top ten picks in their leaning's color, none of them is
+        liberal. The conservative picks sit in the conservative half, and the neutral ones between
+        the two halves:
+
+        ```{python}
+        picks = books.get_node_df().sort("rwr", descending=True)["label"][:11]
+
+        books.plot(layout="pos", color_by="leaning", highlight=picks.to_list())
+        ```
+
+        From the liberal *Bushwhacked*, nine of the ten picks are liberal, and the tenth is the
+        neutral *Plan of Attack*:
+
+        ```{python}
+        picks = (
+            books.random_walk_with_restart({"Bushwhacked": 1.0})
+            .get_node_df()
+            .sort("rwr", descending=True)["label"][:11]
+        )
+
+        books.plot(layout="pos", color_by="leaning", highlight=picks.to_list())
         ```
         """
         result_ids = rust.random_walk_with_restart(
             self._graph,
-            seeds,
+            self._seed_ids(seeds),
             restart_prob=restart_prob,
             max_iter=max_iter,
             tol=tol,
@@ -49490,12 +49521,12 @@ class Graph:
         if return_dict:
             return result_ids
 
-        self.set_node_attrs(attr_name, result_ids)
-
         params = {}
         if restart_prob != 0.15:
             params["restart_prob"] = restart_prob
-        self._computations.append(("random_walk_with_restart", params, attr_name))
+        self._store_node_result(
+            "random_walk_with_restart", params, attr_name, result_ids, default_attr="rwr"
+        )
 
         return self
 
