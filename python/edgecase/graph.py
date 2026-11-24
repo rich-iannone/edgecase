@@ -50390,60 +50390,65 @@ class Graph:
         ValueError
             If weights are used and an edge has a negative weight.
 
+        See Also
+        --------
+        betweenness_centrality : Splits paths by their number, rather than at each step.
+        edge_load_centrality : The same measure for edges.
+
         Examples
         --------
-        Identify bridge nodes using load centrality:
+        Load and betweenness both count shortest paths, but they split them differently where
+        paths branch. Here, one of the three shortest paths from S to T goes through A and two go
+        through B. Betweenness gives each path an equal share, so B gets two thirds of the S-T
+        traffic; load splits evenly at each branch, so A and B get half each, and A ends up with
+        more load than betweenness:
 
         ```{python}
         import edgecase as ec
 
-        # Create a network with a central bridge
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "Bridge", "C", "D"])
-            .add_edges([("A", "B"), ("B", "Bridge"), ("Bridge", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("S", "A"), ("A", "X"), ("X", "T"), ("S", "B"), ("B", "Y"),
+             ("B", "Z"), ("Y", "T"), ("Z", "T")]
         )
 
-        scores = graph.load_centrality(return_dict=True)
-        bridge_id = graph.get_id_from_label("Bridge")
-
-        # High load score for bridge node
-        scores[bridge_id]
+        (
+            graph.load_centrality()
+            .betweenness_centrality()
+            .get_node_df()
+            .select("label", "load_centrality", "betweenness_centrality")
+        )
         ```
 
-        Compare load vs betweenness centrality:
+        ### Load in the karate club
+
+        On most graphs the two measures differ only a little. In Zachary's karate club they agree
+        on the top two, the instructor (member 0) and the administrator (member 33), and swap
+        members 2 and 32 in third and fourth place:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .load_centrality()
+            .betweenness_centrality()
         )
 
-        load = graph.load_centrality(return_dict=True)
-        betweenness = graph.betweenness_centrality(return_dict=True)
-
-        # Compare load and betweenness for each node
-        comparison = {
-            graph.get_label_from_id(nid): (load[nid], betweenness[nid])
-            for nid in sorted(load.keys())
-        }
-
-        # Returns dict mapping labels to (load, betweenness) tuples
-        comparison
+        (
+            club.get_node_df()
+            .select("label", "faction", "load_centrality", "betweenness_centrality")
+            .sort("load_centrality", descending=True)
+            .head(5)
+        )
         ```
 
-        Store centrality as node attribute for later use:
+        Colored by load, the two leaders stand out, with members 2, 31 and 32, between them,
+        next:
 
         ```{python}
-        graph = ec.Graph()
-
-        graph.add_nodes(["0", "1", "2", "3", "4"])
-        graph.add_edges([("0", "1"), ("1", "2"), ("2", "3"), ("3", "4")])
-
-        graph.load_centrality(attr_name="load")
-        graph.get_node_attrs("load")
+        club.plot(layout="pos", color_by="load_centrality", label_by="label")
         ```
+
+        Use `edge_load_centrality()` for the load on each edge.
         """
         # Call Rust implementation
         result_ids = rust.load_centrality(
@@ -50460,14 +50465,11 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
         # Track computation
         params = {"normalized": normalized, "cutoff": cutoff}
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("load_centrality", params, attr_name))
+        self._store_node_result("load_centrality", params, attr_name, result_ids)
 
         return self
 
