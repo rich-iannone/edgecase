@@ -30573,8 +30573,8 @@ class Graph:
             List of `(u, v)` node pairs to score. Each node can be given as a node ID (`int`) or
             label (`str`). Pairs are scored even if `u` and `v` are already connected, and they
             are returned in the order given. If `None` (the default), all pairs of nodes that are
-            not already connected (in either direction) are scored, each unordered pair once, in
-            no particular order. A node that doesn't exist raises a `ValueError`.
+            not already connected (in either direction) are scored, each unordered pair once,
+            smaller node ID first, in node ID order. A node that doesn't exist raises a `ValueError`.
 
         Returns
         -------
@@ -30597,42 +30597,58 @@ class Graph:
         penalty frequently edges out Adamic-Adar on social-network link-prediction
         benchmarks. Runs in $O(k)$ per pair.
 
+        See Also
+        --------
+        adamic_adar_index : A sum of one over the log of each shared neighbor's degree.
+        ra_index_soundarajan_hopcroft : The same sum, counting only the pair's community.
+        common_neighbors : The number of shared neighbors.
+
         Examples
         --------
-        In a star with hub `1` and nine leaves, any two leaves share only the hub, which has
-        degree 9. Resource allocation scores each such pair `1/9`, about `0.11`, noticeably
-        lower than Adamic-Adar's `1/ln(9)`, about `0.46` (shown first in each pair):
+        Each common neighbor counts one over its degree. `A` and `D`'s two common neighbors have
+        two neighbors each, so their score is `1 / 2 + 1 / 2`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_node()  # hub, node 1
-        for i in range(2, 11):
-            graph.add_node()
-            graph.add_edge(1, i)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        scores = graph.resource_allocation_index([("A", "D"), ("B", "E")])
 
-        pairs = [(2, 3), (2, 5)]
-        list(zip(graph.adamic_adar_index(pairs), graph.resource_allocation_index(pairs)))
+        [(label(u), label(v), round(s, 3)) for u, v, s in scores]
         ```
 
-        With labelled nodes, the penalty on hubs is easy to see. `Ann` and `Bob` share one
-        contact of degree 2 (score `1/2`), while `Cat` and `Dan` share two hubs of degree 8
-        (score `2/8`), so resource allocation ranks `Ann`/`Bob` first even though
-        `Cat`/`Dan` have more common neighbors:
+        ### Shared friends who are popular
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Nico and Rosa share two friends, and so do Ben and Jules, so
+        `common_neighbors()` can't tell them apart. Nico and Rosa's shared friends, Mara and
+        Pablo, have three friends each, while Ben and Jules share Hugo and Tara, with five each.
+        A year later, only Nico and Rosa were friends:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["Ann", "Bob", "Kim", "Cat", "Dan", "H1", "H2"])
-        graph.add_nodes([f"x{i}" for i in range(12)])
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        pairs = [("Nico", "Rosa"), ("Ben", "Jules")]
 
-        graph.add_edge("Ann", "Kim").add_edge("Bob", "Kim")
-        for hub in ["H1", "H2"]:
-            graph.add_edge("Cat", hub).add_edge("Dan", hub)
-            for i in range(6):
-                graph.add_edge(hub, f"x{i}" if hub == "H1" else f"x{i + 6}")
+        [
+            (label(u), label(v), round(s, 2))
+            for u, v, s in friends.resource_allocation_index(pairs)
+        ]
+        ```
 
-        graph.resource_allocation_index([("Ann", "Bob"), ("Cat", "Dan")])
+        ```{python}
+        friends.plot(
+            highlight={
+                "accent": [(p, f) for p in ["Nico", "Rosa"]
+                           for f in ["Mara", "Pablo"]],
+                "soft": [(p, f) for p in ["Ben", "Jules"]
+                         for f in ["Hugo", "Tara"]],
+            },
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         from edgecase._core import resource_allocation_index
