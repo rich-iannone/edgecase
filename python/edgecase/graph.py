@@ -75299,14 +75299,50 @@ class Graph:
         ---------------
         Uses `attracting_components()`; matches NetworkX's `is_attracting_component`.
 
+        See Also
+        --------
+        attracting_components : The attracting components of any directed graph.
+        is_strongly_connected : The same check, which also works on undirected graphs.
+
         Examples
         --------
+        A directed cycle is one attracting component, since a walk can go anywhere and never
+        leave. With a tail off the cycle it isn't, since a walk that leaves the cycle can't
+        return:
+
         ```{python}
         import edgecase as ec
 
-        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        cycle.is_attracting_component()
+        cycle = [("A", "B"), ("B", "C"), ("C", "A")]
+        ring = ec.Graph.from_edges(cycle, directed=True)
+        tailed = ec.Graph.from_edges(cycle + [("C", "D")], directed=True)
+
+        ring.is_attracting_component(), tailed.is_attracting_component()
+        ```
+
+        ### Never stuck with a currency
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge directed
+        from the currency sold to the currency bought. Every currency can be changed into every
+        other, so a trader can never get stuck holding one. If the desk stopped buying back
+        Canadian dollars, it would be: the only quote out of Canadian dollars is into US dollars,
+        so Canadian dollars would become an attracting component on their own:
+
+        ```{python}
+        fx = ec.currency()
+        before = fx.is_attracting_component()
+
+        fx.delete_edge("CAD", "USD")
+        stuck = fx.attracting_components()
+
+        label = fx.get_label_from_id
+        before, fx.is_attracting_component(), [label(n) for c in stuck for n in c]
+        ```
+
+        ```{python}
+        fx.plot(
+            highlight=["USD", "CAD"], label_by="label", curved_edges=True, seed=4
+        )
         ```
         """
         with self._no_recording():
