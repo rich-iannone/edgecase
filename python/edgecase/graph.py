@@ -75697,6 +75697,13 @@ class Graph:
             If `strategy=` is not one of the recognized names, or if `interchange=True` is
             combined with `"saturation_largest_first"`/`"dsatur"` or `"independent_set"`.
 
+        See Also
+        --------
+        is_valid_coloring : Check that no edge joins two nodes of the same color.
+        chromatic_number_upper_bound : The number of colors a coloring uses.
+        clique_number : A lower bound on the number of colors needed.
+        edge_coloring : Color the edges instead of the nodes.
+
         Strategy Types
         --------------
         There are several strategies that can be used:
@@ -75733,75 +75740,121 @@ class Graph:
 
         Examples
         --------
-        A 4-cycle is bipartite, so a greedy coloring only needs 2 colors, alternating around the
-        square. Mapping IDs to labels makes the alternation easy to see:
+        Around a square, two colors are enough: A and C get color 0, and B and D get color 1, so no
+        edge joins two nodes of the same color. The result maps each node ID to its color, and
+        storing it as an attribute puts the colors next to the labels:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
         )
 
         coloring = graph.greedy_color()
-
-        # A and C share one color, B and D the other
-        {graph.get_label_from_id(nid): color for nid, color in sorted(coloring.items())}
+        graph.set_node_attrs("color", coloring)
+        graph.get_node_df().select("label", "color")
         ```
 
-        A triangle is a different story: since every node is adjacent to both others, no two can
-        share a color, so 3 colors are required no matter which strategy is used:
+        ### Scheduling exams
+
+        In the exams network, two courses are joined when some student takes both, so their exams
+        can't share a time slot. A coloring is a timetable: each color is a slot, and no student has
+        two exams at once. Storing DSATUR's coloring as an attribute and drawing it:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        exams = ec.exams()
+
+        slots = exams.greedy_color(strategy="dsatur")
+        exams.set_node_attrs("slot", slots).plot(
+            color_by="slot", label_by="label", seed=3, height=420
         )
-
-        coloring = graph.greedy_color(strategy="dsatur")
-        num_colors = len(set(coloring.values()))
-
-        # Returns 3 (colors for a triangle)
-        num_colors
         ```
 
-        On larger graphs the strategy matters. Counting the colors each strategy uses on the
-        same random graph shows that DSATUR and the independent-set approach need one color
-        fewer here than the simple orderings:
+        The timetable uses four slots. Counting the exams and students in each:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_gnm_graph(n=30, m=80, seed=23)
+        import polars as pl
 
-        strategies = ["largest_first", "smallest_last", "dsatur", "independent_set", "arbitrary"]
-        {s: len(set(graph.greedy_color(strategy=s).values())) for s in strategies}
+        (
+            exams.get_node_df()
+            .group_by("slot")
+            .agg(pl.len().alias("exams"), pl.col("students").sum())
+            .sort("slot")
+        )
         ```
 
-        Color interchange can rescue a weaker ordering. On the same graph, `"largest_first"`
-        needs one color fewer once it may swap colors along Kempe chains instead of opening a
-        new color:
+        The slots are uneven: half the exams fall in slot 1, and Chemistry has slot 3 to itself.
+        A coloring only promises that no two neighbors share a color, not that the colors are
+        balanced.
+
+        ### Four slots is the fewest possible
+
+        Calculus, Physics, Chemistry and Biology all share students with one another, so each of
+        them needs its own slot. They are the largest clique in the network:
 
         ```{python}
         (
-            len(set(graph.greedy_color().values())),
-            len(set(graph.greedy_color(interchange=True).values())),
+            exams.clique_number(),
+            [exams.get_label_from_id(n) for n in exams.maximum_clique()],
         )
         ```
 
-        The `"random"` strategy draws a fresh ordering on every call unless `seed=` is given.
-        Running it with several seeds and keeping the best result is a cheap way to search for a
-        coloring with fewer colors:
+        ### The order matters
+
+        A greedy coloring gives each course the lowest slot its neighbors leave free, so the order
+        in which it takes the courses decides how many slots it ends up with. The default,
+        `"largest_first"`, needs a fifth:
 
         ```{python}
-        min(len(set(graph.greedy_color(strategy="random", seed=s).values())) for s in range(20))
+        {
+            strategy: len(set(exams.greedy_color(strategy=strategy).values()))
+            for strategy in ["largest_first", "smallest_last", "dsatur"]
+        }
         ```
+
+        The fifth slot goes to Databases. By the time `"largest_first"` reaches it, its four
+        neighbors are in four different slots, 0 to 3:
+
+        ```{python}
+        first = exams.greedy_color()
+        label = exams.get_label_from_id
+        databases = exams.get_id_from_label("Databases")
+
+        neighbors = {label(n): first[n] for n in exams.get_neighbors(databases)}
+        neighbors, first[databases]
+        ```
+
+        With `interchange=True`, it would first try to free a slot by swapping two slots along a
+        chain of courses, and here that brings it down to four:
+
+        ```{python}
+        len(set(exams.greedy_color(interchange=True).values()))
+        ```
+
+        No strategy is best on every graph, so on a hard instance it's worth running several and
+        keeping the coloring with the fewest colors. `is_valid_coloring()` checks a coloring from
+        any source.
         """
         from edgecase._core import greedy_color as rust_greedy_color
 
-        return dict(rust_greedy_color(self._graph, strategy, interchange, seed))
+        colors = dict(rust_greedy_color(self._graph, strategy, interchange, seed))
+        if self._recording_depth == 0:
+            args = [f"strategy={strategy!r}"] if strategy != "largest_first" else []
+            if interchange:
+                args.append("interchange=True")
+            if seed is not None:
+                args.append(f"seed={seed!r}")
+            k = len(set(colors.values()))
+            self._record_step(
+                KIND_QUERY,
+                "greedy_color",
+                f"G.greedy_color({', '.join(args)})",
+                delta=StepDelta(node_groups={self._node_label(n): c for n, c in colors.items()}),
+                result=colors,
+                narration=f"greedy_color() used {k} color{'s' if k != 1 else ''}.",
+            )
+        return colors
 
     def is_valid_coloring(self, coloring: dict[int, int]) -> bool:
         """
