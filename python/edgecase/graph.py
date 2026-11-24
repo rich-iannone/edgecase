@@ -5557,7 +5557,7 @@ class Graph:
         it grows. With `equidistant=True` consecutive nodes are instead one unit apart along
         the curve, so the spacing stays even all the way out. The spiral is then centered and
         scaled so the farthest coordinate is `scale=`. Edges play no part, so like
-        `layout_circular()` the picture shows node order; a spiral packs long sequences
+        `layout_circular(order="id")` the picture shows node order; a spiral packs long sequences
         (time-ordered events, paths) more compactly than a circle. This matches NetworkX's
         `spiral_layout()`.
 
