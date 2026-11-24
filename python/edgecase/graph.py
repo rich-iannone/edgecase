@@ -19877,6 +19877,12 @@ class Graph:
         $\cosh$, in $O(n^3)$ time. Matches NetworkX's `bipartite.spectral_bipartivity` (which
         uses `scipy.linalg.expm`).
 
+        See Also
+        --------
+        is_bipartite : Check whether the graph is exactly bipartite.
+        estrada_index : The sum over all closed walks, of odd and even length.
+        subgraph_centrality : The closed walks that start and end at each node.
+
         Examples
         --------
         A square is perfectly bipartite; adding one diagonal creates triangles:
