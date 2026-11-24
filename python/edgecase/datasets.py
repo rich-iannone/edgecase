@@ -48,15 +48,15 @@ DATASET_REGISTRY = {
     "football": {
         "filename": "football.mtx",
         "name": "American College Football",
-        "nodes": 35,
-        "edges": 119,
+        "nodes": 115,
+        "edges": 613,
         "directed": False,
-        "description": "Network of American football games",
-        "source": "NetworkRepository",
+        "description": "Games between Division I-A college football teams in the 2000 season",
+        "source": "Mark Newman (Girvan and Newman 2002)",
         "location": "bundled",
         "compressed_bundled": "football.mtx.gz",
-        "size_kb": 1,
-        "compressed_kb": 0.4,
+        "size_kb": 4,
+        "compressed_kb": 1.4,
     },
     "polbooks": {
         "filename": "polbooks.mtx",
@@ -75,9 +75,9 @@ DATASET_REGISTRY = {
         "filename": "jazz.mtx",
         "name": "Jazz Musicians Network",
         "nodes": 198,
-        "edges": 2743,
+        "edges": 2742,
         "directed": False,
-        "description": "Collaboration network of jazz musicians",
+        "description": "Jazz bands of 1912 to 1940, linked when they shared a musician",
         "source": "NetworkRepository",
         "location": "bundled",
         "compressed_bundled": "jazz.mtx.gz",
@@ -88,7 +88,7 @@ DATASET_REGISTRY = {
         "filename": "celegans.mtx",
         "name": "C. Elegans Metabolic Network",
         "nodes": 453,
-        "edges": 2041,
+        "edges": 2040,
         "directed": False,
         "description": "Metabolic network of C. Elegans (nematode worm)",
         "source": "NetworkRepository",
@@ -96,6 +96,20 @@ DATASET_REGISTRY = {
         "compressed_bundled": "celegans.mtx.gz",
         "size_kb": 16,
         "compressed_kb": 5,
+    },
+    "celegans_neural": {
+        "filename": "celegans_neural.mtx",
+        "name": "C. Elegans Neural Network",
+        "nodes": 297,
+        "edges": 2345,
+        "directed": True,
+        "weighted": True,
+        "description": "Neural network of C. Elegans (nematode worm), weighted connections",
+        "source": "Mark Newman (Watts and Strogatz 1998)",
+        "location": "bundled",
+        "compressed_bundled": "celegans_neural.mtx.gz",
+        "size_kb": 21,
+        "compressed_kb": 7,
     },
     "power_grid": {
         "filename": "power_grid.mtx",
@@ -827,28 +841,85 @@ def davis_southern_women() -> Graph:
     return _labeled_graph(nodes, edges, False, "Davis Southern Women", "davis_southern_women()")
 
 
-def florentine_families() -> Graph:
+# Florentine marriage and business ties, from Padgett's data as subset by Breiger and Pattison
+_FLORENTINE_MARRIAGE = [
+    ("Acciaiuoli", "Medici"),
+    ("Castellani", "Peruzzi"),
+    ("Castellani", "Strozzi"),
+    ("Castellani", "Barbadori"),
+    ("Medici", "Barbadori"),
+    ("Medici", "Ridolfi"),
+    ("Medici", "Tornabuoni"),
+    ("Medici", "Albizzi"),
+    ("Medici", "Salviati"),
+    ("Salviati", "Pazzi"),
+    ("Peruzzi", "Strozzi"),
+    ("Peruzzi", "Bischeri"),
+    ("Strozzi", "Ridolfi"),
+    ("Strozzi", "Bischeri"),
+    ("Ridolfi", "Tornabuoni"),
+    ("Tornabuoni", "Guadagni"),
+    ("Albizzi", "Ginori"),
+    ("Albizzi", "Guadagni"),
+    ("Bischeri", "Guadagni"),
+    ("Guadagni", "Lamberteschi"),
+]
+_FLORENTINE_BUSINESS = [
+    ("Barbadori", "Castellani"),
+    ("Barbadori", "Ginori"),
+    ("Barbadori", "Medici"),
+    ("Barbadori", "Peruzzi"),
+    ("Bischeri", "Guadagni"),
+    ("Bischeri", "Lamberteschi"),
+    ("Bischeri", "Peruzzi"),
+    ("Castellani", "Lamberteschi"),
+    ("Castellani", "Peruzzi"),
+    ("Ginori", "Medici"),
+    ("Guadagni", "Lamberteschi"),
+    ("Lamberteschi", "Peruzzi"),
+    ("Medici", "Pazzi"),
+    ("Medici", "Salviati"),
+    ("Medici", "Tornabuoni"),
+]
+
+
+def florentine_families(ties: str = "marriage") -> Graph:
     """
     Florentine families network.
 
-    Marriage ties between 15 leading families of Renaissance Florence around 1430, from the data
-    John Padgett collected to study the rise of the Medici. The Medici weren't the richest or the
-    most powerful family, but they sat at the center of the marriage network, bridging families
-    that had no ties to each other; the network is a classic example for betweenness centrality.
+    Marriage and business ties between 15 leading families of Renaissance Florence around 1430,
+    from the data John Padgett collected to study the rise of the Medici. The Medici weren't the
+    richest or the most powerful family, but they sat at the center of the marriage network,
+    bridging families that had no ties to each other; the network is a classic example for
+    betweenness centrality. The business ties (partnerships, loans and shared ownership) form a
+    second, sparser network, and comparing the two is the usual exercise for multiplex analysis.
+
+    Parameters
+    ----------
+    ties
+        Which ties to include: `"marriage"` (the default and the classic network), `"business"`,
+        or `"all"` for both, with one edge per pair of families.
 
     Network Properties:
 
-    - 15 nodes (families, labeled by name)
-    - 20 edges (marriage ties)
+    - 15 nodes (families, labeled by name), the same in every version
+    - Edges: 20 marriage ties, 15 business ties, or 27 for `"all"` (8 pairs have both)
     - Undirected, unweighted
-    - Connected (the isolated Pucci family is left out)
+    - The marriage network is connected (the isolated Pucci family is left out); in the business
+      network, Acciaiuoli, Albizzi, Ridolfi and Strozzi have no ties
 
-    The nodes, their order and labels match NetworkX's `florentine_families_graph()`.
+    Edge Attributes:
+
+    - `rel`: the kind of tie, `"marriage"` or `"business"` (`"both"` for the 8 pairs with both
+      when `ties="all"`)
+
+    The nodes, their order and labels match NetworkX's `florentine_families_graph()`, and the
+    marriage edges are its edges.
 
     Returns
     -------
     Graph
-        The Florentine families marriage network
+        The Florentine families network
 
     Examples
     --------
@@ -863,6 +934,9 @@ def florentine_families() -> Graph:
     # Returns 'Medici' (the family with the highest betweenness centrality)
     scores = G.betweenness_centrality(return_dict=True)
     G.get_label_from_id(max(scores, key=scores.get))
+
+    # Both kinds of ties, with `rel` saying which
+    florentine_families(ties="all")
     ```
 
     Notes
@@ -872,34 +946,23 @@ def florentine_families() -> Graph:
     Breiger, R. L. and Pattison, P. E. (1986). Cumulated social roles: The duality of persons
     and their algebras. *Social Networks*, 8(3), 215-256.
     """
-    edges = [
-        ("Acciaiuoli", "Medici"),
-        ("Castellani", "Peruzzi"),
-        ("Castellani", "Strozzi"),
-        ("Castellani", "Barbadori"),
-        ("Medici", "Barbadori"),
-        ("Medici", "Ridolfi"),
-        ("Medici", "Tornabuoni"),
-        ("Medici", "Albizzi"),
-        ("Medici", "Salviati"),
-        ("Salviati", "Pazzi"),
-        ("Peruzzi", "Strozzi"),
-        ("Peruzzi", "Bischeri"),
-        ("Strozzi", "Ridolfi"),
-        ("Strozzi", "Bischeri"),
-        ("Ridolfi", "Tornabuoni"),
-        ("Tornabuoni", "Guadagni"),
-        ("Albizzi", "Ginori"),
-        ("Albizzi", "Guadagni"),
-        ("Bischeri", "Guadagni"),
-        ("Guadagni", "Lamberteschi"),
-    ]
-    return _labeled_graph(
-        [],
-        [(u, v, None) for u, v in edges],
-        False,
-        "Florentine Families",
-        "florentine_families()",
+    if ties not in ("marriage", "business", "all"):
+        raise ValueError(f"ties must be 'marriage', 'business' or 'all', not {ties!r}")
+    families: list[str] = []
+    for pair in _FLORENTINE_MARRIAGE:
+        families.extend(f for f in pair if f not in families)
+
+    pairs: dict[frozenset, tuple[str, str, str]] = {}
+    for kind, edges in (("marriage", _FLORENTINE_MARRIAGE), ("business", _FLORENTINE_BUSINESS)):
+        if ties in (kind, "all"):
+            for u, v in edges:
+                key = frozenset((u, v))
+                pairs[key] = (*pairs[key][:2], "both") if key in pairs else (u, v, kind)
+    edge_rows = [(u, v, None, {"rel": rel}) for u, v, rel in pairs.values()]
+
+    code = "florentine_families()" if ties == "marriage" else f"florentine_families(ties={ties!r})"
+    return _build_graph(
+        [(f, f, {}) for f in families], edge_rows, False, False, "Florentine Families", code
     )
 
 
@@ -1096,69 +1159,305 @@ def soc_livejournal() -> Graph:
     )
 
 
+# Teams of the 2000 Division I-A season, each with its conference (numbered as in the source file)
+_FOOTBALL_TEAMS = """
+BrighamYoung 7, FloridaState 0, Iowa 2, KansasState 3, NewMexico 7, TexasTech 3, PennState 2,
+SouthernCalifornia 8, ArizonaState 8, SanDiegoState 7, Baylor 3, NorthTexas 10,
+NorthernIllinois 6, Northwestern 2, WesternMichigan 6, Wisconsin 2, Wyoming 7, Auburn 9,
+Akron 6, VirginiaTech 1, Alabama 9, UCLA 8, Arizona 8, Utah 7, ArkansasState 10,
+NorthCarolinaState 0, BallState 6, Florida 9, BoiseState 11, BostonCollege 1, WestVirginia 1,
+BowlingGreenState 6, Michigan 2, Virginia 0, Buffalo 6, Syracuse 1, CentralFlorida 5,
+GeorgiaTech 0, CentralMichigan 6, Purdue 2, Colorado 3, ColoradoState 7, Connecticut 5,
+EasternMichigan 6, EastCarolina 4, Duke 0, FresnoState 11, OhioState 2, Houston 4, Rice 11,
+Idaho 10, Washington 8, Kansas 3, SouthernMethodist 11, Kent 6, Pittsburgh 1, Kentucky 9,
+Louisville 4, LouisianaTech 11, LouisianaMonroe 10, Minnesota 2, MiamiOhio 6, Vanderbilt 9,
+MiddleTennesseeState 10, Illinois 2, MississippiState 9, Memphis 4, Nevada 11, Oregon 8,
+NewMexicoState 10, SouthCarolina 9, Ohio 6, IowaState 3, SanJoseState 11, Nebraska 3,
+SouthernMississippi 4, Tennessee 9, Stanford 8, WashingtonState 8, Temple 1, Navy 5, TexasA&M 3,
+NotreDame 5, TexasElPaso 11, Oklahoma 3, Toledo 6, Tulane 4, Mississippi 9, Tulsa 11,
+NorthCarolina 0, UtahState 5, Army 4, Cincinnati 4, AirForce 7, Rutgers 1, Georgia 9,
+LouisianaState 9, LouisianaLafayette 10, Texas 3, Marshall 6, MichiganState 2, MiamiFlorida 1,
+Missouri 3, Clemson 0, NevadaLasVegas 7, WakeForest 0, Indiana 2, OklahomaState 3,
+OregonState 8, Maryland 0, TexasChristian 4, California 8, AlabamaBirmingham 4, Arkansas 9,
+Hawaii 11
+"""
+
+# Political books, one per line: the leaning Mark Newman assigned (l, n or c), then the title
+_POLBOOKS = """
+n 1000 Years for Revenge
+c Bush vs. the Beltway
+c Charlie Wilson's War
+c Losing Bin Laden
+n Sleeping With the Devil
+c The Man Who Warned America
+n Why America Slept
+n Ghost Wars
+c A National Party No More
+c Bush Country
+c Dereliction of Duty
+c Legacy
+c Off with Their Heads
+c Persecution
+c Rumsfeld's War
+c Breakdown
+c Betrayal
+c Shut Up and Sing
+n Meant To Be
+c The Right Man
+c Ten Minutes from Normal
+c Hillary's Scheme
+c The French Betrayal of America
+c Tales from the Left Coast
+c Hating America
+c The Third Terrorist
+c Endgame
+c Spin Sisters
+n All the Shah's Men
+c Dangerous Dimplomacy
+l The Price of Loyalty
+l House of Bush, House of Saud
+c The Death of Right and Wrong
+c Useful Idiots
+c The O'Reilly Factor
+c Let Freedom Ring
+c Those Who Trespass
+c Bias
+c Slander
+c The Savage Nation
+c Deliver Us from Evil
+c Give Me a Break
+c The Enemy Within
+c The Real America
+c Who's Looking Out for You?
+c The Official Handbook Vast Right Wing Conspiracy
+n Power Plays
+c Arrogance
+n The Perfect Wife
+c The Bushes
+c Things Worth Fighting For
+n Surprise, Security, the American Experience
+c Allies
+c Why Courage Matters
+c Hollywood Interrupted
+c Fighting Back
+c We Will Prevail
+c The Faith of George W Bush
+c Rise of the Vulcans
+l Downsize This!
+l Stupid White Men
+l Rush Limbaugh Is a Big Fat Idiot
+l The Best Democracy Money Can Buy
+l The Culture of Fear
+l America Unbound
+l The Choice
+l The Great Unraveling
+l Rogue Nation
+l Soft Power
+n Colossus
+l The Sorrows of Empire
+l Against All Enemies
+l American Dynasty
+l Big Lies
+l The Lies of George W. Bush
+l Worse Than Watergate
+n Plan of Attack
+c Bush at War
+l The New Pearl Harbor
+l Bushwomen
+l The Bubble of American Supremacy
+l Living History
+l The Politics of Truth
+l Fanatics and Fools
+l Bushwhacked
+l Disarming Iraq
+l Lies and the Lying Liars Who Tell Them
+l MoveOn's 50 Ways to Love Your Country
+l The Buying of the President 2004
+l Perfectly Legal
+l Hegemony or Survival
+l The Exception to the Rulers
+l Freethinkers
+l Had Enough?
+l It's Still the Economy, Stupid!
+l We're Right They're Wrong
+l What Liberal Media?
+l The Clinton Wars
+l Weapons of Mass Deception
+l Dude, Where's My Country?
+l Thieves in High Places
+l Shrub
+l Buck Up Suck Up
+n The Future of Freedom
+n Empire
+"""
+
+# The dolphins' names, in the order of the source file
+_DOLPHINS = """
+Beak Beescratch Bumper CCL Cross DN16 DN21 DN63 Double Feather Fish Five Fork Gallatin Grin
+Haecksel Hook Jet Jonah Knit Kringel MN105 MN23 MN60 MN83 Mus Notch Number1 Oscar Patchback PL
+Quasi Ripplefluke Scabs Shmuddel SMN5 SN100 SN4 SN63 SN89 SN9 SN90 SN96 Stripes Thumper Topless
+TR120 TR77 TR82 TR88 TR99 Trigger TSN103 TSN83 Upbang Vau Wave Web Whitetip Zap Zig Zipfel
+"""
+
+
+def _mtx_edges(filename: str) -> list[tuple[int, int, Optional[float]]]:
+    """The 1-based `(row, column, value)` entries of a bundled Matrix Market file, in file order."""
+    import gzip
+
+    with gzip.open(DATA_DIR / f"{filename}.gz", "rt") as fh:
+        rows = [line.split() for line in fh if line.strip() and not line.startswith("%")]
+    return [(int(r[0]), int(r[1]), float(r[2]) if len(r) > 2 else None) for r in rows[1:]]
+
+
+def _named_mtx_graph(
+    filename: str,
+    nodes: list[tuple[str, dict]],
+    directed: bool,
+    weighted: bool,
+    graph_name: str,
+    code: str,
+) -> Graph:
+    """A bundled Matrix Market network whose nodes (numbered 1, 2, ... in the file) get names."""
+    return _build_graph(
+        [(i, label, attrs) for i, (label, attrs) in enumerate(nodes, start=1)],
+        [(u, v, w if weighted else None, {}) for u, v, w in _mtx_edges(filename)],
+        directed,
+        weighted,
+        graph_name,
+        code,
+    )
+
+
 def dolphins() -> Graph:
     """
     Dolphin social network.
 
-    Social network of frequent associations between 62 bottlenose dolphins in a community living off
-    Doubtful Sound, New Zealand.
+    Frequent associations among the 62 bottlenose dolphins of a community living in Doubtful
+    Sound, New Zealand, observed by David Lusseau and colleagues between 1994 and 2001. Two
+    dolphins are linked when they were seen together more often than chance would predict. During
+    the study the community split in two after one dolphin left, which made the network a standard
+    test for community detection.
 
     Network Properties:
 
-    - Nodes: 62
-    - Edges: 159
-    - Directed: No
-    - Weighted: No
-    - Avg degree: 5.13
+    - 62 nodes (dolphins, labeled by the names the researchers gave them, e.g. `"Beak"`)
+    - 159 edges (frequent associations)
+    - Undirected, unweighted
+
+    The nodes, their order and labels match the network as published by Mark Newman.
 
     Returns
     -------
     Graph
-        Dolphin social network
+        The dolphin social network
+
+    Examples
+    --------
+    ```python
+    from edgecase import dolphins
+
+    G = dolphins()
+
+    # Returns (62, 159)
+    G.count_nodes(), G.count_edges()
+
+    # Returns 12, the most of any dolphin
+    G.get_degree("Grin")
+    ```
 
     Notes
     -----
-    This network is often used for community detection benchmarks.
-    The network has been observed to split into two communities.
+    Lusseau, D., Schneider, K., Boisseau, O. J., Haase, P., Slooten, E. and Dawson, S. M. (2003).
+    The bottlenose dolphin community of Doubtful Sound features a large proportion of long-lasting
+    associations. *Behavioral Ecology and Sociobiology*, 54(4), 396-405.
+
+    The source data doesn't record which side of the split each dolphin joined, so there's no
+    ground-truth attribute.
     """
-    return _load_dataset_from_file(
-        "dolphins.mtx",
-        directed=False,
-        weighted=False,
-        graph_name="Dolphin Social Network",
+    nodes = [(name, {}) for name in _DOLPHINS.split()]
+    return _named_mtx_graph(
+        "dolphins.mtx", nodes, False, False, "Dolphin Social Network", "dolphins()"
     )
+
+
+# The conferences of the football network, in the order of their numbers in the source file
+FOOTBALL_CONFERENCES = [
+    "Atlantic Coast",
+    "Big East",
+    "Big Ten",
+    "Big Twelve",
+    "Conference USA",
+    "Independents",
+    "Mid-American",
+    "Mountain West",
+    "Pacific Ten",
+    "Southeastern",
+    "Sun Belt",
+    "Western Athletic",
+]
 
 
 def football() -> Graph:
     """
     American college football network.
 
-    Network of American football games between Division IA colleges during regular season Fall 2000.
-    Nodes represent teams, edges represent games.
+    The games played between the 115 Division I-A college football teams in the regular season of
+    fall 2000, compiled by Michelle Girvan and Mark Newman. Two teams are linked when they played
+    each other. Teams play most of their games within their own conference, so the eleven
+    conferences (and the independent teams) are a ground truth for community detection, and the
+    network is one of the standard benchmarks for it.
 
     Network Properties:
 
-    - Nodes: 115
-    - Edges: 613
-    - Directed: No
-    - Weighted: No
-    - Avg degree: 10.66
+    - 115 nodes (teams, labeled by name as in the source, e.g. `"FloridaState"`)
+    - 613 edges (games)
+    - Undirected, unweighted
+
+    Node Attributes:
+
+    - `conference`: the team's conference, e.g. `"Big Ten"`, or `"Independents"` for the five
+      teams in none
+
+    The nodes, their order, labels and conferences match the network as published by Mark Newman.
 
     Returns
     -------
     Graph
-        College football network
+        The college football network
+
+    Examples
+    --------
+    ```python
+    from edgecase import football
+
+    G = football()
+
+    # Returns (115, 613)
+    G.count_nodes(), G.count_edges()
+
+    # Returns 'Big Ten'
+    G.get_node_attrs("conference")[G.get_id_from_label("Michigan")]
+
+    # Communities, to compare with the conferences
+    G.cmty_louvain()
+    ```
 
     Notes
     -----
-    Teams are divided into conferences, providing natural community structure.
-    Excellent dataset for testing community detection algorithms.
+    Girvan, M. and Newman, M. E. J. (2002). Community structure in social and biological networks.
+    *Proceedings of the National Academy of Sciences*, 99(12), 7821-7826.
+
+    T. S. Evans pointed out that the conferences in the published file appear to be those of the
+    2001 season rather than 2000, so a few teams are listed in a conference they joined a year
+    later, and some detected communities disagree with the conferences for that reason. The data
+    is kept as published, which is the version other libraries ship.
     """
-    return _load_dataset_from_file(
-        "football.mtx",
-        directed=False,
-        weighted=False,
-        graph_name="American College Football",
+    nodes = []
+    for entry in _FOOTBALL_TEAMS.replace("\n", " ").split(","):
+        team, conference = entry.split()
+        nodes.append((team, {"conference": FOOTBALL_CONFERENCES[int(conference)]}))
+    return _named_mtx_graph(
+        "football.mtx", nodes, False, False, "American College Football", "football()"
     )
 
 
@@ -1166,45 +1465,70 @@ def polbooks() -> Graph:
     """
     Political books network.
 
-    Network of books about US politics published around the time of the 2004 presidential election
-    and sold by Amazon. Edges represent frequent co-purchasing of books by the same buyers.
+    The 105 books about US politics published around the 2004 presidential election and sold by
+    Amazon.com, compiled by Valdis Krebs. Two books are linked when Amazon's "customers who bought
+    this book also bought" list showed that the same buyers often bought both. Mark Newman labeled
+    each book liberal, neutral or conservative from its description and reviews. Readers mostly buy
+    books on their own side, so the network falls into two groups, with the few neutral books in
+    between.
 
     Network Properties:
 
-    - Nodes: 105
-    - Edges: 441
-    - Directed: No
-    - Weighted: No
-    - Avg degree: 8.40
+    - 105 nodes (books, labeled by title, e.g. `"Stupid White Men"`)
+    - 441 edges (frequent co-purchases)
+    - Undirected, unweighted
+
+    Node Attributes:
+
+    - `leaning`: `"liberal"` (43 books), `"conservative"` (49) or `"neutral"` (13)
+
+    The nodes, their order, labels and leanings match the network as published by Mark Newman.
 
     Returns
     -------
     Graph
-        Political books co-purchasing network
+        The political books co-purchasing network
+
+    Examples
+    --------
+    ```python
+    from edgecase import polbooks
+
+    G = polbooks()
+
+    # Returns (105, 441)
+    G.count_nodes(), G.count_edges()
+
+    # Returns about 0.72: books are mostly bought with books of the same leaning
+    G.assortativity_nominal("leaning")
+    ```
 
     Notes
     -----
-    Books have been classified as liberal, neutral, or conservative.
-    The network shows clear community structure along political lines.
+    Krebs, V. (2004). Books about US politics. Unpublished; see http://www.orgnet.com/.
+    The leanings are Mark Newman's, from Newman, M. E. J. (2006). Modularity and community
+    structure in networks. *Proceedings of the National Academy of Sciences*, 103(23), 8577-8582.
     """
-    return _load_dataset_from_file(
-        "polbooks.mtx",
-        directed=False,
-        weighted=False,
-        graph_name="Political Books",
-    )
+    leanings = {"l": "liberal", "n": "neutral", "c": "conservative"}
+    nodes = []
+    for line in _POLBOOKS.strip().splitlines():
+        leaning, title = line.split(" ", 1)
+        nodes.append((title, {"leaning": leanings[leaning]}))
+    return _named_mtx_graph("polbooks.mtx", nodes, False, False, "Political Books", "polbooks()")
 
 
 def jazz() -> Graph:
     """
-    Jazz musicians collaboration network.
+    Jazz bands network.
 
-    Network of jazz musicians where edges represent collaboration on albums.
+    The 198 jazz bands that performed between 1912 and 1940, as collected by Pablo Gleiser and Leon
+    Danon from the Red Hot Jazz Archive. Two bands are linked when at least one musician played in
+    both. Despite the network's name, the nodes are bands, not musicians.
 
     Network Properties:
 
-    - Nodes: 198
-    - Edges: 2,742
+    - Nodes: 198 (bands)
+    - Edges: 2,742 (bands that shared a musician)
     - Directed: No
     - Weighted: No
     - Avg degree: 27.70
@@ -1212,7 +1536,7 @@ def jazz() -> Graph:
     Returns
     -------
     Graph
-        Jazz musicians network
+        The jazz bands network
 
     Notes
     -----
@@ -1237,7 +1561,7 @@ def celegans() -> Graph:
     Network Properties:
 
     - Nodes: 453
-    - Edges: 2,041
+    - Edges: 2,040
     - Directed: No
     - Weighted: No
     - Avg degree: 9.01
@@ -1257,6 +1581,81 @@ def celegans() -> Graph:
         directed=False,
         weighted=False,
         graph_name="C. Elegans Metabolic Network",
+    )
+
+
+# C. elegans neurons, labeled by their numbers in Watts's data file, in node order
+_CELEGANS_NEURAL = """
+1 51 72 77 78 2 90 92 158 159 113 69 71 89 91 3 47 9 17 21 93 94 23 121 125 131 31 4 60 10 16
+18 22 24 97 122 126 132 32 303 5 7 222 101 305 6 102 99 100 27 8 26 44 37 11 19 29 12 41 118 25
+30 13 143 28 43 14 144 20 34 15 40 128 139 140 108 35 107 133 134 105 106 36 33 73 136 74 161
+129 135 120 38 39 160 130 174 42 189 82 70 45 141 55 119 137 46 142 114 56 62 86 193 138 109 52
+58 61 75 76 81 85 48 110 80 88 216 49 54 50 154 96 127 95 166 53 57 63 198 87 84 59 67 178 64
+65 220 66 68 221 111 112 146 225 186 226 227 228 229 230 150 234 235 236 237 238 239 187 188
+240 242 203 179 217 162 164 249 250 195 251 252 253 254 255 197 204 180 163 117 256 276 306 177
+241 200 215 199 165 169 79 148 168 145 147 192 219 157 172 218 83 98 124 103 104 115 123 156
+170 183 116 153 224 196 214 213 155 173 149 275 205 206 151 277 152 245 278 201 202 167 269 184
+171 185 175 176 272 270 258 181 182 274 190 191 194 244 260 207 223 208 209 210 211 212 261 262
+263 264 265 266 282 279 231 280 232 281 233 246 247 248 243 257 259 267 268 271 273 291 292 293
+294 295 296 297 298 299 300 301 302
+"""
+
+
+def celegans_neural() -> Graph:
+    """
+    C. elegans neural network.
+
+    The neural network of the nematode worm *Caenorhabditis elegans*, as compiled by Duncan Watts
+    and Steven Strogatz from the wiring diagram that White and colleagues reconstructed from
+    electron micrographs. Each node is a neuron and each arc a connection from one neuron to
+    another, weighted by its strength in Watts's data. It's one of the original small-world
+    networks, and as a directed network with few reciprocated arcs it's a standard case for
+    reciprocity and motif counts.
+
+    Network Properties:
+
+    - 297 nodes (neurons, labeled by their numbers in Watts's data file, e.g. `"51"`; the source
+      doesn't give neuron names)
+    - 2,345 arcs (connections)
+    - Directed, weighted (`weight` from 1 to 70)
+    - Weakly connected
+
+    The nodes and their order match the network as published by Mark Newman. Newman's file lists 14
+    pairs of neurons twice; here each pair is one arc whose weight is the sum of the two.
+
+    Returns
+    -------
+    Graph
+        The C. elegans neural network
+
+    Examples
+    --------
+    ```python
+    from edgecase import celegans_neural
+
+    G = celegans_neural()
+
+    # Returns (297, 2345)
+    G.count_nodes(), G.count_edges()
+
+    # Returns about 0.17: few connections run both ways
+    G.reciprocity()
+    ```
+
+    Notes
+    -----
+    White, J. G., Southgate, E., Thomson, J. N. and Brenner, S. (1986). The structure of the
+    nervous system of the nematode *Caenorhabditis elegans*. *Philosophical Transactions of the
+    Royal Society of London B*, 314(1165), 1-340.
+
+    Watts, D. J. and Strogatz, S. H. (1998). Collective dynamics of 'small-world' networks.
+    *Nature*, 393(6684), 440-442.
+
+    Not to be confused with `celegans()`, the worm's metabolic network.
+    """
+    nodes = [(neuron, {}) for neuron in _CELEGANS_NEURAL.split()]
+    return _named_mtx_graph(
+        "celegans_neural.mtx", nodes, True, True, "C. Elegans Neural Network", "celegans_neural()"
     )
 
 
@@ -1618,6 +2017,7 @@ __all__ = [
     "polbooks",
     "jazz",
     "celegans",
+    "celegans_neural",
     "power_grid",
     "ca_grqc",
     "physics",
