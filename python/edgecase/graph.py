@@ -25295,50 +25295,47 @@ class Graph:
         Graph
             The same graph (modified in place) for method chaining.
 
+        See Also
+        --------
+        deselect_nodes : Remove nodes from the selection.
+        deselect_edges : Remove edges from the selection.
+
         Examples
         --------
-        The hub of this star is selected by degree and then the selection is cleared, so no
-        nodes remain selected:
+        A selection stays in place until it's replaced or cleared, so a second call adds to the
+        first. Clearing in between starts again:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_star_graph(5)
-            .select_nodes_by_degree(min_degree=3)
-            .clear_selection()
-        )
-
-        graph.count_selected_nodes()
-        ```
-
-        Without clearing, selections accumulate. Here the second selection rule adds to the
-        first (the hub plus the last two spokes), while clearing between the two calls leaves
-        only the result of the second:
-
-        ```{python}
         graph = ec.Graph().add_star_graph(5)
 
-        graph.select_nodes_by_degree(min_degree=3).select_last_nodes_created(2)
-        accumulated = graph.count_selected_nodes()
+        graph.select_nodes_by_degree(min_degree=2).select_last_nodes_created(2)
+        kept = graph.count_selected_nodes()
 
         graph.clear_selection().select_last_nodes_created(2)
-        fresh = graph.count_selected_nodes()
-
-        (accumulated, fresh)
+        kept, graph.count_selected_nodes()
         ```
 
-        An edge selection is cleared the same way. Here all four spoke edges are selected,
-        which also drops the node selection, and then cleared:
+        ### Two questions, one after the other
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. After the 16 payments of 1,000 or more are selected, selecting the
+        Grocer's payments as well would mix the two. Clearing first leaves only the Grocer's
+        eight:
 
         ```{python}
-        hub = graph.get_node_creation_order()[0]
-        graph.select_edges_by_node([hub]).clear_selection()
+        payments = ec.payments()
+        payments.select_edges(lambda e: e.attributes["amount"] >= 1000)
+        large = payments.count_selected_edges()
 
-        graph.count_selected_edges()
+        payments.clear_selection().select_edges_by_node(["Grocer"])
+        large, payments.count_selected_edges()
         ```
 
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         self._graph.clear_selection()
 
