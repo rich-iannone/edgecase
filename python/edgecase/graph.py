@@ -66783,15 +66783,48 @@ class Graph:
         Every pair of distinct in-neighbors of every node, $O(\\sum_v \\deg^-(v)^2)$. Matches
         NetworkX's `dag.colliders` (and the deprecated `compute_v_structures`).
 
+        See Also
+        --------
+        v_structures : The colliders whose causes aren't adjacent.
+        moral_graph : Join the parents of each node.
+        is_d_separator : Check if a set of nodes d-separates two others.
+
         Examples
         --------
+        `A` and `B` both point into `C`, so `C` is a collider between them:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["talent", "luck", "success"])
-        g.add_edges([("talent", "success"), ("luck", "success")])
+        graph = ec.Graph.from_edges([("A", "C"), ("B", "C")], directed=True)
+        [[graph.get_label_from_id(n) for n in t] for t in graph.colliders()]
+        ```
 
-        [tuple(g.get_label_from_id(n) for n in triple) for triple in g.colliders()]
+        ### Where causes meet
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. It has 8 colliders. Six are at Blood pressure, which has four
+        causes:
+
+        ```{python}
+        from collections import Counter
+
+        causal = ec.causal()
+        label = causal.get_label_from_id
+        found = causal.colliders()
+
+        Counter(label(middle) for _, middle, _ in found)
+        ```
+
+        Exercise and Diet meet only at Weight. They're independent, but among people of the same
+        weight, those who exercise less must eat better, so conditioning on a collider makes its
+        causes dependent:
+
+        ```{python}
+        causal.plot(
+            layout="pos", highlight=[("Exercise", "Weight"), ("Diet", "Weight")],
+            label_by="label", height=360,
+        )
         ```
         """
         if not self.is_directed():
