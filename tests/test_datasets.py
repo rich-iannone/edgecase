@@ -315,3 +315,131 @@ class TestEdgeCases:
         # Both should load successfully
         assert g_unweighted.count_nodes() == 34
         assert g_weighted.count_nodes() == 34
+
+
+class TestLabeledClassics:
+    """The classic networks built with their published labels and attributes."""
+
+    @pytest.mark.parametrize(
+        "loader, registry_name, size, directed, weighted",
+        [
+            ("dolphins", "dolphins", (62, 159), False, False),
+            ("football", "football", (115, 613), False, False),
+            ("polbooks", "polbooks", (105, 441), False, False),
+            ("celegans_neural", "celegans_neural", (297, 2345), True, True),
+        ],
+    )
+    def test_matches_bundled_file(self, loader, registry_name, size, directed, weighted):
+        import edgecase as ec
+        from edgecase.steps import KIND_BUILD_NODES
+
+        g = getattr(ec, loader)()
+        assert (g.count_nodes(), g.count_edges()) == size
+        assert g.is_directed() is directed
+        assert g.is_weighted() is weighted
+        assert len(g.steps) == 1
+        assert g.steps[0].kind == KIND_BUILD_NODES
+        assert g.steps[0].code == f"{loader}()"
+        info = get_dataset_info(registry_name)
+        assert (info["nodes"], info["edges"], info["directed"]) == (*size, directed)
+
+        # Node i of the file is the i-th node, so the edges are the file's edges
+        plain = load_dataset(registry_name, weighted=weighted)
+        assert sorted(g.get_edge_df().select("source", "target").rows()) == sorted(
+            plain.get_edge_df().select("source", "target").rows()
+        )
+        labels = g.get_node_df()["label"].to_list()
+        assert len(set(labels)) == len(labels)
+
+    def test_football_conferences(self):
+        from collections import Counter
+
+        import edgecase as ec
+
+        g = ec.football()
+        conference = g.get_node_attrs("conference")
+        assert conference[g.get_id_from_label("Michigan")] == "Big Ten"
+        assert conference[g.get_id_from_label("FloridaState")] == "Atlantic Coast"
+        counts = Counter(conference.values())
+        assert len(counts) == 12
+        assert counts["Independents"] == 5
+        assert counts["Southeastern"] == 12
+        # Most games are within a conference
+        within = sum(conference[s] == conference[t] for _, s, t in g.get_edges_as_tuples())
+        assert within / g.count_edges() > 0.6
+
+    def test_polbooks_leanings(self):
+        from collections import Counter
+
+        import edgecase as ec
+
+        g = ec.polbooks()
+        leaning = g.get_node_attrs("leaning")
+        assert Counter(leaning.values()) == {"conservative": 49, "liberal": 43, "neutral": 13}
+        assert leaning[g.get_id_from_label("Stupid White Men")] == "liberal"
+        assert g.assortativity_nominal("leaning") == pytest.approx(0.723, abs=1e-3)
+
+    def test_dolphins_names(self):
+        import edgecase as ec
+
+        g = ec.dolphins()
+        assert g.get_label_from_id(1) == "Beak"
+        assert g.get_degree("Grin") == 12
+
+    def test_celegans_neural_weights(self):
+        import edgecase as ec
+
+        g = ec.celegans_neural()
+        weights = g.get_edge_df()["weight"]
+        assert (weights.min(), weights.max()) == (1, 70)
+        assert g.get_label_from_id(2) == "51"
+        assert g.count_weakly_connected_components() == 1
+
+    def test_florentine_ties(self):
+        from collections import Counter
+
+        import edgecase as ec
+
+        marriage = ec.florentine_families()
+        business = ec.florentine_families(ties="business")
+        both = ec.florentine_families(ties="all")
+        assert [g.count_edges() for g in (marriage, business, both)] == [20, 15, 27]
+        labels = marriage.get_node_df()["label"].to_list()
+        for g in (business, both):
+            assert g.get_node_df()["label"].to_list() == labels
+        assert Counter(marriage.get_edge_df()["rel"]) == {"marriage": 20}
+        assert Counter(business.get_edge_df()["rel"]) == {"business": 15}
+        assert Counter(both.get_edge_df()["rel"]) == {"marriage": 12, "business": 7, "both": 8}
+        isolates = sorted(business.get_label_from_id(n) for n in business.isolates())
+        assert isolates == ["Acciaiuoli", "Albizzi", "Ridolfi", "Strozzi"]
+        assert business.steps[0].code == "florentine_families(ties='business')"
+        with pytest.raises(ValueError, match="ties must be"):
+            ec.florentine_families(ties="kinship")
+
+
+class TestMatrixMarketSizeLine:
+    """The size line is the first line after the comments, whatever its shape."""
+
+    def _read(self, text, **kwargs):
+        from edgecase.io import from_matrix_market
+
+        with tempfile.NamedTemporaryFile("w", suffix=".mtx", delete=False) as fh:
+            fh.write(text)
+        try:
+            return from_matrix_market(fh.name, **kwargs)
+        finally:
+            Path(fh.name).unlink()
+
+    def test_integer_entries_are_edges(self):
+        g = self._read("%%MatrixMarket matrix coordinate integer general\n3 3 2\n1 2 4\n2 3 1\n")
+        assert g.count_edges() == 2
+        assert sorted(g.get_edge_df()["weight"].to_list()) == [1.0, 4.0]
+
+    def test_size_line_without_count_is_not_an_edge(self):
+        g = self._read("%%MatrixMarket matrix coordinate pattern symmetric\n% c\n3 3\n2 1\n3 2\n")
+        assert g.count_edges() == 2
+        assert g.is_simple()
+
+    def test_jazz_and_celegans_have_no_phantom_loop(self):
+        assert load_dataset("jazz").count_edges() == 2742
+        assert load_dataset("celegans").count_edges() == 2040
