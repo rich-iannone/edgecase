@@ -20533,6 +20533,12 @@ class Graph:
         ValueError
             If the graph is not bipartite, or if `which=` is not `0` or `1`.
 
+        See Also
+        --------
+        bipartite_closeness_centrality : Rank the nodes of one side by their distance to the rest.
+        bipartite_betweenness_centrality : Rank the nodes of one side by the paths through them.
+        degree_centrality : The same idea for any graph.
+
         Examples
         --------
         In this small people-film network, the people are partition `0` and the films are
