@@ -19273,68 +19273,49 @@ class Graph:
 
         Examples
         --------
-        Project a gene-disease network onto genes; genes become connected if they share
-        diseases. "Gene2" shares a disease with each of the other genes, while "Gene1" and
-        "Gene3" share none, so the projection has three nodes but only two edges:
+        Projected onto the people, Ana and Ben are linked through the chess club, and Ben and
+        Cruz through the choir:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Gene1", "Gene2", "Gene3", "Disease1", "Disease2"])
-            .add_edges(
-                [
-                    ("Gene1", "Disease1"),
-                    ("Gene2", "Disease1"),
-                    ("Gene2", "Disease2"),
-                    ("Gene3", "Disease2"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
         )
+        people = graph.bipartite_projection(which=0)
 
-        set_a, set_b = graph.bipartite_sets()
-
-        # Find which set contains the genes
-        gene1_id = graph.get_id_from_label("Gene1")
-        gene_set = 0 if gene1_id in set_a else 1
-
-        projection = graph.bipartite_projection(which=gene_set)
-        projection.get_edges_str_repr(use_labels=True)
+        people.get_edge_df(labels=True).select("source", "target", "weight")
         ```
 
-        Edge weights count the shared neighbors. "Ann" and "Bob" attended all three events
-        together, so their edge has weight `3.0`, while each of their links to "Cal" (who only
-        went to the "Fair") has weight `1.0`:
+        ### Who met whom
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Projected onto the women, two women are linked when they attended an event
+        together, weighted by the number of events. Nearly every pair met at least once, 139 of
+        the 153, and Evelyn Jefferson and Theresa Anderson met the most, at 7 events:
 
         ```{python}
-        events = (
-            ec.Graph()
-            .add_nodes(["Ann", "Bob", "Cal", "Gala", "Expo", "Fair"])
-            .add_edges(
-                [
-                    ("Ann", "Gala"),
-                    ("Bob", "Gala"),
-                    ("Ann", "Expo"),
-                    ("Bob", "Expo"),
-                    ("Cal", "Fair"),
-                    ("Ann", "Fair"),
-                    ("Bob", "Fair"),
-                ]
-            )
-        )
+        davis = ec.davis_southern_women()
+        women = davis.bipartite_projection(which=0)
 
-        people = events.bipartite_projection(which=0)
-        {
-            (people.get_label_from_id(s), people.get_label_from_id(t)): people.get_edge(e).weight
-            for e, s, t in people.get_edges_as_tuples()
-        }
+        (
+            women.get_edge_df(labels=True)
+            .select("source", "target", "weight")
+            .sort("weight", descending=True)
+            .head(3)
+        )
         ```
 
-        Projecting onto the other partition instead links events that share attendees:
+        Keeping only the pairs who met at 4 events or more splits the women into two groups, of 8
+        and 6, much as Davis and his colleagues found, and leaves 4 women who met no one that
+        often:
 
         ```{python}
-        events.bipartite_projection(which=1).get_edges_str_repr(use_labels=True)
+        women.select_edges(lambda e: e.weight < 4).delete_edges_ws()
+
+        women.plot(label_by="label", edge_width_by="weight", seed=1)
         ```
         """
         edges = rust.bipartite_projection(self._graph, which)
