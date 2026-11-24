@@ -32740,45 +32740,57 @@ class Graph:
         basis itself is not: multiple bases can tie for minimum weight, and this call returns
         one of them. When edge weights are irrelevant, `cycle_basis()` is faster.
 
+        See Also
+        --------
+        cycle_basis : A cycle basis built from a spanning tree, faster to find.
+        girth : The length of the shortest cycle.
+
         Examples
         --------
-        Two triangles sharing an edge form the minimum-weight basis here, since together
-        they cover every cycle in the graph at the lowest possible total length:
+        In a square with a long diagonal, the basis keeps the two triangles when every edge
+        counts the same, but the square and one triangle once the diagonal's `length` counts:
 
         ```{python}
         import edgecase as ec
 
-        # Two triangles sharing an edge
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "C")])
-        )
+        square = ec.Graph.from_edges([
+            ("A", "B", {"length": 1}),
+            ("B", "C", {"length": 1}),
+            ("C", "D", {"length": 1}),
+            ("D", "A", {"length": 1}),
+            ("A", "C", {"length": 10}),
+        ])
+        label = square.get_label_from_id
 
-        basis = graph.minimum_cycle_basis()
-        len(basis)
+        (
+            [[label(n) for n in c] for c in square.minimum_cycle_basis()],
+            [[label(n) for n in c]
+             for c in square.minimum_cycle_basis(weight_attr="length")],
+        )
         ```
 
-        Weights can also come from another edge attribute through `weight_attr=`. In a square
-        with a long diagonal, the two triangles through the diagonal are heavier than the square
-        itself, so the basis keeps the square and only one of the triangles:
+        ### The rings of caffeine
+
+        `molecules()` holds seven small molecules as graphs of their atoms and bonds, with the
+        hydrogen atoms left out. Caffeine's two rings, of 5 and 6 atoms, are its shortest cycles,
+        and they are the minimum cycle basis. A chemist would name the same two:
 
         ```{python}
-        square = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B", {"length": 1}),
-                    ("B", "C", {"length": 1}),
-                    ("C", "D", {"length": 1}),
-                    ("D", "A", {"length": 1}),
-                    ("A", "C", {"length": 10}),
-                ]
-            )
-        )
+        caffeine = ec.molecules()["caffeine"]
+        label = caffeine.get_label_from_id
+        rings = caffeine.minimum_cycle_basis()
 
-        square.minimum_cycle_basis(), square.minimum_cycle_basis(weight_attr="length")
+        [[label(n) for n in ring] for ring in rings]
+        ```
+
+        ```{python}
+        caffeine.plot(
+            highlight={
+                "accent": rings[0] + rings[0][:1],
+                "soft": rings[1] + rings[1][:1],
+            },
+            label_by="label", seed=1,
+        )
         ```
         """
         from edgecase._core import minimum_cycle_basis as rust_minimum_cycle_basis
