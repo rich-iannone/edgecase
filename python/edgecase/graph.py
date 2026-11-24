@@ -33070,68 +33070,70 @@ class Graph:
         returned arbitrarily. Undirected graphs only; convert a directed graph with
         `to_undirected()` first if direction does not matter for your question.
 
+        See Also
+        --------
+        find_cliques : List all maximal cliques.
+        clique_number : The size of a largest clique.
+        maximum_weight_clique : The clique with the largest total node weight.
+
         Examples
         --------
-        In a triangle, the maximum clique is the whole graph. The result is a list of node IDs:
+        `A`, `B`, `C` and `D` are all linked to one another, and `E` only to `A` and `B`. The
+        maximum clique is the four of them. `A`, `B` and `E` form a maximal clique too, but a
+        smaller one:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("E", "A"), ("E", "B")]
         )
+        clique = graph.maximum_clique()
 
-        graph.maximum_clique()
+        [graph.get_label_from_id(n) for n in clique]
         ```
 
-        In a path, no three nodes are mutually connected, so the maximum clique is just
-        a single edge:
+        ### Exams that need their own slots
+
+        `exams()` joins two of a made-up college's courses when some student takes both, so
+        their exams can't share a time slot. The largest group of courses that all share
+        students with one another is Calculus, Physics, Chemistry and Biology. Their four exams
+        need four different slots, so no timetable has fewer than four:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        exams = ec.exams()
+        clique = exams.maximum_clique()
+
+        [exams.get_label_from_id(n) for n in clique]
+        ```
+
+        The six edges of the clique are its pairs of courses:
+
+        ```{python}
+        from itertools import combinations
+
+        exams.plot(
+            highlight=list(combinations(clique, 2)), size_by="students",
+            label_by="label", seed=3, height=420,
         )
-
-        graph.maximum_clique()
         ```
 
-        In a small friendship network, "Ann", "Bob", "Cat", and "Dan" all know one another while
-        "Eve" only knows two of them. Mapping the returned IDs back to labels shows the
-        four-person clique:
+        ### Ties
+
+        When several cliques tie for the largest, one of them is returned. `towns()` holds 12
+        towns of a made-up county and the 26 roads between them. Two groups of four towns are all
+        joined to one another by direct roads, and `maximum_clique()` returns the one with
+        Kestrel Bay:
 
         ```{python}
-        graph = ec.Graph(directed=False)
+        towns = ec.towns()
+        label = towns.get_label_from_id
 
-        graph.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
-
-        graph.add_edges(
-            [
-                ("Ann", "Bob"), ("Ann", "Cat"), ("Ann", "Dan"),
-                ("Bob", "Cat"), ("Bob", "Dan"), ("Cat", "Dan"),
-                ("Eve", "Ann"), ("Eve", "Bob"),
-            ]
+        (
+            [label(n) for n in towns.maximum_clique()],
+            [[label(n) for n in c] for c in towns.find_cliques() if len(c) == 4],
         )
-
-        [graph.get_label_from_id(nid) for nid in graph.maximum_clique()]
-        ```
-
-        An empty graph has no clique to find:
-
-        ```{python}
-        ec.Graph(directed=False).maximum_clique()
-        ```
-
-        In a complete graph, the maximum clique is every node:
-
-        ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_full_graph(n=6)
-
-        len(graph.maximum_clique())
         ```
         """
         return self._graph.max_clique()
