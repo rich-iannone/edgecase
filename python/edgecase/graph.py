@@ -38703,54 +38703,103 @@ class Graph:
         weakness of the method). `cmty_leiden()` adds a refinement step that rules this out
         and usually reaches slightly higher modularity.
 
+        See Also
+        --------
+        cmty_leiden : Louvain with a refinement step; communities are always connected.
+        cmty_louvain_levels : The partition at every level of the Louvain hierarchy.
+        modularity : The score that Louvain maximizes, for any partition.
+        cmty_label_propagation : A faster method that optimizes no global score.
+
         Examples
         --------
-        Nodes within each triangle end up in the same community, and the two triangles
-        get different communities, since the bridge edge is the only thing connecting
-        them:
+        Two triangles joined by a single edge are two communities. Each node's community is stored
+        in the `cmty_louvain` column:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False).add_nodes(["A", "B", "C", "D", "E", "F"])
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        # Build two complete triangles connected by bridge
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                         ("C", "D"),  # Bridge
-                         ("D", "E"), ("E", "F"), ("F", "D")])
-
-        communities = graph.cmty_louvain(return_dict=True)
-        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
+        graph.cmty_louvain().get_node_df().select("label", "cmty_louvain")
         ```
 
-        Raising `resolution=` above `1.0` favors smaller communities, and lowering it
-        below `1.0` favors larger ones:
+        ### Finding the factions of a karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined (1 for the instructor's, 2 for the administrator's). Louvain doesn't know about the
+        split, but can it find it from the friendships alone? Counting members by community and faction:
 
         ```{python}
-        fine = graph.cmty_louvain(resolution=1.5, return_dict=True)
-        coarse = graph.cmty_louvain(resolution=0.5, return_dict=True)
-
-        len(set(fine.values())), len(set(coarse.values()))
-        ```
-
-        Storing the result as a node attribute and chaining into `colorize_node_attrs()`
-        visualizes the communities directly:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
-        )
+        karate = ec.karate_club().cmty_louvain()
 
         (
-            graph
-            .cmty_louvain(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="viridis")
-            .describe()
+            karate.get_node_df()
+            .group_by("cmty_louvain", "faction")
+            .len()
+            .sort("cmty_louvain", "faction")
         )
         ```
+
+        It finds four communities rather than two, but each lies within one faction, except for
+        member 9, who has one friend on each side. To draw them, `layout_kamada_kawai()` stores
+        positions that every plot on this page reuses, and coloring the edges by community shows
+        the friendships between groups in gray:
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos",
+            color_by="cmty_louvain",
+            edge_color_by="cmty_louvain",
+            label_by="label",
+        )
+        ```
+
+        The instructor's side splits into a core around member 0 and a small group (4, 5, 6, 10
+        and 16) attached to the club only through the instructor.
+
+        ### Choosing the resolution
+
+        Louvain maximizes modularity, which scores the four communities above the two factions:
+
+        ```{python}
+        (
+            round(karate.modularity("cmty_louvain"), 3),
+            round(karate.modularity("faction"), 3),
+        )
+        ```
+
+        `resolution=` sets the size of community it looks for. Below `1.0` it favors fewer, larger
+        communities, and at `0.5` it recovers the two factions exactly, member for member (left).
+        Above `1.0` it favors smaller ones, and at `2.0` it finds seven (right):
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.cmty_louvain(resolution=0.5, attr_name="coarse")
+        karate.plot(
+            layout="pos", color_by="coarse", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.cmty_louvain(resolution=2.0, attr_name="fine")
+        karate.plot(
+            layout="pos", color_by="fine", label_by="label",
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        No single resolution is right for every network, and modularity has a known resolution limit:
+        in a large network it can merge small, clearly separate communities. `cmty_leiden()` optimizes
+        the same score with a refinement step that also guarantees each community is connected.
         """
         communities = self._graph.get_cmty_louvain(resolution)
 
@@ -38761,12 +38810,9 @@ class Graph:
         if return_dict:
             return communities
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
         # Track computation
         params = {"resolution": resolution} if resolution != 1.0 else {}
-        self._computations.append(("cmty_louvain", params, attr_name))
+        self._store_node_result("cmty_louvain", params, attr_name, communities, show="groups")
 
         return self
 
