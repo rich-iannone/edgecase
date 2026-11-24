@@ -159,8 +159,8 @@ their own.
 
 The way to choose among the methods for a particular network is to test them. A standard test
 hides some of the edges, scores the pairs of the remaining graph, and checks whether the hidden
-edges score higher than the pairs that were never linked. The jazz musicians network (simplified,
-since it has duplicate edges) is large enough for a meaningful test. Here 10% of its edges are held
+edges score higher than the pairs that were never linked. The jazz network, of bands linked when they
+shared a musician, is large enough for a meaningful test. Here 10% of its edges are held
 out at random:
 
 ```{python}
