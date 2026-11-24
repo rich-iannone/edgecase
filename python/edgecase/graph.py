@@ -19885,17 +19885,43 @@ class Graph:
 
         Examples
         --------
-        A square is perfectly bipartite; adding one diagonal creates triangles:
+        A square has only even cycles and scores `1`, while a triangle's odd cycle brings its
+        score down:
 
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_cycle_graph(4)
-        before = square.spectral_bipartivity()
-        ids = sorted(square.get_node_ids(limit=None))
-        square.add_edge(ids[0], ids[2])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        before, round(square.spectral_bipartivity(), 3)
+        square.spectral_bipartivity(), round(triangle.spectral_bipartivity(), 3)
+        ```
+
+        ### Almost bipartite
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        It isn't bipartite, but it's close: its only triangles are the two that share the track
+        from Central to Riverside, and the stations on them score lowest:
+
+        ```{python}
+        metro = ec.metro()
+        bipartivity = metro.spectral_bipartivity(nodes=metro.get_node_ids())
+        ranked = sorted(bipartivity, key=bipartivity.get)
+        label = metro.get_label_from_id
+
+        (
+            round(metro.spectral_bipartivity(), 3),
+            [(label(n), round(bipartivity[n], 3)) for n in ranked[:4]],
+        )
+        ```
+
+        ```{python}
+        metro.set_node_attrs("bipartivity", bipartivity).plot(
+            layout="pos", color_by="bipartivity", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         ids, cosh, exp = rust.exp_cosh_diagonals(self._graph, self._use_weights(weighted))
