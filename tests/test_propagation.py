@@ -315,3 +315,38 @@ class TestHeatDiffusion:
         heat = g.heat_diffusion(seeds={seed_id: 10.0}, t=0.5, return_dict=True)
         assert len(heat) == 4
         assert all(h >= 0 for h in heat.values())
+
+
+# =============================================================================
+# Seeds given by label
+# =============================================================================
+
+
+@pytest.mark.parametrize(
+    "method, kwargs",
+    [
+        ("personalized_pagerank", {}),
+        ("random_walk_with_restart", {}),
+        ("heat_diffusion", {"t": 0.5}),
+        ("network_smooth", {}),
+    ],
+)
+def test_seeds_accept_labels(path_graph, method, kwargs):
+    g = path_graph
+    by_id = getattr(g, method)({g.get_id_from_label("A"): 2.0, g.get_id_from_label("D"): 1.0},
+                               return_dict=True, **kwargs)
+    by_label = getattr(g, method)({"A": 2.0, "D": 1.0}, return_dict=True, **kwargs)
+    assert by_label == by_id
+
+
+def test_label_propagation_accepts_labels(path_graph):
+    g = path_graph
+    by_id = g.label_propagation(
+        {g.get_id_from_label("A"): 0, g.get_id_from_label("E"): 1}, return_dict=True
+    )
+    assert g.label_propagation({"A": 0, "E": 1}, return_dict=True) == by_id
+
+
+def test_unknown_seed_label_raises(path_graph):
+    with pytest.raises(ec.NodeNotFoundError):
+        path_graph.random_walk_with_restart({"nobody": 1.0})
