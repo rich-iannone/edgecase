@@ -6125,16 +6125,25 @@ class Graph:
         and to triangulate every face but the largest, which becomes the outer face, and then
         places the nodes one at a time in a canonical order with the shift method of Chrobak and
         Payne. Every node lands on an integer grid point, `x` from `0` to `2n - 4` and `y` from
-        `0` to `n - 2`, and the edges drawn as straight lines never cross. The result is
-        centered and scaled so the largest coordinate is `scale=`. This ports NetworkX's
-        `planar_layout()`; a planar graph has many embeddings and this one need not be the one
-        NetworkX finds, so the positions can differ from NetworkX's while being just as
-        crossing-free.
+        `0` to `n - 2`, and the edges drawn as straight lines never cross. This ports NetworkX's
+        `planar_layout()`, but that drawing crowds the nodes: the triangulation pulls them into a
+        broad triangle, and nodes deep inside it can nearly touch. So with `refine=True`
+        (default), a force-directed pass then spreads them out, as in `layout_spring()`: nodes
+        repel each other and the edges near them, and edges pull their ends together. Any move
+        that would make two edges cross, or bring a node onto an edge, is cut short, so the
+        drawing stays crossing-free. The result is centered and scaled so the largest
+        coordinate is `scale=`.
 
-        The drawing guarantees no crossings, not good looks: the triangulation pulls the nodes
-        into a broad triangle, and nodes deep inside it can sit close together. It suits
-        checking or showing that a graph is planar; for a readable picture, a force-directed
-        layout such as `layout_spring()` often draws a planar graph without crossings too.
+        A planar graph has many embeddings and this one need not be the one NetworkX finds, so
+        even with `refine=False` the positions can differ from NetworkX's while being just as
+        crossing-free. The refinement keeps every node inside its face, so a node in a small
+        face stays cramped, and the drawing suits checking or showing that a graph is planar
+        more than reading it. For a readable picture, a force-directed layout such as
+        `layout_spring()` often draws a planar graph without crossings too. The refinement runs
+        300 rounds, each costing `O((n + m)^2)` for `n` nodes and `m` edges, with fewer rounds
+        on larger graphs so that it stays within about a second; from a few thousand nodes it
+        is skipped.
+
         Edge direction, self-loops and parallel edges are ignored. Graphs with fewer than four
         nodes use fixed points of a triangle, `(0, 0)`, `(2, 0)` and `(1, 1)`, in node ID order,
         and separate components are joined before triangulating, so they are laid out together.
@@ -6144,9 +6153,12 @@ class Graph:
 
         Parameters
         ----------
+        refine
+            If `True` (default), spread the nodes out without letting any edges cross. If
+            `False`, keep the integer grid drawing of Chrobak and Payne, as NetworkX does.
         scale
-            Largest coordinate after rescaling. `None` keeps the integer grid coordinates
-            (`center=` is then ignored). Default is `1.0`.
+            Largest coordinate after rescaling. `None` keeps the raw coordinates, on the integer
+            grid when `refine=False` (`center=` is then ignored). Default is `1.0`.
         center
             Center of the layout, as `(x, y)`. Default is the origin.
         attr_name
@@ -6175,12 +6187,14 @@ class Graph:
         Examples
         --------
         `K_4` is planar, so it can be drawn without crossings, with one node inside the triangle
-        of the other three. `scale=None` keeps the grid coordinates:
+        of the other three. `refine=False` and `scale=None` keep the grid coordinates:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_full_graph(n=4).layout_planar(scale=None, return_dict=True)
+        ec.Graph().add_full_graph(n=4).layout_planar(
+            refine=False, scale=None, return_dict=True
+        )
         ```
 
         Stored positions are what `plot(layout=...)` draws:
