@@ -65949,27 +65949,65 @@ class Graph:
         an open collider path). It visits each node at most once in each direction, so it runs
         in $O(V + E)$ time, as NetworkX's `is_d_separator` does.
 
+        See Also
+        --------
+        is_minimal_d_separator : Check that no smaller set separates.
+        find_minimal_d_separator : Find a minimal separator.
+        colliders : The colliders that conditioning opens.
+
         Examples
         --------
-        Smoking causes tar, tar causes cancer, and smoking also causes yellow fingers. Smoking
-        and cancer are dependent, but conditioning on tar blocks the only path between them:
+        In a chain `A` → `B` → `C`, conditioning on `B` blocks the path. In a collider
+        `A` → `B` ← `C`, it opens it:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["smoking", "tar", "cancer", "fingers"])
-        g.add_edges([("smoking", "tar"), ("tar", "cancer"), ("smoking", "fingers")])
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        collider = ec.Graph.from_edges([("A", "B"), ("C", "B")], directed=True)
 
-        g.is_d_separator("smoking", "cancer", []), g.is_d_separator("smoking", "cancer", "tar")
+        (
+            chain.is_d_separator("A", "C", ["B"]),
+            collider.is_d_separator("A", "C", ["B"]),
+        )
         ```
 
-        Conditioning on a common effect (a collider) opens a path. Talent and luck are
-        independent, but become dependent among people who are known to be successful:
+        ### Reading independence from a diagram
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Exercise and Diet are d-separated given nothing, since their only
+        connection is the collider Weight. Conditioning on Weight, or on Blood pressure or Heart
+        disease, which it affects, opens that path:
 
         ```{python}
-        h = ec.Graph(directed=True).add_nodes(["talent", "luck", "success"])
-        h.add_edges([("talent", "success"), ("luck", "success")])
-        h.is_d_separator("talent", "luck", []), h.is_d_separator("talent", "luck", "success")
+        causal = ec.causal()
+
+        {
+            tuple(given): causal.is_d_separator("Exercise", "Diet", given)
+            for given in [[], ["Weight"], ["Heart disease"]]
+        }
+        ```
+
+        Age reaches Heart disease only through Blood pressure, but conditioning on Blood
+        pressure alone doesn't separate them: Blood pressure is a collider on the path through
+        Genetics, in the accent color. Adding Genetics blocks it:
+
+        ```{python}
+        (
+            causal.is_d_separator("Age", "Heart disease", ["Blood pressure"]),
+            causal.is_d_separator(
+                "Age", "Heart disease", ["Blood pressure", "Genetics"]
+            ),
+        )
+        ```
+
+        ```{python}
+        causal.plot(
+            layout="pos",
+            highlight=[("Age", "Blood pressure"), ("Genetics", "Blood pressure"),
+                       ("Genetics", "Heart disease")],
+            label_by="label", height=360,
+        )
         ```
         """
         x, y, z = self._dsep_sets(x, y, z)
