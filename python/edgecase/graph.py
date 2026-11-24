@@ -63600,6 +63600,12 @@ class Graph:
         already emitted (each edge ID once). $O(V + E)$. Matches NetworkX's `edge_bfs` on the
         corresponding (multi)graph, with edge IDs in place of keys.
 
+        See Also
+        --------
+        bfs_edges : Only the edges that reach a new node.
+        edge_dfs : Every edge in depth-first order.
+        generic_edge_bfs : The same search over edges that a callback supplies.
+
         Examples
         --------
         A triangle's three edges are all visited, while `bfs_edges()` only gives the two tree
@@ -63608,10 +63614,31 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
 
-        [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v, _ in g.edge_bfs("A")]
+        label = graph.get_label_from_id
+        [(label(u), label(v)) for u, v, _ in graph.edge_bfs("A")]
+        ```
+
+        ### Every stretch of track
+
+        `metro()` is a made-up city's metro network. From Central, the search visits all 25
+        stretches of track, while `bfs_edges()` gives only the 19 that reach a new station.
+        The other 6 (highlighted) each close a loop:
+
+        ```{python}
+        metro = ec.metro()
+        every = metro.edge_bfs("Central")
+        tree = {frozenset(step) for step in metro.bfs_edges("Central")}
+
+        loops = [e for u, v, e in every if frozenset((u, v)) not in tree]
+        len(every), len(loops)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight_edges=loops, label_by="label")
         ```
         """
         result = self._edge_traversal(source, orientation, depth_first=False)
