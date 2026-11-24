@@ -34190,19 +34190,55 @@ class Graph:
 
         Examples
         --------
-        A complete bipartite graph is the join of two edgeless graphs, so it is a cograph.
-        Dropping the edge a-z leaves z, b, x, a as an induced path on four nodes, and the
-        graph is no longer one:
+        A path on three nodes is a cograph, the join of its middle node with the two ends. A
+        path on four nodes is the smallest graph that isn't:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["a", "b", "x", "y", "z"])
-        g.add_edges([(u, v) for u in "ab" for v in "xyz"])
-        before = g.is_cograph()
-        g.delete_edge("a", "z")
+        (
+            ec.Graph().add_path_graph(3).is_cograph(),
+            ec.Graph().add_path_graph(4).is_cograph(),
+        )
+        ```
 
-        before, g.is_cograph()
+        ### Two teams and one link
+
+        A lab has two teams, and everyone in a team works with everyone else in it: two
+        cliques, a union of joins, and so a cograph. When Cy, in the first team, starts working
+        with Fay, in the second (right), Ada, Cy, Fay and Gil form an induced path on four
+        nodes, and the graph is no longer a cograph:
+
+        ```{python}
+        from itertools import combinations
+
+        lab = ec.Graph.from_edges(
+            [*combinations(["Ada", "Bo", "Cy"], 2),
+             *combinations(["Dev", "Eve", "Fay", "Gil"], 2)]
+        )
+        lab.is_cograph()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        lab.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=360
+        )
+        ```
+
+        ```{python}
+        lab.add_edge("Cy", "Fay")
+        lab.plot(
+            layout="pos", highlight=["Ada", "Cy", "Fay", "Gil"],
+            label_by="label", width=320, height=360,
+        )
+        ```
+
+        :::
+
+        ```{python}
+        lab.is_cograph()
         ```
         """
         if self.is_directed():
