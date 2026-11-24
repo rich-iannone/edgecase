@@ -65288,24 +65288,50 @@ class Graph:
         ValueError
             If the graph is undirected or contains a cycle.
 
+        See Also
+        --------
+        topological_sort : Order the nodes so that every edge points forward.
+        dag_longest_path : The longest path in a directed acyclic graph.
+        antichain_width : The size of the largest set of mutually unreachable nodes.
+
         Examples
         --------
-        In this build pipeline, `fetch` comes first; `compile` and `docs` can then run in
-        parallel; `test` waits for `compile`, and `package` waits for `test`:
+        In this build pipeline, `fetch` comes first, `compile` and `docs` can then run in
+        parallel, and `test` waits for `compile`, and `package` for `test`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["fetch", "compile", "test", "package", "docs"])
-            .add_edges([
-                ("fetch", "compile"), ("compile", "test"),
-                ("test", "package"), ("compile", "package"), ("fetch", "docs"),
-            ])
+        graph = ec.Graph.from_edges(
+            [("fetch", "compile"), ("compile", "test"), ("test", "package"),
+             ("compile", "package"), ("fetch", "docs")],
+            directed=True,
         )
+        [[graph.get_label_from_id(n) for n in gen]
+         for gen in graph.topological_generations()]
+        ```
 
-        [[graph.get_label_from_id(n) for n in gen] for gen in graph.topological_generations()]
+        ### Semesters of a degree
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Each generation holds the courses whose
+        prerequisites all come in earlier ones, so taking each generation in a semester of its
+        own, the program takes six semesters, and no schedule can take fewer:
+
+        ```{python}
+        courses = ec.courses()
+        stages = courses.topological_generations()
+
+        [[courses.get_label_from_id(n) for n in stage] for stage in stages]
+        ```
+
+        Laying out the generations from left to right shows the prerequisites flowing in one
+        direction:
+
+        ```{python}
+        courses.layout_multipartite(subset_key=dict(enumerate(stages))).plot(
+            layout="pos", color_by="dept", label_by="label", height=420,
+        )
         ```
         """
         gens = rust.topological_generations(self._graph)
