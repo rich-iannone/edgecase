@@ -32434,61 +32434,71 @@ class Graph:
         cycles once the bound cuts a branch off) and instead prunes any branch whose
         shortest way back to the start node would exceed the bound.
 
+        See Also
+        --------
+        has_cycles : Check if the graph has any cycle.
+        cycle_basis : A set of cycles from which every cycle can be built.
+        find_negative_cycle : A cycle whose edge weights sum to less than zero.
+
         Examples
         --------
-        A directed graph with a 2-cycle and a 3-cycle produces exactly two simple cycles:
+        A directed graph with arrows both ways between `A` and `B` has a cycle of two, and
+        `A`, `B` and `C` form a cycle of three:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # closes A -> B -> C -> A
-                    ("B", "A"),  # closes A -> B -> A
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "A"), ("B", "C"), ("C", "A")], directed=True
         )
 
-        len(graph.simple_cycles())
+        [[graph.get_label_from_id(n) for n in c] for c in graph.simple_cycles()]
         ```
 
-        An undirected triangle has exactly one cycle, since each direction around the
-        loop is the same cycle:
+        ### Round trips between currencies
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate. Every cycle is a round trip that changes money and back
+        again, and there are 33, nine of them simply between two currencies:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        from collections import Counter
 
-        len(graph.simple_cycles())
+        fx = ec.currency()
+        label = fx.get_label_from_id
+        cycles = fx.simple_cycles()
+
+        len(cycles), sorted(Counter(len(cycle) for cycle in cycles).items())
         ```
 
-        `length_bound=` excludes any cycle longer than the given size -- here, the
-        4-cycle is filtered out, leaving only the 2-cycle:
+        Multiplying the rates around each one shows what a round trip returns for each unit
+        changed. Spreads make almost all of them lose a little, but the stale euro–pound quotes
+        make one gain:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "A"),  # 2-cycle
-                    ("B", "C"),
-                    ("C", "D"),
-                    ("D", "A"),  # 4-cycle
-                ]
-            )
-        )
+        from math import prod
 
-        graph.simple_cycles(length_bound=3)
+        edges = fx.get_edge_df().select("source", "target", "rate")
+        rate = {(u, v): r for u, v, r in edges.iter_rows()}
+
+        def returns(cycle):
+            return prod(rate[u, v] for u, v in zip(cycle, cycle[1:] + cycle[:1]))
+
+        best = max(cycles, key=returns)
+        [label(n) for n in best], round(returns(best), 5)
+        ```
+
+        ```{python}
+        fx.plot(
+            highlight=best + best[:1], label_by="label", curved_edges=True, seed=4
+        )
+        ```
+
+        With `length_bound=2`, only the trips between two currencies are left, and the pairs
+        quoted both ways are the nine traded pairs:
+
+        ```{python}
+        len(fx.simple_cycles(length_bound=2))
         ```
         """
         from edgecase._core import simple_cycles as rust_simple_cycles
