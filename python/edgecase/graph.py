@@ -36461,20 +36461,46 @@ class Graph:
         `lattice_reference` instead compares $d(a, c) + d(b, d)$, which does not measure the new
         edges; EdgeCase uses the intended criterion, so its references are more lattice-like.
 
+        See Also
+        --------
+        random_reference : A random graph with the same degrees.
+        small_world_omega : Compare a graph with random and lattice references.
+
         Examples
         --------
-        Latticizing a random graph raises its clustering:
+        A fully rewired ring has little clustering. Its lattice reference puts the edges back
+        around the ring, and the clustering rises to that of a ring lattice:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_gnp_graph(n=40, p=0.15, seed=3)
-        lattice = g.lattice_reference(iterations=10, seed=4)
+        graph = ec.Graph().add_smallworld_graph(n=24, k=4, p=1.0, seed=1)
+        lattice = graph.lattice_reference(iterations=20, seed=1)
+
         (
-            round(g.average_clustering_coefficient(), 3),
+            round(graph.average_clustering_coefficient(), 3),
             round(lattice.average_clustering_coefficient(), 3),
         )
         ```
+
+        The ring is the order of the node IDs, as `layout_circular(order="id")` places them. The
+        random graph (left) has edges across the circle; in the lattice reference (right), nearly
+        every edge joins two nodes close together on the ring:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_circular(order="id").plot(layout="pos", width=320, height=320)
+        ```
+
+        ```{python}
+        lattice.layout_circular(order="id").plot(layout="pos", width=320, height=320)
+        ```
+
+        :::
+
+        The more `iterations=`, the closer the result comes to a lattice. It is the ordered
+        baseline of `small_world_omega()`, as `random_reference()` is the random one.
         """
         result = Graph._from_rust(
             rust.reference_graph(self._graph, iterations, True, connectivity, seed)
