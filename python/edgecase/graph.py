@@ -19158,52 +19158,44 @@ class Graph:
 
         Examples
         --------
-        A small gene-disease network splits into its genes and its diseases. Mapping the IDs
-        back to labels shows which side each node landed on:
+        Two people share the chess club and two the choir. The 2-coloring puts the people on one
+        side and the clubs on the other, and the side with Ana, the lowest node ID, comes first:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Gene1", "Gene2", "Disease1", "Disease2"])
-            .add_edges([("Gene1", "Disease1"), ("Gene1", "Disease2"), ("Gene2", "Disease1")])
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
         )
+        label = graph.get_label_from_id
+        people, clubs = graph.bipartite_sets()
 
-        set_a, set_b = graph.bipartite_sets()
+        [label(n) for n in people], [label(n) for n in clubs]
+        ```
+
+        ### Women and events
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. The coloring finds the two sides from the edges alone, and they match the
+        attribute:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        side = davis.get_node_attrs("bipartite")
+
         (
-            [graph.get_label_from_id(i) for i in set_a],
-            [graph.get_label_from_id(i) for i in set_b],
+            len(women), len(events),
+            {side[n] for n in women}, {side[n] for n in events},
         )
         ```
 
-        Isolated nodes and separate components are each colored on their own, starting from
-        their lowest node ID. Here "E" has no edges, so it joins the first set even though it
-        is conceptually unrelated to "A" and "C":
-
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("C", "D")])
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos", color_by="bipartite", label_by="label", height=900
         )
-
-        set_a, set_b = graph.bipartite_sets()
-        (
-            [graph.get_label_from_id(i) for i in set_a],
-            [graph.get_label_from_id(i) for i in set_b],
-        )
-        ```
-
-        A triangle can't be split into two sides, so the method raises a `ValueError`:
-
-        ```{python}
-        triangle = ec.Graph().add_cycle_graph(n=3)
-
-        try:
-            triangle.bipartite_sets()
-        except ValueError as e:
-            print(e)
         ```
         """
         return rust.bipartite_sets(self._graph)
