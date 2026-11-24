@@ -54069,23 +54069,81 @@ class Graph:
         ValueError
             If the graph is undirected, has no basal node, or has a node not reachable from one.
 
+        See Also
+        --------
+        trophic_differences : The level difference across each edge.
+        trophic_incoherence_parameter : How far the graph is from a perfect hierarchy.
+        topological_sort : An order of a DAG with no levels.
+
         Examples
         --------
-        A small food web: the fox eats rabbits and mice (both level 2), so it sits at level 3;
-        the owl eats mice (2) and foxes (3), so it sits at 1 + (2 + 3) / 2 = 3.5:
+        In this small food web, the fox eats rabbits and mice (both at level 2), so it sits at
+        level 3. The owl eats mice (2) and foxes (3), so it sits at `1 + (2 + 3) / 2 = 3.5`:
 
         ```{python}
         import edgecase as ec
 
-        web = (
-            ec.Graph(directed=True)
-            .add_nodes(["grass", "rabbit", "mouse", "fox", "owl"])
-            .add_edges([("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
-                        ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")])
+        web = ec.Graph.from_edges(
+            [("grass", "rabbit"), ("grass", "mouse"), ("rabbit", "fox"),
+             ("mouse", "fox"), ("mouse", "owl"), ("fox", "owl")],
+            directed=True,
         )
 
-        levels = web.trophic_levels(return_dict=True)
-        {web.get_label_from_id(n): level for n, level in sorted(levels.items())}
+        web.trophic_levels().get_node_df().select("label", "trophic_levels")
+        ```
+
+        ### Layers of prerequisites
+
+        In `courses()`, each edge points from a prerequisite to a course that requires it, so a
+        course's trophic level is one more than the average level of its prerequisites. Most of
+        the 200-level courses sit at level 3, but Probability and Statistics (STAT201) is at 4,
+        level with the 300-level courses: it comes at the end of a chain of three math courses:
+
+        ```{python}
+        import polars as pl
+
+        courses = (
+            ec.courses()
+            .trophic_levels()
+            .layout_multipartite(subset_key="level")
+        )
+
+        (
+            courses.get_node_df()
+            .filter(pl.col("level") == 200)
+            .select("label", "title", "trophic_levels")
+        )
+        ```
+
+        With the courses in columns by number, STAT201 is the darkest of the 200-level column:
+
+        ```{python}
+        courses.plot(layout="pos", color_by="trophic_levels", label_by="label")
+        ```
+
+        ### Layers of citations
+
+        `citations()` points each paper to the papers it cites. Reversed, the edges point from a
+        paper to the later papers that build on it, and the two oldest papers, which cite
+        nothing, are the basal ones. Osei 2021 sits highest. The survey, Hughes 2020, is the
+        second-newest paper but only fifth: it cites papers from every layer, back to both of
+        the oldest, and they pull its average down:
+
+        ```{python}
+        cited = ec.citations().reverse().trophic_levels()
+
+        (
+            cited.get_node_df()
+            .select("label", "year", "trophic_levels")
+            .sort("trophic_levels", descending=True)
+            .head(5)
+        )
+        ```
+
+        On the timeline, the levels mostly rise with the years:
+
+        ```{python}
+        cited.plot(layout="pos", color_by="trophic_levels", label_by="label")
         ```
         """
         scores = rust.trophic_levels(self._graph, weighted=self._use_weights(weighted))
