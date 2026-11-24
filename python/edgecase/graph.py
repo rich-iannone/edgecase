@@ -72900,19 +72900,26 @@ class Graph:
         ValueError
             If a node does not exist, `source=` equals `target=`, or a capacity is negative.
 
+        See Also
+        --------
+        minimum_cut_value : The value alone.
+        minimum_edge_cut : The edges of the cut.
+        stoer_wagner : The cheapest cut over all pairs of nodes.
+        maximum_flow : The flow that the cut limits.
+
         Examples
         --------
-        Two well-connected clusters joined by a single thin link: the minimum cut runs through
-        that link and splits the clusters apart:
+        Two triangles joined by a single edge: the minimum cut runs through that edge and splits
+        the triangles apart:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         value, (left, right) = graph.minimum_cut("A", "F")
@@ -72924,13 +72931,43 @@ class Graph:
         narrowest point:
 
         ```{python}
-        pipes = ec.Graph(directed=True).add_nodes(["s", "a", "b", "t"])
-        pipes.add_edge("s", "a", capacity=2)
-        pipes.add_edge("a", "b", capacity=5)
-        pipes.add_edge("b", "t", capacity=4)
+        pipes = ec.Graph.from_edges(
+            [
+                ("s", "a", {"capacity": 2}),
+                ("a", "b", {"capacity": 5}),
+                ("b", "t", {"capacity": 4}),
+            ],
+            directed=True,
+        )
 
         value, (left, right) = pipes.minimum_cut("s", "t")
         value, [pipes.get_label_from_id(n) for n in left]
+        ```
+
+        ### Predicting the split
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. The minimum cut between the two leaders ends 10 friendships, and its two sides
+        match the factions for every member but one, member 2:
+
+        ```{python}
+        karate = ec.karate_club()
+        value, (with_instructor, _) = karate.minimum_cut("0", "33")
+
+        nodes = karate.get_node_df()
+        faction = dict(zip(nodes["id"], nodes["faction"]))
+        side = {n: 1 if n in with_instructor else 2 for n in faction}
+
+        moved = [n for n in faction if side[n] != faction[n]]
+        value, [karate.get_label_from_id(n) for n in moved]
+        ```
+
+        ```{python}
+        karate.set_node_attrs("side", side)
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="side", label_by="label"
+        )
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
