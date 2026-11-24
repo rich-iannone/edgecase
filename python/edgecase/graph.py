@@ -5324,8 +5324,8 @@ class Graph:
 
         Shell layouts show a hierarchy or a grouping: a hub surrounded by its neighbors,
         k-cores from the dense center outward, or nodes grouped by type. With `nlist=None`
-        every node goes on one circle (like `layout_circular()`, but starting at the `rotate=`
-        angle).
+        every node goes on one circle in ID order (like `layout_circular(order="id")`, but
+        starting at the `rotate=` angle).
 
         Positions are stored as `[x, y]` lists in the `attr_name=` node attribute; see
         `layout_circular()`.
