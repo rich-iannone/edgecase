@@ -57461,43 +57461,60 @@ class Graph:
         be empty even when the $k$-shell is non-empty, and it is the natural set to inspect
         for structurally vulnerable positions inside dense subgraphs.
 
+        See Also
+        --------
+        k_shell : The nodes with coreness exactly `k`.
+        k_core : The nodes with coreness at least `k`.
+        coreness : The coreness of every node.
+
         Examples
         --------
-        Find the 2-corona in a simple graph:
+        In this triangle with two pendant nodes, the 2-core is the triangle, and each of its
+        nodes has exactly two neighbors in it, so the whole triangle is the 2-corona:
 
         ```{python}
         import edgecase as ec
 
-        # Create a graph with a dense core and peripheral nodes
-        g = ec.Graph()
-
-        # Dense core: nodes 1, 2, 3 form a triangle
-        g.add_nodes(["1", "2", "3"])
-        g.add_edges([("1", "2"), ("2", "3"), ("3", "1")])
-
-        # Add peripheral nodes
-        g.add_nodes(["4", "5"])
-        g.add_edges([("1", "4"), ("2", "5")])
-
-        # The 2-corona contains nodes in the 2-core with exactly 2 neighbors in 2-core
-        corona_2 = g.k_corona(2)
-        # Returns the number of nodes in the 2-corona
-        corona_2.count_nodes()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "D"), ("B", "E")]
+        )
+        sorted(graph.k_corona(2).get_node_df()["label"].to_list())
         ```
 
-        Analyze hierarchical structure:
+        Linking a new node `F` to all three gives each node of the 2-core a third neighbor in
+        it, so the 2-corona is empty. The four now make up the 3-core, with exactly three
+        neighbors each, so all four are in the 3-corona:
 
         ```{python}
-        # Build a graph and examine different corona levels
-        g = ec.Graph()
-        g.add_full_graph(5)  # K5 complete graph
+        graph.add_node(label="F")
+        graph.add_edges([("F", "A"), ("F", "B"), ("F", "C")])
+        graph.k_corona(2).count_nodes(), graph.k_corona(3).count_nodes()
+        ```
 
-        # In K5, all nodes have degree 4, so they're in the 4-core
-        # Each node has exactly 4 neighbors in the 4-core
-        corona_4 = g.k_corona(4)
+        ### Who goes first
 
-        # Returns 5 (all 5 nodes are in the 4-corona)
-        corona_4.count_nodes()
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. Its 8-shell holds eight characters. The 8-corona holds the six of them with
+        exactly eight neighbors in the 8-core. Valjean and Thenardier are in the shell but not
+        the corona: they have more neighbors in the core than they need, even though they don't
+        make it into the 9-core:
+
+        ```{python}
+        novel = ec.les_miserables()
+        corona = novel.k_corona(8)
+        shell = novel.k_shell(8)
+
+        sorted(corona.get_node_df()["label"].to_list())
+        ```
+
+        ```{python}
+        novel.plot(
+            highlight={
+                "accent": corona.get_node_ids(), "soft": shell.get_node_ids()
+            },
+            label_by="label",
+            seed=1,
+        )
         ```
         """
         self._check_non_negative(k=k)
