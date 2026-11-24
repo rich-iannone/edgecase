@@ -36904,21 +36904,54 @@ class Graph:
         ValueError
             If the graph is directed.
 
+        See Also
+        --------
+        count_triangles : The number of triangles at each node.
+        edge_clustering_coefficient : Clustering of each edge, by triangles or squares.
+        local_clustering_coefficient : Each node's clustering.
+
         Examples
         --------
-        In a triangle with a pendant edge, C has two edges in one triangle each and one edge
-        (to D) in none:
+        In a triangle with a tail, `C` has two edges in one triangle each and one edge, to `D`,
+        in none:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
+        label = graph.get_label_from_id
 
-        graph.generalized_degree()[graph.get_id_from_label("C")]
+        {label(n): counts for n, counts in graph.generalized_degree().items()}
+        ```
+
+        ### Deep ties and loose ones
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The administrator, member `33`, has 17 friends. Three of
+        those friendships lie in no triangle at all, while the one with member `32` lies in 10:
+
+        ```{python}
+        karate = ec.karate_club()
+        by_triangles = karate.generalized_degree()
+
+        by_triangles[karate.get_id_from_label("33")]
+        ```
+
+        Drawn with each friendship as wide and as dark as the number of triangles it lies in, the
+        thickest ties are in the two leaders' inner circles, and the thin ones cross between them:
+
+        ```{python}
+        triangles = karate.edge_clustering_coefficient(
+            normalized=False, offset=False
+        )
+        karate.set_edge_attrs("triangles", triangles)
+
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", label_by="label", edge_width=2,
+            edge_width_by="triangles", edge_color_by="triangles",
+        )
         ```
         """
         result = {
