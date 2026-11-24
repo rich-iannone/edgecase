@@ -37431,22 +37431,50 @@ class Graph:
         ValueError
             If some node has no value for the attribute.
 
+        See Also
+        --------
+        attribute_mixing_dict : The same counts as a nested dict.
+        assortativity_nominal : The coefficient computed from this matrix.
+        degree_mixing_matrix : The matrix for degree instead.
+
         Examples
         --------
-        Mostly within-team ties put most of the weight on the diagonal:
+        The counts of `attribute_mixing_dict()`, with a row and a column for each value, sorted:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("C", "D"), ("B", "C")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "team", {"A": "red", "B": "red", "C": "blue", "D": "blue"}
         )
-        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
+        matrix, teams = graph.attribute_mixing_matrix("team", normalized=False)
 
-        matrix, teams = graph.attribute_mixing_matrix("team")
-        teams, [[round(v, 3) for v in row] for row in matrix]
+        teams, matrix
+        ```
+
+        ### Bought together
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. As fractions of the links,
+        counted from both ends, almost all the weight is on the diagonal for the conservative and
+        liberal books, which are rarely bought together. The 13 neutral books are the exception,
+        with most of their links to one side or the other:
+
+        ```{python}
+        import polars as pl
+
+        books = ec.polbooks()
+        matrix, leanings = books.attribute_mixing_matrix("leaning")
+
+        pl.DataFrame(
+            [[round(v, 2) for v in row] for row in matrix],
+            schema=leanings, orient="row",
+        ).insert_column(0, pl.Series("leaning", leanings))
+        ```
+
+        ```{python}
+        books.plot(color_by="leaning", edge_color_by="leaning", seed=1)
         ```
         """
         return self._mixing_matrix(self._attribute_counts(attribute), normalized)
