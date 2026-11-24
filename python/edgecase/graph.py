@@ -58562,6 +58562,12 @@ class Graph:
         distances this method matches; when shortest paths tie, the predecessor picked may
         differ.
 
+        See Also
+        --------
+        bellman_ford_shortest_path : A shortest path to one target, with negative weights.
+        johnson : Shortest paths between all pairs, with negative weights.
+        find_negative_cycle : The cycle that makes shortest paths undefined.
+
         Examples
         --------
         The direct edge from A to B costs `4`, but the route through C costs `2 + (-3) = -1`:
@@ -58569,15 +58575,49 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -3.0), ("B", "D", 1.0)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -3.0), ("B", "D", 1.0)],
+            directed=True,
         )
 
         pred, dist = graph.goldberg_radzik("A")
         label = graph.get_label_from_id
-        {label(n): (None if p is None else label(p), dist[n]) for n, p in pred.items()}
+        {
+            label(n): (None if p is None else label(p), dist[n])
+            for n, p in pred.items()
+        }
+        ```
+
+        ### Changing yen into every other currency
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate, so a distance converts back to a rate with
+        `math.exp(-distance)`. With `arbitrage=False`, no cycle has a negative total weight.
+        From the yen, the best routes to the pound, the Swiss franc and the Canadian dollar all go
+        through the US dollar:
+
+        ```{python}
+        import math
+        import polars as pl
+
+        fx = ec.currency(arbitrage=False)
+        pred, dist = fx.goldberg_radzik("JPY")
+        label = fx.get_label_from_id
+
+        pl.DataFrame({
+            "currency": [label(n) for n in pred],
+            "previous": [None if p is None else label(p) for p in pred.values()],
+            "per_10000_yen": [
+                round(10_000 * math.exp(-d), 2) for d in dist.values()
+            ],
+        })
+        ```
+
+        The predecessors make a tree of best routes from the yen:
+
+        ```{python}
+        tree = [(p, n) for n, p in pred.items() if p is not None]
+        fx.plot(highlight=tree, label_by="label", curved_edges=True, seed=4)
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
