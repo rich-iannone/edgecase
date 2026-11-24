@@ -25656,40 +25656,46 @@ class Graph:
         int
             Number of selected nodes; `0` if nothing is selected.
 
+        See Also
+        --------
+        get_selected_node_ids : The IDs of the selected nodes.
+        count_selected_edges : The number of selected edges.
+
         Examples
         --------
-        In a complete graph of 10 nodes, every node has degree `9`, so all of them meet a
-        `min_degree=5` threshold:
+        A count of the selected nodes, here the three leaves of a star:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_full_graph(10)
-            .select_nodes_by_degree(min_degree=5)
-        )
+        graph = ec.Graph().add_star_graph(4)
+        graph.select_nodes_by_degree(max_degree=1)
 
         graph.count_selected_nodes()
         ```
 
-        Because the count reflects the selection at the moment it is called, it can track a
-        selection as it changes. In a 6-node path, the one-hop neighborhood of the first node
-        has 2 nodes, and inverting it leaves the other 4:
+        ### How far a few stops reach
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Counting the stations within one, two, three and four stops of Central shows the network
+        filling in: 5, 11 and 17, then all 20:
 
         ```{python}
-        graph = ec.Graph().add_path_graph(6)
-        first = graph.get_node_creation_order()[0]
-
-        graph.select_nodes_in_neighborhood(first, k=1)
-        before = graph.count_selected_nodes()
-
-        graph.invert_node_selection()
-        after = graph.count_selected_nodes()
-
-        (before, after)
+        metro = ec.metro()
+        {
+            k: metro
+            .select_nodes_in_neighborhood("Central", k=k, set_op="replace")
+            .count_selected_nodes()
+            for k in [1, 2, 3, 4]
+        }
         ```
 
+        Within three stops, only Hillcrest, Garden and Airport are left out:
+
+        ```{python}
+        metro.select_nodes_in_neighborhood("Central", k=3, set_op="replace")
+        metro.plot(layout="pos", highlight="selection", label_by="label")
+        ```
         """
         return self._graph.count_selected_nodes()
 
