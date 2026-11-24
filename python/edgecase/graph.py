@@ -29778,8 +29778,8 @@ class Graph:
             List of `(u, v)` node pairs to score. Each node can be given as a node ID (`int`) or
             label (`str`). Pairs are scored even if `u` and `v` are already connected, and they
             are returned in the order given. If `None` (the default), all pairs of nodes that are
-            not already connected (in either direction) are scored, each unordered pair once, in
-            no particular order. A node that doesn't exist raises a `ValueError`.
+            not already connected (in either direction) are scored, each unordered pair once,
+            smaller node ID first, in node ID order. A node that doesn't exist raises a `ValueError`.
 
         Returns
         -------
@@ -29802,38 +29802,62 @@ class Graph:
         dominate; the Jaccard, Adamic-Adar, and resource-allocation variants correct for that
         in different ways.
 
+        See Also
+        --------
+        jaccard_coefficient : The count divided by the size of the two neighborhoods together.
+        resource_allocation_index : A count that weighs each shared neighbor by one over its degree.
+        cn_soundarajan_hopcroft : A count with a bonus for shared neighbors in the same community.
+
         Examples
         --------
-        Without an explicit `ebunch=`, every currently unconnected pair is scored. Translating
-        the IDs back to labels and sorting by score shows that `Ann` and `Dan` are the most
-        likely new link, with two mutual friends (`Bob` and `Cat`):
+        `A` and `D` aren't joined but share `B` and `C`, and `B` and `E` share `D`. Each result is
+        a pair of node IDs and its count:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
-
-        graph.add_edges(
-            [
-                ("Ann", "Bob"), ("Ann", "Cat"), ("Bob", "Cat"),
-                ("Bob", "Dan"), ("Cat", "Dan"), ("Dan", "Eve"),
-            ]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
+        label = graph.get_label_from_id
+        pairs = [("A", "D"), ("B", "E")]
 
-        scores = graph.common_neighbors()
-        sorted(
-            [(graph.get_label_from_id(u), graph.get_label_from_id(v), n) for u, v, n in scores],
-            key=lambda row: row[2],
-            reverse=True,
-        )
+        [(label(u), label(v), n) for u, v, n in graph.common_neighbors(pairs)]
         ```
 
-        Passing `ebunch=` restricts the computation to specific pairs, given here by label.
-        The results come back in the same order, keyed by node ID:
+        Without pairs, every pair of nodes that aren't joined is scored:
 
         ```{python}
-        graph.common_neighbors([("Ann", "Dan"), ("Ann", "Eve")])
+        len(graph.common_neighbors())
+        ```
+
+        ### Who became friends
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. A year later, in `friends(snapshot=2)`, eight more pairs had
+        become friends. Of the pairs who weren't friends yet, the four with three friends in
+        common all became friends. The next four, with two, didn't, and three of them, like Ben
+        and Jules, share only Hugo and Tara, the couple whose friends span both clubs:
+
+        ```{python}
+        friends = ec.friends()
+        later = ec.friends(snapshot=2)
+        label = friends.get_label_from_id
+        top = sorted(friends.common_neighbors(), key=lambda t: -t[2])[:8]
+
+        [
+            (label(u), label(v), n, later.has_edge(label(u), label(v)))
+            for u, v, n in top
+        ]
+        ```
+
+        The four new friendships, in the second snapshot:
+
+        ```{python}
+        later.plot(
+            highlight=[(label(u), label(v)) for u, v, _ in top[:4]],
+            color_by="club", label_by="label", seed=1,
+        )
         ```
         """
         from edgecase._core import common_neighbors
