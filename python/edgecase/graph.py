@@ -31185,30 +31185,52 @@ class Graph:
         and finds the nearest vectors with a k-d tree (ties in arbitrary order); its random
         paths come from a different generator, so the scores agree only statistically.
 
+        See Also
+        --------
+        panther_similarity : The scores that make up each node's profile.
+        generate_random_paths : The random paths behind the scores.
+        simrank_star_similarity : Similarity from paths of any length.
+
         Examples
         --------
-        In a star, the leaves all look alike, so the other leaves get equal, high scores
-        against a leaf, though no path joins two leaves without passing through the center:
+        Each node is described by its largest Panther scores, and two nodes are similar when
+        those profiles are. In two stars joined at their hubs, the leaves most like `A` are the
+        other leaves, of either star, while `panther_similarity()` puts `A`'s hub `H` first:
 
         ```{python}
         import edgecase as ec
 
-        star = ec.Graph().add_star_graph(20, label=False)
-        star.panther_vector_similarity(2, k=3, seed=1)
+        graph = ec.Graph.from_edges([
+            ("H", "A"), ("H", "B"), ("H", "C"), ("H", "K"),
+            ("K", "X"), ("K", "Y"), ("K", "Z"),
+        ])
+        label = graph.get_label_from_id
+        vector = graph.panther_vector_similarity("A", D=4, k=4, seed=1)
+        panther = graph.panther_similarity("A", k=4, seed=1)
+
+        [label(n) for n in vector], [label(n) for n in panther]
         ```
 
-        Two triangles joined by a bridge. With a tight `epsilon=` (and so many sampled paths), `a`
-        matches its triangle twin `b` best, then `y` and `z`, which hold the same place in the
-        other triangle, while the bridge ends `c` and `x` score far lower:
+        ### A similar place in another club
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Panther profiles describe where a person sits in the network
+        rather than who they know. Pablo, with Mara's friends, has the closest profile to
+        hers, but the next two are Cleo and Ella, in the chess club, who share no one with her:
 
         ```{python}
-        graph = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
-        graph.add_edges(
-            [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"), ("z", "x")]
-        )
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        mara = friends.panther_vector_similarity("Mara", seed=1)
 
-        scores = graph.panther_vector_similarity("a", D=4, epsilon=0.05, seed=1)
-        {graph.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        {label(n): round(s, 1) for n, s in mara.items()}
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={"accent": ["Mara"], "soft": ["Pablo", "Cleo", "Ella"]},
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
