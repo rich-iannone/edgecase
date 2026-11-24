@@ -56658,49 +56658,68 @@ class Graph:
         picks $\sigma = \alpha / |\lambda_{\min}(A)|$, which is empirically near the sweet
         spot between local and global information.
 
+        See Also
+        --------
+        pagerank : A random walk with teleportation.
+        node_percolation : Remove nodes at random and see what is left.
+
         Examples
         --------
-        The graph below has two hubs, H1 (with leaves a1, a2, a3) and H2 (with leaves b1, b2),
-        connected through a middle node M. Leaving `sigma=` unset auto-tunes the competition
-        parameter. Both hubs come out strongly dominant, while M, squeezed between two dominant
-        neighbors, gets the most negative score:
+        Two hubs, `H1` and `H2`, are joined through `M`. Both hubs come out dominant, while `M`,
+        squeezed between two dominant neighbors, gets the most negative score:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["H1", "a1", "a2", "a3", "H2", "b1", "b2", "M"])
-            .add_edges([("H1", "a1"), ("H1", "a2"), ("H1", "a3"), ("a1", "a2"), ("H2", "b1"),
-                        ("H2", "b2"), ("H1", "M"), ("M", "H2")])
+        graph = ec.Graph.from_edges(
+            [("H1", "a1"), ("H1", "a2"), ("H1", "a3"), ("a1", "a2"),
+             ("H2", "b1"), ("H2", "b2"), ("H1", "M"), ("M", "H2")]
         )
 
-        scores = graph.domirank_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
+        graph.domirank_centrality().get_node_df().select(
+            "label", "degree", "domirank_centrality"
+        )
         ```
 
-        Passing `return_sigma=True` alongside also returns the sigma value that was
-        auto-selected:
+        ### Dominant and submissive members
+
+        In Zachary's karate club, the two leaders and their closest friends dominate, but so do
+        members 24, 25 and 16, each the best connected of a small pocket away from the leaders.
+        The most submissive are the members tied to both leaders, squeezed between them:
 
         ```{python}
-        scores, sigma = graph.domirank_centrality(return_dict=True, return_sigma=True)
-        round(sigma, 4)
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .domirank_centrality()
+        )
+
+        ranked = club.get_node_df().select(
+            "label", "degree", "domirank_centrality"
+        ).sort("domirank_centrality", descending=True)
+
+        pl.concat([ranked.head(8), ranked.tail(4)])
         ```
 
-        Setting `sigma=` by hand controls the amount of competition. With a very small value
-        there is almost none and the scores simply track degree (H1 first, then H2, the leaves
-        with one neighbor last); with a moderate value the ranking is still positive throughout
-        but the hubs pull further ahead:
+        Split by the sign of their scores, the nine dominant members are the leaders, members 1,
+        2, 3 and 32, and the three members in pockets of their own; all the rest are submissive:
 
         ```{python}
-        local = graph.domirank_centrality(sigma=0.01, return_dict=True)
-        moderate = graph.domirank_centrality(sigma=0.2, return_dict=True)
-
-        {
-            graph.get_label_from_id(nid): (round(local[nid], 3), round(moderate[nid], 3))
-            for nid in sorted(local)
+        role = {
+            label: "dominant" if score > 0 else "submissive"
+            for label, score in ranked.select("label", "domirank_centrality").rows()
         }
+
+        club.set_node_attrs("role", role).plot(
+            layout="pos", color_by="role", label_by="label"
+        )
         ```
+
+        By default `sigma=` is set automatically, at `alpha=0.95` of the critical level; pass
+        `return_sigma=True` to see the value. A small `sigma=` (less competition) gives a ranking
+        close to degree.
         """
         if method != "iterative":
             raise ValueError("Only method='iterative' is currently supported")
@@ -56738,8 +56757,6 @@ class Graph:
         if attr_name is None:
             attr_name = "domirank_centrality"
 
-        self.set_node_attrs(attr_name, scores_by_id)
-
         # Track computation
         params = {}
         if sigma is not None:
@@ -56754,7 +56771,7 @@ class Graph:
             params["patience"] = patience
         if max_depth != 50:
             params["max_depth"] = max_depth
-        self._computations.append(("domirank_centrality", params, attr_name))
+        self._store_node_result("domirank_centrality", params, attr_name, scores_by_id)
 
         if return_sigma:
             return self, final_sigma
