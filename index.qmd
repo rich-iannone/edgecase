@@ -28,34 +28,6 @@ import edgecase as ec
 gd.enable_tbl_preview(n_head=8, n_tail=3)
 
 
-# Each plot and step player on the page is drawn in both themes, and the page shows the one for
-# its theme
-class _Themed:
-    def __init__(self, light, dark):
-        self.light, self.dark = light, dark
-
-    def _repr_html_(self):
-        return (
-            f'<div class="ec-themed ec-only-light">{self.light._repr_html_()}</div>'
-            f'<div class="ec-themed ec-only-dark">{self.dark._repr_html_()}</div>'
-        )
-
-
-def _themed(method):
-    def draw(self, *args, **kwargs):
-        kwargs.pop("theme", None)
-        return _Themed(
-            method(self, *args, theme="light", **kwargs),
-            method(self, *args, theme="dark", **kwargs),
-        )
-
-    return draw
-
-
-ec.Graph.plot = _themed(ec.Graph.plot)
-ec.Graph.play = _themed(ec.Graph.play)
-
-
 # What a query matched in `payments` (its nodes, and its edges in the order a walk along them
 # would take), for the tour to light up in the graph
 def _hits(query, nodes, edges):
@@ -100,7 +72,7 @@ def _hits(query, nodes, edges):
 <div class="ec-stats" role="list">
   <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="700" data-suffix="+">700+</span><span class="ec-stat-label">graph methods</span></div>
   <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="85">85</span><span class="ec-stat-label">graph generators</span></div>
-  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="20">20</span><span class="ec-stat-label">real-world datasets</span></div>
+  <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="21">21</span><span class="ec-stat-label">real-world datasets</span></div>
   <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="28">28</span><span class="ec-stat-label">file formats, both ways</span></div>
   <div class="ec-stat" role="listitem"><span class="ec-stat-num" data-count="9200" data-suffix="+">9,200+</span><span class="ec-stat-label">tests</span></div>
 </div>
@@ -146,6 +118,7 @@ karate = (
 karate.plot(
     color_by="cmty_louvain",
     label_by="label",
+    legend=False,
     seed=9,
 )
 ```
@@ -168,6 +141,7 @@ karate.plot(
     color_by="cmty_louvain",
     size_by="pagerank",
     label_by="label",
+    legend=False,
     seed=9,
 )
 ```
@@ -545,7 +519,7 @@ NumPy, SciPy and pandas.
 
 [Generators and datasets]{.ec-card-title}
 
-85 generators, from classic graphs to random models, and 20 real networks, ready to load.
+85 generators, from classic graphs to random models, and 21 real networks, ready to load.
 
 [Datasets →](user_guide/06-datasets.qmd)
 :::
