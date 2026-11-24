@@ -220,8 +220,10 @@ fn bfs_distances(adj: &FxHashMap<u64, Vec<u64>>, source: u64) -> FxHashMap<u64, 
 
 /// Closeness centrality for nodes in one partition of a bipartite graph.
 ///
-/// Closeness is the reciprocal of the average shortest path distance to all
-/// nodes in the opposite partition.
+/// Follows NetworkX (Borgatti and Halgin): for a node on a side of `n` nodes, with `m`
+/// nodes on the other side, the closeness is `(m + 2 * (n - 1)) / total`, where `total` is
+/// the sum of the distances to every node it can reach (on either side). This is then
+/// scaled by the share of the other nodes that it can reach.
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
 pub fn bipartite_closeness_centrality(graph: &Graph, which: u8) -> PyResult<FxHashMap<u64, f64>> {
@@ -239,30 +241,21 @@ pub fn bipartite_closeness_centrality(graph: &Graph, which: u8) -> PyResult<FxHa
         (set_1, set_0)
     };
 
-    let other_members: FxHashSet<u64> = other_set.iter().copied().collect();
-    let other_size = other_set.len();
-
-    if other_size == 0 {
-        return Ok(target_set.iter().map(|&id| (id, 0.0)).collect());
-    }
+    let n = target_set.len() as f64;
+    let m = other_set.len() as f64;
+    let total_nodes = target_set.len() + other_set.len();
 
     let mut result = FxHashMap::default();
     let adj = undirected_adjacency(graph);
 
     for &node_id in &target_set {
         let distances = bfs_distances(&adj, node_id);
-        let total_dist: f64 = other_members
-            .iter()
-            .filter_map(|&other| distances.get(&other))
-            .sum();
+        let total_dist: f64 = distances.values().sum();
 
-        let reachable: usize = other_members
-            .iter()
-            .filter(|&&other| distances.contains_key(&other))
-            .count();
-
-        let centrality = if reachable > 0 && total_dist > 0.0 {
-            reachable as f64 / total_dist
+        let centrality = if total_dist > 0.0 && total_nodes > 1 {
+            // Scale by the share of the other nodes that can be reached
+            let reached = (distances.len() - 1) as f64 / (total_nodes - 1) as f64;
+            (m + 2.0 * (n - 1.0)) / total_dist * reached
         } else {
             0.0
         };
@@ -273,10 +266,19 @@ pub fn bipartite_closeness_centrality(graph: &Graph, which: u8) -> PyResult<FxHa
     Ok(result)
 }
 
+/// The most betweenness a node on a side of `n` nodes can have when the other side has `m`
+/// nodes (Borgatti and Halgin, as used by NetworkX).
+fn bipartite_betweenness_max(n: usize, m: usize) -> f64 {
+    let (s, t) = ((n - 1) / m, (n - 1) % m);
+    let (m, s, t) = (m as f64, s as f64, t as f64);
+    ((m * m) * (s + 1.0).powi(2) + m * (s + 1.0) * (2.0 * t - s - 1.0) - t * (2.0 * s - t + 3.0))
+        / 2.0
+}
+
 /// Betweenness centrality for nodes in one partition of a bipartite graph.
 ///
-/// Measures how often a node lies on shortest paths between pairs of nodes
-/// in the opposite partition.
+/// Follows NetworkX: the betweenness over all pairs of nodes (on either side) is divided by
+/// the largest value it can take for a node on that side, given the sizes of the two sides.
 #[pyfunction]
 #[pyo3(signature = (graph, which=0))]
 pub fn bipartite_betweenness_centrality(graph: &Graph, which: u8) -> PyResult<FxHashMap<u64, f64>> {
@@ -294,14 +296,16 @@ pub fn bipartite_betweenness_centrality(graph: &Graph, which: u8) -> PyResult<Fx
         (set_1, set_0)
     };
 
-    let target_members: FxHashSet<u64> = target_set.iter().copied().collect();
-
     let mut betweenness: FxHashMap<u64, f64> = target_set.iter().map(|&id| (id, 0.0)).collect();
+
+    if target_set.is_empty() || other_set.is_empty() {
+        return Ok(betweenness);
+    }
+
     let adj = undirected_adjacency(graph);
 
-    // Brandes-like algorithm: BFS from each node in the other partition
-    for &source in &other_set {
-        // BFS
+    // Brandes' algorithm: BFS from every node, on either side
+    for &source in target_set.iter().chain(other_set.iter()) {
         let mut dist: FxHashMap<u64, i64> = FxHashMap::default();
         let mut sigma: FxHashMap<u64, f64> = FxHashMap::default();
         let mut predecessors: FxHashMap<u64, Vec<u64>> = FxHashMap::default();
@@ -348,23 +352,16 @@ pub fn bipartite_betweenness_centrality(graph: &Graph, which: u8) -> PyResult<Fx
 
             if w != source {
                 if let Some(b) = betweenness.get_mut(&w) {
-                    if target_members.contains(&w) {
-                        *b += w_delta;
-                    }
+                    *b += w_delta;
                 }
             }
         }
     }
 
-    // Normalize: for undirected graphs, divide by 2
-    let norm = if other_set.len() >= 2 {
-        2.0 / ((other_set.len() as f64) * (other_set.len() as f64 - 1.0))
-    } else {
-        1.0
-    };
-
+    // Each unordered pair was counted from both ends, then scale by the side's maximum
+    let max = bipartite_betweenness_max(target_set.len(), other_set.len());
     for val in betweenness.values_mut() {
-        *val *= norm;
+        *val = if max > 0.0 { *val / 2.0 / max } else { 0.0 };
     }
 
     Ok(betweenness)
