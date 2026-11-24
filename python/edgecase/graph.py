@@ -82474,64 +82474,42 @@ class Graph:
         log-transformed or rank-transformed values is a common robustness check. The
         computation is a single $O(V + E)$ pass.
 
+        See Also
+        --------
+        assortativity_nominal : The coefficient for categorical attributes.
+        assortativity_degree : The coefficient for degree.
+
         Examples
         --------
-        When people mostly befriend others close to their own age, connecting similar numeric
-        values, the numeric assortativity comes out positive (close to 1 here):
+        `A` and `B` are close in age, and so are `C` and `D`, while the link between `B` and `C`
+        spans 20 years, so the coefficient is positive, but well below `1`:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph(directed=False)
-            .add_node("Alice", age=25)
-            .add_node("Bob", age=27)
-            .add_node("Carol", age=26)
-            .add_node("Dave", age=55)
-            .add_node("Eve", age=53)
-            .add_edges(
-                [
-                    ("Alice", "Bob"),  # Similar ages (25-27)
-                    ("Bob", "Carol"),  # Similar ages (27-26)
-                    ("Dave", "Eve"),  # Similar ages (55-53)
-                    ("Alice", "Carol"),  # Similar ages (25-26)
-                ]
-            )
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = graph.set_node_attrs("age", {"A": 25, "B": 28, "C": 48, "D": 51})
 
-        # Returns a positive value: similar-aged people tend to connect
-        g.assortativity("age")
+        round(graph.assortativity("age"), 3)
         ```
 
-        In academic mentorship networks, senior researchers often collaborate with junior ones,
-        connecting dissimilar values and producing a negative coefficient:
+        ### Citing recent work
+
+        `citations()` links each paper of a made-up research field to the earlier papers it
+        cites. Papers tend to cite papers from a few years before, so the year of a paper and
+        the year of a paper it cites are correlated:
 
         ```{python}
-        g = (
-            ec.Graph(directed=False)
-            .add_node("Junior1", papers=5)
-            .add_node("Junior2", papers=7)
-            .add_node("Senior1", papers=50)
-            .add_node("Senior2", papers=45)
-            .add_edges([("Senior1", "Junior1"), ("Senior1", "Junior2"), ("Senior2", "Junior1")])
-        )
+        papers = ec.citations()
 
-        # Returns a negative value: experienced researchers connect to juniors
-        g.assortativity("papers")
+        round(papers.assortativity("year"), 2)
         ```
 
-        A common use is degree assortativity: store each node's degree as an attribute and
-        measure whether hubs link to hubs. In a star, the hub only connects to leaves, so the
-        result is strongly negative:
-
         ```{python}
-        star = ec.Graph()
-        star.add_star_graph(6)
-
-        degrees = {nid: star.get_degree(nid) for nid in star.get_node_ids()}
-        star.set_node_attrs("degree", degrees)
-
-        star.assortativity("degree")
+        papers.plot(
+            layout="pos", color_by="year", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         return self._graph.assortativity(attribute)
