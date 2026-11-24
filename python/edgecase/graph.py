@@ -57732,6 +57732,12 @@ class Graph:
         logarithmically with $|V|$, and $\bar{d}$ itself appears in epidemiological
         estimates of average time-to-infection along a contact network.
 
+        See Also
+        --------
+        diameter : The longest of the shortest-path distances.
+        wiener_index : The sum of the distances over all pairs.
+        global_efficiency : The mean of the inverse distances, finite for disconnected graphs.
+
         Examples
         --------
         In a four-node path the six pairs are at distances 1, 2, 3, 1, 2, and 1, so the mean
@@ -57740,11 +57746,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         graph.mean_distance()
         ```
@@ -57762,13 +57764,30 @@ class Graph:
         give `5 / 4 = 1.25`, while `unconnected=False` refuses to answer and returns `None`:
 
         ```{python}
-        split = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("D", "E")])
-        )
+        split = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("D", "E")])
 
-        (split.mean_distance(), split.mean_distance(unconnected=False))
+        split.mean_distance(), split.mean_distance(unconnected=False)
+        ```
+
+        ### The average trip on the metro
+
+        `metro()` is a made-up city's metro network. Over all 190 pairs of stations, a trip takes
+        3.26 stops on average. An express from Central to the Airport (highlighted) brings the
+        average down to 3.05, and the longest trip from seven stops to six:
+
+        ```{python}
+        metro = ec.metro()
+        today = metro.mean_distance()
+
+        metro.add_edge("Central", "Airport", weight=12.0, line="Express")
+        round(today, 2), round(metro.mean_distance(), 2)
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight_edges=[("Central", "Airport")],
+            label_by="label",
+        )
         ```
         """
         return self._graph.get_mean_distance_with_unconnected(unconnected)
