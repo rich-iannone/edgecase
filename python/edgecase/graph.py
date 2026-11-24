@@ -64412,70 +64412,69 @@ class Graph:
         paths are the goal rather than every simple path, `k_shortest_paths()` uses Yen's
         algorithm to surface just the top $k$ efficiently.
 
+        See Also
+        --------
+        all_simple_edge_paths : The same paths as lists of edges.
+        shortest_simple_paths : Simple paths in order of length.
+        is_simple_path : Check if a sequence of nodes is a simple path.
+        enumerate_trails : Walks that may revisit nodes but not edges.
+
         Examples
         --------
-        A diamond-shaped graph has two distinct routes from `A` to `D`, so both are returned.
-        Mapping the IDs back to labels makes them readable:
+        `A` reaches `D` by two routes, and a direct arrow from `A` to `D` adds a third. With
+        `cutoff=1`, only paths of a single edge are kept:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("A", "D")],
+            directed=True,
         )
-
         label = graph.get_label_from_id
-        [[label(n) for n in p] for p in graph.all_simple_paths("A", "D")]
-        ```
 
-        Because this graph is directed, nothing leads back from `D` to `A`, so the reverse query
-        finds no paths at all:
-
-        ```{python}
-        graph.all_simple_paths("D", "A")
-        ```
-
-        Adding `cutoff=` limits how many edges a path may use. Here a direct `A -> E` edge
-        competes with a 4-edge detour, and a cutoff of `2` keeps only the direct edge:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("A", "E")])
+        (
+            [[label(n) for n in p] for p in graph.all_simple_paths("A", "D")],
+            [[label(n) for n in p]
+             for p in graph.all_simple_paths("A", "D", cutoff=1)],
         )
-
-        label = graph.get_label_from_id
-        [[label(n) for n in p] for p in graph.all_simple_paths("A", "E", cutoff=2)]
         ```
 
-        Without a cutoff, the longer `A -> B -> C -> D -> E` route is included too:
+        ### Every way to the airport
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. A rider can get from Westgate to the Airport by 26 routes that
+        never pass the same station twice, from 7 stretches of track to 14:
 
         ```{python}
-        [[label(n) for n in p] for p in graph.all_simple_paths("A", "E")]
+        from collections import Counter
+
+        metro = ec.metro()
+        label = metro.get_label_from_id
+        routes = metro.all_simple_paths("Westgate", "Airport")
+
+        len(routes), sorted(Counter(len(route) - 1 for route in routes).items())
         ```
 
-        Counting the results is a quick way to measure redundancy. In this undirected network,
-        the two servers are linked through two independent routers, so there are two routes:
+        With `cutoff=7`, only the three shortest are left. Two follow the Red line through
+        downtown, and the third takes the Green line around the north:
 
         ```{python}
-        network = (
-            ec.Graph()
-            .add_nodes(["Server1", "Router1", "Router2", "Server2"])
-            .add_edges(
-                [
-                    ("Server1", "Router1"),
-                    ("Server1", "Router2"),
-                    ("Router1", "Server2"),
-                    ("Router2", "Server2"),
-                ]
-            )
+        shortest = metro.all_simple_paths("Westgate", "Airport", cutoff=7)
+
+        [[label(n) for n in route] for route in shortest]
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos",
+            highlight={
+                "accent": shortest[2],
+                "soft": [pair for route in shortest[:2]
+                         for pair in zip(route, route[1:])],
+            },
+            label_by="label",
         )
-
-        routes = network.all_simple_paths("Server1", "Server2")
-        len(routes)
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
