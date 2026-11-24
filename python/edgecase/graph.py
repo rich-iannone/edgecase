@@ -79344,55 +79344,50 @@ class Graph:
         clustering. Behaves exactly like the minimum variant on disconnected input,
         yielding one maximum spanning tree per component.
 
+        See Also
+        --------
+        minimum_spanning_tree : The tree with the smallest total weight.
+        iter_spanning_trees : The spanning trees in order of weight, with `minimum=False`.
+        maximum_spanning_arborescence : The heaviest spanning tree that follows edge directions.
+
         Examples
         --------
-        In this triangle, a spanning tree only needs 2 of the 3 edges, so the maximum spanning
-        tree keeps the two heaviest ones and drops the lightest:
+        On a graph whose weights measure how strong a link is, the maximum spanning tree keeps
+        the strongest links that don't close a cycle. In this square, the weakest edge is left
+        out:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", 1.0), ("B", "C", 3.0), ("C", "A", 2.0)])
-
-        max_st = g.maximum_spanning_tree()
-
-        # Returns 5.0 (chooses the edges with weights 3.0 and 2.0, dropping 1.0)
-        sum(max_st.get_edge(eid).weight for eid in max_st.get_edge_ids())
-        ```
-
-        In a similarity network, the maximum spanning tree keeps the strongest tie that
-        attaches each item. Listing the kept edges (via `return_subgraph=False`) shows the
-        backbone, heaviest first; the weak `cat-car` and `dog-truck` links are dropped:
-
-        ```{python}
-        sim = (
-            ec.Graph(weighted=True)
-            .add_nodes(["cat", "dog", "car", "truck"])
-            .add_edges(
-                [
-                    ("cat", "dog", 0.9),
-                    ("car", "truck", 0.8),
-                    ("dog", "car", 0.2),
-                    ("cat", "car", 0.1),
-                    ("dog", "truck", 0.15),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("B", "C", 3.0), ("C", "D", 2.0), ("D", "A", 1.0)],
         )
-
-        edges = sim.maximum_spanning_tree(return_subgraph=False)
-
-        [(sim.get_label_from_id(s), sim.get_label_from_id(t), w) for s, t, w in edges]
+        graph.maximum_spanning_tree().get_edges_str_repr(use_labels=True)
         ```
 
-        Excluding the strongest tie, `cat-dog`, forces the backbone to reach `cat` through its
-        next best link:
+        ### The backbone of a novel
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter, weighted by how many chapters they share. Of its 254 links, the maximum
+        spanning tree keeps the 76 strongest that still tie all 77 characters together. Its
+        strongest link is between Cosette and Valjean, who share 31 chapters:
 
         ```{python}
-        edges = sim.maximum_spanning_tree(return_subgraph=False, exclude=[("cat", "dog")])
+        novel = ec.les_miserables()
+        backbone = novel.maximum_spanning_tree()
 
-        [(sim.get_label_from_id(s), sim.get_label_from_id(t), w) for s, t, w in edges]
+        edges = backbone.get_edge_df().sort("weight", descending=True)
+        label = backbone.get_label_from_id
+        top = edges.row(0, named=True)
+        backbone.count_edges(), label(top["source"]), label(top["target"])
+        ```
+
+        The backbone hangs from Valjean, who keeps 17 of 36 links in it:
+
+        ```{python}
+        backbone.layout_spring(seed=1).plot(
+            layout="pos", size_by="degree", label_by="label", height=600
+        )
         ```
         """
         edge_ids = self._spanning_tree_ids(False, weight_attr, include, exclude)
