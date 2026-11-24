@@ -84154,15 +84154,64 @@ class Graph:
             If the graph is directed, disconnected, has fewer than two nodes, or has a negative
             weight.
 
+        See Also
+        --------
+        algebraic_connectivity : The eigenvalue that goes with this vector.
+        spectral_bisection : Split the nodes by the sign of this vector.
+        spectral_ordering : Sort the nodes by this vector.
+        layout_spectral : Place the nodes by the smallest eigenvectors.
+
         Examples
         --------
-        On a path, the Fiedler vector runs smoothly from one end to the other:
+        On a path, the Fiedler vector runs smoothly from one end to the other, through `0` at the
+        middle:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_path_graph(5)
-        {n: round(v, 3) for n, v in sorted(path.fiedler_vector(return_dict=True).items())}
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
+        fiedler = path.fiedler_vector(return_dict=True)
+
+        {path.get_label_from_id(n): round(v, 3) + 0.0 for n, v in fiedler.items()}
+        ```
+
+        ### Predicting the split
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The sign of each member's Fiedler vector entry predicts the
+        side they took, the instructor's or the administrator's, for all but member `2`, whose
+        entry is only just below `0`:
+
+        ```{python}
+        karate = ec.karate_club().fiedler_vector()
+        fiedler = karate.get_node_attrs("fiedler_vector")
+        faction = karate.get_node_attrs("faction")
+
+        [
+            (karate.get_label_from_id(n), round(v, 3))
+            for n, v in fiedler.items() if (v < 0) != (faction[n] == 2)
+        ]
+        ```
+
+        The two ends of the scale are the two camps, and the members near `0`, in gray, are the
+        ones with friends on both sides:
+
+        ```{python}
+        karate.plot(
+            color_by="fiedler_vector", color_scale="diverging",
+            label_by="label", seed=1,
+        )
+        ```
+
+        The normalized Laplacian weighs each member by their number of friends, but its Fiedler
+        vector divides the club in the same place:
+
+        ```{python}
+        normalized = karate.fiedler_vector(normalized=True, return_dict=True)
+
+        all((normalized[n] < 0) == (fiedler[n] < 0) for n in fiedler)
         ```
         """
         scores = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
