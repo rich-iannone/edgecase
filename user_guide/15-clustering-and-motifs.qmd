@@ -91,7 +91,7 @@ degrees alone would produce. Comparing several networks with their randomized ve
 networks = {
     "karate club": karate,
     "dolphins": ec.dolphins(),
-    "jazz musicians": ec.jazz().simplify(),
+    "jazz bands": ec.jazz().simplify(),
     "power grid": ec.power_grid(),
     "co-authorship (ca_grqc)": ec.ca_grqc().simplify(),
     "Internet": ec.internet().simplify(),
