@@ -76009,24 +76009,56 @@ class Graph:
 
         Examples
         --------
-        A round-robin among four players: each of the six games is an edge, and each color a
-        round in which no player plays twice. Three rounds suffice, since each player has three
-        games:
+        A round robin among four players: each of the six games is an edge, and each color is a
+        round in which no player plays twice. Each player has three games, so three rounds are
+        the fewest possible, and three are found:
 
         ```{python}
+        from itertools import combinations
+
         import edgecase as ec
 
-        players = ["ann", "bob", "cy", "dee"]
-        g = ec.Graph().add_nodes(players)
-        g.add_edges([(a, b) for i, a in enumerate(players) for b in players[i + 1:]])
-        label = g.get_label_from_id
-        games = {e: f"{label(u)}-{label(v)}" for e, u, v in g.get_edges_as_tuples()}
+        players = ["Ann", "Bob", "Cy", "Dee"]
+        tour = ec.Graph.from_edges(list(combinations(players, 2)))
+
+        label = tour.get_label_from_id
+        games = {
+            e: f"{label(u)}-{label(v)}" for e, u, v in tour.get_edges_as_tuples()
+        }
 
         rounds = {}
-        for edge, color in g.edge_coloring().items():
+        for edge, color in tour.edge_coloring().items():
             rounds.setdefault(color, []).append(games[edge])
         rounds
         ```
+
+        ### A league schedule
+
+        A league of six clubs plays a round robin, 15 games in all. Each club plays five, so the
+        schedule can't have fewer than five rounds, and five is possible. The coloring takes six,
+        which is the most it ever needs, one more than the largest number of games at any club.
+        Every club then sits out one round:
+
+        ```{python}
+        clubs = ["Ash", "Birch", "Cedar", "Elm", "Fir", "Oak"]
+        league = ec.Graph.from_edges(list(combinations(clubs, 2)))
+
+        rounds = league.edge_coloring()
+        len(set(rounds.values()))
+        ```
+
+        ```{python}
+        league.set_edge_attrs("round", rounds)
+        league.plot(
+            layout="circular",
+            edge_color_by="round",
+            edge_width=4,
+            edge_opacity=1,
+            label_by="label",
+        )
+        ```
+
+        `is_valid_edge_coloring()` checks a five-round schedule built by hand.
         """
         from edgecase._core import edge_coloring as rust_edge_coloring
 
