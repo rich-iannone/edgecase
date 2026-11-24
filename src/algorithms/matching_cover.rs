@@ -999,11 +999,20 @@ pub fn min_weighted_vertex_cover(
         }
         cost.push(c);
     }
+    let full_cost = cost.clone();
     let mut in_cover = vec![false; ids.len()];
+    let mut adj: Vec<Vec<usize>> = vec![Vec::new(); ids.len()];
+    let mut has_loop = vec![false; ids.len()];
     let mut sorted_edges: Vec<_> = graph.get_edges_internal().iter().collect();
     sorted_edges.sort_unstable_by_key(|e| e.id);
     for e in sorted_edges {
         let (u, v) = (idx[&e.source], idx[&e.target]);
+        if u == v {
+            has_loop[u] = true;
+        } else {
+            adj[u].push(v);
+            adj[v].push(u);
+        }
         if in_cover[u] || in_cover[v] {
             continue;
         }
@@ -1013,6 +1022,15 @@ pub fn min_weighted_vertex_cover(
         } else {
             in_cover[v] = true;
             cost[u] -= cost[v];
+        }
+    }
+    // drop the nodes whose neighbors are all in the cover anyway, costliest first; the
+    // cover only gets cheaper, so the factor-2 guarantee still holds
+    let mut order: Vec<usize> = (0..ids.len()).filter(|&i| in_cover[i]).collect();
+    order.sort_by(|&a, &b| full_cost[b].total_cmp(&full_cost[a]).then(a.cmp(&b)));
+    for v in order {
+        if !has_loop[v] && adj[v].iter().all(|&u| in_cover[u]) {
+            in_cover[v] = false;
         }
     }
     Ok((0..ids.len())
