@@ -73135,21 +73135,59 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        cut_size : The edges between a set and the rest.
+        conductance : The cut relative to the volume of the smaller side.
+        normalized_cut_size : The cut relative to the volume of each side.
+
         Examples
         --------
-        The three nodes of one triangle in the two-triangle graph have degrees 2, 2 and 3:
+        The three nodes of one triangle in the two-triangle graph have degrees 2, 2 and 3, and
+        the volume of every node is twice the number of edges:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        graph.volume(["A", "B", "C"])
+        graph.volume(["A", "B", "C"]), graph.volume(graph.get_node_ids())
+        ```
+
+        On a weighted graph the volume sums weighted degrees, unless `weighted=False`:
+
+        ```{python}
+        roads = ec.Graph.from_edges([("A", "B", 2.5), ("B", "C", 4.0)])
+
+        roads.volume(["B"]), roads.volume(["B"], weighted=False)
+        ```
+
+        ### How much of the club each side holds
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. The administrator's 18 followers hold only a little more of the club's
+        friendships than the instructor's 16, since the instructor's side is more tightly knit:
+
+        ```{python}
+        karate = ec.karate_club()
+        nodes = karate.get_node_df()
+        sides = [
+            nodes.filter(nodes["faction"] == f)["id"].to_list() for f in (1, 2)
+        ]
+
+        [karate.volume(side) for side in sides]
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", size_by="degree", label_by="label"
+        )
         ```
         """
         s_ids, _, p = self._cut(S, None, weighted)
