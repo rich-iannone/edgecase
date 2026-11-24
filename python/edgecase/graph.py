@@ -24156,43 +24156,26 @@ class Graph:
 
         Examples
         --------
-        Selecting nodes by ID marks them for follow-up operations like building a
-        subgraph. `get_selected_node_ids()` reports back the same IDs that were selected:
+        This selects `A` and `B` by their IDs. A second call adds `C` to the selection:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        label = graph.get_label_from_id
 
-        id_a = graph.get_id_from_label("A")
-        id_b = graph.get_id_from_label("B")
-        graph.select_nodes_by_id([id_a, id_b])
+        graph.select_nodes_by_id([1, 2])
+        first = sorted(label(n) for n in graph.get_selected_node_ids())
 
-        sorted(graph.get_selected_node_ids())
-        ```
-
-        Selecting "C" afterwards adds it to the selection, which grows to all three nodes.
-        `transform_to_subgraph_ws()` could then keep exactly these nodes:
-
-        ```{python}
-        graph.select_nodes_by_id([graph.get_id_from_label("C")])
-
-        graph.count_selected_nodes()
+        graph.select_nodes_by_id([3])
+        first, sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
         A typical pattern is to turn the output of an analysis into a selection. Here the
         nodes not adjacent to "A" are selected and tagged as link-prediction candidates:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
         (
             graph
@@ -24203,9 +24186,30 @@ class Graph:
         )
         ```
 
+        ### Where money comes back around
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Its largest strongly connected component is the eight accounts
+        that can each send money to any of the others and get it back. The component comes as
+        a set of node IDs, which `select_nodes_by_id()` takes as it is:
+
+        ```{python}
+        payments = ec.payments()
+        loop = max(payments.strongly_connected_components(), key=len)
+        payments.select_nodes_by_id(loop)
+
+        label = payments.get_label_from_id
+        sorted(label(n) for n in payments.get_selected_node_ids())
+        ```
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         try:
-            self._select("nodes", set_op, lambda: self._graph.select_nodes_by_id(node_ids))
+            self._select(
+                "nodes", set_op, lambda: self._graph.select_nodes_by_id(list(node_ids))
+            )
         except KeyError as e:  # the earlier selection was restored
             raise NodeNotFoundError(e.args[0]) from None
 
