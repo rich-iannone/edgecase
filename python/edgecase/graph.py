@@ -56792,13 +56792,22 @@ class Graph:
 
         ![Closeness vitality](../assets/graphs/closeness-vitality.light.svg){.lightbox fig-alt="The shared seven-node graph shaded by closeness vitality, how much the total pairwise distance drops when a node is removed. Removing the bridge E cuts off the tail, so E tops the table at 66, while the hub C, which the others can route around, scores only 12." width="100%"}
 
-        Closeness vitality measures a node's importance by computing the change in total graph
-        distances when the node is removed:
+        Closeness vitality is the change in the total distance between all pairs of nodes when
+        a node is removed:
 
         `vitality(v) = sum_distances(G) - sum_distances(G - v)`
 
-        Higher values indicate more important/central nodes whose removal would significantly
-        increase average path lengths. Uses parallel BFS with Rayon for efficient computation.
+        Removing `v` changes the total in three ways. The distances to and from `v` itself drop
+        out, which raises the score of a node that lies far from the rest. Pairs whose shortest
+        route ran through `v` have to detour, which lowers it. And pairs that can no longer
+        reach each other at all drop out too, which raises it again. So a node whose loss
+        makes the others take long detours scores low, often below zero, while a node whose
+        loss cuts the network apart scores high.
+
+        The sum runs over ordered pairs, so on an undirected graph each pair counts twice, and
+        the scores are twice those of NetworkX. Only finite distances are summed, so every
+        score is finite: NetworkX gives `-inf` to a node whose removal disconnects the graph.
+        `node_vitality()` computes the same score for a single node.
 
         Parameters
         ----------
@@ -56817,37 +56826,77 @@ class Graph:
         -------
         Union[dict[int, float], Graph]
             If `return_dict=` is `True`: dictionary mapping node IDs to vitality scores. If
-            `return_dict=` is `False`: returns self for method chaining. Higher scores indicate more
-            structurally important nodes.
+            `return_dict=` is `False`: returns self for method chaining.
 
         Technical Notes
         ---------------
         Closeness vitality (Koschützki et al., 2005) attributes to each node $v$ the change
         in the graph's *Wiener index* $W(G) = \sum_{u \ne w} d(u, w)$ that would result from
-        removing it: $\mathrm{vit}(v) = W(G) - W(G - v)$. A positive vitality means the
-        network's distances stretch after $v$ is gone, so $v$ was doing important routing
-        work; negative values are rare but possible when a node's removal fragments the
-        graph into components whose pairwise distances no longer count. Computation is
+        removing it: $\mathrm{vit}(v) = W(G) - W(G - v)$. The pairs that include $v$ add
+        $\sum_{u} (d(u, v) + d(v, u))$ to the score, and every other pair subtracts the
+        amount its distance stretches once $v$ is gone. A pair left without a path drops out
+        of $W(G - v)$, since only finite distances are summed, and so adds its old distance
+        instead. The score is negative when the detours outweigh the rest. Computation is
         inherently expensive at $O(V^2 E / p)$ (one all-pairs shortest-path per node,
         parallelized across $p$ cores), so plan on staying below a few thousand nodes;
         degree, PageRank, or betweenness are the usual proxies at scale.
 
+        See Also
+        --------
+        node_vitality : The same score for a single node.
+        closeness_centrality : How close each node is to the rest.
+        betweenness_centrality : How often each node lies on shortest paths.
+
         Examples
         --------
-        Removing the hub of a star would disconnect every spoke from every other spoke,
-        so it has by far the highest vitality score of the four nodes:
+        Removing a leaf of a star drops its own distances from the total, and those of the
+        other nodes don't change. Removing the hub drops all its distances, and also those
+        between the leaves, which can no longer reach each other, so its score is the whole
+        total:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
-        )
+        star = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
 
-        vitality = graph.closeness_vitality(return_dict=True)
-        {graph.get_label_from_id(nid): score for nid, score in vitality.items()}
+        label = star.get_label_from_id
+        vitality = star.closeness_vitality(return_dict=True)
+        {label(n): v for n, v in vitality.items()}
+        ```
+
+        In a cycle with a chord, removing an end of the chord makes the others go the long way
+        around, and its score falls below the other nodes':
+
+        ```{python}
+        ring = ec.Graph().add_cycle_graph(8)
+        ring.add_edge("1", "5")
+
+        label = ring.get_label_from_id
+        vitality = ring.closeness_vitality(return_dict=True)
+        {label(n): v for n, v in sorted(vitality.items())}
+        ```
+
+        ### Closing a station
+
+        `metro()` is a made-up city's metro network, with each track's travel time in minutes
+        as its weight. Closing Riverside cuts off the harbor, whose trips then drop out of the
+        total, so it scores highest. Closing Market forces long detours on the trips that ran
+        through it, so it scores lowest, far below zero:
+
+        ```{python}
+        metro = ec.metro()
+        vitality = metro.closeness_vitality(return_dict=True)
+
+        label = metro.get_label_from_id
+        ranked = sorted(vitality, key=vitality.get)
+        [(label(n), vitality[n]) for n in ranked[:2] + ranked[-2:]]
+        ```
+
+        ```{python}
+        metro.closeness_vitality().plot(
+            layout="pos", color_by="closeness_vitality", color_scale="diverging",
+            label_by="label",
+        )
         ```
         """
         if self._use_weights(weighted):
@@ -56862,15 +56911,9 @@ class Graph:
         if attr_name is None:
             attr_name = "closeness_vitality"
 
-        self.set_node_attrs(attr_name, vitality)
-
-        # Track computation
-        self._computations.append(
-            (
-                "closeness_vitality",
-                {} if weighted is None else {"weighted": weighted},
-                attr_name,
-            )
+        self._store_node_result(
+            "closeness_vitality", {} if weighted is None else {"weighted": weighted}, attr_name,
+            vitality,
         )
 
         return self
