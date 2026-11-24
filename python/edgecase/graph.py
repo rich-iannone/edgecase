@@ -54849,22 +54849,56 @@ class Graph:
             (`None` for nodes without contacts). If `return_dict=` is `False` (default): returns
             self.
 
+        See Also
+        --------
+        constraint : The other half of Burt's structural holes measures.
+        local_constraint : The constraint that one neighbor puts on a node.
+
         Examples
         --------
-        The broker B links three contacts who do not know one another and keeps its full
-        effective size of 3, while C, whose two contacts know each other, has only 1:
+        The broker B links three contacts who don't know one another and keeps its full effective
+        size of `3`, while C, whose two contacts know each other, has only `1`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["B", "A", "X", "Y", "C", "D", "E"])
-            .add_edges([("B", "A"), ("B", "X"), ("B", "Y"), ("C", "D"), ("C", "E"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("B", "A"), ("B", "X"), ("B", "Y"), ("C", "D"), ("C", "E"),
+             ("D", "E")]
         )
 
-        sizes = graph.effective_size(return_dict=True)
-        {graph.get_label_from_id(n): s for n, s in sorted(sizes.items())}
+        graph.effective_size().get_node_df().select("label", "degree", "effective_size")
+        ```
+
+        ### Redundant in-laws
+
+        Effective size is a node's number of contacts, less the redundancy among them. In the
+        marriage network of the Florentine families, the Guadagni keep all four of their ties,
+        while the Strozzi count for three, and the Peruzzi for under two: the Strozzi, one of
+        their three in-laws, married the other two:
+
+        ```{python}
+        import polars as pl
+
+        florentine = ec.florentine_families().effective_size()
+
+        (
+            florentine.get_node_df()
+            .select("label", "degree", "effective_size")
+            .with_columns(redundant=pl.col("degree") - pl.col("effective_size"))
+            .filter(pl.col("degree") >= 3)
+            .sort("redundant", "label")
+        )
+        ```
+
+        Sized and colored by effective size, the Medici stand out as the family with the most
+        non-redundant contacts:
+
+        ```{python}
+        florentine.plot(
+            size_by="effective_size", color_by="effective_size", label_by="label",
+            seed=5,
+        )
         ```
 
         Notes
