@@ -82605,64 +82605,46 @@ class Graph:
         nodes. Eigenvector signs are normalized so that the first non-negligible entry is
         positive, making results reproducible.
 
+        See Also
+        --------
+        adjacency_matrix : The matrix whose eigenvalues these are.
+        laplacian_spectrum : The eigenvalues of the Laplacian instead.
+        modularity_spectrum : The eigenvalues of the modularity matrix.
+
         Examples
         --------
-        **Spectral Analysis of Complete Graph**
-
-        A complete graph `K_5` has a very distinctive spectrum: one large eigenvalue of `n-1` and
-        the rest equal to `-1`, which produces a large spectral gap:
+        The complete graph on five nodes has eigenvalues `4` and four times `-1`:
 
         ```{python}
+        import itertools
+
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
+        complete = ec.Graph.from_edges(list(itertools.combinations("ABCDE", 2)))
+        values = complete.adjacency_spectrum(which="all")["values"]
 
-        g.add_nodes([f"v{i}" for i in range(5)])
-        g.add_edges([(f"v{i}", f"v{j}") for i in range(5) for j in range(i+1, 5)])
+        [round(v, 3) + 0.0 for v in values]
+        ```
 
-        spec = g.adjacency_spectrum(which="all")
+        ### A mirrored spectrum
 
-        # Returns [4.0, -1.0, -1.0, -1.0, -1.0]
-        spec['values']
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do, weighted by the hours it would take them. Every link joins a worker to a
+        task, so the graph is bipartite, and its spectrum is the same read from either end, with
+        the signs flipped:
+
+        ```{python}
+        team = ec.teams()
+        values = team.adjacency_spectrum(which="all")["values"]
+
+        [round(v, 2) + 0.0 for v in values]
         ```
 
         ```{python}
-        # Returns 5.0 (largest minus second-largest eigenvalue)
-        spec['spectral_gap']
-        ```
-
-        **Detecting Bipartite Structure**
-
-        A bipartite graph's spectrum is symmetric around zero -- the largest and smallest
-        eigenvalues are mirror images of each other:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-
-        # Left partition: A, B; right partition: X, Y, Z
-        g.add_nodes(["A", "B", "X", "Y", "Z"])
-        g.add_edges([("A", "X"), ("A", "Y"), ("B", "Y"), ("B", "Z")])
-
-        spec = g.adjacency_spectrum(which="all")
-        values = spec['values']
-
-        # Returns True: the spectrum is symmetric about zero, a signature of bipartiteness
-        abs(values[0] + values[-1]) < 0.01
-        ```
-
-        **Directed Graphs Have Complex Spectra**
-
-        A directed cycle's adjacency matrix is a permutation matrix, so its eigenvalues are the
-        roots of unity. They are returned as complex numbers sorted by real part:
-
-        ```{python}
-        g = ec.Graph(directed=True)
-
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
-
-        # Returns 1, ±i, and -1 (the fourth roots of unity)
-        [complex(round(v.real, 6), round(v.imag, 6)) for v in g.adjacency_spectrum(which="all")["values"]]
+        (
+            team.layout_bipartite(align="horizontal", aspect_ratio=0.4)
+            .plot(layout="pos", label_by="label", height=300)
+        )
         ```
         """
         return self._graph.spectrum(which, k)
