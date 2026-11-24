@@ -20607,30 +20607,35 @@ class Graph:
         """
         Closeness centrality for nodes in one partition of a bipartite graph.
 
-        ![Bipartite closeness centrality](../assets/graphs/bipartite-closeness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the top side A to D. F reaches B, C and D in one hop and A in three, so it scores 0.67, ahead of E 0.50 and G 0.33." width="100%"}
+        ![Bipartite closeness centrality](../assets/graphs/bipartite-closeness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the rest of the graph. F reaches B, C and D in one hop and every other node in at most three, so it scores 0.80, ahead of E 0.57 and G 0.44." width="100%"}
 
-        Closeness measures how few steps a node needs to reach the nodes on the *other* side of a
-        bipartite graph. For each node in the chosen partition, the method finds hop-count
-        distances (edge weights are ignored) to every node in the opposite partition and returns
-        the reciprocal of the average distance. A node adjacent to every node on the other side
-        scores `1.0`; nodes that need longer paths score lower. The partitions are those returned
-        by `bipartite_sets()`.
+        Closeness measures how few steps a node needs to reach the rest of a bipartite graph. For
+        each node in the chosen partition, the method adds up the hop-count distances (edge
+        weights are ignored) to every node it can reach, on either side, and returns
+        `(m + 2 * (n - 1)) / total`, where `n` is the size of the chosen partition and `m` the
+        size of the other. That numerator is the smallest total a node on this side can have: a
+        node next to every node on the other side is one step from each of them and two from
+        each node on its own side, and it scores `1.0`. Nodes that need longer paths score
+        lower. This is the normalization of Borgatti and Halgin, and the scores match those of
+        NetworkX's `bipartite.closeness_centrality()`. The partitions are those returned by
+        `bipartite_sets()`.
 
-        Restricting the average to the opposite partition makes the scores reflect how directly a
-        node is tied to the "other kind" of entity, which suits questions like:
+        Plain closeness would mark every node down for the steps through the other side that
+        every path between two nodes of the same kind must take. Measuring against the best
+        case for a bipartite graph removes that, which suits questions like:
 
         - which members can reach all events through the fewest intermediaries?
         - which papers are closest to the whole community of authors?
         - which diseases are most directly connected to the full set of genes?
 
-        Only nodes in the chosen partition are scored. Unreachable nodes in the opposite
-        partition are left out of the average, so in a disconnected graph a node is scored only
-        against the part of the other side it can reach, and a node that can reach none of it
-        scores `0.0`. If the opposite partition is empty, every score is `0.0`. The method runs a
-        graph traversal from every node in the chosen partition, so its cost grows roughly with
-        the size of that partition times the size of the graph. On directed graphs edge direction
-        is ignored, so distances are those of the underlying undirected graph. The whole graph is
-        used and the current selection is ignored.
+        Only nodes in the chosen partition are scored. In a disconnected graph, the total covers
+        only the nodes a node can reach, and the score is then multiplied by the share of the
+        other nodes that it can reach, so nodes in small components score lower. A node that
+        can reach no other node scores `0.0`. The method runs a graph traversal from every node
+        in the chosen partition, so its cost grows roughly with the size of that partition times
+        the size of the graph. On directed graphs edge direction is ignored, so distances are
+        those of the underlying undirected graph. The whole graph is used and the current
+        selection is ignored.
 
         Parameters
         ----------
@@ -20660,45 +20665,58 @@ class Graph:
         ValueError
             If the graph is not bipartite, or if `which=` is not `0` or `1`.
 
+        See Also
+        --------
+        bipartite_degree_centrality : Rank the nodes of one side by their number of neighbors.
+        bipartite_betweenness_centrality : Rank the nodes of one side by the paths through them.
+        closeness_centrality : The same idea for any graph.
+
         Examples
         --------
-        In this people-film network the films are partition `1`. "Film2" is one hop from three
-        people and three hops from "Ann", for an average distance of `1.5` and a score of
-        `1 / 1.5 = 0.667`; "Film3", on the edge of the network, scores lowest:
+        Ben is next to both clubs and two steps from each other person, the shortest distances
+        possible, so he scores 1. Ana's distances to the other four nodes add up to 10 instead
+        of 6, for a score of 0.6:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
-            .add_edges(
-                [
-                    ("Ann", "Film1"),
-                    ("Bob", "Film1"),
-                    ("Bob", "Film2"),
-                    ("Cal", "Film2"),
-                    ("Cal", "Film3"),
-                    ("Dee", "Film2"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
+        )
+        closeness = graph.bipartite_closeness_centrality(
+            which=0, return_dict=True
         )
 
-        scores = graph.bipartite_closeness_centrality(which=1, return_dict=True)
-        {graph.get_label_from_id(nid): round(score, 3) for nid, score in sorted(scores.items())}
+        {graph.get_label_from_id(n): c for n, c in sorted(closeness.items())}
         ```
 
-        With the default `return_dict=False` the scores are stored in the node DataFrame
-        instead. Scoring the people (partition `0`) under a custom column name shows "Bob" and
-        "Cal", who sit in the middle of the network, ahead of "Ann" and "Dee"; the films have no
-        value in this column:
+        ### Reaching every woman
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. E8, which 14 of the 18 women attended, is one step from each of them, two
+        from every other event and three from the other four women, the closest of all the
+        events:
 
         ```{python}
-        (
-            graph
-            .bipartite_closeness_centrality(which=0, attr_name="closeness_to_films")
-            .get_node_df()
-            .select(["label", "closeness_to_films"])
+        davis = ec.davis_southern_women()
+        closeness = davis.bipartite_closeness_centrality(
+            which=1, return_dict=True
+        )
+        ranked = sorted(closeness, key=closeness.get, reverse=True)
+
+        [(davis.get_label_from_id(n), round(closeness[n], 3)) for n in ranked[:3]]
+        ```
+
+        ```{python}
+        women, events = davis.bipartite_sets()
+
+        davis.set_node_attrs("closeness", closeness).layout_bipartite(
+            nodes=women, aspect_ratio=0.5
+        ).plot(
+            layout="pos", color_by="closeness", color_scale="sequential",
+            label_by="label", height=900,
         )
         ```
         """
