@@ -68685,51 +68685,48 @@ class Graph:
         the two odd-degree nodes; `is_semieulerian()` tests for that case. The circuit
         returned here is one of possibly many valid ones.
 
+        See Also
+        --------
+        is_eulerian : Check if a circuit exists.
+        eulerian_path : A walk crossing every edge once that may end elsewhere.
+        eulerize : Duplicate edges until a circuit exists.
+
         Examples
         --------
-        On a cycle graph, the circuit simply goes once around the ring. Its length is one more
-        than the number of edges, because the start node is repeated at the end:
+        The circuit is the list of nodes visited, ending where it started:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(5)
-
-        graph.eulerian_circuit()
-        ```
-
-        Two triangles sharing node `C` form a "bowtie" in which every node has even degree. The
-        circuit uses all six edges once and passes through the shared node `C` more than once:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+             ("E", "C")]
         )
 
-        [graph.get_label_from_id(nid) for nid in graph.eulerian_circuit()]
+        [graph.get_label_from_id(n) for n in graph.eulerian_circuit()]
         ```
 
-        A path graph has no Eulerian circuit: its two endpoints have odd degree, so there's no
-        way to use every edge and return to the start. The method returns `None`:
+        A graph with a node of odd degree has no circuit, and the result is `None`:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(5)
-
-        graph.eulerian_circuit() is None
+        ec.Graph.from_edges([("A", "B"), ("B", "C")]).eulerian_circuit() is None
         ```
 
-        Directed graphs work the same way, as long as every node's in-degree equals its
-        out-degree. A directed 5-cycle qualifies, and the circuit follows the edge directions:
+        ### A round trip of Königsberg
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. No walk crosses each bridge exactly once and
+        returns, but with two bridges doubled by `eulerize()`, a round trip crosses all nine:
 
         ```{python}
-        graph = ec.Graph(directed=True)
-        graph.add_cycle_graph(5)
+        konigsberg = ec.konigsberg().eulerize()
+        label = konigsberg.get_label_from_id
 
-        graph.eulerian_circuit()
+        [label(n) for n in konigsberg.eulerian_circuit()]
+        ```
+
+        ```{python}
+        konigsberg.plot(layout="pos", color_by="kind", label_by="label")
         ```
         """
         from edgecase._core import eulerian_circuit
