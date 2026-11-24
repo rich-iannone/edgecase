@@ -1032,6 +1032,13 @@ class Graph:
             The graph's step log, in the order the operations were performed. Each `Step` has a
             zero-based `index`, though printed representations number steps from `1`.
 
+        See Also
+        --------
+        note : Narrate the next step.
+        print_steps : A compact printout of the log.
+        clear_steps : Empty the log.
+        play : Replay the log as an animation.
+
         Examples
         --------
         Building a small graph records one step per call. The `StepList` prints as a numbered
