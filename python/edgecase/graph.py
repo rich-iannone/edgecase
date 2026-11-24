@@ -20014,19 +20014,47 @@ class Graph:
 
         Examples
         --------
-        Customers and the products they bought: the most popular product, and the customer who
-        bought popular products, rank highest:
+        Ben belongs to both clubs and ranks first among the people. Without personalization,
+        each side's scores add up to 1:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "cy", "tea", "jam", "bread"])
-        g.add_edges(
-            [("ann", "tea"), ("ann", "jam"), ("bob", "tea"), ("bob", "bread"), ("cy", "tea")]
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
         )
+        scores = graph.birank(top_nodes=["Ana", "Ben", "Cruz"])
 
-        scores = g.birank(top_nodes=["ann", "bob", "cy"])
-        {g.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        {graph.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        ```
+
+        ### Recommending events
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Personalized to Charlotte McDowd, who attended E3, E4, E5 and E7, BiRank
+        ranks the events she missed by how closely they're tied to hers. It suggests E8, E6 and
+        E9, which many of the women she met there also attended:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        scores = davis.birank(
+            top_nodes=women, top_personalization={"Charlotte McDowd": 1}
+        )
+        attended = davis.get_neighbors("Charlotte McDowd")
+        missed = [e for e in events if e not in attended]
+        ranked = sorted(missed, key=scores.get, reverse=True)
+
+        [davis.get_label_from_id(e) for e in ranked[:3]]
+        ```
+
+        ```{python}
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos", highlight=["Charlotte McDowd", *ranked[:3]],
+            label_by="label", height=900,
+        )
         ```
         """
         top = {self._resolve_node_id(n, auto_create=False) for n in top_nodes}
