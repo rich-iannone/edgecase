@@ -68180,65 +68180,49 @@ class Graph:
         a natural primitive for reachability strength, information-diffusion models that
         credit multiple redundant paths, and kernel-based graph similarity.
 
+        See Also
+        --------
+        count_trails : Count the walks between two nodes that never reuse an edge.
+        list_triangles : Every triangle in the graph.
+
         Examples
         --------
-        In a 3-node path `0 -- 1 -- 2`, there's exactly one walk of length 2 from `0` to `2`,
-        but two distinct walks of length 2 that start and end at `1` (bouncing off either
-        neighbor and back):
+        On the path `A`-`B`-`C`, a walk of two steps from `A` either comes back to `A` or ends at
+        `C`, while from `B` there are two walks back to `B`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["0", "1", "2"])
-        g.add_edges([("0", "1"), ("1", "2")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        label = graph.get_label_from_id
 
-        walks = g.count_walks(2)
-        node_0 = g.get_id_from_label("0")
-        node_1 = g.get_id_from_label("1")
-        node_2 = g.get_id_from_label("2")
+        {
+            label(u): {label(v): n for v, n in row.items() if n}
+            for u, row in graph.count_walks(2).items()
+        }
+        ```
 
-        # Returns 1 (path: 0 -> 1 -> 2)
-        walks[node_0][node_2]
+        ### Triangles from walks
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. A walk of three steps that ends where it started goes around
+        a triangle, once in each direction, so halving these counts gives the triangles each
+        member belongs to. The instructor (`0`) is in 18:
+
+        ```{python}
+        karate = ec.karate_club()
+        walks = karate.count_walks(3)
+        triangles = {n: walks[n][n] // 2 for n in walks}
+
+        {karate.get_label_from_id(n): triangles[n] for n in [1, 34, 33, 3]}
         ```
 
         ```{python}
-        # Returns 2 (1 -> 0 -> 1 and 1 -> 2 -> 1)
-        walks[node_1][node_1]
-        ```
+        karate = karate.set_node_attrs("triangles", triangles)
 
-        A triangle has cycles, so walks of length 3 can return to their starting node by going
-        all the way around, or by bouncing back and forth on one edge:
-
-        ```{python}
-        g = ec.Graph()
-        g.add_nodes(["0", "1", "2"])
-        g.add_edges([("0", "1"), ("1", "2"), ("2", "0")])
-
-        walks = g.count_walks(3)
-        node_0 = g.get_id_from_label("0")
-
-        # Returns 2 (0->1->2->0 and 0->1->0->0)
-        walks[node_0][node_0]
-        ```
-
-        Summing over every entry in the result gives the total number of walks of that length
-        anywhere in the graph:
-
-        ```{python}
-        total = sum(sum(targets.values()) for targets in walks.values())
-
-        # Total walks of length 3 in the triangle
-        total
-        ```
-
-        Indexing by a single source node isolates just the walks that start there:
-
-        ```{python}
-        source_walks = walks[node_0]
-
-        # Returns the number of length-3 walks starting from node 0
-        sum(source_walks.values())
+        karate.plot(
+            size_by="triangles", color_by="faction", label_by="label", seed=1
+        )
         ```
         """
         if walk_length < 0:
