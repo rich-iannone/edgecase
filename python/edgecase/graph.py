@@ -20429,23 +20429,43 @@ class Graph:
 
         Examples
         --------
-        In the complete bipartite graph K3,3 any two independent edges extend to a perfect
-        matching, and the third pair is then forced; a six-node cycle only manages one:
+        In a path of four nodes, the middle edge is in no perfect matching. In a square, every
+        edge is in one, but two opposite edges can't both be. In the complete bipartite graph on
+        three and three nodes, any two edges that share no node extend to a perfect matching:
 
         ```{python}
         import edgecase as ec
 
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
+        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
+
         (
-            ec.Graph().add_complete_bipartite_graph(3, 3).maximal_extendability(),
-            ec.Graph().add_cycle_graph(6).maximal_extendability(),
+            path.maximal_extendability(),
+            square.maximal_extendability(),
+            k33.maximal_extendability(),
         )
         ```
 
-        In a four-node path the middle edge is in no perfect matching (it would leave both
-        end nodes unmatched), so the extendability is 0:
+        ### Kekulé structures
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. Benzene's ring of six carbons can alternate single
+        and double bonds in two ways, its two Kekulé structures, and the double bonds of each are
+        a perfect matching. Its extendability is 1: every bond is double in one of the
+        structures, but two bonds on opposite sides of the ring are never double together:
 
         ```{python}
-        ec.Graph().add_path_graph(4).maximal_extendability()
+        benzene = ec.molecules()["benzene"]
+        double = benzene.maximum_weight_matching()
+
+        benzene.maximal_extendability(), benzene.is_perfect_matching(double)
+        ```
+
+        ```{python}
+        benzene.plot(highlight_edges=double, label_by="label", seed=1)
         ```
         """
         if self.is_directed():
