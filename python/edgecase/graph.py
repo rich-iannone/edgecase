@@ -70305,6 +70305,11 @@ class Graph:
         list[int]
             Sorted IDs of the isolated nodes.
 
+        See Also
+        --------
+        degrees : The number of edges at each node.
+        weakly_connected_components : The pieces of the graph, isolates among them.
+
         Examples
         --------
         Nodes that never appear in an edge are isolates:
@@ -70312,11 +70317,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        graph.add_nodes(["D", "E"])
 
         [graph.get_label_from_id(n) for n in graph.isolates()]
         ```
@@ -70328,6 +70330,23 @@ class Graph:
             graph.delete_node(node)
 
         graph.count_nodes()
+        ```
+
+        ### A station left stranded
+
+        `metro()` is a made-up city's metro network. With Business Park closed, the Airport, at
+        the end of the line beyond it, has no track left:
+
+        ```{python}
+        metro = ec.metro()
+        metro.delete_node("Business Park")
+
+        stranded = metro.isolates()
+        [metro.get_label_from_id(n) for n in stranded]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=stranded, label_by="label")
         ```
         """
         result = rust.isolates(self._graph)
