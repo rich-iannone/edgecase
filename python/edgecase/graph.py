@@ -67616,23 +67616,47 @@ class Graph:
         costs $O(V + E)$ in all. This follows `all_lowest_common_ancestors` from NetworkX pull
         request #7988.
 
+        See Also
+        --------
+        lowest_common_ancestor : A single lowest common ancestor.
+        all_pairs_all_lowest_common_ancestors : Every lowest common ancestor for many pairs.
+
         Examples
         --------
-        Two siblings, ann and bob, share both parents, so they have two lowest common
-        ancestors, while `lowest_common_ancestor()` returns only one of them:
+        `C` and `D` both descend from `A` and from `B`, and neither of those descends from the
+        other, so both are lowest common ancestors:
 
         ```{python}
         import edgecase as ec
 
-        family = ec.Graph(directed=True).add_nodes(["mum", "dad", "ann", "bob", "grandma"])
-        family.add_edges(
-            [("grandma", "mum"), ("mum", "ann"), ("mum", "bob"), ("dad", "ann"), ("dad", "bob")]
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")], directed=True
         )
+        meet = graph.all_lowest_common_ancestors("C", "D")
 
-        label = family.get_label_from_id
-        (
-            [label(n) for n in family.all_lowest_common_ancestors("ann", "bob")],
-            label(family.lowest_common_ancestor("ann", "bob")),
+        [graph.get_label_from_id(n) for n in meet]
+        ```
+
+        ### Two ways to meet
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. CS350 and CS360 both require Probability
+        and Statistics (STAT201), and both build on Data Structures (CS102), one through CS250
+        and the other through CS201. Neither of the two requires the other, so both are lowest
+        common ancestors:
+
+        ```{python}
+        courses = ec.courses()
+        meet = courses.all_lowest_common_ancestors("CS350", "CS360")
+
+        [courses.get_label_from_id(n) for n in meet]
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight={"accent": meet, "soft": ["CS350", "CS360"]},
+            color_by="dept", label_by="label", height=420,
         )
         ```
         """
