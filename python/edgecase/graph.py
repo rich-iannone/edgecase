@@ -51602,10 +51602,16 @@ class Graph:
         a benchmark useful for spot-checking whether an empirical network is more or less
         robust than a random baseline.
 
+        See Also
+        --------
+        node_percolation : A single random removal of nodes.
+        edge_percolation : A single random removal of edges.
+        largest_component_size : The size of what holds together.
+
         Examples
         --------
         A ring is about as fragile as a connected network can be: every removed node cuts the
-        cycle, so already at `q=0.2` the largest surviving piece holds only about a third of the
+        cycle, so at `q=0.2` the largest surviving piece already holds only about a third of the
         survivors:
 
         ```{python}
@@ -51617,15 +51623,41 @@ class Graph:
         [(q, round(gcc, 2)) for q, gcc in results]
         ```
 
-        A random graph with the same number of nodes but an average degree of about six has
-        many redundant paths. It stays essentially in one piece until well over half of its
-        nodes are gone, and only fragments noticeably at `q=0.8`:
+        ### A club against a ring
+
+        Zachary's karate club has 34 members and 78 friendships. Compared with a ring of 34, it
+        holds together far longer: with 30% of the members gone, the largest piece still holds
+        over 90% of the survivors, against a third for the ring:
 
         ```{python}
-        dense = ec.Graph().add_gnp_graph(n=40, p=0.15, seed=1)
+        import polars as pl
 
-        results = dense.percolation_threshold_analysis(steps=5, trials=20, seed=1)
-        [(q, round(gcc, 2)) for q, gcc in results]
+        club = ec.karate_club().percolation_threshold_analysis(
+            steps=10, trials=50, seed=1
+        )
+        ring = ec.Graph().add_cycle_graph(34).percolation_threshold_analysis(
+            steps=10, trials=50, seed=1
+        )
+
+        pl.DataFrame(
+            {
+                "q": [q for q, _ in club],
+                "club": [gcc for _, gcc in club],
+                "ring": [gcc for _, gcc in ring],
+            }
+        ).with_columns(pl.col("club", "ring").round(2))
+        ```
+
+        Even with half the club gone, the largest piece holds about 80% of the 17 survivors, as
+        in this draw, where it holds 13 and only four members are cut off:
+
+        ```{python}
+        (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .node_percolation(q=0.5, seed=3)
+            .plot(layout="pos", color_by="faction", label_by="label")
+        )
         ```
         """
         from edgecase._core import percolation_threshold_analysis as rust_pta
