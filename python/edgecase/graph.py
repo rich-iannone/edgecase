@@ -53486,26 +53486,65 @@ class Graph:
             If the group is empty, contains a node that does not exist, or weights are used and
             one is negative.
 
+        See Also
+        --------
+        betweenness_centrality : Betweenness for single nodes.
+        prominent_group : Find the group of a given size with the most.
+        group_closeness_centrality : How close a group is to everyone else.
+        group_degree_centrality : How many nodes a group is next to.
+
         Examples
         --------
-        In two triangles joined by a bridge C-D, the pair of bridge ends intercepts every path
+        In two triangles joined by a bridge `C-D`, the pair of bridge ends intercepts every path
         between the triangles, while two nodes from the same triangle intercept far less:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"),
+             ("E", "F"), ("F", "D")]
         )
 
         (
-            round(graph.group_betweenness_centrality(["C", "D"]), 3),
-            round(graph.group_betweenness_centrality(["A", "B"]), 3),
+            graph.group_betweenness_centrality(["C", "D"]),
+            graph.group_betweenness_centrality(["A", "B"]),
         )
         ```
+
+        ### Covering different routes
+
+        In Zachary's karate club, the instructor (member 0) alone lies on 44% of the shortest
+        paths between the other members. Adding member 1, the instructor's busiest friend, gains
+        little, since most routes through member 1 pass through the instructor as well. Adding
+        the administrator (member 33), who covers the other side of the club, gains a lot:
+
+        ```{python}
+        import polars as pl
+
+        club = ec.karate_club().layout_kamada_kawai()
+
+        groups = [["0"], ["0", "1"], ["0", "33"], ["0", "33", "32"]]
+
+        pl.DataFrame(
+            {
+                "group": [", ".join(group) for group in groups],
+                "group_betweenness": [
+                    club.group_betweenness_centrality(group) for group in groups
+                ],
+            }
+        )
+        ```
+
+        Between them, the two leaders sit on routes into every part of the club:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="faction", label_by="label", highlight=["0", "33"]
+        )
+        ```
+
+        To find the best group of a given size, use `prominent_group()`.
 
         Notes
         -----
