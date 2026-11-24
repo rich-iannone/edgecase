@@ -73325,22 +73325,54 @@ class Graph:
         ValueError
             If `S=` is empty, a node does not exist, or a side has zero volume.
 
+        See Also
+        --------
+        normalized_cut_size : The cut relative to the volume of each side.
+        edge_expansion : The cut relative to the number of nodes of the smaller side.
+        modularity : A score for a whole partition rather than a single set.
+
         Examples
         --------
-        One triangle of the two-triangle graph is a good cluster; a split through a triangle is
-        not:
+        One triangle of the two-triangle graph is a good cluster, while two nodes from
+        different triangles are not a cluster at all:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        round(graph.conductance(["A", "B", "C"]), 3), round(graph.conductance(["A", "D"]), 3)
+        (
+            round(graph.conductance(["A", "B", "C"]), 3),
+            round(graph.conductance(["A", "D"]), 3),
+        )
+        ```
+
+        ### Scoring communities
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Louvain finds four communities in it, and the conductance
+        of each, the share of its members' friendships that leave it, scores how well it stands
+        apart. The six members from 23 to 31, on the administrator's side, are the loosest,
+        with more than 40% of their friendships leaving the group:
+
+        ```{python}
+        karate = ec.karate_club().cmty_louvain(attr_name="community")
+        nodes = karate.get_node_df()
+
+        groups = nodes.group_by("community").agg("id").sort("community")
+        {c: round(karate.conductance(ids), 3) for c, ids in groups.rows()}
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="community", edge_color_by="community",
+            label_by="label",
+        )
         ```
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
