@@ -61369,6 +61369,12 @@ class Graph:
         exactly the shortest paths; they are enumerated by depth-first search. Matches NetworkX's
         `single_source_all_shortest_paths`.
 
+        See Also
+        --------
+        all_shortest_paths : Every shortest path to one target.
+        all_pairs_all_shortest_paths : Every shortest path between every pair of nodes.
+        predecessor : The node before each node on every shortest path, more compactly.
+
         Examples
         --------
         In a 3 x 3 grid there are 6 shortest paths between opposite corners:
@@ -61380,6 +61386,24 @@ class Graph:
         ids = sorted(grid.get_node_ids(limit=None))
         paths = grid.single_source_all_shortest_paths(ids[0])
         len(paths[ids[-1]])
+        ```
+
+        ### Ties on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. From Central, four stations have two equally fast routes:
+
+        ```{python}
+        metro = ec.metro()
+        routes = metro.single_source_all_shortest_paths("Central")
+        label = metro.get_label_from_id
+
+        {label(n): len(found) for n, found in routes.items() if len(found) > 1}
+        ```
+
+        ```{python}
+        tied = [n for n, found in routes.items() if len(found) > 1]
+        metro.plot(layout="pos", highlight=tied, label_by="label")
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
