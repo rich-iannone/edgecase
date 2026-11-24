@@ -67090,18 +67090,55 @@ class Graph:
         `dag_to_branching`. The result can be exponentially larger than the DAG, since the
         number of paths can grow exponentially.
 
+        See Also
+        --------
+        is_branching : Check that a directed graph is a forest of arborescences.
+        all_topological_sorts : Every topological ordering.
+
         Examples
         --------
-        In a diamond, D is reached through B and through C, so it appears twice:
+        In a diamond, `D` is reached through `B` and through `C`, so it appears twice:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
+        )
+        tree = graph.dag_to_branching()
 
-        tree = g.dag_to_branching()
-        sorted(tree.get_label_from_id(n) for n in tree.get_node_ids()), tree.is_branching()
+        tree.get_node_df().select("label", "source"), tree.is_branching()
+        ```
+
+        ### Every chain of prerequisites
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Unfolding CS460 and the courses it needs
+        gives a tree for each starting course, with a copy of CS460 at the end of each chain of
+        prerequisites. There are four chains:
+
+        ```{python}
+        courses = ec.courses()
+        needed = courses.subgraph(
+            [*courses.ancestors("CS460"), courses.get_id_from_label("CS460")]
+        )
+        tree = needed.dag_to_branching()
+
+        [label for label in tree.get_node_df()["label"]
+         if label.endswith("CS460")]
+        ```
+
+        ```{python}
+        labels = tree.get_node_df()["label"]
+        tree.set_node_attrs(
+            "course", {label: label.rsplit("/", 1)[-1] for label in labels}
+        )
+        tree.set_node_attrs(
+            "depth", {label: label.count("/") for label in labels}
+        )
+        tree.layout_multipartite(subset_key="depth").plot(
+            layout="pos", label_by="course", height=360,
+        )
         ```
         """
         self._require_dag("dag_to_branching")
