@@ -24245,9 +24245,10 @@ class Graph:
         Parameters
         ----------
         edge_ids
-            A list of integer edge IDs to select. Every ID must belong to an existing edge; a
-            missing ID raises `KeyError` and leaves the selection unchanged. An empty list is
-            allowed (with `set_op="replace"`, it clears the selection).
+            The integer IDs of the edges to select, as a list or any other iterable. Every ID
+            must belong to an existing edge; a missing ID raises `KeyError` and leaves the
+            selection unchanged. An empty list is allowed (with `set_op="replace"`, it clears the
+            selection).
         set_op
             How these edges combine with the current edge selection. `"union"` (default) adds them
             to it, `"replace"` makes them the selection, `"intersect"` keeps only the selected edges
@@ -24266,48 +24267,54 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_edges : Select the edges that pass a test.
+        get_selected_edge_ids : The IDs of the selected edges.
+        get_edge_df_ws : The table of the selected edges.
+
         Examples
         --------
-        Edge IDs are assigned in creation order, so the first two IDs in this triangle belong
-        to `A-B` and `B-C`. Selecting them leaves `C-A` unselected:
+        Edge IDs follow the order in which the edges were made, so here `1` and `2` are `A`-`B`
+        and `B`-`C`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph.select_edges_by_id([1, 2])
 
-        edge_ids = graph.get_edge_ids()
-        graph.select_edges_by_id(edge_ids=[edge_ids[0], edge_ids[1]])
-
-        graph.count_selected_edges()
+        graph.get_edge_df_ws().select("id", "source", "target")
         ```
 
-        A common pattern is to filter the edge DataFrame with Polars and pass the matching IDs
-        back in. Here the edges heavier than `1.0` are selected and then shown with
-        `get_edge_df_ws()`:
+        ### The last week of payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. A common pattern is to filter the edge table with Polars and pass
+        the IDs it keeps back in. Here that picks out the payments made from 12 March on:
 
         ```{python}
         import polars as pl
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", 0.5), ("B", "C", 2.0), ("C", "A", 3.5)])
-        )
+        payments = ec.payments()
+        late = payments.get_edge_df().filter(pl.col("date") >= "2026-03-12")
+        payments.select_edges_by_id(late["id"].to_list())
 
-        heavy = graph.get_edge_df().filter(pl.col("weight") > 1.0)["id"].to_list()
-        graph.select_edges_by_id(heavy)
-
-        graph.get_edge_df_ws()
+        payments.count_selected_edges()
         ```
 
+        All eight are large: the payment that closes the loop through Ana, Ben and Cruz, the
+        chain of four that carries money on from Cruz to Lena, and the loop through Finn, Gus
+        and Hal:
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         try:
-            self._select("edges", set_op, lambda: self._graph.select_edges_by_id(edge_ids))
+            self._select(
+                "edges", set_op, lambda: self._graph.select_edges_by_id(list(edge_ids))
+            )
         except KeyError as e:  # the earlier selection was restored
             raise EdgeNotFoundError(e.args[0]) from None
 
