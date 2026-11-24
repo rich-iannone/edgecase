@@ -41317,19 +41317,70 @@ class Graph:
         matches NetworkX's `lukes_partitioning` (which may return a different optimal partition).
         Edge direction is ignored.
 
+        See Also
+        --------
+        kernighan_lin_bisection : Split any graph into two halves with few edges between them.
+        cut_size : The number of edges between two sets of nodes.
+
         Examples
         --------
-        A path of six nodes cut into pieces of at most three nodes keeps four of its five edges
+        A path of six nodes, cut into pieces of at most three nodes, keeps four of its five edges
         when cut in the middle:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(list("ABCDEF"))
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")])
+        path = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"),
+        ])
 
-        [sorted(path.get_label_from_id(n) for n in c) for c in path.lukes_partitioning(3)]
+        label = path.get_label_from_id
+        [sorted(label(n) for n in c) for c in path.lukes_partitioning(3)]
         ```
+
+        ### Clusters of a tree
+
+        A balanced binary tree has 31 nodes in five levels. A connected cluster of `k` nodes keeps
+        `k - 1` edges, so on an unweighted tree, keeping the most edges means using the fewest
+        clusters. With at most four nodes in a cluster (left), the tree needs nine, one more than
+        the sizes alone would allow, since every cluster must be connected. With at most seven
+        (right), five clusters are enough:
+
+        ```{python}
+        tree = ec.Graph().add_balanced_tree(2, 4)
+        tree.layout_kamada_kawai()
+
+        {
+            size: sorted(len(c) for c in tree.lukes_partitioning(size))
+            for size in (4, 7)
+        }
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        clusters = tree.lukes_partitioning(4)
+        tree.set_node_attrs(
+            "up_to_4", {n: i for i, c in enumerate(clusters) for n in c}
+        )
+        tree.plot(
+            layout="pos", color_by="up_to_4", edge_color_by="up_to_4",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        clusters = tree.lukes_partitioning(7)
+        tree.set_node_attrs(
+            "up_to_7", {n: i for i, c in enumerate(clusters) for n in c}
+        )
+        tree.plot(
+            layout="pos", color_by="up_to_7", edge_color_by="up_to_7",
+            show_labels=False, width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(max_size=max_size)
         clusters, value = rust.lukes_partitioning(
