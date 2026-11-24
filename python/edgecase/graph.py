@@ -27013,24 +27013,44 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_out_edge : Move the selection to outgoing edges.
+        trav_in : Move the selection against incoming edges.
+        get_edge_df_ws : The table of the selected edges.
+
         Examples
         --------
-        The mirror image of `trav_out_edge()`: traversing from "C" to its inbound edges
-        selects both edges pointing into it:
+        The selection moves from `C` to the edges that come into it:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C"])
-        graph.add_edges([("A", "C"), ("B", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("C", "A")], directed=True
+        )
+        graph.select_nodes_by_id([graph.get_id_from_label("C")]).trav_in_edge()
 
-        node_c_id = graph.get_id_from_label("C")
-        graph.select_nodes_by_id([node_c_id]).trav_in_edge()
-
-        len(graph.get_selected_edge_ids())
+        sorted(graph.get_selected_edge_ids())
         ```
 
+        ### The Grocer's takings
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The payments into the Grocer's account are its takings for the
+        month: eight of them, which add up to 430:
+
+        ```{python}
+        payments = ec.payments()
+        payments.select_nodes_by_id([payments.get_id_from_label("Grocer")])
+        takings = payments.trav_in_edge().get_edge_df_ws()
+
+        takings.height, takings["amount"].sum()
+        ```
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         self._graph.trav_in_edge()
 
