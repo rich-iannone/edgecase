@@ -70023,6 +70023,12 @@ class Graph:
         nodes commonly tie for maximum eccentricity; all such nodes are returned. Computing
         every eccentricity takes one BFS per node, so the cost is $O(V \cdot (V + E))$.
 
+        See Also
+        --------
+        center : The nodes with the smallest eccentricity.
+        diameter : The eccentricity of the periphery.
+        eccentricity : Each node's distance to the node farthest from it.
+
         Examples
         --------
         In a path graph `1-2-3-4-5`, the two endpoints are farthest from the graph's center, so
@@ -70041,10 +70047,8 @@ class Graph:
         other side of the root:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("D", "E")]
         )
 
         sorted(graph.get_label_from_id(nid) for nid in graph.periphery())
@@ -70059,6 +70063,23 @@ class Graph:
         graph.add_path_graph(2)
 
         sorted(graph.periphery())
+        ```
+
+        ### The far ends of the metro
+
+        `metro()` is a made-up city's metro network. The Airport and Westgate are its periphery,
+        seven stops apart, the most between any two stations:
+
+        ```{python}
+        metro = ec.metro()
+        far = metro.periphery()
+
+        [metro.get_label_from_id(n) for n in far], metro.diameter()
+        ```
+
+        ```{python}
+        trip = metro.shortest_path(*far, weighted=False, return_list=True)
+        metro.plot(layout="pos", highlight=trip, label_by="label")
         ```
         """
         return self._graph.get_periphery()
