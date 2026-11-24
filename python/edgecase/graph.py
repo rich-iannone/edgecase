@@ -4839,6 +4839,12 @@ class Graph:
         ValueError
             If neither `visit_order=` nor `source=` is provided.
 
+        See Also
+        --------
+        play : Replay the whole step log, traversals included.
+        bfs : The breadth-first search run from source=.
+        dfs : A depth-first visit order to pass as visit_order=.
+
         Examples
         --------
         Passing just `source=` runs a breadth-first search from that node. In the karate club, BFS
