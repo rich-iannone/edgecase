@@ -37242,16 +37242,54 @@ class Graph:
             `(matrix, degrees)`: the square matrix as a list of rows, and the degree values
             labelling rows and columns, sorted.
 
+        See Also
+        --------
+        degree_mixing_dict : The same counts as a nested dict.
+        attribute_mixing_matrix : The matrix for an attribute instead of degree.
+        assortativity_degree : The correlation of this matrix.
+
         Examples
         --------
-        A star is perfectly disassortative: every edge joins the hub to a leaf, so all the
-        weight sits off the diagonal:
+        The counts of `degree_mixing_dict()`, with a row and a column for each degree. Each link
+        counts once from each end:
 
         ```{python}
         import edgecase as ec
 
-        matrix, degrees = ec.Graph().add_star_graph(4).degree_mixing_matrix()
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
+        )
+        matrix, degrees = graph.degree_mixing_matrix(normalized=False)
+
         degrees, matrix
+        ```
+
+        ### Like with like, mostly
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. As fractions of all the friendships, counted from both ends, the
+        largest entries lie on the diagonal: friends with three friends each, and with five:
+
+        ```{python}
+        import polars as pl
+
+        friends = ec.friends()
+        matrix, degrees = friends.degree_mixing_matrix()
+
+        pl.DataFrame(
+            [[round(v, 2) for v in row] for row in matrix],
+            schema=[str(d) for d in degrees], orient="row",
+        ).insert_column(0, pl.Series("degree", degrees))
+        ```
+
+        `assortativity_degree()` is the correlation of this table, and comes out positive:
+
+        ```{python}
+        round(friends.assortativity_degree(), 2)
+        ```
+
+        ```{python}
+        friends.plot(color_by="degree", label_by="label", seed=8)
         ```
         """
         counts = self.degree_mixing_dict(source_mode, target_mode, weighted, normalized=False)
