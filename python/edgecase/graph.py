@@ -4209,13 +4209,16 @@ class Graph:
         as separate curves, and self-loops are drawn as small loops. Hovering over a node or edge
         in the HTML rendering shows its attributes.
 
-        Aesthetics can be mapped from node attributes: `color_by=` for categorical colors,
-        `size_by=` for numeric node sizes, `label_by=` for the text shown on nodes, and
-        `edge_color_by=` to color edges by the groups of their endpoints. This makes `plot()` a
-        quick way to:
+        Aesthetics can be mapped from attributes: `color_by=` for node colors (a palette for
+        groups, a color scale for numbers), `size_by=` for numeric node sizes, `label_by=` for the
+        text shown on nodes, `edge_color_by=` to color edges by an edge attribute or by the groups
+        of their endpoints, and `edge_width_by=` for numeric edge widths. A legend at the right
+        explains the colors. `highlight=` and `highlight_edges=` pick out some nodes and edges,
+        such as a path, in an accent color and mute the rest. This makes `plot()` a quick way to:
 
         - check the result of a community detection run
-        - highlight important nodes by sizing them by a centrality score
+        - highlight important nodes by sizing or coloring them by a centrality score
+        - show a path, a matching or a set of bridges within the whole graph
         - produce consistent figures for reports and documentation
 
         Attribute-based options read the attributes stored on nodes and edges (those set with
@@ -4232,23 +4235,31 @@ class Graph:
         layout
             Layout algorithm. `"force"` (default) uses a Fruchterman-Reingold force-directed
             layout, which places connected nodes near each other. `"circular"` places nodes evenly
-            on a circle, and `"random"` scatters them uniformly over the canvas. Any other string
-            names a node attribute holding `(x, y)` positions, such as the `"pos"` attribute the
-            `layout_*()` methods set; the positions are fitted to the canvas with `y` pointing up.
-            `ValueError` is raised if some node lacks the attribute or doesn't hold two numbers.
+            on a circle in depth-first order (see `layout_circular()`), and `"random"` scatters
+            them uniformly over the canvas. Any other string names a node attribute holding
+            `(x, y)` positions, such as the `"pos"` attribute the `layout_*()` methods set; the
+            positions are fitted to the canvas with `y` pointing up. `ValueError` is raised if some node lacks the attribute or doesn't
+            hold two numbers.
         color_by
-            Node attribute to map to categorical colors (e.g., `"community"` or `"type"`). Each
-            distinct value gets the next color of `palette=` in order of first appearance (nodes
-            lacking the attribute are grouped together and also get a color). Edges whose two
-            endpoints share a value are drawn in that group's color. Default is `None` (all nodes
-            share one color).
+            Node attribute to map to colors (e.g., `"community"`, `"type"` or `"pagerank"`). How
+            values become colors is set by `color_scale=`: by default, an attribute holding
+            fractional numbers (floats) gets a sequential color scale, from light for the lowest
+            value to dark for the highest, and any other attribute (strings, whole numbers such as
+            community numbers, booleans) is taken as groups. Each group gets a color of `palette=`,
+            in the sorted order of the values, and edges whose two endpoints share a group are
+            drawn in that group's color. Nodes lacking a value are gray, with groups or on a color
+            scale. Default is `None` (all nodes share one color).
         edge_color_by
-            Node attribute used to color edges by group membership of their endpoints. An edge
+            What to color edges by. The name of an edge attribute colors each edge by its value:
+            fractional numbers get a sequential color scale (and edges are drawn more opaque,
+            unless `edge_opacity=` is changed from its default), anything else a color of `palette=` per distinct
+            value, and edges lacking the attribute keep the default edge color. Otherwise it names
+            a node attribute, and edges are colored by the groups of their endpoints: an edge
             whose endpoints share a value gets that group's palette color, and an edge connecting
             two different groups (or a node with the attribute to one without it) gets
             `cross_community_color=`. When set, this takes precedence over the edge coloring done
             by `color_by=`. Like `color_by=`, it also accepts `"label"`, `"degree"` and `"id"`,
-            and a name that no node has raises `ValueError`. Default is `None`.
+            and a name that no node or edge has raises `ValueError`. Default is `None`.
         size_by
             Numeric node attribute to map to node radius, or `"degree"`. Values are min-max
             scaled so that radii range from half to twice the base `node_size=`. Nodes with a
@@ -4260,14 +4271,20 @@ class Graph:
             `set_node_attr_to_display()` is used, or `"id"` if none was chosen. Has no effect if
             `show_labels=` is `False`.
         edge_label_by
-            Edge attribute to display as a small text label along each edge (e.g., `"rel"`).
-            Edges without the attribute are left unlabelled. Default is `None` (no edge labels).
+            Edge attribute to display as a small text label along each edge (e.g., `"rel"`), or
+            `"weight"` for the edge weights. Edges without the attribute are left unlabelled.
+            Default is `None` (no edge labels).
         curved_edges
             If `True`, draw every edge as a quadratic Bezier curve instead of a straight line (edge
             routing is then skipped). Default is `False`.
         theme
-            Color theme: `"light"` (default) or `"dark"`, controlling the background, default edge
-            color, label color, and tooltip styling. Any other value raises `ValueError`.
+            Color theme, setting the background, default edge color, label color and tooltip
+            styling: `"auto"`, `"light"` or `"dark"`. `"auto"` follows the color scheme of the
+            page showing the plot (the light/dark toggle of a Quarto site, or a JupyterLab or VS
+            Code theme), or else the system's, and switches along with it. If `None` (default),
+            the plot is `"auto"` on screen while files written with `output=` or `save()` get the
+            light theme, since programs other than browsers don't switch colors. Any other value
+            raises `ValueError`.
         palette
             Name of a color palette from `edgecase.colors` used for `color_by=` and
             `edge_color_by=` (see `edgecase.colors.list_palettes()` for the options, e.g., `"Set2"`
@@ -4291,9 +4308,10 @@ class Graph:
             keeps dense regions readable.
         cross_community_color
             Color (any SVG/CSS color string, e.g., `"#999999"` or `"red"`) for edges that connect
-            different groups when `edge_color_by=` is used. If `None` (default), a muted red is
-            used (`"#e07a7a"` in the light theme, `"#b45555"` in the dark theme). Ignored unless
-            `edge_color_by=` is set.
+            different groups when `edge_color_by=` names a node attribute. If `None` (default), a
+            neutral gray is used (`"#52525b"` in the light theme, `"#a1a1aa"` in the dark theme),
+            so that it can't be mistaken for one of the groups' colors.
+            Ignored unless `edge_color_by=` is set.
         node_overlap
             Node overlap handling: `"remove"` (default) pushes overlapping nodes apart with a
             padding of 2 pixels (force/random layouts only), `"allow"` keeps raw layout positions,
@@ -4312,6 +4330,49 @@ class Graph:
         seed
             Integer seed for the `"force"` and `"random"` layouts. The same seed on the same graph
             gives the same positions. If `None` (default), positions differ between calls.
+        edge_width_by
+            Numeric edge attribute to map to edge width, or `"weight"` for the edge weights (e.g.,
+            `"capacity"` or `"edge_betweenness"`). Values are min-max scaled so that widths range
+            from half to two and a half times the base `edge_width=`. Edges with a missing or
+            non-numeric value get the base width. A name that no edge has raises `ValueError`.
+            Default is `None` (uniform width).
+        color_scale
+            How `color_by=` maps values to colors: `"categorical"` (a palette color per distinct
+            value), `"sequential"` (a single-hue scale, light for low values and dark for high
+            ones, for magnitudes like a centrality score) or `"diverging"` (two hues meeting at a
+            neutral gray at `color_midpoint=`, for values with a sign or a meaningful middle, like
+            a correlation). The two numeric scales need numeric values. If `None` (default), it's
+            chosen from the values, as described under `color_by=`. In the dark theme the scales
+            run the other way, so that high values stand out against the dark background. Any
+            other value raises `ValueError`.
+        color_midpoint
+            The value at the neutral middle of the `"diverging"` color scale. The scale extends
+            equally far on both sides of it, so the more extreme side reaches the full color. If
+            `None` (default), it's `0`. Ignored for the other scales.
+        highlight
+            Nodes (and, through them, edges) to pick out: they are drawn in an accent color, or
+            keep their `color_by=` color, while everything else is muted to gray. This can be a
+            node ID or label; a list of them, where a list in which each node is adjacent to the
+            next is taken as a path, whose edges are picked out too; `(u, v)` pairs in the list,
+            for the edges between them; `"selection"`, for the selected nodes and edges; or the
+            name of a node attribute, picking out the nodes that have a value for it other than
+            `None`, `NaN` or `False` (a `0` counts). When the values are distinct whole numbers,
+            the nodes are taken in their order as a path, so `highlight="shortest_path_order"`
+            shows the path that `shortest_path()` found. The name of an edge attribute picks out
+            the edges that have a value for it. For two levels of emphasis, pass a dict with the
+            keys `"accent"` and `"soft"`, mapping each to such a value: soft nodes are drawn pale
+            with an accent ring. Default is `None` (nothing is highlighted).
+        highlight_edges
+            Edges to pick out, as with `highlight=`, along with their endpoints: an edge ID, a list
+            of edge IDs or of `(u, v)` pairs, a dict keyed by edge IDs (as `maximum_flow()`
+            returns), `"selection"` for the selected edges, or the name of an edge attribute. It
+            can be combined with `highlight=`, and also takes a dict with the keys `"accent"` and
+            `"soft"`. What both levels pick out is drawn as accent. Default is `None`.
+        legend
+            Whether to show a legend at the right of the plot for the colors of `color_by=` and
+            `edge_color_by=`: swatches for groups, or a color bar for a color scale. A legend for
+            more groups than the palette has colors (or more than 12) is left out, since its
+            colors would repeat. Default is `True`.
 
         Returns
         -------
@@ -4324,9 +4385,12 @@ class Graph:
         ------
         ValueError
             If `color_by=`, `edge_color_by=`, `size_by=` or `label_by=` names an attribute that no
-            node has (other than the built-in `"id"`, `"label"` and `"degree"`), `layout=` or
-            `theme=` is unknown, or `palette=` is unknown while `color_by=` or `edge_color_by=` is
-            set.
+            node has (other than the built-in `"id"`, `"label"` and `"degree"`, and for
+            `edge_color_by=` an edge attribute), `edge_width_by=` names an attribute that no edge
+            has, `layout=`, `theme=` or `color_scale=` is unknown, a numeric `color_scale=` meets
+            values that aren't numbers, `palette=` is unknown while `color_by=` or
+            `edge_color_by=` is set, or `highlight=` or `highlight_edges=` names a node, edge or
+            attribute the graph doesn't have.
 
         Examples
         --------
@@ -4382,6 +4446,24 @@ class Graph:
             cross_community_color="black",
             edge_opacity=0.6,
             palette="Set2",
+        )
+        ```
+
+        A score with fractional values gets a color scale, explained by the color bar at the
+        right. Here PageRank both colors and sizes the characters of *Les Misérables*:
+
+        ```{python}
+        ec.les_miserables().pagerank().plot(color_by="pagerank", size_by="pagerank", seed=1)
+        ```
+
+        `highlight=` picks out part of the graph and mutes the rest. Given the attribute that
+        `shortest_path()` stores, it shows the path it found, nodes and edges alike:
+
+        ```{python}
+        (
+            ec.metro()
+            .shortest_path("Westgate", "Airport")
+            .plot(highlight="shortest_path_order", label_by="label", seed=3)
         )
         ```
 
