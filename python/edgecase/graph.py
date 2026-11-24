@@ -24395,27 +24395,39 @@ class Graph:
         Deleting them cuts `hub` off from the rest, but keeps the node:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_edges_by_node(["A", "D"])
-
-        graph.get_edge_df_ws()
-        ```
-
-        In a directed graph both incoming and outgoing edges are selected. Deleting them
-        disconnects "hub" from the rest of the graph while keeping the node itself:
-
-        ```{python}
         digraph = (
-            ec.Graph(directed=True)
-            .add_nodes(["hub", "x", "y", "z"])
-            .add_edges([("x", "hub"), ("hub", "y"), ("y", "z")])
+            ec.Graph.from_edges(
+                [("x", "hub"), ("hub", "y"), ("y", "z")], directed=True
+            )
             .select_edges_by_node(["hub"])
             .delete_edges_ws()
         )
 
-        (digraph.count_nodes(), digraph.count_edges())
+        digraph.count_nodes(), digraph.count_edges()
         ```
 
+        ### One account's month
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Dee is paid a salary by Acme, then pays and is paid by friends, and
+        spends at the Grocer and the Cafe. The edges at Dee are the eight payments in and out of
+        the account:
+
+        ```{python}
+        payments = ec.payments()
+        payments.select_edges_by_node(["Dee"])
+        at_dee = sorted(payments.get_selected_edge_ids())
+
+        label = payments.get_label_from_id
+        [
+            (label(e.source), label(e.target), e.attributes["amount"])
+            for e in map(payments.get_edge, at_dee)
+        ]
+        ```
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         # Resolve labels to IDs; unknown IDs or labels raise before anything changes
         _check_set_op(set_op)
