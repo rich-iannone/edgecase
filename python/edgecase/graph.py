@@ -26873,43 +26873,49 @@ class Graph:
         Graph
             The same graph (modified in place) for method chaining.
 
+        See Also
+        --------
+        trav_out : Move the selection along outgoing edges.
+        trav_in : Move the selection against incoming edges.
+        select_nodes_in_neighborhood : Select the nodes within a number of steps.
+        select_edges_by_node : Select the edges at some nodes.
+
         Examples
         --------
-        Starting from "B" and traversing both directions reaches both of its neighbors,
-        "A" and "C", even though both edges point *into* "B". "B" itself is no longer
-        selected:
+        The selection moves from `B` to its neighbors along edges in either direction. Here both
+        edges point into `B`, so `trav_out()` would find nothing:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C"])
-        graph.add_edges([("A", "B"), ("C", "B")])
+        graph = ec.Graph.from_edges([("A", "B"), ("C", "B")], directed=True)
+        graph.select_nodes_by_id([graph.get_id_from_label("B")]).trav_both()
 
-        node_b_id = graph.get_id_from_label("B")
-        graph.select_nodes_by_id([node_b_id]).trav_both()
-
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
-        By contrast, `trav_out()` from "B" would find nothing, since "B" has no outgoing
-        edges. Starting from several nodes, the result is the union of their neighbors. Here
-        "A" and "B" are adjacent, so each ends up in the other's neighbor set and both stay
-        selected, along with "C":
+        ### Everyone Ana deals with
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Ana pays Ben, Dee and the Grocer, and is paid by Cruz. Taking one
+        step either way finds all four:
 
         ```{python}
-        path = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        payments = ec.payments()
+        payments.select_nodes_by_id([payments.get_id_from_label("Ana")])
+        payments.trav_both()
 
-        seeds = [path.get_id_from_label("A"), path.get_id_from_label("B")]
-        path.select_nodes_by_id(seeds).trav_both()
-
-        sorted(path.get_label_from_id(nid) for nid in path.get_selected_node_ids())
+        label = payments.get_label_from_id
+        sorted(label(n) for n in payments.get_selected_node_ids())
         ```
 
+        The payments themselves are the edges at Ana, whichever way they go, and
+        `select_edges_by_node()` selects those:
+
+        ```{python}
+        payments.select_edges_by_node(["Ana"])
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         self._graph.trav_both()
 
