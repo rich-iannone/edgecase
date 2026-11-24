@@ -70111,6 +70111,12 @@ class Graph:
             Sorted IDs of the center nodes. Empty for an empty graph, or a directed graph where
             no node reaches its whole component.
 
+        See Also
+        --------
+        periphery : The nodes with the largest eccentricity.
+        barycenter : The nodes with the smallest total distance to the others.
+        radius : The eccentricity of the center.
+
         Examples
         --------
         The middle of a path is its center; a path with an even number of nodes has two:
@@ -70118,20 +70124,40 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_path_graph(5).center(), ec.Graph().add_path_graph(6).center()
+        odd = ec.Graph().add_path_graph(5)
+        even = ec.Graph().add_path_graph(6)
+
+        odd.center(), even.center()
         ```
 
         The center is pulled toward long branches: here the chain D-E-F-G moves it off the
         hub A and onto D and E:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("D", "E"), ("E", "F"), ("F", "G")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("A", "C"), ("A", "D"),
+                ("D", "E"), ("E", "F"), ("F", "G"),
+            ]
         )
 
         [graph.get_label_from_id(n) for n in graph.center()]
+        ```
+
+        ### The middle of the metro
+
+        `metro()` is a made-up city's metro network. Central and Riverside are its center: from
+        either one, no station is more than four stops away:
+
+        ```{python}
+        metro = ec.metro()
+        middle = metro.center()
+
+        [metro.get_label_from_id(n) for n in middle], metro.radius()
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=middle, label_by="label")
         ```
         """
         # Same eligible nodes as radius(), so the center's eccentricity is the radius
