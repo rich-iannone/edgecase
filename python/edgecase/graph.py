@@ -72398,9 +72398,16 @@ class Graph:
 
         Identifies k-cohesive blocks in the graph, where a k-cohesive block is a maximal subgraph
         that requires removal of at least `k` nodes to disconnect it. Returns a hierarchical
-        structure where child blocks have higher cohesion than their parents.
+        structure where child blocks have higher cohesion than their parents (Moody and White,
+        2003). Each block is split along its minimum node cuts, and the pieces that are more
+        cohesive than the block become its children. A block is left out if it lies inside
+        another block that is at least as cohesive.
 
-        Time complexity: `O(V^5)` due to node connectivity computations.
+        Edge directions are ignored, as are self-loops and parallel edges. The blocks agree
+        with the k-components of `k_components()`, nested into a hierarchy.
+
+        Time complexity: exponential in the worst case, since every minimum node cut of every
+        block is enumerated; graphs of a few hundred nodes take seconds.
 
         Returns
         -------
@@ -72409,46 +72416,78 @@ class Graph:
             cohesion, a list of k-values (cohesion of each block), and (3) parent, a list of parent
             block indices (`None` for root blocks).
 
+        See Also
+        --------
+        k_components : The same groups, by connectivity level.
+        node_connectivity : The cohesion of a single graph.
+
         Examples
         --------
-        A complete graph `K_5` is a single maximally cohesive block, since every node connects
-        directly to every other:
+        A dense cluster `A, B, C, D` sits inside a ring through `E, F, G`, with `H` hanging off
+        `G`. The whole graph is the root block, with cohesion 1. Leaving out `H` gives a block
+        that needs two nodes removed to split it, and the cluster needs three:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+                ("C", "D"), ("C", "E"), ("E", "F"), ("F", "G"), ("D", "G"),
+                ("G", "H"),
+            ]
+        )
 
         blocks, cohesions, parents = graph.find_cohesive_blocks()
-
-        # Returns ([[1, 2, 3, 4, 5]], [4], [None])
-        (blocks, cohesions, parents)
+        label = graph.get_label_from_id
+        ["".join(label(n) for n in b) for b in blocks], cohesions, parents
         ```
 
-        Attaching a smaller, less-cohesive component to a dense core reveals a hierarchical
-        structure: the outer graph forms a weaker root block, while the dense `K_4` core forms a
-        more cohesive child block nested inside it:
+        Each block's parent is the block it lies inside: the cluster's parent is block 1, whose
+        parent is the root, block 0. A complete graph is a single block, as cohesive as a graph
+        on its nodes can be:
 
         ```{python}
-        graph = ec.Graph()
-        for i in range(1, 5):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            for j in range(i + 1, 5):
-                graph.add_edge(str(i), str(j))
+        ec.Graph().add_full_graph(5).find_cohesive_blocks()
+        ```
 
-        graph.add_nodes(["5", "6"])
-        graph.add_edges([("1", "5"), ("2", "5"), ("5", "6"), ("6", "1"), ("6", "2")])
+        ### The core of the metro
 
-        blocks, cohesions, parents = graph.find_cohesive_blocks()
+        `metro()` is a made-up city's metro network. Its blocks are the whole network, which a
+        single closure can split, and inside it the 15 stations of the core, which take two:
 
-        # The K_4 sub-block (cohesion 3) is nested under the weaker root block
-        (blocks, cohesions, parents)
+        ```{python}
+        metro = ec.metro()
+        blocks, cohesions, parents = metro.find_cohesive_blocks()
+
+        [len(b) for b in blocks], cohesions, parents
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=blocks[1], label_by="label")
+        ```
+
+        ### How deeply members are embedded
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Its blocks nest four levels deep. Giving each member the
+        cohesion of the most cohesive block they belong to shows a core of ten members, both
+        leaders among them, that no three departures could split:
+
+        ```{python}
+        karate = ec.karate_club()
+        blocks, cohesions, parents = karate.find_cohesive_blocks()
+
+        depth = {}
+        for block, cohesion in zip(blocks, cohesions):
+            for member in block:
+                depth[member] = max(depth.get(member, 0), cohesion)
+        karate.set_node_attrs("cohesion", depth)
+
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="cohesion", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         return self._graph.cohesive_blocks()
