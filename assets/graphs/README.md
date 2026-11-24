@@ -1972,18 +1972,18 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `bipartite_betweenness_centrality()` — Bipartite betweenness centrality
 
-<img src="bipartite-betweenness-centrality.light.svg" alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths between top-side nodes. F joins B, C and D and scores 2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0." width="570">
+<img src="bipartite-betweenness-centrality.light.svg" alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths, as a share of the most a node on its side could. F joins B, C and D and scores 0.85, E, the only way out of A, scores 0.38, and G, which only touches D, scores 0." width="570">
 
 ```markdown
-![Bipartite betweenness centrality](../assets/graphs/bipartite-betweenness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths between top-side nodes. F joins B, C and D and scores 2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0." width="100%"}
+![Bipartite betweenness centrality](../assets/graphs/bipartite-betweenness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths, as a share of the most a node on its side could. F joins B, C and D and scores 0.85, E, the only way out of A, scores 0.38, and G, which only touches D, scores 0." width="100%"}
 ```
 
 ### `bipartite_closeness_centrality()` — Bipartite closeness centrality
 
-<img src="bipartite-closeness-centrality.light.svg" alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the top side A to D. F reaches B, C and D in one hop and A in three, so it scores 0.67, ahead of E 0.50 and G 0.33." width="570">
+<img src="bipartite-closeness-centrality.light.svg" alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the rest of the graph. F reaches B, C and D in one hop and every other node in at most three, so it scores 0.80, ahead of E 0.57 and G 0.44." width="570">
 
 ```markdown
-![Bipartite closeness centrality](../assets/graphs/bipartite-closeness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the top side A to D. F reaches B, C and D in one hop and A in three, so it scores 0.67, ahead of E 0.50 and G 0.33." width="100%"}
+![Bipartite closeness centrality](../assets/graphs/bipartite-closeness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by closeness to the rest of the graph. F reaches B, C and D in one hop and every other node in at most three, so it scores 0.80, ahead of E 0.57 and G 0.44." width="100%"}
 ```
 
 ### `bipartite_degree_centrality()` — Bipartite degree centrality
@@ -5608,10 +5608,10 @@ See `DOC_GRAPHICS_PLAN.md` at the repo root for the design system.
 
 ### `layout_circular()` — Circular layout
 
-<img src="layout-circular.light.svg" alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="570">
+<img src="layout-circular.light.svg" alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in the order a depth-first search from node 1 meets them, which here is id order, so the ring becomes a regular octagon and the two chords cross its middle." width="570">
 
 ```markdown
-![Circular layout](../assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
+![Circular layout](../assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in the order a depth-first search from node 1 meets them, which here is id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
 ```
 
 ### `layout_forceatlas2()` — ForceAtlas2 layout
