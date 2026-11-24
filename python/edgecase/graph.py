@@ -69573,6 +69573,12 @@ class Graph:
         ValueError
             If graph is directed.
 
+        See Also
+        --------
+        bridges : The edges whose removal disconnects the graph.
+        biconnected_components : The blocks that the articulation points join.
+        cohesion : The fewest nodes whose removal disconnects the graph.
+
         Examples
         --------
         In a path graph `1-2-3-4-5`, every node except the two endpoints is an articulation
@@ -69590,15 +69596,15 @@ class Graph:
         endpoints of that connecting edge. Every other node has an alternative route around it:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges(
-                [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.articulation_points())
+        label = graph.get_label_from_id
+        sorted(label(nid) for nid in graph.articulation_points())
         ```
 
         A cycle has no articulation points, since removing any one node leaves a path that is
@@ -69606,6 +69612,40 @@ class Graph:
 
         ```{python}
         ec.Graph().add_cycle_graph(6).articulation_points()
+        ```
+
+        ### Single points of failure on the metro
+
+        `metro()` is a made-up city's metro network. Closing any one of four stations splits it
+        in two:
+
+        ```{python}
+        metro = ec.metro()
+        critical = metro.articulation_points()
+
+        [metro.get_label_from_id(n) for n in critical]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=critical, label_by="label")
+        ```
+
+        Closing each of them in turn shows how many stations it would cut off from the rest of
+        the network. Riverside matters most, since the three harbor stations lie beyond it:
+
+        ```{python}
+        cut_off = {n: 0 for n in metro.get_node_ids()}
+        for station in critical:
+            closed = ec.metro()
+            closed.delete_node(station)
+            pieces = sorted(closed.weakly_connected_components(), key=len)
+            cut_off[station] = sum(len(piece) for piece in pieces[:-1])
+
+        metro.set_node_attrs("cut_off", cut_off)
+        metro.plot(
+            layout="pos", color_by="cut_off", color_scale="sequential",
+            label_by="label",
+        )
         ```
 
         Common Use Cases
