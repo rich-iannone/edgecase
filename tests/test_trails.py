@@ -371,6 +371,22 @@ class TestTrailsEdgeCases:
         assert count_ab == 1
         assert count_ba == 0
 
+    def test_parallel_edges_are_crossed_separately(self):
+        """Each of two parallel edges can be crossed once, so a trail can go out and back."""
+        G = Graph.from_edges([("S", "A"), ("A", "S"), ("S", "T")])
+
+        # S -> T directly, and S -> A -> S -> T in either order of the two parallel edges
+        assert G.count_trails("S", "T") == 3
+        assert sorted(labeled_trails(G, "S", "T")) == [
+            ["S", "A", "S", "T"],
+            ["S", "A", "S", "T"],
+            ["S", "T"],
+        ]
+
+        # Directed parallel edges are distinct too, but each points only one way
+        D = Graph.from_edges([("S", "A"), ("S", "A"), ("A", "T")], directed=True)
+        assert D.count_trails("S", "T") == 2
+
 
 class TestTrailsIntegration:
     """Integration tests for trail functions."""
