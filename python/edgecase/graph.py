@@ -59130,11 +59130,16 @@ class Graph:
         warm-start at a large $\epsilon$, then feed a shrinking sequence. A call with a
         different source or target pair replaces the stored planner with a new one.
 
+        See Also
+        --------
+        astar_path : A* without the inflated heuristic or the stored planner.
+        alt_heuristic : An admissible heuristic built from landmarks.
+
         Examples
         --------
         From A to D there are three routes: A-B-D (cost `1 + 5 = 6`), A-C-D (cost `4 + 1 = 5`),
-        and A-B-C-D (cost `1 + 2 + 1 = 4`). Weights are set with `weight=` and, without a
-        heuristic, the search finds the cheapest route, which is also the longest in hops:
+        and A-B-C-D (cost `1 + 2 + 1 = 4`). Without a heuristic, the search finds the cheapest
+        route, which is also the longest in hops:
 
         ```{python}
         import edgecase as ec
@@ -59177,8 +59182,12 @@ class Graph:
             b = graph.get_node(source_id).attributes
             return ((a["x"] - b["x"]) ** 2 + (a["y"] - b["y"]) ** 2) ** 0.5
 
-        optimal = graph.ada_star_search("A", "D", heuristic=euclidean, epsilon=1.0)
-        greedy = graph.ada_star_search("A", "D", heuristic=euclidean, epsilon=5.0)
+        optimal = graph.ada_star_search(
+            "A", "D", heuristic=euclidean, epsilon=1.0
+        )
+        greedy = graph.ada_star_search(
+            "A", "D", heuristic=euclidean, epsilon=5.0
+        )
 
         (
             [graph.get_label_from_id(nid) for nid in optimal],
@@ -59207,27 +59216,52 @@ class Graph:
         cost `1.0` and the two-hop route A-B-D would win:
 
         ```{python}
-        costs = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B", {"cost": 1.0}),
-                    ("A", "C", {"cost": 4.0}),
-                    ("B", "C", {"cost": 2.0}),
-                    ("C", "D", {"cost": 1.0}),
-                    ("B", "D", {"cost": 5.0}),
-                ]
-            )
+        costs = ec.Graph.from_edges(
+            [
+                ("A", "B", {"cost": 1.0}),
+                ("A", "C", {"cost": 4.0}),
+                ("B", "C", {"cost": 2.0}),
+                ("C", "D", {"cost": 1.0}),
+                ("B", "D", {"cost": 5.0}),
+            ],
+            directed=True,
         )
 
+        label = costs.get_label_from_id
         (
-            [costs.get_label_from_id(nid) for nid in costs.ada_star_search("A", "D")],
+            [label(nid) for nid in costs.ada_star_search("A", "D")],
             [
-                costs.get_label_from_id(nid)
+                label(nid)
                 for nid in costs.ada_star_search("A", "D", weight_attr="cost")
             ],
         )
+        ```
+
+        ### A quick plan on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. No stretch takes fewer minutes than its straight-line length on
+        the map of station positions, so the straight-line distance is admissible. Even with the
+        heuristic inflated threefold, the quick plan from Docks to Northpark is the fastest route:
+
+        ```{python}
+        import math
+
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        pos = {n: tuple(p) for n, p in zip(nodes["id"], nodes["pos"])}
+
+        def straight_line(a, b):
+            return math.dist(pos[a], pos[b])
+
+        route = metro.ada_star_search(
+            "Docks", "Northpark", heuristic=straight_line, epsilon=3.0
+        )
+        [metro.get_label_from_id(n) for n in route]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=route, label_by="label")
         ```
         """
         # Check if we should reuse existing planner
