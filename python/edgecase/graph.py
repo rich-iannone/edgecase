@@ -32549,46 +32549,53 @@ class Graph:
         Disconnected graphs are handled component by component. If total edge weight
         matters, `minimum_cycle_basis()` finds the basis of least weight.
 
+        See Also
+        --------
+        minimum_cycle_basis : A cycle basis of the shortest cycles.
+        directed_cycle_basis : A cycle basis that follows the edges' directions.
+        simple_cycles : Every cycle in the graph.
+
         Examples
         --------
-        A square with one diagonal splits into two triangular fundamental cycles:
+        A square with a diagonal has three cycles, but any two of them make the third, so the
+        basis has two:
 
         ```{python}
         import edgecase as ec
 
-        # Square with diagonal
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "D"),
-                    ("D", "A"),
-                    ("A", "C"),  # diagonal
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
         )
 
-        basis = graph.cycle_basis()
-        len(basis)
+        [[graph.get_label_from_id(n) for n in c] for c in graph.cycle_basis()]
         ```
 
-        Passing a specific `root=` changes which spanning tree is built, but the number
-        of fundamental cycles stays the same -- always `E - V + 1` for a connected graph:
+        ### The rings of caffeine
+
+        `molecules()` holds seven small molecules as graphs of their atoms and bonds, with the
+        hydrogen atoms left out. Caffeine has 14 atoms and 15 bonds, so a cycle basis has two
+        cycles. They need not be its two rings: here the basis has the 6-atom ring and, in the
+        accent color, the 9-atom loop around the outside of both rings:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        caffeine = ec.molecules()["caffeine"]
+        label = caffeine.get_label_from_id
+        basis = caffeine.cycle_basis()
 
-        node_ids = graph.get_node_ids()
-        basis = graph.cycle_basis(root=node_ids[0])
-        len(basis)
+        [[label(n) for n in cycle] for cycle in basis]
         ```
+
+        ```{python}
+        caffeine.plot(
+            highlight={
+                "accent": basis[1] + basis[1][:1],
+                "soft": basis[0] + basis[0][:1],
+            },
+            label_by="label", seed=1,
+        )
+        ```
+
+        `minimum_cycle_basis()` finds the two rings instead.
         """
         from edgecase._core import cycle_basis as rust_cycle_basis
 
