@@ -66866,18 +66866,54 @@ class Graph:
         Filters `colliders()` for parent pairs with no edge in either direction. Matches
         NetworkX's `dag.v_structures`.
 
+        See Also
+        --------
+        colliders : All colliders, shielded or not.
+        moral_graph : Join the parents of each node.
+
         Examples
         --------
-        Talent and luck both cause success, but A -> B -> C is a chain, not a v-structure, and
-        a collider whose causes are linked is "shielded":
+        A collider is a v-structure only when its two causes aren't joined:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["talent", "luck", "success", "x", "y", "z"])
-        g.add_edges([("talent", "success"), ("luck", "success"), ("x", "z"), ("y", "z"), ("x", "y")])
+        open_v = ec.Graph.from_edges([("A", "C"), ("B", "C")], directed=True)
+        shielded = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("A", "B")], directed=True
+        )
 
-        [tuple(g.get_label_from_id(n) for n in t) for t in g.v_structures()]
+        len(open_v.v_structures()), len(shielded.v_structures())
+        ```
+
+        ### Colliders that leave a mark
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Of its 8 colliders, 6 are v-structures. The two others are
+        shielded: Age also affects Medication, and Genetics also affects Blood pressure.
+        V-structures matter because data can reveal them: they're what lets causal discovery
+        orient some arrows from observations alone:
+
+        ```{python}
+        causal = ec.causal()
+        label = causal.get_label_from_id
+        shielded = sorted(set(causal.colliders()) - set(causal.v_structures()))
+
+        [[label(n) for n in triple] for triple in shielded]
+        ```
+
+        The two shielded colliders are each a triangle, here in the accent color:
+
+        ```{python}
+        causal.plot(
+            layout="pos",
+            highlight=[
+                ("Age", "Blood pressure"), ("Medication", "Blood pressure"),
+                ("Age", "Medication"), ("Blood pressure", "Heart disease"),
+                ("Genetics", "Heart disease"), ("Genetics", "Blood pressure"),
+            ],
+            label_by="label", height=360,
+        )
         ```
         """
         ids, succ, _ = self._arc_sets()
