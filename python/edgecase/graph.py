@@ -49532,7 +49532,7 @@ class Graph:
 
     def heat_diffusion(
         self,
-        seeds: dict[int, float],
+        seeds: dict[Union[int, str], float],
         t: float = 1.0,
         max_iter: int = 50,
         attr_name: str | None = None,
@@ -49569,10 +49569,11 @@ class Graph:
         Parameters
         ----------
         seeds
-            Dictionary mapping seed node IDs (integers) to their initial heat. Every other node
-            starts with zero heat. The values need not sum to `1`: the output scales linearly
-            with them. Must contain at least one entry. IDs that are not in the graph are silently
-            ignored (if none match, every node ends with zero heat).
+            Dictionary mapping seed nodes, as integer IDs or string labels, to their initial heat.
+            Every other node starts with zero heat. The values need not sum to `1`: the output
+            scales linearly with them. Must contain at least one entry. Integer IDs that are not
+            in the graph are silently ignored (if none match, every node ends with zero heat), and
+            an unknown label raises an error.
         t
             Diffusion time, which must be positive. Defaults to `1.0`. Larger values let heat
             spread further from the seeds; as `t=` grows the distribution approaches a uniform
@@ -49605,58 +49606,79 @@ class Graph:
         ValueError
             If `seeds=` is empty or `t=` is not positive.
 
+        See Also
+        --------
+        random_walk_with_restart : Score nodes by a walk that keeps returning to the seeds.
+        network_smooth : Smooth existing scores over the network.
+
         Examples
         --------
         Here a diamond (A to D) is joined to a triangle (E, F, G) through the single edge D-E.
-        Placing one unit of heat on A and diffusing for the default time leaves most of the heat
-        in the diamond; only a trickle crosses the bridge, and the values still sum to `1`:
+        One unit of heat placed on A mostly stays in the diamond: only a trickle crosses the
+        bridge, and the values still sum to `1`. With `t=5.0`, the heat has spread far more
+        evenly across all seven nodes:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges(
-                [
-                    ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
-                    ("D", "E"), ("E", "F"), ("E", "G"), ("F", "G"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
+             ("E", "F"), ("E", "G"), ("F", "G")]
         )
 
-        a_id = graph.get_id_from_label("A")
-        heat = graph.heat_diffusion(seeds={a_id: 1.0}, return_dict=True)
-        {graph.get_label_from_id(nid): round(h, 3) for nid, h in sorted(heat.items())}
+        (
+            graph.heat_diffusion({"A": 1.0})
+            .heat_diffusion({"A": 1.0}, t=5.0, attr_name="heat_t5")
+            .get_node_df()
+            .select("label", "heat", "heat_t5")
+        )
         ```
 
-        The diffusion time controls the reach. With `t=0.2` most of the heat is still on the
-        seed and F and G receive essentially nothing, while with `t=5.0` the heat has nearly
-        evened out across all seven nodes:
+        ### A hub and a dead end
+
+        On the metro, heat placed on Central, which has four neighbors, drains away fast. Heat
+        placed on the Airport, at the end of a branch, can only leave through Business Park, so
+        after the same time most of it is still on the branch:
 
         ```{python}
-        short = graph.heat_diffusion(seeds={a_id: 1.0}, t=0.2, return_dict=True)
-        long = graph.heat_diffusion(seeds={a_id: 1.0}, t=5.0, return_dict=True)
+        import polars as pl
 
-        {
-            graph.get_label_from_id(nid): (round(short[nid], 3), round(long[nid], 3))
-            for nid in sorted(short)
-        }
+        metro = ec.metro()
+
+        times = [0.5, 1.0, 2.0, 4.0]
+
+        def heat_left(seed, t):
+            heat = metro.heat_diffusion({seed: 1.0}, t=t, return_dict=True)
+            return heat[metro.get_id_from_label(seed)]
+
+        pl.DataFrame(
+            {
+                "t": times,
+                "Central": [heat_left("Central", t) for t in times],
+                "Airport": [heat_left("Airport", t) for t in times],
+            }
+        )
         ```
 
-        Several seeds can be heated at once. Seeding both ends of the graph and storing the
-        result under a custom column name makes it available in the node DataFrame:
+        At `t=1`, heat from Central has spread over the middle of the network:
 
         ```{python}
-        g_id = graph.get_id_from_label("G")
+        metro.heat_diffusion({"Central": 1.0}).plot(
+            layout="pos", color_by="heat", label_by="label"
+        )
+        ```
 
-        graph.heat_diffusion(seeds={a_id: 1.0, g_id: 1.0}, attr_name="heat_both_ends")
-        graph.get_node_df().select(["label", "heat_both_ends"])
+        Heat from the Airport has hardly left the branch:
+
+        ```{python}
+        metro.heat_diffusion({"Airport": 1.0}).plot(
+            layout="pos", color_by="heat", label_by="label"
+        )
         ```
         """
         result_ids = rust.heat_diffusion(
             self._graph,
-            seeds,
+            self._seed_ids(seeds),
             t=t,
             max_iter=max_iter,
         )
@@ -49667,14 +49689,14 @@ class Graph:
         if return_dict:
             return result_ids
 
-        self.set_node_attrs(attr_name, result_ids)
-
         params = {}
         if t != 1.0:
             params["t"] = t
         if max_iter != 50:
             params["max_iter"] = max_iter
-        self._computations.append(("heat_diffusion", params, attr_name))
+        self._store_node_result(
+            "heat_diffusion", params, attr_name, result_ids, default_attr="heat"
+        )
 
         return self
 
