@@ -75573,46 +75573,52 @@ class Graph:
         strongly-connected graph is also weakly connected but not conversely. Empty graphs
         pass vacuously. For undirected inputs the notion collapses to `is_connected()`.
 
+        See Also
+        --------
+        weakly_connected_components : The components of a graph that is not.
+        is_strongly_connected : The check that follows edge directions.
+        articulation_points : The nodes whose removal disconnects an undirected graph.
+
         Examples
         --------
-        Even though both edges point toward `B` (so `A` can't reach `C` directly), the graph is
-        still weakly connected because ignoring direction links everything together:
+        Both edges point toward `B`, so `A` and `C` can't reach each other, but ignoring
+        direction links all three, and the graph is weakly connected without being strongly
+        connected:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("C", "B"),  # All connected when ignoring direction
-                ]
-            )
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("C", "B")], directed=True)
 
-        # Returns True
-        graph.is_weakly_connected()
+        graph.is_weakly_connected(), graph.is_strongly_connected()
+        ```
+
+        Two separate pairs aren't weakly connected, since ignoring direction doesn't create edges
+        that aren't there:
+
+        ```{python}
+        pairs = ec.Graph.from_edges([("A", "B"), ("X", "Y")], directed=True)
+        pairs.is_weakly_connected()
+        ```
+
+        ### One account away from a split
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Every account is linked to every other by some chain of payments,
+        ignoring their direction. Only one account holds this together: Max is the only one who
+        pays the Landlord, so freezing Max's account would leave the Landlord cut off:
+
+        ```{python}
+        payments = ec.payments()
+
+        frozen = ec.payments()
+        frozen.delete_node("Max")
+
+        payments.is_weakly_connected(), frozen.is_weakly_connected()
         ```
 
         ```{python}
-        # Returns False (can't reach C from A while respecting edge direction)
-        graph.is_strongly_connected()
-        ```
-
-        Two completely separate components fail weak connectivity too, since ignoring direction
-        doesn't create edges that don't exist:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "X", "Y"])
-            .add_edges([("A", "B"), ("X", "Y")])
-        )
-
-        # Returns False
-        graph.is_weakly_connected()
+        payments.plot(highlight=["Max", "Landlord"], label_by="label", seed=3)
         ```
         """
         return self._graph.is_weakly_connected()
