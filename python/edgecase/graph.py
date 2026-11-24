@@ -74772,21 +74772,59 @@ class Graph:
         int
             Number of weakly connected components.
 
+        See Also
+        --------
+        weakly_connected_components : The components themselves.
+        count_strongly_connected_components : The count that follows edge directions.
+        is_weakly_connected : Check whether there is just one.
+
         Examples
         --------
-        Two separate pairs of nodes, with no edges between them, form two components:
+        Two pairs with no edge between them form two components. On a directed graph the
+        direction of the edges doesn't matter, so a one-way pair still counts as one:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "X", "Y"])
-            .add_edges([("A", "B"), ("X", "Y")])
-        )
+        pairs = ec.Graph.from_edges([("A", "B"), ("X", "Y")])
+        one_way = ec.Graph.from_edges([("A", "B")], directed=True)
 
-        # Returns 2
-        graph.count_weakly_connected_components()
+        (
+            pairs.count_weakly_connected_components(),
+            one_way.count_weakly_connected_components(),
+        )
+        ```
+
+        An isolated node is a component of its own:
+
+        ```{python}
+        pairs.add_node(label="Z")
+        pairs.count_weakly_connected_components()
+        ```
+
+        ### Stations that split the network
+
+        `metro()` is a made-up city's metro network. Closing a station takes its tracks out of
+        service too. Closing most stations leaves the rest in one piece, but four of them split
+        the network, and closing Harbor leaves it in three pieces, since Docks and Shipyard each
+        hang off Harbor alone:
+
+        ```{python}
+        metro = ec.metro()
+        label = metro.get_label_from_id
+
+        pieces = {}
+        for station in metro.get_node_ids():
+            closed = ec.metro()
+            closed.delete_node(label(station))
+            pieces[station] = closed.count_weakly_connected_components()
+
+        {label(n): k for n, k in pieces.items() if k > 1}
+        ```
+
+        ```{python}
+        metro.set_node_attrs("pieces", pieces)
+        metro.plot(layout="pos", color_by="pieces", label_by="label")
         ```
         """
         return self._graph.count_weakly_connected_components()
