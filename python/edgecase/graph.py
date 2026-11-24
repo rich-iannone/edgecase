@@ -67467,26 +67467,61 @@ class Graph:
         ValueError
             If a label does not exist, or the graph is undirected or contains a cycle.
 
+        See Also
+        --------
+        all_lowest_common_ancestors : Every lowest common ancestor of two nodes.
+        all_pairs_lowest_common_ancestor : A lowest common ancestor for many pairs.
+        is_lowest_common_ancestor : Check a candidate.
+        ancestors : Every node that can reach a node.
+
         Examples
         --------
-        In this small taxonomy, cats and dogs meet at Carnivora, while a cat and a mouse only
-        meet at Mammalia:
+        `A` is a common ancestor of `C` and `D`, but `B` is a lower one, closer to both:
 
         ```{python}
         import edgecase as ec
 
-        tree = (
-            ec.Graph(directed=True)
-            .add_nodes(["Mammalia", "Carnivora", "Rodentia", "cat", "dog", "mouse"])
-            .add_edges([
-                ("Mammalia", "Carnivora"), ("Mammalia", "Rodentia"),
-                ("Carnivora", "cat"), ("Carnivora", "dog"), ("Rodentia", "mouse"),
-            ])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "D")], directed=True
         )
+        graph.get_label_from_id(graph.lowest_common_ancestor("C", "D"))
+        ```
 
-        label = tree.get_label_from_id
-        label(tree.lowest_common_ancestor("cat", "dog")), label(
-            tree.lowest_common_ancestor("cat", "mouse")
+        ### Where two tracks meet
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. The systems course CS410 and the data
+        course CS460 share CS101 and CS102 as prerequisites, and CS102, Data Structures, is the
+        lowest of them:
+
+        ```{python}
+        courses = ec.courses()
+        meet = courses.lowest_common_ancestor("CS410", "CS460")
+
+        courses.get_label_from_id(meet)
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight={"accent": meet, "soft": ["CS410", "CS460"]},
+            label_by="label", height=420,
+        )
+        ```
+
+        CS350 and CS360 have two lowest common ancestors, CS102 and STAT201. By default the
+        deepest, STAT201, is returned; `key=` picks another, here the one with the lower course
+        level:
+
+        ```{python}
+        level = dict(courses.get_node_df().select("id", "level").iter_rows())
+        pair = ("CS350", "CS360")
+
+        (
+            courses.get_label_from_id(courses.lowest_common_ancestor(*pair)),
+            courses.get_label_from_id(
+                courses.lowest_common_ancestor(*pair, key=level.get)
+            ),
         )
         ```
         """
