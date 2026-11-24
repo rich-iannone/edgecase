@@ -65482,24 +65482,60 @@ class Graph:
         ValueError
             If the graph is undirected or contains a cycle.
 
+        See Also
+        --------
+        dag_longest_path_length : The length of the longest path.
+        topological_generations : Group the nodes into layers.
+        shortest_path : The shortest path between two nodes.
+
         Examples
         --------
-        With task durations as weights, the critical path runs through the slow test suite,
-        even though the documentation branch starts with the longer first task:
+        With task durations as weights, the longest path runs through the slow test suite,
+        though the documentation branch starts with the longer first task:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["fetch", "compile", "test", "package", "docs", "publish"])
-            .add_edges([
-                ("fetch", "compile", 3.0), ("compile", "test", 10.0),
-                ("test", "package", 2.0), ("fetch", "docs", 4.0), ("docs", "publish", 1.0),
-            ])
+        graph = ec.Graph.from_edges(
+            [("fetch", "compile", 3.0), ("compile", "test", 10.0),
+             ("test", "package", 2.0), ("fetch", "docs", 4.0),
+             ("docs", "publish", 1.0)],
+            directed=True,
         )
-
         [graph.get_label_from_id(n) for n in graph.dag_longest_path()]
+        ```
+
+        ### The critical path
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done, weighted by the days the first task takes. The
+        longest path is the critical path, the chain of tasks that sets how soon the café can
+        open: from signing the lease through the design, permits, build-out, installation and
+        training. Here each task is sized by the days it takes:
+
+        ```{python}
+        cafe = ec.project()
+        critical = cafe.dag_longest_path()
+
+        [cafe.get_label_from_id(n) for n in critical]
+        ```
+
+        ```{python}
+        cafe.plot(
+            layout="pos", highlight=critical, size_by="days", label_by="label",
+            height=360,
+        )
+        ```
+
+        ### The longest chain of prerequisites
+
+        `courses()` is unweighted, so its longest path is the one with the most courses, the
+        math sequence leading to CS460:
+
+        ```{python}
+        courses = ec.courses()
+
+        [courses.get_label_from_id(n) for n in courses.dag_longest_path()]
         ```
         """
         path, length = rust.dag_longest_path(self._graph)
