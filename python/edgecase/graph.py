@@ -83943,20 +83943,60 @@ class Graph:
         The dense Hermitian matrix is fully diagonalized, $O(V^3)$ time. Matches NetworkX's
         `magnetic_spectrum()`.
 
+        See Also
+        --------
+        magnetic_laplacian_matrix : The matrix whose eigenvalues these are.
+        laplacian_spectrum : The spectrum with directions ignored.
+
         Examples
         --------
-        On a directed triangle the phases at `q = 0.25` add up to three quarter turns, so `0`
-        is not an eigenvalue; at `q = 0` the spectrum is that of the undirected triangle (with
-        edge weights halved, as $W'$ averages the two directions):
+        Around a directed triangle the phases at `q = 0.25` add up to three quarter turns, so `0`
+        is not an eigenvalue. Two routes from `A` to `C` make a cycle with two edges each way, the
+        phases cancel, and it is:
 
         ```{python}
         import edgecase as ec
 
-        cycle = ec.Graph(directed=True).add_cycle_graph(3)
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
+        routes = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "D"), ("D", "C")], directed=True
+        )
 
         (
-            [round(v, 3) + 0.0 for v in cycle.magnetic_spectrum()],
-            [round(v, 3) + 0.0 for v in cycle.magnetic_spectrum(q=0)],
+            round(min(cycle.magnetic_spectrum()), 3) + 0.0,
+            round(min(routes.magnetic_spectrum()), 3) + 0.0,
+        )
+        ```
+
+        ### A shortcut in the prerequisites
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. CS201 requires CS101 both directly and
+        through CS102, so going around that triangle the phases don't cancel, and the smallest
+        eigenvalue is above `0`. Without the direct requirement, every cycle in the undirected
+        version runs with the arrows as far as against them, and it drops to `0`:
+
+        ```{python}
+        courses = ec.courses()
+        without = ec.courses().delete_edge("CS101", "CS201")
+
+        (
+            round(min(courses.magnetic_spectrum()), 4),
+            round(min(without.magnetic_spectrum()), 4) + 0.0,
+        )
+        ```
+
+        ```{python}
+        triangle = [
+            ("CS101", "CS102"), ("CS102", "CS201"), ("CS101", "CS201")
+        ]
+
+        stages = dict(enumerate(courses.topological_generations()))
+
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight=triangle, label_by="label", height=420
         )
         ```
         """
