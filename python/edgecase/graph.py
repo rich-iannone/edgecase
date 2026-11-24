@@ -4735,6 +4735,8 @@ class Graph:
             layout_mode=layout_mode,
             output=output,
             seed=seed,
+            highlight=highlight,
+            highlight_edges=highlight_edges,
         )
 
     def plot_traversal(
