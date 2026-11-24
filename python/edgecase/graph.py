@@ -85214,46 +85214,53 @@ class Graph:
         The returned dictionary contains both orientations for every ordered pair for
         lookup convenience; entries on the diagonal are $0$.
 
+        See Also
+        --------
+        resistance_distance : The resistance between one pair.
+        kirchhoff_index : The sum of the matrix over all pairs.
+        current_flow_closeness_centrality : Rank nodes by their row sums.
+
         Examples
         --------
-        On the path `1-2-3`, the two end nodes are separated by two 1-ohm resistors in series,
-        so their resistance distance is 2:
+        The dictionary holds both orders of each pair. In a triangle with a tail, the corners
+        are joined by two routes, and the tail by one:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_path_graph(3)
-        matrix = g.resistance_distance_matrix()
-
-        # Returns about 2.0
-        matrix[(1, 3)]
-        ```
-
-        The matrix is symmetric, so the resistance between any two nodes is the same in either
-        direction:
-
-        ```{python}
-        # Returns True: the matrix is symmetric
-        matrix[(1, 2)] == matrix[(2, 1)]
-        ```
-
-        Ranking the pairs of a small labelled graph shows which nodes are most robustly linked.
-        In this triangle with a tail, `A`, `B`, and `C` share redundant routes (resistance
-        `2/3`), while the tail node `D` is far from everything except `C`:
-
-        ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
+        label = graph.get_label_from_id
 
-        matrix = g.resistance_distance_matrix()
-        label = g.get_label_from_id
-        sorted(
-            (round(r, 3), label(u), label(v)) for (u, v), r in matrix.items()
+        {
+            (label(u), label(v)): round(r, 3)
+            for (u, v), r in graph.resistance_distance_matrix().items()
             if label(u) < label(v)
+        }
+        ```
+
+        ### Best connected, counting every route
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Adding up a station's resistance to all the others measures how well it's connected by
+        every route, not only the shortest. Market, where the Red and Ring lines meet, comes out
+        ahead of Central, and the Airport, at the end of its own line, comes last:
+
+        ```{python}
+        metro = ec.metro()
+        total = {n: 0.0 for n in metro.get_node_ids()}
+        for (u, v), r in metro.resistance_distance_matrix().items():
+            total[u] += r
+
+        ranked = sorted(total, key=total.get)
+        [(metro.get_label_from_id(n), round(total[n], 2)) for n in ranked[:3]]
+        ```
+
+        ```{python}
+        metro.set_node_attrs("resistance", total).plot(
+            layout="pos", color_by="resistance", color_scale="sequential",
+            label_by="label",
         )
         ```
         """
