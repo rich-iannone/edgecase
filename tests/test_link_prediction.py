@@ -379,6 +379,26 @@ class TestLinkPredictionEdgeCases:
         predictions = graph.common_neighbors([(a_id, "C")])
         assert len(predictions) == 1
 
+    @pytest.mark.parametrize(
+        "method",
+        [
+            "common_neighbors",
+            "jaccard_coefficient",
+            "adamic_adar_index",
+            "resource_allocation_index",
+            "preferential_attachment",
+            "common_neighbor_centrality",
+        ],
+    )
+    def test_default_pairs_in_node_id_order(self, method):
+        # The pairs used to follow the node map's hash order, starting at (11, 22), (11, 3)
+        graph = ec.friends()
+        ids = sorted(graph.get_node_ids())
+        expected = [
+            (u, v) for i, u in enumerate(ids) for v in ids[i + 1 :] if not graph.has_edge(u, v)
+        ]
+        assert [(u, v) for u, v, _ in getattr(graph, method)()] == expected
+
 
 class TestLinkPredictionNetworkX:
     """Tests comparing with expected NetworkX-like behavior."""
