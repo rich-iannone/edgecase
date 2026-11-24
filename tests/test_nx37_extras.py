@@ -165,16 +165,16 @@ class TestSpectralModularityBipartition:
             assert left | right == set(idx.values()) and not left & right
 
     def test_weights(self):
-        # Heavy edges within {1, 2, 3} and {4, 5, 6}; the unweighted graph is a 6-cycle with a
-        # chord, which splits differently
+        # Heavy edges within {1, 2, 3} and {4, 5, 6}; the unweighted graph is a 6-cycle with
+        # the chord A-E, which splits differently (a plain 6-cycle has a repeated leading
+        # eigenvalue, so its split depends on the eigensolver)
         g = ec.Graph(weighted=True).add_nodes(list("ABCDEF"))
         heavy = [("A", "B"), ("B", "C"), ("D", "E"), ("E", "F")]
+        light = [("C", "D"), ("F", "A"), ("A", "E")]
         g.add_edges([(u, v, {"weight": 10.0}) for u, v in heavy])
-        g.add_edges([(u, v, {"weight": 0.1}) for u, v in [("C", "D"), ("F", "A")]])
+        g.add_edges([(u, v, {"weight": 0.1}) for u, v in light])
         assert g.spectral_modularity_bipartition() == ({1, 2, 3}, {4, 5, 6})
-        assert g.spectral_modularity_bipartition(weighted=False) in (
-            ({1, 2, 3}, {4, 5, 6}), ({1, 2, 6}, {3, 4, 5}), ({1, 5, 6}, {2, 3, 4})
-        )
+        assert g.spectral_modularity_bipartition(weighted=False) == ({1, 5, 6}, {2, 3, 4})
 
     def test_edge_cases(self):
         assert ec.Graph().spectral_modularity_bipartition() == (set(), set())
