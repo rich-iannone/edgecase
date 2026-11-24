@@ -60649,6 +60649,13 @@ class Graph:
         Dijkstra's. The heuristic is called once per discovered node (results are cached). The
         path length agrees with NetworkX's `astar_path_length`.
 
+        See Also
+        --------
+        astar_path_length : The length of the path alone.
+        alt_heuristic : An admissible heuristic built from landmarks.
+        ada_star_search : A* with an inflated heuristic for a quicker answer.
+        shortest_path : Dijkstra's algorithm, with no heuristic.
+
         Examples
         --------
         On a 6 x 6 grid with Manhattan distance as the heuristic, A* walks straight toward the
@@ -60658,15 +60665,40 @@ class Graph:
         import edgecase as ec
 
         grid = ec.Graph().add_grid_2d(6, 6)
-        position = {n: divmod(i, 6) for i, n in enumerate(sorted(grid.get_node_ids(limit=None)))}
+        ids = sorted(grid.get_node_ids(limit=None))
+        position = {n: divmod(i, 6) for i, n in enumerate(ids)}
 
         def manhattan(node, target):
             (r1, c1), (r2, c2) = position[node], position[target]
             return abs(r1 - r2) + abs(c1 - c2)
 
-        ids = sorted(grid.get_node_ids(limit=None))
         path = grid.astar_path(ids[0], ids[-1], heuristic=manhattan)
         len(path) - 1
+        ```
+
+        ### Heading for the destination on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. No stretch takes fewer minutes than its straight-line length on
+        the map of station positions, so the straight-line distance to the destination never
+        overestimates the time left, and A* with it finds a fastest route:
+
+        ```{python}
+        import math
+
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        pos = {n: tuple(p) for n, p in zip(nodes["id"], nodes["pos"])}
+
+        def straight_line(node, target):
+            return math.dist(pos[node], pos[target])
+
+        route = metro.astar_path("Westgate", "Airport", heuristic=straight_line)
+        [metro.get_label_from_id(n) for n in route]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=route, label_by="label")
         ```
         """
         found = self._astar(source, target, heuristic, weighted)
