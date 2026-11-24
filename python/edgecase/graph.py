@@ -36017,49 +36017,99 @@ class Graph:
         ValueError
             If `size=` is not `3` or `4`, or if `n_random=` is `0`.
 
+        See Also
+        --------
+        motif_census : Count the motifs without a null model.
+        degree_preserving_rewire : One random graph with the same degrees.
+        transitivity : The share of connected triples that are closed.
+
         Examples
         --------
-        Three triangles joined in a ring form a "caveman" graph whose clustering is much higher
-        than its degrees alone would produce. The triangle count is far above the random
-        expectation (large positive `z_score`, `p_value` of `0.0`), while open paths are
-        correspondingly under-represented:
+        Three triangles joined in a ring have far more triangles than their degrees alone would
+        produce. The triangle count is well above the random expectation (a large positive
+        `z_score` and a `p_value` of `0.0`), while open paths are under-represented:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["A", "B", "C", "D", "E", "F", "G", "H", "I"])
-        g.add_edges([
-            ("A", "B"), ("B", "C"), ("C", "A"),  # triangle 1
-            ("D", "E"), ("E", "F"), ("F", "D"),  # triangle 2
-            ("G", "H"), ("H", "I"), ("I", "G"),  # triangle 3
-            ("C", "D"), ("F", "G"), ("I", "A"),  # ring links
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+            ("G", "H"), ("H", "I"), ("I", "G"),
+            ("C", "D"), ("F", "G"), ("I", "A"),
         ])
+        result = graph.motif_significance(n_random=200, seed=1)
 
-        result = g.motif_significance(size=3, n_random=200, seed=1)
         {motif: round(stats["z_score"], 2) for motif, stats in result.items()}
         ```
 
-        The full statistics for one class show where the z-score comes from: the observed count
-        compared with the mean and standard deviation over the random graphs:
+        The full statistics for one class show where the z-score comes from:
 
         ```{python}
         result["triangle"]
         ```
 
-        On a very small graph, rewiring may have no room to change anything. Here every random
-        graph has the same census as the original, so the standard deviation is `0.0`, the
-        z-scores are `0.0`, and the p-values are `1.0` -- a sign that the test has no power, not
-        that the motifs are unremarkable:
+        ### Triangles the degrees don't explain
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. It has 45 triangles, while rewirings that keep every
+        member's number of friends have 10 on average:
 
         ```{python}
-        small = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
-        )
+        karate = ec.karate_club().layout_kamada_kawai()
 
-        small.motif_significance(size=3, n_random=10, seed=23)
+        karate.motif_significance(n_random=100, seed=1)["triangle"]
+        ```
+
+        A rewiring (right) keeps the degrees and loses most of the triangles, in the accent color:
+
+        ```{python}
+        from itertools import combinations
+
+        def triangle_edges(graph):
+            return [pair for triangle in graph.list_triangles()
+                    for pair in combinations(triangle, 2)]
+
+        positions = dict(karate.get_node_df().select("id", "pos").iter_rows())
+        rewired = karate.degree_preserving_rewire(seed=1).set_node_attrs(
+            "pos", positions
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.plot(
+            layout="pos", highlight=triangle_edges(karate),
+            width=320, height=360,
+        )
+        ```
+
+        ```{python}
+        rewired.plot(
+            layout="pos", highlight=triangle_edges(rewired),
+            width=320, height=360,
+        )
+        ```
+
+        :::
+
+        On four nodes, cliques are the most over-represented shape: the club has 11, and the
+        rewirings almost none. Squares, four members in a ring with no friendship across it, are
+        rarer than chance:
+
+        ```{python}
+        names = {
+            "motif_4e3_k591": "star",
+            "motif_4e3_k669": "path",
+            "motif_4e4_k1782": "square",
+            "motif_4e4_k735": "paw",
+            "near_clique_4": "near clique",
+            "clique_4": "clique",
+        }
+        result = karate.motif_significance(size=4, n_random=100, seed=1)
+
+        {names[motif]: round(s["z_score"], 1) for motif, s in result.items()}
         ```
         """
         from edgecase._core import motif_significance as _motif_significance
