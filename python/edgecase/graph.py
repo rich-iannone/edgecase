@@ -57071,44 +57071,56 @@ class Graph:
         Graph
             New graph containing only the k-core nodes and the edges between them.
 
+        See Also
+        --------
+        coreness : The largest `k` for which each node is in the `k`-core.
+        k_shell : The nodes of the `k`-core that aren't in the next one.
+        k_crust : The nodes left once the `k+1`-core is removed.
+        k_truss : A stricter core, where each edge must lie in triangles.
+
         Examples
         --------
-        The graph below has a dense cluster (A, B, C, D, every pair connected), a loop E-F-G
-        attached to it, and a pendant node H. The 2-core peels away only H. For the 3-core, F
-        has only two neighbors and G drops to two once H is gone; removing them leaves E with
-        just C and D, so E goes too and only the cluster survives:
+        This graph has a dense cluster `A`-`D`, a loop through `E`, `F` and `G`, and a pendant
+        node `H`. The 2-core peels away `H`. For the 3-core, `F` and `G` fall below three
+        neighbors, which leaves `E` with only `C` and `D`, so it goes too:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"),
+             ("G", "D"), ("G", "H")]
         )
 
-        core_2 = graph.k_core(2)
-        core_3 = graph.k_core(3)
-
         {
-            "2-core": sorted(core_2.get_node_df()["label"].to_list()),
-            "3-core": sorted(core_3.get_node_df()["label"].to_list()),
+            k: sorted(graph.k_core(k).get_node_df()["label"].to_list())
+            for k in [2, 3]
         }
         ```
 
-        The core is an ordinary graph and can be analyzed further. The 3-core here is a complete
-        graph on four nodes, so it has all six possible edges and a density of `1.0`:
-
-        ```{python}
-        (core_3.count_edges(), core_3.density())
-        ```
-
-        A path graph has no cycles, so repeatedly removing its endpoints eventually removes
-        everything and its 2-core is empty:
+        A path has no cycle, so peeling its ends eventually removes everything:
 
         ```{python}
         ec.Graph().add_path_graph(6).k_core(2).count_nodes()
+        ```
+
+        ### The barricade
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. Its 9-core is the group that keeps nine links each among themselves, the
+        twelve characters at the barricade. They are nearly all linked to one another, with 62
+        of the 66 possible links:
+
+        ```{python}
+        novel = ec.les_miserables()
+        barricade = novel.k_core(9)
+
+        barricade.count_nodes(), barricade.count_edges(), barricade.density()
+        ```
+
+        ```{python}
+        barricade.plot(label_by="label", seed=1)
         ```
         """
         self._check_non_negative(k=k)
