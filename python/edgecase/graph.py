@@ -82928,20 +82928,57 @@ class Graph:
             `(matrix, node_ids, edge_ids)`: the matrix as a list of rows (one per node), the node
             IDs labelling rows, and the edge IDs labelling columns, both in increasing order.
 
+        See Also
+        --------
+        adjacency_matrix : Rows and columns for nodes.
+        laplacian_matrix : The oriented matrix times its transpose.
+
         Examples
         --------
-        In a path A-B-C, the oriented incidence matrix multiplied by its transpose gives the
-        Laplacian:
+        Each column of the oriented matrix holds `-1` at its edge's source and `1` at its
+        target:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
-        b, nodes, edges = path.incidence_matrix(oriented=True)
-        laplacian = [[sum(b[i][k] * b[j][k] for k in range(len(edges))) for j in range(3)]
-                     for i in range(3)]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
+        )
+        matrix, nodes, edges = graph.incidence_matrix(oriented=True)
+        label = graph.get_label_from_id
+        columns = [
+            f"{label(s)}→{label(t)}" for _, s, t in graph.get_edges_as_tuples()
+        ]
 
-        b, laplacian == path.laplacian_matrix()[0]
+        pl.DataFrame(matrix, schema=columns, orient="row").insert_column(
+            0, pl.Series("node", [label(n) for n in nodes])
+        )
+        ```
+
+        ### Foundation courses
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. A course's row in the oriented matrix adds
+        up to the number of courses it requires minus the number that require it, so the most
+        negative rows are the courses that open up the program. CS102 requires one course and is
+        required by four:
+
+        ```{python}
+        courses = ec.courses()
+        b, nodes, edges = courses.incidence_matrix(oriented=True)
+
+        sorted(
+            (sum(row), courses.get_label_from_id(n)) for row, n in zip(b, nodes)
+        )[:4]
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight="CS102", label_by="label", height=420
+        )
         ```
         """
         matrix, ids, eids = rust.incidence_matrix(
