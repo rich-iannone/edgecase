@@ -24171,8 +24171,8 @@ class Graph:
         first, sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
-        A typical pattern is to turn the output of an analysis into a selection. Here the
-        nodes not adjacent to "A" are selected and tagged as link-prediction candidates:
+        A selection can then feed a `*_ws` method. Here the nodes that aren't neighbors of `A`
+        get a `candidate` attribute:
 
         ```{python}
         graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
