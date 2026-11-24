@@ -81519,27 +81519,39 @@ class Graph:
         `sensible_relabeling=True` both visit children in tuple order, so the trees match
         NetworkX's exactly, with every label shifted up by one.
 
+        See Also
+        --------
+        to_nested_tuple : Encode a rooted tree as its code.
+        join_trees : Join rooted trees under a new root.
+
         Examples
         --------
-        A root with a leaf and a two-leaf child:
+        A root with a child that has two leaves of its own, and a leaf. The numbering finishes
+        each subtree before starting the next, so the leaf comes last, as `5`:
 
         ```{python}
         import edgecase as ec
 
-        tree = ec.Graph.from_nested_tuple(((), ((), ())))
+        code = (((), ()), ())
+        tree = ec.Graph.from_nested_tuple(code)
         tree.get_edges_str_repr(use_labels=True)
         ```
 
-        Breadth-first labels number the levels in turn: the root's children are `"2"` and
-        `"3"`, and the grandchildren `"4"` and `"5"`:
+        With `sensible_relabeling=True`, the nodes are numbered level by level, so the root's
+        children are `2` and `3`, and the grandchildren `4` and `5`:
 
         ```{python}
-        ec.Graph.from_nested_tuple(((), ((), ())), sensible_relabeling=True).get_edges_str_repr(
-            use_labels=True
+        levels = ec.Graph.from_nested_tuple(code, sensible_relabeling=True)
+        levels.get_edges_str_repr(use_labels=True)
+        ```
+
+        ```{python}
+        levels.plot(
+            highlight="1", label_by="label", seed=1, width=400, height=300
         )
         ```
 
-        Decoding and re-encoding from the root gives the code back:
+        Decoding and encoding again from the root gives the code back:
 
         ```{python}
         code = (((), ()), (), ((),))
