@@ -50100,47 +50100,105 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping edge IDs to betweenness scores. If
             `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        betweenness_centrality : The same count for nodes.
+        edge_load_centrality : A close relative that splits paths evenly at each step.
+        cmty_girvan_newman : Find communities by removing the busiest edges.
+        edge_betweenness_centrality_subset : Count only paths between chosen sources and targets.
+
         Examples
         --------
-        Two triangles joined by a single edge: every path between the triangles must cross the
-        bridge, so it has by far the highest score:
+        Two triangles joined by a single edge: every path from one triangle to the other must
+        cross the bridge, so it has by far the highest score:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-            .add_edge("C", "D")  # the bridge
-            .add_edges([("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
         )
 
-        scores = graph.edge_betweenness_centrality(return_dict=True)
-        label = graph.get_label_from_id
-        {
-            "-".join(label(n) for n in graph.get_node_ids_by_edge_id(eid)): round(s, 3)
-            for eid, s in sorted(scores.items(), key=lambda kv: -kv[1])
-        }
+        (
+            graph.edge_betweenness_centrality()
+            .get_edge_df(labels=True)
+            .select("source", "target", "edge_betweenness_centrality")
+            .sort("edge_betweenness_centrality", descending=True)
+        )
         ```
 
-        With `normalized=False` the scores are path counts. The bridge lies on the shortest
-        path of all `3 * 3 = 9` pairs that have one node in each triangle, plus none of the
-        within-triangle pairs:
+        With `normalized=False` the scores are path counts: the bridge scores `9`, one for each of
+        the `3 * 3` pairs with a node in each triangle.
+
+        ### The edges between factions
+
+        In Zachary's karate club, the top edge joins the instructor (member 0) to member 31, who
+        ended up on the administrator's side when the club split:
 
         ```{python}
-        raw = graph.edge_betweenness_centrality(normalized=False, return_dict=True)
-        max(raw.values())
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .edge_betweenness_centrality()
+        )
+
+        (
+            club.get_edge_df(labels=True)
+            .select("source", "target", "edge_betweenness_centrality")
+            .sort("edge_betweenness_centrality", descending=True)
+            .head(5)
+        )
         ```
 
-        Without `return_dict=`, the scores are stored on the edges, where they can be used to
-        select or filter edges. The top row is the bridge, between node IDs 3 (`C`) and 4 (`D`):
+        Only 10 of the 78 friendships cross between the two factions, but they carry about twice
+        as many routes as the others on average. Drawn with each edge as wide and as dark as its
+        score, and the members colored by faction, the heaviest edges either cross the split or
+        lead from the instructor to members 4, 5, 6, 10 and 16, who reach the rest of the club
+        only through the instructor:
 
         ```{python}
-        graph.edge_betweenness_centrality(attr_name="ebc")
-
-        graph.get_edge_df().select(["source", "target", "ebc"]).sort("ebc", descending=True).head(3)
+        club.plot(
+            layout="pos", color_by="faction", label_by="label", edge_width=2,
+            edge_width_by="edge_betweenness_centrality",
+            edge_color_by="edge_betweenness_centrality",
+        )
         ```
+
+        That's what the Girvan-Newman method, `cmty_girvan_newman()`, builds on: it removes the
+        edge with the highest score, recomputes, and repeats until the graph falls apart.
+
+        ### Bridges and bottlenecks
+
+        The metro is weighted by travel time, so the scores count the fastest routes:
+
+        ```{python}
+        metro = ec.metro().edge_betweenness_centrality()
+
+        (
+            metro.get_edge_df(labels=True)
+            .select("source", "target", "line", "edge_betweenness_centrality")
+            .sort("edge_betweenness_centrality", descending=True)
+            .head(4)
+        )
+        ```
+
+        Riverside-Harbor is a bridge, the only way to the harbor stations, but Market-Eastfield
+        carries more: a third of all the fastest routes. Eastfield can also be reached through
+        Lakeside, but going through Market is quicker, so the trips to the east and the Airport
+        take it:
+
+        ```{python}
+        metro.plot(
+            layout="pos", label_by="label", edge_width=2,
+            edge_width_by="edge_betweenness_centrality",
+            edge_color_by="edge_betweenness_centrality",
+        )
+        ```
+
+        For routes between chosen sources and targets only, use
+        `edge_betweenness_centrality_subset()`; to count flow along every path rather than the
+        shortest ones, `edge_current_flow_betweenness_centrality()`.
         """
         if attr_name is None:
             attr_name = "edge_betweenness_centrality"
