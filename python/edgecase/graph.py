@@ -58682,9 +58682,8 @@ class Graph:
         Parameters
         ----------
         source
-            Node where the path starts, given as an integer node ID or a string label. An unknown
-            label raises a `ValueError`; an integer ID that is not in the graph makes the method
-            return `None`.
+            Node where the path starts, given as an integer node ID or a string label. An ID or
+            label that isn't in the graph raises a `NodeNotFoundError` (a `ValueError`).
         target
             Node where the path ends, given as an integer node ID or a string label, with the
             same rules as `source=`. If `target=` equals `source=`, the path is just that node.
@@ -58726,6 +58725,13 @@ class Graph:
         as negative weights, and game-theoretic setups with negative payoffs, on top of the
         plain shortest-path role it plays on graphs with occasional negative edges.
 
+        See Also
+        --------
+        shortest_path : Dijkstra's algorithm, faster when no weight is negative.
+        find_negative_cycle : The cycle that makes shortest paths undefined.
+        goldberg_radzik : Shortest paths from a source to every node, with negative weights.
+        johnson : Shortest paths between all pairs, with negative weights.
+
         Examples
         --------
         The direct edge from A to B costs `4`, but going through C costs `2 + (-3) = -1`, so
@@ -58734,73 +58740,84 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B", 4.0),
-                    ("A", "C", 2.0),
-                    ("C", "B", -3.0),  # Negative weight
-                    ("B", "D", 1.0),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -3.0), ("B", "D", 1.0)],
+            directed=True,
         )
 
         path = graph.bellman_ford_shortest_path("A", "D", return_list=True)
-        [graph.get_label_from_id(nid) for nid in path]
+        [graph.get_label_from_id(n) for n in path]
         ```
 
-        With `return_list=False` (the default), each node on the path gets its position as a
-        node attribute, which can feed straight into an aesthetic method for visualization:
+        With `return_list=False` (the default), each node on the path gets its position along it
+        as a node attribute, and the other nodes get a null value:
 
         ```{python}
         (
-            graph
-            .bellman_ford_shortest_path("A", "D")
-            .colorize_node_attrs(
-                node_attr_from="bellman_ford_path_order",
-                palette="plasma"
-            )
+            graph.bellman_ford_shortest_path("A", "D")
             .get_node_df()
-            .select(["label", "bellman_ford_path_order"])
+            .select("label", "bellman_ford_path_order")
         )
         ```
 
-        A cycle whose total weight is negative (here `1 - 3 + 1 = -1`) would make paths
-        arbitrarily cheap, so the method raises a `ValueError` instead of returning a path:
+        If the target cannot be reached, the method returns `None`:
 
         ```{python}
-        bad_graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B", 1.0),
-                    ("B", "C", -3.0),
-                    ("C", "A", 1.0),  # Creates negative cycle
-                ]
-            )
-        )
+        graph.add_node(label="E")
+        graph.bellman_ford_shortest_path("A", "E", return_list=True) is None
+        ```
 
+        ### The best way to change currency
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate, so that the path of least weight is the conversion that
+        yields the most. A rate above 1 is a negative weight, which rules out Dijkstra's
+        algorithm. With `arbitrage=False`, no round trip gains money, and the best way to change
+        yen into Swiss francs goes through the dollar rather than the direct quote:
+
+        ```{python}
+        fx = ec.currency(arbitrage=False)
+        fx.bellman_ford_shortest_path("JPY", "CHF")
+
+        fx.plot(
+            highlight="bellman_ford_path_order", label_by="label",
+            curved_edges=True, seed=4,
+        )
+        ```
+
+        Multiplying the rates along each route, 10,000 yen buy more francs through the dollar:
+
+        ```{python}
+        import math
+
+        edges = fx.get_edge_df()
+        rate = dict(zip(zip(edges["source"], edges["target"]), edges["rate"]))
+
+        jpy, usd, chf = (fx.get_id_from_label(c) for c in ("JPY", "USD", "CHF"))
+        (
+            round(10_000 * rate[jpy, chf], 2),
+            round(10_000 * rate[jpy, usd] * rate[usd, chf], 2),
+        )
+        ```
+
+        ### When a round trip gains money
+
+        In `currency()` with its default stale quotes, changing dollars to euros, euros to pounds
+        and pounds back to dollars ends with more dollars than it started with. That loop has a
+        negative total weight, and going around it again always makes a route cheaper, so no
+        shortest path exists and the method raises an error:
+
+        ```{python}
         error_message = None
         try:
-            bad_graph.bellman_ford_shortest_path("A", "B", return_list=True)
+            ec.currency().bellman_ford_shortest_path("JPY", "CHF")
         except ValueError as e:
             error_message = str(e)
 
         error_message
         ```
 
-        If the target cannot be reached, the method returns `None`:
-
-        ```{python}
-        graph = ec.Graph(directed=True)
-        graph.add_node(label="A")
-        graph.add_node(label="isolated")
-
-        graph.bellman_ford_shortest_path("A", "isolated", return_list=True) is None
-        ```
+        `find_negative_cycle()` finds the loop.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
@@ -58822,11 +58839,12 @@ class Graph:
 
         # Create dict mapping node_id -> position in path
         positions = {node_id: idx for idx, node_id in enumerate(path_ids)}
-        self.set_node_attrs(attr_name, positions)
 
         # Track computation
         params = {"source": source, "target": target}
-        self._computations.append(("bellman_ford_shortest_path", params, attr_name))
+        self._store_node_result(
+            "bellman_ford_shortest_path", params, attr_name, positions, show="path", paths=[path_ids], default_attr="bellman_ford_path_order"
+        )
 
         return self
 
