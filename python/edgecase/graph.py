@@ -74163,49 +74163,63 @@ class Graph:
             If source or sink node doesn't exist, if they're the same, or if an edge lacks the
             attribute named by `capacity=`.
 
+        See Also
+        --------
+        minimum_cut_value : The number of edges alone.
+        minimum_cut : The two sides of the cut.
+        minimum_node_cut : The nodes to remove instead.
+
         Examples
         --------
-        In this 4-cycle, `A` reaches `C` along two separate 2-edge paths, so breaking that
+        In a 4-cycle, `A` reaches `C` along two separate 2-edge paths, so breaking that
         connection requires removing one edge from each path:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")], auto_create_nodes=True)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")]
         )
 
-        cut_edges = graph.minimum_edge_cut("A", "C")
-        sorted(
-            (graph.get_label_from_id(u), graph.get_label_from_id(v)) for u, v in cut_edges
-        )
+        label = graph.get_label_from_id
+        sorted((label(u), label(v)) for u, v in graph.minimum_edge_cut("A", "C"))
         ```
 
-        The same approach identifies critical links in a directed network. Two parallel routers
-        between `Router1` and `Server2` provide redundancy there, but the single link from
-        `Server1` into `Router1` is still a bottleneck:
+        On a directed network, the two routers between `Router1` and `Server2` give redundancy
+        there, but the single link from `Server1` into `Router1` is still a bottleneck:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_edges(
-                [
-                    ("Server1", "Router1"),
-                    ("Router1", "Router2"),
-                    ("Router2", "Server2"),
-                    ("Router1", "Router3"),
-                    ("Router3", "Server2"),
-                ],
-                auto_create_nodes=True,
-            )
+        network = ec.Graph.from_edges(
+            [
+                ("Server1", "Router1"),
+                ("Router1", "Router2"), ("Router2", "Server2"),
+                ("Router1", "Router3"), ("Router3", "Server2"),
+            ],
+            directed=True,
         )
 
-        critical_links = graph.minimum_edge_cut("Server1", "Server2")
-        [
-            (graph.get_label_from_id(u), graph.get_label_from_id(v))
-            for u, v in critical_links
-        ]
+        label = network.get_label_from_id
+        cut = network.minimum_edge_cut("Server1", "Server2")
+        [(label(u), label(v)) for u, v in cut]
+        ```
+
+        ### The friendships between the leaders
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Ending ten friendships would leave no chain of friends
+        between the two leaders:
+
+        ```{python}
+        karate = ec.karate_club()
+        cut = karate.minimum_edge_cut("0", "33")
+
+        len(cut)
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight_edges=list(cut), label_by="label"
+        )
         ```
         """
         if capacity is not None:
