@@ -32848,41 +32848,61 @@ class Graph:
         $O(E (V + E))$. This follows NetworkX's proposed `minimum_feedback_edge_set`
         (PR #8521, not yet merged).
 
+        See Also
+        --------
+        has_cycles : Check if the graph has any cycle.
+        simple_cycles : Every cycle in the graph.
+        maximum_spanning_tree : The heaviest edges an undirected graph can keep without a cycle.
+
         Examples
         --------
-        A weighted triangle has one cycle, so the lightest feedback edge set is its lightest
-        edge:
+        A triangle has one cycle, and dropping its lightest edge breaks it:
 
         ```{python}
         import edgecase as ec
 
-        triangle = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", 3.0), ("B", "C", 1.0), ("C", "A", 2.0)])
+        triangle = ec.Graph.from_edges(
+            [("A", "B", 3.0), ("B", "C", 1.0), ("C", "A", 2.0)], weighted=True
         )
+        label = triangle.get_label_from_id
 
-        drop = triangle.minimum_feedback_edge_set()
-        pairs = [triangle.get_node_ids_by_edge_id(e) for e in drop]
-        [(triangle.get_label_from_id(s), triangle.get_label_from_id(t)) for s, t in pairs]
+        [
+            tuple(label(n) for n in triangle.get_node_ids_by_edge_id(e))
+            for e in triangle.minimum_feedback_edge_set()
+        ]
         ```
 
-        In this dependency graph, A, B and C depend on each other in a loop, as do B, D and C.
-        Dropping the single edge from C to A breaks both cycles, after which the graph has a
-        topological order:
+        ### Breaking every cycle of payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee, and weighted by the amount paid. The smallest total of payments whose
+        removal leaves no cycle is 14,260. Each ring has to lose one of its large payments, while
+        the other cycles are broken by small repayments:
 
         ```{python}
-        deps = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges(
-                [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "C"), ("D", "E"), ("E", "C")]
-            )
-        )
+        payments = ec.payments()
+        label = payments.get_label_from_id
+        amounts = dict(payments.get_edge_df().select("id", "amount").iter_rows())
+        cut = payments.minimum_feedback_edge_set()
 
-        drop = deps.minimum_feedback_edge_set()
-        pairs = [deps.get_node_ids_by_edge_id(e) for e in drop]
-        [(deps.get_label_from_id(s), deps.get_label_from_id(t)) for s, t in pairs]
+        (
+            [(label(u), label(v)) for u, v in
+             map(payments.get_node_ids_by_edge_id, cut)],
+            sum(amounts[e] for e in cut),
+        )
+        ```
+
+        ```{python}
+        payments.plot(
+            highlight_edges=cut, label_by="label", seed=11, height=420
+        )
+        ```
+
+        Counting payments instead, with `weighted=False`, four are enough, since the payment from
+        Finn to Gus is in two cycles:
+
+        ```{python}
+        len(payments.minimum_feedback_edge_set(weighted=False))
         ```
         """
         use = self._use_weights(weighted)
