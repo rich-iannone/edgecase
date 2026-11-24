@@ -26943,24 +26943,49 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_in_edge : Move the selection to incoming edges.
+        trav_out : Move the selection along outgoing edges.
+        set_edge_attrs_ws : Set attributes on the selected edges.
+
         Examples
         --------
-        Traversing from "A" to its outbound edges replaces the node selection with an
-        edge selection -- here, both edges leaving "A":
+        The selection moves from `A` to the edges that leave it. The nodes are no longer
+        selected:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C"])
-        graph.add_edges([("A", "B"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("C", "A")], directed=True
+        )
+        graph.select_nodes_by_id([graph.get_id_from_label("A")]).trav_out_edge()
 
-        node_a_id = graph.get_id_from_label("A")
-        graph.select_nodes_by_id([node_a_id]).trav_out_edge()
-
-        len(graph.get_selected_edge_ids())
+        sorted(graph.get_selected_edge_ids()), graph.count_selected_nodes()
         ```
 
+        ### Payday
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Acme's outgoing payments are the four salaries it pays. Moving to
+        them from Acme selects them, ready to be tagged:
+
+        ```{python}
+        payments = ec.payments()
+        (
+            payments
+            .select_nodes_by_id([payments.get_id_from_label("Acme")])
+            .trav_out_edge()
+            .set_edge_attrs_ws(salary=True)
+        )
+
+        payments.get_edge_df_ws().select("source", "target", "amount", "salary")
+        ```
+
+        ```{python}
+        payments.plot(highlight_edges="salary", label_by="label", seed=3)
+        ```
         """
         self._graph.trav_out_edge()
 
