@@ -78931,49 +78931,45 @@ class Graph:
         the same guarantee. For a weighted objective, `minimum_weighted_dominating_set()` is
         preferable.
 
+        See Also
+        --------
+        minimum_weighted_dominating_set : Find a smaller or cheaper dominating set.
+        is_dominating_set : Check a set of nodes.
+        maximal_independent_set : A dominating set that is also independent.
+
         Examples
         --------
-        On a random graph, the greedy algorithm produces some dominating set (not necessarily
-        the smallest possible), which can be verified with `is_dominating_set()`:
+        On a path, the sweep starts from `A`, which covers `B`, and then needs `C` and `E` for
+        the rest, though `B` and `D` would do:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_gnm_graph(n=100, m=200, seed=23)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
 
-        dom = graph.dominating_set()
-
-        # Returns True: every node is either in the set or adjacent to a member
-        graph.is_dominating_set(dom)
+        [graph.get_label_from_id(n) for n in graph.dominating_set()]
         ```
 
-        In a star graph, the hub alone dominates every leaf, so starting the search there gives
-        the smallest possible dominating set right away:
+        ### A quick plan for Wi-Fi
+
+        `offices()` is the floor plan of a made-up office, with its 20 rooms joined where a door
+        leads from one to the other. An access point reaches its own room and the rooms next
+        door, so the rooms for access points must form a dominating set. The quick sweep finds
+        one with 10 rooms, a valid plan that `minimum_weighted_dominating_set()` improves on with
+        the four halls:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_star_graph(10)  # Hub with 9 leaves
+        offices = ec.offices()
+        quick = offices.dominating_set()
+        halls = offices.minimum_weighted_dominating_set()
 
-        dom = graph.dominating_set(start_with=1)  # Start from the hub
-
-        # Returns 1 (just the hub)
-        len(dom)
+        len(quick), offices.is_dominating_set(quick), len(halls)
         ```
 
-        Every maximal independent set is also a dominating set (since any node not in the set
-        must be adjacent to one that is), so the two methods often produce comparably-sized
-        results:
-
         ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(8)
-
-        dom = graph.dominating_set()
-        ind = graph.maximal_independent_set(seed=23)
-
-        # Compare the two set sizes
-        (len(dom), len(ind))
+        offices.plot(layout="pos", highlight=quick, label_by="label")
         ```
         """
         from edgecase._core import dominating_set
