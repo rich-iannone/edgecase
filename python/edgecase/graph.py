@@ -72098,37 +72098,57 @@ class Graph:
             Minimum number of edges needed to disconnect the graph. Returns `0` if already
             disconnected or has isolated nodes.
 
+        See Also
+        --------
+        minimum_cut_value : The edge connectivity between two given nodes.
+        bridges : The edges whose single removal disconnects the graph.
+        stoer_wagner : The global minimum cut itself, with weights as capacities.
+        node_connectivity : The fewest nodes whose removal disconnects the graph.
+
         Examples
         --------
-        A cycle graph has two edge-disjoint paths between any pair of nodes (going each way
-        around the cycle), so its edge connectivity is 2:
+        A cycle survives the loss of any one edge, while a star loses a leaf with each edge:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        n = 6
-        for i in range(1, n + 1):
-            graph.add_node(label=str(i))
-        for i in range(1, n + 1):
-            graph.add_edge(str(i), str((i % n) + 1))
+        cycle = ec.Graph().add_cycle_graph(6)
+        star = ec.Graph().add_star_graph(6)
 
-        # Returns 2
-        graph.edge_connectivity()
+        cycle.edge_connectivity(), star.edge_connectivity()
         ```
 
-        A star graph is much more fragile: removing the single edge to any leaf disconnects it
-        from the rest of the graph:
+        Edge connectivity can be larger than node connectivity. Two diamonds that share the hub
+        `D` fall apart when `D` is removed, but no single edge disconnects them:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_node(label="center")
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-            graph.add_edge("center", str(i))
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
+            ]
+        )
 
-        # Returns 1
-        graph.edge_connectivity()
+        graph.node_connectivity(), graph.edge_connectivity()
+        ```
+
+        ### Single stretches of track
+
+        `metro()` is a made-up city's metro network. Five stretches of track out to the harbor
+        and the Airport are bridges, each the only link to the stations beyond it, so the
+        network's edge connectivity is 1. The core of 15 stations has 2:
+
+        ```{python}
+        metro = ec.metro()
+        core = max(metro.biconnected_components(), key=len)
+
+        metro.edge_connectivity(), metro.subgraph(core).edge_connectivity()
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight_edges=metro.bridges(), label_by="label"
+        )
         ```
         """
         return self._graph.edge_connectivity()
