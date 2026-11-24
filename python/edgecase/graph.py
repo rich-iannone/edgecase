@@ -62483,6 +62483,12 @@ class Graph:
         ValueError
             If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
 
+        See Also
+        --------
+        bfs_tree : The same edges as a new graph.
+        dfs_edges : The edges of a depth-first search.
+        edge_bfs : Every edge in breadth-first order, not just the tree edges.
+
         Examples
         --------
         In a triangle with a tail, C is reached directly from A, not through B, because BFS
@@ -62491,14 +62497,32 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
         )
 
         label = graph.get_label_from_id
         [(label(p), label(c)) for p, c in graph.bfs_edges("A")]
+        ```
+
+        ### The search tree on the metro
+
+        `metro()` is a made-up city's metro network. Each edge of the search leads to a station
+        seen for the first time, so from Central the 19 edges reach all 20 stations, each by
+        the fewest stops:
+
+        ```{python}
+        metro = ec.metro()
+        tree = metro.bfs_edges("Central")
+
+        metro.plot(layout="pos", highlight=tree, label_by="label")
+        ```
+
+        With `depth_limit=2`, the search stops two stops out:
+
+        ```{python}
+        near = metro.bfs_edges("Central", depth_limit=2)
+        metro.plot(layout="pos", highlight=near, label_by="label")
         ```
         """
         self._check_traversal_args(depth_limit, mode)
