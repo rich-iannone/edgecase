@@ -67222,20 +67222,57 @@ class Graph:
         found first (see `all_pairs_all_lowest_common_ancestors()`) and the smallest by `key` is
         kept, as with the `key=` argument proposed in NetworkX pull request #7988.
 
+        See Also
+        --------
+        lowest_common_ancestor : The lowest common ancestor of one pair.
+        all_pairs_all_lowest_common_ancestors : Every lowest common ancestor for many pairs.
+
         Examples
         --------
+        In a small tree, the pairs of leaves under the same parent meet there, and the others
+        at the root:
+
         ```{python}
         import edgecase as ec
 
-        tree = ec.Graph(directed=True).add_nodes(["Mammalia", "Carnivora", "Rodentia", "cat", "dog", "mouse"])
-        tree.add_edges(
-            [("Mammalia", "Carnivora"), ("Mammalia", "Rodentia"), ("Carnivora", "cat"),
-             ("Carnivora", "dog"), ("Rodentia", "mouse")]
+        graph = ec.Graph.from_edges(
+            [("R", "A"), ("R", "B"), ("A", "C"), ("A", "D"), ("B", "E")],
+            directed=True,
         )
+        label = graph.get_label_from_id
+        lca = graph.all_pairs_lowest_common_ancestor(
+            pairs=[("C", "D"), ("C", "E"), ("D", "E")]
+        )
+        {(label(u), label(v)): label(w) for (u, v), w in lca.items()}
+        ```
 
-        found = tree.all_pairs_lowest_common_ancestor([("cat", "dog"), ("cat", "mouse")])
-        {tuple(tree.get_label_from_id(n) for n in pair): tree.get_label_from_id(a)
-         for pair, a in found.items()}
+        ### Where the advanced courses meet
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. For each pair of its upper-level courses,
+        the lowest common ancestor is the last course that both build on. The pairs with the
+        systems course CS410 meet in CS102, but the data courses meet later: CS350 shares
+        STAT201 with CS360 and CS460, and CS460 requires CS360, which is then its own lowest
+        common ancestor with CS460:
+
+        ```{python}
+        from itertools import combinations
+
+        courses = ec.courses()
+        label = courses.get_label_from_id
+        upper = ["CS350", "CS360", "CS410", "CS460"]
+        lca = courses.all_pairs_lowest_common_ancestor(
+            pairs=list(combinations(upper, 2))
+        )
+        {(label(u), label(v)): label(w) for (u, v), w in lca.items()}
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight={"accent": list(lca.values()), "soft": upper},
+            label_by="label", height=420,
+        )
         ```
         """
         self._require_dag("all_pairs_lowest_common_ancestor")
