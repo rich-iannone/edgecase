@@ -75019,54 +75019,72 @@ class Graph:
         pass with an explicit stack; both are common choices, and any downstream code
         should treat the returned component list as unordered.
 
+        See Also
+        --------
+        weakly_connected_components : The components that ignore edge directions.
+        attracting_components : The components with no edges leaving them.
+        count_strongly_connected_components : The number of components alone.
+
         Examples
         --------
-        Nodes `A`, `B`, and `C` form a cycle, so each can reach the others and they collapse into
-        one strongly connected component; `D` is reachable from the cycle but has no way back, so
-        it forms its own component:
+        `A`, `B` and `C` form a cycle, so each can reach the others and they make up one strongly
+        connected component. `D` is reachable from the cycle but has no way back, so it forms its
+        own:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # Creates a cycle -> SCC {A, B, C}
-                    ("C", "D"),  # D is reachable but can't reach back
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")], directed=True
         )
 
+        label = graph.get_label_from_id
         sccs = graph.strongly_connected_components()
-
-        # Returns 2: {A, B, C} and {D}
-        len(sccs)
+        [sorted(label(n) for n in c) for c in sccs]
         ```
 
-        In a web graph, SCCs represent "communities" of mutually linked pages; finding the largest
-        one highlights the biggest tightly-linked cluster:
+        Two cycles joined by a single one-way edge stay separate components. An edge back the
+        other way merges them into one:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"), ("B", "C"), ("C", "A"),  # SCC of 3
-                    ("C", "D"),  # D is a separate SCC
-                ]
-            )
+        edges = [
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("X", "Y"), ("Y", "Z"), ("Z", "X"),
+            ("C", "X"),
+        ]
+        one_link = ec.Graph.from_edges(edges, directed=True)
+        two_links = ec.Graph.from_edges(edges + [("Z", "A")], directed=True)
+
+        (
+            len(one_link.strongly_connected_components()),
+            len(two_links.strongly_connected_components()),
         )
+        ```
 
-        sccs = graph.strongly_connected_components()
-        largest_scc = max(sccs, key=len)
+        ### Money going around in circles
 
-        # Returns 3 (A, B, C form the largest cluster)
-        len(largest_scc)
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Its two rings of large payments, Ana, Ben and Cruz, and Finn, Gus and
+        Hal, turn out to be one component, along with Dee and Eve: Dee pays into the first ring
+        and Ana pays Dee back, and Eve pays into the second ring and Gus pays Dee. Max and Nia,
+        who pay each other, make up the only other component of more than one account:
+
+        ```{python}
+        payments = ec.payments()
+        components = payments.strongly_connected_components()
+
+        label = payments.get_label_from_id
+        [sorted(label(n) for n in c) for c in components if len(c) > 1]
+        ```
+
+        ```{python}
+        circle = max(components, key=len)
+        group = {
+            n: "circle" if c == circle else "Max and Nia"
+            for c in components if len(c) > 1 for n in c
+        }
+        payments.set_node_attrs("component", group)
+        payments.plot(color_by="component", label_by="label", seed=3)
         ```
         """
         # Convert list of lists to list of sets
