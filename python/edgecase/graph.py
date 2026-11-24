@@ -6110,6 +6110,7 @@ class Graph:
 
     def layout_planar(
         self,
+        refine: bool = True,
         scale: Optional[float] = 1.0,
         center: tuple[float, float] = (0.0, 0.0),
         attr_name: Optional[str] = None,
