@@ -78025,31 +78025,56 @@ class Graph:
         is slower, roughly $O(V^2 \Delta^2)$ for maximum degree $\Delta$. Ties are broken by
         node ID; the widths match NetworkX's.
 
+        See Also
+        --------
+        chordal_graph_treewidth : The exact treewidth of a chordal graph.
+        junction_tree : The decomposition used for inference in graphical models.
+        is_chordal : Check whether the graph has an exact tree of cliques.
+
         Examples
         --------
-        A cycle has treewidth 2. Its decomposition is a chain of bags of three nodes:
+        A cycle has treewidth 2, and its decomposition is a chain of bags of three nodes:
 
         ```{python}
         import edgecase as ec
 
-        ring = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")])
-
+        ring = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "A")]
+        )
         width, tree = ring.tree_decomposition()
-        width, [tree.get_label_from_id(n) for n in sorted(tree.get_node_ids(limit=None))]
+
+        width, [tree.get_label_from_id(n) for n in tree.get_node_ids()]
         ```
 
-        Every edge of the original graph sits inside some bag, and the bags form a tree:
+        ### Molecules, bag by bag
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. A molecule without rings is a tree, of treewidth 1,
+        and its rings raise the width only to 2, even in caffeine with its two fused rings. With
+        bags this small, problems that are hard on most graphs can be solved quickly on molecules,
+        one bag at a time:
 
         ```{python}
-        tree.is_tree(), tree.count_nodes()
+        import polars as pl
+
+        molecules = ec.molecules()
+
+        pl.DataFrame(
+            {
+                "molecule": list(molecules),
+                "atoms": [g.count_nodes() for g in molecules.values()],
+                "width": [g.tree_decomposition()[0] for g in molecules.values()],
+            }
+        )
         ```
 
-        A tree has width 1, since each bag only needs a node and its parent:
+        Each bag of caffeine's decomposition holds at most three atoms, and neighboring bags
+        share the atoms between them:
 
         ```{python}
-        star = ec.Graph().add_star_graph(5)
-        star.tree_decomposition(heuristic="min_degree")[0]
+        width, tree = molecules["caffeine"].tree_decomposition()
+
+        tree.plot(label_by="label", seed=1)
         ```
         """
         width, bags, edges = rust.tree_decomposition(self._graph, heuristic)
