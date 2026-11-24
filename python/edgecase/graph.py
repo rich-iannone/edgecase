@@ -64264,6 +64264,11 @@ class Graph:
         ValueError
             If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
 
+        See Also
+        --------
+        dfs : The nodes in the order the search first visits them.
+        topological_sort : An order of a DAG with every edge pointing forward.
+
         Examples
         --------
         In a small tree, the leaves finish first and the root last:
@@ -64271,10 +64276,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        tree = (
-            ec.Graph(directed=True)
-            .add_nodes(["root", "a", "b", "a1", "a2"])
-            .add_edges([("root", "a"), ("root", "b"), ("a", "a1"), ("a", "a2")])
+        tree = ec.Graph.from_edges(
+            [("root", "a"), ("root", "b"), ("a", "a1"), ("a", "a2")],
+            directed=True,
         )
 
         [tree.get_label_from_id(n) for n in tree.dfs_postorder_nodes("root")]
@@ -64286,6 +64290,28 @@ class Graph:
         order = list(reversed(tree.dfs_postorder_nodes()))
         position = {n: i for i, n in enumerate(order)}
         all(position[s] < position[t] for _, s, t in tree.get_edges_as_tuples())
+        ```
+
+        ### An order to take the courses in
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        A course finishes only after every course that needs it, so the reversed postorder puts
+        each course after its prerequisites:
+
+        ```{python}
+        courses = ec.courses()
+        order = list(reversed(courses.dfs_postorder_nodes()))
+
+        [courses.get_label_from_id(n) for n in order]
+        ```
+
+        ```{python}
+        courses.set_node_attrs(
+            "taken", {n: i for i, n in enumerate(order, start=1)}
+        )
+        courses.plot(
+            color_by="taken", color_scale="sequential", label_by="label", seed=2
+        )
         ```
         """
         self._check_traversal_args(depth_limit, mode)
