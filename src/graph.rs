@@ -3284,17 +3284,32 @@ impl Graph {
             return Ok(min_connectivity);
         }
 
-        for &u in &nodes {
-            for &v in &nodes {
-                if u == v || (!self.directed && v < u) || succ[&u].contains(&v) {
+        // Only the first k + 1 nodes need to be sources (Even 1975): a minimum cut of size
+        // k misses one of them, which it separates from some other node. On a digraph that
+        // node may be cut off in either direction, so both orders are checked.
+        for (i, &u) in nodes.iter().enumerate() {
+            if i > min_connectivity {
+                break;
+            }
+            for (j, &v) in nodes.iter().enumerate() {
+                if i == j || (!self.directed && j < i) {
                     continue;
                 }
-                let conn = self.node_connectivity_between(u, v)?;
-                min_connectivity = min_connectivity.min(conn);
+                let mut pairs = vec![(u, v)];
+                if self.directed {
+                    pairs.push((v, u));
+                }
+                for (a, b) in pairs {
+                    if succ[&a].contains(&b) {
+                        continue;
+                    }
+                    let conn = self.node_connectivity_between(a, b)?;
+                    min_connectivity = min_connectivity.min(conn);
 
-                // A connected graph can't do better than 1
-                if min_connectivity == 1 {
-                    return Ok(1);
+                    // A connected graph can't do better than 1
+                    if min_connectivity == 1 {
+                        return Ok(1);
+                    }
                 }
             }
         }
@@ -3355,14 +3370,14 @@ impl Graph {
                 if comp_nodes.len() > 1 {
                     // Process each component recursively
                     // Use a separate blocks vector for each component
-                    let mut comp_all_blocks = Vec::new();
                     let (comp_blocks, comp_cohesions, comp_parents) =
-                        self.cohesive_blocks_for_subgraph(comp_nodes, None, &mut comp_all_blocks)?;
+                        self.cohesive_blocks_for_subgraph(comp_nodes)?;
 
-                    // Add the returned blocks (not comp_all_blocks, as it's already populated)
+                    // Parent indices are local to the component; shift them
+                    let offset = all_blocks.len();
                     all_blocks.extend(comp_blocks);
                     all_cohesions.extend(comp_cohesions);
-                    all_parents.extend(comp_parents);
+                    all_parents.extend(comp_parents.into_iter().map(|p| p.map(|i| i + offset)));
                 } else if comp_nodes.len() == 1 {
                     // Single node component
                     all_blocks.push(comp_nodes.clone());
@@ -3380,9 +3395,7 @@ impl Graph {
 
         // Process connected graph
         let all_nodes: Vec<u64> = self.nodes.keys().copied().collect();
-        let mut all_blocks = Vec::new();
-        let (blocks, cohesions, parents) =
-            self.cohesive_blocks_for_subgraph(&all_nodes, None, &mut all_blocks)?;
+        let (blocks, cohesions, parents) = self.cohesive_blocks_for_subgraph(&all_nodes)?;
 
         // Return node IDs directly (no label conversion)
         Ok((blocks, cohesions, parents)
@@ -5871,8 +5884,9 @@ impl Graph {
                 let size2 = neighbors2.len();
 
                 let cosine = if size1 > 0 && size2 > 0 {
-                    let inv_denominator = 1.0 / ((size1 as f64).sqrt() * (size2 as f64).sqrt());
-                    let result = (intersection as f64) * inv_denominator;
+                    // One square root of the product, so identical neighborhoods give exactly
+                    // 1.0 (the product of two roots can round to just below it)
+                    let result = (intersection as f64) / ((size1 * size2) as f64).sqrt();
                     // Clamp to [0, 1] to handle floating-point precision issues
                     result.clamp(0.0, 1.0)
                 } else {
@@ -6253,42 +6267,29 @@ impl Graph {
         let mut trail_count = 0usize;
         let limit = max_trails.unwrap_or(usize::MAX);
 
-        // Stack stores: (current_node, visited_edges)
-        // For undirected graphs, we store edges as (min, max) to handle both directions
-        let mut stack: Vec<(u64, FxHashSet<(u64, u64)>)> = Vec::new();
+        // Stack stores: (current_node, IDs of the edges crossed so far). Edges are tracked by
+        // ID, so each of several parallel edges can be crossed once (tracking node pairs let
+        // only one of them be used per trail)
+        let mut stack: Vec<(u64, FxHashSet<u64>)> = Vec::new();
         stack.push((source, FxHashSet::default()));
 
         while let Some((current, visited_edges)) = stack.pop() {
-            // Get neighbors
-            if let Some(neighbors) = self.adjacency_list.get(&current) {
-                for &neighbor in neighbors {
-                    // Create edge representation
-                    let edge = if self.directed {
-                        (current, neighbor)
-                    } else {
-                        // For undirected, normalize edge as (min, max)
-                        if current < neighbor {
-                            (current, neighbor)
-                        } else {
-                            (neighbor, current)
-                        }
-                    };
-
-                    // Check if edge not visited
-                    if !visited_edges.contains(&edge) {
-                        // If we reached target, count this trail
-                        if neighbor == target {
-                            trail_count += 1;
-                            if trail_count >= limit {
-                                return Ok(None); // Exceeded limit
-                            }
-                        } else {
-                            // Continue exploration
-                            let mut new_visited = visited_edges.clone();
-                            new_visited.insert(edge);
-                            stack.push((neighbor, new_visited));
-                        }
+            // Undirected edges can be crossed from either end
+            for (edge_id, neighbor) in self.incident_pairs(current, true, !self.directed) {
+                if visited_edges.contains(&edge_id) {
+                    continue;
+                }
+                // If we reached target, count this trail
+                if neighbor == target {
+                    trail_count += 1;
+                    if trail_count >= limit {
+                        return Ok(None); // Exceeded limit
                     }
+                } else {
+                    // Continue exploration
+                    let mut new_visited = visited_edges.clone();
+                    new_visited.insert(edge_id);
+                    stack.push((neighbor, new_visited));
                 }
             }
         }
@@ -6344,45 +6345,31 @@ impl Graph {
             return Ok(vec![vec![source]]);
         }
 
-        // Stack stores: (current_node, path, visited_edges)
-        type TrailFrame = (u64, Vec<u64>, FxHashSet<(u64, u64)>);
+        // Stack stores: (current_node, path, IDs of the edges crossed so far), tracked by ID as
+        // in `count_trails()`
+        type TrailFrame = (u64, Vec<u64>, FxHashSet<u64>);
         let mut stack: Vec<TrailFrame> = Vec::new();
         stack.push((source, vec![source], FxHashSet::default()));
 
         while let Some((current, path, visited_edges)) = stack.pop() {
-            // Get neighbors
-            if let Some(neighbors) = self.adjacency_list.get(&current) {
-                for &neighbor in neighbors {
-                    // Create edge representation
-                    let edge = if self.directed {
-                        (current, neighbor)
-                    } else {
-                        // For undirected, normalize edge as (min, max)
-                        if current < neighbor {
-                            (current, neighbor)
-                        } else {
-                            (neighbor, current)
-                        }
-                    };
+            for (edge_id, neighbor) in self.incident_pairs(current, true, !self.directed) {
+                if visited_edges.contains(&edge_id) {
+                    continue;
+                }
+                let mut new_path = path.clone();
+                new_path.push(neighbor);
 
-                    // Check if edge not visited
-                    if !visited_edges.contains(&edge) {
-                        let mut new_path = path.clone();
-                        new_path.push(neighbor);
-
-                        // If we reached target, save this trail
-                        if neighbor == target {
-                            trails.push(new_path);
-                            if trails.len() >= limit {
-                                return Ok(trails); // Reached limit
-                            }
-                        } else {
-                            // Continue exploration
-                            let mut new_visited = visited_edges.clone();
-                            new_visited.insert(edge);
-                            stack.push((neighbor, new_path, new_visited));
-                        }
+                // If we reached target, save this trail
+                if neighbor == target {
+                    trails.push(new_path);
+                    if trails.len() >= limit {
+                        return Ok(trails); // Reached limit
                     }
+                } else {
+                    // Continue exploration
+                    let mut new_visited = visited_edges.clone();
+                    new_visited.insert(edge_id);
+                    stack.push((neighbor, new_path, new_visited));
                 }
             }
         }
@@ -6494,8 +6481,8 @@ impl Graph {
     /// bidirectional (mutual). Returns a value between 0.0 and 1.0.
     ///
     /// The calculation depends on the mode:
-    /// - "default": ratio of bidirectional connections to total connections
-    /// - "ratio": (# mutual edges) / (total # edges)
+    /// - "default": (# edges whose reverse edge exists) / (total # edges)
+    /// - "ratio": (# mutual node pairs) / (# connected node pairs), as in igraph
     ///
     /// # Arguments
     /// * `mode` - Calculation mode: "default" or "ratio"
@@ -6514,8 +6501,10 @@ impl Graph {
     /// g.add_edge("B", "A");  // Mutual with above
     /// g.add_edge("A", "C");  // No reciprocal
     ///
-    /// let recip = g.reciprocity("ratio");
+    /// let recip = g.reciprocity("default");
     /// // 2 mutual edges out of 3 total = 0.666...
+    /// let ratio = g.reciprocity("ratio");
+    /// // 1 mutual pair out of 2 connected pairs = 0.5
     /// ```
     #[pyo3(signature = (mode="default"))]
     #[inline]
@@ -6531,59 +6520,41 @@ impl Graph {
             return Ok(0.0);
         }
 
-        match mode {
-            "default" | "ratio" => {
-                // Count edges that are mutual
-                let mut mutual_count = 0;
-                let estimated_pairs = num_edges / 2;
-                let mut seen_pairs =
-                    FxHashSet::with_capacity_and_hasher(estimated_pairs, Default::default());
-
-                for edge in &self.edges {
-                    let source = edge.source;
-                    let target = edge.target;
-
-                    // Skip self-loops
-                    if source == target {
-                        continue;
-                    }
-
-                    // Create canonical pair
-                    let canonical = if source < target {
-                        (source, target)
-                    } else {
-                        (target, source)
-                    };
-
-                    // Skip if already counted
-                    if seen_pairs.contains(&canonical) {
-                        continue;
-                    }
-
-                    // Check if reverse edge exists
-                    let has_forward = self
-                        .edges
-                        .iter()
-                        .any(|e| e.source == source && e.target == target);
-                    let has_reverse = self
-                        .edges
-                        .iter()
-                        .any(|e| e.source == target && e.target == source);
-
-                    if has_forward && has_reverse {
-                        seen_pairs.insert(canonical);
-                        // Count both directions as mutual
-                        mutual_count += 2;
-                    }
-                }
-
-                let inv_num_edges = 1.0 / num_edges as f64;
-                Ok((mutual_count as f64) * inv_num_edges)
-            }
-            _ => Err(pyo3::exceptions::PyValueError::new_err(format!(
+        if mode != "default" && mode != "ratio" {
+            return Err(pyo3::exceptions::PyValueError::new_err(format!(
                 "Invalid mode '{}'. Use 'default' or 'ratio'",
                 mode
-            ))),
+            )));
+        }
+
+        // Distinct directed pairs, so each lookup of the reverse direction is O(1)
+        let pairs: FxHashSet<(u64, u64)> = self
+            .edges
+            .iter()
+            .filter(|e| e.source != e.target)
+            .map(|e| (e.source, e.target))
+            .collect();
+
+        // Unordered pairs of nodes joined in both directions
+        let mutual_pairs = pairs
+            .iter()
+            .filter(|&&(s, t)| s < t && pairs.contains(&(t, s)))
+            .count();
+
+        match mode {
+            "default" => {
+                // Both edges of each mutual pair count as reciprocated
+                let inv_num_edges = 1.0 / num_edges as f64;
+                Ok((2 * mutual_pairs) as f64 * inv_num_edges)
+            }
+            _ => {
+                // Each connected pair counts once, whether mutual or one-way
+                let connected_pairs = pairs.len() - mutual_pairs;
+                if connected_pairs == 0 {
+                    return Ok(0.0);
+                }
+                Ok(mutual_pairs as f64 / connected_pairs as f64)
+            }
         }
     }
 
@@ -8117,11 +8088,23 @@ impl Graph {
             }
             members[s].push(node_id);
         }
+        // Work in node ID order, so that ties and numbering don't depend on hashing
+        for node_ids in members.iter_mut() {
+            node_ids.sort_unstable();
+        }
+        members.sort_unstable_by_key(|node_ids| node_ids[0]);
+
+        // Twice the number of edges between distinct nodes
+        let two_m: f64 = self
+            .adjacency_list
+            .iter()
+            .map(|(u, neighbors)| neighbors.iter().filter(|v| *v != u).count() as f64)
+            .sum();
 
         let mut result = FxHashMap::with_capacity_and_hasher(self.nodes.len(), Default::default());
         let mut offset = 0;
         for node_ids in &members {
-            let partition = self.walktrap_component(node_ids, steps);
+            let partition = self.walktrap_component(node_ids, steps, two_m);
             for (&node_id, &c) in node_ids.iter().zip(&partition) {
                 result.insert(node_id, offset + c);
             }
@@ -8920,8 +8903,8 @@ impl Graph {
     /// B^(g)_ij = B_ij - δ_ij * Σ_k B_ik
     /// This modification is essential for correct bisection (Newman 2006, Eq. 5)
     ///
-    /// Uses nalgebra's symmetric_eigen() for robust eigenvalue computation,
-    /// specifically targeting the largest real eigenvalue (most positive).
+    /// Uses a full symmetric eigendecomposition, taking the eigenvector of the
+    /// largest real eigenvalue (most positive).
     fn compute_leading_eigenvector(
         &self,
         nodes: &[u64],
@@ -8968,9 +8951,8 @@ impl Graph {
             }
         }
 
-        // Compute eigenvalues and eigenvectors using nalgebra
-        // symmetric_eigen() is optimized for real symmetric matrices
-        let eigen = b_matrix.symmetric_eigen();
+        // Compute eigenvalues and eigenvectors of the real symmetric matrix
+        let eigen = crate::algorithms::eigen::symmetric_eigen(b_matrix);
 
         // Find the eigenvalue with the largest value
         let eigenvalues = eigen.eigenvalues;
@@ -9101,114 +9083,11 @@ impl Graph {
         Vec::new() // No path found
     }
 
-    /// Helper for cohesive_blocks: recursively process a subgraph to find cohesive structure
-    ///
-    /// Args:
-    ///   nodes: Node set defining the subgraph
-    ///   parent_idx: Index of parent block (None for root)
-    ///   all_blocks: Accumulated list of blocks (passed for indexing)
-    ///
-    /// Returns: (blocks, cohesions, parent_indices) for this subgraph and its children
-    fn cohesive_blocks_for_subgraph(
-        &self,
-        nodes: &[u64],
-        parent_idx: Option<usize>,
-        all_blocks: &mut Vec<Vec<u64>>,
-    ) -> PyResult<CohesiveBlocks> {
-        let mut blocks = Vec::new();
-        let mut cohesions = Vec::new();
-        let mut parents = Vec::new();
-
-        // If subgraph is too small, return as single block
-        if nodes.len() <= 2 {
-            blocks.push(nodes.to_vec());
-            cohesions.push(if nodes.len() == 2 { 1 } else { 0 });
-            parents.push(parent_idx);
-            return Ok((blocks, cohesions, parents));
-        }
-
-        // Compute connectivity of this subgraph
-        let k = self.induced_subgraph_connectivity(nodes)?;
-
-        // Add this block
-        let current_idx = all_blocks.len();
-        blocks.push(nodes.to_vec());
-        cohesions.push(k);
-        parents.push(parent_idx);
-        all_blocks.push(nodes.to_vec());
-
-        // If k is 0 (disconnected) or very small, we're done with this branch
-        if k == 0 {
-            return Ok((blocks, cohesions, parents));
-        }
-
-        // Find minimal k-separators
-        let separators = self.find_minimal_separators(nodes, k)?;
-
-        if separators.is_empty() {
-            // No separators found - this is a leaf block
-            return Ok((blocks, cohesions, parents));
-        }
-
-        // Try each separator to find higher-cohesion subblocks
-        let mut processed_components = FxHashSet::default();
-
-        for separator in &separators {
-            // Remove separator nodes and find connected components
-            let remaining_nodes: Vec<u64> = nodes
-                .iter()
-                .filter(|&&n| !separator.contains(&n))
-                .copied()
-                .collect();
-
-            if remaining_nodes.is_empty() {
-                continue;
-            }
-
-            // Find components in remaining graph
-            let components = self.find_components_in_subgraph(&remaining_nodes);
-
-            for comp_nodes in components {
-                if comp_nodes.len() <= 1 {
-                    continue;
-                }
-
-                // Create a signature for this component to avoid duplicates
-                let mut comp_sorted = comp_nodes.clone();
-                comp_sorted.sort_unstable();
-                let comp_signature = format!("{:?}", comp_sorted);
-
-                if processed_components.contains(&comp_signature) {
-                    continue;
-                }
-                processed_components.insert(comp_signature);
-
-                // Check component + separator for higher connectivity
-                // A k-cohesive block can contain a (k+1)-cohesive sub-block
-                // formed by one component plus the separator
-                let mut candidate_nodes = comp_nodes.clone();
-                candidate_nodes.extend(separator.iter().copied());
-
-                let candidate_connectivity =
-                    self.induced_subgraph_connectivity(&candidate_nodes)?;
-
-                if candidate_connectivity > k {
-                    // Recursively process this higher-cohesion component
-                    let (sub_blocks, sub_cohesions, sub_parents) = self
-                        .cohesive_blocks_for_subgraph(
-                            &candidate_nodes,
-                            Some(current_idx),
-                            all_blocks,
-                        )?;
-
-                    blocks.extend(sub_blocks);
-                    cohesions.extend(sub_cohesions);
-                    parents.extend(sub_parents);
-                }
-            }
-        }
-
-        Ok((blocks, cohesions, parents))
+    /// Helper for cohesive_blocks: the cohesive blocks of a connected subgraph
+    fn cohesive_blocks_for_subgraph(&self, nodes: &[u64]) -> PyResult<CohesiveBlocks> {
+        Ok(crate::algorithms::connectivity_extras::cohesive_blocks_of(
+            self, nodes,
+        ))
     }
 
     /// Find minimal k-separators in a subgraph
@@ -9341,9 +9220,13 @@ impl Graph {
             return Ok(1);
         }
 
-        // Compute connectivity between non-adjacent pairs
+        // Compute connectivity between non-adjacent pairs; only the first k + 1 nodes
+        // need to be sources (Even 1975), k being the smallest degree or value so far
         let mut min_connectivity = usize::MAX;
         for i in 0..n {
+            if i > min_degree.min(min_connectivity) {
+                break;
+            }
             for j in (i + 1)..n {
                 let u = nodes[i];
                 let v = nodes[j];
@@ -9928,376 +9811,167 @@ impl Graph {
     }
 
     /// Walktrap partition of one connected component, as community indices
-    /// (0, 1, ...) aligned with `node_ids`.
-    fn walktrap_component(&self, node_ids: &[u64], steps: usize) -> Vec<usize> {
+    /// (0, 1, ...) aligned with `node_ids`, numbered by first appearance.
+    ///
+    /// Follows Pons and Latapy (2005): every node gets a self-loop, each community
+    /// is described by the mean distribution of `steps`-step walks started from its
+    /// members, and the pair of adjacent communities whose merger least increases
+    /// the mean squared walk distance (`Δσ`) is merged until one is left. The cut
+    /// with the highest modularity (for the whole graph, with `two_m` the sum of
+    /// all degrees) is returned.
+    fn walktrap_component(&self, node_ids: &[u64], steps: usize, two_m: f64) -> Vec<usize> {
         let n = node_ids.len();
-        if n == 1 {
-            return vec![0];
+        if n == 1 || two_m == 0.0 {
+            return (0..n).collect();
         }
         let mut node_to_idx = FxHashMap::with_capacity_and_hasher(n, Default::default());
         for (idx, &node_id) in node_ids.iter().enumerate() {
             node_to_idx.insert(node_id, idx);
         }
 
-        // Compute transition probability matrix P
-        #[allow(non_snake_case)]
-        let P = self.compute_transition_matrix(node_ids, &node_to_idx);
-
-        // Compute t-step transition probabilities P^t
-        #[allow(non_snake_case)]
-        let P_t = self.matrix_power(&P, steps);
-
-        // Compute distance matrix between nodes
-        let distances = self.compute_random_walk_distances(&P_t, node_ids, &node_to_idx);
-
-        // Hierarchical clustering using Ward's method
-        let dendrogram = self.ward_clustering(&distances, n);
-
-        // Find best partition by maximizing modularity (this component's share of
-        // it: the helper sums over `node_ids` only, with the whole graph's degrees
-        // and edge count)
-        self.find_best_partition(&dendrogram, node_ids, &node_to_idx)
-    }
-
-    /// Compute transition probability matrix P
-    /// P[i][j] = 1/deg(i) if edge (i,j) exists, 0 otherwise
-    #[allow(non_snake_case)]
-    fn compute_transition_matrix(
-        &self,
-        node_ids: &[u64],
-        node_to_idx: &FxHashMap<u64, usize>,
-    ) -> Vec<Vec<f64>> {
-        let n = node_ids.len();
-        let mut P = vec![vec![0.0; n]; n];
-
-        for (i, &node_i) in node_ids.iter().enumerate() {
-            let degree = self.degree(node_i) as f64;
-            if degree == 0.0 {
-                continue;
-            }
-
-            if let Some(neighbors) = self.adjacency_list.get(&node_i) {
-                for &neighbor in neighbors {
-                    if let Some(&j) = node_to_idx.get(&neighbor) {
-                        P[i][j] = 1.0 / degree;
+        // Edge multiplicities between distinct nodes; self-loops are ignored
+        let mut adj: Vec<Vec<(usize, f64)>> = vec![Vec::new(); n];
+        for (i, &node_id) in node_ids.iter().enumerate() {
+            let mut counts: FxHashMap<usize, f64> = FxHashMap::default();
+            for neighbor in self.adjacency_list.get(&node_id).into_iter().flatten() {
+                if let Some(&j) = node_to_idx.get(neighbor) {
+                    if j != i {
+                        *counts.entry(j).or_insert(0.0) += 1.0;
                     }
                 }
             }
+            let mut row: Vec<(usize, f64)> = counts.into_iter().collect();
+            row.sort_unstable_by_key(|&(j, _)| j);
+            adj[i] = row;
         }
-
-        P
-    }
-
-    /// Compute P^t (matrix to the power of t)
-    #[inline]
-    #[allow(non_snake_case)]
-    fn matrix_power(&self, P: &[Vec<f64>], t: usize) -> Vec<Vec<f64>> {
-        let n = P.len();
-        let mut result = vec![vec![0.0; n]; n];
-
-        // Initialize as identity matrix
-        for (i, row) in result.iter_mut().enumerate() {
-            row[i] = 1.0;
-        }
-
-        // Repeated matrix multiplication
-        for _ in 0..t {
-            result = self.matrix_multiply(&result, P);
-        }
-
-        result
-    }
-
-    /// Matrix multiplication
-    #[inline]
-    #[allow(non_snake_case)]
-    fn matrix_multiply(&self, A: &[Vec<f64>], B: &[Vec<f64>]) -> Vec<Vec<f64>> {
-        let n = A.len();
-        let mut C = vec![vec![0.0; n]; n];
-
-        for i in 0..n {
-            for j in 0..n {
-                for k in 0..n {
-                    C[i][j] += A[i][k] * B[k][j];
-                }
-            }
-        }
-
-        C
-    }
-
-    /// Compute random walk distances between all pairs of nodes
-    /// d(i,j) = sqrt(Σ_k [(P^t_ik - P^t_jk)^2 / deg(k)])
-    #[allow(non_snake_case)]
-    fn compute_random_walk_distances(
-        &self,
-        P_t: &[Vec<f64>],
-        node_ids: &[u64],
-        _node_to_idx: &FxHashMap<u64, usize>,
-    ) -> Vec<Vec<f64>> {
-        let n = node_ids.len();
-        let mut distances = vec![vec![0.0; n]; n];
-
-        // Precompute degrees
-        let degrees: Vec<f64> = node_ids
+        let degree: Vec<f64> = adj
             .iter()
-            .map(|&node_id| self.degree(node_id) as f64)
+            .map(|row| row.iter().map(|&(_, w)| w).sum())
             .collect();
+        // Walk degrees include the added self-loop
+        let walk_degree: Vec<f64> = degree.iter().map(|&d| d + 1.0).collect();
 
+        // Row i holds the distribution of a `steps`-step walk started at node i
+        let mut vectors: Vec<Vec<f64>> = Vec::with_capacity(2 * n - 1);
+        let mut next = vec![0.0; n];
         for i in 0..n {
-            for j in i..n {
-                let mut sum = 0.0;
-                for k in 0..n {
-                    if degrees[k] > 0.0 {
-                        let diff = P_t[i][k] - P_t[j][k];
-                        sum += diff * diff / degrees[k];
+            let mut current = vec![0.0; n];
+            current[i] = 1.0;
+            for _ in 0..steps {
+                next.iter_mut().for_each(|x| *x = 0.0);
+                for (k, &p) in current.iter().enumerate() {
+                    if p == 0.0 {
+                        continue;
+                    }
+                    let share = p / walk_degree[k];
+                    next[k] += share;
+                    for &(j, w) in &adj[k] {
+                        next[j] += share * w;
                     }
                 }
-                let dist = sum.sqrt();
-                distances[i][j] = dist;
-                distances[j][i] = dist;
+                std::mem::swap(&mut current, &mut next);
             }
+            vectors.push(current);
         }
 
-        distances
-    }
-
-    /// Ward's hierarchical clustering
-    /// Returns dendrogram as Vec<(cluster1, cluster2, distance)>
-    fn ward_clustering(&self, distances: &[Vec<f64>], n: usize) -> Vec<(usize, usize, f64)> {
-        let mut dendrogram = Vec::new();
-        let mut active_clusters: FxHashSet<usize> = (0..n).collect();
-        let mut cluster_sizes = vec![1; n];
-        let mut next_cluster_id = n;
-
-        // Distance matrix (we'll update it as we merge)
-        let mut dist_matrix = distances.to_vec();
-
-        for _ in 0..(n - 1) {
-            // Find closest pair of clusters
-            let mut min_dist = f64::INFINITY;
-            let mut best_i = 0;
-            let mut best_j = 0;
-
-            let active_vec: Vec<usize> = active_clusters.iter().copied().collect();
-            for (idx_i, &i) in active_vec.iter().enumerate() {
-                for &j in active_vec.iter().skip(idx_i + 1) {
-                    let d = if i < dist_matrix.len() && j < dist_matrix[i].len() {
-                        dist_matrix[i][j]
-                    } else {
-                        f64::INFINITY
-                    };
-
-                    if d < min_dist {
-                        min_dist = d;
-                        best_i = i;
-                        best_j = j;
-                    }
-                }
-            }
-
-            // Merge clusters
-            dendrogram.push((best_i, best_j, min_dist));
-            active_clusters.remove(&best_i);
-            active_clusters.remove(&best_j);
-
-            // Create new cluster
-            let new_size = cluster_sizes.get(best_i).copied().unwrap_or(1)
-                + cluster_sizes.get(best_j).copied().unwrap_or(1);
-            if cluster_sizes.len() <= next_cluster_id {
-                cluster_sizes.resize(next_cluster_id + 1, 0);
-            }
-            cluster_sizes[next_cluster_id] = new_size;
-
-            // Update distances to other clusters (Ward's method)
-            // Extend dist_matrix if needed
-            if dist_matrix.len() <= next_cluster_id {
-                dist_matrix.resize(next_cluster_id + 1, vec![]);
-                for row in dist_matrix.iter_mut() {
-                    if row.len() <= next_cluster_id {
-                        row.resize(next_cluster_id + 1, 0.0);
-                    }
-                }
-            }
-
-            for &k in &active_clusters {
-                if k == next_cluster_id {
-                    continue;
-                }
-
-                let size_i = cluster_sizes.get(best_i).copied().unwrap_or(1) as f64;
-                let size_j = cluster_sizes.get(best_j).copied().unwrap_or(1) as f64;
-                let size_k = cluster_sizes.get(k).copied().unwrap_or(1) as f64;
-                let size_new = size_i + size_j;
-
-                let d_ik = if best_i < dist_matrix.len() && k < dist_matrix[best_i].len() {
-                    dist_matrix[best_i][k]
-                } else {
-                    0.0
-                };
-
-                let d_jk = if best_j < dist_matrix.len() && k < dist_matrix[best_j].len() {
-                    dist_matrix[best_j][k]
-                } else {
-                    0.0
-                };
-
-                let d_ij = min_dist;
-
-                // Ward's formula
-                let new_dist = ((size_i + size_k) * d_ik + (size_j + size_k) * d_jk
-                    - size_k * d_ij)
-                    / (size_new + size_k);
-
-                dist_matrix[next_cluster_id][k] = new_dist;
-                dist_matrix[k][next_cluster_id] = new_dist;
-            }
-
-            active_clusters.insert(next_cluster_id);
-            next_cluster_id += 1;
-        }
-
-        dendrogram
-    }
-
-    /// Find best partition from dendrogram by maximizing modularity
-    fn find_best_partition(
-        &self,
-        dendrogram: &[(usize, usize, f64)],
-        node_ids: &[u64],
-        _node_to_idx: &FxHashMap<u64, usize>,
-    ) -> Vec<usize> {
-        let n = node_ids.len();
-
-        if dendrogram.is_empty() {
-            // No merges, each node is own community
-            return (0..n).collect();
-        }
-
-        // Try all possible cuts of the dendrogram
-        let mut best_partition = (0..n).collect::<Vec<_>>();
-        let mut best_modularity = self.compute_modularity_from_partition(node_ids, &best_partition);
-
-        // Try each level of merging
-        for num_merges in 1..=dendrogram.len() {
-            // Build partition by applying merges using union-find
-            let mut parent: Vec<usize> = (0..n).collect();
-
-            // Apply first num_merges from dendrogram
-            for i in 0..num_merges {
-                let (c1, c2, _) = dendrogram[i];
-
-                // Get original nodes for these clusters
-                let nodes_c1 = Self::get_cluster_nodes(c1, n, &dendrogram[..i]);
-                let nodes_c2 = Self::get_cluster_nodes(c2, n, &dendrogram[..i]);
-
-                // Union all nodes from c2 into c1's community
-                if let (Some(rep1), Some(_rep2)) = (nodes_c1.iter().next(), nodes_c2.iter().next())
-                {
-                    let root1 = Self::find_root(&mut parent, *rep1);
-                    for &node in &nodes_c2 {
-                        parent[node] = root1;
-                    }
-                }
-            }
-
-            // Compress paths and assign contiguous IDs
-            let partition: Vec<usize> = (0..n).map(|i| Self::find_root(&mut parent, i)).collect();
-
-            // Renumber to be contiguous
-            let mut unique_comms: Vec<usize> = partition.to_vec();
-            unique_comms.sort_unstable();
-            unique_comms.dedup();
-
-            let mut comm_remap = FxHashMap::default();
-            for (new_id, &old_id) in unique_comms.iter().enumerate() {
-                comm_remap.insert(old_id, new_id);
-            }
-
-            let renumbered: Vec<usize> = partition
+        let n_f = n as f64;
+        let delta_sigma = |a: &[f64], b: &[f64], size_a: f64, size_b: f64| -> f64 {
+            let r2: f64 = a
                 .iter()
-                .map(|&c| comm_remap.get(&c).copied().unwrap_or(0))
-                .collect();
+                .zip(b)
+                .zip(&walk_degree)
+                .map(|((x, y), d)| (x - y) * (x - y) / d)
+                .sum();
+            size_a * size_b / (size_a + size_b) * r2 / n_f
+        };
 
-            // Compute modularity for this partition
-            #[allow(non_snake_case)]
-            let Q = self.compute_modularity_from_partition(node_ids, &renumbered);
-
-            if Q > best_modularity {
-                best_modularity = Q;
-                best_partition = renumbered;
-            }
-        }
-
-        best_partition
-    }
-
-    /// Get all original nodes that belong to a cluster
-    fn get_cluster_nodes(
-        cluster_id: usize,
-        n: usize,
-        merges: &[(usize, usize, f64)],
-    ) -> FxHashSet<usize> {
-        let mut nodes = FxHashSet::default();
-
-        // If cluster_id < n, it's an original node
-        if cluster_id < n {
-            nodes.insert(cluster_id);
-            return nodes;
-        }
-
-        // Otherwise, find which merge created this cluster
-        let merge_idx = cluster_id - n;
-        if merge_idx >= merges.len() {
-            return nodes;
-        }
-
-        let (c1, c2, _) = merges[merge_idx];
-
-        // Recursively get nodes from both children
-        nodes.extend(Self::get_cluster_nodes(c1, n, merges));
-        nodes.extend(Self::get_cluster_nodes(c2, n, merges));
-
-        nodes
-    }
-
-    /// Union-Find helper: find root with path compression
-    fn find_root(parent: &mut [usize], node: usize) -> usize {
-        if parent[node] != node {
-            parent[node] = Self::find_root(parent, parent[node]);
-        }
-        parent[node]
-    }
-
-    /// Compute modularity for a given partition
-    #[allow(non_snake_case)]
-    fn compute_modularity_from_partition(&self, node_ids: &[u64], partition: &[usize]) -> f64 {
-        let m = self.num_edges() as f64;
-        if m == 0.0 {
-            return 0.0;
-        }
-
-        let mut Q = 0.0;
-
-        for (i, &node_i) in node_ids.iter().enumerate() {
-            for (j, &node_j) in node_ids.iter().enumerate() {
-                if partition[i] == partition[j] {
-                    let has_edge = self
-                        .adjacency_list
-                        .get(&node_i)
-                        .map(|neighbors| neighbors.contains(&node_j))
-                        .unwrap_or(false);
-
-                    let A_ij = if has_edge { 1.0 } else { 0.0 };
-                    let k_i = self.degree(node_i) as f64;
-                    let k_j = self.degree(node_j) as f64;
-
-                    Q += A_ij - (k_i * k_j) / (2.0 * m);
+        // Community state, indexed 0..n for single nodes and n.. for merges
+        let mut sizes: Vec<f64> = vec![1.0; n];
+        let mut total_degree: Vec<f64> = degree.clone();
+        let mut links: Vec<FxHashMap<usize, f64>> = adj
+            .iter()
+            .map(|row| row.iter().copied().collect())
+            .collect();
+        let mut pairs: std::collections::BTreeMap<(usize, usize), f64> =
+            std::collections::BTreeMap::new();
+        for (i, row) in adj.iter().enumerate() {
+            for &(j, _) in row {
+                if i < j {
+                    pairs.insert((i, j), delta_sigma(&vectors[i], &vectors[j], 1.0, 1.0));
                 }
             }
         }
 
-        Q / (2.0 * m)
+        let mut modularity: f64 = -degree.iter().map(|d| (d / two_m).powi(2)).sum::<f64>();
+        let mut best_modularity = modularity;
+        let mut best_merges = 0;
+        let mut merges: Vec<(usize, usize)> = Vec::with_capacity(n - 1);
+
+        while !pairs.is_empty() {
+            // The smallest Δσ, with near-ties going to the pair with the smallest IDs
+            let min = pairs.values().copied().fold(f64::INFINITY, f64::min);
+            let tolerance = min.abs() * 1e-10;
+            let (&(a, b), _) = pairs.iter().find(|(_, &d)| d <= min + tolerance).unwrap();
+
+            let c = sizes.len();
+            let between = links[a].get(&b).copied().unwrap_or(0.0);
+            modularity +=
+                2.0 * between / two_m - 2.0 * total_degree[a] * total_degree[b] / (two_m * two_m);
+            merges.push((a, b));
+            // On a tie, prefer the cut with fewer communities, as igraph does
+            if modularity >= best_modularity - 1e-12 {
+                best_modularity = modularity;
+                best_merges = merges.len();
+            }
+
+            let (size_a, size_b) = (sizes[a], sizes[b]);
+            let merged: Vec<f64> = vectors[a]
+                .iter()
+                .zip(&vectors[b])
+                .map(|(x, y)| (size_a * x + size_b * y) / (size_a + size_b))
+                .collect();
+            vectors[a] = Vec::new();
+            vectors[b] = Vec::new();
+            vectors.push(merged);
+            sizes.push(size_a + size_b);
+            total_degree.push(total_degree[a] + total_degree[b]);
+
+            let mut merged_links: FxHashMap<usize, f64> = FxHashMap::default();
+            for old in [a, b] {
+                for (other, w) in std::mem::take(&mut links[old]) {
+                    if other == a || other == b {
+                        continue;
+                    }
+                    *merged_links.entry(other).or_insert(0.0) += w;
+                    links[other].remove(&old);
+                    pairs.remove(&(old.min(other), old.max(other)));
+                }
+            }
+            pairs.remove(&(a, b));
+            for (&other, &w) in &merged_links {
+                links[other].insert(c, w);
+                let d = delta_sigma(&vectors[other], &vectors[c], sizes[other], sizes[c]);
+                pairs.insert((other, c), d);
+            }
+            links.push(merged_links);
+        }
+
+        // Replay the merges up to the best cut
+        let mut members: Vec<Vec<usize>> = (0..n).map(|i| vec![i]).collect();
+        for &(a, b) in &merges[..best_merges] {
+            let mut joined = std::mem::take(&mut members[a]);
+            joined.extend(std::mem::take(&mut members[b]));
+            members.push(joined);
+        }
+        let mut partition = vec![usize::MAX; n];
+        let mut groups: Vec<&Vec<usize>> = members.iter().filter(|m| !m.is_empty()).collect();
+        groups.sort_unstable_by_key(|m| m.iter().copied().min());
+        for (community, group) in groups.into_iter().enumerate() {
+            for &i in group {
+                partition[i] = community;
+            }
+        }
+        partition
     }
 }
 
@@ -10455,7 +10129,7 @@ pub(crate) fn spectral_symmetric(
         }
     }
 
-    let eigen = na::SymmetricEigen::new(matrix.to_dense());
+    let eigen = crate::algorithms::eigen::symmetric_eigen(matrix.to_dense());
     let mut pairs: Vec<(f64, Vec<f64>)> = eigen
         .eigenvalues
         .iter()
