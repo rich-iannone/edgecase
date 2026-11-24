@@ -37338,28 +37338,60 @@ class Graph:
         Returns
         -------
         dict
-            A nested dictionary `{a: {b: count}}`.
+            A nested dictionary `{a: {b: count}}`, both levels sorted (by their text if values
+            are not comparable).
 
         Raises
         ------
         ValueError
             If some node has no value for the attribute.
 
+        See Also
+        --------
+        attribute_mixing_matrix : The same counts as a matrix.
+        assortativity_nominal : One number for how much like links with like.
+        degree_mixing_dict : Count links by degree instead.
+
         Examples
         --------
-        Two teams with one friendship across them:
+        Each link counts once from each end, so the one link between the teams, `B`–`C`, counts
+        once for each:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("C", "D"), ("B", "C")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "team", {"A": "red", "B": "red", "C": "blue", "D": "blue"}
         )
-        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
 
         graph.attribute_mixing_dict("team")
+        ```
+
+        ### Across the clubs
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Counted from both ends, 76 of the 86 ends of friendships stay
+        within a club. The five friendships across the clubs all involve Hugo, from the chess
+        club, or Tara, a climber, the couple at the center of the network:
+
+        ```{python}
+        friends = ec.friends()
+        club = friends.get_node_attrs("club")
+        label = friends.get_label_from_id
+        across = [
+            (label(s), label(t))
+            for _, s, t in friends.get_edges_as_tuples() if club[s] != club[t]
+        ]
+
+        friends.attribute_mixing_dict("club"), across
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight=across, color_by="club", edge_color_by="club",
+            label_by="label", seed=8,
+        )
         ```
         """
         return self._mixing_from_counts(self._attribute_counts(attribute), normalized)
