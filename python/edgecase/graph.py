@@ -72771,63 +72771,59 @@ class Graph:
         minimum cut in $O(V \cdot E^2)$ via Edmonds-Karp. The source and sink themselves
         are, by construction, never returned in the cut.
 
+        See Also
+        --------
+        node_connectivity_between : The number of nodes alone.
+        all_node_cuts : Every smallest cut of the whole graph.
+        minimum_edge_cut : The edges to remove instead.
+
         Examples
         --------
-        In this graph, `A` reaches `D` by two separate routes (through `B` and through `C`),
-        but everything must then pass through `D` to reach `E`. Node `D` is therefore the
-        single node in the minimum cut:
+        `A` reaches `D` by two separate routes, through `B` and through `C`, but everything must
+        then pass through `D` to reach `E`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_edges(
-                [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")],
-                auto_create_nodes=True,
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
 
-        cut_nodes = graph.minimum_node_cut("A", "E")
-        [graph.get_label_from_id(nid) for nid in cut_nodes]
+        [graph.get_label_from_id(n) for n in graph.minimum_node_cut("A", "E")]
         ```
 
-        The same idea applies directly to network vulnerability analysis. Two redundant servers
-        do not help if every request first goes through one gateway:
+        With two independent routes between `Alice` and `Carol`, both intermediaries must be
+        removed to separate them:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_edges(
-                [
-                    ("Client", "Gateway"),
-                    ("Gateway", "Server1"),
-                    ("Gateway", "Server2"),
-                    ("Server1", "Database"),
-                    ("Server2", "Database"),
-                ],
-                auto_create_nodes=True,
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("Alice", "Bob"), ("Bob", "Carol"),
+                ("Alice", "Dave"), ("Dave", "Carol"),
+            ]
         )
 
-        critical_nodes = graph.minimum_node_cut("Client", "Database")
-        [graph.get_label_from_id(nid) for nid in critical_nodes]
+        cut = graph.minimum_node_cut("Alice", "Carol")
+        sorted(graph.get_label_from_id(n) for n in cut)
         ```
 
-        In a small social network with two independent routes between `Alice` and `Carol`, both
-        intermediaries must be removed to separate them:
+        ### Between the instructor and the administrator
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Six members stand between them, so every chain of
+        friendships from one leader to the other passes through one of the six:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_edges(
-                [("Alice", "Bob"), ("Bob", "Carol"), ("Alice", "Dave"), ("Dave", "Carol")],
-                auto_create_nodes=True,
-            )
-        )
+        karate = ec.karate_club()
+        between = karate.minimum_node_cut("0", "33")
 
-        intermediaries = graph.minimum_node_cut("Alice", "Carol")
-        sorted(graph.get_label_from_id(nid) for nid in intermediaries)
+        sorted(int(karate.get_label_from_id(n)) for n in between)
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight=list(between), label_by="label"
+        )
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
