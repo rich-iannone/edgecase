@@ -55,6 +55,26 @@ class TestSteinerTree:
         assert tree.count_edges() == 3
         assert tree.has_node("Center")  # Center should be included as Steiner node
 
+    def test_improves_on_the_approximation(self):
+        # The shortest paths from B reach E and G through C, but E and G are closest to each
+        # other, so the 2-approximation joins them directly (53) and gets 33 + 37 + 53 = 123.
+        # Re-spanning its nodes finds C-G instead, for 33 + 37 + 38 = 108.
+        g = Graph.from_edges(
+            [("B", "C", 33.0), ("C", "E", 37.0), ("C", "G", 38.0), ("E", "G", 53.0)]
+        )
+        tree = g.steiner_tree(["B", "E", "G"])
+        assert tree.get_edge_df()["weight"].sum() == 108
+        assert not tree.has_edge("E", "G")
+
+    def test_trims_leaves_that_are_not_terminals(self):
+        g = Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 1.0), ("C", "D", 1.0), ("B", "X", 0.1), ("A", "C", 5.0)]
+        )
+        for terminals in (["A", "C", "D"], ["D", "A", "C"]):
+            tree = g.steiner_tree(terminals)
+            assert sorted(tree.get_node_df()["label"]) == ["A", "B", "C", "D"]
+            assert tree.get_edge_df()["weight"].sum() == 3
+
     def test_steiner_tree_two_terminals(self):
         """Test Steiner tree with exactly 2 terminals (shortest path)."""
         g = Graph(weighted=True)
