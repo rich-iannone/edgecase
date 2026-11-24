@@ -35796,13 +35796,42 @@ class Graph:
         ---------------
         Matches NetworkX's `is_triad`.
 
+        See Also
+        --------
+        triad_type : Classify the triad formed by three nodes.
+        all_triads : List every triad of a directed graph.
+
         Examples
         --------
+        A triad has three nodes and no self-loops, whatever its arcs:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C"]).add_edge("A", "B")
-        g.is_triad(), ec.Graph().add_nodes(["A", "B", "C"]).is_triad()
+        three = ec.Graph.from_edges([("A", "B")], directed=True).add_node("C")
+
+        three.is_triad(), ec.Graph().add_nodes(["A", "B", "C"]).is_triad()
+        ```
+
+        ### Taking one triad out
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The subgraph of Ana, Ben and Cruz is a triad, holding just the
+        three payments of their ring:
+
+        ```{python}
+        payments = ec.payments()
+        ring = payments.subgraph(
+            [payments.get_id_from_label(name) for name in ["Ana", "Ben", "Cruz"]]
+        )
+
+        ring.is_triad(), ring.triad_type(ring.get_node_ids())
+        ```
+
+        ```{python}
+        ring.plot(
+            label_by="label", edge_label_by="amount", width=320, height=300
+        )
         ```
         """
         return (
