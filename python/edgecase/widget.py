@@ -254,7 +254,7 @@ class GraphWidget:
         if self.layout == "force":
             positions = _force_directed_layout(nodes, edges, iterations=100)
         elif self.layout == "circular":
-            positions = _circular_layout(nodes)
+            positions = _circular_layout(nodes, edges)
         else:
             positions = _random_layout(nodes)
 
