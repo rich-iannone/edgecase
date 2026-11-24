@@ -173,6 +173,17 @@ class TestTOMChaining:
         found = any(c[0] == "topological_overlap" for c in g._computations)
         assert found
 
+    def test_rows_stored_as_node_attribute(self):
+        # The chained form used to record the computation without storing anything
+        g = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        tom = g.topological_overlap(return_dict=True)
+        df = g.topological_overlap().get_node_df()
+        a = g.get_id_from_label("A")
+        row = df.filter(df["id"] == a)["topological_overlap"].to_list()[0]
+        assert row[0] == {"node": a, "overlap": 1.0}
+        assert {r["node"]: r["overlap"] for r in row} == tom[a]
+        assert [r["overlap"] for r in row] == sorted(tom[a].values(), reverse=True)
+
 
 # ===========================================================================
 # topological_overlap — edge cases
