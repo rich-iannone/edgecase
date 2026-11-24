@@ -76900,26 +76900,59 @@ class Graph:
         matching can be decided by computing a maximum matching (`maximum_weight_matching()` on an
         unweighted graph) and checking it with this method.
 
+        See Also
+        --------
+        is_matching : Check that no two edges share a node.
+        maximum_weight_matching : The largest matching, which is perfect when one exists.
+        minimum_edge_cover : The fewest edges that touch every node.
+
         Examples
         --------
-        A 6-cycle has two perfect matchings, made of alternate edges:
+        A 6-cycle has two perfect matchings, each made of every other edge. Dropping one of its
+        edges leaves two nodes unpaired:
 
         ```{python}
         import edgecase as ec
 
-        ring = ec.Graph().add_nodes(list("ABCDEF"))
-        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
-        alternate = [ring.find_edge_ids(u, v)[0] for u, v in [("A", "B"), ("C", "D"), ("E", "F")]]
+        ring = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "A")]
+        )
+        alternate = [
+            ring.find_edge_ids(u, v)[0]
+            for u, v in [("A", "B"), ("C", "D"), ("E", "F")]
+        ]
 
-        # Returns (True, False): dropping one edge leaves E and F unmatched
-        ring.is_perfect_matching(alternate), ring.is_perfect_matching(alternate[:2])
+        (
+            ring.is_perfect_matching(alternate),
+            ring.is_perfect_matching(alternate[:2]),
+        )
         ```
 
-        A maximum matching tells you whether a perfect one exists. A star never has one:
+        A star can't have one, since its leaves can only pair with the center:
 
         ```{python}
         star = ec.Graph().add_star_graph(4)
         star.is_perfect_matching(star.maximum_weight_matching())
+        ```
+
+        ### Everyone with a partner
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. For a club outing, the 24 can be split into 12 pairs of friends,
+        with no one left out:
+
+        ```{python}
+        friends = ec.friends()
+        pairs = friends.maximum_weight_matching()
+
+        len(pairs), friends.is_perfect_matching(pairs)
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight_edges=pairs, color_by="club", label_by="label", seed=2
+        )
         ```
         """
         ends = self._matching_ends(edges)
