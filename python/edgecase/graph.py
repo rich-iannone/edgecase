@@ -75377,20 +75377,50 @@ class Graph:
         path, which for a DAG means a topological order whose consecutive components are all
         joined by an edge. $O(V + E)$. Matches NetworkX's `is_semiconnected`.
 
+        See Also
+        --------
+        is_strongly_connected : The stricter check, with each node reaching the other.
+        is_weakly_connected : The looser check, ignoring edge directions.
+        strongly_connected_components : The components that must line up in a chain.
+
         Examples
         --------
-        A chain is semiconnected; two branches out of a common source are not, since neither
-        branch reaches the other:
+        A chain is semiconnected, since of any two nodes, the earlier one reaches the later one.
+        Two branches out of a common source are not, since neither branch reaches the other:
 
         ```{python}
         import edgecase as ec
 
-        chain = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        chain.add_edges([("A", "B"), ("B", "C")])
-        fork = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        fork.add_edges([("A", "B"), ("A", "C")])
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        fork = ec.Graph.from_edges([("A", "B"), ("A", "C")], directed=True)
 
         chain.is_semiconnected(), fork.is_semiconnected()
+        ```
+
+        A strongly connected graph is semiconnected too, since each node reaches the other:
+
+        ```{python}
+        ring = ec.Graph(directed=True).add_cycle_graph(4)
+        ring.is_semiconnected()
+        ```
+
+        ### Following a single chain of payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The whole month isn't semiconnected: the Cafe and the Grocer, for
+        one, pay no one, so neither can reach the other. But the chain of accounts that pass
+        Cruz's money along, from Cruz through Ivy, Jo, Kai and Lena to the Grocer, is:
+
+        ```{python}
+        payments = ec.payments()
+        chain = ["Cruz", "Ivy", "Jo", "Kai", "Lena", "Grocer"]
+        ids = [payments.get_id_from_label(name) for name in chain]
+
+        payments.is_semiconnected(), payments.subgraph(ids).is_semiconnected()
+        ```
+
+        ```{python}
+        payments.plot(highlight=chain, label_by="label", seed=3)
         ```
         """
         if not self.is_directed():
