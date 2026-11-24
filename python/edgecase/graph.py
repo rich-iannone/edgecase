@@ -69798,6 +69798,12 @@ class Graph:
         ValueError
             If the graph is directed.
 
+        See Also
+        --------
+        biconnected_components : The blocks of a graph that is not biconnected.
+        articulation_points : The nodes whose removal disconnects the graph.
+        node_connectivity : How many nodes must go before the graph falls apart.
+
         Examples
         --------
         A cycle survives the loss of any one node; a path does not:
@@ -69809,6 +69815,23 @@ class Graph:
         path = ec.Graph().add_path_graph(5)
 
         cycle.is_biconnected(), path.is_biconnected()
+        ```
+
+        ### The core of the metro
+
+        `metro()` is a made-up city's metro network. The whole network is not biconnected, since
+        closing Riverside cuts off the harbor, but its largest block, the 15 stations of the
+        core, is:
+
+        ```{python}
+        metro = ec.metro()
+        core = max(metro.biconnected_components(), key=len)
+
+        metro.is_biconnected(), metro.subgraph(core).is_biconnected()
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=core, label_by="label")
         ```
         """
         blocks = rust.biconnected_components(self._graph)
