@@ -3994,10 +3994,9 @@ class Graph:
 
         Examples
         --------
-        `plot_vis()` opens an interactive view of the graph -- inline in a notebook, or in a
-        browser tab outside one. The commented-out calls below aren't invoked here (since each
-        would open an external window or widget), but illustrate how to select a target,
-        layout, size, or static rendering:
+        `plot_vis()` fills each node with the CSS color in its `color` attribute, which
+        `colorize_node_attrs()` can derive from another attribute. Coloring the karate club's members
+        by faction stores one color per faction:
 
         ```{python}
         import edgecase as ec
