@@ -71294,6 +71294,12 @@ class Graph:
         `k = 1` is a reachability test; otherwise the local edge connectivity comes from a
         maximum flow with unit capacities (see `minimum_cut_value()`).
 
+        See Also
+        --------
+        minimum_cut_value : The number of edge-disjoint paths between the two nodes.
+        edge_disjoint_paths : The paths themselves.
+        is_k_edge_connected : The same check for every pair of nodes.
+
         Examples
         --------
         In two triangles joined by the bridge `C-D`, nodes in the same triangle have two
@@ -71302,12 +71308,38 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges(
-            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
-        g.is_locally_k_edge_connected("A", "C", 2), g.is_locally_k_edge_connected("A", "E", 2)
+        (
+            graph.is_locally_k_edge_connected("A", "C", 2),
+            graph.is_locally_k_edge_connected("A", "E", 2),
+        )
+        ```
+
+        ### Routes from Central
+
+        `metro()` is a made-up city's metro network. Central has three routes to Riverside that
+        share no stretch of track, but only one to the Airport:
+
+        ```{python}
+        metro = ec.metro()
+
+        (
+            metro.is_locally_k_edge_connected("Central", "Riverside", 3),
+            metro.is_locally_k_edge_connected("Central", "Airport", 2),
+        )
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight=["Central", "Riverside", "Airport"],
+            label_by="label",
+        )
         ```
         """
         if k < 1:
