@@ -56174,41 +56174,55 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to leverage centrality scores.
             If `return_dict=` is `False`: returns self for method chaining.
 
+        See Also
+        --------
+        degree_centrality : The node's own degree alone.
+        average_neighbor_degree : The mean degree of a node's neighbors.
+
         Examples
         --------
-        The hub has positive leverage, since its degree far exceeds that of its
-        low-degree neighbors, while each leaf has negative leverage for the opposite
-        reason:
+        A hub has more neighbors than any of its neighbors, so its leverage is positive; each
+        leaf's only neighbor has more, so the leaves' leverage is negative:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
-        )
+        star = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
 
-        graph.leverage_centrality(return_dict=True)
+        star.leverage_centrality().get_node_df().select(
+            "label", "degree", "leverage_centrality"
+        )
         ```
 
-        Storing the result as a node attribute lets it chain directly into
-        visualization methods like `colorize_node_attrs()`:
+        ### More ties than their friends
+
+        In Zachary's karate club, only five members have positive leverage. Leverage compares a
+        node with its own neighbors, so members 3 and 31, with six friends each, come out close
+        to `0`, about level with their friends, and so do members 5 and 6, with four:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .leverage_centrality()
         )
 
         (
-            graph
-            .leverage_centrality(attr_name="leverage")
-            .colorize_node_attrs(
-                node_attr_from="leverage", node_attr_to="fillcolor", palette="RdBu"
-            )
-            .describe()
+            club.get_node_df()
+            .select("label", "degree", "leverage_centrality")
+            .sort("leverage_centrality", descending=True)
+            .head(9)
+        )
+        ```
+
+        Colored on a diverging scale around `0`, the five members with positive leverage are the
+        leaders and the members closest to them, while the members tied only to a leader or two
+        have the most negative:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="leverage_centrality", color_scale="diverging",
+            color_midpoint=0, label_by="label",
         )
         ```
         """
@@ -56221,10 +56235,7 @@ class Graph:
         if attr_name is None:
             attr_name = "leverage_centrality"
 
-        self.set_node_attrs(attr_name, centrality)
-
-        # Track computation (no non-default params)
-        self._computations.append(("leverage_centrality", {}, attr_name))
+        self._store_node_result("leverage_centrality", {}, attr_name, centrality)
 
         return self
 
