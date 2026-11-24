@@ -61040,6 +61040,11 @@ class Graph:
         results this method matches. Costs: $O(V + E)$ for BFS, $O(E \log V)$ for Dijkstra and
         $O(VE)$ for Bellman-Ford.
 
+        See Also
+        --------
+        single_source_all_shortest_paths : The paths that the predecessors make.
+        bfs_predecessors : One predecessor per node, from a breadth-first search.
+
         Examples
         --------
         In a square A-B-C-D, the node opposite A is reached by two shortest paths, so it has two
@@ -61048,12 +61053,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
 
         preds = square.predecessor("A")
-        {square.get_label_from_id(n): [square.get_label_from_id(p) for p in ps]
-         for n, ps in preds.items()}
+        label = square.get_label_from_id
+        {label(n): [label(p) for p in ps] for n, ps in preds.items()}
+        ```
+
+        ### Ties on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Each station's predecessors are the stations just before it on
+        its fastest routes from Central. Four stations have two, where two equally fast routes
+        meet:
+
+        ```{python}
+        metro = ec.metro()
+        preds = metro.predecessor("Central")
+        label = metro.get_label_from_id
+
+        tied = {n: ps for n, ps in preds.items() if len(ps) > 1}
+        {label(n): [label(p) for p in ps] for n, ps in tied.items()}
+        ```
+
+        Every predecessor step together covers all the fastest routes from Central:
+
+        ```{python}
+        steps = [(p, n) for n, ps in preds.items() for p in ps]
+        metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
