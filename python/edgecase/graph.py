@@ -35185,71 +35185,109 @@ class Graph:
         Optional[float]
             Global clustering coefficient between `0.0` and `1.0`, or `None` if undefined.
 
+        See Also
+        --------
+        average_clustering_coefficient : The mean of each node's clustering.
+        count_triangles : The number of triangles at each node.
+        random_reference : A random graph with the same degrees, to compare against.
+
         Examples
         --------
-        Perfect triangle has transitivity 1.0:
+        In a triangle with a tail, there are five pairs of edges that meet at a node, and three
+        of them are closed by the third edge of the triangle, so the transitivity is 3/5:
 
         ```{python}
         import edgecase as ec
 
-        triangle = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
-
-        # Returns 1.0 (all triples are closed)
-        triangle.transitivity()
+        graph.transitivity()
         ```
 
-        Chain graph has transitivity 0.0:
+        The average clustering of the same graph is 0.58. Transitivity pools every node's pairs
+        of neighbors, so a node with many neighbors weighs more, where the average counts every
+        node the same:
 
         ```{python}
-        chain = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
-
-        # Returns 0.0 (no triangles, only open triples)
-        chain.transitivity()
+        graph.average_clustering_coefficient()
         ```
 
-        Real-world networks typically have values between 0.1 and 0.5:
+        ### Clustered beyond chance?
+
+        A network with many links per node closes many triangles by chance, so transitivity means
+        more next to random graphs with the same degrees, from `random_reference()`. The dolphins,
+        the characters of Les Misérables and the football teams close from two and a half to five
+        times as many triangles as chance would. The karate club barely does, at 0.26 against
+        0.24: most of its triangles go through the two leaders, and their many friends would close
+        triangles in a random graph too:
 
         ```{python}
-        social_network = (
-            ec.Graph()
-            .add_nodes(["Alice", "Bob", "Charlie", "David"])
-            .add_edges([("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "David"),
-                        ("David", "Alice"), ("Alice", "Charlie")])  # Creates some triangles
-        )
+        import polars as pl
 
-        trans = social_network.transitivity()
-
-        # Returns the clustering coefficient (typically 0.1-0.5 for real-world networks)
-        trans
+        rows = []
+        for name in ["karate_club", "dolphins", "les_miserables", "football"]:
+            network = getattr(ec, name)()
+            references = [network.random_reference(seed=s) for s in range(1, 6)]
+            rows.append({
+                "network": name,
+                "transitivity": network.transitivity(),
+                "reference": sum(r.transitivity() for r in references) / 5,
+            })
+        pl.DataFrame(rows)
         ```
 
-        In a directed graph, a 3-cycle is fully transitive. Making every edge reciprocal keeps
-        the score at `1.0`, because two-step paths that return to their start aren't triples:
+        ### Where the triangles are
+
+        `dolphins()` links the 62 bottlenose dolphins of a community in New Zealand when they were
+        seen together more often than chance. 121 of its 159 links lie in a triangle (left). In a
+        random graph with the same degrees (right), only 85 do, and they are spread about rather
+        than in tight groups:
 
         ```{python}
-        cycle = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        def in_triangles(g):
+            return sorted({
+                e for a, b, c in g.list_triangles()
+                for u, v in [(a, b), (b, c), (a, c)]
+                for e in g.find_edge_ids(u, v)
+            })
 
-        both_ways = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "B"), ("C", "A"), ("A", "C")])
-        )
-
-        cycle.transitivity(), both_ways.transitivity()
+        dolphins = ec.dolphins()
+        reference = dolphins.random_reference(seed=1)
+        len(in_triangles(dolphins)), len(in_triangles(reference))
         ```
 
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        dolphins.plot(
+            highlight_edges=in_triangles(dolphins), show_labels=False, seed=1,
+            width=320, height=360,
+        )
+        ```
+
+        ```{python}
+        reference.plot(
+            highlight_edges=in_triangles(reference), show_labels=False, seed=1,
+            width=320, height=360,
+        )
+        ```
+
+        :::
+
+        On a directed graph, a triple is a path of two arcs, closed when an arc leads from its end
+        back to its start. A 3-cycle is fully transitive, but a triangle whose arcs all point the
+        same way round from `A` to `C` isn't transitive at all:
+
+        ```{python}
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
+        forward = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
+        )
+        cycle.transitivity(), forward.transitivity()
+        ```
         """
         return self._graph.transitivity()
 
