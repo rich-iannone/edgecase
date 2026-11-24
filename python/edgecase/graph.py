@@ -82842,21 +82842,57 @@ class Graph:
             `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling its
             rows and columns, in increasing order.
 
+        See Also
+        --------
+        adjacency_spectrum : The eigenvalues of this matrix.
+        attr_matrix : Entries from any edge attribute, or grouped by a node attribute.
+        incidence_matrix : Rows for nodes and columns for edges.
+        laplacian_matrix : The degrees minus this matrix.
+
         Examples
         --------
-        A directed triangle with one weighted edge doubled up:
+        A directed triangle with one weighted edge doubled up, whose two weights add up in the
+        `A` row:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        graph = (
-            ec.Graph(directed=True, weighted=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", 2.0), ("B", "C", 1.0), ("C", "A", 1.0), ("A", "B", 0.5)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 2.0), ("B", "C", 1.0), ("C", "A", 1.0), ("A", "B", 0.5)],
+            directed=True,
         )
-
         matrix, nodes = graph.adjacency_matrix()
-        nodes, matrix
+        labels = [graph.get_label_from_id(n) for n in nodes]
+
+        pl.DataFrame(matrix, schema=labels, orient="row").insert_column(
+            0, pl.Series("node", labels)
+        )
+        ```
+
+        ### Friends in common
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Entry `[i][j]` of the squared matrix adds up
+        `a[i][k] * a[k][j]` over all members `k`, which counts the friends that `i` and `j` have
+        in common. The instructor, member `0`, and the administrator, member `33`, have four:
+
+        ```{python}
+        karate = ec.karate_club()
+        a, nodes = karate.adjacency_matrix()
+        labels = [karate.get_label_from_id(n) for n in nodes]
+        hi, john = labels.index("0"), labels.index("33")
+
+        shared = [labels[k] for k in range(len(a)) if a[hi][k] * a[k][john]]
+
+        sum(a[hi][k] * a[k][john] for k in range(len(a))), shared
+        ```
+
+        ```{python}
+        karate.plot(
+            highlight=[(m, f) for m in ("0", "33") for f in shared],
+            color_by="faction", label_by="label", seed=1,
+        )
         ```
         """
         matrix, ids = rust.adjacency_matrix(self._graph, self._use_weights(weighted))
