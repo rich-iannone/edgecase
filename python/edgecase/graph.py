@@ -67846,21 +67846,48 @@ class Graph:
         while none of its direct successors does, $O(V + E)$. This follows
         `is_lowest_common_ancestor` from NetworkX pull request #7988.
 
+        See Also
+        --------
+        lowest_common_ancestor : Find a lowest common ancestor.
+        all_lowest_common_ancestors : Find all of them.
+
         Examples
         --------
-        In a diamond, the top is the lowest common ancestor of the two middle nodes, but not
-        of a middle node and the bottom, since that middle node is an ancestor of the bottom:
+        `A` is a common ancestor of `C` and `D`, but not a lowest one, since `B` is below it:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
-
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "D")], directed=True
+        )
         (
-            g.is_lowest_common_ancestor("B", "C", "A"),
-            g.is_lowest_common_ancestor("B", "D", "A"),
-            g.is_lowest_common_ancestor("B", "D", "B"),
+            graph.is_lowest_common_ancestor("C", "D", "A"),
+            graph.is_lowest_common_ancestor("C", "D", "B"),
+        )
+        ```
+
+        ### A shared prerequisite that isn't the last one
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Both CS410 and CS460 need CS101, but CS101
+        isn't their lowest common ancestor, since both also need CS102, which comes after it:
+
+        ```{python}
+        courses = ec.courses()
+
+        {
+            course: courses.is_lowest_common_ancestor("CS410", "CS460", course)
+            for course in ["CS101", "CS102", "CS201"]
+        }
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos",
+            highlight={"accent": ["CS101", "CS102"], "soft": ["CS410", "CS460"]},
+            label_by="label", height=420,
         )
         ```
         """
