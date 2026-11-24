@@ -35100,40 +35100,57 @@ class Graph:
         list[tuple[int, int, int]]
             List of triangles, where each triangle is a tuple of three node IDs.
 
+        See Also
+        --------
+        count_triangles : The number of triangles at each node.
+        find_cliques : List the maximal cliques, of any size.
+
         Examples
         --------
-        Each triangle is reported as a tuple of its three node IDs -- here, two
-        triangles both sharing the "A"-"B" edge:
+        Each triangle is a tuple of its three node IDs. Here two triangles share the edge
+        `A`-`B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # One triangle
-                        ("A", "D"), ("D", "B")])  # Another triangle
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "D"), ("D", "B")]
         )
-
         triangles = graph.list_triangles()
-        [tuple(graph.get_label_from_id(nid) for nid in tri) for tri in triangles]
+
+        [tuple(graph.get_label_from_id(n) for n in t) for t in triangles]
         ```
 
-        This makes it straightforward to identify every triadic closure in a larger
-        network -- for example, listing all mutual-friend groups in a small social
-        graph:
+        ### Triangles across two clubs
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Of its 16 triangles, only 4 mix the clubs, and every one of them
+        goes through Hugo and Tara, a couple from different clubs:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["Alice", "Bob", "Charlie", "David"])
-            .add_edges([("Alice", "Bob"), ("Bob", "Charlie"), ("Charlie", "Alice"),
-                        ("Alice", "David"), ("David", "Bob")])
-        )
+        friends = ec.friends()
+        nodes = friends.get_node_df()
+        club = dict(zip(nodes["id"], nodes["club"]))
+        label = friends.get_label_from_id
 
-        [tuple(graph.get_label_from_id(nid) for nid in tri) for tri in graph.list_triangles()]
+        mixed = [
+            t for t in friends.list_triangles() if len({club[n] for n in t}) > 1
+        ]
+        sorted(sorted(label(n) for n in t) for t in mixed)
         ```
 
+        The edges of the mixed triangles:
+
+        ```{python}
+        edges = [
+            e for a, b, c in mixed
+            for u, v in [(a, b), (b, c), (a, c)]
+            for e in friends.find_edge_ids(u, v)
+        ]
+        friends.plot(
+            color_by="club", highlight_edges=edges, label_by="label", seed=8
+        )
+        ```
         """
         return self._graph.list_triangles()
 
