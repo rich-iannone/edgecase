@@ -4746,7 +4746,7 @@ class Graph:
         algorithm: str = "",
         source: Optional[Union[int, str]] = None,
         layout: str = "force",
-        theme: str = "light",
+        theme: Optional[str] = None,
         width: int = 700,
         height: int = 500,
         node_size: float = 18.0,
