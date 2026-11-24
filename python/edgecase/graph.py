@@ -83420,15 +83420,56 @@ class Graph:
             `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
             and columns, in increasing order.
 
+        See Also
+        --------
+        modularity_spectrum : The eigenvalues of this matrix.
+        modularity : The modularity of a partition, a sum over this matrix.
+        cmty_l_eigenvec : Communities from this matrix's leading eigenvector.
+
         Examples
         --------
         Every row of the undirected modularity matrix sums to zero:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        matrix, nodes = ec.Graph().add_path_graph(4).modularity_matrix()
-        [[round(v, 3) for v in row] for row in matrix]
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        matrix, nodes = path.modularity_matrix()
+        labels = [path.get_label_from_id(n) for n in nodes]
+
+        pl.DataFrame(
+            [[round(v, 3) + 0.0 for v in row] for row in matrix],
+            schema=labels, orient="row",
+        ).insert_column(0, pl.Series("node", labels))
+        ```
+
+        ### Scoring the split
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Adding up the matrix over the pairs of members on the same
+        side, and dividing by twice the number of friendships, gives the modularity of the
+        split, as `modularity()` computes it:
+
+        ```{python}
+        karate = ec.karate_club()
+        faction = karate.get_node_attrs("faction")
+        b, nodes = karate.modularity_matrix()
+
+        same = sum(
+            b[i][j]
+            for i, u in enumerate(nodes) for j, v in enumerate(nodes)
+            if faction[u] == faction[v]
+        )
+        sides = [{n for n in nodes if faction[n] == f} for f in (1, 2)]
+
+        round(same / (2 * karate.count_edges()), 4), round(
+            karate.modularity(sides), 4
+        )
+        ```
+
+        ```{python}
+        karate.plot(color_by="faction", label_by="label", seed=1)
         ```
         """
         matrix, ids = rust.modularity_matrix(self._graph, self._use_weights(weighted))
