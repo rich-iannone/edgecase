@@ -20191,14 +20191,55 @@ class Graph:
 
         Examples
         --------
+        One row per person and one column per club:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "party", "talk"])
-        g.add_edges([("ann", "party"), ("ann", "talk"), ("bob", "talk")])
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
+        )
+        label = graph.get_label_from_id
+        matrix, rows, columns = graph.biadjacency_matrix()
 
-        matrix, rows, cols = g.biadjacency_matrix(row_nodes=["ann", "bob"])
-        matrix, [g.get_label_from_id(n) for n in cols]
+        matrix, [label(n) for n in rows], [label(n) for n in columns]
+        ```
+
+        ### The attendance table
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. The matrix is Davis's table of who attended what, one row per woman and one
+        column per event. Its column sums are the sizes of the events, and E8 drew 14 of the 18
+        women:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        matrix, women, events = davis.biadjacency_matrix()
+        label = davis.get_label_from_id
+
+        {
+            label(e): int(sum(row[j] for row in matrix))
+            for j, e in enumerate(events)
+        }
+        ```
+
+        Multiplying two rows entry by entry and adding up counts the events that two women both
+        attended, the weight of their edge in `bipartite_projection()`:
+
+        ```{python}
+        def row(name):
+            return matrix[women.index(davis.get_id_from_label(name))]
+
+        evelyn, theresa = row("Evelyn Jefferson"), row("Theresa Anderson")
+        sum(a * b for a, b in zip(evelyn, theresa))
+        ```
+
+        ```{python}
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos", highlight="E8", label_by="label", height=900
+        )
         ```
         """
         if row_nodes is None:
