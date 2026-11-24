@@ -84799,33 +84799,45 @@ class Graph:
         (BFS from every source) and $O(V(V + E) \log V)$ for weighted ones (Dijkstra from
         every source).
 
+        See Also
+        --------
+        hyper_wiener_index : Weigh far-apart pairs more heavily.
+        kirchhoff_index : Sum resistance distances instead of path distances.
+        mean_distance : The average distance instead of the sum.
+
         Examples
         --------
-        On a 4-node path, the Wiener index sums every pairwise distance: `1+2+3+1+2+1 = 10`:
+        On a path of four nodes the distances are `1 + 2 + 3 + 1 + 2 + 1 = 10`; a star with the
+        same number of nodes is more compact:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(4)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
 
-        # Returns 10.0
-        graph.wiener_index()
+        path.wiener_index(), star.wiener_index()
         ```
 
-        A complete graph has every pair at distance 1, so its Wiener index is simply the number of
-        node pairs, `n*(n-1)/2`; a cycle of similar size has a larger index, since some pairs are
-        farther apart:
+        ### Boiling points
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. Butane and isobutane are the same four carbons
+        joined in a chain and in a branch. Wiener introduced the index in 1947 to predict the
+        boiling points of such molecules: the more compact isobutane has the lower index, and
+        it boils at -11.7 °C against butane's -0.5 °C:
 
         ```{python}
-        complete = ec.Graph()
-        complete.add_full_graph(5)
+        molecules = ec.molecules()
+        butane, isobutane = molecules["butane"], molecules["isobutane"]
 
-        cycle = ec.Graph()
-        cycle.add_cycle_graph(6)
+        butane.wiener_index(), isobutane.wiener_index()
+        ```
 
-        # Returns (10.0, 18.0)
-        (complete.wiener_index(), cycle.wiener_index())
+        ```{python}
+        butane.disjoint_union(isobutane).plot(
+            label_by="element", seed=1, height=300
+        )
         ```
         """
         from edgecase._core import wiener_index
