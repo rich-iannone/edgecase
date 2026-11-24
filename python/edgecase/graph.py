@@ -68590,51 +68590,46 @@ class Graph:
         bool
             `True` if the graph has an Eulerian path but not circuit, `False` otherwise.
 
+        See Also
+        --------
+        is_eulerian : Check for an Eulerian circuit.
+        eulerian_path : The path itself.
+        has_eulerian_path : Check for an Eulerian path, open or closed.
+
         Examples
         --------
-        A path graph has exactly two odd-degree nodes (its endpoints), so it's semi-Eulerian:
-        you can trace every edge exactly once, but only if you start and end at those endpoints:
+        A path can be walked end to end crossing each edge once, but it can't return to its start,
+        so it is semi-Eulerian. A cycle has a closed walk, so it isn't:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        cycle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        # Returns True (2 odd-degree nodes)
-        graph.is_semieulerian()
+        path.is_semieulerian(), cycle.is_semieulerian()
+        ```
+
+        ### One bridge fewer
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. All four land masses have an odd number of
+        bridges. Closing the Honigbrücke, between the two islands, makes both islands even and
+        leaves just the two banks odd, so a walk can cross each of the six bridges left exactly
+        once, from one bank to the other:
+
+        ```{python}
+        konigsberg = ec.konigsberg()
+        closed = ec.konigsberg().delete_edge("Kneiphof", "Lomse")
+
+        konigsberg.is_semieulerian(), closed.is_semieulerian()
         ```
 
         ```{python}
-        # Returns False: a path has no closed circuit, only an open trail
-        graph.is_eulerian()
-        ```
-
-        A cycle graph is the opposite case: it has a full Eulerian circuit, so it's not
-        semi-Eulerian (the two conditions are mutually exclusive):
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(5)
-
-        # Returns False (has a full Eulerian circuit instead)
-        graph.is_semieulerian()
-        ```
-
-        ```{python}
-        # Returns True
-        graph.is_eulerian()
-        ```
-
-        The same idea extends to directed graphs, where a directed path has one node with
-        excess out-degree (the source) and one with excess in-degree (the sink):
-
-        ```{python}
-        graph = ec.Graph(directed=True)
-        graph.add_path_graph(5)
-
-        # Returns True (one source, one sink)
-        graph.is_semieulerian()
+        closed.plot(
+            layout="pos", color_by="kind", label_by="label",
+            edge_label_by="bridge",
+        )
         ```
         """
         from edgecase._core import is_semieulerian
