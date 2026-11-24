@@ -4847,37 +4847,55 @@ class Graph:
 
         Examples
         --------
-        Passing just `source=` runs a breadth-first search from that node. In the karate club, BFS
-        from node ID `1` reaches the instructor's many direct contacts first, before moving
-        outward:
+        Passing just `source=` runs a breadth-first search from that node. On the metro map, drawn
+        at its stored positions, the search from Central reaches the four stations next to it
+        first, then the stations two stops away, and so on outward. Step through the slider to see
+        the frontier (the ringed nodes) move out from the center:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.karate_club()
-        g.plot_traversal(source=1, seed=1)
+        metro = ec.metro()
+
+        metro.plot_traversal(source="Central", layout="pos")
         ```
 
-        To show a different traversal, compute the visit order yourself and label it with
-        `algorithm=`. A depth-first search from the same node dives along one branch before
-        backtracking:
+        ### Depth first
+
+        To show a different traversal, compute the visit order yourself and name it with
+        `algorithm=`. A depth-first search from Central follows one branch as far as it goes before
+        backing up to try another, so it reaches Hillcrest, four stops out, on its fifth visit:
 
         ```{python}
-        order = g.dfs(source=1, return_list=True)
-        g.plot_traversal(visit_order=order, algorithm="DFS", seed=1)
+        order = metro.dfs("Central", return_list=True)
+
+        metro.plot_traversal(visit_order=order, algorithm="DFS", layout="pos")
         ```
 
-        On a small graph the step-by-step frontier is easy to follow. Here a binary-tree-like
-        graph is laid out with the dark theme and larger nodes:
+        ### Any visit order
+
+        The visit order can come from anywhere. Ordering the stations by travel time from Westgate,
+        and attaching each one to the station before it on its fastest route, shows Dijkstra's
+        algorithm at work. It reaches stations in order of minutes rather than stops, so Riverside,
+        three quick stops away (10 minutes), comes before Northpark, two slow stops away (11
+        minutes):
 
         ```{python}
-        tree = ec.Graph().add_edges(
-            [("A", "B"), ("A", "C"), ("B", "D"), ("B", "E"), ("C", "F"), ("C", "G")],
-            auto_create_nodes=True,
+        minutes = metro.single_source_shortest_path_length(
+            "Westgate", return_dict=True
         )
+        paths = metro.single_source_shortest_path("Westgate")
 
-        tree.plot_traversal(source="A", theme="dark", node_size=22, seed=1)
+        order = sorted(minutes, key=minutes.get)
+        tree = [(path[-2], path[-1]) for path in paths.values() if len(path) > 1]
+
+        metro.plot_traversal(
+            visit_order=order, tree_edges=tree, algorithm="Dijkstra", layout="pos"
+        )
         ```
+
+        To replay a traversal along with everything else that happened to a graph, use `play()`
+        instead: it shows each `bfs()` or `dfs()` call in the step log one visited node at a time.
         """
         if visit_order is None:
             if source is None:
