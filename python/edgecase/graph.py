@@ -83623,6 +83623,11 @@ class Graph:
             If a node or edge lacks the named attribute, an edge's value isn't a number, or
             `rc_order=` lists a label twice.
 
+        See Also
+        --------
+        adjacency_matrix : The plain adjacency matrix of the nodes.
+        attribute_mixing_matrix : Count the edges between attribute values, as fractions.
+
         Examples
         --------
         Count the ties within and between two teams, and the share of each team's ties that
@@ -83631,18 +83636,57 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("A", "C")]
         )
-        graph.set_node_attrs("team", {1: "red", 2: "red", 3: "blue", 4: "blue"})
+        graph.set_node_attrs(
+            "team", {1: "red", 2: "red", 3: "blue", 4: "blue"}
+        )
 
         graph.attr_matrix(node_attr="team", rc_order=["red", "blue"])
         ```
 
         ```{python}
-        graph.attr_matrix(node_attr="team", rc_order=["red", "blue"], normalized=True)
+        graph.attr_matrix(
+            node_attr="team", rc_order=["red", "blue"], normalized=True
+        )
+        ```
+
+        ### Track times by zone
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Counting the tracks within and between the fare zones, and adding up their `minutes`,
+        shows that no track runs between zones 1 and 3 or within zone 2, and that tracks get
+        longer from the center out, about 2 minutes apiece in zone 1 and over 5 in zone 3:
+
+        ```{python}
+        import polars as pl
+
+        metro = ec.metro()
+        tracks, zones = metro.attr_matrix(node_attr="zone")
+        minutes, _ = metro.attr_matrix(node_attr="zone", edge_attr="minutes")
+
+        pl.DataFrame(
+            {
+                "zones": [f"{a}-{b}" for a in zones for b in zones if a <= b],
+                "tracks": [
+                    tracks[i][j]
+                    for i in range(3) for j in range(3) if i <= j
+                ],
+                "minutes": [
+                    minutes[i][j]
+                    for i in range(3) for j in range(3) if i <= j
+                ],
+            }
+        ).with_columns(
+            per_track=pl.when(pl.col("tracks") > 0).then(
+                (pl.col("minutes") / pl.col("tracks")).round(1)
+            )
+        )
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
         """
         node_ids = sorted(self.get_node_ids(limit=None))
