@@ -78735,49 +78735,52 @@ class Graph:
         solver: keeping the largest set out of several attempts often approaches the true
         maximum on real-world graphs.
 
+        See Also
+        --------
+        maximal_independent_set : Draw a single maximal independent set.
+        maximum_independent_set : Find a large independent set.
+        find_cliques : List the maximal cliques, a related enumeration.
+
         Examples
         --------
-        An 8-node cycle has many maximal independent sets. Sampling with a fixed seed returns
-        several distinct ones, with sizes 3 or 4:
+        A 6-node cycle has maximal independent sets of two nodes, opposite each other, and of
+        three, every other node:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(8)
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"),
+             ("F", "A")]
+        )
 
-        sets = graph.find_maximal_independent_sets(count=5, seed=23)
-
-        # Each entry is a distinct maximal independent set
-        sets
+        [
+            [cycle.get_label_from_id(n) for n in found]
+            for found in cycle.find_maximal_independent_sets(count=5, seed=1)
+        ]
         ```
 
-        Since maximal doesn't mean maximum, generating several candidates and keeping the
-        largest is a simple way to approximate the true maximum independent set. Comparing the
-        smallest and largest candidates shows how much the size can vary:
+        ### Slots of every size
+
+        `exams()` joins two of the 14 courses at a made-up college when some student takes both,
+        so their exams can't share a time slot. Ten maximal independent sets hold from three to
+        seven exams. Chemistry, Philosophy and Data Visualization between them conflict with every
+        other exam, so no exam can join their slot, though other slots hold more than twice as
+        many:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=23)
+        exams = ec.exams()
+        found = exams.find_maximal_independent_sets(count=10, seed=1)
+        smallest = min(found, key=len)
 
-        sets = graph.find_maximal_independent_sets(count=20, seed=0)
-        best = max(sets, key=len)
-
-        # (smallest candidate, largest candidate)
-        (min(len(s) for s in sets), len(best))
+        (
+            sorted(len(s) for s in found),
+            [exams.get_label_from_id(n) for n in smallest],
+        )
         ```
 
-        In a complete graph, every node conflicts with every other, so each maximal independent
-        set is a single node. There are only 8 such sets, so asking for 10 returns just 8:
-
         ```{python}
-        graph = ec.Graph()
-        graph.add_full_graph(8)
-
-        sets = graph.find_maximal_independent_sets(count=10, seed=1)
-
-        # (number of sets found, distinct set sizes)
-        (len(sets), {len(s) for s in sets})
+        exams.plot(highlight=smallest, label_by="label", seed=5)
         ```
         """
         from edgecase._core import find_maximal_independent_sets
