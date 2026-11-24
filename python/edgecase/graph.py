@@ -53344,6 +53344,10 @@ class Graph:
         The estimator is NetworkX's `approximate_current_flow_betweenness_centrality()`; the
         random pairs come from EdgeCase's own generator, so individual estimates differ.
 
+        See Also
+        --------
+        current_flow_betweenness_centrality : The exact scores.
+
         Examples
         --------
         On a 6 x 6 grid, a sampled estimate lands close to the exact values:
@@ -53359,6 +53363,33 @@ class Graph:
         )
         round(max(abs(approx[n] - exact[n]) for n in exact), 3)
         ```
+
+        A smaller `epsilon=` samples more pairs and tightens the estimate. In Zachary's karate
+        club, the default `epsilon=0.5` misses the exact score of the instructor (member 0) by
+        about `0.2` and puts members 32 and 1 in the wrong order, while `epsilon=0.1` misses by
+        under `0.03` and gets the top five right:
+
+        ```{python}
+        club = (
+            ec.karate_club()
+            .current_flow_betweenness_centrality(attr_name="exact")
+            .approximate_current_flow_betweenness_centrality(
+                seed=1, attr_name="rough"
+            )
+            .approximate_current_flow_betweenness_centrality(
+                epsilon=0.1, seed=1, attr_name="close"
+            )
+        )
+
+        (
+            club.get_node_df()
+            .select("label", "exact", "rough", "close")
+            .sort("exact", descending=True)
+            .head(5)
+        )
+        ```
+
+        On small graphs, use `current_flow_betweenness_centrality()` for the exact scores.
         """
         scores = rust.approximate_current_flow_betweenness_centrality(
             self._graph,
