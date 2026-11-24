@@ -817,6 +817,24 @@ class TestShortestPathQueries:
         assert g.shortest_path_length("A", "F") == 4.0
         assert path in g.all_shortest_paths("A", "F")
 
+    def test_weighted_overrides_the_graph(self):
+        m = ec.metro()
+        assert m.shortest_path_length("Westgate", "Lakeside") == 18.0
+        assert m.shortest_path_length("Westgate", "Lakeside", weighted=False) == 4
+        assert isinstance(m.shortest_path_length("Westgate", "Lakeside", weighted=False), int)
+        fewest = m.shortest_path("Westgate", "Lakeside", weighted=False, return_list=True)
+        assert [m.get_label_from_id(n) for n in fewest] == [
+            "Westgate", "Hillcrest", "Northpark", "Garden", "Lakeside"
+        ]
+        assert len(m.shortest_path("Westgate", "Lakeside", return_list=True)) == 7
+        # weighted=True on an unweighted graph is the same as the default
+        g = _two_triangles()
+        assert g.shortest_path_length("A", "F", weighted=True) == g.shortest_path_length("A", "F")
+        # Unreachable targets still give None
+        d = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=2)
+        assert d.shortest_path_length("B", "A", weighted=False) is None
+        assert d.shortest_path("B", "A", weighted=False, return_list=True) is None
+
     def test_self_distance_and_self_path(self):
         g = _two_triangles()
         assert g.shortest_path_length("A", "A") == 0
