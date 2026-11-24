@@ -64055,11 +64055,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCD"))
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
 
-        label = g.get_label_from_id
-        [(label(u), label(v), kind) for u, v, kind in g.dfs_labeled_edges("A")]
+        label = graph.get_label_from_id
+        [(label(u), label(v), k) for u, v, k in graph.dfs_labeled_edges("A")]
         ```
 
         On an undirected graph, a `"nontree"` edge to any node other than the one the search
@@ -64075,7 +64076,28 @@ class Graph:
                     return True
             return False
 
-        has_cycle(g), has_cycle(ec.Graph().add_path_graph(5))
+        has_cycle(graph), has_cycle(ec.Graph().add_path_graph(5))
+        ```
+
+        ### Courses reached twice
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        From CS101, two `"nontree"` edges lead to courses the search had already reached by
+        another chain of prerequisites:
+
+        ```{python}
+        courses = ec.courses()
+        again = [
+            (u, v) for u, v, kind in courses.dfs_labeled_edges("CS101")
+            if kind == "nontree"
+        ]
+
+        label = courses.get_label_from_id
+        [(label(u), label(v)) for u, v in again]
+        ```
+
+        ```{python}
+        courses.plot(highlight=again, label_by="label", seed=2)
         ```
         """
         self._check_traversal_args(depth_limit, mode)
