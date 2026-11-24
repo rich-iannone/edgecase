@@ -20007,6 +20007,11 @@ class Graph:
         personalization the result is normalized to sum 1 per side. This is NetworkX's
         `bipartite.birank`, step for step.
 
+        See Also
+        --------
+        personalized_pagerank : Ranking from chosen nodes, for any graph.
+        bipartite_degree_centrality : Rank the nodes of one side by their number of neighbors.
+
         Examples
         --------
         Customers and the products they bought: the most popular product, and the customer who
