@@ -82068,50 +82068,48 @@ class Graph:
         ValueError
             If called on an undirected graph.
 
+        See Also
+        --------
+        reciprocity : The share of edges that run both ways.
+        count_mutual_node_pairs : Count the pairs of nodes joined both ways.
+        which_multiple : Find parallel edges instead.
+
         Examples
         --------
-        A mutual pair exists whenever both `A -> B` and `B -> A` are present; the edge that has no
-        reciprocal counterpart is excluded from the result:
+        Ana and Ben follow each other, so their two edges form a mutual pair, while the edge to
+        Cruz has no partner:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Alice", "Bob", "Carol"])
-            .add_edges(
-                [
-                    ("Alice", "Bob"),  # Edge 1
-                    ("Bob", "Alice"),  # Edge 2: mutual with 1
-                    ("Alice", "Carol"),  # Edge 3: no reciprocal
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Ben"), ("Ben", "Ana"), ("Ana", "Cruz")], directed=True
         )
 
-        # Returns [(1, 2)]: the only mutual pair
         graph.which_mutual()
         ```
 
-        The same idea scales to larger communication graphs, where it's useful for isolating
-        which relationships are genuinely bidirectional:
+        ### Paying each other back
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Only two pairs of accounts pay each other. The flatmates Max and Nia
+        split the rent: Nia pays Max 900, half of the 1,800 that Max pays the Landlord:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Alice", "Bob", "Carol"])
-            .add_edges(
-                [
-                    ("Alice", "Bob"),  # Edge 1
-                    ("Bob", "Alice"),  # Edge 2: mutual with 1
-                    ("Alice", "Carol"),  # Edge 3: no reciprocal
-                    ("Bob", "Carol"),  # Edge 4
-                    ("Carol", "Bob"),  # Edge 5: mutual with 4
-                ]
-            )
-        )
+        import polars as pl
 
-        # Returns 2 bidirectional connections
-        len(graph.which_mutual())
+        payments = ec.payments()
+        mutual = [e for pair in payments.which_mutual() for e in pair]
+
+        (
+            payments.get_edge_df(labels=True)
+            .filter(pl.col("id").is_in(mutual))
+            .select("source", "target", "amount", "date")
+        )
+        ```
+
+        ```{python}
+        payments.plot(highlight_edges=mutual, label_by="label", seed=11)
         ```
         """
         return self._graph.which_mutual()
