@@ -76101,15 +76101,65 @@ class Graph:
 
         Examples
         --------
-        In a triangle, all three edges meet in pairs, so they need three different colors:
+        In a triangle, every two edges share a node, so each needs its own color:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_cycle_graph(3)
-        ab, bc, ca = sorted(g.get_edge_ids())
+        triangle = ec.Graph().add_cycle_graph(3)
+        ab, bc, ca = sorted(triangle.get_edge_ids())
 
-        g.is_valid_edge_coloring({ab: 0, bc: 1, ca: 2}), g.is_valid_edge_coloring({ab: 0, bc: 0})
+        (
+            triangle.is_valid_edge_coloring({ab: 0, bc: 1, ca: 2}),
+            triangle.is_valid_edge_coloring({ab: 0, bc: 0, ca: 1}),
+        )
+        ```
+
+        ### A league in five rounds
+
+        A league of six clubs plays a round robin, 15 games in all. `edge_coloring()` spreads
+        them over six rounds, but the circle method needs only five. It keeps one club in place
+        and turns the others around it, and each turn gives the next round:
+
+        ```{python}
+        from itertools import combinations
+
+        clubs = ["Ash", "Birch", "Cedar", "Elm", "Fir", "Oak"]
+        league = ec.Graph.from_edges(list(combinations(clubs, 2)))
+
+        label = league.get_label_from_id
+        game = {
+            frozenset([label(u), label(v)]): e
+            for e, u, v in league.get_edges_as_tuples()
+        }
+
+        rounds = {}
+        for r in range(5):
+            pairs = [(clubs[5], clubs[r])]
+            pairs += [(clubs[(r + k) % 5], clubs[(r - k) % 5]) for k in (1, 2)]
+            for pair in pairs:
+                rounds[game[frozenset(pair)]] = r
+
+        len(rounds), league.is_valid_edge_coloring(rounds)
+        ```
+
+        ```{python}
+        league.set_edge_attrs("round", rounds)
+        league.plot(
+            layout="circular",
+            edge_color_by="round",
+            edge_width=4,
+            edge_opacity=1,
+            label_by="label",
+        )
+        ```
+
+        Moving Ash against Oak from the first round to the second gives both clubs two games in
+        that round:
+
+        ```{python}
+        moved = {**rounds, game[frozenset(["Ash", "Oak"])]: 1}
+        league.is_valid_edge_coloring(moved)
         ```
         """
         seen: set[tuple[int, Any]] = set()
