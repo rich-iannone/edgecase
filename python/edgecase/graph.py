@@ -78148,28 +78148,60 @@ class Graph:
         Greedy++ (Boob et al., 2020) repeats the peeling with node loads that accumulate across
         passes, as in NetworkX; its densities match NetworkX's.
 
+        See Also
+        --------
+        k_core : The largest set where every node keeps at least `k` neighbors.
+        maximum_clique : The largest set where every pair is connected.
+        density : The share of possible edges present, for the whole graph.
+
         Examples
         --------
-        A clique of four friends plus a loosely attached chain. The densest part is the clique,
-        with 6 edges on 4 nodes:
+        A clique of four with a tail: the clique has 6 edges on 4 nodes, denser than the whole
+        graph's 8 edges on 6:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("D", "E"), ("E", "F")]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("D", "E"), ("E", "F")]
         )
+        density, nodes = graph.densest_subgraph()
 
-        density, nodes = g.densest_subgraph()
-        density, [g.get_label_from_id(n) for n in nodes]
+        density, [graph.get_label_from_id(n) for n in nodes]
         ```
 
-        The whole graph is less dense, at 8 edges on 6 nodes:
+        ### An echo chamber
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. The densest part of the
+        network is a block of 24 books, almost all liberal, with 114 links between them, 4.75 per
+        book against 4.2 in the whole network:
 
         ```{python}
-        round(g.count_edges() / g.count_nodes(), 3)
+        from collections import Counter
+
+        polbooks = ec.polbooks()
+        density, core = polbooks.densest_subgraph()
+        leaning = polbooks.get_node_attrs("leaning")
+
+        density, len(core), Counter(leaning[n] for n in core)
+        ```
+
+        One pass of greedy peeling is guaranteed at least half the best density. Here it stops at
+        a looser group of 60 books from both sides, while a second pass finds the block:
+
+        ```{python}
+        one = polbooks.densest_subgraph(method="greedy++")
+        two = polbooks.densest_subgraph(method="greedy++", iterations=2)
+
+        (round(one[0], 2), len(one[1])), (round(two[0], 2), len(two[1]))
+        ```
+
+        ```{python}
+        polbooks.layout_forceatlas2(seed=1).plot(
+            layout="pos", color_by="leaning", highlight=core
+        )
         ```
         """
         density, nodes = rust.densest_subgraph(self._graph, method, iterations)
