@@ -65677,24 +65677,55 @@ class Graph:
         repeats until nothing changes. It is simple and fast in practice, $O(V^2)$ in the worst
         case. Dominance frontiers follow from the dominator tree; see `dominance_frontiers()`.
 
+        See Also
+        --------
+        dominance_frontiers : Where a node's dominance ends.
+        ancestors : Every node that can reach a node.
+
         Examples
         --------
-        In a small control-flow graph, both branches of an if/else rejoin at `merge`, so the
-        immediate dominator of `merge` is `if`, not either branch:
+        Both branches of an if/else rejoin at `merge`, so the immediate dominator of `merge` is
+        `if`, not either branch:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["entry", "if", "then", "else", "merge", "exit"])
-        g.add_edges(
-            [
-                ("entry", "if"), ("if", "then"), ("if", "else"),
-                ("then", "merge"), ("else", "merge"), ("merge", "exit"),
-            ]
+        graph = ec.Graph.from_edges(
+            [("entry", "if"), ("if", "then"), ("if", "else"), ("then", "merge"),
+             ("else", "merge"), ("merge", "exit")],
+            directed=True,
         )
+        label = graph.get_label_from_id
+        boss = graph.immediate_dominators("entry")
 
-        idom = g.immediate_dominators("entry")
-        {g.get_label_from_id(n): g.get_label_from_id(d) for n, d in idom.items()}
+        {label(n): label(d) for n, d in boss.items()}
+        ```
+
+        ### Bottlenecks of a project
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done. A task's immediate dominator is the last task that
+        every path from the start to it goes through. Installing the equipment depends on two
+        branches, but both come out of the design:
+
+        ```{python}
+        cafe = ec.project()
+        label = cafe.get_label_from_id
+        boss = cafe.immediate_dominators("Start")
+
+        {label(n): label(d) for n, d in boss.items() if label(n) in
+         ["Install", "Training", "Soft opening"]}
+        ```
+
+        Joining each task to its immediate dominator gives the dominator tree. Everything hangs
+        from signing the lease, and the design governs its own branch of the plan:
+
+        ```{python}
+        tree = ec.Graph.from_edges(
+            [(label(d), label(n)) for n, d in boss.items() if n != d],
+            directed=True,
+        )
+        tree.plot(label_by="label", seed=2, height=420)
         ```
         """
         sid = self._resolve_node_id(source, auto_create=False)
