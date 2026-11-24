@@ -41443,23 +41443,65 @@ class Graph:
         Follows NetworkX's `greedy_source_expansion`; candidates are compared in node ID order
         (NetworkX uses set order), so ties can be resolved differently.
 
+        See Also
+        --------
+        personalized_pagerank : Score every node by closeness to a seed node.
+        cmty_louvain : Partition the whole network instead.
+
         Examples
         --------
-        Starting from A, the expansion collects A's group and the bridge node E (which only
-        has one edge back into the group), then stops, because adding any node of E's group
-        would lower the local modularity. NetworkX finds the same community:
+        Starting from A, the expansion collects A's group and the bridge node E (which has only one
+        edge back into the group), then stops, because adding any other node of E's group would
+        lower the local modularity:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-             ("D", "E")]
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+            ("C", "D"),
+            ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"),
+            ("G", "H"),
+            ("D", "E"),
+        ])
 
-        sorted(g.get_label_from_id(n) for n in g.greedy_source_expansion("A"))
+        community = graph.greedy_source_expansion("A")
+        sorted(graph.get_label_from_id(n) for n in community)
+        ```
+
+        ### Two local communities in the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Growing a local community around each of them gives 14
+        members around the instructor (left) and 17 around the administrator (right):
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate = ec.karate_club().layout_kamada_kawai()
+
+        around_0 = karate.greedy_source_expansion("0")
+        karate.plot(
+            layout="pos", highlight=list(around_0), label_by="label",
+            width=320, height=360,
+        )
+        ```
+
+        ```{python}
+        around_33 = karate.greedy_source_expansion("33")
+        karate.plot(
+            layout="pos", highlight=list(around_33), label_by="label",
+            width=320, height=360,
+        )
+        ```
+
+        :::
+
+        Unlike a partition, the two communities overlap. Members 2, 8, 9 and 13, who have friends
+        on both sides, are in both:
+
+        ```{python}
+        sorted(int(karate.get_label_from_id(n)) for n in around_0 & around_33)
         ```
         """
         start = self._resolve_node_id(source, auto_create=False)
