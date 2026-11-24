@@ -80324,43 +80324,51 @@ class Graph:
         $O(V E)$ time. When several branchings tie, a different one than NetworkX's may be
         returned, but the total weight is the same.
 
+        See Also
+        --------
+        minimum_branching : The branching with the smallest total weight.
+        maximum_spanning_arborescence : The heaviest branching that reaches every node from a root.
+
         Examples
         --------
-        Three editors each forwarded a story, and the edge weights score how confident we are
-        that one copied from another. The heaviest choice of "source" for each copy forms a
-        cycle, B -> C -> D -> B, which Edmonds' algorithm breaks at its weakest edge:
+        A branching gives each node at most one incoming edge and has no cycle. Here `B` can
+        take only one of its two incoming edges, and keeps the heavier one, from `C`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [("A", "B", 3.0), ("B", "C", 5.0), ("C", "D", 4.0), ("D", "B", 6.0), ("A", "D", 1.0)]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 2.0), ("C", "B", 3.0), ("A", "C", 1.0)], directed=True
         )
-
-        branching = g.maximum_branching()
-        branching.get_edges_str_repr(use_labels=True)
+        graph.maximum_branching().get_edges_str_repr(use_labels=True)
         ```
 
-        The result is a single tree rooted at A, with total weight 3 + 5 + 4 = 12. Dropping
-        D -> B (6) instead of B's other in-edge would have stranded the whole cycle:
+        ### Following the money
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee and weighted by the amount. The maximum branching keeps, for most
+        accounts, its largest incoming payment, giving a trail of where each account's money
+        came from. It breaks the two rings of large payments at their smallest link, so the
+        trail starts from two roots, the employer Acme and Ana:
 
         ```{python}
-        (
-            sum(branching.get_edge(e).weight for e in branching.get_edge_ids(limit=None)),
-            branching.is_arborescence(),
-        )
+        payments = ec.payments()
+        trail = payments.maximum_branching()
+
+        label = trail.get_label_from_id
+        roots = [
+            label(n) for n in trail.get_node_ids() if trail.get_in_degree(n) == 0
+        ]
+        trail.count_edges(), roots
         ```
 
-        Edges with non-positive weights never pay off, so they are left out even when that
-        splits the result into several trees:
-
         ```{python}
-        g2 = ec.Graph(directed=True, weighted=True)
-        g2.add_nodes(["A", "B", "C"])
-        g2.add_edges([("A", "B", 2.0), ("B", "C", -1.0)])
-        g2.maximum_branching().get_edges_str_repr(use_labels=True)
+        payments.plot(
+            highlight={"accent": roots},
+            highlight_edges=trail.get_edge_ids(),
+            label_by="label",
+            seed=3,
+        )
         ```
         """
         return self._branching(
