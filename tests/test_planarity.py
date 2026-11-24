@@ -1,5 +1,6 @@
 """Tests for is_planar(), check_planarity() and layout_planar(), checked against NetworkX."""
 
+import itertools
 import math
 import random
 
@@ -294,10 +295,40 @@ class TestLayoutPlanar:
         g = make()
         assert_crossing_free(g, g.layout_planar(return_dict=True))
 
+    def test_no_crossings_without_refining(self):
+        for G in random_graphs(200, seed=5):
+            if nx.is_planar(G):
+                g = from_nx(G)
+                assert_crossing_free(g, g.layout_planar(refine=False, return_dict=True))
+
+    def test_refining_spreads_the_nodes(self):
+        def tightness(pos):
+            closest = min(math.dist(p, q) for p, q in itertools.combinations(pos.values(), 2))
+            xs, ys = [x for x, _ in pos.values()], [y for _, y in pos.values()]
+            return closest / max(max(xs) - min(xs), max(ys) - min(ys))
+
+        for make in [
+            lambda: ec.Graph().add_named_graph("dodecahedral"),
+            lambda: ec.Graph().add_named_graph("icosahedral"),
+            lambda: ec.Graph().add_grid_graph([4, 5]),
+            ec.metro,
+        ]:
+            g = make()
+            grid = g.layout_planar(refine=False, return_dict=True)
+            refined = g.layout_planar(return_dict=True)
+            assert tightness(refined) > 2 * tightness(grid)
+
+    def test_refine_recorded_only_when_off(self):
+        g = ec.Graph().add_cycle_graph(5)
+        g.layout_planar()
+        assert g.steps[-1].code == "G.layout_planar(attr_name='pos')"
+        g.layout_planar(refine=False)
+        assert g.steps[-1].code == "G.layout_planar(refine=False, attr_name='pos')"
+
     def test_grid_coordinates(self):
         G = triangulation(40, random.Random(7))
         g = from_nx(G)
-        pos = g.layout_planar(scale=None, return_dict=True)
+        pos = g.layout_planar(refine=False, scale=None, return_dict=True)
         n = g.count_nodes()
         assert all(x == int(x) and y == int(y) for x, y in pos.values())
         assert min(x for x, _ in pos.values()) == 0 and min(y for _, y in pos.values()) == 0
