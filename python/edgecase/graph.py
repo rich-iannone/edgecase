@@ -53059,6 +53059,12 @@ class Graph:
         pairs follow from one row of potential differences, summed over pairs in $O(V \\log V)$
         by sorting (Brandes & Fleischer, 2005).
 
+        See Also
+        --------
+        current_flow_betweenness_centrality : The same measure for nodes.
+        edge_betweenness_centrality : Count shortest paths only.
+        edge_current_flow_betweenness_centrality_subset : Count chosen pairs only.
+
         Examples
         --------
         Two triangles joined by a bridge: every unit of current between the triangles must
@@ -53067,19 +53073,64 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
         )
 
-        scores = graph.edge_current_flow_betweenness_centrality(return_dict=True)
-        label = graph.get_label_from_id
-        {
-            "-".join(label(n) for n in graph.get_node_ids_by_edge_id(eid)): round(s, 3)
-            for eid, s in sorted(scores.items(), key=lambda kv: -kv[1])
-        }
+        (
+            graph.edge_current_flow_betweenness_centrality()
+            .get_edge_df(labels=True)
+            .select("source", "target", "edge_current_flow_betweenness_centrality")
+            .sort("edge_current_flow_betweenness_centrality", descending=True)
+        )
+        ```
+
+        ### Edges off the shortest routes
+
+        In Zachary's karate club, current flow and betweenness agree on the busiest edge, from
+        the instructor (member 0) to member 31. But the edge from member 1 to member 30 is fifth
+        by current flow and thirtieth by betweenness: it's on few shortest routes, but on many
+        that are nearly as short:
+
+        ```{python}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .edge_current_flow_betweenness_centrality()
+            .edge_betweenness_centrality()
+        )
+
+        (
+            club.get_edge_df(labels=True)
+            .with_columns(
+                pl.col(
+                    "edge_current_flow_betweenness_centrality",
+                    "edge_betweenness_centrality",
+                )
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .select(
+                "source", "target", "edge_current_flow_betweenness_centrality_rank",
+                "edge_betweenness_centrality_rank",
+            )
+            .sort("edge_current_flow_betweenness_centrality_rank")
+            .head(5)
+        )
+        ```
+
+        Drawn with each edge as wide and as dark as its current, the edges between the factions
+        stand out:
+
+        ```{python}
+        club.plot(
+            layout="pos", color_by="faction", label_by="label", edge_width=2,
+            edge_width_by="edge_current_flow_betweenness_centrality",
+            edge_color_by="edge_current_flow_betweenness_centrality",
+        )
         ```
         """
         scores = rust.edge_current_flow_betweenness_centrality(
