@@ -83107,16 +83107,57 @@ class Graph:
             `(matrix, node_ids)`: the matrix as a list of rows, and the node IDs labelling rows
             and columns, in increasing order.
 
+        See Also
+        --------
+        laplacian_matrix : The Laplacian before rescaling.
+        laplacian_spectrum : The eigenvalues of this matrix, with `normalized=True`.
+        directed_laplacian_matrix : A normalized Laplacian for directed graphs.
+
         Examples
         --------
-        Diagonal entries are `1` for every node with edges:
+        The diagonal holds `1` for every node with edges, and each edge
+        `-1 / sqrt(d_i * d_j)`:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        path = ec.Graph().add_path_graph(3)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
         matrix, nodes = path.normalized_laplacian_matrix()
-        [[round(v, 3) for v in row] for row in matrix]
+        labels = [path.get_label_from_id(n) for n in nodes]
+
+        pl.DataFrame(
+            [[round(v, 3) + 0.0 for v in row] for row in matrix],
+            schema=labels, orient="row",
+        ).insert_column(0, pl.Series("node", labels))
+        ```
+
+        ### Small circles count more
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. A friendship between two members with few friends gets
+        the largest entry: members `26` and `29` have 2 and 4 friends. The friendship between
+        members `32` and `33`, with 12 and 17 friends, gets the smallest:
+
+        ```{python}
+        karate = ec.karate_club()
+        lap, nodes = karate.normalized_laplacian_matrix()
+        label = karate.get_label_from_id
+
+        entries = sorted(
+            (round(lap[i][j], 3), label(nodes[i]), label(nodes[j]))
+            for i in range(len(nodes)) for j in range(i + 1, len(nodes))
+            if lap[i][j]
+        )
+
+        entries[0], entries[-1]
+        ```
+
+        ```{python}
+        karate.plot(
+            highlight=[("26", "29"), ("32", "33")], size_by="degree",
+            label_by="label", seed=1,
+        )
         ```
         """
         matrix, ids = rust.laplacian_matrix(self._graph, True, self._use_weights(weighted))
