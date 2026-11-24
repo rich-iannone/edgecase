@@ -79473,52 +79473,51 @@ class Graph:
         costs at most $V - 1$ Kruskal runs, $O(V E)$ time after the edges are sorted once.
         This is NetworkX's `SpanningTreeIterator`.
 
+        See Also
+        --------
+        minimum_spanning_tree : The first tree alone.
+        all_spanning_trees : Every spanning tree, as a list.
+        iter_spanning_arborescences : The same, for arborescences of a directed graph.
+
         Examples
         --------
-        A weighted square with one diagonal has eight spanning trees. Their weights, in order:
+        The spanning trees of a weighted square with one diagonal come out lightest first:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "A", 4.0), ("A", "C", 5.0)]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0),
+             ("D", "A", 4.0), ("A", "C", 5.0)],
         )
-
-        [
-            sum(t.get_edge(e).weight for e in t.get_edge_ids(limit=None))
-            for t in g.iter_spanning_trees()
-        ]
+        trees = graph.iter_spanning_trees(return_subgraphs=False)
+        [sum(w for *_, w in tree) for tree in trees]
         ```
 
-        The iterator is lazy, so taking the three cheapest trees doesn't enumerate the rest:
+        ### The quickest tree that spreads the load
+
+        `metro()` is a made-up city's metro network, with each track's travel time in minutes
+        as its weight. Its fastest spanning tree, 60 minutes in all, routes four tracks through
+        Central. Fifteen trees tie at 60 minutes, and the third one out of the iterator has no
+        station with more than three tracks:
 
         ```{python}
-        from itertools import islice
+        metro = ec.metro()
 
-        for tree in islice(g.iter_spanning_trees(), 3):
-            print(sorted(tree.get_edges_str_repr(use_labels=True)))
+        def busiest(tree):
+            return max(tree.get_degree(n) for n in tree.get_node_ids())
+
+        for i, tree in enumerate(metro.iter_spanning_trees()):
+            if busiest(tree) <= 3:
+                break
+
+        i, tree.get_edge_df()["minutes"].sum(), busiest(tree)
         ```
 
-        Here the best tree whose nodes all have degree at most 2 (a Hamiltonian path) is the
-        first one that passes the test:
-
         ```{python}
-        best_path = next(
-            t for t in g.iter_spanning_trees() if max(t.get_degree(n) for n in "ABCD") <= 2
+        metro.plot(
+            layout="pos", highlight_edges=tree.get_edge_ids(), label_by="label"
         )
-        sorted(best_path.get_edges_str_repr(use_labels=True))
-        ```
-
-        Constraints restrict the iteration. Only two trees use the diagonal and avoid A-B; with
-        `return_subgraphs=False` each comes as `(source_id, target_id, weight)` tuples, here
-        summed to the tree's weight:
-
-        ```{python}
-        trees = g.iter_spanning_trees(
-            include=[("A", "C")], exclude=[("A", "B")], return_subgraphs=False
-        )
-        [sum(w for _, _, w in edges) for edges in trees]
         ```
         """
         trees = rust.SpanningTreeIter(
