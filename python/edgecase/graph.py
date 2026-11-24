@@ -56432,32 +56432,72 @@ class Graph:
         ValueError
             If weights are used and an edge has a negative or infinite weight.
 
+        See Also
+        --------
+        degree_centrality : A simpler local measure.
+        betweenness_centrality : Another view of which nodes hold the graph together.
+
         Examples
         --------
-        In a star graph, the hub contributes the most Laplacian energy:
+        Removing the hub of a star takes every edge with it, so it loses all of the graph's
+        Laplacian energy and scores `1`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-        g.add_nodes(["hub", "1", "2", "3", "4", "5"])
-        g.add_edges([("hub", "1"), ("hub", "2"), ("hub", "3"), ("hub", "4"), ("hub", "5")])
+        star = ec.Graph.from_edges(
+            [("hub", "A"), ("hub", "B"), ("hub", "C"), ("hub", "D")]
+        )
 
-        g.laplacian_centrality(return_dict=True)
+        star.laplacian_centrality().get_node_df().select(
+            "label", "laplacian_centrality"
+        )
         ```
 
-        Removing the hub takes every edge with it, so its score is `1.0`: all of the energy is lost.
+        ### Heavy ties
 
-        On a weighted graph, heavy edges carry more energy. Here `B` sits between a heavy edge and
-        a light one, and `A`, at the end of the heavy edge, outscores `C`:
+        In *Les Misérables*, each edge weight counts the chapters in which two characters appear
+        together. Valjean tops the ranking with or without them. But with them, Cosette climbs
+        from eighteenth to third: the ties to Valjean (31 chapters) and Marius (21) are the two
+        heaviest in the novel. Gavroche, with many light ties, falls from second to tenth:
 
         ```{python}
-        w = ec.Graph(directed=False, weighted=True)
-        w.add_nodes(["A", "B", "C"])
-        w.add_edge("A", "B", weight=3.0).add_edge("B", "C", weight=1.0)
+        import polars as pl
 
-        w.laplacian_centrality(return_dict=True)
+        lesmis = (
+            ec.les_miserables()
+            .laplacian_centrality()
+            .laplacian_centrality(weighted=False, attr_name="unweighted")
+        )
+
+        (
+            lesmis.get_node_df()
+            .with_columns(
+                pl.col("laplacian_centrality", "unweighted")
+                .rank("min", descending=True)
+                .cast(pl.Int64)
+                .name.suffix("_rank")
+            )
+            .select(
+                "label", "degree", "laplacian_centrality_rank", "unweighted_rank"
+            )
+            .sort("laplacian_centrality_rank")
+            .head(6)
+        )
         ```
+
+        Sized and colored by the weighted score, Valjean, Marius and Cosette stand out:
+
+        ```{python}
+        lesmis.plot(
+            size_by="laplacian_centrality", color_by="laplacian_centrality",
+            label_by="label", seed=3,
+        )
+        ```
+
+        Weights add to the energy, so they should measure the strength of a tie. A weight that
+        measures a cost, such as the travel times in `metro()`, has the opposite meaning; pass
+        `weighted=False` for such graphs.
         """
         from edgecase._core import laplacian_centrality
 
@@ -56471,13 +56511,10 @@ class Graph:
         if attr_name is None:
             attr_name = "laplacian_centrality"
 
-        self.set_node_attrs(attr_name, result_ids)
-
-        if not return_dict:
-            params = {"normalized": normalized}
-            if weighted is not None:
-                params["weighted"] = weighted
-            self._computations.append(("laplacian_centrality", params, attr_name))
+        params = {"normalized": normalized}
+        if weighted is not None:
+            params["weighted"] = weighted
+        self._store_node_result("laplacian_centrality", params, attr_name, result_ids)
 
         return self
 
