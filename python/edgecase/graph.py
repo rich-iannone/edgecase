@@ -70503,73 +70503,75 @@ class Graph:
         ValueError
             If source or target doesn't exist, or if source == target.
 
+        See Also
+        --------
+        minimum_node_cut : The nodes that separate the two.
+        node_disjoint_paths : The routes that share no node in between.
+        node_connectivity : The smallest value over all pairs.
+
         Examples
         --------
-        On a path graph, the two endpoints are only connected through the interior nodes, so
-        removing any single one of them severs the connection:
+        On a path, removing any interior node separates the two ends:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 5):
-            graph.add_edge(str(i), str(i + 1))
+        path = ec.Graph().add_path_graph(5)
 
-        graph.node_connectivity_between("1", "5")
+        path.node_connectivity_between(1, 5)
         ```
 
-        Two diamonds that share a hub node `D` give `B` and `E` two routes each into `D`, but
-        every route between them passes through `D`, so removing that one node separates them:
+        Two diamonds that share the hub `D` give `B` and `E` two routes each into `D`, but every
+        route between them passes through `D`. Within one diamond, `A` and `D` are joined
+        through both `B` and `C`:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges(
-                [
-                    ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
-                    ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+                ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
+            ]
         )
 
-        graph.node_connectivity_between("B", "E")
-        ```
-
-        Within one diamond, `A` and `D` are joined by two independent routes (through `B` and
-        through `C`), so both would have to be removed:
-
-        ```{python}
-        graph.node_connectivity_between("A", "D")
-        ```
-
-        In a complete graph `K_5`, any two nodes have the direct edge plus three routes through
-        the other nodes, giving a connectivity of 4:
-
-        ```{python}
-        graph = ec.Graph()
-        for i in range(1, 6):
-            graph.add_node(label=str(i))
-        for i in range(1, 6):
-            for j in range(i + 1, 6):
-                graph.add_edge(str(i), str(j))
-
-        graph.node_connectivity_between("1", "5")
+        (
+            graph.node_connectivity_between("B", "E"),
+            graph.node_connectivity_between("A", "D"),
+        )
         ```
 
         On a directed graph only forward paths count. In the chain `A -> B -> C`, `A` reaches
         `C` through `B`, but nothing leads from `C` back to `A`:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
-        graph.node_connectivity_between("A", "C"), graph.node_connectivity_between("C", "A")
+        (
+            chain.node_connectivity_between("A", "C"),
+            chain.node_connectivity_between("C", "A"),
+        )
+        ```
+
+        ### How many closures cut a station off from Central
+
+        `metro()` is a made-up city's metro network. Old Town and Market, next to Central and
+        on several lines, would each need four closures to lose touch with it, while the
+        harbor stations, Business Park and the Airport each hang on a single station:
+
+        ```{python}
+        metro = ec.metro()
+        central = metro.get_id_from_label("Central")
+
+        to_central = {
+            n: metro.node_connectivity_between(n, central)
+            for n in metro.get_node_ids()
+            if n != central
+        }
+        metro.set_node_attrs("to_central", to_central)
+
+        metro.plot(
+            layout="pos", color_by="to_central", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         source_id = self._resolve_node_id(source)
