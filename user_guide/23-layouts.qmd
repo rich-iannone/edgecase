@@ -203,31 +203,36 @@ method splits the graph into two sides itself, and raises an error if the graph 
 ## Circles and shells
 
 [`layout_circular()`](../reference/Graph.layout_circular.qmd) places the nodes evenly around a
-circle in the order of their IDs. Since the edges play no part, the picture shows how the order
-relates to the structure. In the karate club, whose members are numbered in no meaningful order,
-the edges cross the circle in every direction:
+circle, and the order of the nodes decides how readable the drawing is: edges between nodes that
+sit close together run along the rim, and the rest cut across the circle. By default the nodes go
+in the order a depth-first search from the lowest ID meets them, so each node tends to sit next to
+one it is linked to. A tree comes out without any crossings, and a ring numbered in sequence keeps
+that order. `order="id"` puts the nodes in the order of their IDs instead, as NetworkX does, so the
+picture shows how the numbering relates to the structure. In the karate club, whose members are
+numbered in no meaningful order, the edges then cross the circle in every direction:
 
 ```{python}
-karate.layout_circular()
+karate.layout_circular(order="id")
 karate.plot(layout="pos", color_by="faction", show_labels=False, node_size=8, width=400, height=400)
 ```
 
 The nodes are colored by faction with `color_by=` (see [Aesthetics](aesthetics.qmd)), and the
-two factions are mixed all around the circle. A better order puts linked nodes next to each other.
-[`layout_shell()`](../reference/Graph.layout_shell.qmd) places the nodes on one or more circles,
-and takes the nodes of each circle in the order given, so a single circle in the
-[spectral order](spectral.qmd#ordering-nodes-with-the-fiedler-vector) of the club makes a much
-more readable drawing:
+two factions are mixed all around the circle. The default depth-first order already gathers each
+faction into one stretch of the circle, and `order=` also takes a list of the nodes, so any other
+order can be drawn. The [spectral order](spectral.qmd#ordering-nodes-with-the-fiedler-vector) of
+the club, which places closely linked nodes next to each other, makes a still more readable
+drawing:
 
 ```{python}
-karate.layout_shell(nlist=[karate.spectral_ordering()])
+karate.layout_circular(order=karate.spectral_ordering())
 karate.plot(layout="pos", color_by="faction", show_labels=False, node_size=8, width=400, height=400)
 ```
 
 Each faction now occupies one half of the circle, most edges run between nearby nodes along the
 rim, and the few edges that cross the middle are the friendships between the factions.
 
-With several shells, `nlist=` lists them from the innermost outward, and a first shell with a
+[`layout_shell()`](../reference/Graph.layout_shell.qmd) places the nodes on one or more circles,
+and takes the nodes of each circle in the order given. With several shells, `nlist=` lists them from the innermost outward, and a first shell with a
 single node puts that node at the center. This shows a node's neighborhood at a glance. For the
 Medici, with their marriage partners in the first ring and the other families in the second:
 
@@ -255,9 +260,10 @@ Two layouts derive the positions from a mathematical property of the graph.
 Laplacian matrix as coordinates. It recovers the geometry of meshes and grids from their edges
 alone, but tends to squeeze social networks into a small area; [Matrices and spectra](spectral.qmd#spectral-layouts)
 has an example. [`layout_planar()`](../reference/Graph.layout_planar.qmd) draws a planar graph so
-that no two edges cross, which proves that the graph is planar, but the nodes are placed on a grid
-in a broad triangle and the drawing can be cramped. A force-directed layout often draws a planar
-graph without crossings as well, and looks better. Planarity itself is covered in
+that no two edges cross, which proves that the graph is planar. The nodes start on a grid in a
+broad triangle and are then spread out without letting any edges cross, but each node stays in the
+face it started in, so parts of the drawing can still be cramped. A force-directed layout often
+draws a planar graph without crossings as well, and looks better. Planarity itself is covered in
 [Coloring, matching, and covering](coloring-matching.qmd).
 
 [`layout_random()`](../reference/Graph.layout_random.qmd) scatters the nodes uniformly at random.
@@ -350,7 +356,7 @@ two groups, to opposite sides of the drawing.
 | [`layout_bfs()`](../reference/Graph.layout_bfs.qmd) | distance from a start node | trees and hierarchies |
 | [`layout_multipartite()`](../reference/Graph.layout_multipartite.qmd) | a layer attribute | pipelines, staged processes |
 | [`layout_bipartite()`](../reference/Graph.layout_bipartite.qmd) | two sides | affiliation and user–item networks |
-| [`layout_circular()`](../reference/Graph.layout_circular.qmd) | ID order around a circle | rings, chord diagrams |
+| [`layout_circular()`](../reference/Graph.layout_circular.qmd) | depth-first or a given order around a circle | rings, chord diagrams |
 | [`layout_shell()`](../reference/Graph.layout_shell.qmd) | concentric circles, in a given order | neighborhoods, groups, custom orders |
 | [`layout_spiral()`](../reference/Graph.layout_spiral.qmd) | ID order along a spiral | long sequences |
 | [`layout_spectral()`](../reference/Graph.layout_spectral.qmd) | Laplacian eigenvectors | meshes and grids |
