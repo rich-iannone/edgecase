@@ -608,3 +608,16 @@ class TestSelectionEdgeCases:
         )
 
         assert result is G
+
+    def test_ids_from_any_iterable(self):
+        """Sets, ranges and generators of IDs are taken as well as lists."""
+        G = Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")], directed=True)
+
+        G.select_nodes_by_id(G.strongly_connected_components()[0])
+        assert sorted(G.get_selected_node_ids()) == [1, 2, 3]
+
+        G.select_edges_by_id(range(1, 3))
+        assert sorted(G.get_selected_edge_ids()) == [1, 2]
+
+        G.deselect_edges(e for e in [1])
+        assert G.get_selected_edge_ids() == [2]
