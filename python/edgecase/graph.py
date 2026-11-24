@@ -19756,20 +19756,54 @@ class Graph:
 
         Examples
         --------
-        Ann's two events are also shared by Bob, so Ann is fully redundant; Cy is the only person
-        linking the talk and the game:
+        Ana is the only link between the two clubs, so her redundancy is `0`. Once Ben joins
+        both, each of them could leave without separating the clubs:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "cy", "party", "talk", "game"])
-        g.add_edges(
-            [("ann", "party"), ("ann", "talk"), ("bob", "party"), ("bob", "talk"),
-             ("cy", "talk"), ("cy", "game")]
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ana", "Choir"), ("Ben", "Chess")]
         )
+        label = graph.get_label_from_id
+        before = graph.node_redundancy(nodes=["Ana"])
+        graph.add_edge("Ben", "Choir")
+        after = graph.node_redundancy(nodes=["Ana", "Ben"])
 
-        red = g.node_redundancy(nodes=["ann", "bob", "cy"])
-        {g.get_label_from_id(n): r for n, r in red.items()}
+        (
+            {label(n): r for n, r in before.items()},
+            {label(n): r for n, r in sorted(after.items())},
+        )
+        ```
+
+        ### The only link
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Only three women are the sole link between some pair of their events, and
+        Nora Fayette most of all: no other woman attended both E6 and any of E10 to E14:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        women, events = davis.bipartite_sets()
+        redundancy = davis.node_redundancy(nodes=women)
+
+        [
+            (davis.get_label_from_id(n), round(r, 3))
+            for n, r in sorted(redundancy.items(), key=lambda kv: kv[1])
+            if r < 1
+        ]
+        ```
+
+        ```{python}
+        nora_only = ["E6", "E10", "E11", "E12", "E13", "E14"]
+
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos",
+            highlight=[("Nora Fayette", e) for e in nora_only],
+            label_by="label",
+            height=900,
+        )
         ```
         """
         nbrs = self._neighbor_sets()
