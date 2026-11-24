@@ -31467,54 +31467,64 @@ class Graph:
             If `importance_factor=` is outside `[0, 1)` or `method=` is not `"closed_form"` or
             `"iterative"`.
 
+        See Also
+        --------
+        simrank_star_similarity_pair : The score for a single pair.
+        simrank_similarity : The original, which counts only walks of equal length.
+        panther_similarity : Similarity from sharing sampled random paths.
+
         Examples
         --------
-        In this small undirected graph, `A` and `B` are linked to the same two nodes, `C` and
-        `D`, while `E` hangs off `C`. Looking at `A`'s row of the result (with labels instead of
-        IDs), its neighbors `C` and `D` are most similar to it, its structural twin `B` comes
-        next, and `E`, which `A` reaches only through `C`, scores lowest:
+        SimRank* also counts paths that walkers take at different speeds, so a node is similar to
+        its neighbors too. With `return_dict=True`, the scores come back as a nested dict:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D", "E"])
-
-        graph.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")])
-
-        sims = graph.simrank_star_similarity(return_dict=True)
-        a_id = graph.get_id_from_label("A")
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sims[a_id].items()}
-        ```
-
-        With the default `return_dict=False`, each node's row is stored in the `simrank_star`
-        node attribute instead, as `{"node", "similarity"}` records with the most similar node
-        first. Exploding that column gives one row per node pair, ready for filtering or joins.
-        Here are `A`'s two closest matches other than itself:
-
-        ```{python}
-        import polars as pl
-
-        graph.simrank_star_similarity()
-
-        (
-            graph.get_node_df()
-            .filter(pl.col("label") == "A")
-            .explode("simrank_star")
-            .unnest("simrank_star")
-            .filter(pl.col("node") != a_id)
-            .head(2)
-            .select("label", "node", pl.col("similarity").round(3))
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
+        scores = graph.simrank_star_similarity(return_dict=True)[
+            graph.get_id_from_label("A")
+        ]
+
+        dict(sorted((label(n), round(s, 3)) for n, s in scores.items()))
         ```
 
-        Lowering `importance_factor=` shortens the reach of similarity, so all off-diagonal
-        scores shrink. `A`'s similarity to `E` falls from about `0.39` to `0.11`:
+        ### Like Mara, by SimRank*
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. SimRank ranks Pablo, with the same friends, first among those like
+        Mara. SimRank* counts paths of any shape between them, so her three friends now rank
+        ahead of Pablo:
 
         ```{python}
-        sims = graph.simrank_star_similarity(importance_factor=0.5, return_dict=True)
-        e_id = graph.get_id_from_label("E")
-        round(sims[a_id][e_id], 3)
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        mara = friends.simrank_star_similarity(return_dict=True)[
+            friends.get_id_from_label("Mara")
+        ]
+        others = {
+            label(n): round(s, 2) for n, s in mara.items() if label(n) != "Mara"
+        }
+
+        sorted(others.items(), key=lambda item: -item[1])[:5]
+        ```
+
+        Without `return_dict=True`, each person's scores are stored as a `simrank_star` node
+        attribute, most similar first:
+
+        ```{python}
+        friends = friends.simrank_star_similarity()
+
+        friends.get_node_df().select("label", "simrank_star").head(3)
+        ```
+
+        ```{python}
+        friends = friends.set_node_attrs("like_mara", others)
+
+        friends.plot(color_by="like_mara", label_by="label", seed=8)
         ```
         """
         from edgecase._core import simrank_star_similarity
