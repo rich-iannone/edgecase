@@ -39712,25 +39712,69 @@ class Graph:
             sides, a node is missing from the partition or appears in two groups, or a label or
             attribute does not exist.
 
+        See Also
+        --------
+        modularity : The score with the ordinary null model.
+        layout_bipartite : Draw the two sides of a bipartite graph.
+
         Examples
         --------
-        Two groups of customers and the products they buy: grouping each customer with their
+        Two groups of customers and the products they buy. Grouping each customer with their
         products scores well, while lumping everything together scores `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Ann", "Bob", "Cy", "Dee", "tea", "jam", "nails", "glue"])
-            .add_edges([("Ann", "tea"), ("Ann", "jam"), ("Bob", "tea"), ("Bob", "jam"),
-                        ("Cy", "nails"), ("Cy", "glue"), ("Dee", "glue"), ("Bob", "glue")])
-        )
+        graph = ec.Graph.from_edges([
+            ("Ann", "tea"), ("Ann", "jam"), ("Bob", "tea"), ("Bob", "jam"),
+            ("Cy", "nails"), ("Cy", "glue"), ("Dee", "glue"), ("Bob", "glue"),
+        ])
 
         split = [["Ann", "Bob", "tea", "jam"], ["Cy", "Dee", "nails", "glue"]]
+        customers = ["Ann", "Bob", "Cy", "Dee"]
+
         (
-            round(graph.bipartite_modularity(split, top_nodes=["Ann", "Bob", "Cy", "Dee"]), 3),
+            round(graph.bipartite_modularity(split, top_nodes=customers), 3),
             graph.bipartite_modularity([graph.get_node_ids()]),
+        )
+        ```
+
+        ### The Southern Women
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the
+        14 social events (E1 to E14) each of them attended, and the `bipartite` attribute
+        marks the two sides. Splitting the network into its two sides puts no edge inside a
+        community. Ordinary modularity scores that well below `0`, because its null model
+        expects edges between two women. Bipartite modularity scores it `0`, no better and no
+        worse than chance:
+
+        ```{python}
+        women = ec.davis_southern_women()
+
+        women.modularity("bipartite"), women.bipartite_modularity("bipartite")
+        ```
+
+        Leiden finds three groups, each a set of women with the events they went to most: E1 to
+        E6, E7 and E8, and E9 to E14. The two scores are close here, since each group holds
+        roughly as many attendances on the women's side as on the events' side:
+
+        ```{python}
+        women.cmty_leiden(seed=1)
+
+        (
+            round(women.modularity("cmty_leiden"), 3),
+            round(women.bipartite_modularity("cmty_leiden"), 3),
+        )
+        ```
+
+        ```{python}
+        women.layout_bipartite(aspect_ratio=0.75).plot(
+            layout="pos",
+            color_by="cmty_leiden",
+            edge_color_by="cmty_leiden",
+            label_by="label",
+            node_size=10,
+            height=700,
         )
         ```
         """
