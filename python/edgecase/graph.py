@@ -52036,6 +52036,13 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to closeness scores (range
             `[0, 1]`). If `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        harmonic_centrality : A version that copes with disconnected graphs.
+        incremental_closeness_centrality : Update the scores after adding or removing an edge.
+        current_flow_closeness_centrality : Count all paths, not only the shortest.
+        group_closeness_centrality : Closeness for a group of nodes.
+
         Examples
         --------
         In a path, the middle node is the fewest hops from everyone else, so it has the highest
@@ -52044,64 +52051,69 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-        )
+        line = ec.Graph().add_path_graph(n=5)
 
-        scores = graph.closeness_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(c, 3) for nid, c in sorted(scores.items())}
+        line.closeness_centrality().get_node_df().select("label", "closeness_centrality")
         ```
 
-        In a disconnected graph the Wasserman-Faust correction keeps the two nodes of a lone
-        edge from outranking the hub of a larger star. Turning it off shows the difference:
+        ### The best-placed station
+
+        Closeness is the reciprocal of a node's average distance to every other node. The metro
+        is weighted by travel time, so distances are minutes, and the station with the highest
+        closeness is the one from which the rest of the network is quickest to reach:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["Hub", "A", "B", "C", "X", "Y"])
-            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("X", "Y")])
-        )
+        import polars as pl
 
-        corrected = graph.closeness_centrality(return_dict=True)
-        raw = graph.closeness_centrality(wf_improved=False, return_dict=True)
-        {
-            graph.get_label_from_id(nid): (round(corrected[nid], 2), round(raw[nid], 2))
-            for nid in sorted(corrected)
-        }
+        metro = ec.metro().closeness_centrality()
+
+        (
+            metro.get_node_df()
+            .select("label", "zone", "closeness_centrality")
+            .with_columns(average_minutes=1 / pl.col("closeness_centrality"))
+            .sort("closeness_centrality", descending=True)
+            .head(5)
+        )
         ```
 
-        In a directed graph, `mode=` decides whether distances are measured from or to each
-        node. In a chain, the source reaches everyone but nothing reaches it:
+        From Central, the other 19 stations are under seven minutes away on average. From the
+        Airport, at the end of its spur, they are 17 minutes away. Drawing the map with stations
+        colored by closeness shows the score falling away from downtown:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        out_scores = graph.closeness_centrality(mode="out", return_dict=True)
-        in_scores = graph.closeness_centrality(mode="in", return_dict=True)
-        {
-            graph.get_label_from_id(nid): (round(out_scores[nid], 2), round(in_scores[nid], 2))
-            for nid in sorted(out_scores)
-        }
+        metro.plot(layout="pos", color_by="closeness_centrality", label_by="label")
         ```
 
-        Without `return_dict=`, the scores are stored as a node attribute for later use:
+        ### Close to everyone, or on the way
+
+        Closeness and betweenness answer different questions. Central is the best place to start
+        a trip, but Market, one stop east, is the station the most trips pass through. Colored by
+        betweenness, the map has a different center:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D")])
-            .closeness_centrality(attr_name="closeness")
+        metro.betweenness_centrality().plot(
+            layout="pos", color_by="betweenness_centrality", label_by="label"
         )
-
-        graph.get_node_df().select(["label", "closeness"])
         ```
+
+        ### Directed graphs
+
+        In a directed graph, `mode=` decides whether distances are measured from or to each node.
+        In a chain, the start reaches everyone but nothing reaches it:
+
+        ```{python}
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+
+        (
+            chain.closeness_centrality(mode="out", attr_name="out")
+            .closeness_centrality(mode="in", attr_name="in")
+            .get_node_df()
+            .select("label", "out", "in")
+        )
+        ```
+
+        If parts of the graph can't reach each other, `harmonic_centrality()` sums `1 / d` over
+        the other nodes rather than averaging `d`, so unreachable nodes simply add nothing.
         """
         if mode not in ("out", "in", "all", "total"):
             raise ValueError(f"Invalid mode {mode!r}. Must be 'out', 'in', or 'all'")
