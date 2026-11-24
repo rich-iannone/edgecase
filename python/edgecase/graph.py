@@ -27230,52 +27230,86 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_in_until : Walk backward until a node passes a test.
+        trav_out : Move the selection along outgoing edges.
+        descendants : The nodes reachable from a node.
+
         Examples
         --------
-        Each node in this small directed graph carries a `value`. Starting at `A` and walking
-        forward until a node has `value >= 5` stops at `E` on one branch and at `D` on the
-        other. `F` also qualifies, but it lies beyond `E`, so it is never reached:
+        Each node here has a `value`. Walking forward from `A` until a node has a value of 5 or
+        more stops at `E` on one branch and at `D` on the other. `F` has a large value too, but
+        it lies past `E`, so the walk never gets there:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        for label, value in [("A", 1), ("B", 2), ("C", 3), ("D", 9), ("E", 7), ("F", 8)]:
-            graph.add_node(label=label, value=value)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")],
+            directed=True,
+        )
+        values = {"A": 1, "B": 2, "C": 3, "D": 9, "E": 7, "F": 8}
+        graph.set_node_attrs("value", values)
 
-        graph.add_edges([("A", "B"), ("B", "C"), ("B", "E"), ("C", "D"), ("E", "F")])
+        def is_big(node):
+            return graph.get_node(node).attributes["value"] >= 5
 
-        def is_big(node_id):
-            return graph.get_node(node_id).attributes["value"] >= 5
-
+        label = graph.get_label_from_id
         start = graph.get_id_from_label("A")
         graph.select_nodes_by_id([start]).trav_out_until(is_big)
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
-        Limiting the walk with `max_steps=1` means only `B` is reached, and it does not match.
-        With the default `exclude_unmatched=True` the selection would be empty; setting it to
-        `False` keeps `B` as the frontier where the walk gave up:
+        With `max_steps=1`, the walk only gets as far as `B`, which doesn't match.
+        `exclude_unmatched=False` keeps `B`, where it stopped, instead of selecting nothing:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_nodes_by_id([start])
+        graph.select_nodes_by_id([start], set_op="replace")
         graph.trav_out_until(is_big, max_steps=1, exclude_unmatched=False)
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
-        Setting `add_to_selection=True` together with `exclude_unmatched=False` keeps every node
-        visited on the way, giving the region between the start and the stopping points (`F`
-        is still excluded because the walk stopped at `E`):
+        With `add_to_selection=True` as well, every node visited on the way is kept:
 
         ```{python}
-        graph.clear_selection()
-        graph.select_nodes_by_id([start])
-        graph.trav_out_until(is_big, add_to_selection=True, exclude_unmatched=False)
+        graph.select_nodes_by_id([start], set_op="replace")
+        graph.trav_out_until(
+            is_big, add_to_selection=True, exclude_unmatched=False
+        )
 
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(label(n) for n in graph.get_selected_node_ids())
+        ```
+
+        ### Where Cruz's money is spent
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Following the money out of Cruz until it reaches a business finds
+        the two shops it ends up in, the Grocer and the Cafe:
+
+        ```{python}
+        payments = ec.payments()
+
+        def is_business(node):
+            return payments.get_node(node).attributes["kind"] == "business"
+
+        label = payments.get_label_from_id
+        cruz = payments.get_id_from_label("Cruz")
+        payments.select_nodes_by_id([cruz]).trav_out_until(is_business)
+
+        sorted(label(n) for n in payments.get_selected_node_ids())
+        ```
+
+        Keeping every account on the way shows how far the money spreads first. It reaches 14
+        of the 18 accounts, but none of Acme, Max, Nia or the Landlord:
+
+        ```{python}
+        payments.select_nodes_by_id([cruz], set_op="replace").trav_out_until(
+            is_business, add_to_selection=True, exclude_unmatched=False
+        )
+        payments.plot(highlight="selection", label_by="label", seed=3)
         ```
         """
         selected = self.get_selected_node_ids()
