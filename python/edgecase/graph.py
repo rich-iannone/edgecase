@@ -61794,19 +61794,59 @@ class Graph:
         path. Parallel edges are treated as one (the lightest). Paths and their order agree with
         NetworkX's `shortest_simple_paths`.
 
+        See Also
+        --------
+        k_shortest_paths : A set number of shortest paths, with their lengths.
+        all_simple_paths : Every simple path, in no particular order.
+
         Examples
         --------
+        The routes from A to D come out cheapest first, and the generator can be stopped after
+        the first few:
+
         ```{python}
         import itertools
 
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0), ("C", "D", 2.0),
-                     ("B", "C", 1.0)])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B", 1.0), ("B", "D", 1.0), ("A", "C", 1.0),
+                ("C", "D", 2.0), ("B", "C", 1.0),
+            ]
+        )
 
-        [[g.get_label_from_id(n) for n in p]
-         for p in itertools.islice(g.shortest_simple_paths("A", "D"), 3)]
+        label = graph.get_label_from_id
+        [
+            [label(n) for n in path]
+            for path in itertools.islice(graph.shortest_simple_paths("A", "D"), 3)
+        ]
+        ```
+
+        ### A detour on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. With Old Town closed, the fastest way from Westgate to the
+        Airport is the first route from the generator that avoids it, the tenth fastest:
+
+        ```{python}
+        metro = ec.metro()
+        old_town = metro.get_id_from_label("Old Town")
+
+        routes = metro.shortest_simple_paths("Westgate", "Airport")
+        rank, detour = next(
+            (rank, route)
+            for rank, route in enumerate(routes, start=1)
+            if old_town not in route
+        )
+
+        rank, [metro.get_label_from_id(n) for n in detour]
+        ```
+
+        The detour goes over the hills by Hillcrest and Northpark:
+
+        ```{python}
+        metro.plot(layout="pos", highlight=detour, label_by="label")
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
