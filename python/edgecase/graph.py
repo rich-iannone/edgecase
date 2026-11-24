@@ -24039,53 +24039,54 @@ class Graph:
 
         Examples
         --------
-        The predicate receives each edge's `Edge` object, so filters can key off `weight`,
-        endpoints, or any custom attribute. Here, only the two edges above a weight threshold
-        of `0.5` (`B-C` at `0.8` and `C-D` at `0.6`) are selected:
+        The predicate gets each edge as an `Edge` object, with its `source`, `target`, `weight`
+        and `attributes`. Here it picks the two edges heavier than 0.5:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)])
-            .select_edges(lambda e: e.weight is not None and e.weight > 0.5)
+        graph = ec.Graph.from_edges(
+            [("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)]
         )
+        graph.select_edges(lambda e: e.weight > 0.5)
 
-        graph.count_selected_edges()
+        label = graph.get_label_from_id
+        [
+            (label(e.source), label(e.target))
+            for e in map(graph.get_edge, sorted(graph.get_selected_edge_ids()))
+        ]
         ```
 
-        Filtering on `e.attributes` instead selects by relationship type or any other
-        custom edge attribute -- only the single "friend" edge matches:
+        The endpoints are node IDs, so a rule about a node's label looks its ID up first. In
+        this directed graph, the edges leaving `A` are its first two:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B", {"rel": "friend"}), ("B", "C", {"rel": "colleague"})])
-            .select_edges(lambda e: (e.attributes or {}).get("rel") == "friend")
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C")], directed=True
         )
+        a = graph.get_id_from_label("A")
 
-        graph.count_selected_edges()
+        graph.select_edges(lambda e: e.source == a)
+        sorted(graph.get_selected_edge_ids())
         ```
 
-        Because `source` and `target` are node IDs, label-based conditions need a lookup.
-        This selects every edge leaving "A" and then views just those rows of the edge table:
+        ### The large payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Most of them are small, for groceries and coffee. Selecting the
+        payments of 1,000 or more picks out 16 of the 35: the salaries and the rent, and the
+        large sums that pass between private accounts:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C")])
-        )
+        payments = ec.payments()
+        payments.select_edges(lambda e: e.attributes["amount"] >= 1000)
 
-        a_id = graph.get_id_from_label("A")
-        graph.select_edges(lambda e: e.source == a_id)
-
-        graph.get_edge_df_ws()
+        payments.count_selected_edges(), payments.count_edges()
         ```
 
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         self._select("edges", set_op, lambda: self._graph.select_edges(predicate))
 
