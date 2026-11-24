@@ -60036,6 +60036,13 @@ class Graph:
             If a label does not exist in the graph, or a weighted graph has a negative edge
             weight.
 
+        See Also
+        --------
+        shortest_path : One shortest path.
+        k_shortest_paths : The shortest paths in order, ties or not.
+        single_source_all_shortest_paths : Every shortest path from a source to every node.
+        predecessor : The node before each node on every shortest path from a source.
+
         Examples
         --------
         A 3 x 3 grid has six shortest paths between opposite corners, all four hops long:
@@ -60049,19 +60056,39 @@ class Graph:
         len(paths), paths[0]
         ```
 
-        In this diamond, B and C offer two equally short routes from A to D; the edge weights
+        In this diamond, B and C offer two equally short routes from A to D, and the edge weights
         break the tie once the graph is weighted:
 
         ```{python}
-        edges = [("A", "B", 1.0), ("A", "C", 2.0), ("B", "D", 1.0), ("C", "D", 1.0)]
-        hops = ec.Graph().add_nodes(list("ABCD")).add_edges(edges)
-        weights = ec.Graph(weighted=True).add_nodes(list("ABCD")).add_edges(edges)
+        edges = [
+            ("A", "B", 1.0), ("A", "C", 2.0), ("B", "D", 1.0), ("C", "D", 1.0)
+        ]
+        hops = ec.Graph.from_edges([(u, v) for u, v, _ in edges])
+        weights = ec.Graph.from_edges(edges)
 
         label = hops.get_label_from_id
         (
             [[label(n) for n in p] for p in hops.all_shortest_paths("A", "D")],
             [[label(n) for n in p] for p in weights.all_shortest_paths("A", "D")],
         )
+        ```
+
+        ### Two equally fast routes
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. From Central to Garden, going east by Lakeside and going north by
+        University both take 14 minutes:
+
+        ```{python}
+        metro = ec.metro()
+        routes = metro.all_shortest_paths("Central", "Garden")
+
+        [[metro.get_label_from_id(n) for n in route] for route in routes]
+        ```
+
+        ```{python}
+        steps = [step for route in routes for step in zip(route, route[1:])]
+        metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
         """
         if max_paths is not None and max_paths < 1:
