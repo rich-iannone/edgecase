@@ -24031,6 +24031,12 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_nodes : Select the nodes that pass a test.
+        select_edges_by_id : Select edges by their IDs.
+        delete_edges_ws : Delete the selected edges.
+
         Examples
         --------
         The predicate receives each edge's `Edge` object, so filters can key off `weight`,
