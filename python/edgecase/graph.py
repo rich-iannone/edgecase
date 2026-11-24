@@ -35623,13 +35623,49 @@ class Graph:
         ---------------
         Combinations of the node IDs, $O(n^3)$ triples.
 
+        See Also
+        --------
+        triad_type : Classify one triad.
+        triads_by_type : Group the triads by type.
+
         Examples
         --------
+        A directed graph on four nodes has four triads, one for each node left out:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        len(g.all_triads())
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D")], directed=True
+        )
+        [[graph.get_label_from_id(n) for n in t] for t in graph.all_triads()]
+        ```
+
+        ### The triads around one account
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Its 18 accounts form 816 triads. The 136 that include the Grocer
+        show its place in the network: it is paid by many accounts and pays no one, so 23 of
+        them are two accounts that both pay it (`021U`), and in none does the Grocer pay:
+
+        ```{python}
+        from collections import Counter
+
+        payments = ec.payments()
+        grocer = payments.get_id_from_label("Grocer")
+        around = [triad for triad in payments.all_triads() if grocer in triad]
+
+        len(payments.all_triads()), Counter(
+            payments.triad_type(list(triad)) for triad in around
+        )
+        ```
+
+        ```{python}
+        payments.plot(
+            highlight=[(payer, "Grocer") for payer in
+                       ["Dee", "Eve", "Max", "Nia", "Hal", "Lena", "Ana", "Gus"]],
+            label_by="label", seed=11, height=420,
+        )
         ```
         """
         from itertools import combinations
