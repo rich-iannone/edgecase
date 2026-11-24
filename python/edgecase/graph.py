@@ -83213,18 +83213,50 @@ class Graph:
             If the graph is undirected, `walk_type=` or `alpha=` is invalid, or a random or lazy
             walk is requested on a graph with a node without out-edges.
 
+        See Also
+        --------
+        magnetic_laplacian_matrix : Another Laplacian for directed graphs, with complex phases.
+        normalized_laplacian_matrix : The undirected matrix this one generalizes.
+        pagerank : The walk's stationary distribution on its own.
+
         Examples
         --------
         The result is symmetric even though the graph is not:
 
         ```{python}
         import edgecase as ec
+        import polars as pl
 
-        cycle = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
-        cycle.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("A", "C")], directed=True
+        )
+        matrix, nodes = graph.directed_laplacian_matrix()
+        labels = [graph.get_label_from_id(n) for n in nodes]
 
-        matrix, nodes = cycle.directed_laplacian_matrix()
-        [[round(v, 3) for v in row] for row in matrix]
+        pl.DataFrame(
+            [[round(v, 3) + 0.0 for v in row] for row in matrix],
+            schema=labels, orient="row",
+        ).insert_column(0, pl.Series("node", labels))
+        ```
+
+        ### Teleporting between accounts
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Money can't flow back from every account to every other one, so the
+        walk is a PageRank walk, which teleports from time to time. That links every pair of
+        accounts, and all 306 entries off the diagonal are nonzero, though there are only 35
+        payments:
+
+        ```{python}
+        payments = ec.payments()
+        lap, nodes = payments.directed_laplacian_matrix()
+        n = len(nodes)
+
+        sum(abs(lap[i][j]) > 0 for i in range(n) for j in range(n) if i != j)
+        ```
+
+        ```{python}
+        payments.plot(label_by="label", seed=3)
         ```
         """
         matrix, ids, used = rust.directed_laplacian_matrix(
