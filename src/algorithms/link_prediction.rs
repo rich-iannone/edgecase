@@ -271,8 +271,10 @@ fn get_node_pairs(graph: &Graph, ebunch: Option<Vec<(u64, u64)>>) -> PyResult<Ve
             Ok(pairs)
         }
         None => {
-            // Generate all non-adjacent pairs
-            let node_ids: Vec<u64> = graph.get_node_ids();
+            // Generate all non-adjacent pairs, in node ID order (get_node_ids() follows the
+            // node map's hash order, which put pairs like (11, 3) first)
+            let mut node_ids: Vec<u64> = graph.get_node_ids();
+            node_ids.sort_unstable();
             let n = node_ids.len();
             let mut pairs = Vec::new();
 
