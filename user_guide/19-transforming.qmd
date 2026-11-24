@@ -271,7 +271,7 @@ spanner = jazz.transform_with_spanner(stretch=3, seed=1)
 ```
 
 The spanner keeps 381 of the jazz network's 2,742 edges, 14% of them, and the mean distance between
-musicians rises from 2.24 steps to 3.43. Every distance at least stays within the guaranteed factor
+bands rises from 2.24 steps to 3.43. Every distance at least stays within the guaranteed factor
 of three. The construction is fast on graphs of a few thousand edges but slows considerably on
 larger ones.
 
