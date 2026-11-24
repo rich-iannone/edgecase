@@ -49024,69 +49024,116 @@ class Graph:
         ValueError
             If weights are used and an edge has a negative, infinite or NaN weight.
 
+        See Also
+        --------
+        personalized_pagerank : PageRank with restarts at a chosen set of nodes.
+        eigen_centrality : Importance from the importance of neighbors, without damping.
+        katz_centrality : Like eigenvector centrality, with a baseline for every node.
+        hub_centrality, authority_centrality : The HITS scores, for directed graphs.
+
         Examples
         --------
-        Since "Charlie" receives incoming links from both "Alice" and "Bob", it
-        accumulates more rank than either of them:
+        On a small directed graph, PageRank favors nodes that are linked to by nodes that are
+        themselves well linked. C is linked to by three nodes and ranks first, but D, linked to only
+        by C, has nearly as much rank, and A, linked to only by D, nearly as much again. B and E,
+        which nothing links to, get only the baseline share:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
-        alice_id = graph.get_id_from_label("Alice")
-        bob_id = graph.get_id_from_label("Bob")
-        charlie_id = graph.get_id_from_label("Charlie")
-
-        graph.add_edges([(alice_id, bob_id), (alice_id, charlie_id), (bob_id, charlie_id)])
-
-        scores = graph.pagerank(return_dict=True)
-        scores
-        ```
-
-        Node IDs can be mapped back to labels for a more readable result:
-
-        ```{python}
-        {graph.get_label_from_id(nid): score for nid, score in scores.items()}
-        ```
-
-        Lowering `damping=` increases the influence of random jumps relative to the
-        graph structure, which tends to pull every node's score closer together:
-
-        ```{python}
-        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
-        graph.add_edges([("Alice", "Bob"), ("Alice", "Charlie"), ("Bob", "Charlie")])
-
-        graph.pagerank(damping=0.5, return_dict=True)
-        ```
-
-        Sorting the results surfaces the most influential nodes first:
-
-        ```{python}
-        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob", "Charlie"])
-        graph.add_edges([("Alice", "Bob"), ("Alice", "Charlie"), ("Bob", "Charlie")])
-
-        scores = graph.pagerank(return_dict=True)
-        sorted(
-            ((graph.get_label_from_id(nid), score) for nid, score in scores.items()),
-            key=lambda x: x[1],
-            reverse=True,
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("E", "C"), ("C", "D"), ("D", "A")],
+            directed=True,
         )
+
+        graph.pagerank().get_node_df().sort("pagerank", descending=True)
         ```
 
-        On a weighted graph, a strong tie passes on more rank than a weak one. Here B sends
-        most of its rank back to A, its heavy tie, and little to C; `weighted=False` treats the
-        two ties alike:
+        ### Who the story revolves around
+
+        The co-appearance network of *Les Misérables* links two characters when they appear in the
+        same chapter, weighted by how often they do. PageRank uses the weights, so frequent
+        co-appearances count for more:
 
         ```{python}
-        edges = [("A", "B", 10.0), ("B", "C", 1.0)]
-        weighted = ec.Graph(weighted=True).add_nodes(["A", "B", "C"]).add_edges(edges)
+        lesmis = ec.les_miserables().pagerank().cmty_louvain()
 
-        label = weighted.get_label_from_id
         (
-            {label(n): round(s, 3) for n, s in weighted.pagerank(return_dict=True).items()},
-            {label(n): round(s, 3) for n, s in weighted.pagerank(
-                weighted=False, return_dict=True).items()},
+            lesmis.get_node_df()
+            .select("label", "degree", "pagerank")
+            .sort("pagerank", descending=True)
+            .head(6)
         )
+        ```
+
+        Valjean is far ahead, with about twice the rank of Marius in second place. Drawing each
+        character sized by rank and colored by community shows where that rank sits:
+
+        ```{python}
+        lesmis.plot(
+            color_by="cmty_louvain", size_by="pagerank", label_by="label", seed=3
+        )
+        ```
+
+        ### Rank isn't contact count
+
+        Myriel, the bishop of the opening chapters, ranks third by PageRank but only eighteenth by
+        degree: seven of the ten characters Myriel appears with appear with no one else, so the
+        rank they get flows straight back to the bishop. Gavroche is the opposite case, second by
+        degree but eighth by PageRank, meeting many characters but only a few times each. Here are
+        the three characters' places by each measure:
+
+        ```{python}
+        import polars as pl
+
+        (
+            lesmis.get_node_df()
+            .with_columns(
+                pl.col("pagerank", "degree").rank("min", descending=True)
+            )
+            .filter(pl.col("label").is_in(["Valjean", "Myriel", "Gavroche"]))
+            .sort("pagerank")
+            .select("label", "pagerank", "degree")
+        )
+        ```
+
+        ### Weighted versus unweighted
+
+        Setting `weighted=False` counts every link the same, however many chapters it stands for.
+        Gavroche rises from eighth to third and Javert from tenth to fifth, since both meet many
+        characters a few times each, while Marius, whose ties are twice as heavy as the average,
+        drops from second to fourth. The table gives the places both ways:
+
+        ```{python}
+        lesmis.pagerank(weighted=False, attr_name="unweighted")
+
+        (
+            lesmis.get_node_df()
+            .with_columns(
+                pl.col("pagerank", "unweighted").rank("min", descending=True)
+            )
+            .sort("unweighted")
+            .select("label", "pagerank", "unweighted")
+            .head(5)
+        )
+        ```
+
+        Use the weighted ranks when the weights measure the strength of a tie, as here, and the
+        unweighted ones when they measure something else, such as a distance or a cost. To rank
+        characters by their closeness to a starting set (those nearest Cosette, say) rather than
+        overall, use `personalized_pagerank()`.
+
+        ### A citation network
+
+        In a directed graph, rank flows along the edges. In the `citations()` network it flows
+        from each paper to the papers it cites, so the seminal Moreau 2000 ranks first and
+        Nakamura 2001, the first of the learning papers, second. HITS, which follows the
+        survey's references, puts Nakamura only eighteenth by `authority_centrality()`:
+
+        ```{python}
+        citations = ec.citations().pagerank()
+
+        citations.plot(layout="pos", color_by="pagerank", label_by="label")
         ```
         """
         result_ids = rust.pagerank(
@@ -49104,9 +49151,6 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
         # Track computation
         params = {}
         if damping != 0.85:
@@ -49117,7 +49161,7 @@ class Graph:
             params["tol"] = tol
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("pagerank", params, attr_name))
+        self._store_node_result("pagerank", params, attr_name, result_ids)
 
         return self
 
