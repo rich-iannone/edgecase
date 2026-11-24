@@ -61457,14 +61457,53 @@ class Graph:
         One predecessor search per source plus path enumeration; matches NetworkX's
         `all_pairs_all_shortest_paths`.
 
+        See Also
+        --------
+        single_source_all_shortest_paths : Every shortest path from one source.
+        all_pairs_shortest_path : One shortest path for every pair.
+
         Examples
         --------
+        In a square, each node reaches itself and its two neighbors by one path each, and the
+        opposite corner by two, so there are 4 x (1 + 2 + 2) = 20 paths in all:
+
         ```{python}
         import edgecase as ec
 
         square = ec.Graph().add_cycle_graph(4)
         everything = square.all_pairs_all_shortest_paths()
         sum(len(paths) for row in everything.values() for paths in row.values())
+        ```
+
+        ### Ties on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Of the 190 pairs of stations, 42 have more than one fastest route,
+        and 16 of these have three:
+
+        ```{python}
+        metro = ec.metro()
+        everything = metro.all_pairs_all_shortest_paths()
+
+        ties = {
+            (s, t): routes
+            for s, row in everything.items()
+            for t, routes in row.items()
+            if s < t and len(routes) > 1
+        }
+        counts = [len(routes) for routes in ties.values()]
+
+        len(ties), counts.count(3)
+        ```
+
+        Between Westgate and University, the three routes go through Central, through Cathedral,
+        and over the hills by Hillcrest:
+
+        ```{python}
+        ends = ("Westgate", "University")
+        pair = tuple(metro.get_id_from_label(e) for e in ends)
+        steps = [step for route in ties[pair] for step in zip(route, route[1:])]
+        metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
         """
         with self._no_recording():
