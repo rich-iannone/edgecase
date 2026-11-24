@@ -24516,9 +24516,34 @@ class Graph:
             .set_node_attrs_ws(batch=2)
         )
 
-        graph.get_node_df().select("id", "label", "batch")
+        graph.get_node_df().select("label", "batch")
         ```
 
+        ### A new branch line
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        The city plans to run the Red line two stops further west, past Westgate. Selecting the
+        last two stations made picks out the new ones, to mark them as planned:
+
+        ```{python}
+        metro = ec.metro()
+        (
+            metro
+            .add_node(label="Brookfield", pos=[-8.0, 0.0], lines=["Red"])
+            .add_node(label="Quarry", pos=[-10.0, 0.0], lines=["Red"])
+            .add_edges(
+                [("Westgate", "Brookfield", 4), ("Brookfield", "Quarry", 3)]
+            )
+            .select_last_nodes_created(2)
+            .set_node_attrs_ws(planned=True)
+        )
+
+        metro.get_node_df().select("label", "planned").tail(3)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight="planned", label_by="label")
+        ```
         """
         self._check_non_negative(n=n)
         self._select("nodes", set_op, lambda: self._graph.select_last_nodes_created(n))
