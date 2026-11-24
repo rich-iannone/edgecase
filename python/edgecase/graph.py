@@ -5205,14 +5205,23 @@ class Graph:
         """
         Place the nodes evenly around a circle.
 
-        ![Circular layout](../assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
+        ![Circular layout](../assets/graphs/layout-circular.light.svg){.lightbox fig-alt="On the left, an eight-node graph scattered at random: a ring of eight nodes with two chords. On the right, layout_circular() puts the nodes evenly around a circle in the order a depth-first search from node 1 meets them, which here is id order, so the ring becomes a regular octagon and the two chords cross its middle." width="100%"}
 
-        Node `i` (counting nodes in ID order from `0`) goes at angle `2 * pi * i / n`, starting
-        at the rightmost point of the circle and turning counterclockwise. The circle has
-        radius `scale=` and is centered on `center=`. Edges play no part, so the layout shows
-        the node order rather than the structure; it suits rings, small graphs where every
-        edge should stay visible, and chord-diagram style pictures. The positions match
-        NetworkX's `circular_layout()` with the nodes in ID order.
+        The nodes go around the circle in the order given by `order=`. By default (`"dfs"`),
+        that is the order in which a depth-first search meets them, starting from the lowest
+        node ID and moving on to neighbors in ID order, and starting again from the lowest ID
+        not yet reached when the graph is in several pieces. Linked nodes then tend to sit near
+        each other, so fewer edges cross the circle: a tree is drawn with none, and a cycle or
+        path numbered along its length stays in ID order. `order="id"` takes the nodes in ID
+        order, as NetworkX's `circular_layout()` does, and a list of the nodes sets the order
+        outright, for example `spectral_ordering()` or the nodes grouped by an attribute.
+
+        Node `i` (counting from `0` in that order) goes at angle `2 * pi * i / n`, starting at
+        the rightmost point of the circle and turning counterclockwise. The circle has radius
+        `scale=` and is centered on `center=`. The edges play no part beyond the order, so the
+        layout suits rings, small graphs where every edge should stay visible, and
+        chord-diagram style pictures. With `order="id"`, the positions match NetworkX's
+        `circular_layout()` with the nodes in ID order. Edge direction is ignored.
 
         Like every `layout_*()` method, this stores each node's position as an `[x, y]` list in
         the `attr_name=` node attribute (default `"pos"`), which `plot(layout="pos")` then draws.
