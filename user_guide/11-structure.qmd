@@ -175,7 +175,7 @@ shows the pattern:
 ```{python}
 networks = {
     "co-authorship (ca_grqc)": ec.ca_grqc().simplify(),
-    "jazz musicians": ec.jazz().simplify(),
+    "jazz bands": ec.jazz().simplify(),
     "power grid": grid,
     "Internet": ec.internet().simplify(),
     "metabolism (celegans)": ec.celegans().simplify(),
@@ -185,7 +185,7 @@ networks = {
 ```
 
 The physicists who wrote general relativity papers together are strongly assortative: prolific
-authors write with other prolific authors, often in large collaborations. The jazz musicians and
+authors write with other prolific authors, often in large collaborations. The jazz bands and
 the power grid are close to neutral. The Internet's hubs
 connect to many small networks, which makes it disassortative, as is the metabolic network. The
 karate club is the most disassortative of all, since its two hubs, the instructor and the
