@@ -66334,28 +66334,51 @@ class Graph:
         ValueError
             If the graph is undirected.
 
+        See Also
+        --------
+        strongly_connected_components : List the components that become its nodes.
+        is_dag : Check that a graph has no directed cycles.
+        topological_sort : Order the condensed components.
+
         Examples
         --------
-        Two cycles joined by a one-way edge condense into a two-node DAG, and the isolated
-        node E becomes a component of its own:
+        Two cycles joined by a one-way edge condense into a two-node DAG, and the isolated node
+        `E` becomes a component of its own:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "D"), ("D", "C")])
-        )
-
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "A"), ("B", "C"), ("C", "D"), ("D", "C")],
+            directed=True,
+        ).add_node("E")
         dag = graph.condensation()
-        dag.get_node_df().select(["id", "label", "members", "size"])
+
+        dag.get_node_df().select("label", "members", "size")
         ```
 
         The condensation is acyclic, so DAG methods apply:
 
         ```{python}
         dag.is_dag(), [dag.get_label_from_id(n) for n in dag.dag_longest_path()]
+        ```
+
+        ### How money moves between groups
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Its 18 accounts condense into 10 groups: the eight accounts of the
+        two rings with Dee and Eve, the flatmates Max and Nia, and eight accounts on their own.
+        The condensation shows the flow of money: from the employer Acme, through the core and
+        the chain of Ivy, Jo, Kai and Lena, to the businesses:
+
+        ```{python}
+        flow = ec.payments().condensation()
+
+        flow.get_node_df().select("members", "size")
+        ```
+
+        ```{python}
+        flow.plot(size_by="size", label_by="label", height=360)
         ```
         """
         components, edges = rust.condensation(self._graph)
