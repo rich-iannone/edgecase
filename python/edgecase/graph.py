@@ -1135,6 +1135,11 @@ class Graph:
         Graph
             Returns self to enable method chaining.
 
+        See Also
+        --------
+        steps : The step log that holds the narrations.
+        play : Replay the log, showing each step's narration.
+
         Examples
         --------
         Notes slot into a build chain just before the step they describe. Steps without a
