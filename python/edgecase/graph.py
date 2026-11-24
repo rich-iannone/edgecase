@@ -33890,39 +33890,53 @@ class Graph:
         labels short and gives each separator exactly two neighbors. The cliques, and the
         clique pairs the tree joins, are the same as NetworkX's when ties are broken alike.
 
+        See Also
+        --------
+        moral_graph : Join the parents of each node and drop the directions.
+        complete_to_chordal_graph : Add edges to make a graph chordal.
+        chordal_graph_cliques : List the maximal cliques of a chordal graph.
+
         Examples
         --------
-        The classic "student" Bayesian network: difficulty and intelligence determine the
-        grade, intelligence also drives the SAT score, and the grade determines the letter.
-        Moralizing marries difficulty and intelligence, the parents of grade:
+        The classic "student" Bayesian network: difficulty and intelligence determine the grade,
+        intelligence also drives the SAT score, and the grade determines the letter. Moralizing
+        marries difficulty and intelligence, the parents of grade:
 
         ```{python}
         import edgecase as ec
 
-        bn = ec.Graph(directed=True).add_nodes(["D", "I", "G", "S", "L"])
-        bn.add_edges([("D", "G"), ("I", "G"), ("I", "S"), ("G", "L")])
+        network = ec.Graph.from_edges(
+            [("D", "G"), ("I", "G"), ("I", "S"), ("G", "L")], directed=True
+        )
+        tree = network.junction_tree()
 
-        jt = bn.junction_tree()
-        {
-            jt.get_label_from_id(n): jt.get_node(n).attributes["nodes"]
-            for n in sorted(jt.get_node_ids(limit=None))
-        }
+        tree.get_node_df().select("label", "type", "nodes")
         ```
 
         Each separator joins two cliques:
 
         ```{python}
-        jt.get_edges_str_repr(use_labels=True)
+        tree.get_edges_str_repr(use_labels=True)
         ```
 
-        A 4-cycle is not chordal. One fill edge splits it into two triangles, which share
-        the two ends of that edge:
+        ### A tree of cliques for inference
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its junction tree has four cliques and three separators. The
+        largest clique, `C1`, holds Blood pressure with its four causes, and each separator holds
+        the two variables its cliques share, which is all that passes between them during
+        inference:
 
         ```{python}
-        square = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        square.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
-        jt = square.junction_tree()
-        [jt.get_node(n).attributes["nodes"] for n in sorted(jt.get_node_ids(limit=None))]
+        tree = ec.causal().junction_tree()
+
+        tree.get_node_df().select("label", "type", "nodes")
+        ```
+
+        ```{python}
+        tree.layout_bfs("C1").plot(
+            layout="pos", color_by="type", label_by="label", height=360
+        )
         ```
         """
         with self._no_recording():
