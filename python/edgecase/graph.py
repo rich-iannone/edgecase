@@ -62333,6 +62333,12 @@ class Graph:
         ValueError
             If `source=` does not exist in the graph.
 
+        See Also
+        --------
+        bfs : Visit nodes breadth-first, finishing each distance before the next.
+        dfs_edges, dfs_tree : The edges of the search tree, as a list or a new graph.
+        dfs_postorder_nodes : The nodes in the order the search finishes them.
+
         Examples
         --------
         On a binary tree, DFS dives all the way down the leftmost branch (`1, 2, 4, 8`) before
@@ -62341,42 +62347,48 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_balanced_tree(k=2, h=3)
+        graph = ec.Graph().add_balanced_tree(k=2, h=3)
 
         graph.dfs(source=1, return_list=True)
         ```
 
         With the default `return_list=False`, the visit order is stored as a node attribute and
-        the graph is returned, so it can be chained straight into a coloring step:
+        the graph is returned, so it can be chained straight into a plot. Node 3, the root's
+        second child, is only reached after the whole left subtree:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_balanced_tree(k=2, h=3)
-            .dfs(source=1)
-            .colorize_node_attrs(
-                node_attr_from="dfs_order",
-                palette="viridis"
-            )
+        graph.dfs(source=1).plot(
+            color_by="dfs_order", color_scale="sequential", label_by="label",
+            seed=1,
         )
-
-        # Node 3 (the root's second child) is only reached after the whole left subtree
-        graph.get_node(3).attributes["dfs_order"]
         ```
+
+        ### Watching the search dive
+
+        Every traversal is recorded in the step log, so `play()` can replay it one visit at a
+        time. Here DFS starts from Central station on the metro map, which stores each station's
+        map position in `pos`. Step through to see the search follow one line as far as it goes
+        before backing up to try another:
+
+        ```{python}
+        metro = ec.metro()
+
+        metro.note("Follow one line as far as it goes first.").dfs("Central")
+        metro.play(layout="pos")
+        ```
+
+        ### Directed graphs
 
         On a directed graph, DFS only follows edges forward. Starting from `B` reaches `C` and
         `D` down the chain, while `A` (upstream of `B`) is never visited:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        chain = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D")], directed=True
         )
 
-        order = graph.dfs(source="B", return_list=True)
-        [graph.get_label_from_id(nid) for nid in order]
+        order = chain.dfs(source="B", return_list=True)
+        [chain.get_label_from_id(nid) for nid in order]
         ```
         """
         start_id = self._resolve_node_id(source, auto_create=False)
