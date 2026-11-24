@@ -57168,20 +57168,25 @@ class Graph:
         Graph
             New graph containing only the k-shell nodes and their connecting edges.
 
+        See Also
+        --------
+        coreness : The coreness of every node.
+        k_core : The nodes with coreness at least `k`.
+        k_corona : The nodes of the shell with exactly `k` neighbors in the core.
+
         Examples
         --------
-        The graph below has a dense cluster (A, B, C, D), a loop E-F-G attached to it, and a
-        pendant node H. Its three shells split the nodes into the pendant (coreness 1), the loop
-        (coreness 2), and the cluster (coreness 3):
+        This graph has a dense cluster `A`-`D`, a loop through `E`, `F` and `G`, and a pendant
+        node `H`. Its three shells split the nodes into the pendant (coreness 1), the loop
+        (coreness 2) and the cluster (coreness 3):
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"),
+             ("G", "D"), ("G", "H")]
         )
 
         {
@@ -57190,12 +57195,29 @@ class Graph:
         }
         ```
 
-        Only edges inside the shell are kept. The 2-shell has the edges E-F and F-G, but the
-        links from E and G into the cluster (and from G to H) are dropped:
+        Only the edges inside a shell are kept. The 2-shell keeps `E`-`F` and `F`-`G`, but not
+        the edges from `E` and `G` into the cluster:
 
         ```{python}
-        shell_2 = graph.k_shell(2)
-        (shell_2.count_nodes(), shell_2.count_edges())
+        graph.k_shell(2).count_edges()
+        ```
+
+        ### One layer out from the barricade
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. The innermost core is the twelve characters at the barricade, with
+        coreness 9. The next shell holds Valjean and Javert, the Thenardiers' daughter Eponine,
+        and Thenardier with four members of the gang:
+
+        ```{python}
+        novel = ec.les_miserables()
+        shell = novel.k_shell(8)
+
+        sorted(shell.get_node_df()["label"].to_list())
+        ```
+
+        ```{python}
+        shell.plot(label_by="label", seed=1)
         ```
         """
         self._check_non_negative(k=k)
