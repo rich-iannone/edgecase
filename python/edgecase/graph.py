@@ -30241,20 +30241,58 @@ class Graph:
         Each pair costs one neighbor-set intersection. The scores match NetworkX's
         `within_inter_cluster`.
 
+        See Also
+        --------
+        cn_soundarajan_hopcroft : Common neighbors with a bonus within the community.
+        ra_index_soundarajan_hopcroft : Resource allocation within the pair's community.
+
         Examples
         --------
-        A and D share one within-community neighbor (B) and one outside (C):
+        The score divides the common neighbors in the pair's community by those outside it, plus
+        `delta=`. `A` and `D` share `B`, in their community, and `C`, outside it. `B` and `E` are
+        in different communities, so they score `0`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(
-            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
-             ("D", {"community": 0})]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "community", {"A": 1, "B": 1, "D": 1, "C": 2, "E": 2}
+        )
+        label = graph.get_label_from_id
+        scores = graph.within_inter_cluster([("A", "D"), ("B", "E")])
 
-        round(g.within_inter_cluster([("A", "D")])[0][2], 3)
+        [(label(u), label(v), round(s, 3)) for u, v, s in scores]
+        ```
+
+        ### Friends in common, inside and out
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Cleo and Ella share Ada and Dev, all four in the chess club. Wes
+        and Oona, climbers, share one climber and one chess player, and Wes and Jules, in
+        different clubs, score `0`. With the default `delta=`, a pair with no shared friend
+        outside the club scores in the thousands, so `delta=1` makes the scores easier to read:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        pairs = [("Cleo", "Ella"), ("Wes", "Oona"), ("Wes", "Jules")]
+
+        [
+            (label(u), label(v), s)
+            for u, v, s in friends.within_inter_cluster(
+                pairs, community="club", delta=1
+            )
+        ]
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={"accent": ["Cleo", "Ella"], "soft": ["Ada", "Dev"]},
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         return self._link_scores("within_inter_cluster", ebunch, community, delta=delta)
