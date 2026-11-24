@@ -293,6 +293,24 @@ reference:
         - Graph.layout_arf
         - Graph.rescale_layout
 
+    - title: Visualization
+      desc: Methods for drawing the graph, as static plots, step-through players and interactive views
+      contents:
+        - Graph.plot
+        - Graph.play
+        - Graph.plot_traversal
+        - Graph.record_traversal
+        - Graph.plot_vis
+        - Graph.plot_cosmo
+
+    - title: Step Log
+      desc: The record of operations performed on a graph, which play() replays
+      contents:
+        - Graph.steps
+        - Graph.note
+        - Graph.clear_steps
+        - Graph.print_steps
+
     #- title: Graph Rendering
     #  desc: Methods for displaying and visualizing the graph
     #  contents:
@@ -1111,6 +1129,7 @@ reference:
       contents:
         - ca_grqc
         - celegans
+        - celegans_neural
         - condmat
         - davis_southern_women
         - dolphins
@@ -1133,6 +1152,26 @@ reference:
         - list_available_datasets
         - list_registered_datasets
         - load_dataset
+
+    - title: Example Networks
+      desc: Small networks with planted features, used throughout the examples
+      contents:
+        - metro
+        - payments
+        - courses
+        - pipeline
+        - exams
+        - teams
+        - friends
+        - citations
+        - currency
+        - towns
+        - offices
+        - project
+        - causal
+        - org_chart
+        - molecules
+        - konigsberg
 
     - title: Tables
       desc: Functions for creating summary tables
