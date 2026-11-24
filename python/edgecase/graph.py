@@ -61676,16 +61676,66 @@ class Graph:
         true length by $h(s) - h(t)$, so shortest paths are preserved (Johnson, 1977). Total time
         $O(VE + V E \log V)$. Path lengths match NetworkX's `johnson`.
 
+        See Also
+        --------
+        floyd_warshall : All-pairs distances, from a dense algorithm.
+        goldberg_radzik : Shortest paths from one source, with negative weights.
+
         Examples
         --------
+        The direct edge from A to B costs `4`, but the route through C costs `2 + (-1) = 1`:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)])
+        graph = ec.Graph.from_edges(
+            [("A", "B", 4.0), ("A", "C", 2.0), ("C", "B", -1.0)], directed=True
+        )
 
-        paths = g.johnson()
-        [g.get_label_from_id(n) for n in paths[g.get_id_from_label("A")][g.get_id_from_label("B")]]
+        paths = graph.johnson()
+        a, b = graph.get_id_from_label("A"), graph.get_id_from_label("B")
+        [graph.get_label_from_id(n) for n in paths[a][b]]
+        ```
+
+        ### Which quotes are worth using
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate, so that the path of least weight is the conversion that
+        yields the most. With `arbitrage=False`, no cycle has a negative total weight. Johnson's
+        algorithm finds the best route between every pair of currencies, and 14 of the 30 go
+        through another currency:
+
+        ```{python}
+        fx = ec.currency(arbitrage=False)
+        paths = fx.johnson()
+        label = fx.get_label_from_id
+
+        indirect = [
+            [label(n) for n in path]
+            for targets in paths.values()
+            for path in targets.values()
+            if len(path) > 2
+        ]
+        len(indirect), indirect[:4]
+        ```
+
+        Every indirect route goes through the US dollar. Of the 18 quotes, only the two between
+        the yen and the Swiss franc (highlighted) are never part of a best route, since going
+        through the dollar always yields more:
+
+        ```{python}
+        used = {
+            (u, v)
+            for targets in paths.values()
+            for path in targets.values()
+            for u, v in zip(path, path[1:])
+        }
+        edges = fx.get_edge_df()
+        unused = [
+            (u, v) for u, v in zip(edges["source"], edges["target"])
+            if (u, v) not in used
+        ]
+        fx.plot(highlight=unused, label_by="label", curved_edges=True, seed=4)
         ```
         """
         result = {s: dict(row) for s, row in rust.johnson(self._graph, self._use_weights(weighted))}
