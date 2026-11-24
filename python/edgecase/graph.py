@@ -58032,52 +58032,70 @@ class Graph:
             - 3+: Shortest cycle length found via BFS
             - `None`: Graph is acyclic (tree/forest)
 
+        See Also
+        --------
+        minimum_cycle_basis : A basis of short cycles, among them the shortest.
+        has_cycles : Check whether the graph has a cycle at all.
+
         Examples
         --------
-        Find girth of a cycle graph:
+        A square has girth 4, and a triangle has girth 3:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
         )
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        # Returns 4 (cycle length)
-        graph.girth()
+        square.girth(), triangle.girth()
         ```
 
-        Self-loops have girth 1:
+        A self-loop is a cycle of length 1, and a tree has no cycle at all, so its girth is
+        `None`:
 
         ```{python}
-        graph = ec.Graph().add_node(label="A").add_edge("A", "A")
+        loop = ec.Graph.from_edges([("A", "A")])
+        tree = ec.Graph().add_balanced_tree(2, 3)
 
-        # Returns 1
-        graph.girth()
+        loop.girth(), tree.girth()
         ```
 
-        Triangles have girth 3:
+        ### A graph with no short cycles
+
+        In the Petersen graph, every node has three neighbors, yet the shortest cycle has five
+        edges. It is the smallest graph with three neighbors per node and girth 5:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        petersen = ec.Graph().add_generalized_petersen_graph(5, 2)
 
-        # Returns 3
-        graph.girth()
+        petersen.girth()
         ```
 
-        Trees have no cycles:
+        ### The shortest cycles of the metro
+
+        `metro()` is a made-up city's metro network. Its girth is 3: the Ring line meets the Red
+        and Blue lines around Central, closing two triangles. The cycles of a minimum cycle basis
+        with as many stations as the girth are shortest cycles:
 
         ```{python}
-        tree = ec.Graph(directed=True).add_balanced_tree(k=2, h=3)
+        metro = ec.metro()
+        shortest = [
+            cycle for cycle in metro.minimum_cycle_basis()
+            if len(cycle) == metro.girth()
+        ]
 
-        # Returns None (trees have no cycles)
-        tree.girth()
+        [[metro.get_label_from_id(n) for n in cycle] for cycle in shortest]
+        ```
+
+        ```{python}
+        edges = [
+            (u, v)
+            for cycle in shortest
+            for u, v in zip(cycle, cycle[1:] + cycle[:1])
+        ]
+        metro.plot(layout="pos", highlight=edges, label_by="label")
         ```
         """
         return self._graph.get_girth()
