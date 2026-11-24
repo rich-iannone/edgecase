@@ -67718,17 +67718,68 @@ class Graph:
         intersection and a scan of the common ancestors' successors. This follows
         `all_pairs_all_lowest_common_ancestors` from NetworkX pull request #7988.
 
+        See Also
+        --------
+        all_lowest_common_ancestors : Every lowest common ancestor of one pair.
+        all_pairs_lowest_common_ancestor : One lowest common ancestor for each pair.
+
         Examples
         --------
+        Every pair is listed, with all its lowest common ancestors, and a pair with none gets
+        an empty list:
+
         ```{python}
         import edgecase as ec
 
-        family = ec.Graph(directed=True).add_nodes(["mum", "dad", "ann", "bob", "eve"])
-        family.add_edges([("mum", "ann"), ("mum", "bob"), ("dad", "ann"), ("dad", "bob")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("E", "F")],
+            directed=True,
+        )
+        label = graph.get_label_from_id
+        lca = graph.all_pairs_all_lowest_common_ancestors(
+            pairs=[("C", "D"), ("C", "F")]
+        )
+        {
+            (label(u), label(v)): [label(w) for w in ws]
+            for (u, v), ws in lca.items()
+        }
+        ```
 
-        label = family.get_label_from_id
-        found = family.all_pairs_all_lowest_common_ancestors([("ann", "bob"), ("ann", "eve")])
-        {tuple(label(n) for n in pair): [label(a) for a in lcas] for pair, lcas in found.items()}
+        ### Meeting points of a program
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Of all the pairs of different courses,
+        only two have more than one lowest common ancestor:
+
+        ```{python}
+        from collections import Counter
+        from itertools import combinations
+
+        courses = ec.courses()
+        label = courses.get_label_from_id
+        lca = courses.all_pairs_all_lowest_common_ancestors(
+            pairs=list(combinations(courses.get_node_ids(), 2))
+        )
+
+        [(label(u), label(v)) for (u, v), ws in lca.items() if len(ws) > 1]
+        ```
+
+        Counting how often each course is a lowest common ancestor shows where the program's
+        paths meet. Data Structures (CS102) is the meeting point of 45 pairs:
+
+        ```{python}
+        meets = Counter(w for ws in lca.values() for w in ws)
+        courses.set_node_attrs("meets", dict(meets))
+
+        {label(n): k for n, k in meets.most_common(4)}
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", size_by="meets", color_by="dept", label_by="label",
+            height=420,
+        )
         ```
         """
         self._require_dag("all_pairs_all_lowest_common_ancestors")
