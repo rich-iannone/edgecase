@@ -35539,15 +35539,54 @@ class Graph:
         The code follows from the arcs among the three nodes, using NetworkX's `triad_type` rules
         on the induced subgraph.
 
+        See Also
+        --------
+        triadic_census : Count every triad by its type.
+        triads_by_type : List the triples of each type.
+
         Examples
         --------
+        The type names the arcs among three nodes: `A`, `B` and `C` form a transitive triple, and
+        in `B`, `C` and `D` the mutual pair `C`-`D` joins the arc from `B`:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D"), ("D", "C")],
+            directed=True,
+        )
 
-        g.triad_type(["A", "B", "C"]), g.triad_type(["B", "C", "D"])
+        graph.triad_type(["A", "B", "C"]), graph.triad_type(["B", "C", "D"])
+        ```
+
+        ### Three patterns of payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. A ring of payments is a cycle (`030C`), money passed along a chain a
+        path (`021C`), and Dee and Eve, who pay each other and both pay the Grocer, a mutual pair
+        pointing up at a third account (`120U`):
+
+        ```{python}
+        payments = ec.payments()
+        triads = {
+            "ring": ["Ana", "Ben", "Cruz"],
+            "chain": ["Ivy", "Jo", "Kai"],
+            "shoppers": ["Dee", "Eve", "Grocer"],
+        }
+
+        {name: payments.triad_type(nodes) for name, nodes in triads.items()}
+        ```
+
+        ```{python}
+        payments.plot(
+            highlight={
+                "accent": ["Ana", "Ben", "Cruz", "Ana"],
+                "soft": [("Ivy", "Jo"), ("Jo", "Kai"), ("Dee", "Eve"),
+                         ("Dee", "Grocer"), ("Eve", "Grocer")],
+            },
+            label_by="label", seed=11, height=420,
+        )
         ```
         """
         if not self.is_directed():
