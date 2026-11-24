@@ -80427,27 +80427,40 @@ class Graph:
         The minimum branching is the maximum branching for the negated weights, found with
         Edmonds' cycle-contraction algorithm in $O(V E)$ time; see `maximum_branching()`.
 
+        See Also
+        --------
+        maximum_branching : The branching with the largest total weight.
+        minimum_spanning_arborescence : The cheapest branching that reaches every node from a root.
+
         Examples
         --------
-        With signed costs, the method keeps the profitable (negative) edges, as long as no node
-        gets two parents and no cycle forms:
+        With signed costs, the minimum branching keeps the negative edges (the gains), as long
+        as no node gets two parents and no cycle forms. `B` takes its cheaper parent `C`, and
+        `C` keeps `A`, for a total of -4:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", -2.0), ("C", "B", -3.0), ("A", "C", -1.0), ("B", "C", 4.0)])
-
-        # B takes its cheaper parent C (-3), and C keeps A (-1): total -4
-        g.minimum_branching().get_edges_str_repr(use_labels=True)
+        graph = ec.Graph.from_edges(
+            [("A", "B", -2.0), ("C", "B", -3.0),
+             ("A", "C", -1.0), ("B", "C", 4.0)],
+            directed=True,
+        )
+        branching = graph.minimum_branching()
+        branching.get_edges_str_repr(use_labels=True)
         ```
 
-        When every weight is positive, no edge lowers the total, so the result is empty:
+        ```{python}
+        graph.plot(
+            highlight_edges=branching.get_edge_ids(), edge_label_by="weight",
+            label_by="label", seed=1,
+        )
+        ```
+
+        When every weight is positive, no edge lowers the total, so the result has no edges:
 
         ```{python}
-        positive = ec.Graph(directed=True, weighted=True).add_nodes(["A", "B"])
-        positive.add_edge("A", "B", weight=1.0)
+        positive = ec.Graph.from_edges([("A", "B", 1.0)], directed=True)
         positive.minimum_branching().count_edges()
         ```
         """
