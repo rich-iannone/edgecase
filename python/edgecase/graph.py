@@ -26382,6 +26382,12 @@ class Graph:
             If `query=` isn't a string, `select=` isn't a name or a list of names, `params=`
             isn't a dict, or `label_key=` isn't a string or `None`.
 
+        See Also
+        --------
+        match : The matches of a pattern, as a table.
+        count_matches : Count the matches of a pattern.
+        select_nodes : Select the nodes that pass a test.
+
         Examples
         --------
         The movie graph from `match()`, with three people and two movies:
@@ -26419,7 +26425,8 @@ class Graph:
 
         ```{python}
         graph.select_match(
-            "MATCH (m:Movie {title: $title})--(p)", params={"title": "The Matrix"},
+            "MATCH (m:Movie {title: $title})--(p)",
+            params={"title": "The Matrix"},
             set_op="replace",
         )
         sorted(graph.get_label_from_id(i) for i in graph.get_selected_node_ids())
@@ -26430,11 +26437,36 @@ class Graph:
 
         ```{python}
         graph.select_match(
-            "MATCH (:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000", select="r"
+            "MATCH (:Person)-[r:ACTED_IN]->(m:Movie) WHERE m.released > 2000",
+            select="r",
         )
         graph.get_edge_df_ws()
         ```
 
+        ### Passing a large sum on
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. This pattern finds an account `b` that is paid 1,000 or more and
+        then pays 1,000 or more on, later in the month. Selecting `r` and `s` picks out the
+        payments that make up those steps:
+
+        ```{python}
+        payments = ec.payments()
+        payments.select_match(
+            "MATCH (a)-[r]->(b)-[s]->(c) "
+            "WHERE r.amount >= 1000 AND s.amount >= 1000 AND s.date > r.date",
+            select=["r", "s"],
+        )
+
+        payments.count_selected_edges()
+        ```
+
+        Most of them are the loops and the chain of large private payments. The others are
+        salaries passed on: Max pays the rent from theirs, and Eve sends 2,000 to Finn:
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         _check_set_op(set_op)
         if select is None:
