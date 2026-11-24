@@ -79030,52 +79030,53 @@ class Graph:
         `dominating_set()` uses a different, faster heuristic that does not aim to minimize
         size, so the two methods can return different sets even when all weights are $1$.
 
+        See Also
+        --------
+        dominating_set : A faster sweep with no costs.
+        is_dominating_set : Check a set of nodes.
+        minimum_weighted_vertex_cover : The same kind of problem for edges.
+
         Examples
         --------
-        The hub costs far more than any leaf, so the weighted algorithm favors dominating via the
-        cheaper leaves (total cost 3) rather than picking the hub (cost 10):
+        The hub costs more than all three leaves, so the leaves are chosen; without costs, the
+        hub alone covers everything:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_node(label="hub", cost=10)
-            .add_nodes(["leaf1", "leaf2", "leaf3"], cost=1)
-            .add_edges([("hub", "leaf1"), ("hub", "leaf2"), ("hub", "leaf3")])
-        )
+        graph = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
+        graph.set_node_attrs("cost", {1: 10, 2: 1, 3: 1, 4: 1})
+        label = graph.get_label_from_id
 
-        dom = graph.minimum_weighted_dominating_set(node_weight_attr="cost")
+        weighted = graph.minimum_weighted_dominating_set(node_weight_attr="cost")
+        plain = graph.minimum_weighted_dominating_set()
 
-        # Returns the labels chosen to minimize total cost
-        [graph.get_label_from_id(n) for n in dom]
+        [label(n) for n in weighted], [label(n) for n in plain]
         ```
 
-        Ignoring the costs (every node weighs 1) changes the answer: the hub alone covers all
-        four nodes, so it is the cheapest choice:
+        ### A hall without an access point
+
+        `offices()` is the floor plan of a made-up office, with its 20 rooms joined where a door
+        leads from one to the other. An access point reaches its own room and the rooms next
+        door, so the rooms for access points must form a dominating set. If West Hall 1, with
+        its glass roof, would cost ten times as much as any other room, the method covers its
+        neighbors from three rooms instead, the Lobby, the Kitchen and Meeting A, for six access
+        points in all:
 
         ```{python}
-        [graph.get_label_from_id(n) for n in graph.minimum_weighted_dominating_set()]
+        offices = ec.offices()
+        cost = {
+            n: 10 if offices.get_label_from_id(n) == "West Hall 1" else 1
+            for n in offices.get_node_ids()
+        }
+        offices = offices.set_node_attrs("cost", cost)
+        points = offices.minimum_weighted_dominating_set(node_weight_attr="cost")
+
+        [offices.get_label_from_id(n) for n in points]
         ```
 
-        This generalizes to a facility-location-style problem: place facilities at low-cost nodes
-        such that every node in the grid is covered:
-
         ```{python}
-        import random
-
-        graph = ec.Graph()
-        graph.add_grid_2d(rows=5, cols=5)
-
-        random.seed(23)
-        node_ids = graph.get_node_ids()
-        costs = {nid: random.uniform(1, 10) for nid in node_ids}
-        graph.set_node_attrs("facility_cost", costs)
-
-        facilities = graph.minimum_weighted_dominating_set(node_weight_attr="facility_cost")
-
-        # (number of facilities, whether they cover the whole grid)
-        (len(facilities), graph.is_dominating_set(facilities))
+        offices.plot(layout="pos", highlight=points, label_by="label")
         ```
         """
         from edgecase._core import min_weighted_dominating_set
