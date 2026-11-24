@@ -69,7 +69,7 @@ pub fn subgraph_centrality(graph: &Graph, normalized: bool) -> PyResult<FxHashMa
         a[(s, t)] = 1.0;
         a[(t, s)] = 1.0;
     }
-    let eig = na::SymmetricEigen::new(a);
+    let eig = crate::algorithms::eigen::symmetric_eigen(a);
     let shift = if normalized {
         eig.eigenvalues.max()
     } else {
