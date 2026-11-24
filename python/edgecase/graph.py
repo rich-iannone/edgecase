@@ -48209,11 +48209,7 @@ class Graph:
         if return_dict:
             return degrees
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, degrees)
-
-        # Track computation
-        self._computations.append(("degrees", {}, attr_name))
+        self._store_node_result("degrees", {}, attr_name, degrees, default_attr="degree")
 
         return self
 
