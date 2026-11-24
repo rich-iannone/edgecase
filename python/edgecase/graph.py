@@ -84352,6 +84352,13 @@ class Graph:
             If the graph is directed, disconnected, has fewer than two nodes, or has a negative
             weight.
 
+        See Also
+        --------
+        fiedler_vector : The vector whose sign splits the nodes.
+        spectral_ordering : Sort the nodes by the same vector.
+        cmty_l_eigenvec : Split by the modularity matrix's leading eigenvector instead.
+        minimum_cut : The fewest edges that cut the graph in two.
+
         Examples
         --------
         Two triangles joined by a bridge split along the bridge:
@@ -84359,12 +84366,73 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(list("ABCDEF"))
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                         ("D", "E"), ("E", "F"), ("F", "D")])
-
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
+        )
         left, right = graph.spectral_bisection()
-        [graph.get_label_from_id(n) for n in left], [graph.get_label_from_id(n) for n in right]
+
+        (
+            [graph.get_label_from_id(n) for n in left],
+            [graph.get_label_from_id(n) for n in right],
+        )
+        ```
+
+        ### Two shelves
+
+        In `polbooks()`, two books about US politics are linked when Amazon customers often bought
+        both, and the `leaning` attribute records each book's slant. Without looking at the
+        leanings, the bisection puts nearly all the liberal books on one side and the
+        conservative ones on the other, with the neutral books split between them:
+
+        ```{python}
+        from collections import Counter
+
+        books = ec.polbooks()
+        leaning = books.get_node_attrs("leaning")
+        left, right = books.spectral_bisection()
+
+        [Counter(leaning[n] for n in side) for side in (left, right)]
+        ```
+
+        Only 20 of the 441 links cross between the two sides:
+
+        ```{python}
+        side = set(left)
+        cut = [
+            (s, t) for _, s, t in books.get_edges_as_tuples()
+            if (s in side) != (t in side)
+        ]
+
+        len(cut), books.count_edges()
+        ```
+
+        ```{python}
+        books.layout_forceatlas2(seed=1).plot(
+            layout="pos", highlight=cut, color_by="leaning"
+        )
+        ```
+
+        ### Normalized cuts
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. The plain bisection splits off a small group of 22 characters. With
+        `normalized=True` each side is weighed by its links rather than its members, and the two
+        sides come out the same size, at the cost of cutting more links:
+
+        ```{python}
+        lesmis = ec.les_miserables()
+
+        def split(normalized):
+            left, right = lesmis.spectral_bisection(normalized=normalized)
+            side = set(left)
+            cut = sum(
+                (s in side) != (t in side)
+                for _, s, t in lesmis.get_edges_as_tuples()
+            )
+            return len(left), len(right), cut
+
+        split(False), split(True)
         ```
         """
         vec = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
