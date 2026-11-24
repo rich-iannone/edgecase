@@ -84889,25 +84889,52 @@ class Graph:
         search from every node, or Dijkstra's algorithm with `weighted=True`, in
         $O(V(V + E))$ or $O(V(V + E) \log V)$ time.
 
+        See Also
+        --------
+        wiener_index : The plain sum of distances.
+        kirchhoff_index : Sum resistance distances instead.
+
         Examples
         --------
-        On a 4-node path the distances are 1 (three pairs), 2 (two pairs) and 3 (one pair), so
-        `WW = ½ (3 · 2 + 2 · 6 + 1 · 12) = 15`; the Wiener index is 10:
+        Each pair at distance `d` adds `d (d + 1) / 2`, so on a path of four nodes the three
+        pairs at `1` add `1` each, the two at `2` add `3` each, and the ends `6`, for `15`:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_path_graph(4)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
         path.wiener_index(), path.hyper_wiener_index()
         ```
 
-        Among trees on the same number of nodes, the star is the most compact and the path the
-        least:
+        ### Long and compact molecules
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. The squared distances weigh far-apart atoms more,
+        so the index tells long molecules from compact ones more sharply than the Wiener index.
+        From isobutane to butane, whose four carbons form a chain rather than a branch, the
+        Wiener index rises by 11% and the hyper-Wiener index by 25%:
 
         ```{python}
-        star = ec.Graph().add_star_graph(6)
-        line = ec.Graph().add_path_graph(6)
-        star.hyper_wiener_index(), line.hyper_wiener_index()
+        import polars as pl
+
+        molecules = ec.molecules()
+
+        pl.DataFrame(
+            {
+                "molecule": list(molecules),
+                "wiener": [g.wiener_index() for g in molecules.values()],
+                "hyper_wiener": [
+                    g.hyper_wiener_index() for g in molecules.values()
+                ],
+            }
+        )
+        ```
+
+        ```{python}
+        molecules["caffeine"].plot(
+            color_by="element", label_by="label", seed=1
+        )
         ```
         """
         from edgecase._core import hyper_wiener_index
