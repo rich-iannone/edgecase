@@ -81186,25 +81186,42 @@ class Graph:
         right away. NetworkX numbers nodes `0` to `n - 1`; here the nodes are ranked by ID,
         so on a graph whose IDs are `1` to `n` the sequence matches NetworkX's shifted by one.
 
+        See Also
+        --------
+        from_prufer_sequence : Decode a sequence back into its tree.
+        to_nested_tuple : Encode the shape of a rooted tree.
+
         Examples
         --------
         In a star, every leaf hangs off the center, so the center is written down `n - 2`
-        times:
+        times. A path writes down each of its inner nodes once:
 
         ```{python}
         import edgecase as ec
 
-        star = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
-        star.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
-        [star.get_label_from_id(n) for n in star.to_prufer_sequence()]
+        star = ec.Graph.from_edges([("hub", x) for x in ["a", "b", "c", "d"]])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
+
+        (
+            [star.get_label_from_id(n) for n in star.to_prufer_sequence()],
+            [path.get_label_from_id(n) for n in path.to_prufer_sequence()],
+        )
         ```
 
-        A path writes down each inner node once:
+        A node appears once for each neighbor beyond its first, so in this tree `B` and `D`,
+        with three neighbors each, appear twice, while the leaves don't appear at all:
 
         ```{python}
-        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-        [path.get_label_from_id(n) for n in path.to_prufer_sequence()]
+        tree = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "D"), ("D", "E"), ("D", "F")]
+        )
+        [tree.get_label_from_id(n) for n in tree.to_prufer_sequence()]
+        ```
+
+        ```{python}
+        tree.plot(label_by="label", seed=1, width=400, height=300)
         ```
         """
         seq = rust.to_prufer_sequence(self._graph)
