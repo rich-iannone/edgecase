@@ -65380,30 +65380,50 @@ class Graph:
         ValueError
             If the graph is undirected or contains a cycle, or `max_sorts=` is below 1.
 
+        See Also
+        --------
+        topological_sort : One topological ordering.
+        lexicographical_topological_sort : The ordering that takes the smallest node first.
+        topological_generations : Group the nodes into layers.
+
         Examples
         --------
-        Getting dressed: socks and underwear can go on in either order, but shoes need both,
-        and trousers need underwear:
+        In a diamond, `B` and `C` can come in either order between `A` and `D`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["underwear", "socks", "trousers", "shoes"])
-            .add_edges([("underwear", "trousers"), ("trousers", "shoes"), ("socks", "shoes")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
         )
-
-        label = graph.get_label_from_id
-        [[label(n) for n in order] for order in graph.all_topological_sorts()]
+        [[graph.get_label_from_id(n) for n in order]
+         for order in graph.all_topological_sorts()]
         ```
 
-        Four independent tasks can run in any order, so `max_sorts=` keeps the result small:
+        ### Orders for the tasks of a project
+
+        `project()` is the plan for opening a made-up café, with an arrow from each task to every
+        task that can't start until it's done. Someone doing the tasks one at a time could take
+        them in 44,208 orders. After the start, every one of them begins by signing the lease:
 
         ```{python}
-        free = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        cafe = ec.project()
+        orders = cafe.all_topological_sorts()
 
-        len(free.all_topological_sorts()), len(free.all_topological_sorts(max_sorts=5))
+        len(orders), {cafe.get_label_from_id(order[1]) for order in orders}
+        ```
+
+        The freedom is in the branches that run side by side, such as the menu and website
+        tasks along the top and the hiring along the bottom:
+
+        ```{python}
+        cafe.plot(layout="pos", color_by="owner", label_by="label", height=360)
+        ```
+
+        `max_sorts=` stops early, here after the first three orders:
+
+        ```{python}
+        len(cafe.all_topological_sorts(max_sorts=3))
         ```
         """
         if max_sorts is not None and max_sorts < 1:
