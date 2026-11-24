@@ -49935,53 +49935,94 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to betweenness scores (range of
             `[0, 1]`). If `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        edge_betweenness_centrality : The same count for edges.
+        load_centrality : A close relative that splits paths evenly at each step.
+        betweenness_centrality_subset : Count only paths between chosen sources and targets.
+        current_flow_betweenness_centrality : Count all paths, not only the shortest.
+
         Examples
         --------
-        The "Bridge" node sits on every shortest path between the two clusters it
-        connects, so it earns a high betweenness score compared to the other nodes:
+        A node that joins two halves of a graph sits on every shortest path between them. In a
+        five-node path, the middle node carries the routes between the two nodes on each side of
+        it, and the ends carry none:
 
         ```{python}
         import edgecase as ec
 
-        # Create two clusters connected by a bridge node
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "Bridge", "C", "D"])
-            .add_edges([("A", "B"), ("B", "Bridge"), ("Bridge", "C"), ("C", "D")])
-        )
+        line = ec.Graph().add_path_graph(n=5)
 
-        scores = graph.betweenness_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): score for nid, score in scores.items()}
+        line.betweenness_centrality().get_node_df().select(
+            "label", "betweenness_centrality"
+        )
         ```
 
-        Sorting the scores surfaces the most important connectors first -- in a simple
-        path, that's whichever nodes sit closest to the middle:
+        ### The Medici
+
+        The marriages between the leading families of Renaissance Florence are a classic case.
+        The Medici had more marriage ties than any other family, but not overwhelmingly more:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
-        )
+        florentine = ec.florentine_families().betweenness_centrality()
 
-        scores = graph.betweenness_centrality(return_dict=True)
-        sorted(scores.items(), key=lambda x: x[1], reverse=True)[:3]
-        ```
-
-        On a weighted graph, paths follow the cheapest route. Here the direct edge A-C is so
-        heavy that traffic between A and C detours through B, which only then gains betweenness:
-
-        ```{python}
-        edges = [("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)]
-        weighted = ec.Graph(weighted=True).add_nodes(["A", "B", "C"]).add_edges(edges)
-
-        label = weighted.get_label_from_id
         (
-            {label(n): s for n, s in weighted.betweenness_centrality(return_dict=True).items()},
-            {label(n): s for n, s in weighted.betweenness_centrality(
-                weighted=False, return_dict=True).items()},
+            florentine.get_node_df()
+            .select("label", "degree", "betweenness_centrality")
+            .sort("betweenness_centrality", descending=True)
+            .head(6)
         )
         ```
+
+        The Medici have half again as many ties as the Guadagni or the Strozzi, but twice the
+        betweenness of any other family: a little over half of the shortest routes between the
+        other families pass through them. The Strozzi, with as many ties as the Guadagni, are
+        seventh, because the families they married into were already connected to each other.
+        Sizing and coloring the families by the score makes the brokers stand out:
+
+        ```{python}
+        florentine.plot(
+            size_by="betweenness_centrality",
+            color_by="betweenness_centrality",
+            label_by="label",
+            seed=5,
+        )
+        ```
+
+        ### Hops or minutes
+
+        On a weighted graph, the shortest route is the one with the lowest total weight. The metro
+        is weighted by travel time, so betweenness counts the fastest routes; with
+        `weighted=False` it counts the routes with the fewest stops:
+
+        ```{python}
+        metro = (
+            ec.metro()
+            .betweenness_centrality()
+            .betweenness_centrality(weighted=False, attr_name="by_stops")
+        )
+
+        (
+            metro.get_node_df()
+            .select("label", "betweenness_centrality", "by_stops")
+            .sort("betweenness_centrality", descending=True)
+            .head(5)
+        )
+        ```
+
+        Riverside lies on the most fewest-stops routes, but Market on the most fastest ones: the
+        downtown links through Market are quicker, so trips that could go either way go through
+        Market. Central drops from fourth to seventh when stops are counted instead of minutes.
+        Colored by the minutes-based score, the map shows the fastest routes funneling through
+        Market and Eastfield on the way east:
+
+        ```{python}
+        metro.plot(layout="pos", color_by="betweenness_centrality", label_by="label")
+        ```
+
+        For the edges that carry the most routes, use `edge_betweenness_centrality()`; for large
+        graphs where an estimate will do, `approximate_current_flow_betweenness_centrality()`
+        samples instead of using every pair.
         """
         use_weights = self._use_weights(weighted)
         if use_weights:
@@ -49996,12 +50037,9 @@ class Graph:
         if return_dict:
             return result_ids
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result_ids)
-
         # Track computation
         params = {} if weighted is None else {"weighted": weighted}
-        self._computations.append(("betweenness_centrality", params, attr_name))
+        self._store_node_result("betweenness_centrality", params, attr_name, result_ids)
 
         return self
 
