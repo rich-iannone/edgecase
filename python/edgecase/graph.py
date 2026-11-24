@@ -69694,6 +69694,12 @@ class Graph:
         ValueError
             If the graph is directed.
 
+        See Also
+        --------
+        articulation_points : The nodes shared between blocks.
+        is_biconnected : Check whether the whole graph is a single block.
+        chain_decomposition : The chains whose union makes up the blocks.
+
         Examples
         --------
         Two triangles hanging off a shared node C, plus a pendant edge: C belongs to both
@@ -69702,11 +69708,11 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                        ("C", "D"), ("D", "E"), ("E", "C"), ("E", "F")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("C", "D"), ("D", "E"), ("E", "C"), ("E", "F"),
+            ]
         )
 
         label = graph.get_label_from_id
@@ -69717,6 +69723,32 @@ class Graph:
 
         ```{python}
         graph.biconnected_components(edges=True)
+        ```
+
+        ### The blocks of the metro
+
+        `metro()` is a made-up city's metro network. Fifteen stations form one block, in which
+        every station can be reached two ways. Each of the other five blocks is a single
+        stretch of track out to the edge of the network:
+
+        ```{python}
+        metro = ec.metro()
+        blocks = metro.biconnected_components()
+
+        [len(block) for block in blocks]
+        ```
+
+        Labeling each stretch of track by its block, with `edges=True`, colors the core apart
+        from the branches:
+
+        ```{python}
+        edge_blocks = metro.biconnected_components(edges=True)
+        block_of = {e: i for i, block in enumerate(edge_blocks) for e in block}
+        metro.set_edge_attrs("block", block_of)
+        metro.plot(
+            layout="pos", edge_color_by="block", edge_width=4, edge_opacity=0.9,
+            label_by="label",
+        )
         ```
         """
         blocks = rust.biconnected_components(self._graph)
