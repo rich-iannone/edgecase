@@ -20743,22 +20743,21 @@ class Graph:
         """
         Betweenness centrality for nodes in one partition of a bipartite graph.
 
-        ![Bipartite betweenness centrality](../assets/graphs/bipartite-betweenness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths between top-side nodes. F joins B, C and D and scores 2.50, E, the only way out of A, scores 1.33, and G, which only touches D, scores 0." width="100%"}
+        ![Bipartite betweenness centrality](../assets/graphs/bipartite-betweenness-centrality.light.svg){.lightbox fig-alt="The same two-row bipartite graph, with the bottom side E to G shaded by how often each lies on shortest paths, as a share of the most a node on its side could. F joins B, C and D and scores 0.85, E, the only way out of A, scores 0.38, and G, which only touches D, scores 0." width="100%"}
 
         Betweenness measures how often a node lies on shortest paths, i.e. how much it acts as a
         broker or bridge. In a bipartite graph, any path between two nodes on the same side must
         pass through nodes on the other side, so brokerage is naturally a property of one
         partition relative to the other. This method scores the nodes of the chosen partition
-        by how often they sit *between* nodes, counting shortest paths that start at nodes of the
-        opposite partition.
+        by how often they sit *between* other nodes.
 
         Concretely, it runs a shortest-path search (Brandes' algorithm, hop counts, edge weights
-        ignored) from every node in the opposite partition to all nodes it can reach. Each node
-        in the chosen partition collects the fraction of those shortest paths that pass through
-        it (endpoints don't count). The totals are then multiplied by `2 / (m * (m - 1))`, where
-        `m` is the size of the opposite partition (no scaling when `m < 2`). Because paths to
-        every reachable node are counted, not only to the opposite partition, the scores are not
-        limited to `[0, 1]`; compare them with each other rather than against a fixed scale.
+        ignored) from every node, on either side. For each pair of nodes, each node in the
+        chosen partition collects the fraction of their shortest paths that pass through it
+        (endpoints don't count). Each total is then divided by the largest it could be for a
+        node on that side, which depends only on the sizes of the two partitions (Borgatti and
+        Halgin). The scores therefore lie between `0` and `1`, and they match those of
+        NetworkX's `bipartite.betweenness_centrality()`.
 
         Typical uses include finding:
 
@@ -20767,18 +20766,17 @@ class Graph:
         - products that bridge different customer segments
 
         Only nodes in the chosen partition are scored, and a node with a single neighbor always
-        scores `0.0`. The method performs one search per node in the opposite partition, so its
-        cost grows roughly with the size of that partition times the number of edges. On directed
-        graphs edge direction is ignored, so shortest paths are those of the underlying
-        undirected graph. The whole graph is used and the current selection is ignored.
+        scores `0.0`, as does every node when either partition is empty. The method performs one
+        search per node, so its cost grows roughly with the number of nodes times the number of
+        edges. On directed graphs edge direction is ignored, so shortest paths are those of the
+        underlying undirected graph. The whole graph is used and the current selection is ignored.
 
         Parameters
         ----------
         which
             Which partition to compute centrality for: `0` (default) or `1`. Partitions are
             numbered as in `bipartite_sets()`: in each connected component, partition `0` is the
-            side that contains the component's lowest node ID. The shortest paths are started
-            from the nodes of the *other* partition. Any other value raises an error.
+            side that contains the component's lowest node ID. Any other value raises an error.
         attr_name
             Name of the node DataFrame column the scores are written to. If `None` (default),
             the column is named `"bipartite_betweenness_centrality"`. Only nodes in the chosen
@@ -20793,54 +20791,65 @@ class Graph:
         -------
         Union[dict[int, float], Graph]
             If `return_dict=` is `True`: a dictionary mapping each node ID in the chosen
-            partition to its betweenness score. These are scaled sums of path fractions, so they
-            are not limited to the range `0` to `1`. If `return_dict=` is `False` (default): the
-            graph itself, for method chaining.
+            partition to its betweenness score (range `[0, 1]`). If `return_dict=` is `False`
+            (default): the graph itself, for method chaining.
 
         Raises
         ------
         ValueError
             If the graph is not bipartite, or if `which=` is not `0` or `1`.
 
+        See Also
+        --------
+        bipartite_degree_centrality : Rank the nodes of one side by their number of neighbors.
+        bipartite_closeness_centrality : Rank the nodes of one side by their distance to the rest.
+        betweenness_centrality : The same idea for any graph.
+
         Examples
         --------
-        In this people-film network the films are partition `1`. "Film2" links "Bob", "Cal",
-        and "Dee", so it lies on the most shortest paths and gets the top score. "Film3" is
-        attached only to "Cal", so nothing passes through it and it scores `0.0`:
+        Ben is the only link between the two clubs, so every path from Ana or the chess club to
+        the choir or Cruz passes through him. No person here could lie on more paths, so he
+        scores 1, and Ana and Cruz, at the ends, score 0:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Ann", "Bob", "Cal", "Dee", "Film1", "Film2", "Film3"])
-            .add_edges(
-                [
-                    ("Ann", "Film1"),
-                    ("Bob", "Film1"),
-                    ("Bob", "Film2"),
-                    ("Cal", "Film2"),
-                    ("Cal", "Film3"),
-                    ("Dee", "Film2"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"),
+             ("Cruz", "Choir")]
+        )
+        between = graph.bipartite_betweenness_centrality(
+            which=0, return_dict=True
         )
 
-        scores = graph.bipartite_betweenness_centrality(which=1, return_dict=True)
-        {graph.get_label_from_id(nid): round(score, 3) for nid, score in sorted(scores.items())}
+        {graph.get_label_from_id(n): b for n, b in sorted(between.items())}
         ```
 
-        Scoring the people instead (`which=0`) shows the brokers on that side: "Bob" and "Cal"
-        each join two films, while "Ann" and "Dee" have a single film each and score `0.0`.
-        Here the scores are stored under a custom column name and read back from the node
-        DataFrame:
+        ### A bridge between two groups
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. Evelyn Jefferson, Theresa Anderson and Nora Fayette each attended 8 events,
+        but Nora Fayette ranks first, as her events span both groups of women:
 
         ```{python}
-        (
-            graph
-            .bipartite_betweenness_centrality(which=0, attr_name="brokerage")
-            .get_node_df()
-            .select(["label", "brokerage"])
+        davis = ec.davis_southern_women()
+        between = davis.bipartite_betweenness_centrality(
+            which=0, return_dict=True
+        )
+        ranked = sorted(between, key=between.get, reverse=True)
+
+        [(davis.get_label_from_id(n), round(between[n], 3)) for n in ranked[:4]]
+        ```
+
+        ```{python}
+        women, events = davis.bipartite_sets()
+
+        davis.set_node_attrs("betweenness", between).layout_bipartite(
+            nodes=women, aspect_ratio=0.5
+        ).plot(
+            layout="pos", color_by="betweenness", color_scale="sequential",
+            label_by="label", height=900,
         )
         ```
         """
