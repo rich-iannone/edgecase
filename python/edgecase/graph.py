@@ -41007,17 +41007,66 @@ class Graph:
         depends on the eigensolver's arbitrary sign; NetworkX also ignores edge weights, so use
         `weighted=False` to match it on weighted graphs. Parallel edges add up.
 
+        See Also
+        --------
+        cmty_l_eigenvec : Split again and again, for more communities.
+        greedy_node_swap_bipartition : Refine the split by moving single nodes.
+        kernighan_lin_bisection : Split into two halves of equal size.
+
         Examples
         --------
-        Zachary's karate club splits almost exactly along the club's real fission:
+        Two squares with a diagonal, joined by two edges. The signs of the leading eigenvector
+        separate the squares, for a modularity of `0.333`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.karate_club()
-        left, right = g.spectral_modularity_bipartition()
-        len(left), len(right), g.modularity([left, right])
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C"),
+            ("E", "F"), ("F", "G"), ("G", "H"), ("H", "E"), ("E", "G"),
+            ("D", "E"), ("C", "F"),
+        ])
+
+        first, second = graph.spectral_modularity_bipartition()
+
+        (
+            sorted(graph.get_label_from_id(n) for n in first),
+            round(graph.modularity([first, second]), 3),
+        )
         ```
+
+        ### The split of the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Counting the members of each side of the bipartition by faction:
+
+        ```{python}
+        karate = ec.karate_club().layout_kamada_kawai()
+        first, second = karate.spectral_modularity_bipartition()
+
+        karate.set_node_attrs("side", 0)
+        karate.set_node_attrs("side", 1, nodes=list(second))
+
+        (
+            karate.get_node_df()
+            .group_by("side", "faction")
+            .len()
+            .sort("side", "faction")
+        )
+        ```
+
+        The two sides are exactly the two factions. Only the 10 friendships drawn in gray cross
+        between them:
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="side", edge_color_by="side", label_by="label"
+        )
+        ```
+
+        Splitting each side again in the same way gives `cmty_l_eigenvec()`, and
+        `greedy_node_swap_bipartition()` can refine the split by moving single nodes.
         """
         if self.is_directed():
             raise ValueError("spectral_modularity_bipartition() requires an undirected graph")
