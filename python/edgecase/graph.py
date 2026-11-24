@@ -32343,28 +32343,54 @@ class Graph:
         bool
             `True` if the graph contains at least one cycle, `False` if acyclic.
 
+        See Also
+        --------
+        simple_cycles : Every cycle in the graph.
+        is_dag : Check if a directed graph has no cycles.
+        girth : The length of the shortest cycle.
+
         Examples
         --------
+        A chain of arrows has no cycle until an arrow leads back to its start:
+
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        loop = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
         )
 
-        graph.has_cycles()
+        chain.has_cycles(), loop.has_cycles()
         ```
 
-        Adding an edge back from "C" to "A" closes the loop, so the graph now contains a
+        ### Which molecules have rings
+
+        `molecules()` holds seven small molecules as graphs of their atoms and bonds, with the
+        hydrogen atoms left out. A molecule has a ring of atoms exactly when its graph has a
         cycle:
 
         ```{python}
-        graph.add_edge("C", "A")
-        graph.has_cycles()
+        molecules = ec.molecules()
+
+        {name: molecule.has_cycles() for name, molecule in molecules.items()}
         ```
 
+        Benzene's six carbons form a ring, and butane's form a chain:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        molecules["benzene"].plot(
+            label_by="label", edge_label_by="bond", width=320, height=360
+        )
+        ```
+
+        ```{python}
+        molecules["butane"].plot(label_by="label", width=320, height=360)
+        ```
+
+        :::
         """
         return self._graph.has_cycles()
 
