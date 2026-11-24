@@ -25210,52 +25210,60 @@ class Graph:
         Parameters
         ----------
         edge_ids
-            A list of integer edge IDs to remove from the selection. IDs that are not selected,
-            or that match no edge at all, are silently ignored (no error is raised). An empty
-            list leaves the selection unchanged. Edge IDs can be found with `get_edge_ids()`,
-            `get_selected_edge_ids()`, or the `id` column of `get_edge_df()`.
+            The integer IDs of the edges to remove from the selection, as a list or any other
+            iterable. IDs that are not selected, or that match no edge at all, are silently
+            ignored (no error is raised). An empty list leaves the selection unchanged. Edge IDs
+            can be found with `get_edge_ids()`, `get_selected_edge_ids()`, or the `id` column
+            of `get_edge_df()`.
 
         Returns
         -------
         Graph
             The same graph (modified in place) for method chaining.
 
+        See Also
+        --------
+        deselect_nodes : Remove nodes from the selection.
+        invert_edge_selection : Select the edges that aren't selected.
+        clear_selection : Clear the whole selection.
+
         Examples
         --------
-        Selecting every edge in a 5-edge cycle and then deselecting one leaves the other
-        four selected:
+        This selects the edges of a cycle and deselects the first, leaving the other four:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_cycle_graph(5)
-
-        all_edges = graph.get_edge_ids()
-        graph.select_edges_by_id(all_edges)
-        graph.deselect_edges([all_edges[0]])
+        graph.select_edges_by_id(graph.get_edge_ids()).deselect_edges([1])
 
         graph.count_selected_edges()
         ```
 
-        Deselection is useful for protecting an edge from a bulk operation. Here every edge
-        touching "B" is selected, the `B-C` edge is deselected, and the rest are deleted --
-        so `B-C` and the unrelated `C-D` remain:
+        ### Every payment but the salary
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. To flag Dee's payments for a review but leave out the salary from
+        Acme, select the edges at Dee and then deselect that one:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-            .select_edges_by_node(["B"])
+        payments = ec.payments()
+        salary = payments.find_edge_ids("Acme", "Dee")
+        (
+            payments
+            .select_edges_by_node(["Dee"])
+            .deselect_edges(salary)
+            .set_edge_attrs_ws(review=True)
         )
 
-        b_c = graph.get_edge_ids()[1]  # IDs follow creation order: A-B, B-C, C-D
-        graph.deselect_edges([b_c]).delete_edges_ws()
-
-        graph.get_edge_df()
+        payments.count_selected_edges()
         ```
 
+        ```{python}
+        payments.plot(highlight_edges="review", label_by="label", seed=3)
+        ```
         """
+        edge_ids = list(edge_ids)
         self._graph.deselect_edges(edge_ids)
 
         if self._recording_depth == 0:
