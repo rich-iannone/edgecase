@@ -63326,16 +63326,37 @@ class Graph:
         ---------------
         Grouped from the tree edges of `dfs_edges()`. Matches NetworkX's `dfs_successors`.
 
+        See Also
+        --------
+        dfs_predecessors : The same tree, from each node to the node it was reached from.
+        bfs_successors : The successors from a breadth-first search.
+
         Examples
         --------
+        Each node maps to the nodes the search reached from it:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("A", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("A", "D")])
 
-        {g.get_label_from_id(p): [g.get_label_from_id(c) for c in cs]
-         for p, cs in g.dfs_successors("A").items()}
+        label = graph.get_label_from_id
+        next_nodes = graph.dfs_successors("A")
+        {label(p): [label(c) for c in cs] for p, cs in next_nodes.items()}
+        ```
+
+        ### The search tree of a degree program
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        From CS101, the DFS tree reaches every course that needs it, most of them down long
+        branches:
+
+        ```{python}
+        courses = ec.courses()
+        opens = courses.dfs_successors("CS101")
+
+        steps = [(p, c) for p, cs in opens.items() for c in cs]
+        courses.plot(highlight=steps, label_by="label", seed=2)
         ```
         """
         with self._no_recording():
