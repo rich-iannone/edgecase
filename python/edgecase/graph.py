@@ -1329,6 +1329,29 @@ class Graph:
         ```{python}
         graph.clear_steps().print_steps()
         ```
+
+        ### Checking a log before replaying it
+
+        `print_steps()` is a quick way to see what a replay will contain. After a short analysis of
+        the metro network, the log has one line for the network itself and one for each call:
+
+        ```{python}
+        metro = ec.metro()
+
+        metro.shortest_path("Westgate", "Airport")
+        metro.bfs("Airport")
+
+        metro.print_steps()
+        ```
+
+        `play()` turns each of those lines into a frame, and the search from Airport into one frame
+        per station it reaches:
+
+        ```{python}
+        metro.play(layout="pos")
+        ```
+
+        For the full table of steps, with their narration, use `steps.to_polars()`.
         """
         if not self._steps:
             print("No steps recorded.")
