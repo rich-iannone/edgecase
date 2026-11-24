@@ -79746,7 +79746,11 @@ class Graph:
         Uses the Shortest-Path Heuristic (SPH) with edge-cost reuse: greedily selects the cheapest
         path from root to an uncovered terminal, then zeroes the cost of used edges so future paths
         reuse them for free. This encourages path sharing and produces compact arborescences. Any
-        terminal that lies on a chosen path is covered along the way.
+        terminal that lies on a chosen path is covered along the way. The paths are then improved:
+        the cheapest arborescence from the root over the nodes they reach (by Edmonds' algorithm,
+        on every edge among them) replaces them when it costs less, with the branches that lead to
+        no terminal pruned away. This catches a terminal that is cheaper to reach from a node
+        that a later path brought in.
 
         Typical uses include:
 
@@ -79793,44 +79797,55 @@ class Graph:
             found, a terminal is not reachable from the root, or `weight_attr=` names an attribute
             that an edge lacks or holds as a non-number.
 
+        See Also
+        --------
+        steiner_tree : The same, ignoring edge directions.
+        minimum_spanning_arborescence : The cheapest arborescence that reaches every node.
+
         Examples
         --------
-        The root `R` can reach `C` directly (cost 5) or through `A` (cost 1 + 1). Because `A` is
-        also on the way to terminal `B`, the heuristic routes everything through `A`, and the
-        direct `R -> C` edge is left out:
+        From `R`, the tree reaches `B` and `D` by sharing the edge into `A`, rather than taking
+        the expensive edge straight to `C`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True, weighted=True)
-        g.add_nodes(["R", "A", "B", "C", "D"])
-        g.add_edges(
-            [("R", "A", 1.0), ("A", "B", 2.0), ("R", "C", 5.0), ("A", "C", 1.0), ("C", "D", 1.0)]
+        graph = ec.Graph.from_edges(
+            [("R", "A", 1.0), ("A", "B", 2.0), ("R", "C", 5.0),
+             ("A", "C", 1.0), ("C", "D", 1.0)],
+            directed=True,
+        )
+        graph.directed_steiner_tree("R", ["B", "D"]).get_edges_str_repr(
+            use_labels=True
+        )
+        ```
+
+        ### Supplying two districts
+
+        `pipeline()` is a made-up city's water supply, with each pipe's `capacity` in megaliters
+        a day and its running `cost`. Keeping water flowing from the Reservoir to the North and
+        South Districts alone costs 8, with the two routes sharing the pipes as far as Valley
+        Junction:
+
+        ```{python}
+        pipeline = ec.pipeline()
+        districts = ["North District", "South District"]
+        tree = pipeline.directed_steiner_tree(
+            "Reservoir", districts, weight_attr="cost"
         )
 
-        tree = g.directed_steiner_tree("R", ["B", "D"])
-        tree.count_edges()
+        tree.get_edge_df()["cost"].sum()
         ```
 
-        With `return_subgraph=False`, the edges come back as `(source_id, target_id, weight)`
-        tuples, which makes the total cost easy to compute:
-
         ```{python}
-        edges = g.directed_steiner_tree("R", ["B", "D"], return_subgraph=False)
-        (edges, sum(w for _, _, w in edges))
-        ```
-
-        Direction matters: a terminal that can only be reached by traveling against an edge is
-        unreachable, and the method raises a `ValueError`:
-
-        ```{python}
-        g.add_node(label="E")
-        g.add_edge("E", "R", weight=1.0)  # E points to R, not the other way around
-
-        try:
-            g.directed_steiner_tree("R", ["B", "E"])
-        except ValueError as e:
-            print(e)
+        pipeline.plot(
+            layout="pos",
+            highlight={"accent": ["Reservoir"] + districts},
+            highlight_edges={"soft": tree.get_edge_ids()},
+            label_by="label",
+            width=700,
+            height=360,
+        )
         ```
         """
         from edgecase._core import directed_steiner_tree as _directed_steiner_tree
