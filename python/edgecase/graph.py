@@ -54625,6 +54625,11 @@ class Graph:
         ValueError
             If a node does not exist, or weights are used and one is negative.
 
+        See Also
+        --------
+        betweenness_centrality : Count paths between all pairs.
+        edge_betweenness_centrality_subset : The same measure for edges.
+
         Examples
         --------
         On a path A-B-C-D-E, traffic from A to C only passes through B, so D gets no credit:
@@ -54632,15 +54637,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
-        scores = path.betweenness_centrality_subset(["A"], ["C"], return_dict=True)
-        {path.get_label_from_id(n): s for n, s in sorted(scores.items())}
+        (
+            path.betweenness_centrality_subset(["A"], ["C"])
+            .get_node_df()
+            .select("label", "betweenness_centrality_subset")
+        )
         ```
+
+        On the metro, the fastest trips from the Airport to Docks and to Shipyard both run through
+        Business Park, Eastfield, Market, Riverside and Harbor, so those five stations, and no
+        others, score. On an undirected graph, each trip adds `0.5`:
+
+        ```{python}
+        import polars as pl
+
+        metro = ec.metro().betweenness_centrality_subset(
+            ["Airport"], ["Docks", "Shipyard"]
+        )
+
+        (
+            metro.get_node_df()
+            .filter(pl.col("betweenness_centrality_subset") > 0)
+            .select("label", "betweenness_centrality_subset")
+        )
+        ```
+
+        For all pairs of nodes, use `betweenness_centrality()`.
         """
         src = [self._resolve_node_id(s, auto_create=False) for s in sources]
         tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
