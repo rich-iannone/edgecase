@@ -76689,27 +76689,58 @@ class Graph:
         same number of edges $k$, maximizing $\sum (W + 1 - w) = k(W + 1) - \sum w$ minimizes
         the original total. It runs in $O(V^3)$ time.
 
+        See Also
+        --------
+        maximum_weight_matching : The heaviest matching.
+        bipartite_minimum_weight_full_matching : The same for the two sides of a bipartite graph.
+
         Examples
         --------
-        Four delivery drivers must be paired into two-person teams, and each edge is the extra
-        driving time if the two share a route. The cheapest pairing matches A with B and C
-        with D:
+        Four delivery drivers are paired into two-person teams, and each edge is the extra
+        driving time if the two share a route. The cheapest single edge, `A`-`C`, isn't used:
+        pairing `A` with `C` would force `B` and `D` together, for 7 in all instead of 5:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [("A", "B", 2.0), ("C", "D", 3.0), ("A", "C", 1.0), ("B", "D", 6.0), ("A", "D", 4.0)]
+        g = ec.Graph.from_edges(
+            [("A", "B", 2.0), ("C", "D", 3.0), ("A", "C", 1.0),
+             ("B", "D", 6.0), ("A", "D", 4.0)]
         )
-
         teams = g.minimum_weight_matching()
-        [(g.get_label_from_id(e.source), g.get_label_from_id(e.target), e.weight)
-         for e in (g.get_edge(i) for i in teams)]
+
+        label = g.get_label_from_id
+        [[label(n) for n in g.get_node_ids_by_edge_id(e)] for e in teams]
         ```
 
-        The cheapest single edge, A-C (1), is not used: pairing A with C would force B and D
-        together at a cost of 6, for a total of 7 instead of 5.
+        ### Covering seven tasks in the fewest hours
+
+        `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
+        each can do, weighted by the hours it would take them. At most seven of the tasks can be
+        covered. Of the ways to cover seven, the quickest takes 32 hours and leaves DevOps to
+        wait:
+
+        ```{python}
+        team = ec.teams()
+        matched = team.minimum_weight_matching()
+
+        label = team.get_label_from_id
+        ends = team.get_node_ids_by_edge_id
+        done = {label(n) for e in matched for n in ends(e)}
+        tasks = team.get_node_df().filter(side="task")["label"]
+
+        (
+            len(matched),
+            sum(team.get_edge(e).weight for e in matched),
+            [t for t in tasks if t not in done],
+        )
+        ```
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4).plot(
+            layout="pos", highlight_edges=matched, label_by="label", height=300
+        )
+        ```
         """
         use = self._use_weights(weighted)
         eids = rust.blossom_max_weight_matching(self._graph, True, use, True)
