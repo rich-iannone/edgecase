@@ -82751,121 +82751,51 @@ class Graph:
         minutes, while `normalized=True` takes seconds. `"all"`, small graphs, and directed
         graphs use a dense $O(n^3)$ eigendecomposition, practical up to a few thousand nodes.
 
+        See Also
+        --------
+        laplacian_matrix : The matrix whose eigenvalues these are.
+        algebraic_connectivity : The second smallest eigenvalue on its own.
+        fiedler_vector : The eigenvector of the second smallest eigenvalue.
+        adjacency_spectrum : The eigenvalues of the adjacency matrix instead.
+
         Examples
         --------
-        **Detecting Disconnected Components**
-
-        The number of zero eigenvalues in the Laplacian spectrum equals the number of connected
-        components, so a graph made of two separate pieces has exactly two eigenvalues at (or
-        very near) zero:
+        There are as many zero eigenvalues as connected components, two here:
 
         ```{python}
         import edgecase as ec
 
-        # Graph with 2 components
-        g = ec.Graph(directed=False)
-        # Component 1
-        g.add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
-        # Component 2
-        g.add_nodes(["X", "Y"]).add_edge(source="X", target="Y")
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("D", "E")])
+        spectrum = graph.laplacian_spectrum(which="all")
 
-        spec = g.laplacian_spectrum(which="smallest", k=3)
+        [round(v, 3) + 0.0 for v in spectrum["values"]]
+        ```
 
-        # λ₁ = 0 has multiplicity = number of connected components
-        # Returns 2 (the number of components)
-        sum(1 for v in spec['values'] if abs(v) < 1e-6)
+        ### Cutting the two clubs apart
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. With the five friendships between the clubs deleted, the
+        spectrum has two zeros, one for each club. In the whole network the second smallest
+        eigenvalue, the algebraic connectivity, is small but no longer `0`:
+
+        ```{python}
+        friends = ec.friends()
+        club = friends.get_node_attrs("club")
+        apart = (
+            ec.friends()
+            .select_edges(lambda e: club[e.source] != club[e.target])
+            .delete_edges_ws()
+        )
+
+        def smallest(graph):
+            values = graph.laplacian_spectrum(k=3)["values"]
+            return [round(v, 3) + 0.0 for v in values]
+
+        smallest(apart), smallest(friends)
         ```
 
         ```{python}
-        # Algebraic connectivity (= 0 means disconnected)
-        spec['algebraic_connectivity']
-        ```
-
-        **Spectral Clustering with Fiedler Vector**
-
-        The Fiedler vector (the eigenvector for the second-smallest eigenvalue) naturally
-        splits a graph into two clusters based on the sign of each entry -- nodes with the
-        same sign belong to the same community:
-
-        ```{python}
-        # Two-way spectral clustering
-        g = ec.Graph(directed=False)
-        # Create graph with two communities...
-        g.add_nodes([f"n{i}" for i in range(6)])
-
-        # Dense intra-community edges
-        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5")])
-        # Sparse inter-community edge
-        g.add_edge(source="n2", target="n3")
-
-        spec = g.laplacian_spectrum(which="smallest", k=3)
-        fiedler_vector = spec['vectors'][1]  # Second eigenvector (λ₂)
-
-        # Entry j of the vector belongs to node spec['nodes'][j]
-        labels = [g.get_label_from_id(node_id) for node_id in spec['nodes']]
-
-        # Partition based on sign of Fiedler vector
-        cluster_1 = [lab for lab, v in zip(labels, fiedler_vector) if v < 0]
-        cluster_2 = [lab for lab, v in zip(labels, fiedler_vector) if v >= 0]
-
-        # Returns the two clusters found via the Fiedler vector
-        cluster_1, cluster_2
-        ```
-
-        **Measuring Graph Expansion**
-
-        The algebraic connectivity (`λ₂`) bounds how well-connected a graph is: a large value
-        indicates an expander graph that's hard to partition, while a small value signals a
-        bottleneck that's easy to cut:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes([f"n{i}" for i in range(6)])
-        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5"), ("n2", "n3")])
-
-        # Algebraic connectivity measures expansion
-        spec = g.laplacian_spectrum(which="smallest", k=2)
-
-        # Cheeger inequality: h²/(2Δ) ≤ λ₂ ≤ 2h
-        # where h = edge expansion, Δ = max degree
-        # A small value here reflects the sparse bridge between the two dense halves
-        spec['algebraic_connectivity']
-        ```
-
-        **Normalized Laplacian for Weighted Graphs**
-
-        Normalizing the Laplacian accounts for degree variations and constrains eigenvalues
-        to the range `[0, 2]`, which is useful when edge weights differ substantially:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B", 1.0), ("B", "C", 2.0), ("C", "A", 0.5)])
-
-        # Normalized Laplacian accounts for degree variations
-        spec = g.laplacian_spectrum(which="all", normalized=True)
-
-        # Eigenvalues in [0, 2] for undirected graphs
-        # λ = 0 ⟺ connected component, λ = 2 ⟺ bipartite structure
-        spec['values']
-        ```
-
-        **Random Walk and Diffusion Analysis**
-
-        The algebraic connectivity also governs how fast a random walk mixes on the graph --
-        larger values mean the walk converges to its steady state more quickly:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes([f"n{i}" for i in range(6)])
-        g.add_edges([("n0", "n1"), ("n1", "n2"), ("n3", "n4"), ("n4", "n5"), ("n2", "n3")])
-
-        # Laplacian eigenvalues determine diffusion speed
-        spec = g.laplacian_spectrum(which="smallest", k=5)
-
-        # Mixing time ≈ 1 / λ₂ (algebraic connectivity)
-        # Small λ₂ -> slow mixing, large λ₂ -> fast mixing
-        spec['algebraic_connectivity']
+        apart.plot(color_by="club", label_by="label", seed=8)
         ```
         """
         return self._graph.get_laplacian_spectrum(which, k, normalized)
