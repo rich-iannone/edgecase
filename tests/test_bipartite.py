@@ -233,6 +233,25 @@ class TestBipartiteDegreeCentrality:
         assert result is simple_bipartite
 
 
+def _random_bipartite_pairs(seed, count):
+    """Random bipartite NetworkX graphs (some disconnected) with their edgecase copies."""
+    rng = random.Random(seed)
+    for i in range(count):
+        reference = nx.bipartite.random_graph(
+            rng.randint(1, 8), rng.randint(1, 8), 0.35, seed=seed * 1000 + i
+        )
+        edges = list(reference.edges())
+        rng.shuffle(edges)
+
+        g = ec.Graph()
+        for node in reference.nodes():
+            g.add_node(label=str(node))
+        for u, v in edges:
+            g.add_edge(str(u), str(v))
+        label_of = {g.get_id_from_label(str(node)): node for node in reference.nodes()}
+        yield g, label_of, reference, g.bipartite_sets()
+
+
 class TestBipartiteClosenessCentrality:
     def test_returns_correct_count(self, simple_bipartite):
         g = simple_bipartite
@@ -261,9 +280,10 @@ class TestBipartiteClosenessCentrality:
     def test_shortest_distances_on_cycle(self, reverse):
         """Distances are true shortest paths, whatever order the edges were added in.
 
-        On the 8-cycle A-x-B-y-C-z-D-w-A, A is 1 hop from x and w and 3 hops from y
-        and z, so its closeness is 4 / (1 + 3 + 3 + 1) = 0.5 (a depth-first walk
-        around the cycle used to report 5 hops to one of them).
+        On the 8-cycle A-x-B-y-C-z-D-w-A, A's distances to the other seven nodes are
+        1, 2, 3, 4, 3, 2, 1, so with 4 nodes on each side its closeness is
+        (4 + 2 * 3) / 16 = 0.625 (a depth-first walk around the cycle used to report
+        longer distances).
         """
         ring = ["A", "x", "B", "y", "C", "z", "D", "w"]
         edges = [(ring[i], ring[(i + 1) % 8]) for i in range(8)]
@@ -281,35 +301,29 @@ class TestBipartiteClosenessCentrality:
         cc = g.bipartite_closeness_centrality(which=which, return_dict=True)
 
         assert len(cc) == 4
-        assert all(score == pytest.approx(0.5) for score in cc.values())
+        assert all(score == pytest.approx(0.625) for score in cc.values())
 
-    def test_matches_networkx_shortest_paths(self):
-        """Scores match the documented formula computed from NetworkX BFS distances."""
-        import random
-
-        rng = random.Random(7)
-        for seed in range(40):
-            reference = nx.bipartite.random_graph(
-                rng.randint(2, 8), rng.randint(2, 8), 0.4, seed=seed
-            )
-            edges = list(reference.edges())
-            rng.shuffle(edges)
-
-            g = ec.Graph()
-            for node in reference.nodes():
-                g.add_node(label=str(node))
-            for u, v in edges:
-                g.add_edge(str(u), str(v))
-            label_of = {g.get_id_from_label(str(node)): node for node in reference.nodes()}
-
-            s0, s1 = g.bipartite_sets()
-            for which, (targets, others) in enumerate([(s0, s1), (s1, s0)]):
+    def test_matches_networkx(self):
+        """Scores match NetworkX's bipartite closeness, including disconnected graphs."""
+        for g, label_of, reference, sides in _random_bipartite_pairs(7, 40):
+            for which, targets in enumerate(sides):
+                if not targets or not sides[1 - which]:
+                    continue
                 cc = g.bipartite_closeness_centrality(which=which, return_dict=True)
+                expected = nx.bipartite.closeness_centrality(
+                    reference, [label_of[n] for n in targets]
+                )
                 for node_id in targets:
-                    dist = nx.single_source_shortest_path_length(reference, label_of[node_id])
-                    reached = [dist[label_of[o]] for o in others if label_of[o] in dist]
-                    expected = len(reached) / sum(reached) if reached else 0.0
-                    assert cc[node_id] == pytest.approx(expected)
+                    assert cc[node_id] == pytest.approx(expected[label_of[node_id]])
+
+    def test_club_example(self):
+        """Ana's distances sum to 10, against the best possible 6 that Ben has."""
+        g = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"), ("Cruz", "Choir")]
+        )
+        cc = g.bipartite_closeness_centrality(which=0, return_dict=True)
+        by_label = {g.get_label_from_id(n): v for n, v in cc.items()}
+        assert by_label == pytest.approx({"Ana": 0.6, "Ben": 1.0, "Cruz": 0.6})
 
 
 class TestBipartiteBetweennessCentrality:
@@ -326,6 +340,38 @@ class TestBipartiteBetweennessCentrality:
         gene_set = _gene_set_index(g, s0, s1)
         bb = g.bipartite_betweenness_centrality(which=gene_set, return_dict=True)
         assert all(v >= 0 for v in bb.values())
+
+    def test_matches_networkx(self):
+        """Scores match NetworkX's bipartite betweenness, so they stay within [0, 1]."""
+        for g, label_of, reference, sides in _random_bipartite_pairs(11, 40):
+            for which, targets in enumerate(sides):
+                others = sides[1 - which]
+                if not targets or not others:
+                    continue
+                top = [label_of[n] for n in targets]
+                try:
+                    expected = nx.bipartite.betweenness_centrality(reference, top)
+                except ZeroDivisionError:
+                    # NetworkX divides by a zero maximum when each side has one node
+                    continue
+                bb = g.bipartite_betweenness_centrality(which=which, return_dict=True)
+                for node_id in targets:
+                    assert bb[node_id] == pytest.approx(expected[label_of[node_id]])
+                    assert 0.0 <= bb[node_id] <= 1.0 + 1e-12
+
+    def test_single_bridge_scores_one(self):
+        """The only person linking two clubs lies on as many paths as possible."""
+        g = ec.Graph.from_edges(
+            [("Ana", "Chess"), ("Ben", "Chess"), ("Ben", "Choir"), ("Cruz", "Choir")]
+        )
+        bb = g.bipartite_betweenness_centrality(which=0, return_dict=True)
+        by_label = {g.get_label_from_id(n): v for n, v in bb.items()}
+        assert by_label == pytest.approx({"Ana": 0.0, "Ben": 1.0, "Cruz": 0.0})
+
+    def test_one_node_per_side_scores_zero(self):
+        """A single edge has no paths through either end."""
+        g = ec.Graph.from_edges([("A", "B")])
+        assert g.bipartite_betweenness_centrality(which=0, return_dict=True) == {1: 0.0}
 
 
 class TestBipartiteDirected:
