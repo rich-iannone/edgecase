@@ -63402,15 +63402,40 @@ class Graph:
         A breadth-first search stopped at the requested layer, $O(V + E)$ at most. Matches
         NetworkX's `descendants_at_distance`.
 
+        See Also
+        --------
+        bfs_layers : The nodes at every distance.
+        descendants : Every node reachable from a node, at any distance.
+
         Examples
         --------
+        B is one step from A, so its children C and D are exactly two steps away:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("B", "C"), ("B", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "D"), ("D", "E")]
+        )
 
-        sorted(g.get_label_from_id(n) for n in g.descendants_at_distance("A", 2))
+        label = graph.get_label_from_id
+        sorted(label(n) for n in graph.descendants_at_distance("A", 2))
+        ```
+
+        ### Two stops from Central
+
+        `metro()` is a made-up city's metro network. Six stations are exactly two stops from
+        Central, no fewer:
+
+        ```{python}
+        metro = ec.metro()
+        two_stops = metro.descendants_at_distance("Central", 2)
+
+        sorted(metro.get_label_from_id(n) for n in two_stops)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=list(two_stops), label_by="label")
         ```
         """
         with self._no_recording():
