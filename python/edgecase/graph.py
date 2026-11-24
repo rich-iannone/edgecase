@@ -24391,8 +24391,8 @@ class Graph:
         sorted(graph.get_selected_edge_ids())
         ```
 
-        Labels work just as well as IDs, and several nodes can be given at once. Selecting
-        around "A" and "D" picks up `A-B` and `C-D`, leaving the middle edge `B-C` alone:
+        In a directed graph, the edges coming in and those going out are both selected.
+        Deleting them cuts `hub` off from the rest, but keeps the node:
 
         ```{python}
         graph.clear_selection()
