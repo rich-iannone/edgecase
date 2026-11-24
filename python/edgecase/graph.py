@@ -26055,6 +26055,12 @@ class Graph:
             If `query=` isn't a string, `params=` isn't a dict, or `label_key=` isn't a string or
             `None`.
 
+        See Also
+        --------
+        select_match : Select the nodes or edges that a pattern matches.
+        count_matches : Count the matches of a pattern.
+        subgraph_isomorphisms : Find every copy of a small graph in this one.
+
         Examples
         --------
         A small movie graph, built from Cypher with `from_cypher()`:
@@ -26108,8 +26114,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH (a:Person)-[:ACTED_IN]->(m)<-[:ACTED_IN]-(b:Person) WHERE id(a) < id(b) "
-            "RETURN a.name, b.name, m.title"
+            "MATCH (a:Person)-[:ACTED_IN]->(m)<-[:ACTED_IN]-(b:Person) "
+            "WHERE id(a) < id(b) RETURN a.name, b.name, m.title"
         )
         ```
 
@@ -26118,7 +26124,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH (:Person {name: 'Lana Wachowski'})-[r*2]-(b:Person) RETURN b.name, r"
+            "MATCH (:Person {name: 'Lana Wachowski'})-[r*2]-(b:Person) "
+            "RETURN b.name, r"
         )
         ```
 
@@ -26128,8 +26135,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH p = shortestPath("
-            "(:Person {name: 'Carrie-Anne Moss'})-[*]-(:Person {name: 'Lana Wachowski'}))",
+            "MATCH p = shortestPath((:Person {name: 'Carrie-Anne Moss'})"
+            "-[*]-(:Person {name: 'Lana Wachowski'}))",
             use_labels=True,
         )
         ```
@@ -26149,8 +26156,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH p = shortestPath((:Person {name: 'Carrie-Anne Moss'})-[*]-(b)) "
-            "RETURN b.name AS name, length(p) AS hops, nodes(p) AS route "
+            "MATCH p = shortestPath((:Person {name: 'Carrie-Anne Moss'})-[*]-(b))"
+            " RETURN b.name AS name, length(p) AS hops, nodes(p) AS route "
             "ORDER BY hops, name",
             use_labels=True,
         )
@@ -26160,7 +26167,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH (p:Person) OPTIONAL MATCH (p)-[:DIRECTED]->(m) RETURN p.name, m.title"
+            "MATCH (p:Person) OPTIONAL MATCH (p)-[:DIRECTED]->(m) "
+            "RETURN p.name, m.title"
         )
         ```
 
@@ -26170,7 +26178,8 @@ class Graph:
         ```{python}
         graph.match(
             "MATCH (p:Person)-[:ACTED_IN]->(m:Movie) "
-            "RETURN p.name AS name, count(*) AS movies, collect(m.title) AS titles "
+            "RETURN p.name AS name, count(*) AS movies, "
+            "collect(m.title) AS titles "
             "ORDER BY movies DESC, name"
         )
         ```
@@ -26179,7 +26188,8 @@ class Graph:
 
         ```{python}
         graph.match(
-            "MATCH (p:Person) RETURN count(*) AS people, min(p.born) AS oldest, avg(p.born)"
+            "MATCH (p:Person) "
+            "RETURN count(*) AS people, min(p.born) AS oldest, avg(p.born)"
         )
         ```
 
@@ -26191,10 +26201,49 @@ class Graph:
         graph.match(
             "MATCH (p:Person)-[:ACTED_IN]->(m:Movie) WITH m, count(*) AS actors "
             "WHERE actors > 1 "
-            "MATCH (d)-[:DIRECTED]->(m) RETURN m.title, actors, d.name AS director"
+            "MATCH (d)-[:DIRECTED]->(m) "
+            "RETURN m.title, actors, d.name AS director"
         )
         ```
 
+        ### Money that comes back around
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. A pattern of three payments that ends where it started finds the
+        loops of money. Asking for payments of 1,000 or more each, with `id(a)` the smallest so
+        that each loop is one row, gives two loops of large sums passed between private
+        accounts:
+
+        ```{python}
+        payments = ec.payments()
+        loops = payments.match(
+            "MATCH (a)-[r]->(b)-[s]->(c)-[t]->(a) "
+            "WHERE r.amount >= 1000 AND s.amount >= 1000 AND t.amount >= 1000 "
+            "AND id(a) < id(b) AND id(a) < id(c)",
+            use_labels=True,
+        )
+        loops
+        ```
+
+        The columns `r`, `s` and `t` hold the IDs of the payments, ready to plot:
+
+        ```{python}
+        edges = [e for col in ["r", "s", "t"] for e in loops[col]]
+        payments.plot(highlight_edges=edges, label_by="label", seed=3)
+        ```
+
+        Aggregation turns the table into a summary. The accounts' `kind` attribute tells people
+        from businesses, and grouping the payments from people to businesses by the business
+        shows where the money is spent:
+
+        ```{python}
+        payments.match(
+            "MATCH ({kind: 'person'})-[r]->(b {kind: 'business'}) "
+            "RETURN b.name AS business, count(*) AS payments, "
+            "sum(r.amount) AS total "
+            "ORDER BY total DESC"
+        )
+        ```
         """
         if limit is not None and (
             isinstance(limit, bool) or not isinstance(limit, int) or limit < 0
