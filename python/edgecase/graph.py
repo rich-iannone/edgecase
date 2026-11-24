@@ -60153,6 +60153,13 @@ class Graph:
             If the label does not exist in the graph, or a weighted graph has a negative edge
             weight.
 
+        See Also
+        --------
+        single_source_shortest_path_length : The distances alone.
+        multi_source_shortest_path : Shortest paths from the nearest of several sources.
+        single_target_shortest_path : Shortest paths from every node to a target.
+        single_source_all_shortest_paths : Every path that ties for shortest.
+
         Examples
         --------
         From the hub of a small tree, every path branches out from the root:
@@ -60160,10 +60167,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("D", "E")]
         )
 
         paths = graph.single_source_shortest_path("A")
@@ -60175,6 +60180,22 @@ class Graph:
 
         ```{python}
         sorted(label(t) for t in graph.single_source_shortest_path("A", cutoff=2))
+        ```
+
+        ### Every fastest route from Central
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. The fastest routes from Central to every other station share
+        their early stretches, so their last steps make a tree:
+
+        ```{python}
+        metro = ec.metro()
+        routes = metro.single_source_shortest_path("Central")
+
+        tree = [
+            (route[-2], route[-1]) for route in routes.values() if len(route) > 1
+        ]
+        metro.plot(layout="pos", highlight=tree, label_by="label")
         ```
         """
         source_id = self._resolve_node_id(source, auto_create=False)
