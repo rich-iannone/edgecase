@@ -50905,60 +50905,74 @@ class Graph:
         capping practical use around $n < 500$. Directed graphs and self-loops are
         rejected.
 
+        See Also
+        --------
+        communicability : The walk counts between every pair of nodes.
+        betweenness_centrality : Count shortest paths only.
+        subgraph_centrality : The walks from a node back to itself.
+
         Examples
         --------
-        Basic usage:
+        Shortest-path betweenness gives the ends of a path nothing. Communicability betweenness
+        gives them a little, because removing an end also removes the walks that bounce through
+        it:
 
         ```{python}
         import edgecase as ec
 
-        # Create a simple network
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D"])
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
-        cbc = graph.communicability_betweenness_centrality(return_dict=True)
-
-        # Get nodes sorted by communicability betweenness (descending)
-        # Middle nodes B and C have higher betweenness
-        sorted_cbc = {
-            graph.get_label_from_id(nid): val
-            for nid, val in sorted(cbc.items(), key=lambda x: -x[1])
-        }
-
-        # Returns dict with labels as keys, sorted by centrality
-        sorted_cbc
+        (
+            path.communicability_betweenness_centrality()
+            .betweenness_centrality()
+            .get_node_df()
+            .select("label", "betweenness_centrality", "communicability_betweenness")
+        )
         ```
 
-        Storing the result as a node attribute makes it available for later analysis without
-        recomputing:
+        ### Walks, not only shortest paths
+
+        In Zachary's karate club, member 7 has a betweenness of `0`: its four friends, the
+        instructor (member 0) and members 1, 2 and 3, are all friends with one another, so no
+        shortest path needs it. But many walks run through it, and it ranks twelfth by
+        communicability betweenness. Member 3 climbs from fifteenth to ninth for the same reason:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["1", "2", "3"])
-        graph.add_edges([("1", "2"), ("2", "3")])
+        import polars as pl
 
-        graph.communicability_betweenness_centrality(attr_name="cbc")
-        graph.get_node_attrs("cbc")
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .communicability_betweenness_centrality()
+            .betweenness_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .with_columns(
+                pl.col("communicability_betweenness", "betweenness_centrality")
+                .rank("min", descending=True)
+                .name.suffix("_rank")
+            )
+            .filter(pl.col("label").is_in(["0", "33", "3", "7"]))
+            .select(
+                "label", "communicability_betweenness_rank",
+                "betweenness_centrality_rank",
+            )
+        )
         ```
 
-        Compare with standard betweenness:
+        Colored by communicability betweenness, the leaders stand out, but no member is left at
+        `0`, as 7 and eleven others are by betweenness:
 
         ```{python}
-        # Star graph
-        star = ec.Graph(directed=False)
-        star.add_node(label="center")
-        star.add_nodes([f"leaf_{i}" for i in range(4)])
-        star.add_edges([("center", f"leaf_{i}") for i in range(4)])
-
-        cbc = star.communicability_betweenness_centrality(return_dict=True)
-
-        # Center node should have highest communicability betweenness
-        center_id = star.get_id_from_label("center")
-
-        # Returns value close to 1.0 for the center node
-        cbc[center_id]
+        club.plot(
+            layout="pos", color_by="communicability_betweenness", label_by="label"
+        )
         ```
+
+        Each node needs its own matrix exponential, so the cost grows as `n^4`; keep to graphs of
+        a few hundred nodes.
         """
         from edgecase._core import communicability_betweenness_centrality as rust_cbc
 
@@ -50974,11 +50988,9 @@ class Graph:
         if return_dict:
             return result
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, result)
-
-        # Track computation
-        self._computations.append(("communicability_betweenness_centrality", {}, attr_name))
+        self._store_node_result(
+            "communicability_betweenness_centrality", {}, attr_name, result, default_attr="communicability_betweenness"
+        )
 
         return self
 
