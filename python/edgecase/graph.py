@@ -35026,46 +35026,60 @@ class Graph:
         dict[int, int]
             Dictionary mapping node IDs to triangle counts.
 
+        See Also
+        --------
+        list_triangles : List the triangles themselves.
+        transitivity : The fraction of closed triples in the whole graph.
+        generalized_degree : Each node's edges by how many triangles they lie in.
+
         Examples
         --------
-        Every node in a single triangle participates in exactly one triangle:
+        When two triangles share the edge `B`-`C`, `B` and `C` are in both, and `A` and `D` in
+        one each:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "C")]
         )
-
         counts = graph.count_triangles()
-        {graph.get_label_from_id(nid): count for nid, count in counts.items()}
+
+        {graph.get_label_from_id(n): count for n, count in counts.items()}
         ```
 
-        When two triangles share an edge, the shared nodes ("B" and "C") each
-        participate in both, while the unshared nodes ("A" and "D") only participate in
-        one:
+        Each triangle is counted once at each of its three corners, so the counts add up to three
+        times the number of triangles:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # Triangle 1
-                    ("B", "D"),
-                    ("D", "C"),  # Triangle 2, shares edge B-C
-                ]
-            )
-        )
-
-        counts = graph.count_triangles()
-        {graph.get_label_from_id(nid): count for nid, count in counts.items()}
+        sum(counts.values()) // 3
         ```
 
+        ### The leaders' triangles
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. It has 45 triangles, three friends who are all friends with
+        each other, and the instructor is in 18 of them and the administrator in 15. The two
+        aren't friends, so 33 of the 45 go through one leader or the other:
+
+        ```{python}
+        karate = ec.karate_club()
+        karate.set_node_attrs("triangles", karate.count_triangles())
+
+        (
+            karate.get_node_df()
+            .sort("triangles", descending=True)
+            .select("label", "role", "degree", "triangles")
+            .head(5)
+        )
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", size_by="triangles",
+            label_by="label",
+        )
+        ```
         """
         return self._graph.count_triangles()
 
