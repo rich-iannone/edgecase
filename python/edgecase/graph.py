@@ -33601,17 +33601,52 @@ class Graph:
         containing it. $O(V + E)$ besides the set operations. Matches NetworkX's
         `chordal_graph_cliques`.
 
+        See Also
+        --------
+        is_chordal : Check that a graph is chordal.
+        chordal_graph_treewidth : The treewidth, from the largest clique.
+        junction_tree : Arrange the cliques into a tree.
+
         Examples
         --------
-        Two triangles sharing an edge (a "diamond") plus a pendant node:
+        Two triangles share the edge `B`-`C`, and `E` hangs off `D`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("C", "D"),
+             ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        [[label(n) for n in c] for c in graph.chordal_graph_cliques()]
+        ```
 
-        [[g.get_label_from_id(n) for n in c] for c in g.chordal_graph_cliques()]
+        ### The cliques of a moral graph
+
+        `causal()` is a causal diagram of the risks for heart disease, with an arrow from each
+        cause to its effect. Its moral graph joins the parents of each variable and drops the
+        directions, and it is chordal. Its four maximal cliques are the groups of variables that
+        exact inference handles together:
+
+        ```{python}
+        moral = ec.causal().moral_graph()
+        cliques = moral.chordal_graph_cliques()
+
+        [[moral.get_label_from_id(n) for n in c] for c in cliques]
+        ```
+
+        The largest holds Blood pressure and its four causes, Age, Weight, Medication and the
+        unmeasured Genetics, which moralizing joins to one another:
+
+        ```{python}
+        from itertools import combinations
+
+        largest = max(cliques, key=len)
+        moral.plot(
+            layout="pos", highlight=list(combinations(largest, 2)),
+            label_by="label", height=360,
+        )
         ```
         """
         cliques = rust.chordal_graph_cliques(self._graph)
