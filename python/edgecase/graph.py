@@ -31320,14 +31320,48 @@ class Graph:
         generator and can also fill an `index_map` of node to path indices; here the paths come
         back as a list, from which such an index is a short loop.
 
+        See Also
+        --------
+        panther_similarity : Scores nodes by the paths they share.
+        random_walk : A single random walk, of any length.
+        random_edge_walk : A random walk given as edges.
+
         Examples
         --------
+        Each path takes `path_length=` steps, so it holds one more node:
+
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_cycle_graph(6)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
+        label = graph.get_label_from_id
 
-        graph.generate_random_paths(3, path_length=4, seed=2)
+        [
+            [label(n) for n in path]
+            for path in graph.generate_random_paths(3, path_length=3, seed=1)
+        ]
+        ```
+
+        ### Paths from Hugo
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. With `source=`, every path starts at the same person. These are
+        the paths that `panther_similarity()` counts:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        paths = friends.generate_random_paths(
+            3, path_length=4, seed=2, source="Hugo"
+        )
+
+        [[label(n) for n in path] for path in paths]
+        ```
+
+        ```{python}
+        friends.plot(highlight=paths[0], label_by="label", seed=8)
         ```
         """
         if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
