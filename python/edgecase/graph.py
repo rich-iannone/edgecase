@@ -78289,27 +78289,64 @@ class Graph:
         at least half the total weight. Each move strictly increases the cut, so the search
         terminates. This mirrors NetworkX's `one_exchange` and `randomized_partitioning`.
 
+        See Also
+        --------
+        minimum_cut : Separate two nodes with as few crossing edges as possible.
+        stoer_wagner : Find a global minimum cut.
+        bipartite_sets : The two sides of a graph whose every edge can be cut.
+
         Examples
         --------
-        In a 6-cycle, putting alternate nodes on opposite sides cuts all 6 edges:
+        Putting every other node of a 6-node cycle on the other side cuts all 6 edges, but a
+        triangle always has two nodes on the same side, so at most 2 of its 3 edges are cut:
 
         ```{python}
         import edgecase as ec
 
-        ring = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        ring.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "A")])
+        ring = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F"),
+             ("F", "A")]
+        )
+        triangle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        value, (S, T) = ring.maximum_cut(seed=1)
-        value, sorted(ring.get_label_from_id(n) for n in S)
+        ring.maximum_cut(seed=1)[0], triangle.maximum_cut(seed=1)[0]
         ```
 
-        A triangle can never be cut completely: one side always contains two of its nodes,
-        so the best cut has 2 of the 3 edges:
+        ### Two exam days
+
+        `exams()` joins two of the 14 courses at a made-up college when some student takes both,
+        so their exams can't share a time slot. If the exams are spread over two days, each
+        conflict between two exams on the same day gives some students two exams in one day. The
+        cut puts 23 of the 29 conflicts on different days, and no split does better:
 
         ```{python}
-        tri = ec.Graph().add_nodes(["A", "B", "C"])
-        tri.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        tri.maximum_cut(seed=1)[0]
+        exams = ec.exams()
+        cut, (first, second) = exams.maximum_cut(seed=1)
+        day = {
+            n: "Monday" if n in first else "Tuesday" for n in exams.get_node_ids()
+        }
+
+        cut, exams.count_edges()
+        ```
+
+        ```{python}
+        exams.set_node_attrs("day", day).plot(
+            color_by="day", edge_color_by="day", label_by="label", seed=5
+        )
+        ```
+
+        The `shared` attribute counts the students taking both courses. Weighting each conflict
+        by it, so that a conflict shared by more students counts for more, the cut reaches 179 of
+        a possible 230. The search stops when no single exam can move to the other day and raise
+        the cut, which here is 2 short of the best split, 181:
+
+        ```{python}
+        edges = exams.get_edge_df(labels=True).select(
+            "source", "target", "shared"
+        )
+        weighted = ec.Graph.from_edges(list(edges.iter_rows()), weighted=True)
+
+        weighted.maximum_cut(seed=1)[0], edges["shared"].sum()
         ```
         """
         init = (
