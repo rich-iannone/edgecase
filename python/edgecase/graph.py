@@ -72526,12 +72526,23 @@ class Graph:
            minimum vertex separators and recurse on the resulting sub-components to find
            higher-connectivity subsets.
 
+        On undirected graphs every minimum vertex separator of each component is enumerated
+        (Kanevsky's algorithm), so no k-component is missed, and the k-components are read off
+        the blocks of `find_cohesive_blocks()`: the largest blocks of cohesion at least $k$.
+        Pieces are first trimmed to their $(k+1)$-core, since a node of lower degree cannot
+        belong to a more cohesive set. NetworkX's `k_components()` searches fewer separators
+        and can miss a k-component that this method finds.
+
         For directed graphs, vertex connectivity between an ordered pair $(u, v)$ is the maximum
         number of internally vertex-disjoint directed paths from $u$ to $v$. The algorithm checks
-        both directions for every pair.
+        both directions for every pair, with $O(n^2)$ max-flow calls per component, each
+        $O(VE)$, which limits it to small digraphs.
 
-        Complexity is dominated by pairwise max-flow computations: $O(n^2)$ max-flow calls per
-        component, each $O(VE)$.
+        See Also
+        --------
+        find_cohesive_blocks : The same groups, nested into a hierarchy.
+        k_edge_components : The edge-connectivity counterpart.
+        k_core : The groups of nodes with at least a given degree.
 
         Examples
         --------
@@ -72541,29 +72552,54 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
 
-        kc = graph.k_components()
-        sorted(kc.keys())
+        label = graph.get_label_from_id
+        {
+            k: [[label(n) for n in c] for c in comps]
+            for k, comps in sorted(graph.k_components().items())
+        }
         ```
 
-        A complete directed graph on 4 nodes is 3-connected:
+        On a directed graph, a k-component must stay strongly connected when fewer than `k` of
+        its nodes are removed. A one-way ring is a 1-component and no more:
 
         ```{python}
-        g = ec.Graph(directed=True)
-        for n in ["A", "B", "C", "D"]:
-            g.add_node(label=n)
-        for s in ["A", "B", "C", "D"]:
-            for t in ["A", "B", "C", "D"]:
-                if s != t:
-                    g.add_edge(s, t)
+        ring = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A")], directed=True
+        )
 
-        kc = g.k_components()
-        max(kc.keys())
+        ring.k_components()
+        ```
+
+        ### Tightly knit characters
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the same
+        chapter. The number of k-components at each level shows how the cast thins out toward
+        two groups of ten at `k=9`, each of which no eight departures could split:
+
+        ```{python}
+        miserables = ec.les_miserables()
+        components = miserables.k_components()
+
+        {k: [len(c) for c in comps] for k, comps in sorted(components.items())}
+        ```
+
+        The two groups overlap. Seven students of Les Amis de l'ABC and Gavroche are in both,
+        with Mabeuf and Marius completing one group and Grantaire and Prouvaire the other:
+
+        ```{python}
+        first, second = map(set, components[9])
+        group = {n: "with Marius" for n in first}
+        group |= {n: "with Grantaire" for n in second}
+        group |= {n: "both" for n in first & second}
+
+        miserables.set_node_attrs("k9_group", group)
+        miserables.subgraph(list(first | second)).layout_kamada_kawai().plot(
+            layout="pos", color_by="k9_group", label_by="label"
+        )
         ```
         """
         from edgecase._core import k_components as rust_k_components
