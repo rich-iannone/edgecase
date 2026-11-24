@@ -79188,75 +79188,73 @@ class Graph:
         are stored (normally the order they were added), and the returned tree is
         deterministic even when several MSTs share the minimum weight.
 
+        See Also
+        --------
+        maximum_spanning_tree : The tree with the largest total weight.
+        iter_spanning_trees : The spanning trees in order of weight, beyond the cheapest.
+        steiner_tree : A cheap tree that connects only some of the nodes.
+        minimum_spanning_arborescence : The cheapest spanning tree that follows edge directions.
+
         Examples
         --------
-        This 4-cycle plus one diagonal has 5 edges total, but connecting all 4 nodes only
-        requires 3 of them -- the MST keeps the 3 cheapest edges that avoid forming a cycle:
+        A square with one diagonal has five edges, but three are enough to connect its four
+        nodes. The tree keeps the three lightest edges that don't close a cycle:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges(
-            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "A", 4.0), ("A", "C", 5.0)]
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0),
+             ("D", "A", 4.0), ("A", "C", 5.0)],
         )
-
-        mst = g.minimum_spanning_tree()
-
-        # Returns 3 (connects all 4 nodes with the minimum number of edges)
-        mst.count_edges()
+        graph.minimum_spanning_tree().get_edges_str_repr(use_labels=True)
         ```
 
-        Summing the weights of the tree's edges gives the total cost of the cheapest network
-        that connects every node:
+        With `include=`, the tree must keep the diagonal. `B`-`C` would then close a cycle, so
+        it is left out instead:
 
         ```{python}
-        # Returns 6.0 (edges A-B, B-C, C-D, skipping the two priciest edges)
-        sum(mst.get_edge(eid).weight for eid in mst.get_edge_ids())
+        tree = graph.minimum_spanning_tree(include=[("A", "C")])
+        tree.get_edges_str_repr(use_labels=True)
         ```
 
-        With `return_subgraph=False`, the result is a list of `(source_id, target_id, weight)`
-        tuples, ordered from lightest to heaviest. Swapping the IDs for labels shows which
-        connections were kept:
+        ### The fewest minutes of track that still reach every station
+
+        `metro()` is a made-up city's metro network, with each track's travel time in minutes
+        as its weight. Its 25 tracks take 82 minutes to ride end to end. A spanning tree of 19
+        of them, 60 minutes in all, still reaches all 20 stations:
 
         ```{python}
-        edges = g.minimum_spanning_tree(return_subgraph=False)
+        metro = ec.metro()
+        mst = metro.minimum_spanning_tree()
 
-        [(g.get_label_from_id(s), g.get_label_from_id(t), w) for s, t, w in edges]
+        minutes = metro.get_edge_df()["minutes"]
+        tree_minutes = mst.get_edge_df()["minutes"]
+        mst.count_edges(), tree_minutes.sum(), minutes.sum()
         ```
 
-        Use `weight_attr=` to build the tree from a different edge attribute. Here the edges
-        carry a `length`, and the tree favors the shortest connections instead of the
-        lowest `weight`:
+        The six tracks left out each close a loop that the tree already covers more quickly:
 
         ```{python}
-        roads = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B", {"length": 4.0}),
-                    ("B", "C", {"length": 1.0}),
-                    ("A", "C", {"length": 2.0}),
-                ]
-            )
+        metro.plot(
+            layout="pos", highlight_edges=mst.get_edge_ids(), label_by="label"
         )
-
-        edges = roads.minimum_spanning_tree(weight_attr="length", return_subgraph=False)
-
-        [(roads.get_label_from_id(s), roads.get_label_from_id(t), w) for s, t, w in edges]
-        ```
-
-        Constraints change the answer. Forcing the expensive diagonal A-C (5) into the tree,
-        and ruling out B-C, gives the cheapest tree that still meets both requirements:
-
-        ```{python}
-        forced = g.minimum_spanning_tree(include=[("A", "C")], exclude=[("B", "C")])
-        sorted(forced.get_edges_str_repr(use_labels=True))
         ```
         """
         edge_ids = self._spanning_tree_ids(True, weight_attr, include, exclude)
+        if self._recording_depth == 0:
+            args = [f"weight_attr={weight_attr!r}"] if weight_attr else []
+            args += [f"{k}={v!r}" for k, v in (("include", include), ("exclude", exclude)) if v]
+            if not return_subgraph:
+                args.append("return_subgraph=False")
+            n = len(edge_ids)
+            self._record_step(
+                KIND_QUERY,
+                "minimum_spanning_tree",
+                f"G.minimum_spanning_tree({', '.join(args)})",
+                delta=StepDelta(edges_selected=[self._edge_ends(e) for e in edge_ids]),
+                narration=f"minimum_spanning_tree() kept {n} edge{'s' if n != 1 else ''}.",
+            )
 
         if return_subgraph:
             # Every node and the tree edges, keeping IDs, labels, weights and attributes
