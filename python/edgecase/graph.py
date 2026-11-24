@@ -84684,51 +84684,71 @@ class Graph:
         $O(V \cdot \bar{k}(\bar{k} + \bar{e}))$ where $\bar{k}$ and $\bar{e}$ are average
         neighborhood sizes and edge counts.
 
+        See Also
+        --------
+        global_efficiency : The same measure over the whole graph.
+        clustering_coefficient : Count only direct links between a node's neighbors.
+        transitivity : The share of connected triples that close into triangles.
+
         Examples
         --------
-        In a complete graph, removing any node still leaves its neighbors fully connected to each
-        other, so local efficiency is at its maximum of 1.0:
+        In a triangle with a tail, the triangle's corners each keep a link between their
+        neighbors, while the tail node has only one neighbor and adds `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_full_graph(5)
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
+        )
 
-        # Returns 1.0
-        graph.local_efficiency()
+        round(graph.local_efficiency(), 3)
         ```
 
-        A star graph has zero local efficiency: every leaf has only one neighbor, and the hub's
-        neighbors (the leaves) have no links among themselves. Joining the leaves into a ring
-        (making a wheel) gives every node's neighborhood alternative routes, and the score
-        jumps to about 0.82:
+        ### Friends of friends
+
+        Friends tend to know each other, so in a social network a person's friends are mostly
+        still in touch without them. A metro has few triangles of track, so a station's
+        neighbors are rarely joined except through it. The two kinds of network reach the rest
+        of the network about as well, but their local efficiency is far apart:
 
         ```{python}
-        leaves = ["L1", "L2", "L3", "L4", "L5"]
+        import polars as pl
 
-        def hub_and_leaves(ring):
-            g = ec.Graph().add_nodes(["hub"] + leaves)
-            g.add_edges([("hub", leaf) for leaf in leaves])
-            if ring:
-                g.add_edges(list(zip(leaves, leaves[1:] + leaves[:1])))
-            return g
+        networks = {
+            "friends": ec.friends(),
+            "karate_club": ec.karate_club(),
+            "les_miserables": ec.les_miserables(),
+            "metro": ec.metro(),
+        }
 
-        star = hub_and_leaves(ring=False)
-        wheel = hub_and_leaves(ring=True)
-
-        (star.local_efficiency(), wheel.local_efficiency())
+        pl.DataFrame(
+            {
+                "network": list(networks),
+                "global": [
+                    round(g.global_efficiency(), 3) for g in networks.values()
+                ],
+                "local": [
+                    round(g.local_efficiency(), 3) for g in networks.values()
+                ],
+            }
+        )
         ```
 
-        A cycle also scores `0`, even though it has no single point of failure: each node's two
-        neighbors are not directly linked, and the only route between them runs through the
-        node that was removed:
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Its only two triangles share the track from Central to Riverside, one with Old Town and
+        one with Market:
 
         ```{python}
-        cycle = ec.Graph()
-        cycle.add_cycle_graph(10)
-
-        cycle.local_efficiency()
+        ec.metro().plot(
+            layout="pos",
+            highlight=[
+                ("Central", "Riverside"), ("Old Town", "Central"),
+                ("Old Town", "Riverside"), ("Central", "Market"),
+                ("Market", "Riverside"),
+            ],
+            label_by="label",
+        )
         ```
         """
         from edgecase._core import local_efficiency
