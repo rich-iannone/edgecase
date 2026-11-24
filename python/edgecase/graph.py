@@ -38195,46 +38195,78 @@ class Graph:
         interpretation or when the graph is small enough that the extra cost buys real
         accuracy.
 
+        See Also
+        --------
+        cmty_girvan_newman : The same algorithm, with any level of the hierarchy and a replay.
+        edge_betweenness_centrality : The edge scores that decide which edge goes next.
+        modularity : The score that picks the level of the hierarchy.
+
         Examples
         --------
-        The bridge edge "C"-"D" has the highest betweenness of any edge here, since
-        every path between the two triangles must cross it -- so it's the first edge
-        removed, splitting the graph into its two natural communities:
+        The bridge between these two triangles carries every shortest path from one triangle to
+        the other, so it has by far the highest edge betweenness:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
-                        ("C", "D"),  # Bridge edge
-                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
-        )
-
-        communities = graph.cmty_edge_btwns(return_dict=True)
-        {graph.get_label_from_id(nid): cid for nid, cid in communities.items()}
-        ```
-
-        Storing the result as a node attribute and chaining into `colorize_node_attrs()`
-        visualizes the communities directly:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),  # Triangle 1
-                        ("C", "D"),  # Bridge edge
-                        ("D", "E"), ("E", "F"), ("F", "D")])  # Triangle 2
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
         (
-            graph
-            .cmty_edge_btwns(attr_name="community")
-            .colorize_node_attrs(node_attr_from="community", palette="Pastel1")
-            .describe()
+            graph.edge_betweenness_centrality()
+            .get_edge_df(labels=True)
+            .select("source", "target", "edge_betweenness_centrality")
         )
         ```
+
+        It is the first edge removed, and the two triangles it leaves are the communities:
+
+        ```{python}
+        graph.cmty_edge_btwns().get_node_df().select("label", "cmty_edge_btwns")
+        ```
+
+        ### The characters of *Les Misérables*
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the same
+        chapter. The busiest edge, from Valjean to Bishop Myriel, is the first to go. Removing
+        edges until modularity peaks leaves 11 communities:
+
+        ```{python}
+        import polars as pl
+
+        miserables = ec.les_miserables().cmty_edge_btwns()
+
+        (
+            miserables.get_node_df()
+            .group_by("cmty_edge_btwns")
+            .agg(pl.len(), pl.col("label"))
+            .sort("cmty_edge_btwns")
+        )
+        ```
+
+        They follow the story: Bishop Myriel with the household and visitors, Valjean with the
+        people of the Champmathieu trial, Fantine with Tholomyès and friends, the Thénardiers
+        with Javert and the Patron-Minette gang, Cosette with the Gillenormands, a group at the
+        convent, and Marius and Gavroche with the students of the ABC. The rest are a few minor
+        characters, alone or in pairs. With 11 communities, the 12 colors of the `"Paired"` palette
+        keep them apart:
+
+        ```{python}
+        miserables.plot(
+            color_by="cmty_edge_btwns",
+            edge_color_by="cmty_edge_btwns",
+            label_by="label",
+            palette="Paired",
+            legend=False,
+            seed=3,
+        )
+        ```
+
+        `cmty_girvan_newman()` runs the same algorithm, and its `n_communities=` returns the other
+        levels of the hierarchy, such as the first split.
         """
         communities = self._graph.get_cmty_edge_btwns()
 
@@ -38245,11 +38277,7 @@ class Graph:
         if return_dict:
             return communities
 
-        # Store in node DataFrame
-        self.set_node_attrs(attr_name, communities)
-
-        # Track computation
-        self._computations.append(("cmty_edge_btwns", {}, attr_name))
+        self._store_node_result("cmty_edge_btwns", {}, attr_name, communities, show="groups")
 
         return self
 
