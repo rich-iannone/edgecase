@@ -69461,6 +69461,12 @@ class Graph:
         ValueError
             If `node=` is an ID or label that does not exist in the graph.
 
+        See Also
+        --------
+        node_connected_component : The same nodes, with the start included, on an undirected graph.
+        descendants : The nodes reachable along edge directions only.
+        has_path : Check whether one node reaches another.
+
         Examples
         --------
         In a graph made of two disconnected path components, nodes reachable from one component
@@ -69489,13 +69495,28 @@ class Graph:
         `A -> B -> C`, still reaches both `A` and `B`:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        chain = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
-        [graph.get_label_from_id(nid) for nid in graph.reachable_nodes("C")]
+        [chain.get_label_from_id(nid) for nid in chain.reachable_nodes("C")]
+        ```
+
+        ### Cut off by a closure
+
+        `metro()` is a made-up city's metro network. With the track between Riverside and Harbor
+        closed, Harbor can still reach Docks and Shipyard, but nothing else:
+
+        ```{python}
+        metro = ec.metro()
+        metro.delete_edge("Riverside", "Harbor")
+
+        reached = metro.reachable_nodes("Harbor")
+        [metro.get_label_from_id(n) for n in reached]
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight=["Harbor", *reached], label_by="label"
+        )
         ```
         """
         # Resolve node to integer ID
