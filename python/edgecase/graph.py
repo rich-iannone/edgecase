@@ -73812,6 +73812,11 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        node_boundary : The nodes the edges lead to.
+        cut_size : The number of edges, or their weight.
+
         Examples
         --------
         Only the bridge leaves the first triangle:
@@ -73819,16 +73824,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         ends = graph.get_node_ids_by_edge_id
         label = graph.get_label_from_id
-        [[label(n) for n in ends(e)] for e in graph.edge_boundary(["A", "B", "C"])]
+        leaving = graph.edge_boundary(["A", "B", "C"])
+        [[label(n) for n in ends(e)] for e in leaving]
+        ```
+
+        ### Tracks out of the center
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. Four stretches of track leave zone 1, one to each of the stations just outside
+        it:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone_1 = nodes.filter(nodes["zone"] == 1)["id"].to_list()
+
+        leaving = metro.edge_boundary(zone_1)
+        len(leaving)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight_edges=leaving, label_by="label")
         ```
         """
         s_ids, t_ids, p = self._cut(S, T)
