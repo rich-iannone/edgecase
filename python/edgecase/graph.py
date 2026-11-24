@@ -76406,51 +76406,59 @@ class Graph:
         the workhorse. When edge weights matter, `maximum_weight_matching()` handles the
         objective-aware variant.
 
+        See Also
+        --------
+        maximum_weight_matching : The largest matching, or the heaviest.
+        is_maximal_matching : Check that no edge can be added to a matching.
+        edge_coloring : Split all the edges into matchings.
+
         Examples
         --------
-        A path of 6 nodes has exactly 3 disjoint edges available, so a maximal matching pairs
-        every node:
+        The greedy matching takes the edges in the order they were added, skipping any that
+        touch a node already matched. In this path, it takes the first edge, then the third:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(6)  # 1-2-3-4-5-6
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
-        matching = graph.maximal_matching()
-
-        # Returns 3 (e.g., edges 1-2, 3-4, 5-6)
-        len(matching)
+        label = path.get_label_from_id
+        [
+            [label(n) for n in path.get_node_ids_by_edge_id(e)]
+            for e in path.maximal_matching()
+        ]
         ```
 
-        The matched edges can be marked as an edge attribute for a quick visual check of which
-        connections were paired up:
+        Added in another order, the middle edge comes first and blocks both of the others:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_grid_2d(rows=4, cols=4)
-
-        matching = graph.maximal_matching()
-
-        # Color matched edges for visualization
-        colors = {edge_id: "red" for edge_id in matching}
-        graph.set_edge_attrs("color", colors)
-
-        # Returns the number of matched edges
-        len(matching)
+        path = ec.Graph.from_edges([("B", "C"), ("A", "B"), ("C", "D")])
+        len(path.maximal_matching())
         ```
 
-        In a complete graph with an even number of nodes, a maximal matching is also a perfect
-        matching, pairing every single node:
+        ### Two left without a partner
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Going through the friendships in order, the greedy matching
+        forms 11 pairs, and Lou and Zane, who aren't friends, are left over. A maximum matching
+        pairs all 24:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_full_graph(10)
+        friends = ec.friends()
+        greedy = friends.maximal_matching()
 
-        matching = graph.maximal_matching()
+        paired = {n for e in greedy for n in friends.get_node_ids_by_edge_id(e)}
+        label = friends.get_label_from_id
+        left = [label(n) for n in friends.get_node_ids() if n not in paired]
 
-        # Returns 5 (all 10 nodes paired up)
-        len(matching)
+        len(greedy), left, len(friends.maximum_weight_matching())
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={"accent": left}, highlight_edges={"soft": greedy},
+            label_by="label", seed=2,
+        )
         ```
         """
         from edgecase._core import maximal_matching
