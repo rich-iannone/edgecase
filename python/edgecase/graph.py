@@ -42315,7 +42315,7 @@ class Graph:
 
     def label_propagation(
         self,
-        known_labels: dict[int, int],
+        known_labels: dict[Union[int, str], int],
         max_iter: int = 100,
         attr_name: Optional[str] = None,
         return_dict: bool = False,
@@ -42352,13 +42352,10 @@ class Graph:
         `cmty_louvain()` and friends, this method does not invent groups: every node ends up with
         one of the seed labels, or `-1` if no seed can reach it.
 
-        The label assignments are always written to the node DataFrame, even when
-        `return_dict=True`.
-
         Parameters
         ----------
         known_labels
-            A `{node_id: label}` dictionary of seed labels. Keys are node IDs (not labels) and
+            A `{node: class}` dictionary of seed labels. Keys are node IDs or string labels, and
             values are integers identifying the class. At least one entry is required, and every
             key must be a node in the graph. Avoid `-1` as a class value since it is used to mark
             unlabeled nodes.
@@ -42433,7 +42430,7 @@ class Graph:
         """
         from edgecase._core import label_propagation as _label_propagation
 
-        result = _label_propagation(self._graph, known_labels, max_iter)
+        result = _label_propagation(self._graph, self._seed_ids(known_labels), max_iter)
 
         if attr_name is None:
             attr_name = "label_propagation"
@@ -42441,9 +42438,7 @@ class Graph:
         if return_dict:
             return result
 
-        self.set_node_attrs(attr_name, result)
-
-        self._computations.append(("label_propagation", {}, attr_name))
+        self._store_node_result("label_propagation", {}, attr_name, result, show="groups")
 
         return self
 
