@@ -63914,6 +63914,12 @@ class Graph:
         ValueError
             If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
 
+        See Also
+        --------
+        dfs_tree : The same edges as a new graph.
+        bfs_edges : The edges of a breadth-first search.
+        dfs_labeled_edges : Every step of the search, labeled by kind.
+
         Examples
         --------
         Unlike BFS, DFS reaches C through B, because it follows B's branch to the end before
@@ -63922,10 +63928,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("C", "D")]
         )
 
         label = graph.get_label_from_id
@@ -63937,6 +63941,29 @@ class Graph:
         ```{python}
         graph.add_nodes(["E", "F"]).add_edge("E", "F")
         [(label(p), label(c)) for p, c in graph.dfs_edges()]
+        ```
+
+        ### The search tree on the metro
+
+        `metro()` is a made-up city's metro network. From Central, DFS follows the Red line west
+        to Westgate and over the hills before it doubles back, so its 19 edges make a tree with
+        long branches, unlike the bushy tree of `bfs_edges()`:
+
+        ```{python}
+        metro = ec.metro()
+        tree = metro.dfs_edges("Central")
+
+        metro.plot(layout="pos", highlight=tree, label_by="label")
+        ```
+
+        With `depth_limit=4`, the search turns back four stops out. Each station is visited once,
+        by the first branch that reaches it, so even a station within four stops can be missed.
+        Northpark is three stops from Central, but the search first came to University four stops
+        out, through Old Town and Cathedral, and went no further:
+
+        ```{python}
+        near = metro.dfs_edges("Central", depth_limit=4)
+        metro.plot(layout="pos", highlight=near, label_by="label")
         ```
         """
         self._check_traversal_args(depth_limit, mode)
