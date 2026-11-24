@@ -68787,28 +68787,52 @@ class Graph:
         ValueError
             If `source=` does not exist.
 
+        See Also
+        --------
+        has_eulerian_path : Check if a path exists.
+        eulerian_circuit : A path that ends where it started.
+        enumerate_trails : Every trail between two nodes.
+
         Examples
         --------
-        The "house of Santa Claus" (a square with both diagonals and a roof) has exactly two odd
-        nodes, the bottom corners, so it can be drawn in one stroke from one to the other:
+        In a triangle with a tail, only `C` and `D` have an odd number of edges, so the path runs
+        from one to the other:
 
         ```{python}
         import edgecase as ec
 
-        house = (
-            ec.Graph()
-            .add_nodes(["bl", "br", "tl", "tr", "roof"])
-            .add_edges([("bl", "br"), ("bl", "tl"), ("br", "tr"), ("tl", "tr"),
-                        ("tl", "roof"), ("tr", "roof"), ("bl", "tr"), ("br", "tl")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
 
-        [house.get_label_from_id(n) for n in house.eulerian_path()]
+        [graph.get_label_from_id(n) for n in graph.eulerian_path(source="D")]
         ```
 
-        Starting from a node that cannot be an end gives `None`:
+        ### Crossing the six bridges
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. With the Honigbrücke closed, a walk from the
+        South Bank can cross the other six bridges once each and end on the North Bank. Kneiphof
+        is joined to each bank by two bridges, so the land masses alone don't say which bridge is
+        crossed. With `edges=True`, the path gives the bridges:
 
         ```{python}
-        house.eulerian_path(source="roof") is None
+        closed = ec.konigsberg().delete_edge("Kneiphof", "Lomse")
+        label = closed.get_label_from_id
+        bridge = dict(closed.get_edge_df().select("id", "bridge").iter_rows())
+        walk = closed.eulerian_path(source="South Bank", edges=True)
+
+        (
+            [label(n) for n in closed.eulerian_path(source="South Bank")],
+            [bridge[e] for e in walk],
+        )
+        ```
+
+        ```{python}
+        closed.plot(
+            layout="pos", color_by="kind", label_by="label",
+            edge_label_by="bridge",
+        )
         ```
         """
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
