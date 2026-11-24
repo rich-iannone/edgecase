@@ -106,7 +106,7 @@ def plot_graph(
 
     # Compute initial positions based on layout
     if layout == "circular":
-        positions = _circular_layout(nodes)
+        positions = _circular_layout(nodes, [(s, t) for _, s, t in edges])
     elif layout == "random":
         positions = _random_layout(nodes)
     else:
@@ -165,11 +165,14 @@ def plot_graph(
     return output_path
 
 
-def _circular_layout(nodes: list[str]) -> dict:
-    """Arrange nodes in a circle."""
+def _circular_layout(nodes: list, edges: list) -> dict:
+    """Arrange nodes in a circle, in depth-first order from the lowest ID, as
+    `layout_circular()` does."""
+    from edgecase.svg_renderer import _circle_order
+
     n = len(nodes)
     positions = {}
-    for i, node in enumerate(nodes):
+    for i, node in enumerate(_circle_order(sorted(nodes), edges)):
         angle = 2 * math.pi * i / n
         positions[node] = [math.cos(angle) * 200, math.sin(angle) * 200]
     return positions
@@ -273,7 +276,7 @@ def _generate_vis_network_html(
         node_obj = graph.get_node(node)
 
         # Add subtle spacing hack for single-digit labels to improve centering
-        label = str(node)
+        label = str(node_obj.label) if node_obj and node_obj.label else str(node)
         if len(label) == 1:
             label = "\u2009" + label  # Add thin space (U+2009) to nudge right
 
