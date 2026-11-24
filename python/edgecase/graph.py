@@ -85108,60 +85108,54 @@ class Graph:
         $\Omega(u, v) = L^+_{uu} + L^+_{vv} - 2 L^+_{uv}$ from the Laplacian pseudoinverse
         $L^+$, at a cost of $O(n^3)$ per call.
 
+        See Also
+        --------
+        resistance_distance_matrix : The resistance between every pair at once.
+        kirchhoff_index : The sum of the resistances over all pairs.
+        current_flow_closeness_centrality : Rank nodes by their resistance to all the others.
+
         Examples
         --------
-        Between two directly connected nodes in a simple graph, the resistance distance is exactly
-        1.0, matching a single 1-ohm resistor:
+        `A` and `B` are two hops apart along two routes, while every route from `C` to `D`
+        crosses the single edge from `B` to `D`. The two pairs are the same distance apart, but
+        the pair with two routes has the lower resistance:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_full_graph(2)
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("C", "B"), ("A", "E"), ("E", "B"), ("B", "D")]
+        )
 
-        # Returns 1.0
-        g.resistance_distance(1, 2)
-        ```
-
-        On a path, resistors are effectively in series, so resistance distance grows linearly with
-        the number of edges between two nodes (tiny floating-point differences are expected):
-
-        ```{python}
-        path = ec.Graph()
-        path.add_path_graph(4)  # 1-2-3-4
-
-        # Returns about (1.0, 2.0, 3.0): resistance grows with the number of edges between nodes
         (
-            path.resistance_distance(1, 2),
-            path.resistance_distance(1, 3),
-            path.resistance_distance(1, 4),
+            round(graph.resistance_distance("A", "B"), 3),
+            round(graph.resistance_distance("C", "D"), 3),
         )
         ```
 
-        A cycle offers two parallel paths between any pair of nodes, which lowers the effective
-        resistance compared to a single path of the same length:
+        ### Alternative routes
+
+        `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
+        Docks and Shipyard, at the ends of the two branches beyond Harbor, are two stops apart,
+        and so are Old Town and Market, on either side of Central. Docks and Shipyard can only
+        reach each other through Harbor, so their resistance is `2`, as for two resistors in
+        series; Old Town and Market also have routes through Riverside and around the Ring line,
+        and their resistance is far lower:
 
         ```{python}
-        cycle = ec.Graph()
-        cycle.add_cycle_graph(4)  # 1-2-3-4-1
+        metro = ec.metro()
 
-        # Returns about 0.75: parallel paths of length 1 and 3 give 1 * 3 / (1 + 3)
-        cycle.resistance_distance(1, 2)
+        (
+            round(metro.resistance_distance("Docks", "Shipyard"), 3),
+            round(metro.resistance_distance("Old Town", "Market"), 3),
+        )
         ```
 
-        Nodes can also be given by label. Both `A`-`B` and `C1`-`D` are two hops apart, but `A`
-        and `B` are joined by two independent routes, while every route from `C1` to `D` has to
-        cross the single edge `B-D`. Shortest-path distance can't tell the pairs apart;
-        resistance distance gives `1.0` versus `1.75`:
-
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C1", "C2", "D"])
-            .add_edges([("A", "C1"), ("C1", "B"), ("A", "C2"), ("C2", "B"), ("B", "D")])
+        metro.plot(
+            layout="pos", highlight=["Docks", "Shipyard", "Old Town", "Market"],
+            label_by="label",
         )
-
-        (g.resistance_distance("A", "B"), g.resistance_distance("C1", "D"))
         ```
         """
         from edgecase._core import resistance_distance
