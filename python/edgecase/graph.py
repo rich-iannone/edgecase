@@ -51231,43 +51231,72 @@ class Graph:
         ValueError
             If `q=` is outside the range `[0.0, 1.0]`.
 
+        See Also
+        --------
+        edge_percolation : Remove edges instead of nodes.
+        percolation_threshold_analysis : Track the largest component over many removal rates.
+        largest_component_size : The size of what holds together.
+
         Examples
         --------
-        The graph below is two clusters (A, B, C and E, F, G) held together by the hub D.
-        Removing 30% of its seven nodes takes out two of them; with this seed one of the casualties
-        is the hub, so the survivors fall apart and the largest connected piece is just the
-        triangle E, F, G:
+        The graph below is two clusters, `A`, `B`, `C` and `E`, `F`, `G`, held together by the hub
+        `D`. Removing 30% of its seven nodes takes out two of them. With this seed, one of them
+        is the hub, so the survivors fall apart:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
-                        ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")]
         )
 
-        percolated = graph.node_percolation(q=0.3, seed=9)
+        survivors = graph.node_percolation(q=0.3, seed=9)
 
-        survivors = sorted(percolated.get_node_df()["label"].to_list())
-        (survivors, percolated.largest_component_size())
+        (
+            survivors.get_node_df()["label"].to_list(),
+            survivors.largest_component_size(),
+        )
         ```
 
-        A single draw says little on its own. Repeating the removal over many seeds and
-        averaging the size of the largest component gives a robustness estimate; as `q=` grows,
-        the surviving graph keeps less and less of the original seven nodes in one piece:
+        ### Which members leave
+
+        Removing 30% of Zachary's karate club leaves 24 members. Whether they stay in one piece
+        depends less on how many leave than on who. In these eight draws, the largest piece
+        keeps at least 23 of them whenever the instructor (member 0) stays, and at most 20
+        whenever the instructor leaves:
 
         ```{python}
-        def mean_largest_component(q, trials=200):
-            sizes = [
-                graph.node_percolation(q=q, seed=s).largest_component_size()
-                for s in range(trials)
-            ]
-            return sum(sizes) / trials
+        import polars as pl
 
-        {q: mean_largest_component(q) for q in [0.0, 0.15, 0.3, 0.45, 0.6]}
+        club = ec.karate_club().layout_kamada_kawai()
+
+        draws = []
+        for seed in range(8):
+            survivors = club.node_percolation(q=0.3, seed=seed)
+            draws.append(
+                {
+                    "seed": seed,
+                    "instructor_stays": "0" in survivors.get_node_df()["label"],
+                    "largest": survivors.largest_component_size(),
+                }
+            )
+
+        pl.DataFrame(draws)
         ```
+
+        The survivors keep their attributes, including their positions, so the last draw can be
+        drawn in place. Without the instructor, seven members on the instructor's side are cut
+        off from the rest:
+
+        ```{python}
+        club.node_percolation(q=0.3, seed=7).plot(
+            layout="pos", color_by="faction", label_by="label"
+        )
+        ```
+
+        These are random failures. A targeted attack does far more damage: deleting the seven
+        members with the most friends, 20% of the club, leaves a largest piece of only six.
         """
         from edgecase._core import node_percolation as rust_np
 
