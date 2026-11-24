@@ -57369,33 +57369,54 @@ class Graph:
         ValueError
             If k < 3.
 
+        See Also
+        --------
+        k_core : The same peeling, by degree rather than by triangles.
+        count_triangles : The number of triangles at each node.
+        k_edge_components : Groups of nodes joined by at least `k` edge-disjoint paths.
+
         Examples
         --------
-        The graph below has a dense cluster (A, B, C, D, every pair connected), a loop through
-        E, F, and G, and a pendant node H. The 3-truss keeps only the edges that are part of a
-        triangle: the cluster plus the triangle C-D-E. The edges through F, G, and H belong to
-        no triangle, so those nodes disappear:
+        This graph has a dense cluster `A`-`D`, a loop through `E`, `F` and `G`, and a pendant
+        node `H`. The 3-truss keeps the edges that lie in a triangle: the cluster and the
+        triangle `C`-`D`-`E`. In the 4-truss every edge must lie in two triangles, and the
+        edges to `E` lie in only one, so just the cluster is left:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"),
+             ("G", "D"), ("G", "H")]
         )
 
-        truss_3 = graph.k_truss(3)
-        (sorted(truss_3.get_node_df()["label"].to_list()), truss_3.count_edges())
+        {
+            k: sorted(graph.k_truss(k).get_node_df()["label"].to_list())
+            for k in [3, 4]
+        }
         ```
 
-        In the 4-truss every edge must lie in at least two triangles. The edges C-E and D-E are
-        in only one, so E drops out and just the cluster's six edges remain:
+        ### Two tight circles in a karate club
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. In its 4-truss, each link lies in at least two triangles.
+        The 12 members left form two separate circles, one around the instructor (member `0`)
+        and one around the administrator (`33`):
 
         ```{python}
-        truss_4 = graph.k_truss(4)
-        (sorted(truss_4.get_node_df()["label"].to_list()), truss_4.count_edges())
+        karate = ec.karate_club()
+        truss = karate.k_truss(4)
+
+        label = karate.get_label_from_id
+        circles = truss.weakly_connected_components()
+        [sorted(label(n) for n in c) for c in circles]
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight_edges=truss.get_edge_ids(), label_by="label"
+        )
         ```
         """
         self._check_non_negative(k=k)
