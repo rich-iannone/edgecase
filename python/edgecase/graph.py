@@ -72343,6 +72343,11 @@ class Graph:
         float
             Graph density between `0.0` and `1.0`.
 
+        See Also
+        --------
+        average_degree : The mean number of edges per node.
+        subgraph : The graph induced by a set of nodes, to measure the density within it.
+
         Examples
         --------
         A sparse graph with only 2 of the 3 possible edges has a density well below 1:
@@ -72350,11 +72355,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
 
         # 2 edges, 3 nodes: 2 / (3 x 2 / 2) = 0.667
         f"{graph.density():.3f}"
@@ -72364,13 +72365,27 @@ class Graph:
         `1.0`:
 
         ```{python}
-        complete = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("A", "C")])
-        )
+        complete = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("A", "C")])
 
         f"{complete.density():.3f}"
+        ```
+
+        ### A dense city center
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. The 25 stretches of track link only 13% of the 190 pairs of stations, but the
+        seven stations of zone 1 are far more tightly linked, with 10 of their 21 pairs:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone_1 = nodes.filter(nodes["zone"] == 1)["id"].to_list()
+
+        round(metro.density(), 2), round(metro.subgraph(zone_1).density(), 2)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
         """
         return self._graph.density()
