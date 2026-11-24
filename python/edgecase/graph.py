@@ -41597,7 +41597,7 @@ class Graph:
         return result
 
     def harmonic_function(
-        self, label_name: str = "label", max_iter: int = 30, weighted: bool | None = None
+        self, label_name: str, max_iter: int = 30, weighted: bool | None = None
     ) -> dict:
         r"""
         Predict missing node labels with the harmonic function (label propagation).
@@ -41618,8 +41618,9 @@ class Graph:
         Parameters
         ----------
         label_name
-            Node attribute holding the known labels (default `"label"`); nodes without it (or
-            with `None`) are unlabeled. Any hashable values can be labels.
+            Node attribute holding the known labels; nodes without it (or with `None`) are
+            unlabeled. Any hashable values can be labels. This can't be the `label` column of
+            node names, as every node has a name and so every node would count as labeled.
         max_iter
             Number of propagation steps (default 30).
         weighted
@@ -41645,23 +41646,107 @@ class Graph:
         equally far from two labels) go to the class seen first in node ID order, where
         NetworkX's choice depends on rounding.
 
+        See Also
+        --------
+        local_and_global_consistency : Spread known labels, letting them be overruled.
+        cmty_label_propagation : Spread labels with none known in advance.
+        personalized_pagerank : Score nodes by a walk that keeps returning to the seeds.
+
         Examples
         --------
-        In two groups joined by one edge, one labeled node per group labels its whole group:
+        Two triangles joined by a single edge, with one node of each labeled in the `group`
+        attribute. Each label spreads over its own triangle:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-             ("D", "E")]
-        )
-        g.set_node_attrs("label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"})
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
+        graph.set_node_attrs("group", {"A": "red", "F": "blue"})
 
-        predicted = g.harmonic_function()
-        {g.get_label_from_id(n): label for n, label in predicted.items()}
+        predicted = graph.harmonic_function(label_name="group")
+        {graph.get_label_from_id(n): group for n, group in predicted.items()}
+        ```
+
+        ### Guessing the karate club's factions
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Giving the faction of just two members, one on each side, and counting the members
+        whose predicted faction is wrong:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+
+        rows = []
+        for first, second in [("0", "33"), ("1", "32"), ("16", "26")]:
+            karate.set_node_attrs("known", None)
+            karate.set_node_attrs("known", {first: 1, second: 2})
+            guess = karate.harmonic_function(label_name="known")
+            karate.set_node_attrs("guess", guess)
+            members = karate.get_node_df()
+            wrong = members.filter(pl.col("guess") != pl.col("faction")).height
+            rows.append({"known": f"{first} and {second}", "wrong": wrong})
+
+        pl.DataFrame(rows)
+        ```
+
+        From the two leaders, or from members 1 and 32, every member is placed right. From members
+        16 and 26, six of the instructor's friends are placed on the administrator's side. Member
+        16 can be reached only through members 5 and 6, so a walk from most of the instructor's
+        friends is more likely to reach member 26 first. The labeled members are drawn larger:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.set_node_attrs("known", None)
+        karate.set_node_attrs("known", {"0": 1, "33": 2})
+        guess = karate.harmonic_function(label_name="known")
+        karate.set_node_attrs("from_leaders", guess)
+        karate.set_node_attrs("size", 1)
+        karate.set_node_attrs("size", 2, nodes=["0", "33"])
+        karate.plot(
+            layout="pos", color_by="from_leaders", size_by="size",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.set_node_attrs("known", None)
+        karate.set_node_attrs("known", {"16": 1, "26": 2})
+        guess = karate.harmonic_function(label_name="known")
+        karate.set_node_attrs("from_16_26", guess)
+        karate.set_node_attrs("size", 1)
+        karate.set_node_attrs("size", 2, nodes=["16", "26"])
+        karate.plot(
+            layout="pos", color_by="from_16_26", size_by="size",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        ### Running to convergence
+
+        `max_iter=` sets the number of propagation steps. From members 16 and 26, the default 30
+        is not enough to settle the scores, and with more steps the errors grow, until even the
+        instructor is placed on the administrator's side:
+
+        ```{python}
+        rows = []
+        for steps in (10, 30, 100, 300):
+            guess = karate.harmonic_function(label_name="known", max_iter=steps)
+            karate.set_node_attrs("guess", guess)
+            members = karate.get_node_df()
+            wrong = members.filter(pl.col("guess") != pl.col("faction")).height
+            rows.append({"max_iter": steps, "wrong": wrong})
+
+        pl.DataFrame(rows)
         ```
         """
         return self._classify("harmonic", label_name, 0.99, max_iter, weighted)
