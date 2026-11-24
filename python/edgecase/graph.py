@@ -39483,22 +39483,56 @@ class Graph:
             `True` if every node of the graph is in at least one group. An empty graph is
             covered by any collection.
 
+        See Also
+        --------
+        cmty_k_clique : Overlapping communities that need not be a cover.
+        overlapping_modularity : Score a cover.
+
         Examples
         --------
-        Two triangles sharing node C: overlapping groups that reach every node form a cover,
-        and dropping a node breaks it:
+        Two triangles share node C. Overlapping groups that reach every node form a cover, and
+        dropping a node breaks it:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"),
-                        ("C", "D"), ("D", "E"), ("E", "C")])
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"), ("D", "E"), ("E", "C"),
+        ])
 
-        graph.is_cover([["A", "B", "C"], ["C", "D", "E"]]), graph.is_cover([["A", "B", "C"]])
+        (
+            graph.is_cover([["A", "B", "C"], ["C", "D", "E"]]),
+            graph.is_cover([["A", "B", "C"], ["C", "D"]]),
+        )
+        ```
+
+        ### Clique percolation leaves members out
+
+        `cmty_k_clique()` builds communities out of cliques, so a node in no clique of size `k` is
+        in no community. On `karate_club()` with `k=3`, the communities are not a cover:
+
+        ```{python}
+        karate = ec.karate_club()
+        cover = karate.cmty_k_clique(3)
+
+        karate.is_cover(cover)
+        ```
+
+        The two members left out, 9 and 11, drawn larger, are in no triangle:
+
+        ```{python}
+        covered = set().union(*cover)
+        missing = [n for n in karate.get_node_ids() if n not in covered]
+
+        karate.plot(highlight=missing, label_by="label", seed=3)
+        ```
+
+        Adding each of them as a community of its own makes a cover, which
+        `overlapping_modularity()` can then score:
+
+        ```{python}
+        karate.is_cover(cover + [[n] for n in missing])
         ```
         """
         if isinstance(communities, (str, dict)):
