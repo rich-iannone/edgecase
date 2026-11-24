@@ -61904,6 +61904,11 @@ class Graph:
         Depth-first search over edges with the current path's nodes blocked, as in NetworkX's
         `all_simple_edge_paths` (which yields `(u, v, key)` triples on multigraphs).
 
+        See Also
+        --------
+        all_simple_paths : The same paths as lists of nodes.
+        k_shortest_paths : Only the shortest paths, in order.
+
         Examples
         --------
         Two parallel links from A to B, then one to C, give two distinct edge paths:
@@ -61911,10 +61916,32 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("A", "B"), ("B", "C")])
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "B"), ("B", "C")])
 
-        g.all_simple_edge_paths("A", "C")
+        graph.all_simple_edge_paths("A", "C")
+        ```
+
+        ### Lines along a route
+
+        `metro()` is a made-up city's metro network, with each stretch of track labeled by its
+        line. Edge IDs make it easy to look up the line of each stretch. Both routes from Central
+        to Garden with at most four stops ride one line and change to the Green line for the
+        last stop:
+
+        ```{python}
+        metro = ec.metro()
+        edges = metro.get_edge_df()
+        line = dict(zip(edges["id"], edges["line"]))
+
+        routes = metro.all_simple_edge_paths("Central", "Garden", cutoff=4)
+        [[line[e] for e in route] for route in routes]
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight_edges=[e for route in routes for e in route],
+            label_by="label",
+        )
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
