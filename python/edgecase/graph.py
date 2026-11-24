@@ -58443,15 +58443,56 @@ class Graph:
         time. NetworkX's `find_negative_cycle` can fail with "Negative cycle is detected but not
         found" on some graphs where this method succeeds.
 
+        See Also
+        --------
+        negative_edge_cycle : Check whether any negative cycle exists.
+        bellman_ford_shortest_path : Shortest paths with negative weights, if no cycle is negative.
+
         Examples
         --------
+        Three currencies whose exchange rates, as negative log-rates, make a loop of negative total
+        weight, `-0.10 - 0.15 + 0.20 = -0.05`:
+
         ```{python}
         import edgecase as ec
 
-        fx = ec.Graph(directed=True, weighted=True).add_nodes(["USD", "EUR", "GBP"])
-        fx.add_edges([("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)])
+        fx = ec.Graph.from_edges(
+            [("USD", "EUR", -0.10), ("EUR", "GBP", -0.15), ("GBP", "USD", 0.20)],
+            directed=True,
+        )
 
         [fx.get_label_from_id(n) for n in fx.find_negative_cycle("USD")]
+        ```
+
+        ### Finding an arbitrage
+
+        `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
+        the negative log of its rate, and its stale euro–pound quotes make an arbitrage loop.
+        Searching from the Canadian dollar finds it, since every currency can reach it:
+
+        ```{python}
+        fx = ec.currency()
+        loop = fx.find_negative_cycle("CAD")
+
+        [fx.get_label_from_id(n) for n in loop]
+        ```
+
+        Multiplying the rates around the loop gives the gain on each pound, euro or dollar that
+        goes around it, about 0.1%:
+
+        ```{python}
+        import math
+
+        edges = fx.get_edge_df()
+        pairs = list(zip(edges["source"], edges["target"]))
+        rate = dict(zip(pairs, edges["rate"]))
+
+        steps = list(zip(loop, loop[1:]))
+        round(math.prod(rate[step] for step in steps), 5)
+        ```
+
+        ```{python}
+        fx.plot(highlight=steps, label_by="label", curved_edges=True, seed=4)
         ```
         """
         sid = self._resolve_node_id(source, auto_create=False)
