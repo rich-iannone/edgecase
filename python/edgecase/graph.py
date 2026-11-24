@@ -51359,37 +51359,60 @@ class Graph:
         ValueError
             If `q=` is outside the range `[0.0, 1.0]`.
 
+        See Also
+        --------
+        node_percolation : Remove nodes instead of edges.
+        percolation_threshold_analysis : Track the largest component over many removal rates.
+        node_connected_component : The piece that a node is left in.
+
         Examples
         --------
-        The graph below has ten edges: two clusters (A, B, C and E, F, G) joined through the
-        hub D. Removing 30% of the edges deletes three of them. With this seed the three lost
-        edges are exactly the links B-D, C-D, and D-E, so all seven nodes survive but the
-        largest connected piece now holds only four of them:
+        The graph below has ten edges: two clusters (`A`, `B`, `C` and `E`, `F`, `G`) joined
+        through the hub `D`. Removing 30% of the edges deletes three of them. With this seed they
+        are `B-D`, `C-D` and `D-E`, so every node survives but the largest connected piece holds
+        only four:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"), ("D", "E"),
-                        ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C"), ("B", "D"), ("C", "D"),
+             ("D", "E"), ("D", "F"), ("E", "F"), ("E", "G"), ("F", "G")]
         )
 
         percolated = graph.edge_percolation(q=0.3, seed=14)
 
-        (percolated.count_nodes(), percolated.count_edges(), percolated.largest_component_size())
+        (
+            percolated.count_edges(),
+            percolated.largest_component_size(),
+        )
         ```
 
-        Node IDs and labels carry over unchanged, so the surviving edges can be listed by label
-        to see exactly which links were kept:
+        ### How far a rumor spreads
+
+        Edge percolation can model a rumor in which each tie passes it on with some chance. In
+        Zachary's karate club, keep 30% of the 78 friendships (`q=0.7`), and a rumor started by
+        the instructor (member 0) reaches the members in the instructor's piece of what's left.
+        That varies a lot from one draw to the next:
 
         ```{python}
-        edges = percolated.get_edge_df()
+        club = ec.karate_club().layout_kamada_kawai()
 
-        sorted(
-            "-".join(sorted([percolated.get_label_from_id(s), percolated.get_label_from_id(t)]))
-            for s, t in zip(edges["source"], edges["target"])
+        [
+            len(club.edge_percolation(q=0.7, seed=seed).node_connected_component("0"))
+            for seed in range(10)
+        ]
+        ```
+
+        In this draw the rumor reaches seventeen members, half the club. Highlighted, they keep
+        their faction colors, and the members it never reaches are gray:
+
+        ```{python}
+        rumor = club.edge_percolation(q=0.7, seed=6)
+
+        rumor.plot(
+            layout="pos", color_by="faction", label_by="label",
+            highlight=sorted(rumor.node_connected_component("0")),
         )
         ```
         """
