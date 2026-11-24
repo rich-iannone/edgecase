@@ -20303,13 +20303,53 @@ class Graph:
 
         Examples
         --------
+        Each edge on its own can be split either way, so `A` can go with `C` or with `D`, but
+        never with `B`:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["ann", "bob", "party", "talk"])
-        g.add_edges([("ann", "party"), ("bob", "party"), ("bob", "talk")])
+        graph = ec.Graph.from_edges([("A", "B"), ("C", "D")])
+        sides = [["A", "C"], ["A", "D"], ["A", "B"]]
 
-        g.is_bipartite_node_set(["ann", "bob"]), g.is_bipartite_node_set(["ann", "talk"])
+        [graph.is_bipartite_node_set(side) for side in sides]
+        ```
+
+        ### Checking a side
+
+        `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
+        social events (E1 to E14) each of them attended, and the `bipartite` attribute marks the
+        two sides. The women form one side. Without Flora Price they don't, as she would then be
+        on the same side as the events she attended:
+
+        ```{python}
+        davis = ec.davis_southern_women()
+        side = davis.get_node_attrs("bipartite")
+        women = [n for n, s in side.items() if s == 0]
+        flora = davis.get_id_from_label("Flora Price")
+        others = [n for n in women if n != flora]
+
+        davis.is_bipartite_node_set(women), davis.is_bipartite_node_set(others)
+        ```
+
+        E9 and E11 are the only events that Flora Price and Olivia Carleton attended:
+
+        ```{python}
+        pair = ["Flora Price", "Olivia Carleton"]
+        ties = [(w, e) for w in pair for e in ["E9", "E11"]]
+
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.5).plot(
+            layout="pos", highlight=ties, label_by="label", height=900
+        )
+        ```
+
+        With those two events gone, the two women are on their own, and either side will do for
+        them:
+
+        ```{python}
+        davis.delete_node("E9").delete_node("E11")
+
+        davis.is_bipartite_node_set(others)
         ```
         """
         ids = [self._resolve_node_id(n, auto_create=False) for n in nodes]
