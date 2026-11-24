@@ -132,6 +132,23 @@ class TestDirectedSteinerTree:
         tree = diamond_dag.directed_steiner_tree("R", ["B", "D"])
         assert tree.is_directed()
 
+    def test_shared_branch_beats_separate_paths(self):
+        """Regression: the paths found one terminal at a time cost 11 on the pipeline, where
+        sharing the branch to Valley Junction costs 8."""
+        pipeline = ec.pipeline()
+        edges = labeled(
+            pipeline,
+            pipeline.directed_steiner_tree(
+                "Reservoir",
+                ["North District", "South District"],
+                weight_attr="cost",
+                return_subgraph=False,
+            ),
+        )
+        assert sum(w for *_, w in edges) == 8
+        assert ("Valley Junction", "Ridge Tank", 1.0) in edges
+        assert len({t for _, t, _ in edges}) == len(edges)  # one parent each
+
     def test_does_not_mutate_original(self, diamond_dag):
         n = diamond_dag.count_nodes()
         e = diamond_dag.count_edges()
