@@ -24716,60 +24716,61 @@ class Graph:
             If `mode=` is not one of `"out"`, `"in"`, or `"all"`, if a seed node does not exist,
             or if `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        ego_graph : The subgraph within a number of steps of a node.
+        get_neighbors : The neighbors of a node.
+        trav_out : Move the selection along outgoing edges.
+
         Examples
         --------
-        On a 5-node star, a 1-hop selection from the hub reaches every spoke; together with the
-        hub itself that is all 5 nodes. The hub is the first node the generator creates:
+        On a path, the nodes within two steps of `C` are `A` to `E`, along with `C` itself. `F`
+        is three steps away:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_star_graph(n=5)
-        center_id = graph.get_node_creation_order()[0]
-
-        graph.select_nodes_in_neighborhood(nodes=center_id, k=1, mode="all")
-        graph.count_selected_nodes()
-        ```
-
-        Increasing `k` extends the reach further along the graph. Starting from "A" with
-        `k=2` and following outgoing edges selects "A" plus "B" and "C", but not "D", which is
-        three hops away:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("E", "F")]
         )
+        graph.select_nodes_in_neighborhood("C", k=2)
 
-        graph.select_nodes_in_neighborhood(nodes="A", k=2, mode="out")
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
-        Direction matters in directed graphs. In the same graph, following edges backwards
-        from "C" with `mode="in"` finds its upstream nodes instead -- "C", "B", and "A" -- and
-        never reaches "D":
+        In a directed graph, `mode=` sets which way to follow the edges. From `B`, `"out"`
+        reaches `C`, and `"in"` reaches `A`:
 
         ```{python}
-        graph.select_nodes_in_neighborhood(nodes="C", k=2, mode="in")
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
-        ```
+        digraph = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        label = digraph.get_label_from_id
 
-        Multiple seed nodes are unioned together -- here, the 1-hop neighborhoods of both
-        "A" and "B" combine with the seeds themselves, leaving out only "E" (two hops from
-        "A" via "C"):
+        out = digraph.select_nodes_in_neighborhood("B", mode="out")
+        down = sorted(label(n) for n in out.get_selected_node_ids())
 
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "E")])
+        back = digraph.select_nodes_in_neighborhood(
+            "B", mode="in", set_op="replace"
         )
-
-        graph.select_nodes_in_neighborhood(nodes=["A", "B"], k=1, mode="all")
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_selected_node_ids())
+        down, sorted(label(n) for n in back.get_selected_node_ids())
         ```
 
+        ### Two payments from Cruz
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Following the payments out of Cruz for two steps reaches six
+        accounts: Ana and Ivy, who Cruz pays, and the accounts they pay in turn:
+
+        ```{python}
+        payments = ec.payments()
+        payments.select_nodes_in_neighborhood("Cruz", k=2, mode="out")
+
+        label = payments.get_label_from_id
+        sorted(label(n) for n in payments.get_selected_node_ids())
+        ```
+
+        ```{python}
+        payments.plot(highlight="selection", label_by="label", seed=3)
+        ```
         """
         # Convert single value to list
         if isinstance(nodes, (str, int)):
