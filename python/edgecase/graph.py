@@ -40230,23 +40230,75 @@ class Graph:
         Follows NetworkX's `asyn_fluidc`; with a different random generator, the communities
         found for a given seed differ from NetworkX's.
 
+        See Also
+        --------
+        cmty_label_propagation : Spread labels with no set number of communities.
+        kernighan_lin_bisection : Split into two halves of equal size.
+        cmty_stochastic_block_model : Fit a set number of blocks by likelihood.
+
         Examples
         --------
-        Two dense groups joined by a single edge split cleanly into two fluids:
+        Two triangles joined by a single edge, asked for two communities, split into the two
+        triangles:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-             ("E", "F"), ("E", "G"), ("E", "H"), ("F", "G"), ("F", "H"), ("G", "H"),
-             ("D", "E")]
-        )
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
 
-        groups = g.cmty_fluid(2, seed=3, return_dict=True)
-        {g.get_label_from_id(n): c for n, c in sorted(groups.items())}
+        graph.cmty_fluid(2, seed=1).get_node_df().select("label", "cmty_fluid")
         ```
+
+        ### Two communities for two factions
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Since the club split in two, `k=2` asks for two communities. Counting, for each
+        seed, the members whose community does not match their faction:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+
+        majority = pl.col("faction").mode().first().over("cmty_fluid")
+
+        rows = []
+        for seed in range(1, 6):
+            members = karate.cmty_fluid(2, seed=seed).get_node_df()
+            misplaced = members.filter(pl.col("faction") != majority).height
+            rows.append({"seed": seed, "misplaced": misplaced})
+
+        pl.DataFrame(rows)
+        ```
+
+        Seeds 1 and 5 recover the factions exactly. The others start a fluid in the wrong place
+        and misplace from one to five members. With seed 3 (right), member 19 joins the
+        administrator's side, and members 24, 25, 28 and 31 the instructor's:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.cmty_fluid(2, seed=1, attr_name="seed_1")
+        karate.plot(
+            layout="pos", color_by="seed_1", edge_color_by="seed_1",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.cmty_fluid(2, seed=3, attr_name="seed_3")
+        karate.plot(
+            layout="pos", color_by="seed_3", edge_color_by="seed_3",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(k=k, max_iter=max_iter)
         ids, labels = rust.fluid_communities(self._graph, k, max_iter, seed)
