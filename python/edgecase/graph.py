@@ -26784,24 +26784,53 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        trav_out : Move the selection along outgoing edges.
+        trav_both : Move the selection to neighbors either way.
+        trav_in_until : Walk backward until a node passes a test.
+        trav_in_edge : Move the selection to incoming edges.
+
         Examples
         --------
-        `trav_in()` follows edges in reverse: starting from "C", it lands on "B", the node
-        with an edge pointing into "C":
+        The selection moves from `D` against the direction of its incoming edges, to `B` and
+        `C`, the nodes that point to it:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C"])
-        graph.add_edges([("A", "B"), ("B", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
+        )
+        graph.select_nodes_by_id([graph.get_id_from_label("D")]).trav_in()
 
-        node_c_id = graph.get_id_from_label("C")
-        graph.select_nodes_by_id([node_c_id]).trav_in()
-
-        graph.get_selected_node_ids()
+        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
+        ### Tracing a payment back
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Lena was paid 2,850 by Kai. Stepping back one payment at a time
+        shows where it came from: Kai was paid by Jo, Jo by Ivy, and Ivy by Cruz:
+
+        ```{python}
+        payments = ec.payments()
+        label = payments.get_label_from_id
+
+        payments.select_nodes_by_id([payments.get_id_from_label("Lena")])
+        chain = ["Lena"]
+        for _ in range(4):
+            payments.trav_in()
+            chain += [label(n) for n in payments.get_selected_node_ids()]
+        chain
+        ```
+
+        Turned around, the accounts make a path in the direction the money went, so the plot
+        picks out the payments along it as well:
+
+        ```{python}
+        payments.plot(highlight=chain[::-1], label_by="label", seed=3)
+        ```
         """
         self._graph.trav_in()
 
