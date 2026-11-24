@@ -71659,6 +71659,11 @@ class Graph:
           k-edge-connected without it. This is a heuristic and may add more edges than
           necessary.
 
+        See Also
+        --------
+        is_k_edge_connected : Check the result.
+        bridges : The edges that make a graph less than 2-edge-connected.
+
         Examples
         --------
         A path of five nodes has two leaves in its bridge tree, so one edge joining its ends
@@ -71667,8 +71672,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(list("ABCDE"))
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
 
         label = path.get_label_from_id
         [(label(u), label(v)) for u, v in path.k_edge_augmentation(2)]
@@ -71678,12 +71684,36 @@ class Graph:
         With costs, the cheap candidates are used when they suffice:
 
         ```{python}
-        star = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
-        star.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+        star = ec.Graph.from_edges(
+            [("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")]
+        )
 
         label = star.get_label_from_id
         options = [("a", "b", 1), ("c", "d", 1), ("a", "c", 5), ("b", "d", 5)]
-        [(label(u), label(v)) for u, v in star.k_edge_augmentation(2, avail=options)]
+        added = star.k_edge_augmentation(2, avail=options)
+        [(label(u), label(v)) for u, v in added]
+        ```
+
+        ### Closing the gaps in the metro
+
+        `metro()` is a made-up city's metro network. The branches out to the harbor and the
+        Airport each run on single stretches of track. Two new stretches, from Docks to
+        Shipyard and from Shipyard to the Airport, are enough for the network to survive the
+        closure of any one stretch:
+
+        ```{python}
+        metro = ec.metro()
+        new_track = metro.k_edge_augmentation(2)
+
+        metro.add_edges(new_track)
+        [
+            (metro.get_label_from_id(u), metro.get_label_from_id(v))
+            for u, v in new_track
+        ], metro.is_k_edge_connected(2)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=new_track, label_by="label")
         ```
 
         Notes
