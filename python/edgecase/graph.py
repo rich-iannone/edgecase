@@ -66475,18 +66475,51 @@ class Graph:
         node that is incomparable with all of its members, using the transitive closure for the
         comparability test (Freese, 2004). Matches NetworkX's `antichains` for the same order.
 
+        See Also
+        --------
+        antichain_width : The size of the largest antichain.
+        topological_generations : Group the nodes into layers, each an antichain.
+
         Examples
         --------
-        In a diamond A -> B, A -> C, B -> D, C -> D, only B and C are incomparable, so the
-        antichains are the empty set, the four single nodes, and {B, C}:
+        In a diamond, the antichains are the sets of nodes none of which can reach another:
+        the empty set, each node alone, and `B` with `C`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
+        )
+        [[graph.get_label_from_id(n) for n in a] for a in graph.antichains()]
+        ```
 
-        [[g.get_label_from_id(n) for n in a] for a in g.antichains()]
+        ### Courses to take together
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. An antichain is a set of courses none of
+        which requires another, so any antichain could be taken in a single semester, if the
+        prerequisites of all of them were done. There are 488, and the eight largest have six
+        courses each:
+
+        ```{python}
+        courses = ec.courses()
+        sets = courses.antichains()
+        largest = [chain for chain in sets if len(chain) == 6]
+
+        (
+            len(sets),
+            len(largest),
+            [courses.get_label_from_id(n) for n in largest[0]],
+        )
+        ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight=largest[0], color_by="dept", label_by="label",
+            height=420,
+        )
         ```
         """
         self._require_dag("antichains")
