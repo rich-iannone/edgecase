@@ -42075,9 +42075,6 @@ class Graph:
         treats edges as undirected; on a directed graph only outgoing edges are counted and the
         within-block probabilities use undirected pair counts, so results there are approximate.
 
-        The block assignments are always written to the node DataFrame, even when
-        `return_dict=True`.
-
         Parameters
         ----------
         k
@@ -42110,46 +42107,100 @@ class Graph:
             `0` to `k - 1`; block numbers are arbitrary labels). An empty graph gives `{}`. If
             `return_dict=` is `False` (default): self for method chaining.
 
+        See Also
+        --------
+        cmty_fluid : Find a set number of communities by spreading fluids.
+        cmty_leiden : Find dense communities by optimizing modularity.
+
         Examples
         --------
-        Two dense groups, a triangle and a four-node clique, are joined by a single edge. A
-        two-block model fitted with `seed=7` recovers the two groups as separate blocks:
+        A triangle and a four-node clique joined by a single edge. A two-block model fitted with
+        `seed=7` puts each group in a block of its own:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-        graph.add_edges([
-            ("A", "B"), ("B", "C"), ("C", "A"),  # triangle
-            ("C", "D"),                          # bridge
-            ("D", "E"), ("D", "F"), ("D", "G"),  # four-node clique
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("D", "F"), ("D", "G"),
             ("E", "F"), ("E", "G"), ("F", "G"),
         ])
 
-        blocks = graph.cmty_stochastic_block_model(k=2, seed=7, return_dict=True)
-        {graph.get_label_from_id(nid): block for nid, block in blocks.items()}
+        (
+            graph.cmty_stochastic_block_model(k=2, seed=7)
+            .get_node_df()
+            .select("label", "sbm_block")
+        )
         ```
 
-        The fit depends on the random starting point. With `seed=42` the same graph converges to
-        a single block, which is why it pays to try several seeds:
+        With `seed=42`, the same graph converges to a single block, which is why it pays to try
+        several seeds:
 
         ```{python}
         blocks = graph.cmty_stochastic_block_model(k=2, seed=42, return_dict=True)
         set(blocks.values())
         ```
 
-        Without `return_dict=`, the assignments are stored in the node DataFrame (here under a
-        custom column name) and the graph is returned for chaining:
+        ### Two kinds of blocks in the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Fitting two blocks from five seeds, and counting the edges
+        inside each block and between the two:
 
         ```{python}
-        (
-            graph
-            .cmty_stochastic_block_model(k=2, seed=7, attr_name="block")
-            .get_node_df()
-            .select("label", "block")
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+        edges = karate.get_edge_df()
+
+        rows = []
+        for seed in range(1, 6):
+            blocks = karate.cmty_stochastic_block_model(
+                seed=seed, return_dict=True
+            )
+            ends = [
+                (blocks[u], blocks[v])
+                for u, v in zip(edges["source"], edges["target"])
+            ]
+            inside_0, inside_1 = ends.count((0, 0)), ends.count((1, 1))
+            rows.append({
+                "seed": seed,
+                "size_0": list(blocks.values()).count(0),
+                "size_1": list(blocks.values()).count(1),
+                "inside_0": inside_0,
+                "inside_1": inside_1,
+                "between": len(ends) - inside_0 - inside_1,
+            })
+
+        pl.DataFrame(rows)
+        ```
+
+        Seed 1 finds two dense blocks with only 10 edges between them: the two factions recorded in
+        `faction`, exactly (left). Seed 4 finds another kind of structure: a core of 20 members,
+        and a periphery of 14 with a single edge among them, who are friends almost only with the
+        core (right). Seeds 2 and 5 find a core and a periphery too, and seed 3 a split close to the
+        factions. Modularity-based methods look only for the first kind of structure:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.cmty_stochastic_block_model(seed=1, attr_name="seed_1")
+        karate.plot(
+            layout="pos", color_by="seed_1", edge_color_by="seed_1",
+            label_by="label", width=320, height=360, legend=False,
         )
         ```
+
+        ```{python}
+        karate.cmty_stochastic_block_model(seed=4, attr_name="seed_4")
+        karate.plot(
+            layout="pos", color_by="seed_4", edge_color_by="seed_4",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         import math as _math
         import random as _random
@@ -42249,14 +42300,13 @@ class Graph:
         # Build result dict
         communities = {nid: assignments[i] for i, nid in enumerate(node_ids)}
 
-        self.set_node_attrs(attr_name, communities)
-
-        params = {"k": k}
-        if not return_dict:
-            self._computations.append(("cmty_stochastic_block_model", params, attr_name))
-
         if return_dict:
             return communities
+
+        self._store_node_result(
+            "cmty_stochastic_block_model", {"k": k}, attr_name, communities, show="groups",
+            default_attr="sbm_block",
+        )
         return self
 
     # ==============================================================================
