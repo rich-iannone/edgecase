@@ -25590,47 +25590,49 @@ class Graph:
         list[int]
             List of selected edge IDs in no particular order, empty if no edges are selected.
 
+        See Also
+        --------
+        count_selected_edges : The number of selected edges.
+        get_selected_node_ids : The IDs of the selected nodes.
+        get_edge_df_ws : The table of the selected edges.
+
         Examples
         --------
-        Selecting the edges heavier than `0.5` returns the IDs of the second and third
-        edges, `2` and `3` (edge IDs follow creation order):
+        The IDs come back as integers, in no set order. `get_edge()` gives each one's `Edge`
+        object:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)])
-            .select_edges(lambda e: e.weight > 0.5)
+        graph = ec.Graph.from_edges(
+            [("A", "B", 0.3), ("B", "C", 0.8), ("C", "D", 0.6)]
         )
+        graph.select_edges(lambda e: e.weight > 0.5)
 
-        sorted(graph.get_selected_edge_ids())
+        ids = sorted(graph.get_selected_edge_ids())
+        ids, [graph.get_edge(e).weight for e in ids]
         ```
 
-        Each ID can be resolved back to its `Edge` object, here to list the endpoints of the
-        selected edges by label:
+        ### Payday
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The payments made on 1 March are the four salaries Acme pays:
 
         ```{python}
+        payments = ec.payments()
+        payments.select_edges(lambda e: e.attributes["date"] == "2026-03-01")
+        payday = sorted(payments.get_selected_edge_ids())
+
+        label = payments.get_label_from_id
         [
-            (graph.get_label_from_id(e.source), graph.get_label_from_id(e.target))
-            for e in (graph.get_edge(eid) for eid in sorted(graph.get_selected_edge_ids()))
+            (label(e.target), e.attributes["amount"])
+            for e in map(payments.get_edge, payday)
         ]
         ```
 
-        When a predicate matches nothing, the result is an empty list. This cycle was created
-        without explicit edge weights, so every edge's `weight` is `None` and no edge passes:
-
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_cycle_graph(4)
-            .select_edges(lambda e: e.weight is not None and e.weight > 0.5)
-        )
-
-        graph.get_selected_edge_ids()
+        payments.plot(highlight_edges=payday, label_by="label", seed=3)
         ```
-
         """
         return self._graph.get_selected_edge_ids()
 
