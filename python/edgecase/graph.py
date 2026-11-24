@@ -83849,21 +83849,52 @@ class Graph:
         ValueError
             If the graph is directed, or `r=` is omitted on a graph without edges.
 
+        See Also
+        --------
+        bethe_hessian_matrix : The matrix whose eigenvalues these are.
+        modularity_spectrum : Another spectrum that signals communities.
+        laplacian_spectrum : The spectrum at `r = 1`.
+
         Examples
         --------
-        The spectrum at the default `r`, and at `r = 1`, where its smallest value is the
-        Laplacian's `0`:
+        The spectrum of two triangles joined by a bridge at the default `r`, and at `r = 1`, where
+        it is the Laplacian spectrum, starting at `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(list("ABCDEF"))
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                         ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
+        )
 
         (
-            [round(v, 3) for v in graph.bethe_hessian_spectrum()],
-            [round(v, 3) for v in graph.bethe_hessian_spectrum(r=1)],
+            [round(v, 3) + 0.0 for v in graph.bethe_hessian_spectrum()],
+            [round(v, 3) + 0.0 for v in graph.bethe_hessian_spectrum(r=1)],
+        )
+        ```
+
+        ### Counting conferences
+
+        `football()` links two college football teams when they played each other in the 2000
+        season, and the `conference` attribute records each team's conference. At the square
+        root of the default `r`, as Saade et al. recommend, the spectrum has 10 negative
+        eigenvalues, close to the 11 conferences. At the default `r` it has only one:
+
+        ```{python}
+        football = ec.football()
+        degrees = [football.get_degree(n) for n in football.get_node_ids()]
+        r = (sum(d * d for d in degrees) / sum(degrees) - 1) ** 0.5
+
+        [
+            sum(v < 0 for v in football.bethe_hessian_spectrum(r=x))
+            for x in [None, r]
+        ]
+        ```
+
+        ```{python}
+        football.layout_forceatlas2(seed=1).plot(
+            layout="pos", color_by="conference", show_labels=False
         )
         ```
         """
