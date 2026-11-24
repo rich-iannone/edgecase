@@ -19081,7 +19081,29 @@ class Graph:
         no edges inside either one. To check a particular split, such as the `side` attribute here,
         use `is_bipartite_node_set()`.
         """
-        return self._graph.is_bipartite()
+        result = self._graph.is_bipartite()
+        if self._recording_depth == 0:
+            if result:
+                sides = self.bipartite_sets()
+                groups = {self._node_label(n): i for i, side in enumerate(sides) for n in side}
+                delta = StepDelta(node_groups=groups)
+                narration = f"Bipartite: sides of {len(sides[0])} and {len(sides[1])} nodes."
+            else:
+                # Some cycle in any cycle basis is odd when the graph isn't bipartite
+                try:
+                    odd = [c for c in self.cycle_basis() if len(c) % 2]
+                except Exception:
+                    odd = []
+                cycle = min(odd, key=len) if odd else []
+                delta = self._path_delta([cycle + cycle[:1]]) if cycle else StepDelta()
+                narration = "Not bipartite" + (
+                    f": odd cycle {'–'.join(self._node_label(n) for n in cycle)}." if cycle else "."
+                )
+            self._record_step(
+                KIND_QUERY, "is_bipartite", "G.is_bipartite()", delta=delta, result=result,
+                narration=narration,
+            )
+        return result
 
     def bipartite_sets(self) -> tuple[list[int], list[int]]:
         """
