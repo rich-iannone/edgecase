@@ -78791,7 +78791,7 @@ class Graph:
     # Dominating Sets
     # ==============================================================================
 
-    def is_dominating_set(self, nodes: list[int]) -> bool:
+    def is_dominating_set(self, nodes: list[Union[int, str]]) -> bool:
         """
         Check if a set of nodes forms a dominating set.
 
@@ -78809,8 +78809,7 @@ class Graph:
         - a set of monitors or sensors observes every node in a network
         - the output of `dominating_set()` or `minimum_weighted_dominating_set()` is valid
 
-        Node IDs in `nodes=` that don't exist in the graph are silently ignored, and duplicates
-        are harmless. For directed graphs, a node outside the set counts as dominated only if it
+        Duplicates in `nodes=` are harmless. For directed graphs, a node outside the set counts as dominated only if it
         has an edge pointing *to* a member of the set (an out-neighbor in `D`); edges pointing
         from a member to it do not count. Convert with `to_undirected()` first if you want
         direction to be ignored.
@@ -78818,15 +78817,19 @@ class Graph:
         Parameters
         ----------
         nodes
-            A list of integer node IDs forming the candidate dominating set. Labels are not
-            accepted; use `get_id_from_label()` to convert them. An empty list is only a
-            dominating set of an empty graph.
+            The nodes (IDs or labels) forming the candidate dominating set. An empty list is
+            only a dominating set of an empty graph.
 
         Returns
         -------
         bool
             `True` if every node in the graph is in `nodes=` or adjacent to a node in `nodes=`,
             `False` otherwise.
+
+        Raises
+        ------
+        NodeNotFoundError
+            If any of `nodes=` is not a node in the graph.
 
         Technical Notes
         ---------------
@@ -78837,50 +78840,58 @@ class Graph:
         dominating set (trivially). A single-node set dominates exactly that node and its
         neighborhood.
 
+        See Also
+        --------
+        dominating_set : Find a dominating set quickly.
+        minimum_weighted_dominating_set : Find a small or cheap dominating set.
+        is_vertex_cover : Check that a set touches every edge instead of every node.
+
         Examples
         --------
-        On a path `A-B-C-D`, the set `{B, D}` dominates the whole graph: `B` covers `A` and `C`,
-        while `D` covers itself:
+        On a path, `B` and `D` together reach every node, but `B` alone misses `D`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        graph.is_dominating_set(["B", "D"]), graph.is_dominating_set(["B"])
+        ```
+
+        ### Wi-Fi in every room
+
+        `offices()` is the floor plan of a made-up office, with its 20 rooms joined where a door
+        leads from one to the other. An access point reaches its own room and the rooms next
+        door, so the rooms for access points must form a dominating set. One in each of the four
+        halls covers the office. Without the one in East Hall 2, five rooms on the second floor
+        lose their signal:
+
+        ```{python}
+        offices = ec.offices()
+        rooms = ["West Hall 1", "East Hall 1", "West Hall 2", "East Hall 2"]
+        halls = [offices.get_id_from_label(room) for room in rooms]
+        covered = set(halls[:3]) | {
+            m for n in halls[:3] for m in offices.get_neighbors(n)
+        }
+
+        (
+            offices.is_dominating_set(halls),
+            offices.is_dominating_set(halls[:3]),
+            [
+                offices.get_label_from_id(n)
+                for n in offices.get_node_ids() if n not in covered
+            ],
         )
-
-        b_id = graph.get_id_from_label("B")
-        d_id = graph.get_id_from_label("D")
-
-        # Returns True
-        graph.is_dominating_set([b_id, d_id])
         ```
 
-        Dropping `D` leaves it uncovered, since `B` alone doesn't reach that far:
-
         ```{python}
-        # Returns False: D is neither in the set nor adjacent to a member
-        graph.is_dominating_set([b_id])
-        ```
-
-        This is a convenient way to confirm a dominating set produced by `dominating_set()` is
-        actually valid:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_gnm_graph(n=50, m=100, seed=23)
-
-        dom = graph.dominating_set()
-
-        # Returns True: dominating_set() always produces a valid result
-        graph.is_dominating_set(dom)
+        offices.plot(layout="pos", highlight=halls[:3], label_by="label")
         ```
         """
         from edgecase._core import is_dominating_set
 
-        return is_dominating_set(self._graph, nodes)
+        ids = [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        return is_dominating_set(self._graph, ids)
 
     def dominating_set(self, start_with: int | None = None) -> list[int]:
         r"""
