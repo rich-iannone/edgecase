@@ -19021,6 +19021,13 @@ class Graph:
         bool
             `True` if the graph is bipartite, `False` otherwise.
 
+        See Also
+        --------
+        bipartite_sets : The two sides of a bipartite graph.
+        is_bipartite_node_set : Check whether a given set of nodes is one side.
+        layout_bipartite : Draw the two sides in two rows or columns.
+        greedy_color : Color the nodes with as few colors as it can, two or more.
+
         Examples
         --------
         A simple path can always be 2-colored by alternating colors along the chain, so it's
