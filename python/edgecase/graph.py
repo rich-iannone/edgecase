@@ -57264,38 +57264,55 @@ class Graph:
         Graph
             New graph containing only the k-crust nodes and their connecting edges.
 
+        See Also
+        --------
+        k_core : The nodes with coreness at least `k`, the opposite of the crust.
+        k_shell : The nodes with coreness exactly `k`.
+        coreness : The coreness of every node.
+
         Examples
         --------
-        The graph below has a dense cluster (A, B, C, D, coreness 3), a loop E-F-G attached to it
-        (coreness 2), and a pendant node H (coreness 1). The 2-crust removes the cluster and
-        keeps the outer layers, the loop plus H:
+        This graph has a dense cluster `A`-`D` (coreness 3), a loop through `E`, `F` and `G`
+        (coreness 2), and a pendant node `H` (coreness 1). The 2-crust removes the cluster and
+        keeps the rest, with only the edges among them:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G", "H"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "D"),
-                        ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"), ("G", "D"), ("G", "H")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("C", "E"), ("D", "E"), ("E", "F"), ("F", "G"),
+             ("G", "D"), ("G", "H")]
         )
 
-        crust_2 = graph.k_crust(2)
-        sorted(crust_2.get_node_df()["label"].to_list())
+        crust = graph.k_crust(2)
+        crust.get_edges_str_repr(use_labels=True)
         ```
 
-        Only the edges among those four nodes survive (E-F, F-G, and G-H), so the crust is a
-        simple chain:
+        Raising `k` to the highest coreness gives back every node and edge:
 
         ```{python}
-        (crust_2.count_nodes(), crust_2.count_edges())
+        graph.k_crust(3).count_edges()
         ```
 
-        Raising `k` to the maximum coreness (here `3`) gives back every node and edge:
+        ### The novel without its center
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
+        same chapter. Taking out the 20 characters with coreness 8 or 9, Valjean and Marius
+        among them, leaves a 7-crust of 57 characters that falls into 15 pieces. Bishop Myriel's
+        circle of ten, from the start of the novel, is one of them:
 
         ```{python}
-        crust_3 = graph.k_crust(3)
-        (crust_3.count_nodes(), crust_3.count_edges())
+        novel = ec.les_miserables()
+        crust = novel.k_crust(7)
+        pieces = sorted(crust.weakly_connected_components(), key=len)
+
+        crust.count_nodes(), len(pieces), [len(p) for p in pieces[-3:]]
+        ```
+
+        ```{python}
+        myriel = crust.node_connected_component("Myriel")
+        crust.plot(highlight=list(myriel), label_by="label", seed=1)
         ```
         """
         self._check_non_negative(k=k)
