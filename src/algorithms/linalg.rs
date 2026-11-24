@@ -451,7 +451,7 @@ pub fn spectral_modularity_bipartition(
         // No edges: every eigenvector is as good as any other, so nothing is split off
         return Ok((Vec::new(), ids, 0.0));
     }
-    let eig = na::SymmetricEigen::new(b);
+    let eig = crate::algorithms::eigen::symmetric_eigen(b);
     let lead = (0..ids.len()).fold(0, |best, j| {
         if eig.eigenvalues[j] > eig.eigenvalues[best] {
             j
@@ -795,7 +795,7 @@ pub fn exp_cosh_diagonals(
     if n == 0 {
         return Ok((ids, Vec::new(), Vec::new()));
     }
-    let eig = na::SymmetricEigen::new(a);
+    let eig = crate::algorithms::eigen::symmetric_eigen(a);
     let mut cosh = vec![0.0; n];
     let mut exp = vec![0.0; n];
     for k in 0..n {
