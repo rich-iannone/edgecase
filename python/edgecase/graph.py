@@ -69001,36 +69001,43 @@ class Graph:
             If the graph is directed or not connected (isolated nodes are ignored), or weights
             are used and one is negative.
 
+        See Also
+        --------
+        is_eulerian : Check for an Eulerian circuit.
+        eulerian_circuit : The circuit through the result.
+
         Examples
         --------
-        A path of four nodes has odd ends; duplicating its three edges makes a there-and-back
-        circuit:
+        The two ends of a path have one edge each. Doubling the edges between them makes every
+        degree even:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_path_graph(4)
-        walk = path.eulerize()
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        doubled = path.eulerize()
 
-        walk.count_edges(), walk.is_eulerian(), walk.eulerian_circuit()
+        doubled.count_edges(), doubled.is_eulerian()
         ```
 
-        The duplicates are marked, so the extra distance of the postman route is easy to read.
-        In a square with a roof, only the top corners have odd degree, so the edge between
-        them is walked twice:
+        ### Two more bridges
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. All four land masses have an odd number of
+        bridges, and doubling two bridges fixes that: the Krämerbrücke, from Kneiphof to the North
+        Bank, and the Hohe Brücke, from the South Bank to Lomse. The copies have
+        `eulerize_added` set to `True`:
 
         ```{python}
-        house = (
-            ec.Graph()
-            .add_nodes(["bl", "br", "tl", "tr", "roof"])
-            .add_edges([("bl", "br"), ("bl", "tl"), ("br", "tr"), ("tl", "tr"),
-                        ("tl", "roof"), ("tr", "roof")])
-        )
+        konigsberg = ec.konigsberg().eulerize()
+        edges = konigsberg.get_edge_df().select("id", "eulerize_added")
+        added = [edge for edge, copy in edges.iter_rows() if copy]
 
-        walk = house.eulerize()
-        added = walk.get_edge_df().filter(eulerize_added=True)
-        label = walk.get_label_from_id
-        [(label(s), label(t)) for s, t in added.select(["source", "target"]).iter_rows()]
+        konigsberg.count_edges(), konigsberg.is_eulerian()
+        ```
+
+        ```{python}
+        konigsberg.plot(layout="pos", highlight_edges=added, label_by="label")
         ```
         """
         result_rust, added = rust.eulerize(self._graph, self._use_weights(weighted))
