@@ -62983,6 +62983,12 @@ class Graph:
         ValueError
             If a node does not exist or `mode=` is invalid.
 
+        See Also
+        --------
+        bfs : The order the search visits the nodes in.
+        descendants_at_distance : The nodes at one distance only.
+        multi_source_shortest_path_length : The distance to the nearest source, with weights.
+
         Examples
         --------
         From one end of a path, each layer holds one node; from both ends, the layers meet in
@@ -62994,6 +63000,29 @@ class Graph:
         path = ec.Graph().add_path_graph(6)
 
         path.bfs_layers(1), path.bfs_layers([1, 6])
+        ```
+
+        ### Stops from the end of the line
+
+        `metro()` is a made-up city's metro network. Starting from the stations at the ends of
+        lines, those with a single neighbor, the layers count the stops from the nearest end:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        ends = nodes.filter(nodes["degree"] == 1)["id"].to_list()
+
+        layers = metro.bfs_layers(ends)
+        [[metro.get_label_from_id(n) for n in layer] for layer in layers]
+        ```
+
+        ```{python}
+        stops = {n: i for i, layer in enumerate(layers) for n in layer}
+        metro.set_node_attrs("stops_from_end", stops)
+        metro.plot(
+            layout="pos", color_by="stops_from_end", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         self._check_traversal_args(None, mode)
