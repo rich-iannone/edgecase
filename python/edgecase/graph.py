@@ -39897,45 +39897,108 @@ class Graph:
             If the graph is directed, `objective=` is not `"modularity"` or `"cpm"`, or
             `theta=` is not positive.
 
+        See Also
+        --------
+        cmty_louvain : The method Leiden refines; communities can be disconnected.
+        cmty_leiden_levels : The partition at every level of the Leiden hierarchy.
+        modularity : The score that Leiden maximizes with `objective="modularity"`.
+        constant_potts_model : The score that Leiden maximizes with `objective="cpm"`.
+
         Examples
         --------
-        Two triangles joined by a bridge split into their natural communities:
+        Two triangles joined by a single edge are two communities. Each node's community is stored
+        in the `cmty_leiden` column:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "A"),
+            ("C", "D"),
+            ("D", "E"), ("E", "F"), ("F", "D"),
+        ])
+
+        graph.cmty_leiden(seed=1).get_node_df().select("label", "cmty_leiden")
+        ```
+
+        ### Conferences in college football
+
+        `football()` links two college football teams when they played each other in the 2000
+        season, and the `conference` attribute records each team's conference. Teams play most
+        of their games within their conference, so Leiden should find the conferences. For each
+        community, the conference most of its teams come from:
+
+        ```{python}
+        import polars as pl
+
+        football = ec.football().layout_forceatlas2(seed=1).cmty_leiden(seed=1)
+
+        main = pl.col("conference").mode().first()
+
+        (
+            football.get_node_df()
+            .group_by("cmty_leiden")
+            .agg(
+                pl.len().alias("teams"),
+                main.alias("conference"),
+                (pl.col("conference") == main).sum().alias("from_conference"),
+            )
+            .sort("cmty_leiden")
         )
-
-        communities = graph.cmty_leiden(seed=1, return_dict=True)
-        {graph.get_label_from_id(n): c for n, c in sorted(communities.items())}
         ```
 
-        On Zachary's karate club, Leiden reaches the best modularity known for the network:
+        Five of the ten communities are exactly one conference. The others mix in teams that
+        belong to no conference, and the Sun Belt teams, split between two communities: the Sun
+        Belt only began playing football the year after these games. Texas Christian, listed in
+        Conference USA, played in the Western Athletic that season, and Leiden puts it there:
 
         ```{python}
-        karate = ec.karate_club()
-        karate.cmty_leiden(seed=1)
-
-        labels = karate.get_node_attrs("cmty_leiden")
-        round(karate.modularity("cmty_leiden"), 4), len(set(labels.values()))
+        football.plot(
+            layout="pos",
+            color_by="cmty_leiden",
+            edge_color_by="cmty_leiden",
+            show_labels=False,
+        )
         ```
 
-        With `objective="cpm"`, `resolution` sets the density a community must exceed. A low
-        threshold keeps the two factions of the karate club; a higher one breaks them into
-        smaller, denser groups:
+        ### Resolution and objective
+
+        With modularity, `resolution=` above `1.0` gives more and smaller communities. With
+        `objective="cpm"`, it is the density a community must exceed, and the football network's
+        own density, about `0.09`, is a natural place to start. Counting communities, and how
+        many of them hold a single conference:
 
         ```{python}
-        [
-            len(set(karate.cmty_leiden(objective="cpm", resolution=r, seed=1,
-                                       return_dict=True).values()))
-            for r in [0.05, 0.2, 0.5]
+        settings = [
+            ("modularity", 0.5), ("modularity", 1.0), ("modularity", 1.5),
+            ("cpm", 0.1), ("cpm", 0.4),
         ]
+
+        rows = []
+        for objective, resolution in settings:
+            football.cmty_leiden(
+                objective=objective, resolution=resolution, seed=1,
+                attr_name="found",
+            )
+            found = (
+                football.get_node_df()
+                .group_by("found")
+                .agg(pl.col("conference").n_unique())
+            )
+            rows.append({
+                "objective": objective,
+                "resolution": resolution,
+                "communities": found.height,
+                "one_conference": (found["conference"] == 1).sum(),
+            })
+
+        pl.DataFrame(rows)
         ```
+
+        At `0.5`, conferences merge into five large communities. CPM at `0.4` splits the most
+        finely: the Mid-American's two divisions, East and West, become communities of their own,
+        and six teams listed in the Sun Belt, the Western Athletic or no conference come together
+        as the Big West, the conference they played in that season.
         """
         membership = rust.leiden(
             self._graph, resolution=resolution, seed=seed, objective=objective, theta=theta
