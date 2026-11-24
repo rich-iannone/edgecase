@@ -52938,6 +52938,11 @@ class Graph:
         factorization. With every node as both a source and a target the scores equal
         `current_flow_betweenness_centrality()`, normalized or not.
 
+        See Also
+        --------
+        current_flow_betweenness_centrality : The flow between all pairs of nodes.
+        betweenness_centrality_subset : Count shortest paths only.
+
         Examples
         --------
         In a square with one diagonal, current from `A` to `C` mostly takes the diagonal, but
@@ -52946,15 +52951,35 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
         )
 
-        scores = square.current_flow_betweenness_centrality_subset(["A"], ["C"], return_dict=True)
-        {square.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        (
+            square.current_flow_betweenness_centrality_subset(["A"], ["C"])
+            .get_node_df()
+            .select("label", "current_flow_betweenness_centrality_subset")
+        )
         ```
+
+        In Zachary's karate club, the shortest routes between the two leaders, members 0 and 33,
+        run through their four friends in common. Current also spreads over the longer routes,
+        and member 2, who is on none of the shortest ones, carries the most:
+
+        ```{python}
+        club = ec.karate_club().current_flow_betweenness_centrality_subset(
+            ["0"], ["33"], normalized=False
+        )
+
+        (
+            club.get_node_df()
+            .select("label", "current_flow_betweenness_centrality_subset")
+            .sort("current_flow_betweenness_centrality_subset", descending=True)
+            .head(5)
+        )
+        ```
+
+        For all pairs of nodes, use `current_flow_betweenness_centrality()`.
 
         Notes
         -----
