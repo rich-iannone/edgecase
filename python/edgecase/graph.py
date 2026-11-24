@@ -34933,61 +34933,71 @@ class Graph:
         `find_cliques()` and inherits its $O(3^{n/3})$ worst-case bound. Undirected graphs
         only.
 
+        See Also
+        --------
+        maximum_clique : The nodes of a largest clique.
+        node_clique_number : The size of the largest clique at each node.
+        chromatic_number_upper_bound : An upper bound on the colors needed.
+
         Examples
         --------
-        A triangle is itself a clique of three nodes, so its clique number is `3`:
+        In a square with one diagonal, the diagonal closes two triangles, but no four nodes are
+        all linked, so the clique number is 3:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
         )
-
         graph.clique_number()
         ```
 
-        A path's largest clique is just a single edge, since no three nodes form a
-        triangle:
+        ### Comparing networks
+
+        The clique number of a social network is the size of its tightest group. In the karate
+        club and among the dolphins, it's 5. Among college football teams it's 9, nine teams that
+        all played one another, and in *Les Misérables* it's 10, characters who all meet at the
+        barricade:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        {
+            name: getattr(ec, name)().clique_number()
+            for name in ["karate_club", "dolphins", "football", "les_miserables"]
+        }
+        ```
+
+        The nine football teams are the Atlantic Coast Conference, where every team played every
+        other:
+
+        ```{python}
+        football = ec.football()
+        clique = football.maximum_clique()
+
+        {football.get_node(n).attributes["conference"] for n in clique}
+        ```
+
+        ### A lower bound on colors
+
+        Every node of a clique needs its own color, so a graph needs at least as many colors as
+        its clique number. `exams()` joins two of a made-up college's courses when some student
+        takes both, so their exams can't share a slot. Its clique number is 4, and DSATUR finds a
+        timetable with 4 slots, so four is the fewest:
+
+        ```{python}
+        exams = ec.exams()
+        slots = exams.greedy_color(strategy="dsatur")
+
+        exams.clique_number(), len(set(slots.values()))
+        ```
+
+        Calculus, Physics, Chemistry and Biology, the clique, take one slot each:
+
+        ```{python}
+        exams.set_node_attrs("slot", slots).plot(
+            color_by="slot", size_by="students", label_by="label", seed=3,
+            height=420,
         )
-
-        graph.clique_number()
-        ```
-
-        An empty graph has clique number `0`:
-
-        ```{python}
-        ec.Graph(directed=False).clique_number()
-        ```
-
-        A complete graph `K_n` always has clique number `n`:
-
-        ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_full_graph(n=7)
-
-        graph.clique_number()
-        ```
-
-        Bipartite graphs can never contain a triangle, so their clique number never
-        exceeds `2`:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D")])
-        )
-
-        graph.clique_number()
         ```
         """
         return self._graph.clique_number()
