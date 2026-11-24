@@ -148,8 +148,9 @@ def _spiral_guide(g, resolution: float) -> list[tuple[float, float]]:
 
 @figure("layout_circular", "layout", "Circular layout",
         "On the left, an eight-node graph scattered at random: a ring of eight nodes with two "
-        "chords. On the right, layout_circular() puts the nodes evenly around a circle in id "
-        "order, so the ring becomes a regular octagon and the two chords cross its middle.")
+        "chords. On the right, layout_circular() puts the nodes evenly around a circle in the "
+        "order a depth-first search from node 1 meets them, which here is id order, so the ring "
+        "becomes a regular octagon and the two chords cross its middle.")
 def layout_circular(s: Scene) -> None:
     g = _graph("add_cycle_graph(8).add_edges([(1, 5), (3, 7)])")
     _before_after(s, "layout_circular", g, "layout_circular()")
@@ -246,7 +247,7 @@ def layout_spectral(s: Scene) -> None:
         "inside it.")
 def layout_planar(s: Scene) -> None:
     g = _graph('add_named_graph("octahedral")')
-    # the grid drawing packs inner nodes one step apart, so draw it larger than the others
+    # the inner triangle is small, so draw it larger than the others
     _before_after(s, "layout_planar", g, "layout_planar()", unit=150)
 
 
