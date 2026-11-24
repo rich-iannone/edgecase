@@ -58249,21 +58249,37 @@ class Graph:
             `1.0`). Values are `None` for every node if the graph is disconnected. If
             `return_dict=` is `False` returns self for method chaining.
 
+        See Also
+        --------
+        eccentricity : Each node's distance to the node farthest from it.
+        closeness_centrality : Score nodes by their average distance to the others.
+
         Examples
         --------
-        The hub reaches every other node in a single hop, giving it the highest possible
-        radiality, while each leaf -- two hops from any other leaf -- scores lower:
+        The hub reaches every other node in a single hop, giving it the highest radiality, while
+        each leaf, two hops from the other leaves, scores lower:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
-        )
+        graph = ec.Graph.from_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
 
-        graph.radiality(return_dict=True)
+        graph.radiality().get_node_df().select("label", "radiality")
+        ```
+
+        ### Radiality on the metro
+
+        `metro()` is a made-up city's metro network. Radiality is eccentricity turned around and
+        scaled, so the stations rank in the same order: Central and Riverside, at most four stops
+        from anywhere, score highest, and Westgate and the Airport, seven stops apart, lowest:
+
+        ```{python}
+        metro = ec.metro().radiality()
+
+        metro.plot(
+            layout="pos", color_by="radiality", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         if attr_name is None:
