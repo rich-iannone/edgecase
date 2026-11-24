@@ -74005,6 +74005,11 @@ class Graph:
         ValueError
             If the graph is directed or a capacity is negative.
 
+        See Also
+        --------
+        minimum_cut_value : The minimum cut between a single pair.
+        stoer_wagner : The lightest cut over all pairs.
+
         Examples
         --------
         In two triangles joined by a bridge, pairs inside a triangle can only be separated by
@@ -74013,26 +74018,64 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         tree = graph.gomory_hu_tree()
-        tree.get_edges_str_repr(use_labels=True), tree.get_edge_attrs_by_id("weight")
+        tree.get_edge_df(labels=True).select("source", "target", "weight")
         ```
 
         The minimum cut between A and F is the lightest edge on their tree path, which matches
         a direct computation:
 
         ```{python}
-        path = tree.shortest_path("A", "F", return_list=True)
-        weights = [
-            tree.get_edge(tree.find_edge_ids(u, v)[0]).weight for u, v in zip(path, path[1:])
-        ]
-        min(weights), graph.maximum_flow_value("A", "F")
+        edges = tree.get_edge_df().select("source", "target", "weight")
+        weight = {frozenset((u, v)): w for u, v, w in edges.rows()}
+
+        path = tree.shortest_path("A", "F", weighted=False, return_list=True)
+        lightest = min(weight[frozenset(leg)] for leg in zip(path, path[1:]))
+        lightest, graph.maximum_flow_value("A", "F")
+        ```
+
+        ### Every cut in the metro at once
+
+        `metro()` is a made-up city's metro network. Giving every stretch of track a capacity of
+        one, so that the cuts count closures rather than minutes, its Gomory-Hu tree has just 19
+        edges. Old Town sits at its middle, four closures from Central, Museum and Market, and
+        the branches out to the harbor and the Airport hang off it as they do off the map:
+
+        ```{python}
+        metro = ec.metro().set_edge_attrs("tracks", 1)
+        tree = metro.gomory_hu_tree(capacity="tracks")
+
+        tree.layout_kamada_kawai().plot(
+            layout="pos", edge_label_by="weight", edge_width_by="weight",
+            label_by="label", width=720, height=560,
+        )
+        ```
+
+        The smallest weight on the tree path between two stations is the number of closures
+        that would separate them, so reading all 190 pairs off the tree takes no more flow
+        computations. Single closures separate 85 pairs, and only the six pairs among Old Town,
+        Central, Museum and Market need four:
+
+        ```{python}
+        from collections import Counter
+        from itertools import combinations
+
+        edges = tree.get_edge_df().select("source", "target", "weight")
+        weight = {frozenset((u, v)): w for u, v, w in edges.rows()}
+
+        def cut_between(u, v):
+            path = tree.shortest_path(u, v, weighted=False, return_list=True)
+            return min(weight[frozenset(leg)] for leg in zip(path, path[1:]))
+
+        pairs = combinations(tree.get_node_ids(), 2)
+        Counter(cut_between(u, v) for u, v in pairs)
         ```
         """
         edges = rust.gomory_hu(self._graph, capacity)
