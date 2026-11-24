@@ -55242,66 +55242,96 @@ class Graph:
             If graph is undirected, or if `weighted=` is in effect and an edge has a negative
             weight.
 
+        See Also
+        --------
+        authority_centrality : The other half of HITS.
+        eigen_centrality : The undirected counterpart.
+
         Examples
         --------
-        In this small citation network, "Paper1" cites both other papers. The roles are the
-        reverse of `authority_centrality()`: "Paper1" is the only hub and takes the whole score,
-        while the cited papers, which cite nothing, score `0`:
+        A points to B, C and D, and B and C point to D as well. A is the best hub because it
+        points to every authority, including the top one, D. D points to E, but nothing else
+        does, so E is no authority, and D's hub score converges to `0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Paper1", "Paper2", "Paper3"])
-            .add_edges(
-                [
-                    ("Paper1", "Paper2"),  # Paper1 cites Paper2
-                    ("Paper1", "Paper3"),  # Paper1 cites Paper3
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"),
+             ("D", "E")],
+            directed=True,
         )
 
-        scores = graph.hub_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in scores.items()}
+        (
+            graph.hub_centrality()
+            .authority_centrality()
+            .get_node_df()
+            .select("label", "hub_centrality", "authority_centrality")
+        )
         ```
 
-        In a slightly larger graph, A points to B, C, and D; B and C also point to D; and D
-        points to E. A is the best hub because it points to every authority, including the top
-        one, D. D has an outgoing edge too, but its only target, E, is not an authority, so D's
-        hub score converges to `0`:
+        ### The survey
+
+        In the `citations()` network, each paper points to the papers it cites. The survey,
+        Hughes 2020, cites eleven of them and is by far the best hub:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "D"), ("C", "D"), ("D", "E")])
+        import polars as pl
+
+        citations = ec.citations().hub_centrality()
+
+        cites = pl.col("label").map_elements(
+            citations.get_out_degree, return_dtype=pl.Int64
         )
 
-        scores = graph.hub_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
+        (
+            citations.get_node_df()
+            .with_columns(cites=cites)
+            .select("label", "field", "cites", "hub_centrality")
+            .sort("hub_centrality", descending=True)
+            .head(5)
+        )
         ```
 
-        Capping the iterations with `max_iter=` shows the scores before convergence: after two
-        rounds D still holds a noticeable hub score, because early authority scores are
-        essentially in-degrees and E does have an incoming edge:
+        Drawn as a timeline, with the years running left to right and the learning papers above
+        the networks papers, the hubs are all networks papers:
 
         ```{python}
-        rough = graph.hub_centrality(max_iter=2, return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(rough.items())}
+        citations.plot(layout="pos", color_by="hub_centrality", label_by="label")
         ```
 
-        With `return_dict=False` (the default) the scores are stored in the node DataFrame and
-        the graph is returned, ready for further chaining:
+        ### Pointing at the right papers
+
+        A hub score isn't a count of references. Eight papers cite three others each, but they
+        score anywhere from `0.26` to nearly `0`:
 
         ```{python}
         (
-            graph
-            .hub_centrality(attr_name="hub")
-            .get_node_df()
-            .select(["label", "hub"])
+            citations.get_node_df()
+            .with_columns(cites=cites)
+            .filter(pl.col("cites") == 3)
+            .select("label", "field", "hub_centrality")
+            .sort("hub_centrality", descending=True)
         )
         ```
+
+        Chen 2010 cites three learning papers, and the authority goes to the papers the survey
+        cites, all of them networks papers:
+
+        ```{python}
+        survey = "Hughes 2020"
+
+        citations.plot(
+            layout="pos",
+            highlight_edges=[
+                (survey, ref) for ref in citations.get_successors(survey)
+            ],
+            label_by="label",
+        )
+        ```
+
+        So HITS settles on the networks papers, and citing the learning ones earns almost
+        nothing. For the papers' side of the scores, see `authority_centrality()`.
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol, self._use_weights(weighted))
 
@@ -55312,8 +55342,6 @@ class Graph:
         if attr_name is None:
             attr_name = "hub_centrality"
 
-        self.set_node_attrs(attr_name, centrality)
-
         # Track computation
         params = {}
         if max_iter != 100:
@@ -55322,7 +55350,7 @@ class Graph:
             params["tol"] = tol
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("hub_centrality", params, attr_name))
+        self._store_node_result("hub_centrality", params, attr_name, centrality)
 
         return self
 
