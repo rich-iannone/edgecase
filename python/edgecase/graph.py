@@ -24852,60 +24852,63 @@ class Graph:
             If `degree_type=` is not `"in"`, `"out"`, or `"total"`, or if `set_op=` is not
             `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_nodes_by_centrality : Select the most central nodes.
+        get_degree : The degree of a node.
+
         Examples
         --------
-        In a 10-node star, the hub has degree `9` while every spoke has degree `1`, so a
-        `min_degree=5` filter selects only the hub:
+        In this star, the hub has four neighbors and each leaf has one, so `min_degree=2` picks
+        out the hub:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_star_graph(10)
-            .select_nodes_by_degree(min_degree=5)
-        )
+        graph = ec.Graph().add_star_graph(5)
+        graph.select_nodes_by_degree(min_degree=2)
 
-        len(graph.get_selected_node_ids())
+        [graph.get_label_from_id(n) for n in graph.get_selected_node_ids()]
         ```
 
-        Using only `max_degree=` targets the low-degree end instead. Replacing the selection
-        with `set_op="replace"` leaves just the 9 spokes, each of which has degree `1`:
+        In a directed graph, `degree_type=` sets which edges to count. The nodes that no edge
+        points to are the sources of this pipeline:
 
         ```{python}
-        graph.select_nodes_by_degree(max_degree=1, set_op="replace")
+        pipeline = ec.Graph.from_edges(
+            [("raw_a", "clean"), ("raw_b", "clean"), ("clean", "report")],
+            directed=True,
+        )
+        pipeline.select_nodes_by_degree(max_degree=0, degree_type="in")
 
-        graph.count_selected_nodes()
+        label = pipeline.get_label_from_id
+        sorted(label(n) for n in pipeline.get_selected_node_ids())
         ```
 
-        In a directed graph, `degree_type=` picks the edge direction. Nodes with no incoming
-        edges are the sources of the flow -- here "raw_a" and "raw_b" feed the pipeline:
+        ### Accounts that pass money on
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. An account with a single payment in and a single payment out may
+        only be passing money along. Combining two rules with `set_op="intersect"` finds four:
+        Ivy, Jo, Kai and Lena, who form a chain that moves Cruz's money on:
 
         ```{python}
-        pipeline = (
-            ec.Graph(directed=True)
-            .add_nodes(["raw_a", "raw_b", "clean", "report"])
-            .add_edges([("raw_a", "clean"), ("raw_b", "clean"), ("clean", "report")])
-            .select_nodes_by_degree(max_degree=0, degree_type="in")
+        payments = ec.payments()
+        (
+            payments
+            .select_nodes_by_degree(min_degree=1, max_degree=1, degree_type="in")
+            .select_nodes_by_degree(
+                min_degree=1, max_degree=1, degree_type="out", set_op="intersect"
+            )
         )
 
-        sorted(pipeline.get_label_from_id(nid) for nid in pipeline.get_selected_node_ids())
+        label = payments.get_label_from_id
+        sorted(label(n) for n in payments.get_selected_node_ids())
         ```
-
-        Combining `min_degree=` and `max_degree=` selects a band of degrees. In a 10-node
-        directed path every node except the last has exactly one outgoing edge, so 9 nodes
-        fall in the band from 1 to 2:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_path_graph(10)
-            .select_nodes_by_degree(min_degree=1, max_degree=2, degree_type="out")
-        )
-
-        len(graph.get_selected_node_ids())
+        payments.plot(highlight="selection", label_by="label", seed=3)
         ```
-
         """
         self._select(
             "nodes",
