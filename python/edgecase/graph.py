@@ -35700,16 +35700,63 @@ class Graph:
         Every triple is classified with `triad_type()`, $O(n^3)$; the counts agree with
         `triadic_census()`. Matches NetworkX's `triads_by_type` (which stores subgraphs).
 
+        See Also
+        --------
+        triadic_census : Count every triad by its type.
+        triad_type : Classify one triad.
+        all_triads : List every triple of nodes.
+
         Examples
         --------
+        In a cycle of three with a tail, the cycle is a `030C` triad. Of the triples that take in
+        the tail, one holds a single arc, one a fan-out from `C` and one a path:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")], directed=True
+        )
+        {
+            code: [[graph.get_label_from_id(n) for n in t] for t in triples]
+            for code, triples in graph.triads_by_type().items()
+        }
+        ```
 
-        {code: [[g.get_label_from_id(n) for n in t] for t in triples]
-         for code, triples in g.triads_by_type().items()}
+        ### Which accounts form each pattern
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Where `triadic_census()` counts two cycles and four transitive
+        triads, this method names their accounts:
+
+        ```{python}
+        payments = ec.payments()
+        triads = payments.triads_by_type()
+
+        {
+            code: [[payments.get_label_from_id(n) for n in triple]
+                   for triple in triads[code]]
+            for code in ["030C", "030T"]
+        }
+        ```
+
+        The cycles are the two rings. The transitive triads are payments that fan out from Ana
+        and Gus: Ana pays Ben, Dee and the Grocer, and Gus pays Dee, Hal and the Grocer. Here
+        the rings are in the accent color and the transitive triads pale:
+
+        ```{python}
+        from itertools import permutations
+
+        def arcs(code):
+            return [
+                (u, v) for triple in triads[code]
+                for u, v in permutations(triple, 2) if payments.has_edge(u, v)
+            ]
+
+        payments.plot(
+            highlight={"accent": arcs("030C"), "soft": arcs("030T")},
+            label_by="label", seed=11, height=420,
+        )
         ```
         """
         from itertools import combinations
