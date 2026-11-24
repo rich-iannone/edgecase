@@ -82131,8 +82131,12 @@ class Graph:
         Parameters
         ----------
         mode
-            Calculation mode for reciprocity. Can either be `"default"` or `"ratio"`, where the
-            latter is `(# mutual edges) / (total # edges)`.
+            How reciprocity is counted. With `"default"`, it is the share of edges whose reverse
+            edge also exists, as in NetworkX. With `"ratio"`, it is the share of connected pairs
+            of nodes that are joined both ways, as in igraph: each pair counts once, whether it
+            is joined in one direction or both. A graph whose share of reciprocated edges is
+            `r` has a ratio of `r / (2 - r)` (when it has no self-loops or parallel edges).
+            Self-loops are ignored by `"ratio"`, and by both modes when finding mutual pairs.
 
         Returns
         -------
@@ -82144,42 +82148,57 @@ class Graph:
         ValueError
             If called on an undirected graph or with invalid mode.
 
+        See Also
+        --------
+        which_mutual : List the mutual pairs of edges.
+        count_mutual_node_pairs : Count the pairs of nodes joined both ways.
+        triadic_census : Count the patterns of edges among three nodes.
+        density : The value that reciprocity would have by chance.
+
         Examples
         --------
-        Out of 3 edges, 2 form a mutual pair (`A<->B`) and 1 is one-directional (`A->C`), giving a
-        reciprocity of 2/3:
+        Of the three edges, two form a mutual pair, so the reciprocity is `2 / 3`. Counted by
+        pairs of nodes instead, one of the two connected pairs is mutual:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "A"),  # Mutual with above
-                    ("A", "C"),  # No reciprocal
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("Ana", "Ben"), ("Ben", "Ana"), ("Ana", "Cruz")], directed=True
         )
 
-        # Returns 0.667 (2 mutual out of 3 edges)
-        graph.reciprocity()
+        round(graph.reciprocity(), 3), graph.reciprocity(mode="ratio")
         ```
 
-        A tightly-knit friend group where every connection goes both ways has a reciprocity of
-        exactly 1.0, while a one-way "followers" network has a reciprocity of 0.0:
+        ### More than chance
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. `celegans_neural()` is the network of a worm's neurons that Watts and
+        Strogatz used, and in `wiki_vote()` an edge runs from each Wikipedia user to every
+        candidate they voted on in elections for administrators. If the edges were drawn at
+        random, the chance that an edge is returned would be the density of the network, so the
+        two are best read side by side. Wikipedia users vote on each other 28 times as often as
+        chance, and the worm's neurons connect both ways 6 times as often. In the payments, the
+        four returned payments are what chance alone would give:
 
         ```{python}
-        friendship = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "A"), ("B", "C"), ("C", "B"), ("A", "C"), ("C", "A")])
-        )
+        import polars as pl
 
-        # Returns 1.0: every edge has a reciprocal counterpart
-        friendship.reciprocity()
+        networks = {
+            "payments": ec.payments(),
+            "celegans_neural": ec.celegans_neural(),
+            "wiki_vote": ec.wiki_vote(),
+        }
+
+        pl.DataFrame(
+            {
+                "network": list(networks),
+                "reciprocity": [
+                    round(g.reciprocity(), 3) for g in networks.values()
+                ],
+                "density": [round(g.density(), 4) for g in networks.values()],
+            }
+        )
         ```
         """
         return self._graph.reciprocity(mode)
