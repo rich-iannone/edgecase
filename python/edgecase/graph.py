@@ -31957,48 +31957,61 @@ class Graph:
         - user similarity (common items/friends)
         - biological networks (protein interactions)
 
+        See Also
+        --------
+        jaccard_coefficient : The same score for chosen pairs, for link prediction.
+        dice_similarity : A score that weighs the shared neighbors twice.
+        cosine_similarity : Shared neighbors over the geometric mean of the degrees.
+
         Examples
         --------
-        Every leaf of this star shares the hub as its only neighbor, so any two leaves have
-        identical neighborhoods and a Jaccard similarity of `1.0`:
+        `A` knows `C` and `D`, and `B` knows them and `E`, so the two share 2 of the 3 nodes they
+        know between them:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub", "A", "B", "C"])
-            .add_edges([("hub", "A"), ("hub", "B"), ("hub", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
+        scores = graph.jaccard_similarity()[graph.get_id_from_label("A")]
 
-        sim = graph.jaccard_similarity()
-
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-        sim[a_id][b_id]
+        dict(sorted((label(n), s) for n, s in scores.items()))
         ```
 
-        The hub, on the other hand, shares no neighbors with any leaf (its neighbors are the
-        leaves themselves), so its similarity to each of them is `0.0`. Converting the IDs to
-        labels makes the hub's row easy to read:
+        ### People with the same friends
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Among the people who aren't friends, two pairs score `1.0`: Mara
+        and Pablo, and Iris and Lou, each pair with exactly the same friends. A year later, they
+        and the next two pairs had all become friends:
 
         ```{python}
-        hub_id = graph.get_id_from_label("hub")
-        {graph.get_label_from_id(nid): s for nid, s in sim[hub_id].items()}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        scores = friends.jaccard_similarity()
+
+        top = sorted(
+            ((s, label(u), label(v))
+             for u in scores for v, s in scores[u].items()
+             if u < v and not friends.has_edge(u, v)),
+            reverse=True,
+        )
+        later = ec.friends(snapshot=2)
+
+        [(a, b, round(s, 2), later.has_edge(a, b)) for s, a, b in top[:4]]
         ```
 
-        With partial overlap the score falls between the extremes. "P" and "Q" share two of the
-        four distinct nodes they connect to, giving `2 / 4 = 0.5`:
-
         ```{python}
-        graph = ec.Graph()
-
-        graph.add_nodes(["P", "Q", "W", "X", "Y", "Z"])
-
-        graph.add_edges([("P", "W"), ("P", "X"), ("P", "Y"), ("Q", "X"), ("Q", "Y"), ("Q", "Z")])
-
-        sim = graph.jaccard_similarity()
-        sim[graph.get_id_from_label("P")][graph.get_id_from_label("Q")]
+        friends.plot(
+            highlight={
+                "accent": ["Mara", "Pablo"],
+                "soft": [(person, friend) for person in ["Mara", "Pablo"]
+                         for friend in ["Nico", "Oona", "Rosa"]],
+            },
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         return self._graph.get_jaccard_similarity()
