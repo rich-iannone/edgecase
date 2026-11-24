@@ -24371,6 +24371,12 @@ class Graph:
             If an ID or label in `nodes=` is not found in the graph, or if `set_op=` is not
             `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_edges : Select the edges that pass a test.
+        select_nodes_in_neighborhood : Select the nodes within a number of steps.
+        deselect_edges : Remove edges from the selection.
+
         Examples
         --------
         Selecting "B" pulls in every edge that touches it -- both `A-B` and `B-C`, but not
