@@ -73419,6 +73419,11 @@ class Graph:
         ValueError
             If `S=` or `T=` is empty or a node does not exist.
 
+        See Also
+        --------
+        conductance : The cut relative to the volume of the smaller side.
+        boundary_expansion : The outside neighbors per member, rather than the edges.
+
         Examples
         --------
         One edge leaves each triangle of the two-triangle graph, shared by three nodes:
@@ -73426,14 +73431,37 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         round(graph.edge_expansion(["A", "B", "C"]), 3)
+        ```
+
+        ### Tracks out of each fare zone
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. Counting stretches of track rather than minutes, with `weighted=False`, the four
+        stations of zone 2 have 2.5 tracks leaving per station, since all their tracks run to
+        the other zones, while zone 1, in the middle, has few:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+
+        {
+            zone: round(metro.edge_expansion(ids, weighted=False), 2)
+            for zone, ids in nodes.group_by("zone").agg("id").sort("zone").rows()
+        }
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", color_by="zone", edge_color_by="zone", label_by="label"
+        )
         ```
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
