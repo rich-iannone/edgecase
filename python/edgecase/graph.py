@@ -4113,6 +4113,12 @@ class Graph:
         ImportError
             If the `cosmograph` package is not installed.
 
+        See Also
+        --------
+        plot_vis : A draggable view for small and medium graphs.
+        plot : A static SVG drawing, for reports and web pages.
+        cmty_louvain : Find communities to color the points by.
+
         Examples
         --------
         The node DataFrame's columns are what the `*_by` parameters refer to. Zachary's karate
