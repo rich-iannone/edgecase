@@ -78639,55 +78639,41 @@ class Graph:
         are viable; beyond that, greedy or randomized approximations are the practical
         choice.
 
+        See Also
+        --------
+        maximal_independent_set : Grow a random independent set from chosen nodes.
+        maximum_clique : The same problem on the complement graph.
+        minimum_weighted_vertex_cover : The nodes left out of an independent set.
+        is_independent_set : Check a set of nodes.
+
         Examples
         --------
-        On a 5-node path, the largest possible independent set has 3 nodes (every other node,
-        starting and ending at the endpoints):
+        On a star the leaves share no edge, so all of them together beat the hub:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_path_graph(5)
+        star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
 
-        mis = graph.maximum_independent_set()
-
-        # Returns 3
-        len(mis)
+        [star.get_label_from_id(n) for n in star.maximum_independent_set()]
         ```
 
-        In a star graph, every leaf is only connected to the hub, so all the leaves together form
-        a larger independent set than the greedy `maximal_independent_set()` would typically find
-        on its own:
+        ### The biggest slot
+
+        `exams()` joins two of the 14 courses at a made-up college when some student takes both,
+        so their exams can't share a time slot. The largest independent set is the most exams
+        that can share one slot. Here the heuristic finds seven, half of all the exams, and no
+        slot can hold more:
 
         ```{python}
-        graph = ec.Graph()
-        graph.add_star_graph(10)  # Hub with 10 leaves
+        exams = ec.exams()
+        biggest = exams.maximum_independent_set()
 
-        maximal = graph.maximal_independent_set(seed=23)
-        maximum = graph.maximum_independent_set()
-
-        # The heuristic result is never larger than the true maximum
-        len(maximal) <= len(maximum)
+        len(biggest), [exams.get_label_from_id(n) for n in biggest]
         ```
 
         ```{python}
-        # Returns 10: every leaf can be included, since none are connected to each other
-        len(maximum)
-        ```
-
-        A maximum independent set and a minimum vertex cover are complements of each other, so
-        together they always account for every node in the graph:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_cycle_graph(8)
-
-        mis = graph.maximum_independent_set()
-        vertex_cover = set(graph.get_node_ids()) - set(mis)
-
-        # Returns True: the two sets partition all 8 nodes
-        len(mis) + len(vertex_cover) == graph.count_nodes()
+        exams.plot(highlight=biggest, label_by="label", seed=5)
         ```
         """
         from edgecase._core import maximum_independent_set
