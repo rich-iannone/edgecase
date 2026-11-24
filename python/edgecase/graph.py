@@ -31626,44 +31626,50 @@ class Graph:
             If either node does not exist, if `importance_factor=` is outside `[0, 1)`, or if
             `method=` is not `"closed_form"` or `"iterative"`.
 
+        See Also
+        --------
+        simrank_star_similarity : Scores for every pair.
+        simrank_similarity : The original SimRank, for one pair or all.
+
         Examples
         --------
-        `A` and `B` are linked to the same two nodes (`C` and `D`), while `E` hangs off `C`.
-        Under the default settings `A` is noticeably more similar to `B` than to `E`:
+        The score for one pair is the same as in the full table:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D", "E"])
-
-        graph.add_edges([("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("C", "E")])
-
-        (
-            round(graph.simrank_star_similarity_pair("A", "B"), 3),
-            round(graph.simrank_star_similarity_pair("A", "E"), 3),
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+
+        round(graph.simrank_star_similarity_pair("A", "B"), 3)
         ```
 
-        The iterative solver converges to the same score as the closed form. With
-        `max_iter=1`, however, it has not yet followed any path from `A` to `B` and still
-        reports `0.0`:
+        ### Two kinds of similar
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Mara and Pablo have the same three friends and aren't friends
+        themselves. Mara and Nico are friends with one friend in common. SimRank scores the first
+        pair higher, and SimRank* the second:
 
         ```{python}
-        [
-            round(graph.simrank_star_similarity_pair("A", "B", method="iterative"), 3),
-            graph.simrank_star_similarity_pair("A", "B", method="iterative", max_iter=1),
-        ]
+        friends = ec.friends()
+        pairs = [("Mara", "Pablo"), ("Mara", "Nico")]
+
+        {
+            f"{a}-{b}": (
+                round(friends.simrank_similarity(a, b), 2),
+                round(friends.simrank_star_similarity_pair(a, b), 2),
+            )
+            for a, b in pairs
+        }
         ```
 
-        Raising `importance_factor=` lets similarity accumulate over longer paths, so the score
-        grows:
-
         ```{python}
-        [
-            round(graph.simrank_star_similarity_pair("A", "B", importance_factor=c), 3)
-            for c in [0.5, 0.8, 0.95]
-        ]
+        friends.plot(
+            highlight={"accent": ["Mara", "Nico"], "soft": ["Pablo"]},
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         from edgecase._core import simrank_star_similarity_pair
