@@ -62884,6 +62884,12 @@ class Graph:
         ValueError
             If the node does not exist, `depth_limit=` is negative, or `mode=` is invalid.
 
+        See Also
+        --------
+        bfs_edges : The same edges as a list.
+        dfs_tree : The tree of a depth-first search.
+        layout_bfs : Draw a graph in layers by distance from a node.
+
         Examples
         --------
         The BFS tree of a 3 x 3 grid from a corner fans out along the rows and columns:
@@ -62894,7 +62900,22 @@ class Graph:
         grid = ec.Graph().add_grid_2d(rows=3, cols=3)
         tree = grid.bfs_tree(1)
 
-        tree.is_arborescence(), tree.count_edges(), tree.get_edges_str_repr(use_labels=True)[:4]
+        tree.is_arborescence(), tree.count_edges()
+        ```
+
+        ### Stops from Central
+
+        `metro()` is a made-up city's metro network. Its BFS tree from Central keeps the stations'
+        attributes, so it can be drawn in layers by `layout_bfs()`, one layer for each number of
+        stops from Central:
+
+        ```{python}
+        metro = ec.metro()
+        tree = metro.bfs_tree("Central")
+
+        tree.layout_bfs("Central", attr_name="layers").plot(
+            layout="layers", label_by="label"
+        )
         ```
         """
         self._check_traversal_args(depth_limit, mode)
