@@ -4631,10 +4631,25 @@ class Graph:
             Interactive step-through visualization with playback controls,
             timeline, and code panel.
 
+        Raises
+        ------
+        ValueError
+            If `layout=`, `theme=` or `layout_mode=` is unknown, `speed=` isn't a positive number,
+            or `highlight=` or `highlight_edges=` names a node, edge or attribute the graph
+            doesn't have.
+
+        See Also
+        --------
+        steps : The step log that play() replays.
+        note : Narrate the next step.
+        clear_steps : Start the log, and the replay, from the graph as it is.
+        plot_traversal : Step through a single BFS or DFS visit order.
+
         Examples
         --------
-        Build a small graph with a couple of narrated steps, then replay it. Step through the
-        player to watch the nodes and edges appear in the order they were added:
+        Each operation on a graph adds a step to its log, with a narration that `note()` can
+        replace. Building a small graph in a few narrated steps and replaying it shows the nodes and
+        edges appear in the order they were added:
 
         ```{python}
         import edgecase as ec
@@ -4651,14 +4666,48 @@ class Graph:
         graph.play()
         ```
 
-        Traversals are replayed one visited node at a time. After the cycle is built in a single
-        step, the breadth-first search from node `"1"` spreads around both sides of the ring. A
-        stable circular layout keeps the nodes in place, and playback starts at double speed:
+        ### Replaying a disruption
+
+        The metro network stores a position for each station, so its map always comes out the same
+        way, and each link records its travel time in minutes:
 
         ```{python}
-        graph = ec.Graph().add_cycle_graph(n=6).bfs(source="1")
+        metro = ec.metro()
 
-        graph.play(layout="circular", layout_mode="stable", speed=2.0)
+        metro.plot(layout="pos", label_by="label", edge_label_by="minutes")
+        ```
+
+        `shortest_path()` records the route it finds, so a replay can show how a route changes when
+        the network does. The fastest trip from Westgate to Airport runs straight through Central
+        and Market, until a signal failure closes that link:
+
+        ```{python}
+        metro.shortest_path("Westgate", "Airport")
+        metro.note("A signal fails between Central and Market.")
+        metro.delete_edge("Central", "Market")
+        metro.shortest_path("Westgate", "Airport")
+
+        metro.play(layout="pos")
+        ```
+
+        With `layout="pos"` the stations stay where they are on the map from frame to frame. The
+        new route leaves Old Town for Riverside and rejoins the old one at Market, and those two
+        links take 3 minutes each instead of 2, so the trip is two minutes longer:
+
+        ```{python}
+        metro.shortest_path_length("Westgate", "Airport")
+        ```
+
+        ### Traversals, frame by frame
+
+        A traversal is replayed one visited node at a time, so `play()` can show how a search
+        spreads. Here the breadth-first search goes around both sides of a ring at once, with a
+        stable circular layout to keep the nodes in place and playback at double speed:
+
+        ```{python}
+        ring = ec.Graph().add_cycle_graph(n=6).bfs(source="1")
+
+        ring.play(layout="circular", layout_mode="stable", speed=2.0)
         ```
         """
         if self._pending_note is not None:
