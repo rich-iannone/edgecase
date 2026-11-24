@@ -33781,16 +33781,55 @@ class Graph:
         `complete_to_chordal_graph` (which returns all-zero numbers for an already chordal
         graph; EdgeCase always returns the ordering).
 
+        See Also
+        --------
+        is_chordal : Check that a graph is chordal.
+        junction_tree : Build a junction tree, triangulating first.
+        find_induced_nodes : The nodes to join when an edge is added.
+
         Examples
         --------
-        A 5-cycle needs two chords to become chordal:
+        A five-cycle needs two chords to become chordal:
 
         ```{python}
         import edgecase as ec
 
         ring = ec.Graph().add_cycle_graph(5)
         chordal, alpha = ring.complete_to_chordal_graph()
+
         chordal.count_edges() - ring.count_edges(), chordal.is_chordal()
+        ```
+
+        ### Triangulating a conflict graph
+
+        `exams()` joins two of a made-up college's courses when some student takes both, so
+        their exams can't share a time slot. It isn't chordal, and making it so takes 11 fill
+        edges. They grow the largest clique from four courses to six, so the triangulation has
+        treewidth 5:
+
+        ```{python}
+        exams = ec.exams().layout_kamada_kawai()
+        chordal, alpha = exams.complete_to_chordal_graph()
+
+        (
+            chordal.count_edges() - exams.count_edges(),
+            exams.clique_number(),
+            chordal.clique_number(),
+        )
+        ```
+
+        The new graph keeps every node and edge, with their attributes, and adds the fill edges
+        after them. They have no `shared` count, which picks them out:
+
+        ```{python}
+        fill = [
+            row["id"]
+            for row in chordal.get_edge_df().iter_rows(named=True)
+            if row["shared"] is None
+        ]
+        chordal.plot(
+            layout="pos", highlight_edges=fill, label_by="label", height=420
+        )
         ```
         """
         chords, alpha = rust.complete_to_chordal(self._graph)
