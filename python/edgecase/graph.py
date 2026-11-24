@@ -32639,34 +32639,50 @@ class Graph:
         The algorithm runs in $O(V + E)$ time per SCC, so overall $O(V + E)$ for
         the entire graph.
 
+        See Also
+        --------
+        cycle_basis : A cycle basis for an undirected graph.
+        simple_cycles : Every cycle in the graph.
+
         Examples
         --------
-        A simple directed triangle has a single fundamental cycle:
+        Two cycles that share the arrow from `A` to `B` make a basis of two, each following the
+        arrows:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("B", "D"), ("D", "A")],
+            directed=True,
         )
 
-        cycles = graph.directed_cycle_basis()
-        len(cycles)
+        [[graph.get_label_from_id(n) for n in c]
+         for c in graph.directed_cycle_basis()]
         ```
 
-        A figure-eight has two fundamental cycles:
+        ### Cycles of payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. Its payments form eight cycles, and a basis of seven:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("A", "D"), ("D", "A")])
-        )
+        payments = ec.payments()
+        label = payments.get_label_from_id
+        basis = payments.directed_cycle_basis()
 
-        cycles = graph.directed_cycle_basis()
-        len(cycles)
+        len(payments.simple_cycles()), [[label(n) for n in c] for c in basis]
+        ```
+
+        The cycle left out, Finn to Gus to Dee to Ben to Eve and back to Finn, is built from
+        three in the basis: Finn to Gus to Dee to Eve, plus Dee to Ben to Eve, less the two
+        payments between Dee and Eve:
+
+        ```{python}
+        payments.plot(
+            highlight=["Finn", "Gus", "Dee", "Ben", "Eve", "Finn"],
+            label_by="label", seed=11, height=420,
+        )
         ```
         """
         from edgecase._core import directed_cycle_basis as rust_directed_cycle_basis
