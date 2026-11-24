@@ -85325,54 +85325,56 @@ class Graph:
         via full Laplacian eigendecomposition, and only undirected inputs make sense
         because the electrical analogue requires reversibility.
 
+        See Also
+        --------
+        wiener_index : Sum path distances instead of resistances.
+        resistance_distance_matrix : The resistances that the index adds up.
+        laplacian_spectrum : The eigenvalues the index is computed from.
+        kemeny_constant : A related measure of random walks.
+
         Examples
         --------
-        A path graph's Kirchhoff index grows with roughly the cube of its size, since resistance
-        distances accumulate over many series connections. For 4 nodes the pairwise resistances
-        are 1, 1, 1, 2, 2, and 3, which sum to 10:
+        Closing a path of four nodes into a cycle gives every pair a second route, and halves
+        the index:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph()
-        path.add_path_graph(4)
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
+        )
 
-        # Returns about 10.0
-        path.kirchhoff_index()
+        round(path.kirchhoff_index(), 3), round(cycle.kirchhoff_index(), 3)
         ```
 
-        A complete graph is the most efficiently connected case, so its Kirchhoff index is as low
-        as possible: exactly `n - 1`:
+        ### Rings and chains
+
+        `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
+        the hydrogens) and one edge per bond. In a molecule without rings there is one route
+        between any two atoms, so resistance and distance are the same, and the Kirchhoff index
+        equals the Wiener index. In a ring, each pair has two routes and the index is lower:
 
         ```{python}
-        complete = ec.Graph()
-        complete.add_full_graph(4)
+        import polars as pl
 
-        # Returns 3.0
-        complete.kirchhoff_index()
+        molecules = ec.molecules()
+
+        pl.DataFrame(
+            {
+                "molecule": list(molecules),
+                "wiener": [g.wiener_index() for g in molecules.values()],
+                "kirchhoff": [
+                    round(g.kirchhoff_index(), 3) for g in molecules.values()
+                ],
+            }
+        )
         ```
 
-        Adding an edge can only lower the index. Closing the 4-node path into a cycle gives
-        every pair a second route and drops the index from 10 to 5:
-
         ```{python}
-        cycle = ec.Graph()
-        cycle.add_cycle_graph(4)
-
-        cycle.kirchhoff_index()
-        ```
-
-        A disconnected graph has infinite resistance between components that can't reach each
-        other, so the Kirchhoff index diverges:
-
-        ```{python}
-        g = ec.Graph()
-        g.add_node(label="A")
-        g.add_node(label="B")
-        # No edge between A and B
-
-        # Returns inf
-        g.kirchhoff_index()
+        molecules["benzene"].plot(
+            color_by="element", label_by="label", edge_label_by="bond", seed=1
+        )
         ```
         """
         from edgecase._core import kirchhoff_index
