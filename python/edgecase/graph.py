@@ -81089,45 +81089,47 @@ class Graph:
         computes the same distribution by sampling edges one at a time from contracted
         Laplacian determinants, which is exact but slower.
 
+        See Also
+        --------
+        number_of_spanning_trees : The number of trees the draw picks from.
+        all_spanning_trees : List every spanning tree.
+
         Examples
         --------
-        Random spanning trees of a grid are mazes: every cell is reachable from every other by
-        exactly one route.
+        A spanning tree of a 4 by 4 grid has 15 of its 24 edges, and the same seed draws the
+        same tree:
 
         ```{python}
         import edgecase as ec
 
         grid = ec.Graph().add_grid_2d(4, 4)
-        maze = grid.random_spanning_tree(seed=7)
-        maze.count_edges(), maze.is_tree()
-        ```
-
-        The same seed gives the same tree:
-
-        ```{python}
+        tree = grid.random_spanning_tree(seed=7)
         again = grid.random_spanning_tree(seed=7)
-        sorted(maze.get_edges_str_repr(use_labels=True)) == sorted(
-            again.get_edges_str_repr(use_labels=True)
+
+        same = tree.get_edge_ids() == again.get_edge_ids()
+        tree.count_edges(), tree.is_tree(), same
+        ```
+
+        ### A random maze
+
+        A random spanning tree of a grid is a maze: every cell can be reached from every other,
+        by exactly one route. Placing each cell at its row and column draws the maze, with the
+        route from one corner to the other picked out:
+
+        ```{python}
+        grid = ec.Graph().add_grid_2d(8, 8)
+        cell = {}
+        for n in grid.get_node_ids():
+            row, col = map(int, grid.get_label_from_id(n).strip("()").split(","))
+            cell[n] = (col, -row)
+        grid.set_node_attrs("pos", cell)
+
+        maze = grid.random_spanning_tree(seed=4)
+        maze.shortest_path("(0,0)", "(7,7)")
+        maze.plot(
+            layout="pos", highlight="shortest_path_order", show_labels=False,
+            node_size=6, edge_width=8, edge_opacity=1, width=500, height=500,
         )
-        ```
-
-        On a weighted triangle, the tree that leaves out the light edge has weight
-        `4 * 4 = 16` against `4 * 1 = 4` for each of the others, so it is drawn about two
-        thirds of the time:
-
-        ```{python}
-        tri = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
-        tri.add_edges([("A", "B", 4.0), ("B", "C", 4.0), ("C", "A", 1.0)])
-        draws = [tri.random_spanning_tree(seed=s) for s in range(3000)]
-        sum(t.find_edge_ids("C", "A") == [] for t in draws) / 3000
-        ```
-
-        With `multiplicative=False` the same tree weighs `4 + 4 = 8` against `4 + 1 = 5` for
-        each of the others, so it comes up only `8 / 18`, or about 44%, of the time:
-
-        ```{python}
-        draws = [tri.random_spanning_tree(seed=s, multiplicative=False) for s in range(3000)]
-        sum(t.find_edge_ids("C", "A") == [] for t in draws) / 3000
         ```
         """
         use = self._use_weights(weighted)
