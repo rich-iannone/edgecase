@@ -77470,28 +77470,58 @@ class Graph:
         scans the edges (in ID order); for each edge not yet covered, it adds the cheaper
         endpoint to the cover and subtracts that endpoint's remaining cost from the other
         endpoint. The amounts subtracted form a feasible dual solution that the cover weighs at
-        most twice, which gives the factor-2 guarantee. It runs in $O(V + E)$ time.
+        most twice, which gives the factor-2 guarantee. A final pass, which NetworkX doesn't
+        make, then drops the nodes of the cover whose neighbors are all in it too, costliest
+        first. That can only lower the cost, so the guarantee still holds: on the `metro()`
+        network it brings the cover from 14 stations to 10, where the best has 9. It runs in
+        $O(V \log V + E)$ time.
+
+        See Also
+        --------
+        bipartite_vertex_cover : An exact smallest cover for bipartite graphs.
+        is_vertex_cover : Check that a set of nodes touches every edge.
+        maximum_independent_set : The nodes outside a cover, which share no edge.
 
         Examples
         --------
         A star with a costly center: covering every edge with the center costs 10, while the
-        four cheap leaves cost 4 together, and the method finds that cheaper cover:
+        four leaves cost 4 together, so the method takes the leaves:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["hub", "a", "b", "c", "d"])
-        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("hub", "d")])
+        g = ec.Graph.from_edges([("hub", x) for x in ["a", "b", "c", "d"]])
         g.set_node_attrs("cost", {g.get_id_from_label("hub"): 10.0})
 
+        label = g.get_label_from_id
         cover = g.minimum_weighted_vertex_cover(node_weight_attr="cost")
-        [g.get_label_from_id(n) for n in cover]
+        [label(n) for n in cover]
         ```
 
-        Without costs, the single center node is the smallest cover:
+        Without costs, every node costs 1, and the center alone is the smallest cover:
 
         ```{python}
-        [g.get_label_from_id(n) for n in g.minimum_weighted_vertex_cover()]
+        [label(n) for n in g.minimum_weighted_vertex_cover()]
+        ```
+
+        ### Cameras on every track
+
+        `metro()` is a made-up city's metro network. A camera at a station watches every track
+        that ends there, and the method puts cameras at 10 stations so that every track is
+        watched. No cover can have fewer than 9: a maximum matching holds 9 tracks with no
+        station in common, and each needs a camera of its own. Here the best cover has 9, so
+        this one is a station over, well inside the guarantee of twice the best:
+
+        ```{python}
+        metro = ec.metro()
+        cameras = metro.minimum_weighted_vertex_cover()
+        tracks = metro.maximum_weight_matching(weighted=False)
+
+        len(cameras), len(tracks)
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=cameras, label_by="label")
         ```
         """
         cover = rust.min_weighted_vertex_cover(self._graph, node_weight_attr)
