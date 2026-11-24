@@ -82248,50 +82248,54 @@ class Graph:
         networks (power grids, protein-interaction networks, the Web) are consistently
         disassortative ($r < 0$).
 
+        See Also
+        --------
+        degree_pearson_correlation_coefficient : Choose which degrees on directed graphs.
+        average_degree_connectivity : The average neighbor degree for each degree.
+        degree_mixing_matrix : The table the coefficient summarizes.
+        assortativity : The same coefficient for any numeric attribute.
+
         Examples
         --------
-        When high-degree "influencer" nodes mostly connect to each other, while low-degree nodes
-        connect among themselves, the degree assortativity comes out positive:
+        In a star, every link joins the center, with three links, to a node with one, so the
+        coefficient is `-1`:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-        g.add_nodes(
-            ["Influencer1", "Influencer2", "Influencer3", "User1", "User2", "User3", "User4"]
-        )
-        g.add_edges(
-            [
-                ("Influencer1", "Influencer2"),
-                ("Influencer1", "Influencer3"),
-                ("Influencer2", "Influencer3"),
-                ("User1", "User2"),
-                ("User3", "User4"),
-            ]
-        )
+        star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
 
-        # Returns a positive value: hubs connect to hubs, periphery to periphery
-        g.assortativity_degree()
+        star.assortativity_degree()
         ```
 
-        A client-server topology is the opposite case: a few high-degree servers connect to many
-        low-degree clients, which gives a negative (disassortative) coefficient:
+        ### Leaders and their followers
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. The two leaders have the most friends, the instructor,
+        member `0`, with 16 and the administrator, member `33`, with 17. They aren't friends
+        with each other, and most of their friends have five or fewer, so members with many
+        friends are friends with members with few:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["Server1", "Server2", "Client1", "Client2", "Client3", "Client4", "Client5"])
-        g.add_edges(
-            [
-                ("Server1", "Client1"),
-                ("Server1", "Client2"),
-                ("Server1", "Client3"),
-                ("Server2", "Client4"),
-                ("Server2", "Client5"),
-            ]
-        )
+        karate = ec.karate_club()
+        leader = karate.get_id_from_label("33")
 
-        # Returns a negative value: high-degree nodes connect to low-degree nodes
-        g.assortativity_degree()
+        (
+            round(karate.assortativity_degree(), 2),
+            sorted(karate.get_degree(n) for n in karate.get_neighbors(leader)),
+        )
+        ```
+
+        Their friendships, highlighted, mostly reach the smaller nodes:
+
+        ```{python}
+        node = karate.get_id_from_label
+        spokes = [
+            (node(m), n)
+            for m in ["0", "33"] for n in karate.get_neighbors(node(m))
+        ]
+
+        karate.plot(highlight=spokes, size_by="degree", label_by="label", seed=1)
         ```
         """
         return self._graph.assortativity_degree()
