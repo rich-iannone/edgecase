@@ -81284,6 +81284,11 @@ class Graph:
         drops to one becomes a leaf. After the sequence is used up, the last two remaining
         nodes are joined. It runs in $O(n)$ time.
 
+        See Also
+        --------
+        to_prufer_sequence : Encode a tree as its sequence.
+        from_nested_tuple : Build a rooted tree from its shape.
+
         Examples
         --------
         The sequence `[3, 3, 3]` puts node 3 at the center of a star on five nodes:
@@ -81291,16 +81296,24 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        tree = ec.Graph.from_prufer_sequence([3, 3, 3])
-        tree.get_edges_str_repr(use_labels=True)
+        star = ec.Graph.from_prufer_sequence([3, 3, 3])
+        star.get_edges_str_repr(use_labels=True)
         ```
 
-        Encoding and decoding round-trip, here with named nodes:
+        With `nodes=`, the sequence holds labels. Encoding the tree again gives the sequence
+        back:
 
         ```{python}
         names = ["A", "B", "C", "D", "E", "F"]
-        t = ec.Graph.from_prufer_sequence(["D", "D", "E", "E"], nodes=names)
-        [t.get_label_from_id(n) for n in t.to_prufer_sequence()]
+        tree = ec.Graph.from_prufer_sequence(["D", "D", "E", "E"], nodes=names)
+
+        [tree.get_label_from_id(n) for n in tree.to_prufer_sequence()]
+        ```
+
+        `D` and `E` each appear twice, so each has three neighbors:
+
+        ```{python}
+        tree.plot(label_by="label", seed=1, width=400, height=300)
         ```
         """
         k = len(sequence) + 2
