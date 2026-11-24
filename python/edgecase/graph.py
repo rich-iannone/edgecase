@@ -30041,21 +30041,60 @@ class Graph:
         Each pair costs one neighbor-set intersection. The scores match NetworkX's
         `cn_soundarajan_hopcroft`.
 
+        See Also
+        --------
+        common_neighbors : The count without communities.
+        ra_index_soundarajan_hopcroft : Resource allocation within the pair's community.
+        within_inter_cluster : The ratio of shared neighbors inside and outside the community.
+
         Examples
         --------
-        A and D share the neighbors B and C, but only B is in their community, so the score is
-        2 + 1 = 3:
+        Each common neighbor counts once, and once more if it is in the same community as both
+        nodes. `B` is in `A` and `D`'s community and `C` isn't, so their score is `2 + 1`. `B`
+        and `E` are in different communities, so theirs is their one common neighbor:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(
-            [("A", {"community": 0}), ("B", {"community": 0}), ("C", {"community": 1}),
-             ("D", {"community": 0})]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
-        g.add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")])
+        graph = graph.set_node_attrs(
+            "community", {"A": 1, "B": 1, "D": 1, "C": 2, "E": 2}
+        )
+        label = graph.get_label_from_id
+        scores = graph.cn_soundarajan_hopcroft([("A", "D"), ("B", "E")])
 
-        g.cn_soundarajan_hopcroft([("A", "D")])[0][2]
+        [(label(u), label(v), s) for u, v, s in scores]
+        ```
+
+        ### Friends from the same club
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. With `community="club"`, three pairs that each share two friends
+        come apart. Nico and Rosa, climbers, share two climbers. Wes and Oona, also climbers,
+        share Hugo, from the chess club, and Tara, a climber. Wes and Jules are in different
+        clubs, so only their count is left:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        pairs = [("Nico", "Rosa"), ("Wes", "Oona"), ("Wes", "Jules")]
+        scores = friends.cn_soundarajan_hopcroft(pairs, community="club")
+
+        [(label(u), label(v), s) for u, v, s in scores]
+        ```
+
+        ```{python}
+        friends.plot(
+            highlight={
+                "accent": [(p, f) for p in ["Nico", "Rosa"]
+                           for f in ["Mara", "Pablo"]],
+                "soft": [(p, f) for p in ["Wes", "Oona"]
+                         for f in ["Hugo", "Tara"]],
+            },
+            color_by="club", label_by="label", seed=8,
+        )
         ```
         """
         return self._link_scores("cn_sh", ebunch, community)
