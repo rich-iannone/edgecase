@@ -37808,79 +37808,67 @@ class Graph:
         Runtime is $O(|V|\,d\log d + |E|\,d)$ for $k=3$ (triangles) and
         $O(|V|\,d\log d + |E|\,d^2)$ for $k=4$ (4-cycles), where $d$ is the maximum degree.
 
+        See Also
+        --------
+        local_clustering_coefficient : Clustering of each node.
+        generalized_degree : Each node's edges by how many triangles they lie in.
+        edge_betweenness_centrality : Find the edges that many shortest paths cross.
+
         Examples
         --------
-        Every edge of a triangle sits in exactly one triangle, and with `offset=True`
-        (the default) that count is bumped by one before dividing by the maximum
-        possible, giving `2.0` for each edge:
+        Two triangles are joined by the edge `C`-`D`, which lies in no triangle. With the default
+        `offset=True`, each score is one more than the edge's triangles, divided by the most it
+        could have, so the joining edge scores `(0 + 1) / 2` and the others `(1 + 1) / 1`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("E", "F"), ("F", "D")]
         )
+        scores = graph.edge_clustering_coefficient()
+        graph.set_edge_attrs("clustering", scores)
 
-        graph.edge_clustering_coefficient(k=3, normalized=True, offset=True)
+        graph.get_edge_df(labels=True).select("source", "target", "clustering")
         ```
 
-        Setting `offset=False` lets a fully-clustered edge reach the natural maximum of
-        `1.0`:
+        With `offset=False`, an edge with every triangle it could have scores 1. With `k=4`, the
+        score counts squares instead of triangles:
 
         ```{python}
-        graph.edge_clustering_coefficient(k=3, normalized=True, offset=False)
+        square = ec.Graph().add_cycle_graph(4)
+        square.edge_clustering_coefficient(offset=False, k=4)
         ```
 
-        Two triangles joined by a single edge show the metric's main use. The joining edge
-        "C"-"D" (edge ID `4`) is in no triangle, so it gets the lowest score, `(0 + 1) / 2 = 0.5`,
-        while every edge inside a triangle scores `2.0`:
+        ### Weak ties between the factions
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Of the 78 friendships, the six lowest-scoring are member
+        `11`'s only friendship and five of the ten that cross between the factions:
 
         ```{python}
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["A", "B", "C", "D", "E", "F"])
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                         ("D", "E"), ("E", "F"), ("F", "D")])
+        karate = ec.karate_club()
+        karate.set_edge_attrs("clustering", karate.edge_clustering_coefficient())
 
-        graph.edge_clustering_coefficient()
-        ```
-
-        Passing `edge_ids=` restricts the computation to particular edges. With
-        `normalized=False` and `offset=False`, the values are plain triangle counts:
-
-        ```{python}
-        graph.edge_clustering_coefficient(edge_ids=[1, 4], normalized=False, offset=False)
-        ```
-
-        A 4-cycle has no triangles at all, so `k=3` clustering is zero everywhere, but
-        each edge does participate in exactly one 4-cycle, so `k=4` gives every edge a
-        value of `1.0`:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        (
+            karate.get_edge_df(labels=True)
+            .sort("clustering")
+            .select("source", "target", "clustering")
+            .head(6)
         )
-
-        graph.edge_clustering_coefficient(k=3, offset=False)
         ```
 
-        ```{python}
-        graph.edge_clustering_coefficient(k=4, offset=False)
-        ```
-
-        On a real network like the karate club, sorting by clustering surfaces the edges
-        most embedded in triangles. Several edges tie at the maximum of `1.0`:
+        A tie that few triangles hold in place is a weak one, and removing the lowest-scoring edge
+        again and again is the divisive community method of Radicchi et al. (2004):
 
         ```{python}
-        G = ec.karate_club()
+        weakest = karate.get_edge_df().sort("clustering")["id"].head(6).to_list()
 
-        ecc = G.edge_clustering_coefficient(k=3, normalized=True, offset=False)
-        sorted_edges = sorted(ecc.items(), key=lambda x: x[1], reverse=True)
-
-        sorted_edges[:5]
+        karate.layout_kamada_kawai().plot(
+            layout="pos", color_by="faction", highlight_edges=weakest,
+            label_by="label",
+        )
         ```
         """
         # Use edge_ids directly (they are already integers)
