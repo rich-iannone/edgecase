@@ -57611,57 +57611,57 @@ class Graph:
         random graph comes from its own stretch of one seeded random stream, so the
         `n_samples=` graphs differ from one another even with a fixed `seed=`.
 
+        See Also
+        --------
+        coreness : Another way to find a densely linked center.
+        assortativity_degree : Whether nodes link to others with a similar degree.
+        degree_centrality : The share of the other nodes each node links to.
+
         Examples
         --------
-        Analyze hub connectivity in a network:
+        Three hubs linked to one another, each with a spoke of its own. The nodes with more
+        than one link are the three hubs, and all three possible links among them are there,
+        so the coefficient at 1 is `1.0`:
 
         ```{python}
         import edgecase as ec
 
-        # Create a network with clear hub structure
-        graph = (
-            ec.Graph()
-            .add_nodes(["hub1", "hub2", "hub3", "spoke1", "spoke2", "spoke3"])
-            .add_edges(
-                [
-                    # Connect hubs to each other (rich club)
-                    ("hub1", "hub2"),
-                    ("hub2", "hub3"),
-                    ("hub3", "hub1"),
-                    # Connect spokes to hubs
-                    ("hub1", "spoke1"),
-                    ("hub2", "spoke2"),
-                    ("hub3", "spoke3"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("hub1", "hub2"), ("hub2", "hub3"), ("hub3", "hub1"),
+             ("hub1", "spoke1"), ("hub2", "spoke2"), ("hub3", "spoke3")]
         )
-
-        rc = graph.rich_club_coefficient()
-        # Returns rich club coefficients dict
-        # Higher values at larger k indicate hubs prefer connecting to each other
-        rc
+        sorted(graph.rich_club_coefficient().items())
         ```
 
-        Compare with random network:
+        ### Leaders who keep apart
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. Three members have more than 10 links: the instructor
+        (member `0`), the administrator (`33`) and member `32`. Of the three links they could
+        have among them, only `32`-`33` is there, so the coefficient at 10 is a third:
 
         ```{python}
-        # Scale-free networks often show rich-club phenomenon
-        ba_graph = ec.Graph().add_pa_graph(100, 3, seed=7)
-        rc = ba_graph.rich_club_coefficient()
+        karate = ec.karate_club()
+        rich = karate.rich_club_coefficient()
 
-        # Check if high-degree nodes are more interconnected than expected
-        # Filter coefficients > 0.5 to see strong rich-club effect
-        {k: phi for k, phi in sorted(rc.items()) if phi > 0.5}
+        round(rich[10], 2)
         ```
 
-        The raw values climb toward `1` at the top of the degree range partly because so few
-        nodes are left there. Normalizing against degree-preserving random graphs shows how
-        much of that is a genuine preference of hubs for one another (values near `1` mean
-        no more than chance):
+        Random graphs with the same degrees link the busiest members more often than that.
+        Normalized against them, the coefficient falls below 1 from about 5 links up: the
+        leaders of the two sides keep apart:
 
         ```{python}
-        rc_norm = ba_graph.rich_club_coefficient(normalized=True, Q=10, seed=23, n_samples=5)
-        {k: round(phi, 2) for k, phi in sorted(rc_norm.items())[-6:]}
+        normal = karate.rich_club_coefficient(
+            normalized=True, Q=100, seed=1, n_samples=20
+        )
+        {k: round(v, 2) for k, v in sorted(normal.items()) if 4 <= k <= 11}
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight=["0", "32", "33"], label_by="label"
+        )
         ```
         """
         from edgecase._core import rich_club_coefficient
