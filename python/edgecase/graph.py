@@ -31021,20 +31021,51 @@ class Graph:
         nodes, while this method returns `k` other nodes. The random paths come from a different
         generator, so the scores agree with NetworkX's only statistically.
 
+        See Also
+        --------
+        panther_vector_similarity : Similarity of structural role rather than closeness.
+        generate_random_paths : The random paths that the scores count.
+        simrank_similarity : Similarity from random walks that meet.
+
         Examples
         --------
-        Two triangles joined by a bridge: the nodes in the source's own triangle score highest.
+        Panther samples random paths and scores how often a node shares one with the source. In a
+        path of five nodes, the nodes nearest `A` share the most:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(["a", "b", "c", "x", "y", "z"])
-        graph.add_edges(
-            [("a", "b"), ("b", "c"), ("c", "a"), ("c", "x"), ("x", "y"), ("y", "z"), ("z", "x")]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
+        label = graph.get_label_from_id
 
-        scores = graph.panther_similarity("a", k=3, seed=1)
-        {graph.get_label_from_id(n): round(s, 3) for n, s in scores.items()}
+        scores = graph.panther_similarity("A", k=3, seed=1)
+
+        {label(n): round(s, 3) for n, s in scores.items()}
+        ```
+
+        ### Close to Hugo
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. The five people who most often share a random path with Hugo are
+        his five friends, Tara among them:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        hugo = friends.panther_similarity("Hugo", seed=1)
+
+        {label(n): round(s, 3) for n, s in hugo.items()}
+        ```
+
+        With `k=` larger, everyone with a score is ranked, and the scores color the network:
+
+        ```{python}
+        scores = friends.panther_similarity("Hugo", k=23, seed=1)
+        friends = friends.set_node_attrs("like_hugo", scores)
+
+        friends.plot(color_by="like_hugo", label_by="label", seed=8)
         ```
         """
         s = self._resolve_node_id(source, auto_create=False)
