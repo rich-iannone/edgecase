@@ -73663,6 +73663,12 @@ class Graph:
         ValueError
             If `S=` is empty or a node does not exist.
 
+        See Also
+        --------
+        node_boundary : The neighbors whose number is divided.
+        node_expansion : The same ratio, counting every neighbor.
+        edge_expansion : The leaving edges per member, rather than the neighbors.
+
         Examples
         --------
         The hub of a star reaches every leaf, so its boundary is as large as the graph allows:
@@ -73673,6 +73679,26 @@ class Graph:
         star = ec.Graph().add_star_graph(5)
 
         star.boundary_expansion([1]), star.boundary_expansion([2])
+        ```
+
+        ### Stations just outside each zone
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. The four stations of zone 2 have ten neighbors outside it, two and a half per
+        station, while zone 1, in the middle, has fewer than one per station:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+
+        {
+            zone: round(metro.boundary_expansion(ids), 2)
+            for zone, ids in nodes.group_by("zone").agg("id").sort("zone").rows()
+        }
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
         """
         s_ids, _, p = self._cut(S)
