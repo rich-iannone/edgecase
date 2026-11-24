@@ -51454,45 +51454,68 @@ class Graph:
             Number of nodes in the largest connected component (weakly connected for directed
             graphs), or `0` for an empty graph.
 
+        See Also
+        --------
+        weakly_connected_components : Every component, not only the largest.
+        node_percolation : Remove nodes at random and see what is left.
+        percolation_threshold_analysis : Track the largest component over many removal rates.
+
         Examples
         --------
-        This graph has two pieces: a chain of four nodes and a separate pair. The largest
-        component therefore has four nodes, even though the graph has six in total:
+        This graph has two pieces, a chain of four nodes and a separate pair, so the largest
+        component has four of the six nodes:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("E", "F")]
         )
 
         (graph.count_nodes(), graph.largest_component_size())
         ```
 
-        In a directed graph, edge direction does not matter. Here B and C both point into A and
-        nothing points out of A, yet all three nodes still form one weakly connected component:
+        In a directed graph, edge direction does not matter. Here `B` and `C` both point into
+        `A`, and nothing points out of `A`, yet all three form one weakly connected component:
 
         ```{python}
-        directed = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("B", "A"), ("C", "A")])
-        )
+        directed = ec.Graph.from_edges([("B", "A"), ("C", "A")], directed=True)
 
         directed.largest_component_size()
         ```
 
-        A common robustness check compares the giant component before and after random
-        failures. A 20-node ring is a single component, but removing a quarter of its nodes at
-        random cuts it into separate arcs, the longest of which has only 8 nodes:
+        ### Station closures
+
+        The metro has 20 stations. Closing most of them leaves the other 19 connected, but
+        closing Riverside strands Harbor, Docks and Shipyard, and closing Eastfield strands
+        Business Park and the Airport. Counting the stations each closure strands:
 
         ```{python}
-        ring = ec.Graph().add_cycle_graph(20)
-        damaged = ring.node_percolation(q=0.25, seed=1)
+        import polars as pl
 
-        (ring.largest_component_size(), damaged.largest_component_size())
+        metro = ec.metro()
+
+        stranded = {
+            label: 19 - ec.metro().delete_node(label).largest_component_size()
+            for label in metro.get_node_df()["label"]
+        }
+        metro = metro.set_node_attrs("stranded", stranded)
+
+        (
+            metro.get_node_df()
+            .filter(pl.col("stranded") > 0)
+            .select("label", "stranded")
+            .sort("stranded", descending=True)
+        )
+        ```
+
+        The four stations that matter sit on the two branches out of the center:
+
+        ```{python}
+        metro.plot(
+            layout="pos", color_by="stranded", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         from edgecase._core import largest_component_size as rust_lcs
