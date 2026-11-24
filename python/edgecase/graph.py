@@ -60869,6 +60869,10 @@ class Graph:
         the heuristic after changing the graph. Landmark ties go to the smallest ID. This
         follows NetworkX's proposed `alt_heuristic` (PR #8767, not yet merged).
 
+        See Also
+        --------
+        astar_path : The search the heuristic guides.
+
         Examples
         --------
         On a 6 x 6 grid, farthest-point selection puts the four landmarks at or next to the
@@ -60883,6 +60887,35 @@ class Graph:
 
         h = grid.alt_heuristic(k=4, seed=0)
         h(ids[0], ids[-1]), len(grid.astar_path(ids[0], ids[-1], heuristic=h)) - 1
+        ```
+
+        ### Landmarks on the metro
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Four landmarks, picked as far apart as possible, sit around the
+        edges of the network:
+
+        ```{python}
+        metro = ec.metro()
+        h = metro.alt_heuristic(k=4, seed=0)
+
+        [metro.get_label_from_id(n) for n in h.landmarks]
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=h.landmarks, label_by="label")
+        ```
+
+        From Westgate to the Airport, the bound is the exact travel time, so A* goes straight
+        along the fastest route:
+
+        ```{python}
+        route = metro.astar_path("Westgate", "Airport", heuristic=h)
+
+        (
+            h("Westgate", "Airport"),
+            metro.shortest_path_length("Westgate", "Airport"),
+        )
         ```
         """
         n = self.count_nodes()
