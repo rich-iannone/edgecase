@@ -78378,7 +78378,7 @@ class Graph:
     # Independent Sets
     # ==============================================================================
 
-    def is_independent_set(self, nodes: list[int]) -> bool:
+    def is_independent_set(self, nodes: list[Union[int, str]]) -> bool:
         """
         Check if a set of nodes forms an independent set.
 
@@ -78404,9 +78404,8 @@ class Graph:
         Parameters
         ----------
         nodes
-            A list of integer node IDs to check. Labels are not accepted; use
-            `get_id_from_label()` to convert them. Duplicate IDs are harmless. Every ID must
-            exist in the graph, otherwise a `ValueError` is raised.
+            The nodes (IDs or labels) to check. Duplicates are harmless. Every node must
+            exist in the graph, otherwise a `NodeNotFoundError` is raised.
 
         Returns
         -------
@@ -78416,8 +78415,8 @@ class Graph:
 
         Raises
         ------
-        ValueError
-            If any ID in `nodes=` is not a node in the graph.
+        NodeNotFoundError
+            If any of `nodes=` is not a node in the graph.
 
         Technical Notes
         ---------------
@@ -78429,51 +78428,65 @@ class Graph:
         ties this validation to some of the most well-studied problems in combinatorial
         optimization.
 
+        See Also
+        --------
+        maximal_independent_set : Grow an independent set until no node can join.
+        maximum_independent_set : Find a large independent set.
+        is_vertex_cover : Check the complement of an independent set.
+        is_valid_coloring : Check that every color class is independent.
+
         Examples
         --------
-        On a path `A-B-C-D`, `A` and `C` are not directly connected, so they form a valid
-        independent set:
+        On a path, `A` and `C` share no edge, but `C` and `D` do:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+
+        graph.is_independent_set(["A", "C"]), graph.is_independent_set(["A", "C", "D"])
+        ```
+
+        ### Checking a time slot
+
+        `exams()` joins two of the 14 courses at a made-up college when some student takes both,
+        so their exams can't share a time slot. The exams in one slot must form an independent
+        set. Calculus, History, Literature and Web Design can all go in the same slot, but adding
+        Economics would give some students two exams at once:
+
+        ```{python}
+        exams = ec.exams()
+
+        slot = ["Calculus", "History", "Literature", "Web Design"]
+
+        (
+            exams.is_independent_set(slot),
+            exams.is_independent_set(slot + ["Economics"]),
         )
-
-        a_id = graph.get_id_from_label("A")
-        c_id = graph.get_id_from_label("C")
-
-        # Returns True
-        graph.is_independent_set([a_id, c_id])
         ```
 
-        Adding `D` breaks it, since `C` and `D` are adjacent:
+        Each slot of a coloring is an independent set, so it passes too:
 
         ```{python}
-        d_id = graph.get_id_from_label("D")
+        colors = exams.greedy_color(strategy="dsatur")
+        slots = {}
+        for course, color in colors.items():
+            slots.setdefault(color, []).append(course)
 
-        # Returns False
-        graph.is_independent_set([a_id, c_id, d_id])
+        all(exams.is_independent_set(courses) for courses in slots.values())
         ```
 
-        This is a handy way to confirm that a computed independent set is actually valid:
-
         ```{python}
-        graph = ec.Graph()
-        graph.add_path_graph(10)
-
-        mis = graph.maximal_independent_set(seed=23)
-
-        # Returns True: maximal_independent_set() always produces a valid result
-        graph.is_independent_set(mis)
+        exams.plot(
+            highlight=["Calculus", "History", "Literature", "Web Design"],
+            label_by="label", seed=5,
+        )
         ```
         """
         from edgecase._core import is_independent_set
 
-        return is_independent_set(self._graph, nodes)
+        ids = [self._resolve_node_id(n, auto_create=False) for n in nodes]
+        return is_independent_set(self._graph, ids)
 
     def maximal_independent_set(
         self,
