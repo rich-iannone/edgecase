@@ -24485,6 +24485,11 @@ class Graph:
         ValueError
             If `set_op=` is not `"union"`, `"replace"`, `"intersect"`, or `"difference"`.
 
+        See Also
+        --------
+        select_last_edges_created : Select the edges made last.
+        set_node_attrs_ws : Set attributes on the selected nodes.
+
         Examples
         --------
         Selection follows creation order rather than label order, so this selects
