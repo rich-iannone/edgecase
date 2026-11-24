@@ -66972,20 +66972,59 @@ class Graph:
         Kahn's algorithm with a priority queue of available nodes, $O((V + E) \\log V)$. Matches
         NetworkX's `lexicographical_topological_sort` with the same key.
 
+        See Also
+        --------
+        topological_sort : One topological ordering.
+        all_topological_sorts : Every topological ordering.
+
         Examples
         --------
-        Getting dressed: socks before shoes, trousers before shoes and belt, shirt before tie.
-        Among the items that are free at each step, the alphabetically first goes next:
+        Of the orders that respect the edges, this one takes the smallest available label at
+        each step, so `B` comes before `C`, which is free from the start:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True).add_nodes(["shirt", "tie", "trousers", "belt", "socks", "shoes"])
-        g.add_edges(
-            [("socks", "shoes"), ("trousers", "shoes"), ("trousers", "belt"), ("shirt", "tie")]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "D"), ("C", "D")], directed=True
         )
+        order = graph.lexicographical_topological_sort()
 
-        [g.get_label_from_id(n) for n in g.lexicographical_topological_sort()]
+        [graph.get_label_from_id(n) for n in order]
+        ```
+
+        ### A schedule by course level
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. Ordering by label puts every CS course it
+        can before any math course, so Calculus I comes ninth:
+
+        ```{python}
+        courses = ec.courses()
+
+        [courses.get_label_from_id(n)
+         for n in courses.lexicographical_topological_sort()]
+        ```
+
+        With `key=` the course level, the order takes the 100-level courses first, then the
+        200-level ones, and so on, still never taking a course before its prerequisites:
+
+        ```{python}
+        level = dict(courses.get_node_df().select("id", "level").iter_rows())
+        order = courses.lexicographical_topological_sort(key=level.get)
+
+        [courses.get_label_from_id(n) for n in order]
+        ```
+
+        ```{python}
+        courses.set_node_attrs(
+            "position", {n: i + 1 for i, n in enumerate(order)}
+        )
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", color_by="position", color_scale="sequential",
+            label_by="label", height=420,
+        )
         ```
         """
         import heapq
