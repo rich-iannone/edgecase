@@ -25443,38 +25443,51 @@ class Graph:
         Graph
             The same graph (modified in place) for method chaining.
 
+        See Also
+        --------
+        invert_node_selection : Select the nodes that aren't selected.
+        deselect_edges : Remove edges from the selection.
+        delete_edges_ws : Delete the selected edges.
+
         Examples
         --------
-        Selecting one edge of a 5-edge cycle and inverting flips the selection to the
-        remaining four:
+        Selecting one edge of a cycle and inverting the selection leaves the other four:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_cycle_graph(5)
-
-        first_edge = graph.get_edge_ids()[0]
-        graph.select_edges_by_id([first_edge]).invert_edge_selection()
+        graph.select_edges_by_id([1]).invert_edge_selection()
 
         graph.count_selected_edges()
         ```
 
-        A "keep only" pattern: select the strong ties, invert so the weak ones are selected,
-        and delete them. Only the two edges with weight of at least `0.5` survive:
+        ### Keeping only the large payments
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. To keep only the payments of 1,000 or more, select them, invert the
+        selection to get the small ones and delete those:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 0.9), ("B", "C", 0.2), ("C", "D", 0.7), ("D", "A", 0.1)])
-            .select_edges(lambda e: e.weight >= 0.5)
+        payments = ec.payments()
+        (
+            payments
+            .select_edges(lambda e: e.attributes["amount"] >= 1000)
             .invert_edge_selection()
             .delete_edges_ws()
         )
 
-        graph.get_edge_df().select("source", "target", "weight")
+        payments.count_edges()
         ```
 
+        What is left falls into two parts. In one, Acme pays the salaries, Max pays the rent and
+        Eve's money goes on to the loop through Finn, Gus and Hal. In the other, money goes
+        around Ana, Ben and Cruz, and on along the chain to Lena. The Grocer and the Cafe are
+        left with no payments at all:
+
+        ```{python}
+        payments.plot(label_by="label", seed=3)
+        ```
         """
         self._graph.invert_edge_selection()
 
