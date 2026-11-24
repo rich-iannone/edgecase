@@ -19749,6 +19749,11 @@ class Graph:
         for a common neighbor other than the node. Matches NetworkX's
         `bipartite.node_redundancy`.
 
+        See Also
+        --------
+        latapy_clustering : Clustering for each node of a bipartite graph.
+        bipartite_projection : Link the nodes of one side through the other.
+
         Examples
         --------
         Ann's two events are also shared by Bob, so Ann is fully redundant; Cy is the only person
