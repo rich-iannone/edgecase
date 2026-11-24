@@ -81383,36 +81383,54 @@ class Graph:
         isomorphism. NetworkX visits children in set order, which for integer node labels is
         ascending, so on such trees the default code matches NetworkX's.
 
+        See Also
+        --------
+        from_nested_tuple : Decode a code back into its tree.
+        to_prufer_sequence : Encode a labeled tree as a sequence.
+
         Examples
         --------
-        Hang a small tree from A: B has two leaves below it, C is a leaf, and D has one:
+        Hung from `A`, this tree has `B` with two leaves below it, `C` as a leaf, and `D` with
+        one leaf:
 
         ```{python}
         import edgecase as ec
 
-        t = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-        t.add_edges([("A", "B"), ("A", "C"), ("A", "D"), ("B", "E"), ("B", "F"), ("D", "G")])
-        t.to_nested_tuple("A")
+        tree = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"),
+             ("B", "E"), ("B", "F"), ("D", "G")]
+        )
+        tree.to_nested_tuple("A")
         ```
 
-        The canonical form sorts every list of children, lighter subtrees first:
+        The canonical form sorts the children of every node, smaller subtrees first:
 
         ```{python}
-        t.to_nested_tuple("A", canonical_form=True)
+        tree.to_nested_tuple("A", canonical_form=True)
         ```
 
-        The same tree hung from a different node has a different shape:
+        Hung from `G`, the same tree has a different shape:
 
         ```{python}
-        t.to_nested_tuple("G")
+        tree.to_nested_tuple("G")
         ```
 
-        Two differently labeled trees with the same rooted shape get equal canonical codes:
+        ```{python}
+        tree.plot(highlight="A", label_by="label", seed=1, width=400, height=300)
+        ```
+
+        Two trees with different labels but the same shape, hung from their roots, get the same
+        canonical code:
 
         ```{python}
-        u = ec.Graph().add_nodes(["r", "x", "y", "z", "w", "v", "q"])
-        u.add_edges([("r", "x"), ("r", "y"), ("r", "z"), ("y", "w"), ("z", "v"), ("z", "q")])
-        u.to_nested_tuple("r", canonical_form=True) == t.to_nested_tuple("A", canonical_form=True)
+        other = ec.Graph.from_edges(
+            [("r", "x"), ("r", "y"), ("r", "z"),
+             ("y", "w"), ("z", "v"), ("z", "q")]
+        )
+        (
+            other.to_nested_tuple("r", canonical_form=True)
+            == tree.to_nested_tuple("A", canonical_form=True)
+        )
         ```
         """
         if self.is_directed():
