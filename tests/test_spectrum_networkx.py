@@ -535,3 +535,33 @@ class TestSelection:
             g.adjacency_spectrum()
         with pytest.raises(ValueError, match="empty graph"):
             g.laplacian_spectrum()
+
+
+# ============================================================================
+# Eigenvalue/eigenvector pairing (nalgebra's symmetric solver mismatched them)
+# ============================================================================
+
+
+class TestEigenpairPairing:
+    def test_football_laplacian_eigenpairs(self):
+        import edgecase as ec
+
+        g = ec.football()
+        spec = g.laplacian_spectrum(which="all")
+        L = np.array(g.laplacian_matrix()[0], dtype=float)
+        assert_eigenpairs(L, spec["values"], spec["vectors"])
+
+    def test_football_fiedler_vector_matches_networkx(self):
+        import edgecase as ec
+
+        g = ec.football()
+        label = g.get_label_from_id
+        G = nx.Graph([(label(s), label(t)) for _, s, t in g.get_edges_as_tuples()])
+        expected = nx.fiedler_vector(G, method="tracemin_lu", seed=1)
+        fiedler = g.fiedler_vector(return_dict=True)
+        ours = np.array([fiedler[g.get_id_from_label(n)] for n in G.nodes])
+        # Not the constant eigenvector of λ = 0, and equal to NetworkX's up to sign
+        assert abs(ours.sum()) < 1e-9
+        assert min(abs(ours - expected).max(), abs(ours + expected).max()) < 1e-6
+        left, right = g.spectral_bisection()
+        assert len(left) > 0 and len(right) > 0
