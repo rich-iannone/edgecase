@@ -36581,15 +36581,78 @@ class Graph:
         breadth-first searches for $L_r$). Because the references are random, values from
         EdgeCase and NetworkX agree only up to sampling noise.
 
+        See Also
+        --------
+        small_world_omega : Place a graph between a lattice and a random graph.
+        random_reference : The random graphs that sigma compares against.
+        transitivity : The clustering that sigma uses.
+
         Examples
         --------
-        A Watts-Strogatz graph with a little rewiring is strongly small-world:
+        A ring lattice with a few edges rewired keeps most of its clustering, while the shortcuts
+        make its paths short:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_smallworld_graph(n=100, k=6, p=0.1, seed=1)
-        round(g.small_world_sigma(iterations=10, nrand=5, seed=2), 2)
+        graph = ec.Graph().add_smallworld_graph(n=60, k=6, p=0.05, seed=1)
+        round(graph.small_world_sigma(seed=1), 2)
+        ```
+
+        ### From a lattice to a random graph
+
+        Watts and Strogatz (1998) rewired a ring lattice a little at a time. Sigma peaks after a
+        little rewiring, at 5.3, then falls toward 1 as the graph turns random. It rates the
+        unrewired ring highly too, at 3.5: its clustering is far above chance, which outweighs
+        paths more than twice as long. `small_world_omega()` tells those two apart:
+
+        ```{python}
+        import polars as pl
+
+        rings = {
+            p: ec.Graph().add_smallworld_graph(n=60, k=6, p=p, seed=1)
+            for p in [0.0, 0.05, 0.2, 1.0]
+        }
+        pl.DataFrame({
+            "p": list(rings),
+            "clustering": [
+                g.average_clustering_coefficient() for g in rings.values()
+            ],
+            "sigma": [g.small_world_sigma(seed=1) for g in rings.values()],
+        })
+        ```
+
+        The ring with 5% of its edges rewired (left) against the fully random graph (right):
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        rings[0.05].layout_circular(order="id").plot(
+            layout="pos", show_labels=False, width=320, height=320
+        )
+        ```
+
+        ```{python}
+        rings[1.0].layout_circular(order="id").plot(
+            layout="pos", show_labels=False, width=320, height=320
+        )
+        ```
+
+        :::
+
+        ### Two real networks
+
+        `celegans_neural()` is the network of a worm's neurons that Watts and Strogatz used. As
+        an undirected graph, it is clearly small-world, at about 1.5. The karate club is only just
+        above 1. Sigma takes `nrand` references, each rewired `iterations` times per edge, so on
+        larger graphs it pays to lower them:
+
+        ```{python}
+        worm = ec.celegans_neural().to_undirected()
+        (
+            worm.small_world_sigma(iterations=10, nrand=5, seed=1),
+            ec.karate_club().small_world_sigma(seed=1),
+        )
         ```
         """
         value, parts = rust.small_world(self._graph, "sigma", iterations, nrand, seed)
