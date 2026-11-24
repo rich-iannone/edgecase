@@ -70869,6 +70869,11 @@ class Graph:
         DFS visits neighbors in the order their edges were added and treats parallel edges as
         one, so the chains are identical to NetworkX's `chain_decomposition` for the same graph.
 
+        See Also
+        --------
+        biconnected_components : The blocks that the chains make up.
+        bridges : The edges that belong to no chain.
+
         Examples
         --------
         Two triangles joined by a bridge decompose into two chains (one per triangle); the
@@ -70877,15 +70882,47 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges(
-            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "F"), ("F", "D")]
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
+        label = graph.get_label_from_id
         [
-            [(g.get_label_from_id(u), g.get_label_from_id(v)) for u, v in chain]
-            for chain in g.chain_decomposition()
+            [(label(u), label(v)) for u, v in chain]
+            for chain in graph.chain_decomposition()
         ]
+        ```
+
+        ### Loops and links on the metro
+
+        `metro()` is a made-up city's metro network. The first chain is a ring of ten stations,
+        and each later chain is a link between stations already in a chain:
+
+        ```{python}
+        metro = ec.metro()
+        chains = metro.chain_decomposition()
+
+        label = metro.get_label_from_id
+        [[label(u) for u, _ in chain] + [label(chain[-1][1])] for chain in chains]
+        ```
+
+        Coloring each stretch of track by its chain leaves the five stretches out to the edge of
+        the network, which are in no chain, in gray:
+
+        ```{python}
+        chain_of = {
+            (u, v): i for i, chain in enumerate(chains) for u, v in chain
+        }
+        metro.set_edge_attrs(
+            "chain", list(chain_of.values()), edges=list(chain_of)
+        )
+        metro.plot(
+            layout="pos", edge_color_by="chain", edge_width=4, edge_opacity=0.9,
+            label_by="label",
+        )
         ```
         """
         root_id = None if root is None else self._resolve_node_id(root, auto_create=False)
