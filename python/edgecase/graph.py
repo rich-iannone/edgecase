@@ -5276,6 +5276,17 @@ class Graph:
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         ids = sorted(self.get_node_ids(limit=None))
+        if isinstance(order, (list, tuple)):
+            given = [self._resolve_node_id(v, auto_create=False) for v in order]
+            if len(given) != len(ids) or set(given) != set(ids):
+                raise ValueError("order= must list every node of the graph exactly once")
+            ids = given
+        elif order == "dfs":
+            from edgecase.svg_renderer import _circle_order
+
+            ids = _circle_order(ids, [(s, t) for _, s, t in self._graph.edges()])
+        elif order != "id":
+            raise ValueError(f'order= must be "dfs", "id" or a list of nodes, not {order!r}')
         n = len(ids)
         if n == 1:
             coords = {ids[0]: center}
@@ -5285,7 +5296,9 @@ class Graph:
                 for i, nid in enumerate(ids)
             }
             coords = self._rescale_positions(coords, scale, center)
-        params = self._changed(scale=(scale, 1.0), center=(center, (0.0, 0.0)))
+        params = self._changed(
+            order=(order, "dfs"), scale=(scale, 1.0), center=(center, (0.0, 0.0))
+        )
         return self._layout_result("layout_circular", coords, attr_name, return_dict, params)
 
     def layout_shell(
