@@ -71088,6 +71088,11 @@ class Graph:
         whole graph contain every k-edge-connected subgraph. Results match NetworkX's
         `k_edge_subgraphs`.
 
+        See Also
+        --------
+        k_edge_components : Groups whose paths may pass through other nodes.
+        is_k_edge_connected : Check a single graph.
+
         Examples
         --------
         Hubs `u` and `v` are joined by three edge-disjoint paths through `a`, `b` and `c`, so
@@ -71098,13 +71103,43 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["u", "v", "a", "b", "c"])
-        g.add_edges([("u", "a"), ("a", "v"), ("u", "b"), ("b", "v"), ("u", "c"), ("c", "v")])
+        graph = ec.Graph.from_edges(
+            [
+                ("u", "a"), ("a", "v"), ("u", "b"),
+                ("b", "v"), ("u", "c"), ("c", "v"),
+            ]
+        )
 
         def show(groups):
-            return [[g.get_label_from_id(n) for n in group] for group in groups]
+            return [[graph.get_label_from_id(n) for n in g] for g in groups]
 
-        show(g.k_edge_components(3)), show(g.k_edge_subgraphs(3))
+        show(graph.k_edge_components(3)), show(graph.k_edge_subgraphs(3))
+        ```
+
+        ### Robust on its own tracks
+
+        `metro()` is a made-up city's metro network. Six stations around the city center form a
+        3-edge-connected component, but the routes between them run through other stations,
+        and on their own tracks the six are not even connected. Asked for groups that are
+        robust using only their own tracks, the method finds none larger than one station at
+        `k=3`, and the 15-station core at `k=2`:
+
+        ```{python}
+        metro = ec.metro()
+        six = max(metro.k_edge_components(3), key=len)
+
+        (
+            metro.subgraph(six).edge_connectivity(),
+            max(len(g) for g in metro.k_edge_subgraphs(3)),
+            max(len(g) for g in metro.k_edge_subgraphs(2)),
+        )
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", highlight=max(metro.k_edge_subgraphs(2), key=len),
+            label_by="label",
+        )
         ```
         """
         comps = rust.k_edge_components(self._graph, k, True)
