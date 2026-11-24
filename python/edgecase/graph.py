@@ -65029,93 +65029,53 @@ class Graph:
         and the arbitrary tie-break here is whichever one the underlying queue serves
         first.
 
+        See Also
+        --------
+        topological_generations : Group the nodes into layers.
+        all_topological_sorts : Every topological ordering.
+        lexicographical_topological_sort : The ordering that takes the smallest node first.
+        is_dag : Check if a graph has no directed cycles.
+
         Examples
         --------
-        A small build dependency graph sorts so that every file appears after the files it
-        depends on:
+        Each node comes after every node with an arrow into it:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["main.cpp", "utils.cpp", "utils.h", "config.h"])
-            .add_edges(
-                [
-                    ("main.cpp", "utils.h"),  # main depends on utils.h
-                    ("main.cpp", "config.h"),  # main depends on config.h
-                    ("utils.cpp", "utils.h"),  # utils.cpp depends on utils.h
-                    ("utils.h", "config.h"),  # utils.h depends on config.h
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")], directed=True
         )
 
-        order_ids = graph.topological_sort()
-
-        # config.h and utils.h always precede the files that depend on them
-        [graph.get_label_from_id(nid) for nid in order_ids]
+        [graph.get_label_from_id(n) for n in graph.topological_sort()]
         ```
 
-        The same idea applies to course prerequisites, where the ordering doubles as a valid
-        semester-by-semester curriculum:
+        ### An order to take the courses
+
+        `courses()` holds the courses of a made-up computer science program, with an arrow from
+        each course to every course that requires it. A topological order is a sequence in which
+        a student could take the courses one at a time, never before their prerequisites:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["Intro CS", "Data Structures", "Algorithms", "Machine Learning"])
-            .add_edges(
-                [
-                    ("Intro CS", "Data Structures"),
-                    ("Data Structures", "Algorithms"),
-                    ("Algorithms", "Machine Learning"),
-                ]
-            )
-        )
+        courses = ec.courses()
+        order = courses.topological_sort()
 
-        curriculum_ids = graph.topological_sort()
-
-        # Returns courses in an order that always satisfies prerequisites
-        [graph.get_label_from_id(nid) for nid in curriculum_ids]
+        [courses.get_label_from_id(n) for n in order]
         ```
 
-        A circular dependency has no valid ordering, so a cyclic graph raises an error instead
-        of silently returning a partial result:
+        Numbered in that order, every arrow points from a smaller number to a larger one:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "A"),  # Creates a cycle
-                ]
-            )
+        stages = dict(enumerate(courses.topological_generations()))
+        courses = courses.set_node_attrs(
+            "step",
+            {n: f"{i + 1}. {courses.get_label_from_id(n)}"
+             for i, n in enumerate(order)},
         )
 
-        error_message = None
-        try:
-            graph.topological_sort()
-        except ValueError as e:
-            # The graph is cyclic, so no valid ordering exists
-            error_message = str(e)
-
-        error_message
-        ```
-
-        When a graph has multiple valid orderings, any one of them may be returned:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "C"), ("B", "C")])
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", color_by="dept", label_by="step", height=420
         )
-
-        # Both [A, B, C] and [B, A, C] are valid; C always comes last
-        order = graph.topological_sort()
-        [graph.get_label_from_id(nid) for nid in order]
         ```
         """
         return self._graph.get_topological_sort_order()
