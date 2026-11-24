@@ -73897,6 +73897,12 @@ class Graph:
         ValueError
             If the graph is directed, has fewer than two nodes, or has a negative capacity.
 
+        See Also
+        --------
+        minimum_cut : The cheapest cut between two given nodes.
+        edge_connectivity : The value of the cut, with every edge counting one.
+        gomory_hu_tree : The minimum cut between every pair of nodes.
+
         Examples
         --------
         Two triangles joined by one edge: the global minimum cut is that single bridge:
@@ -73904,11 +73910,11 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                        ("D", "E"), ("E", "F"), ("F", "D")])
+        graph = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("D", "E"), ("E", "F"), ("F", "D"),
+            ]
         )
 
         value, (one, other) = graph.stoer_wagner()
@@ -73916,18 +73922,38 @@ class Graph:
         value, [label(n) for n in one], [label(n) for n in other]
         ```
 
-        With weights as capacities, a heavy bridge is no longer the weak point; a lightly tied
-        node is:
+        Edge weights act as capacities. In a chain whose middle link is the weakest, the cut
+        breaks that link:
 
         ```{python}
-        weighted = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 3.0), ("B", "C", 4.0), ("C", "A", 3.0), ("C", "D", 1.5)])
+        chain = ec.Graph.from_edges(
+            [("A", "B", 3.0), ("B", "C", 1.0), ("C", "D", 3.0)]
         )
 
-        value, (one, other) = weighted.stoer_wagner()
-        value, [weighted.get_label_from_id(n) for n in other]
+        value, (one, other) = chain.stoer_wagner()
+        label = chain.get_label_from_id
+        value, sorted(label(n) for n in one), sorted(label(n) for n in other)
+        ```
+
+        ### The cheapest cut of all
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). The global minimum cut doesn't find that split: it cuts off
+        member 11, who has a single friend in the club. The smallest cut often isolates the
+        least-connected node, which is why `normalized_cut_size()` and `conductance()` weigh a
+        cut against the size of each side:
+
+        ```{python}
+        karate = ec.karate_club()
+        value, (_, alone) = karate.stoer_wagner()
+
+        value, [karate.get_label_from_id(n) for n in alone]
+        ```
+
+        ```{python}
+        karate.layout_kamada_kawai().plot(
+            layout="pos", highlight=alone, label_by="label"
+        )
         ```
         """
         value, side_a, side_b = rust.stoer_wagner(self._graph, capacity)
