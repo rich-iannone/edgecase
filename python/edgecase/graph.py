@@ -19642,6 +19642,11 @@ class Graph:
         NetworkX's `bipartite.butterflies()`, which counts the same way (and also ignores
         bipartiteness).
 
+        See Also
+        --------
+        robins_alexander_clustering : The share of paths of three edges that close into squares.
+        latapy_clustering : Clustering for each node of a bipartite graph.
+
         Examples
         --------
         Three customers and three products: Ann and Bob both bought tea and jam, and Bob and Cy
