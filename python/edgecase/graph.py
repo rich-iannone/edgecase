@@ -54743,6 +54743,11 @@ class Graph:
         Brandes's dependency accumulation in which only targets start a unit of flow (Brandes,
         2008): $O(|S| E)$ unweighted, $O(|S| E \\log V)$ weighted.
 
+        See Also
+        --------
+        edge_betweenness_centrality : Count paths between all pairs.
+        betweenness_centrality_subset : The same measure for nodes.
+
         Examples
         --------
         In a diamond `A-B-D`, `A-C-D` with a tail `D-E`, the two shortest paths from `A` to `E`
@@ -54751,16 +54756,34 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
         )
 
-        scores = graph.edge_betweenness_centrality_subset(["A"], ["E"], return_dict=True)
-        label = graph.get_label_from_id
-        {"-".join(label(n) for n in graph.get_node_ids_by_edge_id(e)): s for e, s in scores.items()}
+        (
+            graph.edge_betweenness_centrality_subset(["A"], ["E"])
+            .get_edge_df(labels=True)
+            .select("source", "target", "edge_betweenness_centrality_subset")
+        )
         ```
+
+        In Zachary's karate club, the two leaders, members 0 and 33, aren't friends, but they
+        have four friends in common, so there are four shortest routes between them, each over
+        two edges, and each edge gets an equal share:
+
+        ```{python}
+        import polars as pl
+
+        club = ec.karate_club().edge_betweenness_centrality_subset(["0"], ["33"])
+
+        (
+            club.get_edge_df(labels=True)
+            .filter(pl.col("edge_betweenness_centrality_subset") > 0)
+            .select("source", "target", "edge_betweenness_centrality_subset")
+        )
+        ```
+
+        For all pairs of nodes, use `edge_betweenness_centrality()`.
 
         Notes
         -----
