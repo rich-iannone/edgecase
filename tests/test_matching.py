@@ -641,6 +641,21 @@ class TestCovers:
             )
             assert sum(cost[n] for n in cover) <= 2 * best + 1e-9
 
+    def test_weighted_vertex_cover_drops_redundant_nodes(self):
+        """Regression: the local-ratio pass alone gave 14 metro stations, where the best
+        cover has 9; dropping the nodes whose neighbors are all covered gives 10."""
+        metro = ec.metro()
+        cover = metro.minimum_weighted_vertex_cover()
+        assert metro.is_vertex_cover(cover)
+        assert len(cover) == 10
+        for n in cover:
+            assert not set(metro.get_neighbors(n)) <= set(cover)
+
+    def test_weighted_vertex_cover_keeps_self_loops(self):
+        g = ec.Graph().add_nodes(["A", "B"]).add_edges([("A", "A"), ("A", "B")])
+        g.add_edge("B", "B")
+        assert sorted(g.minimum_weighted_vertex_cover()) == sorted(g.get_node_ids())
+
     def test_vertex_cover_predicate_and_errors(self):
         g = ec.Graph().add_nodes(["hub", "a", "b"]).add_edges([("hub", "a"), ("hub", "b")])
         assert g.is_vertex_cover(["hub"]) and not g.is_vertex_cover(["a"])
