@@ -24379,8 +24379,8 @@ class Graph:
 
         Examples
         --------
-        Selecting "B" pulls in every edge that touches it -- both `A-B` and `B-C`, but not
-        the unrelated `C-D` edge:
+        This selects the edges at `B`, which are `A`-`B` and `B`-`C`, but not `C`-`D`. Nodes can
+        be given as labels or IDs:
 
         ```{python}
         import edgecase as ec
