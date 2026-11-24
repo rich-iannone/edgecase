@@ -63692,6 +63692,11 @@ class Graph:
         request #8950, which also rebuilds `edge_bfs` on it, as here. Compare `bfs_edges()`,
         which keeps only the edges that reach new nodes.
 
+        See Also
+        --------
+        edge_bfs : The same search over the graph's own edges.
+        generic_bfs_edges : The node counterpart, which follows the neighbors a callback supplies.
+
         Examples
         --------
         By default every edge reachable from the source is visited, as in `edge_bfs()`:
@@ -63699,26 +63704,53 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")])
-        label = g.get_label_from_id
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C"), ("C", "D")]
+        )
+        label = graph.get_label_from_id
 
-        [(label(u), label(v)) for u, v, _ in g.generic_edge_bfs("A")]
+        [(label(u), label(v)) for u, v, _ in graph.generic_edge_bfs("A")]
         ```
 
         A callback that skips a closed edge, here the one between `A` and `C`, still reaches
         `C` (through `B`) but never visits the closed edge:
 
         ```{python}
-        closed = set(g.find_edge_ids("A", "C"))
+        closed = set(graph.find_edge_ids("A", "C"))
 
         def open_edges(node):
             return [
-                (s, t, e) for e, s, t in g.get_edges_as_tuples()
+                (s, t, e) for e, s, t in graph.get_edges_as_tuples()
                 if node in (s, t) and e not in closed
             ]
 
-        [(label(u), label(v)) for u, v, _ in g.generic_edge_bfs("A", edges=open_edges)]
+        [
+            (label(u), label(v))
+            for u, v, _ in graph.generic_edge_bfs("A", edges=open_edges)
+        ]
+        ```
+
+        ### One line at a time
+
+        `metro()` is a made-up city's metro network, with each stretch of track labeled by its
+        line. A callback that offers only the Red line's track explores the Red line from
+        Central and nothing else:
+
+        ```{python}
+        metro = ec.metro()
+        edges = metro.get_edge_df()
+        line = dict(zip(edges["id"], edges["line"]))
+
+        def red_line(node):
+            return [
+                (s, t, e) for e, s, t in metro.get_edges_as_tuples()
+                if node in (s, t) and line[e] == "Red"
+            ]
+
+        red = metro.generic_edge_bfs("Central", edges=red_line)
+        metro.plot(
+            layout="pos", highlight_edges=[e for _, _, e in red], label_by="label"
+        )
         ```
         """
         if edges is None:
