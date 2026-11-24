@@ -32047,25 +32047,50 @@ class Graph:
         standard similarity in text mining (over tf-idf vectors), recommendation systems
         (user-item overlap), and graph embeddings alike.
 
+        See Also
+        --------
+        jaccard_similarity : Shared neighbors over all neighbors.
+        overlap_similarity : Shared neighbors over the smaller neighborhood.
+        dice_similarity : A score that weighs the shared neighbors twice.
+
         Examples
         --------
-        In a triangle, every node shares exactly one neighbor with each of the others,
-        so cosine similarity works out to `1 / sqrt(2 * 2) = 0.5` for every pair:
+        `A` and `B` share 2 neighbors, out of 2 and 3, so their score is $2 / \sqrt{2 \cdot 3}$:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"), ("B", "E")]
         )
+        label = graph.get_label_from_id
+        scores = graph.cosine_similarity()[graph.get_id_from_label("A")]
 
-        sim = graph.cosine_similarity()
+        dict(sorted((label(n), round(s, 3)) for n, s in scores.items()))
+        ```
 
-        a_id = graph.get_id_from_label("A")
-        b_id = graph.get_id_from_label("B")
-        sim[a_id][b_id]
+        ### Who is most like Hugo
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. Hugo, in the chess club, and Tara, a climber, are a couple: they
+        each have five friends, one of them each other, and the other four are the same. That
+        makes Tara by far the most similar to Hugo, at $4 / \sqrt{5 \cdot 5}$:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        hugo = friends.cosine_similarity()[friends.get_id_from_label("Hugo")]
+        others = {
+            label(n): round(s, 2) for n, s in hugo.items() if label(n) != "Hugo"
+        }
+
+        sorted(others.items(), key=lambda item: -item[1])[:5]
+        ```
+
+        ```{python}
+        friends = friends.set_node_attrs("like_hugo", others)
+
+        friends.plot(color_by="like_hugo", label_by="label", seed=8)
         ```
         """
         return self._graph.get_cosine_similarity()
