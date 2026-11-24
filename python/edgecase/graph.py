@@ -81645,34 +81645,38 @@ class Graph:
         order, but adds the root last; here the root comes first (ID `1`), which keeps the
         root easy to find. With `first_label=0`, the labels are NetworkX's.
 
+        See Also
+        --------
+        from_nested_tuple : Build a rooted tree from its shape.
+        to_nested_tuple : Encode the shape of the joined tree.
+
         Examples
         --------
-        Joining a path and a single node under a new root:
+        Joining a path and a single node under a new root. The new root is `1`, and the old
+        roots `b` and `x` become `3` and `5`, with their old labels kept in `old`:
 
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["a", "b", "c"]).add_edges([("a", "b"), ("b", "c")])
-        leaf = ec.Graph().add_nodes(["x"])
-        joined = ec.Graph.join_trees([(path, "b"), (leaf, "x")], label_attribute="old")
+        path = ec.Graph.from_edges([("a", "b"), ("b", "c")])
+        leaf = ec.Graph().add_node(label="x")
+        joined = ec.Graph.join_trees(
+            [(path, "b"), (leaf, "x")], label_attribute="old"
+        )
+
         joined.get_edges_str_repr(use_labels=True)
         ```
 
-        The new root is `"1"`, joined to the old roots `b` (now `"3"`) and `x` (now `"5"`).
-        The old labels are kept in the `old` attribute:
-
         ```{python}
-        {
-            joined.get_label_from_id(n): joined.get_node(n).attributes["old"]
-            for n in sorted(joined.get_node_ids(limit=None))[1:]
-        }
+        joined.plot(label_by="old", highlight="1", seed=1, width=400, height=300)
         ```
 
-        Two complete binary trees of height 2, joined at their roots, form one of height 3:
+        Two complete binary trees of height 2, joined at their roots, make one of height 3:
 
         ```{python}
         half = ec.Graph.from_nested_tuple((((), ()), ((), ())))
         whole = ec.Graph.join_trees([(half, "1"), (half, "1")])
+
         whole.to_nested_tuple("1") == ((((), ()), ((), ())), (((), ()), ((), ())))
         ```
         """
