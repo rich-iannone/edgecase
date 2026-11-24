@@ -84257,17 +84257,51 @@ class Graph:
         ValueError
             If the graph is directed or empty, or has a negative weight.
 
+        See Also
+        --------
+        fiedler_vector : The values the nodes are sorted by.
+        spectral_bisection : Split the nodes in two by the same vector.
+
         Examples
         --------
-        Shuffled labels on a path come back in path order:
+        The nodes of a path come back in path order, whatever order they were created in:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(["D", "B", "E", "A", "C"])
-        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("C", "D"), ("A", "B"), ("D", "E"), ("B", "C")]
+        )
 
         [graph.get_label_from_id(n) for n in graph.spectral_ordering()]
+        ```
+
+        ### From one club to the other
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. The order runs through the climbing club and then the chess club.
+        Where they meet are Hugo, from the chess club, and Tara, a climber, the couple at the
+        center of the network:
+
+        ```{python}
+        friends = ec.friends()
+        order = friends.spectral_ordering()
+
+        [friends.get_label_from_id(n) for n in order]
+        ```
+
+        Colored by their place in the order, the friends shade from one end of the network to
+        the other:
+
+        ```{python}
+        friends = friends.set_node_attrs(
+            "spectral_rank", {n: i for i, n in enumerate(order)}
+        )
+
+        friends.plot(
+            color_by="spectral_rank", color_scale="sequential",
+            label_by="label", seed=8,
+        )
         ```
         """
         order = rust.spectral_ordering(self._graph, normalized, self._use_weights(weighted))
