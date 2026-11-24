@@ -71894,6 +71894,11 @@ class Graph:
         graphs solve each unordered pair once. Results match NetworkX's
         `all_pairs_node_connectivity()`.
 
+        See Also
+        --------
+        node_connectivity_between : The connectivity of a single pair.
+        average_node_connectivity : The mean over all pairs.
+
         Examples
         --------
         In a square `A-B-C-D` with the diagonal `A-C`, opposite corners `B` and `D` are joined
@@ -71902,15 +71907,42 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")])
+        square = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C")]
         )
 
         label = square.get_label_from_id
         table = square.all_pairs_node_connectivity()
-        {label(u): {label(v): k for v, k in row.items()} for u, row in table.items()}
+        {
+            label(u): {label(v): k for v, k in row.items()}
+            for u, row in table.items()
+        }
+        ```
+
+        With `nodes=`, only the pairs among the given nodes are computed, though the paths may
+        pass through any node:
+
+        ```{python}
+        square.all_pairs_node_connectivity(nodes=["B", "D"])
+        ```
+
+        ### The best-connected stations
+
+        `metro()` is a made-up city's metro network. Averaging each station's row of the table
+        shows how well it is linked to the rest of the network. Old Town and Market do best,
+        and the stations beyond a bridge, which reach everything through one station, do worst:
+
+        ```{python}
+        metro = ec.metro()
+        table = metro.all_pairs_node_connectivity()
+
+        mean = {u: sum(row.values()) / len(row) for u, row in table.items()}
+        metro.set_node_attrs("mean_connectivity", mean)
+
+        metro.plot(
+            layout="pos", color_by="mean_connectivity", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         ids = (
