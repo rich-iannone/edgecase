@@ -54402,23 +54402,60 @@ class Graph:
         ValueError
             If the graph has fewer than two nodes or no edges, or a weight is not positive.
 
+        See Also
+        --------
+        global_reaching_centrality : Summarize the scores as one hierarchy score.
+        harmonic_centrality : Equal up to scale on undirected, unweighted graphs.
+
         Examples
         --------
-        In a reporting tree, the head of the organization reaches everyone and each leaf
-        reaches no one:
+        In a reporting tree, the head of the organization reaches everyone and each leaf reaches
+        no one:
 
         ```{python}
         import edgecase as ec
 
-        org = (
-            ec.Graph(directed=True)
-            .add_nodes(["ceo", "cto", "cfo", "dev1", "dev2"])
-            .add_edges([("ceo", "cto"), ("ceo", "cfo"), ("cto", "dev1"), ("cto", "dev2")])
+        org = ec.Graph.from_edges(
+            [("ceo", "cto"), ("ceo", "cfo"), ("cto", "dev1"), ("cto", "dev2")],
+            directed=True,
         )
 
-        scores = org.local_reaching_centrality(return_dict=True)
-        {org.get_label_from_id(n): s for n, s in sorted(scores.items())}
+        org.local_reaching_centrality().get_node_df().select(
+            "label", "local_reaching_centrality"
+        )
         ```
+
+        ### Courses that open doors
+
+        In `courses()`, each edge points from a prerequisite to a course that requires it, so a
+        course's local reaching centrality is the share of the other courses that need it,
+        directly or through a chain of prerequisites, stored here as `"reach"`. Introduction to
+        Programming (CS101) leads to 11 of the other 16, and Data Structures (CS102) to 10:
+
+        ```{python}
+        courses = (
+            ec.courses()
+            .local_reaching_centrality(attr_name="reach")
+            .layout_multipartite(subset_key="level")
+        )
+
+        (
+            courses.get_node_df()
+            .select("label", "title", "reach")
+            .sort("reach", descending=True)
+            .head(5)
+        )
+        ```
+
+        With the courses in columns by number, the scores fall from left to right, and the
+        400-level courses, which lead nowhere, score 0:
+
+        ```{python}
+        courses.plot(layout="pos", color_by="reach", label_by="label")
+        ```
+
+        Summing up how far every node falls short of the top score gives
+        `global_reaching_centrality()`.
         """
         scores = rust.local_reaching_centrality(
             self._graph, weighted=self._use_weights(weighted), normalized=normalized
