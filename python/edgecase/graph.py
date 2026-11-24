@@ -5229,6 +5229,9 @@ class Graph:
 
         Parameters
         ----------
+        order
+            The order of the nodes around the circle: `"dfs"` (default) for depth-first search
+            order, `"id"` for ID order, or a list of every node (IDs or labels), each once.
         scale
             Radius of the circle. Default is `1.0`.
         center
@@ -5249,7 +5252,8 @@ class Graph:
         Raises
         ------
         ValueError
-            If `scale=` is not a positive number or `center=` is not a pair of numbers.
+            If `order=` is not `"dfs"`, `"id"` or a list of every node of the graph once,
+            `scale=` is not a positive number, or `center=` is not a pair of numbers.
 
         Examples
         --------
