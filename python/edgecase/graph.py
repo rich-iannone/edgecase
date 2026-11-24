@@ -40827,23 +40827,96 @@ class Graph:
         rounding (which only exchanges the two sides) and then continues, so on some graphs the
         two end in different local optima.
 
+        See Also
+        --------
+        cut_size : The number of edges between the two halves.
+        spectral_modularity_bipartition : Split in two by modularity, with no size constraint.
+        greedy_node_swap_bipartition : Refine a split by modularity, with no size constraint.
+
         Examples
         --------
-        Two squares joined by two edges: the bisection cuts just those two edges:
+        Two squares with a diagonal, joined by two edges. The starting split cuts 8 edges, and
+        swapping nodes between the halves brings the cut down to the two edges between the
+        squares:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(list("ABCDEFGH"))
-        g.add_edges(
-            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C"),
-             ("E", "F"), ("F", "G"), ("G", "H"), ("H", "E"), ("E", "G"),
-             ("D", "E"), ("C", "F")]
+        graph = ec.Graph.from_edges([
+            ("A", "B"), ("B", "C"), ("C", "D"), ("D", "A"), ("A", "C"),
+            ("E", "F"), ("F", "G"), ("G", "H"), ("H", "E"), ("E", "G"),
+            ("D", "E"), ("C", "F"),
+        ])
+
+        start = (["A", "B", "E", "F"], ["C", "D", "G", "H"])
+        left, right = graph.kernighan_lin_bisection(partition=start)
+
+        (
+            sorted(graph.get_label_from_id(n) for n in left),
+            graph.cut_size(list(left)),
+        )
+        ```
+
+        ### Halving the karate club
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. The factions have 16 and 18 members, while Kernighan-Lin keeps the two halves the
+        same size. Counting the members of each half by faction:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club().layout_kamada_kawai()
+        left, right = karate.kernighan_lin_bisection(seed=1)
+
+        karate.set_node_attrs("half", 0)
+        karate.set_node_attrs("half", 1, nodes=list(right))
+
+        (
+            karate.get_node_df()
+            .group_by("half", "faction")
+            .len()
+            .sort("half", "faction")
+        )
+        ```
+
+        The halves are the two factions, apart from member 9, who moves to the instructor's side
+        to even out the sizes. The split cuts as few friendships as the factions do:
+
+        ```{python}
+        instructor_side = (
+            karate.get_node_df().filter(pl.col("faction") == 1)["id"].to_list()
         )
 
-        left, right = g.kernighan_lin_bisection(partition=(["A", "B", "E", "F"], ["C", "D", "G", "H"]))
-        sorted(g.get_label_from_id(n) for n in left), g.cut_size(list(left))
+        karate.cut_size(list(left)), karate.cut_size(instructor_side)
         ```
+
+        ### From a random start
+
+        With `max_iter=0`, no pass runs and the random starting half comes back (left): it cuts 37
+        edges. The first pass already brings the cut down to 10 (right):
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        start, rest = karate.kernighan_lin_bisection(max_iter=0, seed=1)
+        karate.set_node_attrs("start", 0)
+        karate.set_node_attrs("start", 1, nodes=list(rest))
+        karate.plot(
+            layout="pos", color_by="start", edge_color_by="start",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        karate.plot(
+            layout="pos", color_by="half", edge_color_by="half",
+            label_by="label", width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         initial = None
         if partition is not None:
