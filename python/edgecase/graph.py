@@ -60264,6 +60264,12 @@ class Graph:
             If the label does not exist in the graph, or a weighted graph has a negative edge
             weight.
 
+        See Also
+        --------
+        single_source_shortest_path : The paths themselves.
+        multi_source_shortest_path_length : The distance to the nearest of several sources.
+        single_target_shortest_path_length : The distances from every node to a target.
+
         Examples
         --------
         Distances from one end of a path count up hop by hop:
@@ -60271,10 +60277,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
         )
 
         dist = graph.single_source_shortest_path_length("A", return_dict=True)
@@ -60290,6 +60294,23 @@ class Graph:
             .single_source_shortest_path_length("C", cutoff=1, attr_name="near_C")
             .get_node_df()
             .select(["label", "near_C"])
+        )
+        ```
+
+        ### Minutes from Central
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. Every station is within 14 minutes of Central, and the farthest
+        are the Airport, Garden and Hillcrest:
+
+        ```{python}
+        metro = ec.metro().single_source_shortest_path_length(
+            "Central", attr_name="minutes"
+        )
+
+        metro.plot(
+            layout="pos", color_by="minutes", color_scale="sequential",
+            label_by="label",
         )
         ```
         """
