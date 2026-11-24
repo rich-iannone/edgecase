@@ -52519,30 +52519,61 @@ class Graph:
         ValueError
             If the graph is directed.
 
+        See Also
+        --------
+        communicability : The walks between every pair of nodes.
+        eigen_centrality : The leading eigenvector alone.
+        estrada_index : The sum of subgraph centralities over the whole graph.
+
         Examples
         --------
-        In a triangle with a tail, the triangle's nodes sit on more short closed walks than the
-        tail, even where degrees tie:
+        In a triangle with a tail, `A` and `D` both have two neighbors, but `A` is in the
+        triangle and sits on more short closed walks:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E")]
         )
 
-        scores = graph.subgraph_centrality(return_dict=True)
-        {graph.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        graph.subgraph_centrality().get_node_df().select(
+            "label", "degree", "subgraph_centrality"
+        )
         ```
 
-        Normalized scores keep the same order on a smaller scale:
+        ### Small dense groups
+
+        In Zachary's karate club, members 5, 6 and 7 each have four friends. Member 7's four
+        friends are all friends with one another, and it scores more than twice as much as the
+        other two. Long closed walks count as well, and they gather in the densest part of the
+        club, so member 15, whose two friends, members 32 and 33, are at the center of the
+        administrator's side, edges out members 5 and 6:
 
         ```{python}
-        scores = graph.subgraph_centrality(normalized=True, return_dict=True)
-        {graph.get_label_from_id(n): round(s, 3) for n, s in sorted(scores.items())}
+        import polars as pl
+
+        club = (
+            ec.karate_club()
+            .layout_kamada_kawai()
+            .subgraph_centrality()
+        )
+
+        (
+            club.get_node_df()
+            .filter(pl.col("label").is_in(["5", "6", "7", "15", "16"]))
+            .select("label", "degree", "subgraph_centrality")
+            .sort("subgraph_centrality", descending=True)
+        )
         ```
+
+        Colored by subgraph centrality, the two leaders and their closest friends stand out:
+
+        ```{python}
+        club.plot(layout="pos", color_by="subgraph_centrality", label_by="label")
+        ```
+
+        Summing the scores over all nodes gives `estrada_index()`.
         """
         scores = rust.subgraph_centrality(self._graph, bool(normalized))
         params = {"normalized": True} if normalized else {}
