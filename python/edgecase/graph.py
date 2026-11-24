@@ -29951,19 +29951,49 @@ class Graph:
         run once per distinct source node in the pairs, so scoring all pairs costs
         $O(V(V + E))$. The scores match NetworkX's `common_neighbor_centrality`.
 
+        See Also
+        --------
+        common_neighbors : The number of shared neighbors alone.
+        resource_allocation_index : A sum that favors shared neighbors with few neighbors.
+
         Examples
         --------
-        In a path A-B-C-D, the pair A-C shares the neighbor B and is two steps apart, so it
-        scores higher than A-D, which shares nothing and is three steps apart:
+        The score is `alpha=` times the number of common neighbors, plus `1 - alpha` times the
+        number of nodes over the distance between the two. `A` and `E`, three steps apart with
+        no common neighbor, still get the second part:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"), ("D", "E")]
+        )
+        label = graph.get_label_from_id
+        scores = graph.common_neighbor_centrality([("A", "D"), ("A", "E")])
 
-        [(g.get_label_from_id(u), g.get_label_from_id(v), round(s, 2))
-         for u, v, s in g.common_neighbor_centrality()]
+        [(label(u), label(v), round(s, 3)) for u, v, s in scores]
+        ```
+
+        ### The friendship no one saw coming
+
+        `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
+        club, who are friends. A year later, Femi and Vik had become friends, with no friend in
+        common. Predictors that count shared friends score them 0, but this one still ranks them
+        by distance. They are six steps apart, though, so they stay near the bottom of the 233
+        pairs:
+
+        ```{python}
+        friends = ec.friends()
+        label = friends.get_label_from_id
+        scores = sorted(friends.common_neighbor_centrality(), key=lambda t: -t[2])
+        rank = {(label(u), label(v)): i + 1 for i, (u, v, _) in enumerate(scores)}
+        path = friends.shortest_path("Femi", "Vik", return_list=True)
+
+        len(path) - 1, rank["Femi", "Vik"]
+        ```
+
+        ```{python}
+        friends.plot(highlight=path, color_by="club", label_by="label", seed=8)
         ```
         """
         return self._link_scores("ccpa", ebunch, None, alpha=alpha)
