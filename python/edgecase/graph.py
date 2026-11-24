@@ -40602,19 +40602,73 @@ class Graph:
         ---------------
         Each level is one round of local moving (the fast queue-based variant) followed by
         aggregation; a level is recorded whenever the partition is coarser than the previous
-        one, and the run stops when no node moves. The last level, with the same seed, is the
-        partition `cmty_louvain()` would find. Mirrors NetworkX's `louvain_partitions` (which
-        yields lists of node sets).
+        one, and the run stops when no node moves. `cmty_louvain()` is a separate
+        implementation with a fixed visiting order, so its partition can differ from the last
+        level here. Mirrors NetworkX's `louvain_partitions` (which yields lists of node sets).
+
+        See Also
+        --------
+        cmty_louvain : The final partition only, from a separate implementation.
+        cmty_leiden_levels : The same levels with Leiden's refinement step.
+        modularity : The score that each level raises.
 
         Examples
         --------
+        Twelve triangles in a ring, each joined to the next by one edge. The first level finds the
+        twelve triangles. The second merges neighboring triangles in pairs, which scores a higher
+        modularity even though each pair is plainly two groups (modularity's resolution limit):
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_smallworld_graph(n=60, k=4, p=0.05, seed=1)
-        levels = g.cmty_louvain_levels(seed=2)
-        [len(set(level.values())) for level in levels]
+        graph = ec.Graph().add_ring_of_cliques(12, 3)
+        levels = graph.cmty_louvain_levels(seed=5)
+
+        [
+            (len(set(level.values())), round(graph.modularity(level), 3))
+            for level in levels
+        ]
         ```
+
+        ### Two scales in *Les Misérables*
+
+        `les_miserables()` links two characters of Victor Hugo's novel when they appear in the same
+        chapter. Louvain finds 10 communities at its first level and merges them into 6 at the
+        second:
+
+        ```{python}
+        miserables = ec.les_miserables()
+        levels = miserables.cmty_louvain_levels(seed=1)
+
+        [
+            (len(set(level.values())), round(miserables.modularity(level), 3))
+            for level in levels
+        ]
+        ```
+
+        Each community of the second level (right) is one or more of the first (left). The
+        Gillenormands and the Pontmercys join the community around Valjean, Cosette and Marius,
+        and the Patron-Minette gang joins the Thénardiers:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        miserables.set_node_attrs("level_0", levels[0])
+        miserables.plot(
+            color_by="level_0", edge_color_by="level_0", show_labels=False,
+            seed=3, width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        miserables.set_node_attrs("level_1", levels[1])
+        miserables.plot(
+            color_by="level_1", edge_color_by="level_1", show_labels=False,
+            seed=3, width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         return self._levels(False, resolution, seed)
 
