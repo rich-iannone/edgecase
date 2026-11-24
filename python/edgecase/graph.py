@@ -64542,96 +64542,52 @@ class Graph:
         and labels can be mixed in the same sequence and the resolver picks the right one
         for each element.
 
+        See Also
+        --------
+        all_simple_paths : Every simple path between two nodes.
+        has_path : Check if one node can reach another.
+
         Examples
         --------
-        In a simple path `A -- B -- C`, only sequences that follow real edges without repeating
-        a node are valid:
+        A sequence is a simple path when each node is joined to the next and none repeats:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")]
         )
 
-        # Returns True
-        graph.is_simple_path(["A", "B", "C"])
-        ```
-
-        ```{python}
-        # Returns False: there is no direct edge from A to C
-        graph.is_simple_path(["A", "C"])
-        ```
-
-        A sequence that revisits a node is rejected even if every step follows a real edge,
-        which is how the method distinguishes simple paths from cycles:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
-
-        # Returns True
-        graph.is_simple_path(["A", "B", "C"])
-        ```
-
-        ```{python}
-        # Returns False: A appears twice
-        graph.is_simple_path(["A", "B", "C", "A"])
-        ```
-
-        On a directed graph, the order matters: the same two nodes form a valid path only in the
-        direction of the edge:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B")
-        )
-
-        # Returns (True, False)
-        graph.is_simple_path(["A", "B"]), graph.is_simple_path(["B", "A"])
-        ```
-
-        Because this check is much cheaper than enumerating paths, it's a good way to validate
-        paths returned by `all_simple_paths()`:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
-
-        paths = graph.all_simple_paths("A", "D")
-
-        # Returns True for every path found
-        all(graph.is_simple_path(path) for path in paths)
-        ```
-
-        Empty and single-node sequences are treated as trivially valid, as long as the single
-        node actually exists:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-
-        # Returns (True, True, False)
         (
-            graph.is_simple_path([]),
-            graph.is_simple_path(["A"]),
-            graph.is_simple_path(["Z"]),
+            graph.is_simple_path(["A", "B", "C", "D"]),
+            graph.is_simple_path(["A", "B", "C", "A"]),
+            graph.is_simple_path(["A", "D"]),
         )
+        ```
+
+        ### Checking a route
+
+        `metro()` is a made-up city's metro network, with each stretch of track weighted by its
+        travel time in minutes. A route from Westgate to the Docks along the Red line and down the
+        Blue line is valid. One that loops from Old Town through Riverside and Central back to Old
+        Town passes a station twice, and one that jumps from Central to the Docks skips the stops
+        between them:
+
+        ```{python}
+        metro = ec.metro()
+        routes = {
+            "direct": ["Westgate", "Mill Lane", "Old Town", "Central",
+                       "Riverside", "Harbor", "Docks"],
+            "loop": ["Westgate", "Mill Lane", "Old Town", "Riverside",
+                     "Central", "Old Town"],
+            "jump": ["Westgate", "Mill Lane", "Old Town", "Central", "Docks"],
+        }
+
+        {name: metro.is_simple_path(route) for name, route in routes.items()}
+        ```
+
+        ```{python}
+        metro.plot(layout="pos", highlight=routes["direct"], label_by="label")
         ```
         """
         # Resolve to IDs (int = ID, str = label); a node that doesn't exist means "not a path"
