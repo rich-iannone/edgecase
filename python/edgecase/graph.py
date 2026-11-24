@@ -59810,6 +59810,12 @@ class Graph:
         `pll_reachability_graph` (PR #8718, not yet merged); see Zhang, Bonifati and Özsu,
         *Indexing Techniques for Graph Reachability Queries*, for a survey.
 
+        See Also
+        --------
+        has_path : Answer a single reachability question.
+        transitive_closure : A graph with an edge for every reachable pair.
+        descendants : Every node reachable from a node.
+
         Examples
         --------
         A cycle A, B, C collapses to one component, which reaches D but is not reached from it:
@@ -59817,14 +59823,34 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")], directed=True
         )
+        graph.add_node(label="E")
 
         index = graph.reachability_index()
         index("B", "A"), index("A", "D"), index("D", "A"), index("A", "E")
+        ```
+
+        ### Which courses need a course
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        Building the index once makes each question about the prerequisites a quick lookup: a
+        student who has not taken MATH101 cannot take CS360, but can take CS410:
+
+        ```{python}
+        courses = ec.courses()
+        index = courses.reachability_index()
+
+        index("MATH101", "CS360"), index("MATH101", "CS410")
+        ```
+
+        Every course reaches itself, so asking the index about every course gives MATH101 and the
+        six courses it leads to:
+
+        ```{python}
+        needs_math101 = [n for n in courses.get_node_ids() if index("MATH101", n)]
+        courses.plot(highlight=needs_math101, label_by="label", seed=2)
         ```
         """
         table = rust.reachability_index(self._graph)
