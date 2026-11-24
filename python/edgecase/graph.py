@@ -63158,16 +63158,42 @@ class Graph:
         ---------------
         Grouped from the tree edges of `bfs_edges()`. Matches NetworkX's `bfs_successors`.
 
+        See Also
+        --------
+        bfs_predecessors : The same tree, from each node to the node it was reached from.
+        dfs_successors : The successors from a depth-first search.
+
         Examples
         --------
+        Each node maps to the nodes the search reached from it:
+
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("A", "C"), ("C", "D")])
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("C", "D")])
 
-        {g.get_label_from_id(p): [g.get_label_from_id(c) for c in cs]
-         for p, cs in g.bfs_successors("A").items()}
+        label = graph.get_label_from_id
+        next_nodes = graph.bfs_successors("A")
+        {label(p): [label(c) for c in cs] for p, cs in next_nodes.items()}
+        ```
+
+        ### What a course opens up
+
+        `courses()` links each course of a made-up degree program to the courses that require it.
+        Searching from CS101, each course maps to the courses first reached from it, giving the
+        fewest steps from CS101 to each course that needs it:
+
+        ```{python}
+        courses = ec.courses()
+        opens = courses.bfs_successors("CS101")
+
+        label = courses.get_label_from_id
+        {label(p): [label(c) for c in cs] for p, cs in opens.items()}
+        ```
+
+        ```{python}
+        steps = [(p, c) for p, cs in opens.items() for c in cs]
+        courses.plot(highlight=steps, label_by="label", seed=2)
         ```
         """
         with self._no_recording():
