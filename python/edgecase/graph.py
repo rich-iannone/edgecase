@@ -62755,11 +62755,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["hub", "a", "b", "c", "d", "e"])
-        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c"), ("b", "d"), ("c", "e")])
-        label = g.get_label_from_id
+        graph = ec.Graph.from_edges(
+            [("hub", "a"), ("hub", "b"), ("hub", "c"), ("b", "d"), ("c", "e")]
+        )
+        label = graph.get_label_from_id
 
-        [(label(p), label(c)) for p, c in g.generic_bfs_edges("hub")]
+        [(label(p), label(c)) for p, c in graph.generic_bfs_edges("hub")]
         ```
 
         A `neighbors` function can change the order: here each node's neighbors are visited in
@@ -62767,9 +62768,30 @@ class Graph:
 
         ```{python}
         def reverse_alphabetical(node):
-            return sorted(g.get_neighbors(node), key=label, reverse=True)
+            return sorted(graph.get_neighbors(node), key=label, reverse=True)
 
-        [(label(p), label(c)) for p, c in g.generic_bfs_edges("hub", reverse_alphabetical)]
+        [
+            (label(p), label(c))
+            for p, c in graph.generic_bfs_edges("hub", reverse_alphabetical)
+        ]
+        ```
+
+        ### Staying inside the fare zones
+
+        `metro()` is a made-up city's metro network, with each station in one of three fare
+        zones. A `neighbors` function that leaves out zone 3 keeps the search within a ticket
+        for zones 1 and 2:
+
+        ```{python}
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        zone = dict(zip(nodes["id"], nodes["zone"]))
+
+        def inner(node):
+            return [n for n in metro.get_neighbors(node) if zone[n] < 3]
+
+        reached = metro.generic_bfs_edges("Central", inner)
+        metro.plot(layout="pos", highlight=reached, label_by="label")
         ```
         """
         self._check_traversal_args(depth_limit, "out")
