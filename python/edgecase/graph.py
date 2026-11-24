@@ -75119,32 +75119,53 @@ class Graph:
         ordinary connectivity coincide, so this call falls through to `is_connected()`
         semantics.
 
+        See Also
+        --------
+        strongly_connected_components : The components of a graph that is not.
+        is_semiconnected : The looser check, with one node of each pair reaching the other.
+        is_weakly_connected : The check that ignores edge directions.
+
         Examples
         --------
-        In a directed cycle, every node can reach every other node by following the arrows around:
+        In a directed cycle, every node can reach every other by following the edges around. A
+        node that can reach the cycle, but that nothing reaches, breaks strong connectivity:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        cycle = [("A", "B"), ("B", "C"), ("C", "A")]
+        graph = ec.Graph.from_edges(cycle, directed=True)
+        before = graph.is_strongly_connected()
 
-        # Returns True
-        graph.is_strongly_connected()
+        graph.add_node(label="D")
+        graph.add_edge("D", "A")
+
+        before, graph.is_strongly_connected()
         ```
 
-        Adding a node that can only be reached one-way breaks strong connectivity, even though the
-        rest of the graph is still tightly connected:
+        On an undirected graph, this is the same as being connected:
 
         ```{python}
-        graph.add_node(label="D")
-        graph.add_edge("D", "A")  # D can reach A, but nothing can reach D
+        ec.Graph().add_path_graph(4).is_strongly_connected()
+        ```
 
-        # Returns False
-        graph.is_strongly_connected()
+        ### A circle of accounts
+
+        `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
+        from payer to payee. The whole month isn't strongly connected, since many accounts are
+        never paid back. But the eight accounts that pass money around among themselves are,
+        taken on their own:
+
+        ```{python}
+        payments = ec.payments()
+        circle = max(payments.strongly_connected_components(), key=len)
+        ring = payments.subgraph(sorted(circle))
+
+        payments.is_strongly_connected(), ring.is_strongly_connected()
+        ```
+
+        ```{python}
+        ring.plot(label_by="label", curved_edges=True, seed=3)
         ```
         """
         return self._graph.is_strongly_connected()
