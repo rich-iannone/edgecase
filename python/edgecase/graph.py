@@ -56009,69 +56009,80 @@ class Graph:
         also means a constant $\beta$ cancels out of the result, while a per-node $\beta$ (or
         `normalized=False`) does not.
 
+        See Also
+        --------
+        eigen_centrality : The limit as the decay approaches its maximum.
+        alpha_centrality : A version with a baseline status per node.
+        pagerank : A random walk with teleportation.
+
         Examples
         --------
-        "D" receives incoming edges both directly from "A" and indirectly via "B" and
-        "C", so it accumulates the highest Katz score, while "A", which nothing points to,
-        scores lowest:
+        "D" receives edges both directly from "A" and by way of "B" and "C", so it has the
+        highest Katz score, while "A", which nothing points to, has only the baseline and scores
+        lowest:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("A", "D")], directed=True
         )
 
-        scores = graph.katz_centrality(return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
+        graph.katz_centrality().get_node_df().select("label", "katz_centrality")
         ```
 
-        A smaller `alpha=` weights short walks much more heavily than long ones, so all scores
-        stay close to the uniform `0.25`. A larger value lets the long walk A-B-C-D count too,
-        and the gap between the source A and the sink D widens:
+        ### Between degree and eigenvector
+
+        Katz counts the walks that end at a node, each one discounted by `alpha=` per step. With
+        a small `alpha=` only the shortest walks count and the ranking is close to degree's; near
+        the limit of `1 / lambda_max` (the largest adjacency eigenvalue), long walks count too and
+        it approaches `eigen_centrality()`. In *Les Misérables* the limit is `1 / 12`, so the
+        default `alpha=0.1` diverges (with a `RuntimeWarning`). Here are the places at
+        `alpha=0.01` and at `alpha=0.08`, which needs more iterations to converge:
 
         ```{python}
-        low = graph.katz_centrality(alpha=0.05, return_dict=True)
-        high = graph.katz_centrality(alpha=0.5, return_dict=True)
+        import polars as pl
 
-        {
-            graph.get_label_from_id(nid): (round(low[nid], 3), round(high[nid], 3))
-            for nid in sorted(low)
-        }
+        lesmis = (
+            ec.les_miserables()
+            .katz_centrality(alpha=0.01, attr_name="short")
+            .katz_centrality(alpha=0.08, max_iter=1000, attr_name="long")
+        )
+
+        places = lesmis.get_node_df().with_columns(
+            pl.col("short", "long").rank("min", descending=True).cast(pl.Int64)
+        )
+
+        places.select("label", "degree", "short", "long").sort("short").head(8)
         ```
 
-        Passing `beta=` as a dictionary gives each node its own baseline. Making "C" a stronger
-        source of influence (baseline `5` instead of `1`) lifts "C" to the top and keeps its
-        successor "D" high, while "A" and "B" fall back:
+        Javert falls from fourth to twelfth and Fantine from seventh to twenty-fourth, while the
+        students at the barricade, who all appear with one another, climb. Coloring each
+        character by the places gained (or, below zero, lost) shows where the climbers are:
 
         ```{python}
-        baselines = {"A": 1, "B": 1, "C": 5, "D": 1}
-        scores = graph.katz_centrality(alpha=0.5, beta=baselines, return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(scores.items())}
-        ```
+        climb = dict(zip(places["label"], places["short"] - places["long"]))
 
-        With `normalized=False` the raw fixed point is returned instead. Each score is the
-        node's baseline plus `alpha=` times the scores of the nodes pointing at it, so "D" gets
-        `1 + 0.5 * (1 + 1.75) = 2.375`:
-
-        ```{python}
-        raw = graph.katz_centrality(alpha=0.5, normalized=False, return_dict=True)
-        {graph.get_label_from_id(nid): round(s, 3) for nid, s in sorted(raw.items())}
-        ```
-
-        With `return_dict=False` (the default) the scores are stored in the node DataFrame under
-        `attr_name=` and the graph is returned for chaining:
-
-        ```{python}
-        (
-            graph
-            .katz_centrality(alpha=0.5, attr_name="katz")
-            .get_node_df()
-            .select(["label", "katz"])
+        lesmis.set_node_attrs("climb", climb).plot(
+            color_by="climb", color_scale="diverging", size_by="long",
+            label_by="label", seed=3,
         )
         ```
+
+        ### Directed acyclic graphs
+
+        In a graph with no cycles, every walk ends, so the scores converge for any `alpha=`;
+        `eigen_centrality()` doesn't converge on one at all. In the `citations()` network, Katz
+        counts the chains of citations leading to each paper, and with `alpha=0.5` the seminal
+        Moreau 2000 has more than twice the score of any other paper:
+
+        ```{python}
+        citations = ec.citations().katz_centrality(alpha=0.5)
+
+        citations.plot(layout="pos", color_by="katz_centrality", label_by="label")
+        ```
+
+        To give some nodes a higher baseline than others, pass `beta=` as a dictionary.
         """
         # Expand beta to a baseline for every node: a scalar applies to all of them, a dict
         # (keyed by node ID or label) must give one for each node
@@ -56112,8 +56123,6 @@ class Graph:
         if attr_name is None:
             attr_name = "katz_centrality"
 
-        self.set_node_attrs(attr_name, scores_by_id)
-
         # Track computation
         params = {}
         if alpha != 0.1:
@@ -56126,7 +56135,7 @@ class Graph:
             params["max_iter"] = max_iter
         if tol != 1e-6:
             params["tol"] = tol
-        self._computations.append(("katz_centrality", params, attr_name))
+        self._store_node_result("katz_centrality", params, attr_name, scores_by_id)
 
         return self
 
