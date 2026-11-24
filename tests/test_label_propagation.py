@@ -314,12 +314,20 @@ class TestNodeClassification:
             ]
         )
         g.set_node_attrs(
-            "label", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"}
+            "cls", {g.get_id_from_label("A"): "red", g.get_id_from_label("H"): "blue"}
         )
-        predicted = g.harmonic_function()
+        predicted = g.harmonic_function("cls")
         assert {g.get_label_from_id(n): v for n, v in predicted.items()} == dict(
             zip("ABCDEFGH", ["red"] * 4 + ["blue"] * 4)
         )
-        assert g.local_and_global_consistency()[g.get_id_from_label("D")] == "red"
+        assert g.local_and_global_consistency("cls")[g.get_id_from_label("D")] == "red"
         with pytest.raises(ValueError, match="labeled"):
             g.harmonic_function(label_name="missing")
+
+    def test_label_name_is_required(self):
+        """There is no default: the node-label column would make every node labeled."""
+        g = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        with pytest.raises(TypeError):
+            g.harmonic_function()
+        with pytest.raises(TypeError):
+            g.local_and_global_consistency()
