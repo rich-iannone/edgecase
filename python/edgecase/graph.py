@@ -77571,17 +77571,63 @@ class Graph:
         ---------------
         One pass over the edge list in $O(V + E)$ time.
 
+        See Also
+        --------
+        minimum_weighted_vertex_cover : Find a cheap vertex cover.
+        bipartite_vertex_cover : The smallest cover of a bipartite graph.
+        is_edge_cover : Check that a set of edges touches every node.
+
         Examples
         --------
-        The center of a star covers every edge; any leaves alone do not:
+        The center of a star touches every edge. The leaves together do too, but a single leaf
+        doesn't:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["hub", "a", "b", "c"])
-        g.add_edges([("hub", "a"), ("hub", "b"), ("hub", "c")])
+        star = ec.Graph.from_edges([("hub", "a"), ("hub", "b"), ("hub", "c")])
 
-        g.is_vertex_cover(["hub"]), g.is_vertex_cover(["a", "b", "c"]), g.is_vertex_cover(["a"])
+        (
+            star.is_vertex_cover(["hub"]),
+            star.is_vertex_cover(["a", "b", "c"]),
+            star.is_vertex_cover(["a"]),
+        )
+        ```
+
+        ### Are the interchanges enough?
+
+        `metro()` is a made-up city's metro network. Placing a camera at each of the nine
+        stations on more than one line would watch nearly every track, but not the three at the
+        ends of the harbor and airport branches. Adding Harbor and Business Park covers them:
+
+        ```{python}
+        metro = ec.metro()
+        lines = metro.get_node_df().select("label", "lines")
+        shared = lines.filter(lines["lines"].list.len() > 1)
+        interchanges = shared["label"].to_list()
+
+        label = metro.get_label_from_id
+        open_tracks = [
+            (label(u), label(v))
+            for _, u, v in metro.get_edges_as_tuples()
+            if label(u) not in interchanges and label(v) not in interchanges
+        ]
+        more = interchanges + ["Harbor", "Business Park"]
+
+        (
+            metro.is_vertex_cover(interchanges),
+            open_tracks,
+            metro.is_vertex_cover(more),
+        )
+        ```
+
+        ```{python}
+        added = ["Harbor", "Business Park"]
+        metro.plot(
+            layout="pos",
+            highlight={"accent": interchanges, "soft": added},
+            label_by="label",
+        )
         ```
         """
         ids = {self._resolve_node_id(n, auto_create=False) for n in nodes}
