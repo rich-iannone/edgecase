@@ -24385,14 +24385,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
-
-        b_id = graph.get_id_from_label("B")
-        graph.select_edges_by_node([b_id])
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        graph.select_edges_by_node(["B"])
 
         graph.count_selected_edges()
         ```
