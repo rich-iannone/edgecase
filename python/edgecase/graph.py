@@ -49774,72 +49774,83 @@ class Graph:
         organizational analysis hunting for boundary spanners or entrepreneurial positions.
         Isolated nodes return `None` because there is no ego network to measure over.
 
+        See Also
+        --------
+        effective_size : The other half of Burt's structural holes measures.
+        local_constraint : The constraint that one neighbor puts on a node.
+        betweenness_centrality : A path-based view of brokerage.
+
         Examples
         --------
-        Node "B" brokers between "C" and "D", which aren't connected to each other. A structural
-        hole that gives "B" a low constraint score, while "A" (connected only to "B") has nowhere
-        else to turn and so shows a much higher one:
+        B has three contacts, and only two of them know each other, so B has the lowest
+        constraint. A depends on B alone and scores `1`. C and D each have two contacts who know
+        each other, which makes them the most constrained, slightly above `1` (the measure
+        allows it):
 
         ```{python}
         import edgecase as ec
 
-        # Simple network with a broker (B)
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])  # B is the broker
-            .add_edges([("A", "B"), ("B", "C"), ("B", "D")])
-            # Note: C and D are not connected
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("B", "D"), ("C", "D")])
 
-        constraints = g.constraint(return_dict=True)
-        b_id = g.get_id_from_label("B")
-        a_id = g.get_id_from_label("A")
-
-        constraints[b_id], constraints[a_id]
+        graph.constraint().get_node_df().select("label", "constraint")
         ```
 
-        Node "0"'s two contacts ("1" and "2") are connected to each other, closing off
-        any structural hole, while node "3"'s contacts ("4" and "5") remain disconnected
-        (giving "3" the lower constraint score):
+        ### Brokers in Florence
+
+        In the marriage network of the leading Florentine families, the Medici are the least
+        constrained: they married into six families, few of which married each other:
 
         ```{python}
-        # Compare dense vs. sparse ego networks
-        g = ec.Graph()
-
-        g.add_nodes(range(6))
-
-        # Node 0: connects to 1,2 which are connected (no structural hole)
-        g.add_edges([("0", "1"), ("0", "2"), ("1", "2")])
-
-        # Node 3: connects to 4,5 which are NOT connected (structural hole)
-        g.add_edges([("3", "4"), ("3", "5")])
-
-        constraints = g.constraint(return_dict=True)
-        node_0_id = g.get_id_from_label("0")
-        node_3_id = g.get_id_from_label("3")
-
-        constraints[node_0_id], constraints[node_3_id]
-        ```
-
-        Edge weights change each contact's share of the ego's tie strength. In this weighted
-        triangle "C" puts most of its tie strength into "B", and "B" is itself strongly tied
-        to "A", so "C" is the most constrained; "B", whose strength is spread over two contacts
-        that are only weakly linked to each other, is the least:
-
-        ```{python}
-        g = (
-            ec.Graph(weighted=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_node(label="C")
-            .add_edge("A", "B", weight=5.0)
-            .add_edge("A", "C", weight=1.0)
-            .add_edge("B", "C", weight=3.0)
+        florentine = (
+            ec.florentine_families()
+            .layout_kamada_kawai()
+            .constraint()
+            .effective_size()
         )
 
-        scores = g.constraint(return_dict=True)
-        {g.get_label_from_id(nid): round(c, 3) for nid, c in sorted(scores.items())}
+        (
+            florentine.get_node_df()
+            .select("label", "degree", "effective_size", "constraint")
+            .sort("constraint")
+            .head(6)
+        )
         ```
+
+        The Strozzi have as many ties as the Guadagni, but nearly twice the constraint. Colored by
+        constraint, the families on the edge of the network, each with a single tie, are the
+        darkest, and the brokers the lightest:
+
+        ```{python}
+        florentine.plot(layout="pos", color_by="constraint", label_by="label")
+        ```
+
+        ### Closed and open networks
+
+        Drawing each family's ego network (the family, its in-laws and the marriages among them)
+        shows the difference. None of the Guadagni's four in-laws (left) married one another, but
+        the Peruzzi married into two of the Strozzi's (right), so a Strozzi tie to one is partly a
+        tie to the others:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        florentine.ego_graph("Guadagni").plot(
+            highlight="Guadagni", label_by="label", seed=1,
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        florentine.ego_graph("Strozzi").plot(
+            highlight="Strozzi", label_by="label", seed=1,
+            width=320, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        Each contact's share of the score is its `local_constraint()`, and `effective_size()`
+        measures the same redundancy as a number of contacts.
         """
         if attr_name is None:
             attr_name = "constraint"
