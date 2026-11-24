@@ -1,5 +1,6 @@
 import pytest
 from edgecase import Graph
+from edgecase.errors import NodeNotFoundError
 
 
 class TestIsDominatingSet:
@@ -22,6 +23,23 @@ class TestIsDominatingSet:
 
         # Empty set doesn't dominate
         assert not graph.is_dominating_set([])
+
+    def test_accepts_labels(self):
+        """Labels resolve to node IDs, and can be mixed with IDs."""
+        graph = Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        d_id = graph.get_id_from_label("D")
+
+        assert graph.is_dominating_set(["B", d_id])
+        assert not graph.is_dominating_set(["B"])
+
+    def test_unknown_node_raises(self):
+        """Unknown IDs and labels raise instead of being ignored."""
+        graph = Graph.from_edges([("A", "B"), ("B", "C")])
+
+        with pytest.raises(NodeNotFoundError):
+            graph.is_dominating_set(["B", 9999])
+        with pytest.raises(NodeNotFoundError):
+            graph.is_dominating_set(["B", "Z"])
 
     def test_path_graph(self):
         """Path graph: test various dominating sets."""
