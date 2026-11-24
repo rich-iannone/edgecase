@@ -72004,6 +72004,12 @@ class Graph:
         the method stays fast even when the number of cuts is large. Results match NetworkX's
         `all_node_cuts()`.
 
+        See Also
+        --------
+        minimum_node_cut : One cut between two given nodes.
+        node_connectivity : The size of the cuts.
+        articulation_points : The cuts of a graph with connectivity 1.
+
         Examples
         --------
         A ring of six nodes falls apart when any two non-adjacent nodes are removed, so it has
@@ -72021,13 +72027,40 @@ class Graph:
         In two triangles that share node `C`, the shared node is the only cut:
 
         ```{python}
-        bowtie = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("D", "E"), ("E", "C")])
+        bowtie = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"),
+                ("C", "D"), ("D", "E"), ("E", "C"),
+            ]
         )
 
-        [[bowtie.get_label_from_id(n) for n in cut] for cut in bowtie.all_node_cuts()]
+        label = bowtie.get_label_from_id
+        [[label(n) for n in cut] for cut in bowtie.all_node_cuts()]
+        ```
+
+        ### Every pair of closures that splits the core
+
+        `metro()` is a made-up city's metro network. Its core of 15 stations, the largest
+        biconnected block, survives any single closure, and 15 pairs of closures split it.
+        Northpark, where the lines over the hills meet, is in seven of them:
+
+        ```{python}
+        from collections import Counter
+
+        metro = ec.metro()
+        core = max(metro.biconnected_components(), key=len)
+        cuts = metro.subgraph(core).all_node_cuts()
+
+        in_cuts = Counter(n for cut in cuts for n in cut)
+        metro.set_node_attrs("in_cuts", {n: in_cuts[n] for n in core})
+        len(cuts)
+        ```
+
+        ```{python}
+        metro.plot(
+            layout="pos", color_by="in_cuts", color_scale="sequential",
+            label_by="label",
+        )
         ```
         """
         cuts = rust.all_node_cuts(self._graph)
