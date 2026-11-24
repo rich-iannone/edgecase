@@ -1169,6 +1169,25 @@ class Graph:
 
         graph.steps[-1].kind, graph.steps[-1].narration
         ```
+
+        ### Narrating a replay
+
+        Notes are what `play()` shows under each frame, so they turn a replay into an explanation.
+        Here each step of a short metro analysis says why it was run:
+
+        ```{python}
+        metro = ec.metro()
+
+        metro.note("Which links would split the network if they closed?")
+        metro.bridges()
+        metro.note("How does the airport connect to the city center?")
+        metro.shortest_path("Central", "Airport")
+
+        metro.play(layout="pos")
+        ```
+
+        The route from Central to Airport ends on two of the bridges, so a closure on either one
+        would cut the airport off.
         """
         if self._pending_note is not None:
             self._record_step(
