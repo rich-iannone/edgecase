@@ -51074,44 +51074,81 @@ class Graph:
             an edge lacks a numeric `weight_attr=` attribute or has a negative weight, or
             `weight_attr=` is combined with `weighted=False`.
 
+        See Also
+        --------
+        betweenness_centrality : The same measure with every node equally infected.
+        node_percolation : Remove nodes at random.
+
         Examples
         --------
-        The graph below is a five-node line A to E with a two-node branch (F, G) hanging off C.
-        With the default states, every node is equally percolated and the scores are simply
-        normalized betweenness: C, the junction, is highest.
+        The graph below is a line from `A` to `E` with a branch, `F` and `G`, off `C`. With the
+        default states, every node is equally percolated and the scores are normalized
+        betweenness. With only `A` and `G` percolated, only the paths that start at them count,
+        so `B` and `F`, the first steps out of them, climb, and `D`, which only leads on to `E`,
+        drops. Every other node needs an explicit state of `0.0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("C", "F"), ("F", "G")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E"), ("C", "F"),
+             ("F", "G")]
         )
 
-        scores = graph.percolation_centrality(return_dict=True)
-        {graph.get_label_from_id(n): round(v, 3) for n, v in sorted(scores.items())}
+        states = {"A": 1.0, "G": 1.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0,
+                  "F": 0.0}
+
+        (
+            graph.percolation_centrality()
+            .percolation_centrality(states=states, attr_name="outbreak")
+            .get_node_df()
+            .select("label", "percolation_centrality", "outbreak")
+        )
         ```
 
-        Now suppose only A and G are infected. Paths that start at those two nodes are the only
-        ones that count, so B and F (the first hops out of the infected nodes) climb from `0.33`
-        to `0.6`, while D, which only carries traffic toward the uninfected end E, drops to
-        `0.2`. Every other node must be given an explicit state of `0.0`:
+        ### Where an outbreak goes next
+
+        In Zachary's karate club, suppose members 24 and 25 have caught a cold. Their friends
+        are each other and members 23, 27 and 31, so those three are the first to relay it.
+        Member 31 tops the ranking, and members 27 and 23 climb from twelfth and thirteenth by
+        betweenness to fourth and fifth:
 
         ```{python}
-        states = {"A": 1.0, "G": 1.0, "B": 0.0, "C": 0.0, "D": 0.0, "E": 0.0, "F": 0.0}
+        import polars as pl
 
-        scores = graph.percolation_centrality(states=states, return_dict=True)
-        {graph.get_label_from_id(n): round(v, 3) for n, v in sorted(scores.items())}
+        club = ec.karate_club().layout_kamada_kawai()
+
+        sick = {
+            label: 1.0 if label in ("24", "25") else 0.0
+            for label in club.get_node_df()["label"]
+        }
+        club = club.percolation_centrality(states=sick).betweenness_centrality()
+
+        (
+            club.get_node_df()
+            .with_columns(
+                pl.col("percolation_centrality", "betweenness_centrality")
+                .rank("min", descending=True)
+                .cast(pl.Int64)
+                .name.suffix("_rank")
+            )
+            .select(
+                "label", "percolation_centrality_rank", "betweenness_centrality_rank"
+            )
+            .sort("percolation_centrality_rank")
+            .head(5)
+        )
         ```
 
-        With `return_dict=False` (the default) the scores go into the node DataFrame, here under
-        a custom column name:
+        Colored by percolation centrality, the score runs from the two sick members, at the
+        bottom of the administrator's side, out through the instructor (member 0) and the
+        administrator (member 33):
 
         ```{python}
-        graph.percolation_centrality(states=states, attr_name="spread_risk")
-        graph.get_node_df().select(["label", "spread_risk"])
+        club.plot(layout="pos", color_by="percolation_centrality", label_by="label")
         ```
+
+        Recompute with updated states as the outbreak spreads.
         """
         from edgecase._core import percolation_centrality as rust_pc
 
@@ -51133,13 +51170,11 @@ class Graph:
 
         if attr_name is None:
             attr_name = "percolation_centrality"
-        self.set_node_attrs(attr_name, result)
-        self._computations.append(
-            (
-                "percolation_centrality",
-                {"states": states, "weight_attr": weight_attr, "weighted": weighted},
-                attr_name,
-            )
+        self._store_node_result(
+            "percolation_centrality",
+            {"states": states, "weight_attr": weight_attr, "weighted": weighted},
+            attr_name,
+            result,
         )
         return self
 
