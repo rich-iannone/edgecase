@@ -64707,96 +64707,62 @@ class Graph:
         `seed=` locks in reproducibility, and `stuck='return'` lets the walk terminate
         gracefully at a sink instead of raising.
 
+        See Also
+        --------
+        random_edge_walk : A random walk that records the edges crossed.
+        random_walk_with_restart : Visit probabilities for a walk that keeps returning to its seeds.
+        generate_random_paths : Many short random walks at once.
+
         Examples
         --------
-        On a cycle every node has two neighbors, so the walk never gets stuck: a 10-step walk
-        always visits 11 nodes (including the start), and with `seed=` the result is
-        reproducible:
+        On a cycle, every step goes one way or the other. A walk of 10 steps visits 11 nodes,
+        and the same `seed=` gives the same walk:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(6)
+        cycle = ec.Graph().add_cycle_graph(6)
 
-        graph.random_walk(1, steps=10, seed=23, return_list=True)
+        cycle.random_walk(1, steps=10, seed=23, return_list=True)
         ```
 
-        Instead of returning the list, the walk order can be stored as a node attribute, which
-        is convenient for coloring nodes by when they were visited. Note that a revisited node
-        keeps the position of its most recent visit, so the start node does not show `0` here:
+        On a directed graph the walk follows the arrows. When it reaches a node with no way out,
+        here `C`, it stops early:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_cycle_graph(20)
-            .random_walk(1, steps=100, seed=23)
-            .colorize_node_attrs(
-                node_attr_from="random_walk_order",
-                palette="viridis"
-            )
-        )
-
-        graph.get_node(1).attributes["random_walk_order"]
-        ```
-
-        On a directed graph, `mode=` controls which edges the walk may follow. On a directed
-        4-cycle with the default `mode="out"` there is only one way forward, so the walk is
-        deterministic:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
-        )
-
-        path = graph.random_walk("A", steps=6, seed=23, return_list=True)
-        [graph.get_label_from_id(nid) for nid in path]
-        ```
-
-        With `mode="all"` the walker ignores direction and can step either way around the
-        cycle:
-
-        ```{python}
-        path = graph.random_walk("A", steps=6, mode="all", seed=23, return_list=True)
-        [graph.get_label_from_id(nid) for nid in path]
-        ```
-
-        If the walk reaches a node with no outgoing edges, `stuck="return"` (the default)
-        returns the partial walk instead of raising an error. Here the walk stops at `C` after
-        only two of the ten requested steps:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),  # C has no outgoing edges
-                ]
-            )
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
         graph.random_walk("A", steps=10, return_list=True)
         ```
 
-        With `weighted=True` heavier edges are followed more often. From the hub of this star,
-        the edge to `"B"` weighs nine times as much as the others put together, so a walk that
-        keeps returning to the hub visits `"B"` far more often than `"C"` or `"D"`:
+        ### Where a walker spends its time
+
+        `karate_club()` links the 34 members of a university karate club who met outside the
+        club, before it split in two. A walker who moves to a random friend at each step spends
+        time at each member in proportion to the member's number of friends: over 10,000 steps,
+        about a tenth of its visits are to the instructor (`0`), who has 16 of the 156 friends
+        counted at both ends:
 
         ```{python}
         from collections import Counter
 
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B", 18.0), ("A", "C", 1.0), ("A", "D", 1.0)])
+        karate = ec.karate_club()
+        visits = Counter(
+            karate.random_walk(1, steps=10_000, seed=1, return_list=True)
         )
 
-        path = graph.random_walk("A", steps=200, seed=23, weighted=True, return_list=True)
-        Counter(graph.get_label_from_id(nid) for nid in path[1::2])
+        {
+            karate.get_label_from_id(n): (visits[n], karate.get_degree(n))
+            for n in [1, 34, 33, 12]
+        }
+        ```
+
+        ```{python}
+        karate = karate.set_node_attrs("visits", dict(visits))
+
+        karate.plot(
+            size_by="visits", color_by="faction", label_by="label", seed=1
+        )
         ```
         """
         self._check_non_negative(steps=steps)
@@ -64814,13 +64780,14 @@ class Graph:
 
         # Create dict mapping node_id -> position in walk
         positions = {node_id: idx for idx, node_id in enumerate(walk_ids)}
-        self.set_node_attrs(attr_name, positions)
 
         # Track computation
         params = {"source": source, "steps": steps, "mode": mode, "stuck": stuck, "seed": seed}
         if weighted is not None:
             params["weighted"] = weighted
-        self._computations.append(("random_walk", params, attr_name))
+        self._store_node_result(
+            "random_walk", params, attr_name, positions, show="path", paths=[walk_ids], default_attr="random_walk_order"
+        )
 
         return self
 
