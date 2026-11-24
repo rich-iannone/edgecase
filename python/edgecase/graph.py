@@ -68301,68 +68301,55 @@ class Graph:
         trail. On undirected graphs, each edge can still be crossed in either direction, but
         only once.
 
+        See Also
+        --------
+        enumerate_trails : The trails themselves.
+        all_simple_paths : Paths that never revisit a node.
+        count_walks : Count the walks of a given length between every pair of nodes.
+
         Examples
         --------
-        In a triangle `A -- B -- C -- A`, there are two distinct trails from `A` to `C`: the
-        direct edge, and the longer route through `B`:
+        In a triangle there are two trails from `A` to `C`, straight there or through `B`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
         graph.count_trails("A", "C")
         ```
 
-        Trails differ from simple paths when a route can loop back through a node. In this
-        directed graph, the loop `B -> E -> F -> B` lets a trail pass through `B` twice, so
-        there are two trails from `A` to `D` but only one simple path:
+        ### Crossing the bridges
+
+        `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
+        joining its two islands and two river banks. A walk from the North Bank to the South Bank
+        that never crosses a bridge twice can return to an island it has already been on, so there
+        are more of these trails than simple paths:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("B", "C"),
-                    ("C", "D"),
-                    ("B", "E"),
-                    ("E", "F"),
-                    ("F", "B"),  # Loop back to B
-                ]
-            )
-        )
+        konigsberg = ec.konigsberg()
 
-        graph.count_trails("A", "D"), len(graph.all_simple_paths("A", "D"))
+        (
+            konigsberg.count_trails("North Bank", "South Bank"),
+            len(konigsberg.all_simple_paths("North Bank", "South Bank")),
+        )
         ```
 
-        Real-world graphs can have an enormous number of trails, so `max_trails=` caps the
-        search. A `None` result means the cap was hit -- here, at least 10,000 trails connect
-        two members of the karate club network:
-
         ```{python}
-        G = ec.karate_club()
-        node_ids = list(G.get_node_ids())
-
-        G.count_trails(node_ids[0], node_ids[-1], max_trails=10000) is None
+        konigsberg.plot(
+            layout="pos", color_by="kind", label_by="label",
+            edge_label_by="bridge",
+        )
         ```
 
-        On the small triangle from the first example the count (`2`) stays below a cap of `5`,
-        so the exact number is returned, while a cap of `2` is reached and gives `None`:
+        With `max_trails=`, counting stops once that many are found, and `None` means there are
+        at least that many:
 
         ```{python}
-        triangle = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        (
+            konigsberg.count_trails("North Bank", "South Bank", max_trails=10),
+            konigsberg.count_trails("North Bank", "South Bank", max_trails=100),
         )
-
-        triangle.count_trails("A", "C", max_trails=5), triangle.count_trails("A", "C", max_trails=2)
         ```
         """
         # Convert string node IDs to internal IDs
