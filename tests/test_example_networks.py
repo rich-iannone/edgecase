@@ -204,6 +204,16 @@ class TestMetro:
         assert [len(piece) for piece in pieces] == [11, 3, 2]
         assert "Northpark" in labels(damaged, pieces[0])
 
+    def test_one_way_closure(self):
+        lines = ec.metro().to_directed()
+        assert lines.count_edges() == 50
+        assert lines.shortest_path_length("Westgate", "Eastfield") == 14
+        lines.delete_edge("Central", "Market")
+        assert lines.shortest_path_length("Westgate", "Eastfield") == 16
+        assert lines.shortest_path_length("Eastfield", "Westgate") == 14
+        east = lines.shortest_path("Westgate", "Eastfield", return_list=True)
+        assert "Riverside" in labels(lines, east)
+
 
 class TestPayments:
     def test_includes_the_homepage_payments(self):
@@ -278,6 +288,79 @@ class TestPayments:
         ]
         assert payments.is_weakly_connected()
 
+    def test_one_payment_lets_money_into_finns_ring(self):
+        payments = ec.payments()
+        payments.delete_edge("Eve", "Finn")
+        big = [labels(payments, c) for c in payments.strongly_connected_components() if len(c) > 1]
+        assert sorted(big, key=len) == [
+            ["Max", "Nia"],
+            ["Finn", "Gus", "Hal"],
+            ["Ana", "Ben", "Cruz", "Dee", "Eve"],
+        ]
+
+    def test_only_max_pays_the_landlord(self):
+        payments = ec.payments()
+        assert payments.get_degree("Max") == 5
+        assert labels(payments, payments.get_predecessors("Landlord")) == ["Max"]
+        payments.delete_node("Max")
+        assert payments.count_weakly_connected_components() == 2
+        assert payments.get_degree("Landlord") == 0
+
+    def test_acme_pays_four_wages(self):
+        payments = ec.payments()
+        assert labels(payments, payments.get_successors("Acme")) == ["Dee", "Eve", "Max", "Nia"]
+
+    def test_payments_between_people(self):
+        payments = ec.payments()
+        payments.select_nodes(lambda node: node.attributes["kind"] == "business")
+        payments.delete_nodes_ws()
+        assert (payments.count_nodes(), payments.count_edges()) == (14, 19)
+
+    def test_large_payments(self):
+        payments = ec.payments()
+        payments.select_edges(lambda edge: edge.weight < 1000)
+        payments.delete_edges_ws()
+        assert payments.count_edges() == 16
+        alone = [
+            label for label in payments.get_node_df()["label"] if payments.get_degree(label) == 0
+        ]
+        assert sorted(alone) == ["Cafe", "Grocer"]
+
+    def test_undirected_dealings(self):
+        payments = ec.payments()
+        dealings = payments.to_undirected()
+        assert dealings.count_edges() == 33
+        kept = dealings.find_edge_ids("Dee", "Eve") + dealings.find_edge_ids("Max", "Nia")
+        amounts = dealings.get_edge_df().filter(pl.col("id").is_in(kept))["amount"]
+        assert sorted(amounts) == [80, 900]
+
+    def test_payments_in_and_out(self):
+        payments = ec.payments()
+        businesses = ["Grocer", "Cafe", "Landlord", "Acme"]
+        assert [payments.get_in_degree(b) for b in businesses] == [8, 3, 1, 0]
+        assert payments.get_out_degree("Acme") == 4
+        sinks = [n for n in payments.get_node_ids() if payments.get_out_degree(n) == 0]
+        assert labels(payments, sinks) == ["Cafe", "Grocer", "Landlord"]
+
+        def is_business(node):
+            return node.attributes["kind"] == "business"
+
+        def is_person(node):
+            return not is_business(node)
+
+        assert payments.aggregate_in_degree("mean", conditions=is_business) == 3.0
+        assert payments.aggregate_in_degree("mean", conditions=is_person) == pytest.approx(23 / 14)
+        assert payments.aggregate_out_degree("median", conditions=is_business) == 0.0
+        assert payments.aggregate_out_degree("sum", conditions=is_business) == 4.0
+        assert payments.aggregate_out_degree("mean", conditions=is_person) == pytest.approx(31 / 14)
+
+    def test_grocer_pays_no_one(self):
+        payments = ec.payments()
+        dealings = payments.to_undirected()
+        assert payments.is_directed() and not dealings.is_directed()
+        assert payments.get_successors("Grocer") == []
+        assert len(dealings.get_neighbors("Grocer")) == 8
+
 
 class TestCourses:
     def test_is_a_dag(self):
@@ -328,6 +411,25 @@ class TestCourses:
         assert (
             courses.get_label_from_id(courses.lowest_common_ancestor("CS410", "CS460")) == "CS102"
         )
+
+    def test_prerequisites_and_next_courses(self):
+        courses = ec.courses()
+        assert labels(courses, courses.get_predecessors("CS360")) == ["CS201", "STAT201"]
+        assert len(courses.ancestors("CS360")) == 8
+        assert labels(courses, courses.get_successors("CS102")) == [
+            "CS201",
+            "CS210",
+            "CS220",
+            "CS250",
+        ]
+        ends = [c for c in courses.get_node_ids() if not courses.get_successors(c)]
+        assert labels(courses, ends) == ["CS220", "CS350", "CS410", "CS460"]
+
+    def test_prerequisite_loop(self):
+        edited = ec.courses().add_edge("CS410", "CS210")
+        assert not edited.is_dag()
+        loops = sorted(labels(edited, cycle) for cycle in edited.simple_cycles())
+        assert loops == [["CS210", "CS310", "CS410"], ["CS210", "CS320", "CS410"]]
 
 
 class TestPipeline:
@@ -387,6 +489,20 @@ class TestExams:
         assert slots("dsatur") == 4
         assert slots("smallest_last") == 4
 
+    def test_compatible_exams(self):
+        exams = ec.exams()
+        compatible = exams.complement()
+        assert compatible.count_edges() == 91 - 29
+        assert labels(compatible, compatible.maximum_clique()) == [
+            "History",
+            "Literature",
+            "Physics",
+            "Programming",
+            "Psychology",
+            "Statistics",
+            "Web Design",
+        ]
+
 
 class TestTeams:
     def test_bipartite(self):
@@ -428,6 +544,16 @@ class TestTeams:
                 totals.append(sum(hours[p] for p in pairs))
         totals.sort()
         assert totals[:2] == [37, 38]
+
+    def test_sessions_by_line_graph(self):
+        team = ec.teams()
+        assert team.get_degree("Omar") == 4 and team.get_degree("Testing") == 4
+        assert max(team.get_degree(n) for n in team.get_node_ids()) == 4
+        sessions = team.line_graph()
+        hours = sessions.greedy_color()
+        assert len(set(hours.values())) == 4
+        edge_of = dict(sessions.get_node_df().select("id", "original_edge_id").iter_rows())
+        assert team.is_valid_edge_coloring({edge_of[s]: h for s, h in hours.items()})
 
 
 class TestFriends:
@@ -543,6 +669,136 @@ class TestFriends:
         assert kept["Femi"] == 0.8
         assert min(kept.values()) == 0.43 and max(kept.values()) == 1.0
 
+    def test_neighborhoods(self):
+        friends = ec.friends()
+        club = friends.get_node_attrs("club")
+        hugo = friends.get_neighbors("Hugo")
+        assert labels(friends, hugo) == ["Ben", "Jules", "Oona", "Tara", "Wes"]
+        assert sorted(club[n] for n in hugo) == ["Chess"] * 2 + ["Climbing"] * 3
+
+        shared = friends.get_common_neighbors("Hugo", "Tara")
+        assert labels(friends, shared) == ["Ben", "Jules", "Oona", "Wes"]
+        assert sorted(club[n] for n in shared) == ["Chess"] * 2 + ["Climbing"] * 2
+        assert not any(friends.has_edge(u, v) for u in shared for v in shared if u != v)
+
+        others = friends.get_non_neighbors("Lou")
+        assert len(friends.get_neighbors("Lou")) == 3 and len(others) == 20
+        common = {
+            friends.get_label_from_id(n): len(friends.get_common_neighbors("Lou", n))
+            for n in others
+        }
+        assert common.pop("Iris") == 3
+        assert max(common.values()) == 1
+        assert ec.friends(snapshot=2).has_edge("Lou", "Iris")
+
+    @staticmethod
+    def _y2026():
+        return (
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven")
+        )
+
+    def test_club_lists_union(self):
+        friends = ec.friends()
+        nodes = friends.get_node_df()
+
+        def club(name):
+            return friends.subgraph(nodes.filter(club=name)["id"].to_list())
+
+        chess = club("Chess")
+        assert (chess.count_nodes(), chess.count_edges()) == (12, 20)
+        lists = chess.union(club("Climbing"))
+        assert lists.count_nodes() == 24
+        assert (lists.count_edges(), friends.count_edges() - lists.count_edges()) == (38, 5)
+
+    def test_snapshot_set_operations(self):
+        y2024, y2025, y2026 = ec.friends(), ec.friends(snapshot=2), self._y2026()
+        lasted = y2024.intersection(y2026)
+        assert (lasted.count_nodes(), lasted.count_edges()) == (24, 40)
+        new = y2025.difference(y2024)
+        assert new.count_nodes() == 16 and new.count_edges() == 8
+        lost = y2025.difference(y2026)
+        assert sorted(lost.get_edges_str_repr(use_labels=True)) == [
+            "Dev--Femi",
+            "Gwen--Lou",
+            "Rosa--Sven",
+        ]
+        changes = y2024.symmetric_difference(y2026)
+        assert (changes.count_nodes(), changes.count_edges()) == (16, 11)
+        assert y2026.symmetric_difference(y2024).count_edges() == 11
+        assert (y2026.difference(y2024).count_edges(), y2024.difference(y2026).count_edges()) == (
+            8,
+            3,
+        )
+        years = [y2024, y2025, y2026]
+        assert ec.Graph.union_all(years).count_edges() == 51
+        assert ec.Graph.intersection_all(years).count_edges() == 40
+        # seven new ties close a triangle; Femi and Vik were six steps apart
+        steps = {
+            pair: y2024.shortest_path_length(*pair)
+            for pair in (tuple(s.split("--")) for s in new.get_edges_str_repr(use_labels=True))
+        }
+        assert sorted(steps.values()) == [2] * 7 + [6]
+        assert steps.get(("Femi", "Vik"), steps.get(("Vik", "Femi"))) == 6
+
+    def test_club_update_compose(self):
+        y2024 = ec.friends()
+        update = ec.friends(snapshot=2).set_node_attrs("club", "Chess", nodes=["Vik"])
+        vik = y2024.get_id_from_label("Vik")
+        assert y2024.compose(update).get_node_attrs("club")[vik] == "Chess"
+        assert y2024.union(update).get_node_attrs("club")[vik] == "Climbing"
+        updates = [
+            ec.friends(),
+            ec.friends(snapshot=2).delete_edge("Dev", "Femi"),
+            ec.friends().set_node_attrs("club", "Chess", nodes=["Vik"]),
+        ]
+        latest = ec.Graph.compose_all(updates)
+        assert latest.count_edges() == 51
+        assert latest.get_node_attrs("club")[latest.get_id_from_label("Vik")] == "Chess"
+
+    def test_two_towns_and_a_coach(self):
+        towns = ec.friends().disjoint_union(ec.friends())
+        assert (towns.count_nodes(), towns.count_edges()) == (48, 86)
+        assert towns.get_label_from_id(25) == "Ada_2"
+        friends = ec.friends()
+        climbers = friends.get_node_df().filter(club="Climbing")["id"].to_list()
+        climbing = friends.subgraph(climbers)
+        assert (climbing.count_nodes(), climbing.count_edges()) == (12, 18)
+        team = climbing.full_join(ec.Graph().add_nodes(["Coach"]))
+        assert (team.count_edges(), team.get_degree("Coach")) == (30, 12)
+
+    def test_friends_of_friends(self):
+        friends = ec.friends(snapshot=2)
+        reach = friends.power(2)
+        assert reach.count_edges() == 110
+        assert (friends.get_degree("Ada"), reach.get_degree("Ada")) == (4, 7)
+
+    def test_selected_subgraphs(self):
+        friends = ec.friends()
+        friends.select_nodes(lambda n: n.attributes["club"] == "Climbing")
+        climbing = friends.transform_to_subgraph_ws()
+        assert (climbing.count_nodes(), climbing.count_edges()) == (12, 18)
+        friends.select_edges(lambda e: e.attributes["since"] >= 2022)
+        recent = friends.transform_to_subgraph_ws()
+        assert (recent.count_nodes(), recent.count_edges()) == (17, 10)
+
+    def test_hugo_ego_graph(self):
+        friends = ec.friends()
+        hugo = friends.ego_graph("Hugo")
+        assert (hugo.count_nodes(), hugo.count_edges()) == (6, 9)
+        assert sorted(hugo.get_node_df()["club"]) == ["Chess"] * 3 + ["Climbing"] * 3
+        assert friends.ego_graph("Hugo", radius=2).count_nodes() == 17
+
+    def test_bridges_between_clubs(self):
+        friends = ec.friends(snapshot=2)
+        club = friends.get_node_attrs("club")
+        cross = [e for e, s, t in friends.get_edges_as_tuples() if club[s] != club[t]]
+        bridges = friends.edge_subgraph(cross)
+        assert (bridges.count_nodes(), bridges.count_edges()) == (8, 6)
+        assert friends.subgraph(bridges.get_node_ids()).count_edges() == 10
+
 
 class TestCitations:
     def test_cites_only_older_papers(self):
@@ -600,6 +856,15 @@ class TestCitations:
         nakamura = ranks.filter(pl.col("label") == "Nakamura 2001")
         assert nakamura["pagerank"].item() == 2
         assert nakamura["authority_centrality"].item() == 18
+
+    def test_reversed_citations(self):
+        citations = ec.citations()
+        cited_by = citations.reverse()
+        assert citations.get_out_degree("Moreau 2000") == 0
+        assert len(cited_by.get_successors("Moreau 2000")) == 9
+        assert len(cited_by.descendants("Moreau 2000")) == 14
+        assert top(cited_by.pagerank(return_dict=True), cited_by) == "Osei 2021"
+        assert "Hughes 2020" in labels(citations, citations.get_successors("Osei 2021"))
 
 
 def rates(graph):
@@ -730,6 +995,80 @@ class TestTowns:
         assert sum(towns.minimum_spanning_tree().get_edge_df()["km"]) == 333
         assert sum(km for _, _, km in _ROADS) == 965
 
+    def test_calder_annexes_fenmoor(self):
+        towns = ec.towns()
+        assert towns.get_edge_df().filter(
+            pl.col("id").is_in(towns.find_edge_ids("Calder", "Fenmoor"))
+        )["km"].to_list() == [42]
+        county = towns.contracted_edge("Calder", "Fenmoor", self_loops=False)
+        assert county.count_nodes() == 11
+        assert (county.get_degree("Calder"), county.get_degree("Greyford")) == (7, 6)
+
+        def km(graph, a, b):
+            edges = graph.get_edge_df()
+            return edges.filter(pl.col("id").is_in(graph.find_edge_ids(a, b)))["km"].to_list()
+
+        # Calder's own roads are kept, not Fenmoor's shorter ones
+        assert (km(county, "Calder", "Elmwick"), km(county, "Calder", "Greyford")) == ([37], [38])
+        assert (km(towns, "Fenmoor", "Elmwick"), km(towns, "Fenmoor", "Greyford")) == ([32], [28])
+
+    def test_neighbors_of_a_similar_size(self):
+        towns = ec.towns()
+        similar = {
+            town: labels(towns, towns.get_similar_neighbors(town, "population", tol_pct=(25, 25)))
+            for town in towns.get_node_df()["label"]
+        }
+        assert {town: found for town, found in similar.items() if found} == {
+            "Bramford": ["Halston"],
+            "Halston": ["Bramford"],
+            "Kestrel Bay": ["Greyford"],
+        }
+
+    def test_kilometers_or_roads(self):
+        towns = ec.towns()
+        assert towns.is_weighted()
+        by_km = towns.shortest_path("Elmwick", "Kestrel Bay", return_list=True)
+        by_roads = towns.shortest_path("Elmwick", "Kestrel Bay", return_list=True, weighted=False)
+        label = towns.get_label_from_id
+        assert [label(n) for n in by_km] == ["Elmwick", "Calder", "Halston", "Kestrel Bay"]
+        assert [label(n) for n in by_roads] == ["Elmwick", "Greyford", "Kestrel Bay"]
+        assert towns.shortest_path_length("Elmwick", "Kestrel Bay") == 99
+        km = {
+            tuple(sorted((s, t))): w
+            for s, t, w in towns.get_edge_df(labels=True).select("source", "target", "km").rows()
+        }
+        assert km[("Elmwick", "Greyford")] + km[("Greyford", "Kestrel Bay")] == 101
+
+    def test_not_planar(self):
+        towns = ec.towns()
+        planar, kuratowski = towns.check_planarity(counterexample=True)
+        assert not planar
+        assert (kuratowski.count_nodes(), kuratowski.count_edges()) == (8, 11)
+        degrees = kuratowski.degrees(return_dict=True)
+        assert labels(kuratowski, [n for n, d in degrees.items() if d == 2]) == [
+            "Halston",
+            "Larkhill",
+        ]
+        roads = edge_ends(kuratowski, kuratowski.get_edge_ids())
+        assert {("Elmwick", "Greyford"), ("Calder", "Fenmoor")} <= roads
+
+    def test_spanner_keeps_trips_within_stretch(self):
+        towns = ec.towns()
+        counts = [towns.transform_with_spanner(stretch=s).count_edges() for s in (1.5, 2, 3)]
+        assert counts == [20, 15, 13]
+        kept = towns.transform_with_spanner(stretch=1.5)
+        worst = max(
+            (
+                kept.shortest_path_length(a, b, weighted=True)
+                / towns.shortest_path_length(a, b, weighted=True),
+                tuple(labels(towns, [a, b])),
+            )
+            for a, b in itertools.combinations(towns.get_node_ids(), 2)
+        )
+        assert worst[0] <= 1.5 and worst[1] == ("Bramford", "Halston")
+        assert kept.shortest_path_length("Bramford", "Halston", weighted=True) == 64
+        assert towns.shortest_path_length("Bramford", "Halston") == 47
+
 
 class TestOffices:
     def test_floors_and_plan(self):
@@ -780,6 +1119,18 @@ class TestOffices:
         independent = offices.maximum_independent_set()
         assert len(independent) == 11
         assert offices.is_independent_set(independent)
+
+    def test_faces(self):
+        offices = ec.offices()
+        faces = [[offices.get_label_from_id(n) for n in f] for f in offices.planar_faces()]
+        assert offices.count_nodes() - offices.count_edges() + len(faces) == 2
+        assert sorted(len(face) for face in faces) == [3, 3, 8, 9, 23]
+        triangles = sorted(sorted(face) for face in faces if len(face) == 3)
+        assert triangles == [
+            ["East Hall 2", "Office 203", "Office 204"],
+            ["Lobby", "Reception", "West Hall 1"],
+        ]
+        assert offices.count_edges() - len(offices.bridges()) == 14
 
 
 class TestProject:
@@ -1174,6 +1525,13 @@ class TestMolecules:
         )
         assert [cost for _, _, cost in rooted] == [22, 20, 18, 14, 10, 4]
 
+    def test_regular_rings(self):
+        molecules = ec.molecules()
+        assert molecules["benzene"].is_k_regular(2)
+        assert not molecules["caffeine"].is_regular()
+        degrees = molecules["caffeine"].degrees(return_dict=True).values()
+        assert sorted(set(degrees)) == [1, 2, 3]
+
 
 class TestKonigsberg:
     def test_every_node_is_odd(self):
@@ -1237,6 +1595,34 @@ class TestOrgChart:
                 xs = [pos[r][0] for r in reports]
                 assert pos[n][0] == (min(xs) + max(xs)) / 2
                 assert all(pos[r][1] == pos[n][1] - 1 for r in reports)
+
+    def test_departments(self):
+        nodes = ec.org_chart().get_node_df()
+        widths = nodes.group_by("dept", "level").len().group_by("dept").agg(pl.col("len").max())
+        depths = nodes.group_by("dept").agg(pl.col("level").n_unique())
+        assert widths.sort("len")["dept"].to_list()[-1] == "Sales"
+        assert widths.sort("len")["len"].to_list()[-2:] == [2, 6]
+        assert depths.sort("level")["dept"].to_list()[-1] == "Engineering"
+
+    def test_trees_forests_and_branchings(self):
+        undirected = ec.org_chart().to_undirected()
+        assert undirected.is_tree()
+        tied = ec.org_chart().to_undirected().add_edge("Ruth", "Owen")
+        assert not tied.is_tree()
+        assert [labels(tied, c) for c in tied.cycle_basis()] == [["Kwame", "Owen", "Ruth"]]
+
+        dual = ec.org_chart().add_edge("Jonas", "Ada")
+        assert not dual.is_arborescence() and dual.is_dag()
+        assert dual.get_in_degree("Ada") == 2
+
+        headless = ec.org_chart().delete_node("Mira")
+        assert headless.is_branching() and not headless.is_arborescence()
+        roots = [n for n in headless.get_node_ids() if headless.get_in_degree(n) == 0]
+        assert labels(headless, roots) == ["Jonas", "Leila", "Sam", "Uma"]
+        forest = ec.org_chart().to_undirected().delete_node("Mira")
+        assert forest.is_forest() and not forest.is_tree()
+        assert forest.count_weakly_connected_components() == 4
+        assert not headless.add_edge("Hiro", "Owen").is_branching()
 
 
 class TestProteins:
