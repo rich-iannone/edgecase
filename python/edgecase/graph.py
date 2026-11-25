@@ -46394,17 +46394,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "D"), ("A", "C")])
-        )
-
-        h = (
-            ec.Graph()
-            .add_nodes(["A", "B", "D", "E"])
-            .add_edges([("A", "B"), ("B", "D"), ("D", "E")])
-        )
+        g = ec.Graph.from_edges([("A", "B"), ("B", "D"), ("A", "C")])
+        h = ec.Graph.from_edges([("A", "B"), ("B", "D"), ("D", "E")])
 
         g.graph_edit_distance(h)
         ```
@@ -46444,6 +46435,54 @@ class Graph:
         b.add_edges([("b1", "b2")])
 
         a.graph_edit_distance(b, exact=True, node_match=lambda x, y: x["el"] == y["el"])
+        ```
+
+        ### A year among friends
+
+        `friends()` links 24 members of two clubs who are friends, and `friends(snapshot=2)` is
+        the same group a year later. The names fix which person is which, so the default mode
+        applies, and it counts the eight friendships made that year:
+
+        ```{python}
+        ec.friends().graph_edit_distance(ec.friends(snapshot=2))
+        ```
+
+        ### Caffeine and its relatives
+
+        Caffeine carries three methyl groups, the carbons C1, C7 and C8 of
+        `molecules()["caffeine"]`, each bonded to a nitrogen:
+
+        ```{python}
+        caffeine = ec.molecules()["caffeine"]
+
+        caffeine.plot(highlight=["C1", "C7", "C8"], label_by="label", seed=1)
+        ```
+
+        Removing one of them gives one of three other molecules: theophylline, found in tea,
+        paraxanthine, what the body turns most caffeine into, and theobromine, found in
+        chocolate. With elements matched, each is 2 edits from caffeine (an atom and its bond
+        deleted) and 2 from the others (one bond moved to another nitrogen):
+
+        ```{python}
+        import polars as pl
+
+        relatives = {"caffeine": caffeine}
+        for name, methyl in [("theophylline", "C1"), ("paraxanthine", "C7"), ("theobromine", "C8")]:
+            relatives[name] = ec.molecules()["caffeine"].delete_node(methyl)
+
+
+        def same_element(x, y):
+            return x["element"] == y["element"]
+
+
+        def distance(a, b):
+            return a.graph_edit_distance(b, exact=True, node_match=same_element)["distance"]
+
+
+        pl.DataFrame(
+            {"molecule": list(relatives)}
+            | {b: [distance(relatives[a], relatives[b]) for a in relatives] for b in relatives}
+        )
         ```
         """
         exact_options = {
