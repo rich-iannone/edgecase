@@ -74540,6 +74540,9 @@ class Graph:
             height=360,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#the-critical-path) finds the critical path
+        of building a house, and the slack of every task.
         """
         path, length = rust.dag_longest_path(self._graph)
         length = self._distances_out({0: length})[0]
