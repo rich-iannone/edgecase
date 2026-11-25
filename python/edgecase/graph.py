@@ -1095,13 +1095,17 @@ class Graph:
         found = metro.steps.filter(method="bridges")[-1]
 
         metro.plot(
-            layout="pos", label_by="label", highlight_edges=found.delta.edges_selected
+            layout="pos", label_by="label",
+            highlight_edges=found.delta.edges_selected,
         )
         ```
 
         The bridges lead out to the Harbor branch and the airport link, the parts of the map
         reached by a single line of track. `to_polars()` returns the whole log as a DataFrame, and
         `play()` replays it.
+
+        [The step log](../user-guide/step-log.qmd#reading-the-log) follows the log of a small book
+        club, and explains which calls are recorded.
         """
         return self._steps
 
