@@ -40375,6 +40375,9 @@ class Graph:
             layout="pos", color_by="type", label_by="label", height=360
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         with self._no_recording():
             base = self.moral_graph() if self.is_directed() else self
