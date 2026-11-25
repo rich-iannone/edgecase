@@ -51666,6 +51666,9 @@ class Graph:
         cube = edge.cartesian_product(edge).cartesian_product(edge)
         cube.count_nodes(), cube.count_edges(), cube.is_k_regular(3)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) builds grids, tori,
+        hypercubes and cylinders from simple pieces.
         """
         return self._product(other, "cartesian", "cartesian_product")
 
