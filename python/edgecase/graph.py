@@ -47541,6 +47541,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#a-fixed-number-of-groups) compares the methods
+        that take the number of groups as an input.
         """
         initial = None
         if partition is not None:
