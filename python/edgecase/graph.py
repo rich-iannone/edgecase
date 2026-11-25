@@ -16313,6 +16313,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         if num_cliques < 1 or clique_size < 1:
             raise ValueError("num_cliques and clique_size must both be at least 1")
