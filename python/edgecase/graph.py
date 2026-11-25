@@ -22819,30 +22819,61 @@ class Graph:
         bool
             `True` if the graph is directed, `False` if undirected.
 
+        See Also
+        --------
+        to_undirected : Make an undirected copy of the graph.
+        to_directed : Make a directed copy of the graph.
+        is_weighted : Whether the graph's edges carry weights.
+
         Examples
         --------
         ```{python}
         import edgecase as ec
 
-        ec.Graph(directed=True).is_directed(), ec.Graph(directed=False).is_directed()
+        ec.Graph(directed=True).is_directed(), ec.Graph().is_directed()
         ```
 
-        Branching on `is_directed()` lets the same code add the right number of edges for
-        either kind of graph -- one call suffices for undirected, but both directions are
-        needed for directed:
+        `to_undirected()` makes an undirected copy, which answers `False`:
 
         ```{python}
-        graph = ec.Graph(directed=True).add_node(label="A").add_node(label="B")
-
-        if graph.is_directed():
-            graph.add_edge(source="A", target="B")
-            graph.add_edge(source="B", target="A")
-        else:
-            graph.add_edge(source="A", target="B")
-
-        graph.count_edges()
+        ec.Graph(directed=True).to_undirected().is_directed()
         ```
 
+        ### Who paid whom
+
+        In a month of payments between bank accounts, each edge runs from the payer to the payee.
+        The Grocer is paid by 8 accounts and pays none, so it has no successors. In the undirected
+        copy, the 8 are just neighbors. Dee and Eve paid each other, and so did Max and Nia, so the
+        copy also merges each pair's two edges into one. The Grocer's successors and the edge count
+        first, then the Grocer's neighbors and the edge count of the copy:
+
+        ```{python}
+        bank = ec.payments().layout_kamada_kawai(weighted=False)
+        ties = bank.to_undirected()
+
+        (
+            (len(bank.get_successors("Grocer")), bank.count_edges()),
+            (len(ties.get_neighbors("Grocer")), ties.count_edges()),
+        )
+        ```
+
+        The payments on the left and the undirected copy on the right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        bank.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        ```{python}
+        ties.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        :::
         """
         return self._graph.is_directed
 
