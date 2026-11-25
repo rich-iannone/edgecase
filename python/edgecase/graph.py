@@ -42548,17 +42548,12 @@ class Graph:
         {motif: round(stats["z_score"], 2) for motif, stats in result.items()}
         ```
 
-        The full statistics for one class show where the z-score comes from:
-
-        ```{python}
-        result["triangle"]
-        ```
-
         ### Triangles the degrees don't explain
 
         `karate_club()` links the 34 members of a university karate club who met outside the
         club, before it split in two. It has 45 triangles, while rewirings that keep every
-        member's number of friends have 10 on average:
+        member's number of friends have 10 on average. The full statistics for the triangles show
+        where the z-score comes from:
 
         ```{python}
         karate = ec.karate_club().layout_kamada_kawai()
@@ -42616,6 +42611,9 @@ class Graph:
 
         {names[motif]: round(s["z_score"], 1) for motif, s in result.items()}
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#motifs) tests which motifs
+        are more common among the dolphins than their degrees alone would produce.
         """
         from edgecase._core import motif_significance as _motif_significance
 
