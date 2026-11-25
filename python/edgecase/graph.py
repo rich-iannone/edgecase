@@ -16217,9 +16217,16 @@ class Graph:
         ValueError
             If `num_cliques=` or `clique_size=` is less than `2`.
 
+        See Also
+        --------
+        add_connected_caveman_graph : Join caves in a ring by rewiring an edge in each.
+        add_caveman_graph : Add separate complete graphs.
+        modularity : Score a partition, as in the resolution-limit example.
+
         Examples
         --------
-        Six triangles in a ring give `18` nodes and `6 * 3 + 6 = 24` edges:
+        Each clique is joined to the next by a single edge, and the last to the first. Six
+        triangles in a ring give `18` nodes and `6 * 3 + 6 = 24` edges:
 
         ```{python}
         import edgecase as ec
@@ -16234,10 +16241,40 @@ class Graph:
 
         ```{python}
         ring = ec.Graph().add_ring_of_cliques(num_cliques=30, clique_size=3)
-        pairs = {nid: c // 2 for nid, c in ring.get_node_attrs("community").items()}
+        planted = ring.get_node_attrs("community")
+        pairs = {n: c // 2 for n, c in planted.items()}
 
         round(ring.modularity("community"), 3), round(ring.modularity(pairs), 3)
         ```
+
+        ### Triangles or cliques of five
+
+        Six triangles on the left and six complete graphs of five nodes on the right, each node
+        colored by its clique. However large the cliques, only one edge joins each to the next:
+
+        ```{python}
+        fives = ec.Graph().add_ring_of_cliques(num_cliques=6, clique_size=5)
+
+        fives.count_edges(), 6 * 10 + 6
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            color_by="community", label_by="label",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        fives.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if num_cliques < 2:
             raise ValueError("Ring of cliques needs at least 2 cliques")
