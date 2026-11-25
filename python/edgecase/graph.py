@@ -16875,9 +16875,17 @@ class Graph:
             If `n=` is negative, `mean_size=` is less than `1`, `shape=` is not positive, or
             `p_in=` or `p_out=` is not between `0` and `1`.
 
+        See Also
+        --------
+        add_random_partition_graph : Plant groups with sizes you choose.
+        add_planted_partition_graph : Plant groups that all have the same size.
+        add_lfr_graph : Plant communities with power-law sizes and degrees.
+
         Examples
         --------
-        `200` nodes in groups of about `20`:
+        The group sizes are drawn from a normal distribution with mean `mean_size=` and variance
+        `mean_size / shape`, until the `n` nodes are used up. `200` nodes in groups of about
+        `20`:
 
         ```{python}
         import edgecase as ec
@@ -16886,18 +16894,46 @@ class Graph:
             n=200, mean_size=20, shape=2, p_in=0.3, p_out=0.01, seed=5
         )
 
-        graph.get_node_df()["community"].value_counts().sort("community")["count"].to_list()
+        def group_sizes(g):
+            counts = g.get_node_df()["community"].value_counts()
+            return counts.sort("community")["count"].to_list()
+
+        group_sizes(graph)
         ```
 
-        A larger `shape=` makes the sizes more uniform:
+        ### Uneven sizes or even ones
+
+        A larger `shape=` makes the sizes more uniform. Sixty nodes in groups of about ten, each
+        node colored by its group, with `shape=2` on the left and `shape=50` on the right:
 
         ```{python}
+        uneven = ec.Graph().add_gaussian_random_partition_graph(
+            n=60, mean_size=10, shape=2, p_in=0.5, p_out=0.02, seed=2
+        )
         even = ec.Graph().add_gaussian_random_partition_graph(
-            n=200, mean_size=20, shape=50, p_in=0.3, p_out=0.01, seed=5
+            n=60, mean_size=10, shape=50, p_in=0.5, p_out=0.02, seed=2
         )
 
-        even.get_node_df()["community"].value_counts().sort("community")["count"].to_list()
+        group_sizes(uneven), group_sizes(even)
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        uneven.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        even.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if n < 0:
             raise ValueError("Number of nodes n must be non-negative")
