@@ -33201,6 +33201,12 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        set_edge_attrs : Set an attribute directly, without selecting first.
+        select_edges : Select the edges to set it on.
+        mutate_edge_attrs_ws : Compute the new values from existing attributes.
+
         Examples
         --------
         Only the selected first edge of this 3-node path is updated. `weight` lands in the
