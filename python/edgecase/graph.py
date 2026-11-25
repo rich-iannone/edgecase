@@ -27791,49 +27791,81 @@ class Graph:
         $2$. On directed graphs the check tightens to both $\deg^-(v) = k$ and $\deg^+(v) = k$
         for every $v$.
 
+        See Also
+        --------
+        is_regular : Whether every node has the same degree.
+        add_random_regular_graph : Add a random graph in which every node has degree d.
+        degrees : Get the degree of every node.
+
         Examples
         --------
-        A cycle's nodes each have degree `2`, so it satisfies `k=2` but no other value of
-        `k`:
+        A cycle's nodes each have degree `2`, so it satisfies `k=2` but no other value of `k`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(6)
+        graph = ec.Graph().add_cycle_graph(6)
 
         graph.is_k_regular(2), graph.is_k_regular(3)
         ```
 
-        A complete graph `K_n` is `(n-1)`-regular, so it satisfies `k = n - 1` but not
-        `k = n`:
+        Nodes with no edges at all have degree `0`, so an all-isolated graph is 0-regular but
+        nothing else:
 
         ```{python}
-        n = 5
-        graph = ec.Graph().add_full_graph(n=n)
-
-        graph.is_k_regular(n - 1), graph.is_k_regular(n)
-        ```
-
-        Nodes with no edges at all have degree `0`, so an all-isolated graph is 0-regular
-        but nothing else:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_nodes(["A", "B", "C"])
+        graph = ec.Graph().add_nodes(["A", "B", "C"])
 
         graph.is_k_regular(0), graph.is_k_regular(1)
         ```
 
         In a directed graph both directions must match `k`. A directed cycle gives each node one
-        incoming and one outgoing edge, so it is `1`-regular, not `2`-regular, even though each
-        node touches two edges:
+        incoming and one outgoing edge, so it is `1`-regular, not `2`-regular, even though each node
+        touches two edges:
 
         ```{python}
         directed_cycle = ec.Graph(directed=True).add_cycle_graph(n=4)
 
         directed_cycle.is_k_regular(1), directed_cycle.is_k_regular(2)
         ```
+
+        ### Same size, different spread
+
+        A random 3-regular graph on 12 nodes has 18 edges. A random graph with the same 12 nodes
+        and 18 edges has the same average degree, 3, but nothing holds each node to it:
+
+        ```{python}
+        regular = ec.Graph().add_random_regular_graph(n=12, d=3, seed=1)
+        chance = ec.Graph().add_gnm_graph(n=12, m=18, seed=2)
+
+
+        def degrees(graph):
+            return sorted(graph.degrees(return_dict=True).values())
+
+
+        (
+            (regular.is_k_regular(3), degrees(regular)),
+            (chance.is_k_regular(3), degrees(chance)),
+        )
+        ```
+
+        The regular graph on the left and the random graph on the right, each node labeled by its
+        degree:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        regular.plot(
+            label_by="degree", seed=1, width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        chance.plot(
+            label_by="degree", seed=1, width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(k=k)
         from edgecase._core import is_k_regular
