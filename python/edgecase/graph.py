@@ -66001,12 +66001,16 @@ class Graph:
         ```{python}
         novel.plot(
             highlight={
-                "accent": corona.get_node_ids(), "soft": shell.get_node_ids()
+                "accent": set(corona.get_node_ids()),
+                "soft": set(shell.get_node_ids()),
             },
             label_by="label",
             seed=1,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) compares the
+        methods that find a graph's dense core.
         """
         self._check_non_negative(k=k)
         from edgecase._core import k_corona
