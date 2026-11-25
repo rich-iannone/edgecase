@@ -68209,6 +68209,9 @@ class Graph:
         trip = metro.shortest_path("Westgate", "Garden", return_list=True)
         metro.plot(layout="pos", highlight=trip, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#what-shortest-means) compares the shortest
+        drive from Amsterdam to Vienna with the route of fewest roads.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
