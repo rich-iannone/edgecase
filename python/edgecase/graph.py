@@ -20788,10 +20788,18 @@ class Graph:
         ValueError
             If any weight is negative or all weights are zero.
 
+        See Also
+        --------
+        configuration_model : Build a random graph with a given degree sequence.
+        add_pa_graph : Add a scale-free graph by preferential attachment.
+        add_random_kernel_graph : Add a random graph from an edge probability kernel.
+
         Examples
         --------
-        Five "hub" nodes with weight `10` and forty-five ordinary nodes with weight `2` give a
-        total weight of `140`, so about `70` edges are expected:
+        Each node gets a weight, and two nodes are joined with probability proportional to the
+        product of their weights, so a node's expected degree is about its weight. Five hub nodes
+        of weight `10` and forty-five ordinary nodes of weight `2` give a total weight of `140`,
+        so about `70` edges are expected:
 
         ```{python}
         import edgecase as ec
@@ -20802,31 +20810,60 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        Individual degrees scatter around their weights. The five hubs (labels `"0"` to `"4"`)
+        Individual degrees scatter around their weights. The five hubs, labelled `"0"` to `"4"`,
         land near `10`, while the ordinary nodes average close to `2`:
 
         ```{python}
-        degree = {
-            int(graph.get_label_from_id(nid)): graph.get_degree(nid)
-            for nid in graph.get_node_ids(limit=None)
-        }
+        degree = graph.get_node_df()["degree"]
 
-        [degree[i] for i in range(5)], round(sum(degree[i] for i in range(5, 50)) / 45, 2)
+        degree[:5].to_list(), round(degree[5:].mean(), 2)
         ```
 
-        Averaging over many seeds shows the weights acting as expected degrees. The hubs come
-        out a little below `10` because a node is never paired with itself, so its true
-        expected degree is `w_i * (sum(w) - w_i) / sum(w)`, about `9.3` here:
+        Averaging over many seeds shows the weights acting as expected degrees. The hubs come out
+        a little below `10` because a node is never paired with itself, so its true expected
+        degree is `w_i * (sum(w) - w_i) / sum(w)`, about `9.3` here:
 
         ```{python}
         totals = [0] * 50
         for s in range(100):
             g = ec.Graph().expected_degree_graph(weights, seed=s)
-            for nid in g.get_node_ids(limit=None):
-                totals[int(g.get_label_from_id(nid))] += g.get_degree(nid)
+            for i, d in enumerate(g.get_node_df()["degree"]):
+                totals[i] += d
 
         round(sum(totals[:5]) / 500, 2), round(sum(totals[5:]) / 4500, 2)
         ```
+
+        ### Even weights or a few heavy ones
+
+        Both graphs have `20` nodes and a total weight of `60`, so about `30` edges each. On the
+        left every node has weight `3`, and the degrees stay close together. On the right nodes
+        `"0"` and `"1"` have weight `12` and the rest `2`, and the two heavy nodes become hubs:
+
+        ```{python}
+        even = ec.Graph().expected_degree_graph([3] * 20, seed=1)
+        heavy = ec.Graph().expected_degree_graph([12] * 2 + [2] * 18, seed=1)
+
+        def top_degrees(g):
+            return g.get_node_df()["degree"].sort(descending=True).to_list()[:3]
+
+        top_degrees(even), top_degrees(heavy)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        even.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        ```{python}
+        heavy.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        :::
         """
         from edgecase._core import expected_degree_graph as _expected_degree_graph
 
