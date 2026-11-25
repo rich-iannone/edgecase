@@ -69409,6 +69409,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=ends, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#a-search) steers A* with the straight-line
+        distance between cities, or with landmarks when there are no coordinates.
         """
         found = self._astar(source, target, heuristic, weighted)
         return None if found is None else found[0]
