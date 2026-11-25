@@ -53792,14 +53792,24 @@ class Graph:
             return x["element"] == y["element"]
 
 
-        list(caffeine.optimize_graph_edit_distance(benzene, node_match=same_element))
+        list(
+            caffeine.optimize_graph_edit_distance(
+                benzene, node_match=same_element
+            )
+        )
         ```
 
         ```{python}
         ring = list(caffeine.subgraph_isomorphisms(benzene, limit=1)[0].values())
 
-        caffeine.plot(color_by="element", highlight=ring + ring[:1], label_by="label", seed=1)
+        caffeine.plot(
+            color_by="element", highlight=ring + ring[:1], label_by="label",
+            seed=1,
+        )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#measuring-differences)
+        compares the methods that measure how much two graphs differ.
         """
         results = self._edit_path_search(
             other,
