@@ -7518,6 +7518,9 @@ class Graph:
         :::
 
         The result depends on `seed=`.
+
+        [Layouts](../user-guide/layouts.qmd#force-directed-layouts) compares the four force-directed
+        layouts on the dolphin network.
         """
         scale, center = self._layout_frame(scale, center)
         raw = rust.arf_layout(
