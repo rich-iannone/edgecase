@@ -22831,6 +22831,12 @@ class Graph:
         graphs get equal hashes exactly when 1-WL color refinement cannot tell them apart within
         the given number of rounds (barring hash collisions).
 
+        See Also
+        --------
+        weisfeiler_lehman_subgraph_hashes : The hashes of each node's neighborhood.
+        canonical_labeling : An exact canonical form, where equal forms prove isomorphism.
+        is_isomorphic : Confirm a match within a group of equal hashes.
+
         Examples
         --------
         Relabeling a graph does not change its hash:
@@ -22838,10 +22844,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        a = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        a.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
-        b = ec.Graph().add_nodes(["w", "x", "y", "z"])
-        b.add_edges([("z", "y"), ("y", "x"), ("x", "z"), ("w", "x")])
+        a = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        b = ec.Graph.from_edges([("z", "y"), ("y", "x"), ("x", "z"), ("w", "x")])
 
         a.weisfeiler_lehman_graph_hash() == b.weisfeiler_lehman_graph_hash()
         ```
@@ -22859,6 +22863,65 @@ class Graph:
             hexagon.is_isomorphic(two_triangles),
         )
         ```
+
+        ### Finding duplicate molecules
+
+        A collection of molecules gathered from several sources can list the same molecule more
+        than once, under different numberings. Grouping by hash finds the candidates for
+        duplicates without comparing every pair. Here caffeine is added a second time,
+        renumbered by the scheme for purines. By shape alone, three groups hold more than one
+        molecule:
+
+        ```{python}
+        molecules = ec.molecules()
+        purine = ec.Graph.from_edges(
+            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
+             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
+             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+        )
+        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+        purine.set_edge_attrs("bond", "single")
+        purine.set_edge_attrs(
+            "bond", "double", edges=[("C4", "C5"), ("N9", "C8"), ("C2", "O10"), ("C6", "O11")]
+        )
+        molecules["caffeine_purine"] = purine
+
+
+        def duplicates(**kwargs):
+            groups = {}
+            for name, molecule in molecules.items():
+                groups.setdefault(molecule.weisfeiler_lehman_graph_hash(**kwargs), []).append(name)
+            return [names for names in groups.values() if len(names) > 1]
+
+
+        duplicates()
+        ```
+
+        With `node_attr="element"`, ethanol and dimethyl ether separate, and with
+        `edge_attr="bond"` as well, so do benzene and cyclohexane, which differ only in their
+        bonds. Only the two numberings of caffeine are left:
+
+        ```{python}
+        duplicates(node_attr="element"), duplicates(node_attr="element", edge_attr="bond")
+        ```
+
+        Benzene and cyclohexane, with their bonds:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        molecules["benzene"].plot(
+            edge_label_by="bond", label_by="label", seed=1, width=360, height=360
+        )
+        ```
+
+        ```{python}
+        molecules["cyclohexane"].plot(
+            edge_label_by="bond", label_by="label", seed=1, width=360, height=360
+        )
+        ```
+
+        :::
         """
         import hashlib
         from collections import Counter
