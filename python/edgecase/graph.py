@@ -2233,6 +2233,12 @@ class Graph:
         ValueError
             If source or target node ID does not exist in the graph.
 
+        See Also
+        --------
+        add_edge : Add an edge by label or ID.
+        add_edges_by_id : Add many edges between node IDs.
+        delete_edge_by_id : Remove an edge by its ID.
+
         Examples
         --------
         Look up the IDs first, then connect the nodes by ID. The new edge appears in the edge
@@ -2241,45 +2247,47 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_node(label='Alice')
-        graph.add_node(label='Bob')
+        graph = ec.Graph(directed=True).add_nodes(["Alice", "Bob"])
 
-        alice_id = graph.get_id_from_label('Alice')
-        bob_id = graph.get_id_from_label('Bob')
-
-        graph.add_edge_by_id(
-            source=alice_id,
-            target=bob_id,
-            rel='follows'
-        )
+        alice_id = graph.get_id_from_label("Alice")
+        bob_id = graph.get_id_from_label("Bob")
+        graph.add_edge_by_id(source=alice_id, target=bob_id, rel="follows")
 
         graph.get_edge_df()
-        ```
-
-        IDs often come from other queries. Here every other node is connected to the "hub" node,
-        using the IDs returned by `get_node_ids()`, so the hub ends up with degree `3`:
-
-        ```{python}
-        graph = ec.Graph().add_nodes(["hub", "a", "b", "c"])
-        hub = graph.get_id_from_label("hub")
-        others = [nid for nid in graph.get_node_ids() if nid != hub]
-
-        for node_id in others:
-            graph.add_edge_by_id(hub, node_id, weight=1.0)
-
-        graph.get_degree("hub")
         ```
 
         Passing a label instead of an ID raises a `TypeError` rather than silently resolving it:
 
         ```{python}
         try:
-            graph.add_edge_by_id("hub", "a")
+            graph.add_edge_by_id("Alice", "Bob")
         except TypeError as e:
             print(e)
         ```
 
+        ### Refunds from the Grocer
+
+        IDs usually come from another method. In `payments()`, `get_predecessors()` gives the IDs
+        of the eight accounts that paid the Grocer, and each of them gets a refund by ID, with no
+        labels looked up:
+
+        ```{python}
+        payments = ec.payments()
+        grocer = payments.get_id_from_label("Grocer")
+
+        customers = payments.get_predecessors(grocer)
+        for customer in customers:
+            payments.add_edge_by_id(grocer, customer, weight=5, refund=True)
+
+        len(customers), payments.get_out_degree("Grocer")
+        ```
+
+        The refunds are the only edges with a `refund` attribute, so `highlight_edges="refund"`
+        picks them out:
+
+        ```{python}
+        payments.plot(highlight_edges="refund", label_by="label", seed=3)
+        ```
         """
         if not isinstance(source, int):
             raise TypeError(
