@@ -78308,6 +78308,23 @@ class Graph:
         ]
         ```
 
+        The bridge picked out. Every other edge lies on the cycle, which still holds together
+        with any one of them gone:
+
+        ```{python}
+        spots = {
+            "A": (1, 2), "B": (2, 1), "C": (1, 0), "D": (0, 1), "tail": (-1, 1)
+        }
+        tailed.set_node_attrs(
+            "pos", {tailed.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        tailed.plot(
+            layout="pos", highlight_edges=tailed.bridges(), label_by="label",
+            height=240,
+        )
+        ```
+
         ### Single stretches of track
 
         `metro()` is a made-up city's metro network. Five stretches of track are bridges, each
@@ -78340,6 +78357,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) finds the karate club's
+        one bridge, and the quarter of the power grid's lines that are bridges.
         """
         from edgecase._core import bridges
 
