@@ -54677,6 +54677,12 @@ class Graph:
         ValueError
             If `node=` is an ID or label that does not exist in the graph.
 
+        See Also
+        --------
+        degrees : Get the degree of every node at once.
+        get_in_degree : Count only the incoming edges.
+        get_out_degree : Count only the outgoing edges.
+
         Examples
         --------
         `A` is connected to both `B` and `C`, so its degree is `2`. Nodes can be referred to by
