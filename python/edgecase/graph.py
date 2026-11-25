@@ -34056,6 +34056,9 @@ class Graph:
 
         graph.get_edge_df()
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#setting-edge-attributes) compares
+        the four ways of choosing the edges to update.
         """
         # Determine which edges to update
         target_edge_ids = []
