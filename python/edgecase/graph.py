@@ -90355,6 +90355,9 @@ class Graph:
             seed=3,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         return self._branching(
             "max_branching", "maximum_branching", weight_attr, include, exclude
