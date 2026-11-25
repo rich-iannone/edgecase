@@ -22427,6 +22427,8 @@ class Graph:
         sorted(graph.get_selected_edge_ids())
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#edges) explains how edges are numbered, and
+        what each edge holds besides its endpoints.
         """
         return self._graph.get_edge_creation_order()
 
