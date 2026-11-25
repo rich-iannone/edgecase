@@ -51531,6 +51531,9 @@ class Graph:
         ```
 
         `union()` would instead match the two graphs node for node and give back a single town.
+
+        [Transforming graphs](../user-guide/transforming.qmd#side-by-side) explains how the second
+        graph's IDs and labels change.
         """
         from edgecase._core import graph_disjoint_union
 
