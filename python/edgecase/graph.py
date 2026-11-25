@@ -48527,6 +48527,9 @@ class Graph:
 
         pl.DataFrame(rows)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#predicting-node-attributes)
+        explains when to let the network overrule the known categories.
         """
         return self._classify("consistency", label_name, alpha, max_iter, weighted)
 
