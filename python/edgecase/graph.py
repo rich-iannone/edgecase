@@ -77983,6 +77983,9 @@ class Graph:
             edge_label_by="bridge",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) explains why
+        `edges=True` matters when parallel edges join the same places.
         """
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
         found = rust.eulerian_path(self._graph, source_id)
