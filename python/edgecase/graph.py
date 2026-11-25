@@ -71463,6 +71463,9 @@ class Graph:
         reached = metro.generic_bfs_edges("Central", inner)
         metro.plot(layout="pos", highlight=reached, label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) explains the tree
+        that a search builds, and lists the methods that expose its parts.
         """
         self._check_traversal_args(depth_limit, "out")
         source_id = self._resolve_node_id(source, auto_create=False)
