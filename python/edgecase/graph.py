@@ -79593,6 +79593,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=stranded, label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) lists the methods
+        that give a graph's summary values one at a time.
         """
         result = rust.isolates(self._graph)
 
