@@ -7736,39 +7736,59 @@ class Graph:
         ValueError
             If `n=` is less than `3`.
 
+        See Also
+        --------
+        add_path_graph : Add a path graph.
+        add_circulant_graph : Add a circulant graph.
+        is_bipartite : Check whether the graph is bipartite.
+
         Examples
         --------
-        A cycle graph is a path graph with one extra edge closing the loop back to the start,
-        so it has as many edges as it has nodes:
+        A cycle graph is a path with one more edge, from the last node back to the first, so it
+        has as many edges as nodes and every node has two neighbors. In a directed graph the edges
+        all run the same way round, and the last one, here `4 -> 1`, closes the loop:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_cycle_graph(n=4)
+        ring = ec.Graph(directed=True).add_cycle_graph(n=4, rel="next")
 
-        graph.count_nodes(), graph.count_edges()
+        ring.count_edges(), ring.get_edges_str_repr(use_labels=True)
         ```
 
-        Every node has exactly two neighbors. A cycle with an even number of nodes is
-        bipartite, while an odd one is not:
+        ### Even and odd cycles
+
+        A cycle with an even number of nodes is bipartite: its nodes can be colored with two colors
+        so that no edge joins two nodes of the same color. An odd cycle needs a third color
+        somewhere. A coloring of the 6-cycle on the left and of the 7-cycle on the right:
 
         ```{python}
-        (
-            graph.get_node_df()["degree"].to_list(),
-            graph.is_bipartite(),
-            ec.Graph().add_cycle_graph(n=5).is_bipartite(),
+        even = ec.Graph().add_cycle_graph(n=6)
+        odd = ec.Graph().add_cycle_graph(n=7)
+
+        even.set_node_attrs("color", even.greedy_color())
+        odd.set_node_attrs("color", odd.greedy_color())
+
+        even.is_bipartite(), odd.is_bipartite()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        even.layout_circular().plot(
+            layout="pos", color_by="color", label_by="label",
+            width=320, height=320, legend=False,
         )
         ```
 
-        In a directed graph the edges follow one direction around the ring, with the last edge
-        (here `4 -> 1`) closing the loop. `rel=` applies to every edge:
-
         ```{python}
-        ring = ec.Graph(directed=True).add_cycle_graph(n=4, rel="next")
-
-        ring.get_edge_df()
+        odd.layout_circular().plot(
+            layout="pos", color_by="color", label_by="label",
+            width=320, height=320, legend=False,
+        )
         ```
 
+        :::
         """
         if n < 3:
             raise ValueError("Cycle must have at least 3 nodes")
