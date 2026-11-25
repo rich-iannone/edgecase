@@ -58251,12 +58251,17 @@ class Graph:
         Market and Eastfield on the way east:
 
         ```{python}
-        metro.plot(layout="pos", color_by="betweenness_centrality", label_by="label")
+        metro.plot(
+            layout="pos", color_by="betweenness_centrality", label_by="label"
+        )
         ```
 
         For the edges that carry the most routes, use `edge_betweenness_centrality()`; for large
         graphs where an estimate will do, `approximate_current_flow_betweenness_centrality()`
         samples instead of using every pair.
+
+        [Centrality](../user-guide/centrality.qmd#weighted-betweenness) explains why weights that
+        measure the strength of a tie need inverting first, with *Les Misérables*.
         """
         use_weights = self._use_weights(weighted)
         if use_weights:
