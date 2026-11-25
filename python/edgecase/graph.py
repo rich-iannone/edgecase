@@ -46913,6 +46913,36 @@ class Graph:
 
         list(cycle.optimize_graph_edit_distance(wheel))
         ```
+
+        ### How far caffeine is from benzene
+
+        Caffeine has 14 atoms and 15 bonds, and benzene is a ring of 6 carbons. By shape alone,
+        the search settles at 17, deleting 8 atoms and 9 bonds around caffeine's ring of six:
+
+        ```{python}
+        molecules = ec.molecules()
+        caffeine, benzene = molecules["caffeine"], molecules["benzene"]
+
+        list(caffeine.optimize_graph_edit_distance(benzene))
+        ```
+
+        With elements matched, the search takes longer to converge and ends 2 higher, at 19:
+        two atoms of caffeine's ring are nitrogens, and substituting them for benzene's carbons
+        costs 1 each:
+
+        ```{python}
+        def same_element(x, y):
+            return x["element"] == y["element"]
+
+
+        list(caffeine.optimize_graph_edit_distance(benzene, node_match=same_element))
+        ```
+
+        ```{python}
+        ring = list(caffeine.subgraph_isomorphisms(benzene, limit=1)[0].values())
+
+        caffeine.plot(color_by="element", highlight=ring + ring[:1], label_by="label", seed=1)
+        ```
         """
         results = self._edit_path_search(
             other,
