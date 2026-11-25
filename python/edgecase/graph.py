@@ -48754,55 +48754,61 @@ class Graph:
         aggregation phase of Louvain community detection and underpins the reduced graphs used in
         minor-based algorithms like planarity testing.
 
+        See Also
+        --------
+        contract_nodes_multi : Merge any number of nodes into one.
+        contracted_edge : Merge the two endpoints of an existing edge.
+        quotient_graph : Collapse every block of a partition at once.
+
         Examples
         --------
+        Contracting "A" and "B" in the path "A -- B -- C -- D" keeps "A" and moves B's edges to it:
+
         ```{python}
         import edgecase as ec
 
-        # Create a path: A -- B -- C -- D
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        )
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        merged = path.contract_nodes("A", "B")
 
-        result = g.contract_nodes("A", "B")
-        result.count_nodes()
+        merged.has_node("B"), merged.get_edges_str_repr(use_labels=True)
         ```
 
-        "B" is gone entirely -- its connections were redirected to "A" instead:
+        The edge that joined them becomes a self-loop on "A" unless `self_loops=False`:
 
         ```{python}
-        result.has_node("B")
+        merged = path.contract_nodes("A", "B", self_loops=False)
+        merged.get_edges_str_repr(use_labels=True)
         ```
 
-        When the two merged nodes were already connected to each other, that edge
-        becomes a self-loop on the surviving node -- unless `self_loops=False` removes
-        it instead:
+        ### The two leaders as one
+
+        The karate club split between its instructor (member 0) and its administrator (member 33).
+        Contracting the two into one node shows how far their reach goes together. The merged node
+        keeps the instructor's label:
 
         ```{python}
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
+        karate = ec.karate_club()
+        leaders = karate.contract_nodes("0", "33")
 
-        with_loop = g.contract_nodes("A", "B", self_loops=True)
-        without_loop = g.contract_nodes("A", "B", self_loops=False)
-
-        with_loop.count_all_loops(), without_loop.count_all_loops()
+        karate.get_degree("0"), karate.get_degree("33"), leaders.get_degree("0")
         ```
 
-        This makes contraction a convenient way to simplify a graph by merging nodes
-        that should be treated as one -- for example, collapsing two adjacent nodes of
-        a path:
+        The instructor has 16 ties and the administrator 17, but the merged node has 29, not 33:
+        4 members are tied to both leaders, and their two ties merge into one. That leaves 3
+        members tied to neither, 16, 24 and 25:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_path_graph(5)  # 1 -- 2 -- 3 -- 4 -- 5
+        merged = leaders.get_id_from_label("0")
+        reach = set(leaders.get_neighbors(merged)) | {merged}
 
-        simplified = g.contract_nodes(2, 3)
-        simplified.count_nodes()
+        others = [n for n in leaders.get_node_ids() if n not in reach]
+        sorted(leaders.get_label_from_id(n) for n in others)
+        ```
+
+        The merged node is highlighted with the three members it doesn't reach:
+
+        ```{python}
+        leaders.plot(label_by="label", highlight=["0", "16", "24", "25"], seed=3)
         ```
         """
         from edgecase._core import contract_nodes as _contract_nodes
