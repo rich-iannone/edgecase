@@ -10449,26 +10449,66 @@ class Graph:
         Every pair of subsets is compared, so the time grows as `C(n, k)^2`. `C(n, k)` grows very
         quickly (e.g. `C(20, 10)` is 184,756), so keep `n=` modest when `k=` is near `n / 2`.
 
+        See Also
+        --------
+        add_johnson_graph : Add a Johnson graph.
+        add_named_graph : Add a well-known graph by name.
+        complement : Join the pairs of nodes that aren't joined.
+
         Examples
         --------
-        `K(5, 2)` has `C(5, 2) = 10` nodes, each joined to the `C(3, 2) = 3` pairs disjoint from
-        it, which makes it the Petersen graph:
+        The Kneser graph `K(n, k)` has a node for each `k`-element subset of `{0, ..., n - 1}` and
+        joins two subsets that have no element in common. `K(5, 2)` has `C(5, 2) = 10` nodes, each
+        joined to the `C(3, 2) = 3` pairs disjoint from it, and it's the Petersen graph:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_kneser_graph(n=5, k=2)
+        petersen = ec.Graph().add_named_graph("petersen")
 
-        graph.count_nodes(), graph.count_edges(), graph.is_isomorphic(
-            ec.Graph().add_named_graph("petersen")
+        graph.count_nodes(), graph.count_edges(), graph.is_isomorphic(petersen)
+        ```
+
+        The labels are the subsets, so the neighbors of `"0,1"` are the pairs drawn from
+        `{2, 3, 4}`:
+
+        ```{python}
+        sorted(graph.get_label_from_id(n) for n in graph.get_neighbors("0,1"))
+        ```
+
+        ### Disjoint or overlapping
+
+        The Johnson graph `J(5, 2)` has the same nodes but joins two pairs that share one element,
+        and any two different pairs either share one element or none. So `J(5, 2)` is the
+        complement of `K(5, 2)`. Both are drawn here with the same positions, `K(5, 2)` on the left
+        as the Petersen graph's star inside a pentagon and `J(5, 2)` on the right:
+
+        ```{python}
+        johnson = ec.Graph().add_johnson_graph(n=5, k=2)
+        rings = [
+            ["2,4", "1,4", "1,3", "0,3", "0,2"],
+            ["0,1", "2,3", "0,4", "1,2", "3,4"],
+        ]
+
+        johnson.is_isomorphic(graph.complement()), johnson.count_edges()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
         )
         ```
 
-        The neighbors of `"0,1"` are exactly the pairs drawn from `{2, 3, 4}`:
-
         ```{python}
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_neighbors("0,1"))
+        johnson.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Base set size n must be at least 1")
