@@ -3391,6 +3391,9 @@ class Graph:
         ```{python}
         payments.plot(layout="pos", edge_width_by="weight", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-nodes) prunes every member with
+        a single friend from a copy of the karate club.
         """
         selected = self.get_selected_node_ids()
 
