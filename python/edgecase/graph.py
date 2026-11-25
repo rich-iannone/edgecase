@@ -2386,28 +2386,23 @@ class Graph:
         ValueError
             If any source or target node ID does not exist in the graph.
 
+        See Also
+        --------
+        add_edges : Add edges by label or ID.
+        add_edge_by_id : Add one edge between node IDs.
+        select_last_edges_created : Select the edges just added.
+
         Examples
         --------
-        Map labels to IDs once, then add a chain of edges by ID with a shared `rel`:
+        Look up the IDs, then add a chain of edges by ID with a shared `rel`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True).add_nodes(['A', 'B', 'C', 'D'])
+        graph = ec.Graph(directed=True).add_nodes(["A", "B", "C", "D"])
+        a, b, c, d = (graph.get_id_from_label(x) for x in ["A", "B", "C", "D"])
 
-        ids = {
-            label: graph.get_id_from_label(label)
-            for label in ['A', 'B', 'C', 'D']
-        }
-
-        graph.add_edges_by_id(
-            [
-                (ids['A'], ids['B']),
-                (ids['B'], ids['C']),
-                (ids['C'], ids['D']),
-            ],
-            rel='link'
-        )
+        graph.add_edges_by_id([(a, b), (b, c), (c, d)], rel="link")
 
         graph.get_edge_df()
         ```
@@ -2416,20 +2411,10 @@ class Graph:
         Y-Z edge below is `"strong"` while X-Y keeps the shared `"weak"`:
 
         ```{python}
-        graph = ec.Graph(directed=True).add_nodes(['X', 'Y', 'Z'])
+        graph = ec.Graph(directed=True).add_nodes(["X", "Y", "Z"])
+        x, y, z = (graph.get_id_from_label(label) for label in ["X", "Y", "Z"])
 
-        ids = {
-            label: graph.get_id_from_label(label)
-            for label in ['X', 'Y', 'Z']
-        }
-
-        graph.add_edges_by_id(
-            [
-                (ids['X'], ids['Y']),
-                (ids['Y'], ids['Z'], {'rel': 'strong'}),
-            ],
-            rel='weak'
-        )
+        graph.add_edges_by_id([(x, y), (y, z, {"rel": "strong"})], rel="weak")
 
         graph.get_edge_df()
         ```
@@ -2442,13 +2427,35 @@ class Graph:
         graph = ec.Graph().add_nodes(range(1, 6))
         node_ids = graph.get_node_ids()
 
-        graph.add_edges_by_id(
-            [(node_ids[i], node_ids[(i + 1) % len(node_ids)]) for i in range(len(node_ids))]
-        )
+        graph.add_edges_by_id(list(zip(node_ids, node_ids[1:] + node_ids[:1])))
 
         graph.count_edges()
         ```
 
+        ### Next month's wages
+
+        In `payments()`, Acme pays wages to four people. `get_successors()` gives their IDs, so
+        next month's payroll is one call, with the date shared by every payment:
+
+        ```{python}
+        payments = ec.payments()
+        acme = payments.get_id_from_label("Acme")
+
+        employees = payments.get_successors(acme)
+        payroll = [(acme, employee, 2500) for employee in employees]
+        payments.add_edges_by_id(payroll, date="2026-04-01")
+
+        payments.get_out_degree("Acme")
+        ```
+
+        `select_last_edges_created()` selects the four new payments, and
+        `highlight_edges="selection"` draws them:
+
+        ```{python}
+        payments.select_last_edges_created(len(payroll))
+
+        payments.plot(highlight_edges="selection", label_by="label", seed=6)
+        ```
         """
         edges_added = []
         # All the edges go in or none do
