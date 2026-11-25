@@ -51092,17 +51092,42 @@ class Graph:
         Equivalent to `graphs[0].compose(graphs[1]).compose(graphs[2])...`. Mirrors NetworkX's
         `compose_all`.
 
+        See Also
+        --------
+        compose : Combine two graphs, letting the other graph's values win.
+        union_all : Combine any number of graphs, keeping the first graph's values.
+
         Examples
         --------
+        `ec.friends()` is a network of friendships in 2024 among the members of a chess club and a
+        climbing club, and `snapshot=2` is the network a year later, with 8 new friendships. Here
+        the 2024 list is followed by a 2026 list, in which three friendships have ended, and by a
+        note that Vik has moved to chess:
+
         ```{python}
         import edgecase as ec
 
-        base = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("A", "B")
-        update1 = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("B", "C")
-        update2 = ec.Graph().add_nodes(["A", "B", "C"]).add_edge("C", "A")
+        updates = [
+            ec.friends(),
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven"),
+            ec.friends().set_node_attrs("club", "Chess", nodes=["Vik"]),
+        ]
 
-        ec.Graph.compose_all([base, update1, update2]).count_edges()
+        latest = ec.Graph.compose_all(updates)
         ```
+
+        The updates apply in order, so the last one wins and Vik is in chess. Composing never
+        removes anything, though, so the three friendships that ended are still there, 51 in all:
+
+        ```{python}
+        vik = latest.get_id_from_label("Vik")
+        latest.get_node_attrs("club")[vik], latest.count_edges()
+        ```
+
+        To drop the lost ties, use `intersection()` or `difference()` with the newer list.
         """
         return Graph._fold(graphs, "compose")
 
