@@ -40901,6 +40901,9 @@ class Graph:
         )
         barricade.plot(color_by="cliques", label_by="label", seed=1)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) compares the methods that find
+        cliques.
         """
         cliques = rust.enumerate_all_cliques(self._graph)
         if self._recording_depth == 0:
