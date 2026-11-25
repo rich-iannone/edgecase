@@ -51190,6 +51190,9 @@ class Graph:
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) compares two snapshots
+        of a contact network, and explains why the graphs must number their nodes alike.
         """
         from edgecase._core import graph_difference
 
