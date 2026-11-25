@@ -54154,6 +54154,11 @@ class Graph:
         every new edge, which is a natural way to tag a freshly-materialized clique with a
         shared label, weight, or type.
 
+        See Also
+        --------
+        select_nodes : Select the nodes to join.
+        add_full_graph : Build a complete graph from scratch.
+
         Examples
         --------
         Selecting three unconnected nodes and fully connecting them creates the three edges of a
