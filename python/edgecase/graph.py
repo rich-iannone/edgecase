@@ -70747,11 +70747,20 @@ class Graph:
         })
         ```
 
-        The second fastest takes two minutes longer, going through Riverside instead of Central:
+        The fastest route goes through Central:
+
+        ```{python}
+        metro.plot(layout="pos", highlight=routes[0][0], label_by="label")
+        ```
+
+        The second fastest takes two minutes longer, going through Riverside instead:
 
         ```{python}
         metro.plot(layout="pos", highlight=routes[1][0], label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#alternative-routes) finds the four shortest
+        drives from Amsterdam to Vienna.
         """
         self._check_non_negative(k=k)
         from edgecase._core import k_shortest_paths
