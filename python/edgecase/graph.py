@@ -88430,6 +88430,11 @@ class Graph:
         edges makes this $O(E)$. Useful for planning edge consolidations, weighted rollups,
         or multigraph-to-weighted-graph conversions.
 
+        See Also
+        --------
+        which_multiple : List the IDs of every edge in a parallel group.
+        count_multi_edges : Count the repeated edges in the whole graph.
+
         Examples
         --------
         Rather than listing every duplicated edge, this groups them by node pair and reports how
@@ -88486,8 +88491,9 @@ class Graph:
         )
 
         # Returns {('CityA', 'CityB'): 3} -- 3 routes to consolidate
+        name = transport.get_label_from_id
         {
-            (transport.get_label_from_id(id1), transport.get_label_from_id(id2)): count
+            (name(id1), name(id2)): count
             for (id1, id2), count in transport.count_multiple().items()
         }
         ```
