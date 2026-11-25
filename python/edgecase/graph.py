@@ -34771,6 +34771,9 @@ class Graph:
         ```{python}
         graph.clear_selection().get_node_df_ws().shape
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) compares the ways of
+        looking at a selection.
         """
         return self._node_df(self.get_selected_node_ids())
 
