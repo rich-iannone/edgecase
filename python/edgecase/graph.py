@@ -68779,6 +68779,9 @@ class Graph:
         ]
         metro.plot(layout="pos", highlight=tree, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#from-one-node-to-many) turns the shortest
+        paths from Paris into a routing table.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         paths = rust.multi_source_paths(self._graph, [source_id], cutoff)
