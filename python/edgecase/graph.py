@@ -84692,6 +84692,9 @@ class Graph:
         ```{python}
         ring.plot(label_by="label", curved_edges=True, seed=3)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) compares weak and
+        strong connectivity in Wikipedia's administrator elections.
         """
         return self._graph.is_strongly_connected()
 
