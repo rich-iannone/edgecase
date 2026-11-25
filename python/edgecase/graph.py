@@ -49974,12 +49974,18 @@ class Graph:
         ```
 
         ```{python}
+        from itertools import combinations
+
         compatible.plot(
-            label_by="label", highlight=slot, seed=2, width=360, height=360
+            label_by="label", highlight=list(combinations(slot, 2)), seed=2,
+            width=360, height=360,
         )
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#derived-graphs) explains how the
+        complement turns problems about cliques into problems about independent sets.
         """
         result = Graph._from_rust(self._graph.complement())
 
