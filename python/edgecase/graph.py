@@ -78930,6 +78930,28 @@ class Graph:
         graph.biconnected_components(edges=True)
         ```
 
+        Each edge colored by its block. C is the cut node where the two triangles meet, and E
+        the one that holds the pendant edge on:
+
+        ```{python}
+        spots = {
+            "A": (0, 2), "B": (2, 2), "C": (1, 1),
+            "D": (0, 0), "E": (2, 0), "F": (3, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        blocks = graph.biconnected_components(edges=True)
+        graph.set_edge_attrs(
+            "block", {e: i for i, block in enumerate(blocks) for e in block}
+        )
+
+        graph.plot(
+            layout="pos", edge_color_by="block", edge_width=4, edge_opacity=0.9,
+            label_by="label", height=240, legend=False,
+        )
+        ```
+
         ### The blocks of the metro
 
         `metro()` is a made-up city's metro network. Fifteen stations form one block, in which
@@ -78955,6 +78977,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) shows what the karate
+        club would lose with its instructor.
         """
         blocks = rust.biconnected_components(self._graph)
         result = [list(e) if edges else list(n) for n, e in blocks]
