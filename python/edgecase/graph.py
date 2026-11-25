@@ -19066,6 +19066,12 @@ class Graph:
         ValueError
             If `n=` is negative.
 
+        See Also
+        --------
+        add_grid_graph : Join each point of a grid or torus to its neighbors.
+        add_chordal_cycle_graph : Build another explicit expander, on a cycle.
+        is_regular_expander : Check the spectral expansion of a regular graph.
+
         Examples
         --------
         On a 5 x 5 torus there are 25 nodes and 100 edges, and every node has degree `8`:
@@ -19074,17 +19080,55 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph().add_margulis_gabber_galil_graph(n=5)
+        degrees = set(graph.degrees(return_dict=True).values())
 
-        graph.count_nodes(), graph.count_edges(), set(graph.degrees(return_dict=True).values())
+        graph.count_nodes(), graph.count_edges(), degrees
         ```
 
         The origin maps to itself under two of the maps, giving two self-loops:
 
         ```{python}
         origin = graph.get_id_from_label("(0,0)")
+        edges = graph.get_edges_as_tuples()
 
-        [graph.get_label_from_id(t) for _, s, t in graph.get_edges_as_tuples() if s == origin]
+        [graph.get_label_from_id(t) for _, s, t in edges if s == origin]
         ```
+
+        ### Maps or neighbors
+
+        The same 25 points of a `5 x 5` torus, at their grid positions. On the right, the torus
+        from `add_grid_graph()` joins each point to its four grid neighbors, with the wraparound
+        edges drawn across the grid. On the left, the Margulis–Gabber–Galil maps send each point
+        to points far across the grid, which brings every point within fewer steps of every
+        other:
+
+        ```{python}
+        torus = ec.Graph().add_grid_graph(dims=[5, 5], periodic=True)
+        pos = {i + 1: [i // 5, i % 5] for i in range(25)}
+
+        for g in (graph, torus):
+            g.set_node_attrs("pos", pos)
+
+        graph.diameter(), torus.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        torus.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
