@@ -11580,41 +11580,68 @@ class Graph:
         ValueError
             If `m=` is larger than the number of possible edges among `n=` nodes.
 
+        See Also
+        --------
+        add_gnp_graph : Join each pair with a fixed chance instead of a fixed edge count.
+        add_random_regular_graph : Give every node the same degree as well.
+        configuration_model : Wire a given degree sequence at random.
+
         Examples
         --------
-        Unlike `add_gnp_graph()`, which samples edges probabilistically, this fixes the exact
-        number of edges -- `m=100` always produces exactly `100` edges, regardless of seed:
+        Unlike `add_gnp_graph()`, which includes each edge with some probability, this fixes the
+        number of edges and picks which pairs they join at random. `m=100` always gives exactly
+        `100` edges, whatever the seed:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_gnm_graph(n=50, m=100, seed=23)
-        )
+        graph = ec.Graph().add_gnm_graph(n=50, m=100, seed=23)
 
         graph.count_nodes(), graph.count_edges()
         ```
 
-        Changing `seed=` keeps the edge count but changes which pairs are joined. Both of these
-        graphs have four edges, placed differently:
-
-        ```{python}
-        first = ec.Graph().add_gnm_graph(n=6, m=4, seed=1)
-        second = ec.Graph().add_gnm_graph(n=6, m=4, seed=2)
-
-        first.get_edges_str_repr(), second.get_edges_str_repr()
-        ```
-
-        In a directed graph the two orientations of a pair are separate candidates, so four
-        nodes can hold up to `4 * 3 = 12` edges. Asking for all of them gives a complete
-        directed graph:
+        In a directed graph the two orientations of a pair are separate candidates, so four nodes
+        can hold up to `4 * 3 = 12` edges. Asking for all of them gives a complete directed
+        graph:
 
         ```{python}
         directed = ec.Graph(directed=True).add_gnm_graph(n=4, m=12)
 
         directed.count_edges()
         ```
+
+        ### Same count, different wiring
+
+        Changing `seed=` keeps the edge count but changes which pairs are joined. Both graphs
+        have `8` nodes and `10` edges, and so the same average degree, but the degrees are spread
+        differently. Seed `1` on the left and seed `5` on the right, with the nodes in the same
+        places:
+
+        ```{python}
+        first = ec.Graph().add_gnm_graph(n=8, m=10, seed=1)
+        second = ec.Graph().add_gnm_graph(n=8, m=10, seed=5)
+
+        (
+            first.get_node_df()["degree"].to_list(),
+            second.get_node_df()["degree"].to_list(),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        first.layout_circular(order="id").plot(
+            layout="pos", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        second.layout_circular(order="id").plot(
+            layout="pos", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, m=m)
         with self._compound("add_gnm_graph", f"G.add_gnm_graph(n={n}, m={m})"):
