@@ -11288,6 +11288,12 @@ class Graph:
         ValueError
             If `name=` is not one of the names above. The error message lists the valid names.
 
+        See Also
+        --------
+        add_kneser_graph : Add a Kneser graph.
+        add_generalized_petersen_graph : Add a generalized Petersen graph.
+        betweenness_centrality : Compute the betweenness centrality of every node.
+
         Examples
         --------
         The Petersen graph has `10` nodes and `15` edges, every node has degree `3`, and its
@@ -11301,30 +11307,51 @@ class Graph:
         petersen.count_nodes(), petersen.count_edges(), petersen.girth()
         ```
 
-        In Krackhardt's kite, the most central node depends on the measure: node `"4"` has the
-        highest degree, while node `"8"` lies on the most shortest paths:
-
-        ```{python}
-        kite = ec.Graph().add_named_graph("Krackhardt kite")
-        degree = kite.degree_centrality(return_dict=True)
-        betweenness = kite.betweenness_centrality(return_dict=True)
-
-        (
-            kite.get_label_from_id(max(degree, key=degree.get)),
-            kite.get_label_from_id(max(betweenness, key=betweenness.get)),
-        )
-        ```
-
-        The Tutte graph is cubic, planar, and 3-connected, yet it has no Hamiltonian cycle,
-        which disproved Tait's 1884 conjecture that every such graph has one:
+        The Tutte graph is cubic, planar and 3-connected, yet it has no Hamiltonian cycle, which
+        disproved Tait's 1884 conjecture that every such graph has one:
 
         ```{python}
         tutte = ec.Graph().add_named_graph("tutte")
 
-        degrees = tutte.get_node_df()["degree"].unique().to_list()
-
-        degrees, tutte.is_planar(), tutte.node_connectivity()
+        tutte.is_k_regular(3), tutte.is_planar(), tutte.node_connectivity()
         ```
+
+        ### The most central node in Krackhardt's kite
+
+        Krackhardt's kite is a small social network built to show that the most central node
+        depends on the measure. Node `"4"` has the most ties, but node `"8"`, the only link to the
+        kite's tail, lies on the most shortest paths. The kite is drawn twice with the same
+        positions, its nodes sized by degree on the left and by betweenness on the right:
+
+        ```{python}
+        kite = ec.Graph().add_named_graph("Krackhardt kite").layout_kamada_kawai()
+        scores = kite.betweenness_centrality(return_dict=True)
+        kite.set_node_attrs("betweenness", scores)
+
+        nodes = kite.get_node_df()
+        top = nodes.sort("degree", descending=True)["label"][0]
+        broker = nodes.sort("betweenness", descending=True)["label"][0]
+
+        top, broker
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        kite.plot(
+            layout="pos", size_by="degree", node_size=9, label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        kite.plot(
+            layout="pos", size_by="betweenness", node_size=9, label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase.named_graphs import NAMED_GRAPHS
 
