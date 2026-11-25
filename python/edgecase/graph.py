@@ -36507,6 +36507,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#using-communities) explains
+        why it scores zero for every pair that spans two communities.
         """
         return self._link_scores("within_inter_cluster", ebunch, community, delta=delta)
 
