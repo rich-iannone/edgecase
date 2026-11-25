@@ -1,0 +1,229 @@
+{
+  "meta": {
+    "edgecase": "0.1.0",
+    "python": "3.13.12",
+    "date": "2026-11-25"
+  },
+  "rows": [
+    {
+      "kind": "plot",
+      "graph": "karate_club",
+      "n": 34,
+      "m": 78,
+      "load_s": 0.13,
+      "work_s": 0.03,
+      "peak_rss_mb": 73,
+      "out_mb": 0.04
+    },
+    {
+      "kind": "plot",
+      "graph": "les_miserables",
+      "n": 77,
+      "m": 254,
+      "load_s": 0.13,
+      "work_s": 0.05,
+      "peak_rss_mb": 73,
+      "out_mb": 0.13
+    },
+    {
+      "kind": "plot",
+      "graph": "football",
+      "n": 115,
+      "m": 613,
+      "load_s": 0.11,
+      "work_s": 0.13,
+      "peak_rss_mb": 77,
+      "out_mb": 0.48
+    },
+    {
+      "kind": "plot",
+      "graph": "jazz",
+      "n": 198,
+      "m": 2742,
+      "load_s": 0.16,
+      "work_s": 0.49,
+      "peak_rss_mb": 102,
+      "out_mb": 2.67
+    },
+    {
+      "kind": "plot",
+      "graph": "celegans",
+      "n": 453,
+      "m": 2040,
+      "load_s": 0.12,
+      "work_s": 0.75,
+      "peak_rss_mb": 102,
+      "out_mb": 2.76
+    },
+    {
+      "kind": "plot",
+      "graph": "power_grid",
+      "n": 4941,
+      "m": 6594,
+      "load_s": 0.2,
+      "work_s": 23.19,
+      "peak_rss_mb": 568,
+      "out_mb": 47.08
+    },
+    {
+      "kind": "plot",
+      "graph": "ca_grqc",
+      "n": 5242,
+      "m": 28980,
+      "load_s": 0.38,
+      "work_s": 87.33,
+      "peak_rss_mb": 411,
+      "out_mb": 12.21
+    },
+    {
+      "kind": "plot",
+      "graph": "internet",
+      "n": 6474,
+      "m": 13895,
+      "load_s": 0.23,
+      "work_s": 56.16,
+      "peak_rss_mb": 1405,
+      "out_mb": 128.64
+    },
+    {
+      "kind": "plot",
+      "graph": "gnutella",
+      "n": 6301,
+      "m": 20777,
+      "load_s": 0.26,
+      "work_s": 90.16,
+      "peak_rss_mb": 2189,
+      "out_mb": 206.68
+    },
+    {
+      "kind": "plot",
+      "graph": "pgp",
+      "n": 10680,
+      "m": 24340,
+      "load_s": 0.27,
+      "work_s": 195.09,
+      "peak_rss_mb": 3462,
+      "out_mb": 329.56
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "power_grid",
+      "n": 4941,
+      "m": 6594,
+      "load_s": 0.2,
+      "work_s": 1.56,
+      "peak_rss_mb": 117,
+      "out_mb": 3.18
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "ca_grqc",
+      "n": 5242,
+      "m": 28980,
+      "load_s": 0.24,
+      "work_s": 6.77,
+      "peak_rss_mb": 220,
+      "out_mb": 12.24
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "internet",
+      "n": 6474,
+      "m": 13895,
+      "load_s": 0.18,
+      "work_s": 2.02,
+      "peak_rss_mb": 162,
+      "out_mb": 6.18
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "gnutella",
+      "n": 6301,
+      "m": 20777,
+      "load_s": 0.21,
+      "work_s": 2.6,
+      "peak_rss_mb": 196,
+      "out_mb": 10.13
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "pgp",
+      "n": 10680,
+      "m": 24340,
+      "load_s": 0.2,
+      "work_s": 2.96,
+      "peak_rss_mb": 239,
+      "out_mb": 12.47
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "wiki_vote",
+      "n": 7115,
+      "m": 103689,
+      "load_s": 0.4,
+      "work_s": 3.73,
+      "peak_rss_mb": 639,
+      "out_mb": 46.66
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "condmat",
+      "n": 23133,
+      "m": 186936,
+      "load_s": 0.7,
+      "work_s": 18.74,
+      "peak_rss_mb": 988,
+      "out_mb": 78.38
+    },
+    {
+      "kind": "plot_fast",
+      "graph": "rand:100000:200000",
+      "n": 98085,
+      "m": 200000,
+      "load_s": 0.96,
+      "work_s": 139.54,
+      "peak_rss_mb": 1264,
+      "out_mb": 89.3
+    },
+    {
+      "kind": "edge_df",
+      "graph": "wiki_vote",
+      "n": 7115,
+      "m": 103689,
+      "load_s": 0.43,
+      "work_s": 2.28,
+      "peak_rss_mb": 175,
+      "out_mb": null
+    },
+    {
+      "kind": "edge_df",
+      "graph": "physics",
+      "n": 12008,
+      "m": 237010,
+      "load_s": 0.74,
+      "work_s": 12.09,
+      "peak_rss_mb": 344,
+      "out_mb": null
+    },
+    {
+      "kind": "edge_df",
+      "graph": "rand:100000:200000",
+      "n": 98085,
+      "m": 200000,
+      "load_s": 0.83,
+      "work_s": 8.57,
+      "peak_rss_mb": 332,
+      "out_mb": null
+    },
+    {
+      "kind": "load",
+      "graph": "gnm:5000:10000",
+      "n": 5000,
+      "m": 10000,
+      "load_s": 0.32,
+      "work_s": 0.32,
+      "peak_rss_mb": 277,
+      "out_mb": null
+    }
+  ]
+}
