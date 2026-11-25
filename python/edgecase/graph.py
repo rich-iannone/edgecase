@@ -50349,26 +50349,60 @@ class Graph:
         An undirected simple product has $|E_G| m^2 + n |E_H|$ edges. Results match NetworkX's
         `lexicographic_product`.
 
+        See Also
+        --------
+        strong_product : Combine the Cartesian and tensor products.
+        rooted_product : Hang a copy of another graph from each node.
+        full_join : Combine two graphs and join every pair across them.
+
         Examples
         --------
-        Two linked departments, each a team of two colleagues: everyone across the link is
-        connected, giving a complete graph on four nodes:
+        The lexicographic product puts a copy of the second graph at every node of the first, and
+        joins every node of two copies whose nodes are joined in the first. Two linked
+        departments, each a team of a lead and a rep, give a complete graph on four nodes:
 
         ```{python}
         import edgecase as ec
 
-        departments = ec.Graph().add_nodes(["sales", "ops"]).add_edge("sales", "ops")
+        departments = ec.Graph().add_nodes(["sales", "ops"])
+        departments.add_edge("sales", "ops")
         team = ec.Graph().add_nodes(["lead", "rep"]).add_edge("lead", "rep")
 
         org = departments.lexicographic_product(team)
         org.count_edges(), org.is_isomorphic(ec.Graph().add_full_graph(4))
         ```
 
-        The order matters: with no edge inside each team, only the cross-team links remain:
+        With no edge inside each team, only the four links across the departments remain:
 
         ```{python}
         solo = ec.Graph().add_nodes(["lead", "rep"])
         departments.lexicographic_product(solo).count_edges()
+        ```
+
+        ### Three teams in a row
+
+        Three departments in a line, each with a team of three who all work together. Each team
+        is a triangle, and everyone in a team is joined to everyone in the teams next to it. A
+        member of ops, in the middle, works with 2 teammates and the 6 people on either side:
+
+        ```{python}
+        line = ec.Graph().add_nodes(["sales", "ops", "dev"])
+        line.add_edges([("sales", "ops"), ("ops", "dev")])
+        trio = ec.Graph().add_cycle_graph(3)
+
+        staff = line.lexicographic_product(trio)
+        people = staff.get_node_df()
+        dept = {
+            n: label.strip("(").split(",")[0]
+            for n, label in zip(people["id"], people["label"])
+        }
+        staff.set_node_attrs("dept", dept)
+
+        staff.get_degree("(sales, 1)"), staff.get_degree("(ops, 1)")
+        ```
+
+        ```{python}
+        staff.plot(color_by="dept", label_by="label", seed=1)
         ```
         """
         return self._product(other, "lexicographic", "lexicographic_product")
