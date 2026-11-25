@@ -8395,37 +8395,61 @@ class Graph:
         ValueError
             If `n=` is less than `3`.
 
+        See Also
+        --------
+        add_ladder_graph : Add a ladder graph.
+        add_generalized_petersen_graph : Add a generalized Petersen graph.
+        add_hypercube_graph : Add a hypercube graph.
+
         Examples
         --------
-        A prism graph joins two parallel `n`-cycles with `n` "rung" edges connecting
-        corresponding nodes, so it always has `2n` nodes and `3n` edges (`n` edges per
-        cycle, plus `n` rungs). Here `n=5` gives `10` nodes and `15` edges:
+        A prism graph is two `n`-cycles, a top and a bottom, with a rung from each node of the top
+        to the matching node of the bottom. It has `2n` nodes and `3n` edges, and every node has
+        three neighbors:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_prism_graph(5)
+        graph = ec.Graph().add_prism_graph(n=5)
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_nodes(), graph.count_edges(), graph.is_k_regular(3)
         ```
 
-        The labels show the structure directly. With `n=4` (the cube graph), the first four
-        edges form the top cycle, the next four the bottom cycle, and the last four are the
-        rungs joining `"1_top"` to `"5_bottom"`, and so on:
+        The labels say which cycle each node is on. With `n=4`, the prism is the cube:
 
         ```{python}
         cube = ec.Graph().add_prism_graph(n=4)
 
-        cube.get_edges_str_repr(use_labels=True)
+        (
+            cube.get_node_df()["label"].to_list(),
+            cube.is_isomorphic(ec.Graph().add_hypercube_graph(3)),
+        )
         ```
 
-        Every node in a prism graph has exactly three neighbors -- two in its own cycle and one
-        across the rung:
+        ### Three sides and six
+
+        Drawn with the top cycle inside the bottom one, a prism of three on the left and of six on
+        the right:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        {cube.get_degree(nid) for nid in cube.get_node_ids()}
+        ec.Graph().add_prism_graph(n=3).layout_shell(
+            nlist=[[1, 2, 3], [4, 5, 6]], rotate=0
+        ).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        ```{python}
+        ec.Graph().add_prism_graph(n=6).layout_shell(
+            nlist=[list(range(1, 7)), list(range(7, 13))], rotate=0
+        ).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if n < 3:
             raise ValueError("Prism must have at least 3 nodes per cycle")
