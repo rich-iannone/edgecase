@@ -26272,6 +26272,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#planar-graphs) finds
+        the embedding of the cube and the evidence that the Petersen graph isn't planar.
         """
         ids, pairs, eids = self._planarity_input()
         embedding = rust.planar_embedding(len(ids), pairs)
