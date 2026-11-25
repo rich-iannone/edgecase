@@ -65701,6 +65701,9 @@ class Graph:
         ```{python}
         shell.plot(label_by="label", seed=1)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) compares the
+        methods that find a graph's dense core.
         """
         self._check_non_negative(k=k)
         from edgecase._core import k_shell
