@@ -75979,6 +75979,9 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#causal-diagrams-and-d-separation) explains
+        how conditioning on a collider, or on its descendant, opens a path in a causal diagram.
         """
         ids, succ, _ = self._arc_sets()
         result = [
