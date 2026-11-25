@@ -56153,6 +56153,9 @@ class Graph:
 
         graph.get_edges_str_repr(use_labels=True)
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-edges) fixes the edges of a
+        dependency graph that were recorded the wrong way round.
         """
         if not self.is_directed():
             raise ValueError("rev_edge_dir_ws() only works on directed graphs")
