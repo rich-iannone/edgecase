@@ -57539,6 +57539,9 @@ class Graph:
             color_by="to_cruz", label_by="label", seed=3
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#pagerank) ranks the karate club from the point of
+        view of a member with a single friend.
         """
         result_ids = rust.personalized_pagerank(
             self._graph,
