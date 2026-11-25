@@ -79505,6 +79505,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=metro.barycenter(), label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) compares the barycenter and
+        the center of the karate club, and when each is the right choice.
         """
         use_weights = self._use_weights(weighted)
         nodes, total = rust.barycenter(self._graph, use_weights)
