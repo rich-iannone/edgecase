@@ -23004,6 +23004,12 @@ class Graph:
         degree labels the first entry is the hash of the degree, matching NetworkX. Each round
         costs $O(E \\log \\Delta)$.
 
+        See Also
+        --------
+        weisfeiler_lehman_graph_hash : One hash for the whole graph.
+        automorphism_cosets : Which nodes are interchangeable, exactly.
+        simrank_similarity : Similarity of nodes by the similarity of their neighbors.
+
         Examples
         --------
         In a path of five nodes, the two ends look alike, as do the two inner neighbors, and the
@@ -23012,12 +23018,36 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["A", "B", "C", "D", "E"])
-        path.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
 
         hashes = path.weisfeiler_lehman_subgraph_hashes(iterations=2)
         second = {path.get_label_from_id(n): h[1][:6] for n, h in hashes.items()}
         second
+        ```
+
+        ### Atoms that look alike
+
+        Each hash describes an atom's surroundings out to one more bond than the last. In
+        caffeine, by element, the first round leaves 9 classes among the 14 atoms: the three
+        methyl carbons C1, C7 and C8 look alike, as do the nitrogens they are bonded to and the
+        two oxygens. Each of those nitrogens is bonded to two more carbons, so the methyl carbons
+        still agree in the second round. The third round sees what those carbons are bonded to,
+        and tells all 14 atoms apart:
+
+        ```{python}
+        caffeine = ec.molecules()["caffeine"]
+        hashes = caffeine.weisfeiler_lehman_subgraph_hashes(node_attr="element")
+
+        [len({h[i] for h in hashes.values()}) for i in range(3)]
+        ```
+
+        The atoms that share a second-round hash with another atom are the three methyl carbons:
+
+        ```{python}
+        second = [h[1] for h in hashes.values()]
+        alike = [node for node, h in hashes.items() if second.count(h[1]) > 1]
+
+        caffeine.plot(highlight=alike, label_by="label", seed=1)
         ```
         """
         import hashlib
