@@ -29146,6 +29146,9 @@ class Graph:
             highlight={"accent": ["CS360"], "soft": before},
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#neighbors) finds the course with the most
+        prerequisites.
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
