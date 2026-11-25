@@ -51309,6 +51309,9 @@ class Graph:
         ```{python}
         changes.plot(color_by="club", label_by="label", seed=1)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) compares two snapshots
+        of a contact network, and explains why the graphs must number their nodes alike.
         """
         from edgecase._core import graph_symmetric_difference
 
