@@ -45367,6 +45367,9 @@ class Graph:
         No single resolution is right for every network, and modularity has a known resolution limit:
         in a large network it can merge small, clearly separate communities. `cmty_leiden()` optimizes
         the same score with a refinement step that also guarantees each community is connected.
+
+        [Communities](../user-guide/communities.qmd#a-first-example) compares the karate club's
+        Louvain communities with the factions it split into.
         """
         communities = self._graph.get_cmty_louvain(resolution)
 
