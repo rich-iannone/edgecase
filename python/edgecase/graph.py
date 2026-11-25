@@ -3650,35 +3650,27 @@ class Graph:
         or `simplify()` for those. To survey the damage first, `which_multiple()` lists the
         duplicate edge IDs and `count_multiple()` totals duplicates per node pair.
 
+        See Also
+        --------
+        which_multiple : The IDs of the parallel edges.
+        remove_selfloops : Remove self-loops.
+        simplify : Remove both self-loops and parallel edges.
+
         Examples
         --------
         By default, edges are considered duplicates purely by their endpoints, regardless of
-        weight, so these three parallel "A"-"B" edges collapse down to one:
+        weight, so these three parallel "A"-"B" edges collapse down to one, the first (lowest
+        edge ID):
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "B", 3.0)])
+        g = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("A", "B", 2.0), ("A", "B", 3.0)]
         )
+        g.remove_duplicate_edges()
 
-        g.count_edges()
-        ```
-
-        After calling `remove_duplicate_edges()`, only the first edge (lowest edge ID)
-        survives:
-
-        ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "B", 3.0)])
-            .remove_duplicate_edges()
-        )
-
-        g.count_edges()
+        g.count_edges(), g.get_edge_df()["weight"].to_list()
         ```
 
         Setting `keep_distinct_attributes=True` treats edges with different attribute values
@@ -3686,42 +3678,68 @@ class Graph:
         removed:
 
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges(
-                [
-                    ("A", "B", {"rel": "friend"}),
-                    ("A", "B", {"rel": "colleague"}),
-                    ("A", "B", {"rel": "friend"}),  # true duplicate of the first edge
-                ]
-            )
-            .remove_duplicate_edges(keep_distinct_attributes=True)
-        )
+        g = ec.Graph.from_edges(
+            [
+                ("A", "B", {"rel": "friend"}),
+                ("A", "B", {"rel": "colleague"}),
+                ("A", "B", {"rel": "friend"}),  # true duplicate of the first edge
+            ]
+        ).remove_duplicate_edges(keep_distinct_attributes=True)
 
-        # "friend" and "colleague" both survive
-        g.count_edges()
+        g.get_edge_df()["rel"].to_list()
         ```
 
-        This is a typical step when merging data from multiple sources that may each report
-        the same relationship:
+        ### Payments exported twice
+
+        A bank's export can list a payment twice, here Acme's wages to Eve and one of Dee's
+        coffees. Dee also bought a second coffee on another day, which is a real payment:
 
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["X", "Y"])
-            .add_edges(
-                [
-                    ("X", "Y", {"type": "email"}),
-                    ("X", "Y", {"type": "message"}),
-                    ("X", "Y", {"type": "call"}),
-                ]
-            )
-            .remove_duplicate_edges()
-        )
+        export = [
+            ("Acme", "Dee", 2600, {"date": "2026-03-01"}),
+            ("Acme", "Eve", 2700, {"date": "2026-03-01"}),
+            ("Acme", "Eve", 2700, {"date": "2026-03-01"}),
+            ("Dee", "Grocer", 64, {"date": "2026-03-03"}),
+            ("Dee", "Cafe", 12, {"date": "2026-03-04"}),
+            ("Dee", "Cafe", 12, {"date": "2026-03-04"}),
+            ("Dee", "Cafe", 12, {"date": "2026-03-09"}),
+            ("Eve", "Grocer", 38, {"date": "2026-03-04"}),
+        ]
 
-        g.count_edges()
+
+        def load():
+            return ec.Graph.from_edges(export, directed=True)
+
+
+        load().which_multiple()
         ```
+
+        By endpoints alone, all three of Dee's coffees are one payment. With
+        `keep_distinct_attributes=True`, only rows that agree on the amount and the date as well
+        collapse, so the two coffees are kept and the exported-twice rows go:
+
+        ```{python}
+        distinct = load().remove_duplicate_edges(keep_distinct_attributes=True)
+
+        load().remove_duplicate_edges().count_edges(), distinct.count_edges()
+        ```
+
+        Before, the parallel edges are drawn as curves. After, the dates show the two coffees
+        that were kept:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        load().plot(label_by="label", seed=1, width=360, height=360)
+        ```
+
+        ```{python}
+        load().remove_duplicate_edges(keep_distinct_attributes=True).plot(
+            edge_label_by="date", label_by="label", seed=1, width=360, height=360
+        )
+        ```
+
+        :::
         """
         before_count = self.count_edges() if self._recording_depth == 0 else 0
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
