@@ -25210,63 +25210,62 @@ class Graph:
         same object. Directed analogues live under `is_arborescence()`, and if you want to
         allow multiple disjoint components use `is_forest()` instead.
 
+        See Also
+        --------
+        is_forest : Whether the graph is a set of disjoint trees.
+        is_arborescence : The directed version of a tree.
+        cycle_basis : Find the independent cycles of an undirected graph.
+
         Examples
         --------
-        A connected, acyclic, undirected graph -- like this path -- qualifies as a tree:
+        A connected, acyclic, undirected graph, like this path, is a tree. Closing it into a cycle
+        breaks the "acyclic" rule, and an unconnected node breaks the "connected" one:
 
         ```{python}
         import edgecase as ec
 
-        tree = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        cycle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        apart = ec.Graph.from_edges([("A", "B")]).add_node(label="C")
 
-        tree.is_tree()
+        path.is_tree(), cycle.is_tree(), apart.is_tree()
         ```
 
-        Closing the path into a cycle violates the "acyclic" requirement:
-
-        ```{python}
-        cycle = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
-
-        cycle.is_tree()
-        ```
-
-        Leaving a node unconnected violates the "connected" requirement instead:
-
-        ```{python}
-        disconnected = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])  # C is isolated -- no edge connects it
-            .add_edge("A", "B")
-        )
-
-        disconnected.is_tree()
-        ```
-
-        Generated structures like star graphs are trees too, since they're connected and
-        have exactly `n - 1` edges:
-
-        ```{python}
-        star = ec.Graph(directed=False)
-        star.add_star_graph(n=5)
-
-        star.is_tree()
-        ```
-
-        Direction disqualifies a graph, even when its shape is a tree. The same path built as
-        a directed graph returns `False`, while `is_arborescence()` accepts it:
+        Direction disqualifies a graph, even when its shape is a tree. The same path built as a
+        directed graph returns `False`, while `is_arborescence()` accepts it:
 
         ```{python}
         directed_path = ec.Graph(directed=True).add_path_graph(n=3)
 
         directed_path.is_tree(), directed_path.is_arborescence()
+        ```
+
+        ### A tie between peers
+
+        A company's reporting lines join each of its 20 people to their manager with 19 edges.
+        Without directions, that's a tree. Ruth and Owen both report to Kwame, so a tie between them
+        closes a triangle, and the graph stops being a tree:
+
+        ```{python}
+        org = ec.org_chart().to_undirected()
+        tied = ec.org_chart().to_undirected().add_edge("Ruth", "Owen")
+
+        org.is_tree(), tied.is_tree()
+        ```
+
+        The reporting lines with the tie, and the triangle it makes, highlighted:
+
+        ```{python}
+        tied.plot(
+            layout="pos",
+            highlight=["Kwame", "Ruth", "Owen"],
+            highlight_edges=[
+                ("Ruth", "Owen"), ("Kwame", "Ruth"), ("Kwame", "Owen")
+            ],
+            label_by="label",
+            width=820,
+            height=640,
+        )
         ```
         """
         return self._graph.is_tree()
