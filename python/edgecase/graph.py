@@ -14029,6 +14029,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#degree-sequences) compares the generators
+        that realize a given degree sequence.
         """
         from edgecase._core import havel_hakimi_edges as _havel_hakimi_edges
 
