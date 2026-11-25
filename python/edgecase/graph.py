@@ -51930,6 +51930,9 @@ class Graph:
         ```{python}
         staff.plot(color_by="dept", label_by="label", seed=1)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "lexicographic", "lexicographic_product")
 
