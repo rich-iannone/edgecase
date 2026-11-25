@@ -92968,6 +92968,9 @@ class Graph:
         ```{python}
         apart.plot(color_by="club", label_by="label", seed=8)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-spectrum) counts the
+        components of a graph from its zero eigenvalues.
         """
         return self._graph.get_laplacian_spectrum(which, k, normalized)
 
