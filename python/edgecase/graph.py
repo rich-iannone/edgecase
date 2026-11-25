@@ -58019,7 +58019,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("B", "D"), ("C", "D")])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("B", "D"), ("C", "D")]
+        )
 
         graph.constraint().get_node_df().select("label", "constraint")
         ```
@@ -58080,6 +58082,9 @@ class Graph:
 
         Each contact's share of the score is its `local_constraint()`, and `effective_size()`
         measures the same redundancy as a number of contacts.
+
+        [Centrality](../user-guide/centrality.qmd#brokerage) finds the karate club's least
+        constrained members, and their effective sizes.
         """
         if attr_name is None:
             attr_name = "constraint"
