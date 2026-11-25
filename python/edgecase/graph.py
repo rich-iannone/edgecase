@@ -87815,6 +87815,9 @@ class Graph:
 
         tree.plot(label_by="label", seed=1)
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         width, bags, edges = rust.tree_decomposition(self._graph, heuristic)
         labels = ["{" + ",".join(self._node_label(n) for n in bag) + "}" for bag in bags]
