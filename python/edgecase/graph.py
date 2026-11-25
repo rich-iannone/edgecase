@@ -7648,6 +7648,9 @@ class Graph:
 
         Each floor keeps its own shape, and the staircase joins Stairs 1 and Stairs 2 at the right
         end of each.
+
+        [Layouts](../user-guide/layouts.qmd#coordinates-from-the-data) draws a rail network at the
+        cities' own coordinates.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         values = self._layout_node_map(pos, "pos=")
