@@ -30883,6 +30883,22 @@ class Graph:
         sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
+        Every path from one triangle to the other crosses the edge between `C` and `D`:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3, 1.4), "E": (5, 1.4), "F": (4, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight="selection", label_by="label", height=240
+        )
+        ```
+
         ### Busy members and go-betweens
 
         `karate_club()` links the 34 members of a university karate club who met outside the
@@ -30908,6 +30924,9 @@ class Graph:
             layout="pos", highlight="selection", label_by="label"
         )
         ```
+
+        [Selections](../user-guide/selections.qmd#by-structure) selects the karate club's three best
+        brokers.
         """
         _check_set_op(set_op)
         for name in ("attr_name", "return_dict"):
