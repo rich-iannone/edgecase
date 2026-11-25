@@ -11712,49 +11712,34 @@ class Graph:
         ValueError
             If `m=` is less than `1` or not less than `n=`.
 
+        See Also
+        --------
+        add_extended_barabasi_albert_graph : Grow by preferential attachment with extra moves.
+        add_powerlaw_cluster_graph : Grow by preferential attachment while closing triangles.
+        add_gnp_graph : Build a random graph without hubs for contrast.
+
         Examples
         --------
-        Each new node attaches to `m` existing nodes chosen with probability proportional to
-        their current degree, so already well-connected nodes tend to accumulate even more
-        connections. This "rich get richer" dynamic is what produces the scale-free,
-        power-law degree distribution the Barabási-Albert model is known for. The edge count is
-        fixed by `n` and `m`: `6` edges in the starting clique plus `3` for each of the
-        remaining `96` nodes gives `294`:
+        In the Barabási–Albert model each new node attaches to `m` existing nodes, chosen with
+        probability proportional to their degree, so well-connected nodes tend to collect even
+        more links. The edge count is fixed by `n` and `m`: `6` edges in the starting clique
+        of four plus `3` for each of the other `96` nodes gives `294`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_pa_graph(n=100, m=3, seed=23)
-        )
+        graph = ec.Graph().add_pa_graph(n=100, m=3, seed=23)
 
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The degree sequence is very uneven: a few hubs collect dozens of links, while the many
-        late arrivals keep the minimum degree of `m=3`:
+        The degrees are very uneven: a few hubs collect dozens of links, while the many late
+        arrivals keep the minimum degree of `m=3`:
 
         ```{python}
-        degrees = sorted(
-            (graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)), reverse=True
-        )
+        degrees = graph.get_node_df()["degree"].sort(descending=True).to_list()
 
         degrees[:5], degrees[-5:]
-        ```
-
-        Compared with a uniform random graph of the same size (built with `add_gnm_graph()`),
-        the largest degrees are far higher, which is the signature of preferential attachment:
-
-        ```{python}
-        pa = ec.Graph().add_pa_graph(n=500, m=2, seed=23)
-        uniform = ec.Graph().add_gnm_graph(n=500, m=pa.count_edges(), seed=23)
-
-        def top_degrees(g):
-            degrees = [g.get_degree(nid) for nid in g.get_node_ids(limit=None)]
-            return sorted(degrees, reverse=True)[:5]
-
-        top_degrees(pa), top_degrees(uniform)
         ```
 
         With `m=1` each new node adds a single edge, so the result is a tree. In a directed graph
@@ -11766,6 +11751,46 @@ class Graph:
 
         tree.get_edges_str_repr()
         ```
+
+        ### Hubs or none
+
+        A preferential attachment graph on the left and a uniform random graph from
+        `add_gnm_graph()` on the right, with the same `50` nodes and `97` edges. The largest
+        degrees on the left are far higher, which is the signature of preferential attachment, and
+        the four nodes with ten or more links are colored differently. The uniform graph has
+        none:
+
+        ```{python}
+        pa = ec.Graph().add_pa_graph(n=50, m=2, seed=23)
+        uniform = ec.Graph().add_gnm_graph(n=50, m=pa.count_edges(), seed=23)
+
+        def top_degrees(g):
+            return g.get_node_df()["degree"].sort(descending=True).to_list()[:5]
+
+        for g in (pa, uniform):
+            rows = g.get_node_df().select("id", "degree").rows()
+            g.set_node_attrs("hub", {n: d >= 10 for n, d in rows})
+
+        top_degrees(pa), top_degrees(uniform)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        pa.plot(
+            color_by="hub", node_size=7, show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        uniform.plot(
+            color_by="hub", node_size=7, show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, m=m)
         with self._compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})"):
