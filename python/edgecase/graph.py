@@ -29910,6 +29910,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-edges) selects the pairs of *Les
+        Misérables* characters who meet only once, then deletes them.
         """
         self._select("edges", set_op, lambda: self._graph.select_edges(predicate))
 
