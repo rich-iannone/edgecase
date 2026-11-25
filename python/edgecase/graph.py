@@ -5818,6 +5818,9 @@ class Graph:
             layout="pos", color_by="core", label_by="label"
         )
         ```
+
+        [Layouts](../user-guide/layouts.qmd#circles-and-shells) draws the Medici at the center of
+        their marriage partners.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         rotate_arg = rotate
