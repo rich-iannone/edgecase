@@ -51747,6 +51747,9 @@ class Graph:
 
         a.tensor_product(b).get_edge_df()["weight"].to_list()
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "tensor", "tensor_product")
 
