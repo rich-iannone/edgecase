@@ -77755,6 +77755,9 @@ class Graph:
             edge_label_by="bridge",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) tests the seven
+        bridges of Königsberg.
         """
         from edgecase._core import is_semieulerian
 
