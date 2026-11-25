@@ -48085,59 +48085,91 @@ class Graph:
             A new undirected Graph with the same nodes and edges (with mutual directed pairs
             merged into single edges).
 
+        See Also
+        --------
+        to_directed : Turn each undirected edge into a pair of directed edges.
+        reciprocity : The share of directed edges that are returned.
+        weakly_connected_components : The components when direction is ignored.
+        remove_duplicate_edges : Merge parallel edges.
+
         Examples
         --------
-        A directed triangle becomes an undirected one:
+        "Alice" and "Bob" follow each other, so their two directed edges collapse into one
+        undirected connection, and three directed edges become two:
 
         ```{python}
         import edgecase as ec
 
-        directed = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
-
-        undirected = directed.to_undirected()
-        undirected.is_directed()
-        ```
-
-        Since each of the three original edges connects a unique pair, converting to
-        undirected doesn't collapse any of them:
-
-        ```{python}
-        undirected.count_edges()
-        ```
-
-        Mutual edges are a different story. "Alice" and "Bob" follow each other, so their two
-        directed edges collapse into one undirected connection, and three directed edges become
-        two undirected ones:
-
-        ```{python}
-        followers = (
-            ec.Graph(directed=True)
-            .add_nodes(["Alice", "Bob", "Charlie"])
-            .add_edges([("Alice", "Bob"), ("Bob", "Alice"), ("Bob", "Charlie")])
+        followers = ec.Graph.from_edges(
+            [("Alice", "Bob"), ("Bob", "Alice"), ("Bob", "Charlie")],
+            directed=True,
         )
 
         connections = followers.to_undirected()
-        connections.get_edges_str_repr(use_labels=True)
+        connections.is_directed(), connections.get_edges_str_repr(use_labels=True)
         ```
 
         When a mutual pair is merged, the edge added first wins. Here the `A -> B` edge (weight
         `2.0`) is kept and the `B -> A` edge (weight `5.0`) is dropped:
 
         ```{python}
-        weighted = (
-            ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B", weight=2.0)
-            .add_edge("B", "A", weight=5.0)
+        weighted = ec.Graph.from_edges(
+            [("A", "B", 2.0), ("B", "A", 5.0)], directed=True
         )
+        merged = weighted.to_undirected()
 
-        weighted.to_undirected().get_edge_df()
+        merged.get_edge_df().select("source", "target", "weight")
         ```
+
+        ### Who does business with whom
+
+        A month of payments between bank accounts has a direction on every edge: who paid whom.
+        Dropping the direction asks a simpler question, which accounts have dealt with each
+        other at all. The 35 payments join 33 pairs of accounts, because Dee and Eve paid each
+        other, and so did Max and Nia:
+
+        ```{python}
+        payments = ec.payments()
+        payments.layout_kamada_kawai(weighted=False)
+        dealings = payments.to_undirected()
+
+        payments.count_edges(), dealings.count_edges()
+        ```
+
+        Each of those two pairs keeps the amount of its first payment, Dee's 80 to Eve and Nia's
+        900 to Max, and loses the other (Eve's 25 back to Dee and Max's 40 to Nia). To keep a
+        total for each pair, add up the amounts before converting:
+
+        ```{python}
+        import polars as pl
+
+        kept = dealings.find_edge_ids("Dee", "Eve")
+        kept += dealings.find_edge_ids("Max", "Nia")
+        rows = dealings.get_edge_df().filter(pl.col("id").is_in(kept))
+        rows.select("amount", "date")
+        ```
+
+        The layout was computed before converting, and the positions are node attributes, so both
+        views are drawn in the same places. The undirected one has no arrows, and the two pairs
+        are joined by one line each instead of two:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        payments.plot(layout="pos", label_by="label", width=360, height=360)
+        ```
+
+        ```{python}
+        dealings.plot(
+            layout="pos",
+            label_by="label",
+            highlight_edges=[("Dee", "Eve"), ("Max", "Nia")],
+            width=360,
+            height=360,
+        )
+        ```
+
+        :::
         """
         result = Graph._from_rust(self._graph.to_undirected())
 
