@@ -23861,6 +23861,9 @@ class Graph:
         Methods for bipartite graphs, such as `bipartite_maximum_matching()`, assume two sides with
         no edges inside either one. To check a particular split, such as the `side` attribute here,
         use `is_bipartite_node_set()`.
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#bipartite-graphs)
+        splits the Southern Women network into women and events.
         """
         result = self._graph.is_bipartite()
         if self._recording_depth == 0:
