@@ -21179,6 +21179,12 @@ class Graph:
         EdgeNotFoundError
             If no edge has this ID (a subclass of both `ValueError` and `KeyError`).
 
+        See Also
+        --------
+        get_edge_attrs : Read one attribute for every edge.
+        get_edge_df : Read every edge and its attributes as a data frame.
+        get_node : Read a single node in the same way.
+
         Examples
         --------
         `get_edge()` looks up an edge by its ID and returns the underlying `Edge` object,
