@@ -22904,28 +22904,75 @@ class Graph:
         bool
             `True` if the graph supports weights, `False` otherwise.
 
+        See Also
+        --------
+        is_directed : Whether the graph's edges have a direction.
+        shortest_path : Find the shortest path, by weight or by hops.
+        set_edge_attrs : Store values on edges.
+
         Examples
         --------
+        A third item in each edge tuple is a weight:
+
         ```{python}
         import edgecase as ec
 
-        ec.Graph(weighted=True).is_weighted(), ec.Graph().is_weighted()
+        (
+            ec.Graph.from_edges([("A", "B", 2.5)]).is_weighted(),
+            ec.Graph.from_edges([("A", "B")]).is_weighted(),
+        )
         ```
 
-        Branching on `is_weighted()` avoids passing a `weight=` that would otherwise be
-        silently ignored:
+        ### Kilometers or roads
+
+        The roads between twelve towns are weighted by their length in kilometers. Because the graph
+        is weighted, `shortest_path()` adds up kilometers. With `weighted=False` it counts roads
+        instead, and the two give different routes from Elmwick to Kestrel Bay:
 
         ```{python}
-        graph = ec.Graph(weighted=True).add_node(label="A").add_node(label="B")
+        towns = ec.towns()
+        by_km = towns.shortest_path("Elmwick", "Kestrel Bay", return_list=True)
+        by_roads = towns.shortest_path(
+            "Elmwick", "Kestrel Bay", return_list=True, weighted=False
+        )
+        by_km = [towns.get_label_from_id(n) for n in by_km]
+        by_roads = [towns.get_label_from_id(n) for n in by_roads]
 
-        if graph.is_weighted():
-            graph.add_edge(source="A", target="B", weight=2.5)
-        else:
-            graph.add_edge(source="A", target="B")
-
-        graph.get_edge(graph.get_edge_ids()[0]).weight
+        towns.is_weighted(), by_km, by_roads
         ```
 
+        The shortest drive, 99 km over three roads, is on the left. The route with the fewest roads,
+        on the right, is 101 km:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        towns.plot(
+            layout="pos",
+            highlight=by_km,
+            highlight_edges=list(zip(by_km, by_km[1:])),
+            edge_label_by="km",
+            label_by="label",
+            width=360,
+            height=360,
+            legend=False,
+        )
+        ```
+
+        ```{python}
+        towns.plot(
+            layout="pos",
+            highlight=by_roads,
+            highlight_edges=list(zip(by_roads, by_roads[1:])),
+            edge_label_by="km",
+            label_by="label",
+            width=360,
+            height=360,
+            legend=False,
+        )
+        ```
+
+        :::
         """
         return self._graph.is_weighted
 
