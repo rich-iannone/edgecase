@@ -55029,15 +55029,24 @@ class Graph:
 
         from itertools import combinations
 
-        cliques = [pair for block in ["abcd", "efgh", "ijkl"] for pair in combinations(block, 2)]
+        cliques = [
+            pair
+            for block in ["abcd", "efgh", "ijkl"]
+            for pair in combinations(block, 2)
+        ]
         graph = ec.Graph.from_edges(cliques + [("d", "e"), ("h", "i")])
 
         scores = {gene: 5.0 if gene in "abcd" else 0.5 for gene in "abcdefghijkl"}
         result = graph.gwas_pipeline(scores)
 
         {
-            module: (sorted(graph.get_label_from_id(n) for n in result["communities"][module]),
-                     round(score, 3))
+            module: (
+                sorted(
+                    graph.get_label_from_id(n)
+                    for n in result["communities"][module]
+                ),
+                round(score, 3),
+            )
             for module, score in result["module_scores"].items()
         }
         ```
