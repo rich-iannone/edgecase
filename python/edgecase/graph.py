@@ -90564,6 +90564,9 @@ class Graph:
             height=360,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) compares the
+        spanning-tree methods.
         """
         return self._branching(
             "max_arborescence", "maximum_spanning_arborescence", weight_attr, include, exclude
