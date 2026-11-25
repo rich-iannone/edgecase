@@ -50445,9 +50445,16 @@ class Graph:
         this graph, and every copy of `other` is attached at a single node, which is a cut
         node unless `other` is a single node. Matches NetworkX's `rooted_product`.
 
+        See Also
+        --------
+        corona_product : Join each node to its own copy of another graph.
+        lexicographic_product : Replace each node with a copy of another graph.
+        cartesian_product : Join pairs that move in one graph at a time.
+
         Examples
         --------
-        A comb: a path of four teeth, each hanging a path of two nodes from its root:
+        The rooted product hangs a copy of the second graph from every node of the first, attached
+        at `root=`. A path of four with a two-node tooth at each node is a comb, and still a tree:
 
         ```{python}
         import edgecase as ec
@@ -50457,6 +50464,18 @@ class Graph:
 
         comb = spine.rooted_product(tooth, root="top")
         comb.count_nodes(), comb.count_edges(), comb.is_tree()
+        ```
+
+        With each tooth placed below its node of the path, the comb takes its shape:
+
+        ```{python}
+        parts = comb.get_node_df()
+        pos = {
+            n: (int(label[1]), 1 if label.endswith("top)") else 0)
+            for n, label in zip(parts["id"], parts["label"])
+        }
+
+        comb.set_node_attrs("pos", pos).plot(layout="pos", label_by="label")
         ```
         """
         return self._product(other, "rooted", "rooted_product", root=root)
