@@ -63928,6 +63928,9 @@ class Graph:
             label_by="label", seed=1,
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#spectral-centrality) explains whose scores a node
+        sums in a directed graph, and how that differs from NetworkX.
         """
         centrality, converged = self._graph.get_eigen_centrality(max_iter, tol)
         if not converged:
