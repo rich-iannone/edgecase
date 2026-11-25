@@ -23540,6 +23540,9 @@ class Graph:
 
         directed.is_simple(), undirected.is_simple()
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#parallel-edges-and-self-loops) explains why
+        every graph can hold parallel edges and self-loops, and counts them.
         """
         return self._graph.is_simple()
 
