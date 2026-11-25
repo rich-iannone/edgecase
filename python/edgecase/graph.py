@@ -27500,7 +27500,9 @@ class Graph:
 
 
         def symmetries(molecule, **kwargs):
-            return math.prod(len(c) for c in molecule.automorphism_cosets(**kwargs).values())
+            return math.prod(
+                len(c) for c in molecule.automorphism_cosets(**kwargs).values()
+            )
 
 
         pl.DataFrame(
@@ -27526,6 +27528,9 @@ class Graph:
 
         isobutane.plot(highlight=outer, label_by="label", seed=1)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#symmetries) counts the
+        symmetries of the Petersen graph and the karate club.
         """
         (nc, ec_), _ = self._match_colors(self, node_attr, edge_attr)
         cosets = dict(rust.automorphism_cosets(self._graph, nc, ec_))
