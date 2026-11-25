@@ -92814,6 +92814,9 @@ class Graph:
             .plot(layout="pos", label_by="label", height=300)
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-adjacency-spectrum) relates the
+        leading eigenvector to eigenvector centrality, and explains why its sign is arbitrary.
         """
         return self._graph.spectrum(which, k)
 
