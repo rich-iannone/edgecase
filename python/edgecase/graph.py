@@ -62091,6 +62091,9 @@ class Graph:
             highlight={"accent": ["0", "33"], "soft": friends},
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#groups-of-nodes) compares the measures for groups
+        of nodes.
         """
         if mode not in ("all", "total", "in", "out"):
             raise ValueError(f"Invalid mode {mode!r}. Must be 'all', 'in', or 'out'")
