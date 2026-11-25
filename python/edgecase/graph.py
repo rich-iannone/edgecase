@@ -18193,6 +18193,12 @@ class Graph:
             If an entry is negative, the single-edge stubs sum to an odd number, or the
             triangle corners don't sum to a multiple of `3`.
 
+        See Also
+        --------
+        configuration_model : Wire a degree sequence at random, without planted triangles.
+        add_powerlaw_cluster_graph : Grow a graph that closes triangles as it goes.
+        transitivity : Measure how many connected triples close into triangles.
+
         Examples
         --------
         Sixty nodes, each with one single edge and two triangle corners, so degree `4`:
@@ -18201,8 +18207,9 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph().add_random_clustered_graph([(1, 2)] * 60, seed=7)
+        triangles = sum(graph.count_triangles().values()) // 3
 
-        graph.count_nodes(), graph.count_edges(), sum(graph.count_triangles().values()) // 3
+        graph.count_nodes(), graph.count_edges(), triangles
         ```
 
         The planted triangles give a high clustering coefficient, which a configuration model
@@ -18213,6 +18220,43 @@ class Graph:
 
         round(graph.transitivity(), 2), round(plain.transitivity(), 2)
         ```
+
+        ### Planted triangles or none
+
+        Thirty nodes of degree three, with the edges that lie on a triangle picked out. On the
+        left each node has one single edge and one triangle corner, so `30` of the `45` edges
+        make up the `10` planted triangles. On the right a configuration model wires the same
+        degrees at random, and only one triangle, `3` edges, forms by chance:
+
+        ```{python}
+        planted = ec.Graph().add_random_clustered_graph([(1, 1)] * 30, seed=2)
+        shuffled = ec.Graph().configuration_model([3] * 30, seed=2)
+
+        def triangle_edges(g):
+            nbrs = {v: set(g.get_neighbors(v)) for v in g.get_node_ids()}
+            edges = [(s, t) for _, s, t in g.get_edges_as_tuples()]
+            return [(s, t) for s, t in edges if nbrs[s] & nbrs[t]]
+
+        [(g.count_edges(), len(triangle_edges(g))) for g in (planted, shuffled)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        planted.plot(
+            show_labels=False, node_size=7, highlight=triangle_edges(planted),
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        shuffled.plot(
+            show_labels=False, node_size=7, highlight=triangle_edges(shuffled),
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import random_clustered_edges as _edges
 
