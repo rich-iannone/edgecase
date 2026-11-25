@@ -60223,7 +60223,9 @@ class Graph:
                 .rank("min", descending=True)
                 .name.suffix("_rank")
             )
-            .filter(pl.col("label").is_in(["Central", "Market", "Harbor", "Docks"]))
+            .filter(
+                pl.col("label").is_in(["Central", "Market", "Harbor", "Docks"])
+            )
             .select(
                 "label", "harmonic_centrality_rank", "closeness_centrality_rank"
             )
@@ -60233,6 +60235,9 @@ class Graph:
         The default `closeness_centrality()` corrects for this by scaling each score by the share
         of the graph a node can reach. To count only nearby nodes, pass `cutoff=` a maximum
         distance.
+
+        [Centrality](../user-guide/centrality.qmd#closeness-and-harmonic-centrality) compares
+        harmonic and closeness centrality on a graph in two pieces.
         """
         result_ids = rust.harmonic_centrality(
             self._graph,
