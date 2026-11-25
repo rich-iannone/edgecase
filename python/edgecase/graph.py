@@ -5242,6 +5242,9 @@ class Graph:
 
         To replay a traversal along with everything else that happened to a graph, use `play()`
         instead: it shows each `bfs()` or `dfs()` call in the step log one visited node at a time.
+
+        [Traversals](../user-guide/traversals.qmd#drawing-a-search) compares the two ways of
+        animating a search.
         """
         if visit_order is None:
             if source is None:
