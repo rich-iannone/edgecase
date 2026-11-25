@@ -23339,6 +23339,9 @@ class Graph:
         ```
 
         :::
+
+        [Structural properties](../user-guide/structure.qmd#properties) lists every `is_*` test by
+        category.
         """
         return self._graph.is_directed
 
