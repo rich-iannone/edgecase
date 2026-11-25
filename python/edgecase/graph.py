@@ -94638,6 +94638,23 @@ class Graph:
         )
         ```
 
+        Each node colored by its side. Only the bridge from `C` to `D` crosses between them:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3, 1.4), "E": (5, 1.4), "F": (4, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        side = {n: "first" for n in left} | {n: "second" for n in right}
+
+        graph.set_node_attrs("side", side).plot(
+            layout="pos", color_by="side", label_by="label", height=240
+        )
+        ```
+
         ### Two shelves
 
         In `polbooks()`, two books about US politics are linked when Amazon customers often bought
@@ -94694,6 +94711,10 @@ class Graph:
 
         split(False), split(True)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#ordering-nodes-with-the-fiedler-vector)
+        explains how the Fiedler vector orders the nodes and splits the karate club along its
+        factions.
         """
         vec = rust.fiedler_vector(self._graph, normalized, self._use_weights(weighted))
         negative = sorted(n for n, v in vec.items() if v < 0)
