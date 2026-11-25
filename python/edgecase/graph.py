@@ -3781,64 +3781,70 @@ class Graph:
         pair when undirected. Once it returns, `is_simple()` is guaranteed to be `True`,
         which is the condition many algorithms in the library quietly assume.
 
+        See Also
+        --------
+        remove_selfloops : Remove only the self-loops.
+        remove_duplicate_edges : Remove only the parallel edges.
+        is_simple : Whether the graph has neither.
+
         Examples
         --------
         `simplify()` combines `remove_selfloops()` and `remove_duplicate_edges()` in one call.
-        This graph starts with a duplicate "A"-"B" edge and two self-loops, so it isn't simple:
+        This graph starts with a duplicate "A"-"B" edge and two self-loops, and only the single
+        "A"-"B" edge remains:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges(
-                [
-                    ("A", "B", 1.0),
-                    ("A", "B", 2.0),  # duplicate
-                    ("A", "A"),  # self-loop
-                    ("B", "B"),  # self-loop
-                ]
-            )
+        g = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("A", "B", 2.0), ("A", "A"), ("B", "B")]
         )
+        before = g.count_edges(), g.is_simple()
 
-        g.count_edges(), g.is_simple()
+        g.simplify()
+
+        before, (g.count_edges(), g.is_simple())
         ```
 
-        After simplifying, only the single genuine "A"-"B" edge remains, and `is_simple()`
-        confirms it:
+        ### Cleaning a bank export
+
+        A bank's export has both problems: a payment listed twice and money moved between a
+        customer's own accounts. Duplicates inflate the number of payments between a pair, and
+        self-loops a node's degree, so both skew counts such as degree:
 
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges([("A", "B", 1.0), ("A", "B", 2.0), ("A", "A"), ("B", "B")])
-            .simplify()
-        )
+        export = [
+            ("Acme", "Dee", 2600),
+            ("Acme", "Eve", 2700),
+            ("Acme", "Eve", 2700),
+            ("Dee", "Grocer", 64),
+            ("Dee", "Dee", 500),
+            ("Dee", "Eve", 80),
+            ("Eve", "Grocer", 38),
+            ("Eve", "Grocer", 38),
+        ]
 
-        g.count_edges(), g.is_simple()
+        bank = ec.Graph.from_edges(export, directed=True)
+        before = bank.get_degree("Eve"), bank.count_edges()
+
+        bank.simplify()
+
+        before, (bank.get_degree("Eve"), bank.count_edges())
         ```
 
-        This makes `simplify()` a convenient one-line preprocessing step whenever an algorithm
-        requires a simple graph:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["X", "Y", "Z"])
-            .add_edges(
-                [
-                    ("X", "Y"),
-                    ("X", "Y"),  # duplicate
-                    ("Y", "Z"),
-                    ("Z", "Z"),  # self-loop
-                ]
-            )
-            .simplify()
+        ec.Graph.from_edges(export, directed=True).plot(
+            label_by="label", seed=1, width=360, height=360
         )
-
-        g.is_simple()
         ```
+
+        ```{python}
+        bank.plot(label_by="label", seed=1, width=360, height=360)
+        ```
+
+        :::
         """
         if self._recording_depth == 0:
             before_snap = self._snapshot_state()
