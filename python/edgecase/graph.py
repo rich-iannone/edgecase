@@ -8206,6 +8206,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
