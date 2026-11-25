@@ -31382,6 +31382,9 @@ class Graph:
         ```{python}
         payments.plot(label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#combining-selections) explains how selections
+        combine, and names the methods that adjust one directly.
         """
         self._graph.invert_edge_selection()
 
