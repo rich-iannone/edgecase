@@ -58438,6 +58438,9 @@ class Graph:
         For routes between chosen sources and targets only, use
         `edge_betweenness_centrality_subset()`; to count flow along every path rather than the
         shortest ones, `edge_current_flow_betweenness_centrality()`.
+
+        [Centrality](../user-guide/centrality.qmd#edge-betweenness) finds the karate club friendship
+        that carries the most traffic between the factions.
         """
         if attr_name is None:
             attr_name = "edge_betweenness_centrality"
