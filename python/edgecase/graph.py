@@ -20218,6 +20218,12 @@ class Graph:
         ValueError
             If `order=` is less than `2` (raised on the first `next()`).
 
+        See Also
+        --------
+        count_nonisomorphic_trees : Count the trees without listing them.
+        atlas_graphs : List every graph on up to seven nodes.
+        is_tree : Check whether a graph is a tree.
+
         Examples
         --------
         The three trees on five nodes are the path, the star, and the "chair" between them:
@@ -20226,7 +20232,8 @@ class Graph:
         import edgecase as ec
 
         for tree in ec.Graph.iter_nonisomorphic_trees(5):
-            print(tree.get_edges_str_repr(), sorted(tree.degrees(return_dict=True).values()))
+            degrees = sorted(tree.degrees(return_dict=True).values())
+            print(tree.get_edges_str_repr(), degrees)
         ```
 
         The count matches `count_nonisomorphic_trees()`, and no two trees are isomorphic:
@@ -20234,7 +20241,11 @@ class Graph:
         ```{python}
         trees = list(ec.Graph.iter_nonisomorphic_trees(7))
 
-        len(trees), ec.Graph.count_nonisomorphic_trees(7), trees[0].is_isomorphic(trees[1])
+        (
+            len(trees),
+            ec.Graph.count_nonisomorphic_trees(7),
+            trees[0].is_isomorphic(trees[1]),
+        )
         ```
 
         Trees of maximum degree four are the carbon skeletons of alkanes. Octane, with eight
