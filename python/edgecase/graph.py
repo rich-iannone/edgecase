@@ -28250,63 +28250,59 @@ class Graph:
         TypeError
             If `node=` is neither an `int` nor a `str`.
 
+        See Also
+        --------
+        get_successors : The nodes a node's edges point to, in a directed graph.
+        get_predecessors : The nodes with edges pointing to a node, in a directed graph.
+        get_non_neighbors : The nodes a node has no edge to.
+        get_common_neighbors : The neighbors two nodes share.
+
         Examples
         --------
-        By default, `mode="out"` returns only outgoing neighbors -- here node "A"'s only
-        outgoing edge points to "B":
+        In a directed graph, `mode=` picks the direction. "A" points to "B" and is pointed to by
+        "C", so `"out"` (the default) gives "B", `"in"` gives "C" and `"all"` gives both:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("C", "A")])
+        graph = ec.Graph.from_edges([("A", "B"), ("C", "A")], directed=True)
+
+        [graph.get_neighbors("A", mode=mode) for mode in ["out", "in", "all"]]
+        ```
+
+        The results are node IDs. In an undirected graph every edge counts, whichever way it was
+        added, and a parallel edge lists its neighbor twice:
+
+        ```{python}
+        pals = ec.Graph.from_edges(
+            [("Ann", "Bob"), ("Cat", "Ann"), ("Ann", "Bob")]
         )
 
-        out_neighbors = graph.get_neighbors("A", mode="out")
-        out_neighbors
+        [pals.get_label_from_id(n) for n in pals.get_neighbors("Ann")]
         ```
 
-        `mode="in"` instead follows incoming edges -- "C" points to "A", so it's the only
-        predecessor:
+        ### A friend in each club
+
+        In a network of friendships among the members of a chess club and a climbing club, Hugo
+        plays chess, but three of his five friends climb. One of them, Tara, is his partner:
 
         ```{python}
-        graph.get_neighbors("A", mode="in")
+        friends = ec.friends()
+        club = friends.get_node_attrs("club")
+
+        hugo = friends.get_neighbors("Hugo")
+        {friends.get_label_from_id(n): club[n] for n in hugo}
         ```
 
-        `mode="all"` combines both directions, listing the successor "B" before the
-        predecessor "C":
+        Hugo is in the accent color and his friends in the soft one, reaching into both clubs:
 
         ```{python}
-        graph.get_neighbors("A", mode="all")
-        ```
-
-        Since results are node IDs rather than labels, map them back with
-        `get_label_from_id()` when a human-readable answer is needed:
-
-        ```{python}
-        [graph.get_label_from_id(nid) for nid in graph.get_neighbors("A", mode="all")]
-        ```
-
-        In an undirected graph, the default mode returns every neighbor regardless of how the
-        edges were added. A parallel edge makes "B" appear twice; `set()` removes the repeat:
-
-        ```{python}
-        friends = (
-            ec.Graph(directed=False)
-            .add_nodes(["Ann", "Bob", "Cat"])
-            .add_edges(
-                [
-                    ("Ann", "Bob"),
-                    ("Cat", "Ann"),
-                    ("Ann", "Bob"),  # parallel edge
-                ]
-            )
+        friends.layout_kamada_kawai()
+        friends.plot(
+            layout="pos",
+            highlight={"accent": ["Hugo"], "soft": friends.get_neighbors("Hugo")},
+            label_by="label",
         )
-
-        nbrs = friends.get_neighbors("Ann")
-        [friends.get_label_from_id(n) for n in nbrs], len(set(nbrs))
         ```
         """
         # Resolve node to integer ID
