@@ -86377,6 +86377,9 @@ class Graph:
             layout="pos", highlight_edges=matched, label_by="label", height=300
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes)
+        compares the matching methods.
         """
         use = self._use_weights(weighted)
         eids = rust.blossom_max_weight_matching(self._graph, True, use, True)
