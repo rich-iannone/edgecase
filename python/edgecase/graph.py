@@ -27940,7 +27940,8 @@ class Graph:
         two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
 
         (
-            hexagon.weisfeiler_lehman_graph_hash() == two_triangles.weisfeiler_lehman_graph_hash(),
+            hexagon.weisfeiler_lehman_graph_hash()
+            == two_triangles.weisfeiler_lehman_graph_hash(),
             hexagon.is_isomorphic(two_triangles),
         )
         ```
@@ -27956,14 +27957,20 @@ class Graph:
         ```{python}
         molecules = ec.molecules()
         purine = ec.Graph.from_edges(
-            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
-             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
-             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+            [
+                ("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"),
+                ("C5", "C6"), ("C6", "N1"), ("C4", "N9"), ("N9", "C8"),
+                ("C8", "N7"), ("N7", "C5"), ("C2", "O10"), ("C6", "O11"),
+                ("N1", "C12"), ("N3", "C13"), ("N7", "C14"),
+            ]
         )
-        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+        purine.set_node_attrs(
+            "element", {atom: atom[0] for atom in purine.get_node_df()["label"]}
+        )
         purine.set_edge_attrs("bond", "single")
         purine.set_edge_attrs(
-            "bond", "double", edges=[("C4", "C5"), ("N9", "C8"), ("C2", "O10"), ("C6", "O11")]
+            "bond", "double",
+            edges=[("C4", "C5"), ("N9", "C8"), ("C2", "O10"), ("C6", "O11")],
         )
         molecules["caffeine_purine"] = purine
 
@@ -27971,7 +27978,9 @@ class Graph:
         def duplicates(**kwargs):
             groups = {}
             for name, molecule in molecules.items():
-                groups.setdefault(molecule.weisfeiler_lehman_graph_hash(**kwargs), []).append(name)
+                groups.setdefault(
+                    molecule.weisfeiler_lehman_graph_hash(**kwargs), []
+                ).append(name)
             return [names for names in groups.values() if len(names) > 1]
 
 
@@ -27983,7 +27992,10 @@ class Graph:
         bonds. Only the two numberings of caffeine are left:
 
         ```{python}
-        duplicates(node_attr="element"), duplicates(node_attr="element", edge_attr="bond")
+        (
+            duplicates(node_attr="element"),
+            duplicates(node_attr="element", edge_attr="bond"),
+        )
         ```
 
         Benzene and cyclohexane, with their bonds:
@@ -28003,6 +28015,9 @@ class Graph:
         ```
 
         :::
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) shows two graphs
+        that share a hash without being isomorphic.
         """
         import hashlib
         from collections import Counter
