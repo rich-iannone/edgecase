@@ -9162,6 +9162,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if n < 4:
             raise ValueError("Wheel must have at least 4 nodes")
