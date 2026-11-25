@@ -50608,6 +50608,9 @@ class Graph:
         ```{python}
         club.plot(color_by="community", label_by="label", seed=2)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#merging-nodes) compares the methods
+        that merge nodes.
         """
         from edgecase._core import contract_nodes_multi as _contract_nodes_multi
 
