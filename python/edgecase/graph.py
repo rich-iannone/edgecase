@@ -79063,6 +79063,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=core, label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) finds the weak points
+        of the karate club and the power grid.
         """
         blocks = rust.biconnected_components(self._graph)
         n = self.count_nodes()
