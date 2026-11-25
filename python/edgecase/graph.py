@@ -9835,9 +9835,17 @@ class Graph:
         ValueError
             If `d=` is less than `1`.
 
+        See Also
+        --------
+        add_grid_graph : Add a grid graph in any number of dimensions.
+        cartesian_product : Join pairs that move in one graph at a time.
+        layout_bfs : Place the nodes in layers by distance from a start node.
+
         Examples
         --------
-        The cube `Q(3)` has `8` nodes, `12` edges, and diameter `3`:
+        The hypercube `Q(d)` has a node for each string of `d` bits, and joins two strings that
+        differ in one bit. The cube `Q(3)` has `2^3 = 8` nodes, each with `3` neighbors, for `12`
+        edges, and its diameter is `3`:
 
         ```{python}
         import edgecase as ec
@@ -9847,17 +9855,42 @@ class Graph:
         graph.count_nodes(), graph.count_edges(), graph.diameter()
         ```
 
-        The labels are bit strings, and each node's neighbors are the strings one bit-flip away:
+        The labels are the bit strings. The neighbors of `"000"` are the strings with a single
+        `1`, and the distance between two nodes is the number of bits that differ, here all three:
 
         ```{python}
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_neighbors("000"))
+        neighbors = graph.get_neighbors("000")
+
+        (
+            sorted(graph.get_label_from_id(n) for n in neighbors),
+            graph.shortest_path_length("001", "110"),
+        )
         ```
 
-        The distance between two nodes is the number of bits that differ:
+        ### Layers by the number of ones
+
+        Laid out in layers by distance from `"000"`, each layer holds the strings with the same
+        number of `1` bits, and every edge joins two neighboring layers. The cube on the left has
+        layers of `1`, `3`, `3` and `1`, and the four-dimensional cube on the right, with `16`
+        nodes and `32` edges, has layers of `1`, `4`, `6`, `4` and `1`:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        graph.shortest_path_length("001", "110")
+        graph.layout_bfs(source="000").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        ```{python}
+        tesseract = ec.Graph().add_hypercube_graph(d=4)
+
+        tesseract.layout_bfs(source="0000").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if d < 1:
             raise ValueError("Hypercube dimension d must be at least 1")
