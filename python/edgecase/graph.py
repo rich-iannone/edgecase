@@ -70880,7 +70880,8 @@ class Graph:
         hops = {node: i for i, layer in enumerate(layers) for node in layer}
 
         metro.set_node_attrs("hops", hops).plot(
-            layout="pos", color_by="hops", color_scale="sequential", label_by="label"
+            layout="pos", color_by="hops", color_scale="sequential",
+            label_by="label",
         )
         ```
 
@@ -70902,6 +70903,9 @@ class Graph:
 
         BFS counts stops, not minutes: it ignores edge weights. To order the stations by travel
         time instead, use `single_source_shortest_path_length()`.
+
+        [Traversals](../user-guide/traversals.qmd#searching) compares breadth-first and depth-first
+        visit orders on a graph of course prerequisites.
         """
         start_id = self._resolve_node_id(source, auto_create=False)
         visited_order = self._graph.bfs(start_id)
