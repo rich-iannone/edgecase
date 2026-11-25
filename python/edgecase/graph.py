@@ -33537,6 +33537,11 @@ class Graph:
             Dictionary mapping edge IDs to attribute values. Only includes edges that exist and
             have the attribute set.
 
+        See Also
+        --------
+        get_edge_attrs : Read the attribute for the edges between chosen nodes.
+        find_edge_ids : Find the IDs of the edges between two nodes.
+
         Examples
         --------
         This keys the lookup on edge ID directly rather than searching by source/target. Here
