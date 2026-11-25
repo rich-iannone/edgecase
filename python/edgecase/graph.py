@@ -41910,6 +41910,9 @@ class Graph:
             for census in [graph.motif_census()]
         }
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#motifs) tests which motifs
+        are more common among the dolphins than their degrees alone would produce.
         """
         from edgecase._core import motif_census as _motif_census
 
