@@ -12330,6 +12330,12 @@ class Graph:
         ValueError
             If `n=` or `d=` is negative, `n * d` is odd, or `d=` is not less than `n=`.
 
+        See Also
+        --------
+        is_regular : Check whether every node has the same degree.
+        add_random_regular_expander_graph : Draw random regular graphs until one is an expander.
+        add_random_degree_sequence_graph : Draw a random graph with any given degrees.
+
         Examples
         --------
         Twenty nodes of degree three have `20 * 3 / 2 = 30` edges:
@@ -12353,6 +12359,34 @@ class Graph:
         ```{python}
         graph.is_connected(), graph.diameter()
         ```
+
+        ### Degree two or three
+
+        The same twenty nodes with `d=2` on the left and `d=3` on the right. A 2-regular graph is
+        a set of cycles, here two of them, so it often falls apart. One more edge per node makes
+        a single connected graph:
+
+        ```{python}
+        cycles = ec.Graph().add_random_regular_graph(n=20, d=2, seed=5)
+
+        cycles.count_weakly_connected_components(), graph.is_connected()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        cycles.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        ```{python}
+        graph.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, d=d)
 
