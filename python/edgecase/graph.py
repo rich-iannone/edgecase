@@ -80439,6 +80439,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) explains how
+        it differs from `k_edge_components()`.
         """
         comps = rust.k_edge_components(self._graph, k, True)
         if self._recording_depth == 0:
