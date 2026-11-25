@@ -18160,6 +18160,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#bipartite-models) compares the random
+        bipartite models.
         """
         self._check_non_negative(n1=n1, n2=n2)
 
