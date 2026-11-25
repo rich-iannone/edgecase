@@ -89816,7 +89816,9 @@ class Graph:
              ("TP53", "MDM2", 1.0)]
         )
 
-        tree = graph.prize_collecting_steiner_tree({"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0})
+        tree = graph.prize_collecting_steiner_tree(
+            {"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0}
+        )
         tree.get_edges_str_repr(use_labels=True)
         ```
 
@@ -89830,7 +89832,9 @@ class Graph:
         proteins = ec.proteins()
         disease = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
 
-        tree = proteins.prize_collecting_steiner_tree({gene: 3.0 for gene in disease})
+        tree = proteins.prize_collecting_steiner_tree(
+            {gene: 3.0 for gene in disease}
+        )
         tree.get_edges_str_repr(use_labels=True)
         ```
 
