@@ -54915,27 +54915,68 @@ class Graph:
 
         Examples
         --------
-        Four spokes each have degree `1`, while the hub alone has degree `4`:
+        The distribution maps each degree to the number of nodes that have it. The four spokes of a
+        star each have degree `1`, and the hub alone has degree `4`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["Hub", "A", "B", "C", "D"])
-            .add_edges([("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D")])
+        star = ec.Graph.from_edges(
+            [("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D")]
         )
 
-        graph.degree_distribution()
+        star.degree_distribution()
         ```
 
-        On a real social network the distribution is skewed: in Zachary's karate club most
-        members have only a few ties, while a handful of central members have 10 or more.
-        Sorting by degree makes the tail easy to see:
+        ### Hubs, or chance?
+
+        In the Les Misérables network, characters are joined when they appear in the same chapter.
+        A random graph with the same 77 nodes and 254 edges has the same average degree, about
+        6.6, so comparing the two distributions shows what the story adds to chance:
 
         ```{python}
-        dict(sorted(ec.karate_club().degree_distribution().items()))
+        import polars as pl
+
+        novel = ec.les_miserables()
+        chance = ec.Graph().add_gnm_graph(77, 254, seed=2)
+
+        counts = novel.degree_distribution(), chance.degree_distribution()
+        pl.DataFrame(
+            [
+                (degree, counts[0].get(degree, 0), counts[1].get(degree, 0))
+                for degree in sorted(counts[0].keys() | counts[1].keys())
+            ],
+            schema=["degree", "novel", "random"],
+            orient="row",
+        )
         ```
+
+        The random graph's degrees bunch around the average: no node has fewer than 2 edges or
+        more than 13. The novel's spread both ways. 17 characters appear with only one other, and 7
+        main characters, with Valjean at 36, meet more people than anyone does in the random graph.
+        The novel is on the left, with those 7 in the accent color and the 17 in the soft one, and
+        the random graph is on the right:
+
+        ```{python}
+        degree = novel.degrees(return_dict=True)
+        hubs = [character for character, d in degree.items() if d > 13]
+        loners = [character for character, d in degree.items() if d == 1]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        novel.plot(
+            highlight={"accent": hubs, "soft": loners}, show_labels=False, seed=1,
+            width=360, height=360,
+        )
+        ```
+
+        ```{python}
+        chance.plot(show_labels=False, seed=1, width=360, height=360)
+        ```
+
+        :::
         """
         return self._graph.degree_distribution()
 
