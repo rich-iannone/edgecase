@@ -24919,6 +24919,9 @@ class Graph:
             label_by="label", height=900,
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         top = {self._resolve_node_id(n, auto_create=False) for n in top_nodes}
         bottom = set(self.get_node_ids(limit=None)) - top
