@@ -83247,6 +83247,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight_edges=leaving, label_by="label")
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) scores single
+        communities of the karate club by the edges that leave them.
         """
         s_ids, t_ids, p = self._cut(S, T)
         self._record_set_step("edge_boundary", s_ids, t_ids, p[6], edges=p[6])
