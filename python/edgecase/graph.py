@@ -6981,23 +6981,55 @@ class Graph:
             initial position is not a pair of finite numbers, or `scale=` or `center=` is
             invalid.
 
+        See Also
+        --------
+        layout_spring : Place nodes with a force-directed spring model.
+        shortest_path_length : Count the edges on a shortest path.
+        rescale_layout : Center and scale stored positions.
+
         Examples
         --------
-        With `scale=None` the coordinates are in units of edge length, so the two ends of a
-        path of five edges come out five apart:
+        Kamada-Kawai places the nodes so that their distances in the drawing match their distances
+        in the graph, counted in edges. With `scale=None` the coordinates are in units of edge
+        length, so the two ends of a path of five edges come out five apart:
 
         ```{python}
         import edgecase as ec
 
-        pos = ec.Graph().add_path_graph(6).layout_kamada_kawai(scale=None, return_dict=True)
-        x1, y1 = pos[1]
-        x6, y6 = pos[6]
+        pos = ec.Graph().add_path_graph(6).layout_kamada_kawai(
+            scale=None, return_dict=True
+        )
+        (x1, y1), (x6, y6) = pos[1], pos[6]
+
         round(((x6 - x1) ** 2 + (y6 - y1) ** 2) ** 0.5, 3)
         ```
 
+        ### A grid, unfolded
+
+        From random starting positions, a spring layout can fold a grid over itself, as on the left.
+        Kamada-Kawai on the right lays it flat, since only the flat grid puts every pair of nodes at
+        their distance in the graph:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
-        ec.football().layout_kamada_kawai().plot(layout="pos", show_labels=False)
+        grid = ec.Graph().add_grid_graph([8, 8])
+
+        grid.layout_spring(seed=1).plot(
+            layout="pos", width=360, height=360, legend=False
+        )
         ```
+
+        ```{python}
+        grid.layout_kamada_kawai().plot(
+            layout="pos", width=360, height=360, legend=False
+        )
+        ```
+
+        :::
+
+        It needs no seed. It does need the distance between every pair of nodes, which makes it
+        slower than the spring layout on large graphs.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
