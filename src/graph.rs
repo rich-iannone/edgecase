@@ -112,6 +112,52 @@ fn check_edge_weight(weight: Option<f64>) -> PyResult<()> {
     }
 }
 
+/// `amount` distinct numbers from `0..total`, uniformly at random and in random order, in
+/// O(`amount`) memory. Up to half of `total`, it draws and rejects repeats (under two draws
+/// each on average); above that, it draws the numbers to leave out and shuffles the rest.
+fn sample_indices(rng: &mut impl Rng, total: usize, amount: usize) -> Vec<usize> {
+    if amount <= total / 2 {
+        let mut seen = FxHashSet::with_capacity_and_hasher(amount, Default::default());
+        let mut picked = Vec::with_capacity(amount);
+        while picked.len() < amount {
+            let k = rng.gen_range(0..total);
+            if seen.insert(k) {
+                picked.push(k);
+            }
+        }
+        picked
+    } else {
+        let left_out: FxHashSet<usize> = sample_indices(rng, total, total - amount)
+            .into_iter()
+            .collect();
+        let mut picked: Vec<usize> = (0..total).filter(|k| !left_out.contains(k)).collect();
+        picked.shuffle(rng);
+        picked
+    }
+}
+
+/// The `k`th of the `n(n-1)/2` node pairs `(i, j)` with `i < j`, in row order
+fn undirected_pair(n: usize, k: usize) -> (usize, usize) {
+    // row i holds the pairs (i, i+1) .. (i, n-1) and starts at this index
+    let start = |i: usize| i * (2 * n - i - 1) / 2;
+    let b = (2 * n - 1) as f64;
+    let mut i = ((b - (b * b - 8.0 * k as f64).max(0.0).sqrt()) / 2.0) as usize;
+    // the floating-point estimate can be off by one either way for large n
+    while i > 0 && start(i) > k {
+        i -= 1;
+    }
+    while start(i + 1) <= k {
+        i += 1;
+    }
+    (i, i + 1 + k - start(i))
+}
+
+/// The `k`th of the `n(n-1)` ordered node pairs `(i, j)` with `i != j`, in row order
+fn directed_pair(n: usize, k: usize) -> (usize, usize) {
+    let (i, r) = (k / (n - 1), k % (n - 1));
+    (i, if r < i { r } else { r + 1 })
+}
+
 #[pymethods]
 impl Edge {
     #[new]
@@ -1685,10 +1731,13 @@ impl Graph {
         };
 
         // Calculate maximum possible edges
+        let ordered_pairs = n.checked_mul(n.saturating_sub(1)).ok_or_else(|| {
+            pyo3::exceptions::PyValueError::new_err(format!("{} nodes is too many", n))
+        })?;
         let max_edges = if self.directed {
-            n * (n - 1)
+            ordered_pairs
         } else {
-            n * (n - 1) / 2
+            ordered_pairs / 2
         };
 
         if m > max_edges {
@@ -1708,6 +1757,21 @@ impl Graph {
 
         for &node_id in &node_ids {
             self.add_node(Node::new(node_id, None, None))?;
+        }
+
+        // Above about a million possible edges, listing them all costs O(n²) memory (20,000
+        // nodes would need 3 GB), so sample `m` of them instead. Smaller graphs keep the list
+        // and shuffle, so the graph a given seed produces stays the same.
+        if max_edges > 1 << 20 {
+            for k in sample_indices(&mut rng, max_edges, m) {
+                let (i, j) = if self.directed {
+                    directed_pair(n, k)
+                } else {
+                    undirected_pair(n, k)
+                };
+                self.add_edge(Edge::new(0, node_ids[i], node_ids[j], None, None))?;
+            }
+            return Ok(());
         }
 
         // Generate all possible edges
@@ -10274,6 +10338,44 @@ impl Graph {
 #[cfg(test)]
 mod tests {
     use super::*;
+
+    #[test]
+    fn test_pair_indices_cover_every_pair_once() {
+        for n in [2, 3, 7, 50] {
+            let undirected: Vec<_> = (0..n * (n - 1) / 2)
+                .map(|k| undirected_pair(n, k))
+                .collect();
+            let expected: Vec<_> = (0..n)
+                .flat_map(|i| (i + 1..n).map(move |j| (i, j)))
+                .collect();
+            assert_eq!(undirected, expected);
+
+            let directed: Vec<_> = (0..n * (n - 1)).map(|k| directed_pair(n, k)).collect();
+            let expected: Vec<_> = (0..n)
+                .flat_map(|i| (0..n).filter(move |&j| j != i).map(move |j| (i, j)))
+                .collect();
+            assert_eq!(directed, expected);
+        }
+        // the last pairs of a large graph, where the floating-point row estimate is tightest
+        let n = 3_000_000;
+        let total = n * (n - 1) / 2;
+        assert_eq!(undirected_pair(n, total - 1), (n - 2, n - 1));
+        assert_eq!(undirected_pair(n, total - 2), (n - 3, n - 1));
+        assert_eq!(undirected_pair(n, total - 3), (n - 3, n - 2));
+        assert_eq!(undirected_pair(n, n - 1), (1, 2));
+    }
+
+    #[test]
+    fn test_sample_indices_are_distinct_and_in_range() {
+        let mut rng = ChaCha8Rng::seed_from_u64(1);
+        for (total, amount) in [(10, 0), (10, 3), (10, 5), (10, 6), (10, 10), (1000, 999)] {
+            let picked = sample_indices(&mut rng, total, amount);
+            assert_eq!(picked.len(), amount);
+            assert!(picked.iter().all(|&k| k < total));
+            let distinct: FxHashSet<usize> = picked.iter().copied().collect();
+            assert_eq!(distinct.len(), amount);
+        }
+    }
 
     #[test]
     fn test_create_empty_graph() {
