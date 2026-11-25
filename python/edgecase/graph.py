@@ -12325,6 +12325,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         self._check_non_negative(n=n, k=k)
         with self._compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})"):
