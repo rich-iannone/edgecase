@@ -59671,8 +59671,10 @@ class Graph:
         club = ec.karate_club().layout_kamada_kawai()
 
         [
-            len(club.edge_percolation(q=0.7, seed=seed).node_connected_component("0"))
-            for seed in range(10)
+            len(
+                club.edge_percolation(q=0.7, seed=s).node_connected_component("0")
+            )
+            for s in range(10)
         ]
         ```
 
@@ -59687,6 +59689,9 @@ class Graph:
             highlight=sorted(rumor.node_connected_component("0")),
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#robustness) compares how networks
+        fall apart under failure and attack.
         """
         from edgecase._core import edge_percolation as rust_ep
 
