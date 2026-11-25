@@ -6428,6 +6428,9 @@ class Graph:
         ```{python}
         courses.plot(layout="by_term", label_by="label", height=400)
         ```
+
+        [Layouts](../user-guide/layouts.qmd#layered-layouts) draws the three layers of a small
+        neural network.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         swap = self._layout_align(align)
