@@ -46001,6 +46001,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#resolution) explains how the Constant Potts
+        Model avoids the resolution limit, and how to choose its resolution.
         """
         membership = self._membership_from(communities)
         weights = None
