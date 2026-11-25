@@ -7166,20 +7166,47 @@ class Graph:
             a pair of finite numbers, `weighted=True` and an edge weight is negative, or
             `scale=` or `center=` is invalid.
 
+        See Also
+        --------
+        layout_spring : Place nodes with a force-directed spring model.
+        cmty_louvain : Find communities with the Louvain method.
+        layout_arf : Place nodes with attractive and repulsive forces.
+
         Examples
         --------
-        LinLog mode separates the communities of the dolphin network:
+        ForceAtlas2 is a force-directed layout made for social networks. Its LinLog mode weakens the
+        attraction between joined nodes, which pulls communities apart.
+
+        ### Communities of dolphins
+
+        Bottlenose dolphins in a New Zealand fjord, joined when two were often seen together,
+        colored by their Louvain communities. The default mode on the left already groups them.
+        LinLog on the right pulls the communities further apart and stretches the edges between
+        them:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
         import edgecase as ec
 
-        (
-            ec.dolphins()
-            .cmty_louvain(attr_name="community")
-            .layout_forceatlas2(linlog=True, seed=4)
-            .plot(layout="pos", color_by="community", show_labels=False)
+        dolphins = ec.dolphins().cmty_louvain(attr_name="community")
+
+        dolphins.layout_forceatlas2(seed=4).plot(
+            layout="pos", color_by="community", show_labels=False,
+            width=360, height=360, legend=False,
         )
         ```
+
+        ```{python}
+        dolphins.layout_forceatlas2(linlog=True, seed=4).plot(
+            layout="pos", color_by="community", show_labels=False,
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        The result depends on `seed=`. `max_iter=` trades time for a more settled layout.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
