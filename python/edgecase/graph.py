@@ -76455,6 +76455,9 @@ class Graph:
             layout="pos", highlight_edges=married, label_by="label", height=360
         )
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#changing-direction) compares the
+        methods that change edge direction.
         """
         if not self.is_directed():
             raise ValueError("moral_graph() requires a directed graph")
