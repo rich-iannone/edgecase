@@ -22023,6 +22023,12 @@ class Graph:
             List of tuples where each tuple is `(edge_id, source_id, target_id)`. Empty if the
             graph has no edges.
 
+        See Also
+        --------
+        get_edges_str_repr : Show the edges as one readable string.
+        get_edge_df : Read the edges and their attributes as a data frame.
+        get_node_ids_by_edge_id : Look up the endpoints of a single edge.
+
         Examples
         --------
         Each tuple holds `(edge_id, source_id, target_id)`, giving direct access to an
@@ -22056,9 +22062,9 @@ class Graph:
         ```{python}
         from collections import Counter
 
-        Counter(graph.get_label_from_id(src) for _, src, _ in graph.get_edges_as_tuples())
+        edges = graph.get_edges_as_tuples()
+        Counter(graph.get_label_from_id(source) for _, source, _ in edges)
         ```
-
         """
         return self._graph.edges()
 
