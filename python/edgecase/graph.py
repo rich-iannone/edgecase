@@ -32802,6 +32802,9 @@ class Graph:
         ```{python}
         payments.plot(highlight=chain[::-1], label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#traversing-selections) compares the traversals and
+        how each moves the selection.
         """
         self._graph.trav_in()
 
