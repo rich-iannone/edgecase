@@ -8080,6 +8080,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
