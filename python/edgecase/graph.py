@@ -32000,6 +32000,25 @@ class Graph:
         graph.match("MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)", use_labels=True)
         ```
 
+        The `r` column holds the edge IDs of the credits, ready to plot. Lana Wachowski's edge is
+        left out, since she directed The Matrix rather than acting in it:
+
+        ```{python}
+        spots = {
+            "Carrie-Anne Moss": (0, 2), "Keanu Reeves": (3, 2),
+            "Lana Wachowski": (0, 0), "matrix": (1.5, 1), "wick": (4.5, 1),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        credits = graph.match("MATCH (p:Person)-[r:ACTED_IN]->(m:Movie)")
+
+        graph.plot(
+            layout="pos", highlight_edges=credits["r"].to_list(),
+            label_by="label", height=240,
+        )
+        ```
+
         `WHERE` filters the matches, and `RETURN` chooses the columns, including properties:
 
         ```{python}
@@ -32153,6 +32172,9 @@ class Graph:
             "ORDER BY total DESC"
         )
         ```
+
+        [Cypher queries](../user-guide/cypher.qmd#a-first-query) queries a small movie graph, and
+        goes on to patterns, `WHERE`, `RETURN`, aggregation and the matching rules.
         """
         if limit is not None and (
             isinstance(limit, bool) or not isinstance(limit, int) or limit < 0
