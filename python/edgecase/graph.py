@@ -43590,6 +43590,9 @@ class Graph:
             label_by="label", seed=1,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#degrees) explains the friendship paradox
+        with `average_neighbor_degree()`, the per-node form of this measure.
         """
         result = rust.average_degree_connectivity(
             self._graph, source_mode, target_mode, self._use_weights(weighted)
