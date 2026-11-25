@@ -540,68 +540,25 @@ def _remove_overlaps(
     Each pass finds overlapping pairs and pushes them apart by half
     the overlap distance each, along the line connecting their centers.
     """
+    from edgecase._core import remove_overlaps
+
     ids = list(positions.keys())
-    rng = random.Random(seed)
-    n = len(ids)
-    if n < 2:
+    if len(ids) < 2:
         return dict(positions)
-
-    px = {nid: positions[nid][0] for nid in ids}
-    py = {nid: positions[nid][1] for nid in ids}
-
-    for _pass in range(max_passes):
-        moved = False
-        max_r = max(radii.get(nid, 5.0) for nid in ids)
-        cell = (max_r + padding) * 2.2
-        if cell < 1.0:
-            cell = 1.0
-
-        grid: Dict[Tuple[int, int], List[str]] = {}
-        for nid in ids:
-            cx = int(px[nid] / cell)
-            cy = int(py[nid] / cell)
-            key = (cx, cy)
-            if key not in grid:
-                grid[key] = []
-            grid[key].append(nid)
-
-        for nid in ids:
-            ri = radii.get(nid, 5.0)
-            cx = int(px[nid] / cell)
-            cy = int(py[nid] / cell)
-            for dcx in range(-1, 2):
-                for dcy in range(-1, 2):
-                    nkey = (cx + dcx, cy + dcy)
-                    if nkey not in grid:
-                        continue
-                    for other in grid[nkey]:
-                        if other <= nid:
-                            continue
-                        rj = radii.get(other, 5.0)
-                        dx = px[nid] - px[other]
-                        dy = py[nid] - py[other]
-                        dist = math.sqrt(dx * dx + dy * dy)
-                        min_dist = ri + rj + padding
-                        if dist < min_dist:
-                            if dist < 0.01:
-                                angle = rng.uniform(0, 2 * math.pi)
-                                dx, dy = math.cos(angle), math.sin(angle)
-                                dist = 0.01
-                                ux, uy = dx, dy
-                            else:
-                                ux, uy = dx / dist, dy / dist
-                            overlap = min_dist - dist
-                            push = overlap * 0.55
-                            px[nid] += ux * push
-                            py[nid] += uy * push
-                            px[other] -= ux * push
-                            py[other] -= uy * push
-                            moved = True
-
-        if not moved:
-            break
-
-    return {nid: (px[nid], py[nid]) for nid in ids}
+    # A pair is pushed apart when the lesser of its two IDs is visited
+    order = [0] * len(ids)
+    for rank, i in enumerate(sorted(range(len(ids)), key=ids.__getitem__)):
+        order[i] = rank
+    xs, ys = remove_overlaps(
+        [positions[nid][0] for nid in ids],
+        [positions[nid][1] for nid in ids],
+        [radii.get(nid, 5.0) for nid in ids],
+        order,
+        random.Random(seed),
+        padding=padding,
+        max_passes=max_passes,
+    )
+    return {nid: (x, y) for nid, x, y in zip(ids, xs, ys)}
 
 
 def _turn_to_fill(
