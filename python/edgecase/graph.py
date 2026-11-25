@@ -52812,6 +52812,9 @@ class Graph:
         ```{python}
         ec.Graph.intersection_all(years).count_edges()
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) compares the set
+        operations, and explains why the graphs must number their nodes alike.
         """
         return Graph._fold(graphs, "intersection")
 
