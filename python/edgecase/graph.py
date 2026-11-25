@@ -32890,6 +32890,9 @@ class Graph:
         payments.select_edges_by_node(["Ana"])
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#multi-hop-patterns) chains traversals to find the
+        karate club members two steps from the instructor.
         """
         self._graph.trav_both()
 
