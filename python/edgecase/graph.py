@@ -67972,6 +67972,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) turns the distances
+        between cities into a table, and explains why a full table doesn't suit a large graph.
         """
         from edgecase._core import all_pairs_shortest_path_length
 
