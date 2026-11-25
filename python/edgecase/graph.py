@@ -78098,6 +78098,9 @@ class Graph:
             label_by="label", edge_label_by="bridge",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) tests the seven
+        bridges of Königsberg.
         """
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
         result = rust.has_eulerian_path(self._graph, source_id)
