@@ -23004,6 +23004,12 @@ class Graph:
             `True` if the graph is simple, `False` if it has at least one self-loop or multi-edge.
             A graph with no edges is simple.
 
+        See Also
+        --------
+        simplify : Remove the loops and parallel edges that make a graph not simple.
+        count_all_loops : Count the self-loops.
+        count_multi_edges : Count the parallel edges.
+
         Examples
         --------
         A single edge between two nodes is as simple as it gets:
