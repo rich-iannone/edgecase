@@ -84121,17 +84121,20 @@ class Graph:
         total_flow, total_cost
         ```
 
-        The third element maps edge IDs to flow. Every edge carries its full capacity of 10:
+        With `demand=`, exactly that much flow is sent, at the least cost. The third element
+        maps edge IDs to flow, and labeling each edge by it shows 15 units filling the route
+        through `A` and sending the other 5 through `B`, for a cost of 35:
 
         ```{python}
-        graph.set_edge_attrs("flow", flow_dict).get_edge_df(labels=True)
-        ```
+        spots = {"S": (0, 1), "A": (2, 2), "B": (2, 0), "T": (4, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        sent, cost, flow = graph.minimum_cost_flow("S", "T", demand=15.0)
 
-        With `demand=`, exactly that much flow is sent, at the least cost. Fifteen units fill
-        the route through `A` and send the rest through `B`:
-
-        ```{python}
-        graph.minimum_cost_flow("S", "T", demand=15.0)[:2]
+        graph.set_edge_attrs("flow", flow).plot(
+            layout="pos", edge_label_by="flow", label_by="label", height=240
+        )
         ```
 
         Capacity and cost can come from any attributes. Here the cheap two-hop route
@@ -84201,6 +84204,9 @@ class Graph:
             edge_label_by="cost", width=700, height=360,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#the-cheapest-flow) ships goods from
+        a plant to a market through two warehouses at the least cost.
         """
         from edgecase._core import min_cost_flow as _min_cost_flow
 
