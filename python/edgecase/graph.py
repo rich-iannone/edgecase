@@ -63537,7 +63537,9 @@ class Graph:
                 .rank("min", descending=True)
                 .name.suffix("_rank")
             )
-            .select("label", "field", "authority_centrality_rank", "pagerank_rank")
+            .select(
+                "label", "field", "authority_centrality_rank", "pagerank_rank"
+            )
             .sort("pagerank_rank")
             .head(5)
         )
@@ -63552,6 +63554,9 @@ class Graph:
             layout="pos", color_by="authority_centrality", label_by="label"
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#hubs-and-authorities) finds the hubs and
+        authorities of Wikipedia's administrator elections.
         """
         centrality = self._graph.get_authority_centrality(max_iter, tol, self._use_weights(weighted))
 
