@@ -22623,6 +22623,9 @@ class Graph:
             len(graph.get_edges_str_repr(limit=None)),
         )
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#one-at-a-time) explains how its strings
+        read, using a tree built one node at a time.
         """
         if use_labels:
             # Build edge strings using labels when available
