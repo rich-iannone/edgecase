@@ -84441,20 +84441,41 @@ class Graph:
 
         ```{python}
         metro = ec.metro()
-        metro.delete_node("Riverside")
+        closed = ec.metro().delete_node("Riverside")
 
-        label = metro.get_label_from_id
-        pieces = sorted(metro.weakly_connected_components(), key=len)
+        label = closed.get_label_from_id
+        pieces = sorted(closed.weakly_connected_components(), key=len)
         [sorted(label(n) for n in piece) for piece in pieces[:-1]]
         ```
 
+        Each station colored by its piece, largest first. The whole network is one piece on the
+        left, and on the right, with Riverside closed, the harbor stations are a second:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
-        piece = {
-            n: f"piece {i + 1}" for i, nodes in enumerate(pieces) for n in nodes
-        }
-        metro.set_node_attrs("piece", piece)
-        metro.plot(layout="pos", color_by="piece", label_by="label")
+        def by_piece(g):
+            found = sorted(g.weakly_connected_components(), key=len, reverse=True)
+            piece = {n: f"piece {i + 1}" for i, c in enumerate(found) for n in c}
+            return g.set_node_attrs("piece", piece)
+
+        by_piece(metro).plot(
+            layout="pos", color_by="piece", show_labels=False,
+            width=320, height=320, legend=False,
+        )
         ```
+
+        ```{python}
+        by_piece(closed).plot(
+            layout="pos", color_by="piece", show_labels=False,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#connected-components) finds the
+        giant component of a co-authorship network and the fragments around it.
         """
         # Convert list of lists to list of sets
         return [set(comp) for comp in self._graph.weakly_connected_components()]
