@@ -14112,6 +14112,12 @@ class Graph:
             If `degree_sequence=` contains a negative entry or is not graphical, `tries=` is
             less than `1`, or every attempt gets stuck.
 
+        See Also
+        --------
+        add_havel_hakimi_graph : Build a deterministic simple graph with the same degrees.
+        configuration_model : Pair edge ends at random, allowing loops and repeated edges.
+        degree_preserving_rewire : Shuffle an existing graph's edges while keeping its degrees.
+
         Examples
         --------
         Every node gets its degree, and there are no self-loops or parallel edges:
@@ -14122,22 +14128,57 @@ class Graph:
         degrees = [4, 3, 3, 2, 2, 2, 1, 1]
         graph = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
 
-        [graph.get_degree(v) for v in sorted(graph.get_node_ids())] == degrees, graph.is_simple()
+        graph.get_node_df()["degree"].to_list() == degrees, graph.is_simple()
         ```
 
-        Unlike `add_havel_hakimi_graph()`, which joins the highest-degree nodes to each other,
-        a random realization is close to neutral in its degree mixing:
+        With ten nodes of degree `5` and forty of degree `2`, `add_havel_hakimi_graph()` joins
+        the ten hubs only to each other, so its degree correlation is a perfect `1.0`. A random
+        realization joins the hubs mostly to the many nodes of degree `2`, and its correlation is
+        negative:
 
         ```{python}
         degrees = [5] * 10 + [2] * 40
-        random_graph = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
-        hh_graph = ec.Graph().add_havel_hakimi_graph(degrees)
+        shuffled = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
+        packed = ec.Graph().add_havel_hakimi_graph(degrees)
 
         (
-            round(random_graph.degree_pearson_correlation_coefficient(), 2),
-            round(hh_graph.degree_pearson_correlation_coefficient(), 2),
+            round(shuffled.degree_pearson_correlation_coefficient(), 2),
+            round(packed.degree_pearson_correlation_coefficient(), 2),
         )
         ```
+
+        ### Same degrees, different wiring
+
+        Two seeds for the eight degrees from the first example, with the nodes in the same places.
+        Each node has the same number of edges on both sides, but the edges join different
+        pairs:
+
+        ```{python}
+        first = ec.Graph().add_random_degree_sequence_graph(
+            [4, 3, 3, 2, 2, 2, 1, 1], seed=3
+        )
+        second = ec.Graph().add_random_degree_sequence_graph(
+            [4, 3, 3, 2, 2, 2, 1, 1], seed=4
+        )
+
+        first.get_edges_str_repr(), second.get_edges_str_repr()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        first.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        second.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(tries=tries)
 
