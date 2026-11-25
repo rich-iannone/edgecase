@@ -27644,7 +27644,10 @@ class Graph:
 
         ```{python}
         def by_label(graph):
-            return {graph.get_label_from_id(n): k for n, k in graph.canonical_labeling().items()}
+            return {
+                graph.get_label_from_id(n): k
+                for n, k in graph.canonical_labeling().items()
+            }
 
 
         by_label(g), by_label(h)
@@ -27670,13 +27673,21 @@ class Graph:
         ```{python}
         caffeine = ec.molecules()["caffeine"]
         purine = ec.Graph.from_edges(
-            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
-             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
-             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+            [
+                ("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"),
+                ("C5", "C6"), ("C6", "N1"), ("C4", "N9"), ("N9", "C8"),
+                ("C8", "N7"), ("N7", "C5"), ("C2", "O10"), ("C6", "O11"),
+                ("N1", "C12"), ("N3", "C13"), ("N7", "C14"),
+            ]
         )
-        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+        purine.set_node_attrs(
+            "element", {atom: atom[0] for atom in purine.get_node_df()["label"]}
+        )
 
-        canonical_form(caffeine, node_attr="element") == canonical_form(purine, node_attr="element")
+        (
+            canonical_form(caffeine, node_attr="element")
+            == canonical_form(purine, node_attr="element")
+        )
         ```
 
         Labeled with their canonical numbers, matching atoms carry the same number in both
@@ -27686,20 +27697,27 @@ class Graph:
 
         ```{python}
         for molecule in [caffeine, purine]:
-            molecule.set_node_attrs("canonical", molecule.canonical_labeling(node_attr="element"))
+            molecule.set_node_attrs(
+                "canonical", molecule.canonical_labeling(node_attr="element")
+            )
 
         caffeine.plot(
-            color_by="element", label_by="canonical", legend=False, seed=1, width=360, height=360
+            color_by="element", label_by="canonical", legend=False, seed=1,
+            width=360, height=360,
         )
         ```
 
         ```{python}
         purine.plot(
-            color_by="element", label_by="canonical", legend=False, seed=4, width=360, height=360
+            color_by="element", label_by="canonical", legend=False, seed=4,
+            width=360, height=360,
         )
         ```
 
         :::
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) compares the
+        methods that test whether two graphs are the same.
         """
 
         def names(spec):
