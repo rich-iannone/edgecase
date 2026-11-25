@@ -39149,6 +39149,9 @@ class Graph:
             label_by="label", seed=1,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) explains what a
+        cycle basis is, and when to prefer a minimum one.
         """
         from edgecase._core import minimum_cycle_basis as rust_minimum_cycle_basis
 
