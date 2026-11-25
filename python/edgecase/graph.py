@@ -21654,6 +21654,8 @@ class Graph:
         graph.has_edge_id(99)
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#edges) reads an edge's endpoints and
+        attributes, and finds edge IDs from their endpoints.
         """
         negative = isinstance(edge_id, int) and edge_id < 0  # pyo3 would raise OverflowError
         edge = None if negative else self._graph.get_edge(edge_id)
