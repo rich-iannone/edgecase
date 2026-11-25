@@ -63411,6 +63411,8 @@ class Graph:
         the Guadagni's four in-laws contributes `(1 / 4) ** 2 = 0.0625`. Local constraint isn't
         symmetric: `local_constraint("Acciaiuoli", "Medici")` is `1`, since the Medici are the
         Acciaiuoli's only in-laws, while the reverse is under `0.03`.
+
+        [Centrality](../user-guide/centrality.qmd#brokerage) compares the measures of brokerage.
         """
         u = self._resolve_node_id(node_1, auto_create=False)
         v = self._resolve_node_id(node_2, auto_create=False)
