@@ -37519,6 +37519,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#similarity-from-paths)
+        compares the measures of similarity from paths.
         """
         s = self._resolve_node_id(source, auto_create=False)
         if isinstance(k, bool) or not isinstance(k, int) or k < 1:
