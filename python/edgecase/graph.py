@@ -50298,6 +50298,9 @@ class Graph:
         ```{python}
         leaders.plot(label_by="label", highlight=["0", "16", "24", "25"], seed=3)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#merging-nodes) merges the Tornabuoni
+        into the Medici in the Florentine families network.
         """
         from edgecase._core import contract_nodes as _contract_nodes
 
