@@ -50095,24 +50095,57 @@ class Graph:
         factors are simple, so is the product. The result matches NetworkX's
         `cartesian_product` (with tuple nodes rendered as labels).
 
+        See Also
+        --------
+        strong_product : Combine the Cartesian and tensor products.
+        tensor_product : Join pairs that move in both graphs at once.
+        add_grid_graph : Add a grid graph.
+
         Examples
         --------
-        A path of three nodes times a path of two nodes is a 3 x 2 grid (a ladder):
+        Each node of the product is a pair `(a, b)`, and two pairs are joined when they agree in one
+        place and are joined in the other. A path of four times a path of three is a 4 x 3 grid:
 
         ```{python}
         import edgecase as ec
 
-        p3 = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
-        p2 = ec.Graph().add_nodes(["1", "2"]).add_edge("1", "2")
+        p4 = ec.Graph().add_path_graph(4)
+        p3 = ec.Graph().add_path_graph(3)
 
-        grid = p3.cartesian_product(p2)
-        grid.count_nodes(), grid.count_edges(), grid.get_edges_str_repr(use_labels=True)
+        grid = p4.cartesian_product(p3)
+        grid.count_nodes(), grid.count_edges()
         ```
 
-        Squaring a single edge three times gives the 3-dimensional cube:
+        The labels give each node's place on the grid:
 
         ```{python}
-        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+        cells = grid.get_node_df()
+        pos = {
+            n: tuple(int(v) for v in label.strip("()").split(", "))
+            for n, label in zip(cells["id"], cells["label"])
+        }
+
+        grid.set_node_attrs("pos", pos).plot(layout="pos", label_by="label")
+        ```
+
+        A cycle of eight times a path of three is a cylinder: three rings of eight, joined spoke by
+        spoke. Putting each ring on its own shell shows it from the end:
+
+        ```{python}
+        cylinder = ec.Graph().add_cycle_graph(8).cartesian_product(p3)
+        cells = cylinder.get_node_df()
+        rings = [
+            [n for n, label in zip(cells["id"], cells["label"]) if label[-2] == j]
+            for j in "123"
+        ]
+
+        cylinder.layout_shell(nlist=rings).plot(layout="pos", show_labels=False)
+        ```
+
+        Squaring a single edge three times gives the cube, in which every node has three neighbors:
+
+        ```{python}
+        edge = ec.Graph().add_path_graph(2)
         cube = edge.cartesian_product(edge).cartesian_product(edge)
         cube.count_nodes(), cube.count_edges(), cube.is_k_regular(3)
         ```
