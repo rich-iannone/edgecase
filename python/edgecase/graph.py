@@ -20054,6 +20054,12 @@ class Graph:
         ValueError
             If `index=` is outside `0` to `1252`.
 
+        See Also
+        --------
+        atlas_graphs : Return every graph in the atlas at once.
+        get_graph_name : Read the atlas name, such as `"G7"`.
+        is_isomorphic : Check whether a graph matches an atlas entry.
+
         Examples
         --------
         Graph 6 is the path on three nodes, and graph 7 the triangle:
@@ -20061,10 +20067,22 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_atlas_graph(6).get_edges_str_repr(), ec.Graph().add_atlas_graph(7).get_edges_str_repr()
+        path = ec.Graph().add_atlas_graph(6)
+        triangle = ec.Graph().add_atlas_graph(7)
+
+        path.get_edges_str_repr(), triangle.get_edges_str_repr()
         ```
 
-        The last graph in the atlas is the complete graph on seven nodes:
+        The atlas lists the graphs by node count, and within a node count by edge count. The
+        eleven graphs on four nodes are numbers `8` to `18`, from the empty graph to the
+        complete one:
+
+        ```{python}
+        [ec.Graph().add_atlas_graph(i).count_edges() for i in range(8, 19)]
+        ```
+
+        So the last graph of each node count is complete, and the last in the whole atlas is
+        the complete graph on seven nodes:
 
         ```{python}
         last = ec.Graph().add_atlas_graph(1252)
