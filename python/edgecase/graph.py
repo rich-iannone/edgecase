@@ -1272,6 +1272,9 @@ class Graph:
 
         metro.play(layout="pos")
         ```
+
+        [The step log](../user-guide/step-log.qmd#teaching-an-algorithm) clears the log before a
+        traversal, so that the replay starts from the finished graph.
         """
         import weakref
 
