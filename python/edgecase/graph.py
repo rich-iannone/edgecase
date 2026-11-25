@@ -31062,6 +31062,9 @@ class Graph:
             layout="pos", highlight="selection", label_by="label"
         )
         ```
+
+        [Selections](../user-guide/selections.qmd#combining-selections) combines selectors with
+        `set_op=` and removes the seed from an ego network.
         """
         # Resolve labels to IDs; unknown IDs or labels raise before anything changes
         resolved_ids = [self._node_id_or_raise(nid) for nid in node_ids]
