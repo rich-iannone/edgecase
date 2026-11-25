@@ -9703,9 +9703,16 @@ class Graph:
         ValueError
             If `n=` or `k=` is less than `2`.
 
+        See Also
+        --------
+        add_star_graph : Add a star graph.
+        add_full_graph : Add a complete graph.
+        articulation_points : Find the nodes whose removal disconnects the graph.
+
         Examples
         --------
-        Three triangles sharing a hub (the friendship graph) have `7` nodes and `9` edges:
+        A windmill graph is `n` complete graphs of `k` nodes that share one node, the hub. Three
+        triangles sharing a hub, the friendship graph, have `7` nodes and `9` edges:
 
         ```{python}
         import edgecase as ec
@@ -9715,12 +9722,45 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The hub, node `"1"`, is the only articulation point; removing it leaves three separate
+        The hub is node `"1"`, and it's the only cut node: deleting it leaves three separate
         edges:
 
         ```{python}
-        graph.articulation_points(), graph.delete_node("1").count_weakly_connected_components()
+        hub = graph.articulation_points()
+        rest = graph.subgraph([n for n in graph.get_node_ids() if n not in hub])
+
+        graph.get_label_from_id(hub[0]), rest.count_weakly_connected_components()
         ```
+
+        ### Triangles or cliques of four
+
+        `k=` sets the size of each blade. Three triangles on the left and three complete graphs of
+        four on the right, with the hub highlighted. The larger blades double the number of edges,
+        from `9` to `18`, and raise the hub's degree from `6` to `9`:
+
+        ```{python}
+        fours = ec.Graph().add_windmill_graph(n=3, k=4)
+
+        fours.count_nodes(), fours.count_edges(), fours.get_degree("1")
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_kamada_kawai().plot(
+            layout="pos", highlight=hub, label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        fours.layout_kamada_kawai().plot(
+            layout="pos", highlight=fours.articulation_points(),
+            label_by="label", width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if n < 2:
             raise ValueError("Windmill must have at least 2 blades")
