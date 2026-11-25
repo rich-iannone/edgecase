@@ -65148,9 +65148,10 @@ class Graph:
         2, 3 and 32, and the three members in pockets of their own; all the rest are submissive:
 
         ```{python}
+        labels, scores = ranked["label"], ranked["domirank_centrality"]
         role = {
             label: "dominant" if score > 0 else "submissive"
-            for label, score in ranked.select("label", "domirank_centrality").rows()
+            for label, score in zip(labels, scores)
         }
 
         club.set_node_attrs("role", role).plot(
@@ -65161,6 +65162,9 @@ class Graph:
         By default `sigma=` is set automatically, at `alpha=0.95` of the critical level; pass
         `return_sigma=True` to see the value. A small `sigma=` (less competition) gives a ranking
         close to degree.
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         if method != "iterative":
             raise ValueError("Only method='iterative' is currently supported")
