@@ -50081,26 +50081,22 @@ class Graph:
         Examples
         --------
         The path "A -- B -- C" has two edges, so its line graph has two nodes. They are joined
-        because both edges meet at "B":
+        because both edges meet at "B". All four spokes of a star meet at the center, so every pair
+        of them is joined and the line graph is the complete graph on four nodes, with 6 edges:
 
         ```{python}
         import edgecase as ec
 
         path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
-        lines = path.line_graph()
-
-        lines.count_nodes(), lines.count_edges()
-        ```
-
-        All four spokes of a star meet at the center, so every pair of them is joined and the line
-        graph is the complete graph on four nodes, with 6 edges:
-
-        ```{python}
         star = ec.Graph.from_edges(
             [("C", "L1"), ("C", "L2"), ("C", "L3"), ("C", "L4")]
         )
+        lines = path.line_graph()
 
-        star.line_graph().count_edges()
+        (
+            (lines.count_nodes(), lines.count_edges()),
+            star.line_graph().count_edges(),
+        )
         ```
 
         Each line-graph node records the edge it came from, so results on the line graph can be
@@ -50182,6 +50178,9 @@ class Graph:
         sessions.layout_kamada_kawai()
         sessions.plot(layout="pos", color_by="hour", label_by="session")
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#derived-graphs) finds the karate club
+        friendship that touches the most others, and explains how large a line graph can grow.
         """
         result = Graph._from_rust(rust.line_graph(self._graph, create_using_directed))
 
