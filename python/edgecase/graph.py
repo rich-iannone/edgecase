@@ -92382,15 +92382,39 @@ class Graph:
         Examples
         --------
         In a star, every link joins the center, with three links, to a node with one, so the
-        coefficient is `-1`:
+        coefficient is `-1`. Split into a square with both diagonals and a separate pair, every
+        link joins two nodes with the same number of links, and the coefficient is `1`:
 
         ```{python}
         import edgecase as ec
 
         star = ec.Graph.from_edges([("A", "B"), ("A", "C"), ("A", "D")])
+        split = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("A", "D"), ("B", "C"), ("B", "D"),
+             ("C", "D"), ("E", "F")]
+        )
 
-        star.assortativity_degree()
+        star.assortativity_degree(), split.assortativity_degree()
         ```
+
+        The star on the left and the split graph on the right, each node labeled by its number
+        of links:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        star.plot(
+            label_by="degree", width=320, height=240, legend=False, seed=1
+        )
+        ```
+
+        ```{python}
+        split.plot(
+            label_by="degree", width=320, height=240, legend=False, seed=1
+        )
+        ```
+
+        :::
 
         ### Leaders and their followers
 
@@ -92421,6 +92445,9 @@ class Graph:
 
         karate.plot(highlight=spokes, size_by="degree", label_by="label", seed=1)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) compares the degree
+        assortativity of six bundled networks, from co-authorship to metabolism.
         """
         return self._graph.assortativity_degree()
 
