@@ -81470,6 +81470,9 @@ class Graph:
             layout="pos", highlight_edges=metro.bridges(), label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) explains why
+        the connectivity of a whole network says little, and what is more informative.
         """
         return self._graph.edge_connectivity()
 
