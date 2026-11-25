@@ -84290,6 +84290,9 @@ class Graph:
         metro.set_node_attrs("pieces", pieces)
         metro.plot(layout="pos", color_by="pieces", label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#connected-components) compares the
+        methods that find and count components.
         """
         return self._graph.count_weakly_connected_components()
 
