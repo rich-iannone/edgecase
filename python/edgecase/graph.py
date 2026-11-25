@@ -80645,6 +80645,10 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) explains why
+        it takes ten friendships to separate the karate club's two leaders, and what that number
+        counts.
         """
         if k < 1:
             raise ValueError("k must be at least 1")
