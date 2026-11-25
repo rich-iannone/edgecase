@@ -23106,6 +23106,12 @@ class Graph:
             If called on an undirected graph. Note that `ec.Graph()` is undirected by default, so
             create the graph with `directed=True` to use this method.
 
+        See Also
+        --------
+        topological_sort : Order the nodes so every edge points forward.
+        simple_cycles : List the directed cycles.
+        is_arborescence : Whether the graph is a directed tree with one root.
+
         Examples
         --------
         A simple chain `A -> B -> C` has no way back to its start, so it is a DAG:
@@ -23122,35 +23128,58 @@ class Graph:
         graph.is_dag()
         ```
 
-        Adding an edge back from "C" to "A" closes the loop `A -> B -> C -> A`, so the
-        graph is no longer acyclic:
+        Adding an edge back from "C" to "A" closes the loop `A -> B -> C -> A`, so the graph is no
+        longer acyclic:
 
         ```{python}
         graph.add_edge("C", "A")
         graph.is_dag()
         ```
 
-        Acyclic is not the same as tree-shaped. In this small build pipeline, "test" and "docs"
-        both depend on "compile", and "release" depends on both of them. The two routes from
-        "compile" to "release" form a diamond, but there is no directed cycle, so the
-        pipeline is still a valid DAG:
+        ### A loop in the prerequisites
+
+        In a course catalog, each edge runs from a course to one that requires it. Because the
+        catalog is a DAG, there's an order in which a student can take every course. Suppose an
+        edit makes Distributed Systems (CS410) a prerequisite for Computer Architecture (CS210),
+        which is itself needed, through Operating Systems and Computer Networks, for CS410. Now
+        no one can take any of the four:
 
         ```{python}
-        pipeline = (
-            ec.Graph(directed=True)
-            .add_nodes(["compile", "test", "docs", "release"])
-            .add_edges(
-                [
-                    ("compile", "test"),
-                    ("compile", "docs"),
-                    ("test", "release"),
-                    ("docs", "release"),
-                ]
-            )
-        )
+        catalog = ec.courses().layout_multipartite(subset_key="level")
+        edited = ec.courses().layout_multipartite(subset_key="level")
+        edited.add_edge("CS410", "CS210")
+        loops = [
+            [edited.get_label_from_id(n) for n in cycle]
+            for cycle in edited.simple_cycles()
+        ]
 
-        pipeline.is_dag()
+        catalog.is_dag(), edited.is_dag(), loops
         ```
+
+        The catalog on the left, with the courses in columns by level, and the edited catalog on
+        the right, with the two loops highlighted:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        catalog.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        ```{python}
+        edited.plot(
+            layout="pos",
+            highlight=["CS210", "CS310", "CS320", "CS410"],
+            highlight_edges=[
+                ("CS410", "CS210"), ("CS210", "CS310"), ("CS210", "CS320"),
+                ("CS310", "CS410"), ("CS320", "CS410"),
+            ],
+            label_by="label", width=360, height=360, legend=False,
+        )
+        ```
+
+        :::
         """
         return self._graph.is_dag()
 
