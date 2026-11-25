@@ -894,12 +894,6 @@ def florentine_families(ties: str = "marriage") -> Graph:
     betweenness centrality. The business ties (partnerships, loans and shared ownership) form a
     second, sparser network, and comparing the two is the usual exercise for multiplex analysis.
 
-    Parameters
-    ----------
-    ties
-        Which ties to include: `"marriage"` (the default and the classic network), `"business"`,
-        or `"all"` for both, with one edge per pair of families.
-
     Network Properties:
 
     - 15 nodes (families, labeled by name), the same in every version
@@ -915,6 +909,12 @@ def florentine_families(ties: str = "marriage") -> Graph:
 
     The nodes, their order and labels match NetworkX's `florentine_families_graph()`, and the
     marriage edges are its edges.
+
+    Parameters
+    ----------
+    ties
+        Which ties to include: `"marriage"` (the default and the classic network), `"business"`,
+        or `"all"` for both, with one edge per pair of families.
 
     Returns
     -------
