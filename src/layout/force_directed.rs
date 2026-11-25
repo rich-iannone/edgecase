@@ -33,6 +33,20 @@ impl Default for LayoutConfig {
 /// 2D position
 type Position = (f64, f64);
 
+/// Below this many nodes, each step runs on one thread: handing work to the thread pool costs
+/// more than it saves, 500 times over in a layout
+const PARALLEL_FROM: usize = 256;
+
+/// `f` of each node index, across threads when `parallel` is set (the results are the same
+/// either way, as each is computed alone)
+fn map_nodes<T: Send>(n: usize, parallel: bool, f: impl Fn(usize) -> T + Sync + Send) -> Vec<T> {
+    if parallel {
+        (0..n).into_par_iter().map(f).collect()
+    } else {
+        (0..n).map(f).collect()
+    }
+}
+
 /// Force-directed layout using Fruchterman-Reingold algorithm
 pub struct ForceDirectedLayout {
     config: LayoutConfig,
@@ -71,44 +85,41 @@ impl ForceDirectedLayout {
         let cooling_factor = temp / self.config.iterations as f64;
 
         for _iteration in 0..self.config.iterations {
-            // Calculate repulsive forces (parallel)
+            // Calculate repulsive forces
             let repulsive_forces = if self.config.use_barnes_hut && node_count > 100 {
                 self.barnes_hut_repulsion(&positions, k)
             } else {
                 self.direct_repulsion(&positions, k)
             };
 
-            // Calculate attractive forces (parallel)
+            // Calculate attractive forces
             let attractive_forces = self.attractive_forces(&positions, &adjacency, k);
 
-            // Update positions (parallel)
-            (0..node_count)
-                .into_par_iter()
-                .map(|i| {
-                    let fx = repulsive_forces[i].0 + attractive_forces[i].0;
-                    let fy = repulsive_forces[i].1 + attractive_forces[i].1;
+            // Update positions
+            map_nodes(node_count, node_count >= PARALLEL_FROM, |i| {
+                let fx = repulsive_forces[i].0 + attractive_forces[i].0;
+                let fy = repulsive_forces[i].1 + attractive_forces[i].1;
 
-                    // Limit displacement by temperature
-                    let disp = (fx * fx + fy * fy).sqrt();
-                    let limited_disp = disp.min(temp);
-                    let scale = if disp > 0.0 { limited_disp / disp } else { 0.0 };
+                // Limit displacement by temperature
+                let disp = (fx * fx + fy * fy).sqrt();
+                let limited_disp = disp.min(temp);
+                let scale = if disp > 0.0 { limited_disp / disp } else { 0.0 };
 
-                    let new_vel = (
-                        velocities[i].0 * self.config.damping + fx * scale,
-                        velocities[i].1 * self.config.damping + fy * scale,
-                    );
+                let new_vel = (
+                    velocities[i].0 * self.config.damping + fx * scale,
+                    velocities[i].1 * self.config.damping + fy * scale,
+                );
 
-                    let new_pos = (positions[i].0 + new_vel.0, positions[i].1 + new_vel.1);
+                let new_pos = (positions[i].0 + new_vel.0, positions[i].1 + new_vel.1);
 
-                    (new_pos, new_vel)
-                })
-                .collect::<Vec<_>>()
-                .into_iter()
-                .enumerate()
-                .for_each(|(i, (new_pos, new_vel))| {
-                    positions[i] = new_pos;
-                    velocities[i] = new_vel;
-                });
+                (new_pos, new_vel)
+            })
+            .into_iter()
+            .enumerate()
+            .for_each(|(i, (new_pos, new_vel))| {
+                positions[i] = new_pos;
+                velocities[i] = new_vel;
+            });
 
             // Cool down temperature
             temp -= cooling_factor;
@@ -146,35 +157,32 @@ impl ForceDirectedLayout {
 
     fn direct_repulsion(&self, positions: &[Position], k: f64) -> Vec<Position> {
         let k_squared = k * k;
-        (0..positions.len())
-            .into_par_iter()
-            .map(|i| {
-                let mut fx = 0.0;
-                let mut fy = 0.0;
+        map_nodes(positions.len(), positions.len() >= PARALLEL_FROM, |i| {
+            let mut fx = 0.0;
+            let mut fy = 0.0;
 
-                for j in 0..positions.len() {
-                    if i == j {
-                        continue;
-                    }
-
-                    let dx = positions[i].0 - positions[j].0;
-                    let dy = positions[i].1 - positions[j].1;
-                    let dist_sq = dx * dx + dy * dy;
-
-                    if dist_sq < 0.01 {
-                        continue;
-                    }
-
-                    let dist = dist_sq.sqrt();
-                    let force = k_squared / dist;
-
-                    fx += (dx / dist) * force;
-                    fy += (dy / dist) * force;
+            for j in 0..positions.len() {
+                if i == j {
+                    continue;
                 }
 
-                (fx, fy)
-            })
-            .collect()
+                let dx = positions[i].0 - positions[j].0;
+                let dy = positions[i].1 - positions[j].1;
+                let dist_sq = dx * dx + dy * dy;
+
+                if dist_sq < 0.01 {
+                    continue;
+                }
+
+                let dist = dist_sq.sqrt();
+                let force = k_squared / dist;
+
+                fx += (dx / dist) * force;
+                fy += (dy / dist) * force;
+            }
+
+            (fx, fy)
+        })
     }
 
     fn barnes_hut_repulsion(&self, positions: &[Position], k: f64) -> Vec<Position> {
@@ -182,10 +190,9 @@ impl ForceDirectedLayout {
         let quadtree = QuadTree::build(positions);
 
         // Calculate forces using Barnes-Hut
-        (0..positions.len())
-            .into_par_iter()
-            .map(|i| quadtree.calculate_force(positions[i], self.config.theta, k))
-            .collect()
+        map_nodes(positions.len(), positions.len() >= PARALLEL_FROM, |i| {
+            quadtree.calculate_force(positions[i], self.config.theta, k)
+        })
     }
 
     fn attractive_forces(
@@ -194,27 +201,24 @@ impl ForceDirectedLayout {
         adjacency: &[Vec<usize>],
         k: f64,
     ) -> Vec<Position> {
-        (0..positions.len())
-            .into_par_iter()
-            .map(|i| {
-                let mut fx = 0.0;
-                let mut fy = 0.0;
+        map_nodes(positions.len(), positions.len() >= PARALLEL_FROM, |i| {
+            let mut fx = 0.0;
+            let mut fy = 0.0;
 
-                for &j in &adjacency[i] {
-                    let dx = positions[j].0 - positions[i].0;
-                    let dy = positions[j].1 - positions[i].1;
-                    let dist = (dx * dx + dy * dy).sqrt().max(0.01);
+            for &j in &adjacency[i] {
+                let dx = positions[j].0 - positions[i].0;
+                let dy = positions[j].1 - positions[i].1;
+                let dist = (dx * dx + dy * dy).sqrt().max(0.01);
 
-                    // Attractive force: f_a(d) = d^2 / k
-                    let force = dist * dist / k;
+                // Attractive force: f_a(d) = d^2 / k
+                let force = dist * dist / k;
 
-                    fx += (dx / dist) * force;
-                    fy += (dy / dist) * force;
-                }
+                fx += (dx / dist) * force;
+                fy += (dy / dist) * force;
+            }
 
-                (fx, fy)
-            })
-            .collect()
+            (fx, fy)
+        })
     }
 
     fn scale_to_viewport(&self, positions: Vec<Position>) -> HashMap<usize, Position> {
