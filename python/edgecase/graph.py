@@ -6668,8 +6668,8 @@ class Graph:
 
         Examples
         --------
-        `K_4` is planar, so it can be drawn without crossings, with one node inside the triangle
-        of the other three. `refine=False` and `scale=None` keep the grid coordinates:
+        `K_4` is planar, so it can be drawn without crossings, with one node inside the triangle of
+        the other three. `refine=False` and `scale=None` keep the grid coordinates:
 
         ```{python}
         import edgecase as ec
@@ -6679,11 +6679,32 @@ class Graph:
         )
         ```
 
-        Stored positions are what `plot(layout=...)` draws:
+        ### Flattening an icosahedron
+
+        The corners and edges of an icosahedron form a planar graph with 12 nodes, 30 edges and 20
+        triangular faces. `layout_planar()` on the left flattens it with no crossings, one triangle
+        as the outer border and the others nested inside. The spring layout on the right spreads
+        the corners evenly, and many of its edges cross:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        ec.Graph().add_named_graph("dodecahedral").layout_planar().plot(layout="pos")
+        icosa = ec.Graph().add_named_graph("icosahedral")
+
+        icosa.layout_planar().plot(
+            layout="pos", width=360, height=360, legend=False
+        )
         ```
+
+        ```{python}
+        icosa.layout_spring(seed=1).plot(
+            layout="pos", width=360, height=360, legend=False
+        )
+        ```
+
+        :::
+
+        A graph that isn't planar raises an error; check first with `is_planar()`.
         """
         scale, center = self._layout_frame(scale, center)
         ids, pairs, _ = self._planarity_input()
