@@ -79913,6 +79913,25 @@ class Graph:
         [[label(n) for n in p] for p in paths], bowtie.minimum_cut_value("A", "E")
         ```
 
+        Each edge colored by the route that uses it. Both routes pass through C, but along
+        different edges:
+
+        ```{python}
+        spots = {"A": (0, 2), "B": (2, 2), "C": (1, 1), "D": (0, 0), "E": (2, 0)}
+        bowtie.set_node_attrs(
+            "pos", {bowtie.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        legs = {
+            (u, v): i + 1 for i, p in enumerate(paths) for u, v in zip(p, p[1:])
+        }
+        bowtie.set_edge_attrs("route", list(legs.values()), edges=list(legs))
+
+        bowtie.plot(
+            layout="pos", edge_color_by="route", edge_width=4, edge_opacity=0.9,
+            label_by="label", height=240,
+        )
+        ```
+
         With `max_paths=`, the search stops early, which is quicker when only a few routes are
         needed:
 
@@ -79947,6 +79966,9 @@ class Graph:
             edge_opacity=0.9, label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#disjoint-paths) compares paths that share no
+        road with paths that share no city.
         """
         if max_paths is not None and max_paths < 1:
             raise ValueError(f"max_paths must be at least 1, got {max_paths}")
