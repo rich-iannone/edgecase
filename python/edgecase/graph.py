@@ -3276,6 +3276,9 @@ class Graph:
 
         card.plot(edge_label_by="date", label_by="label", seed=1)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#deleting-nodes-and-edges) compares
+        deleting an edge by its endpoints and by its ID.
         """
         if not self.has_edge_id(edge_id):
             raise EdgeNotFoundError(f"Edge with ID {edge_id} does not exist")
