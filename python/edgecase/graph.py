@@ -79398,6 +79398,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=middle, label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) compares the center and the
+        barycenter of the karate club, and when each is the right choice.
         """
         # Same eligible nodes as radius(), so the center's eccentricity is the radius
         ecc = self._graph.center_eccentricities()
