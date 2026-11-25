@@ -89393,6 +89393,9 @@ class Graph:
             layout="pos", highlight_edges=tree.get_edge_ids(), label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) compares the
+        spanning-tree methods.
         """
         trees = rust.SpanningTreeIter(
             self._graph,
