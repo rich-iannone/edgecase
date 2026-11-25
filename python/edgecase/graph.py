@@ -30157,52 +30157,73 @@ class Graph:
         social-network data, where such ties bridge otherwise distinct friendship circles
         even when embeddedness is high.
 
+        See Also
+        --------
+        common_neighbors : The number of shared neighbors of two nodes.
+        local_bridges : Edges whose ends share no neighbor at all.
+        clustering_coefficient : How well a node's neighbors are linked to each other.
+
         Examples
         --------
-        `U` and `V` share three neighbors: `A`, `B`, and `C`. `A` and `B` know each other, but
-        `C` is linked to neither, so two of the three shared-neighbor pairs (`A`-`C` and
-        `B`-`C`) are dispersed, giving `2 / 3`:
+        `U` and `V` share three neighbors: `A`, `B` and `C`. `A` and `B` know each other, but `C`
+        is linked to neither, so two of the three pairs of shared neighbors (`A`–`C` and `B`–`C`)
+        are dispersed, giving `2 / 3`. With `normalized=False`, the count of dispersed pairs:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False)
-        graph.add_nodes(["U", "V", "A", "B", "C"])
-
-        graph.add_edges(
-            [
-                ("U", "V"), ("U", "A"), ("U", "B"), ("U", "C"),
-                ("V", "A"), ("V", "B"), ("V", "C"), ("A", "B"),
-            ]
+        graph = ec.Graph.from_edges(
+            [("U", "V"), ("U", "A"), ("U", "B"), ("U", "C"),
+             ("V", "A"), ("V", "B"), ("V", "C"), ("A", "B")]
         )
 
-        round(graph.dispersion("U", "V"), 3)
+        round(graph.dispersion("U", "V"), 3), graph.dispersion("U", "V", normalized=False)
         ```
 
-        `normalized=False` returns the raw number of dispersed pairs instead of dividing it by
-        the three common neighbors:
-
-        ```{python}
-        graph.dispersion("U", "V", normalized=False)
-        ```
-
-        Adding a node `X` that links `B` and `C` gives them a shared neighbor outside the
-        `U`-`V` tie, so the `B`-`C` pair no longer counts and dispersion drops to `1 / 3`:
+        Pairs are judged among the neighbors of the first node. A friend `X` of `U` who knows
+        both `B` and `C` links that pair outside the `U`–`V` tie, so it no longer counts and the
+        dispersion of `U` with `V` drops to `1 / 3`. Seen from `V`, who doesn't know `X`, it stays
+        at `2 / 3`:
 
         ```{python}
         graph.add_node(label="X")
-        graph.add_edge("B", "X").add_edge("C", "X")
+        graph.add_edge("U", "X").add_edge("B", "X").add_edge("C", "X")
 
-        round(graph.dispersion("U", "V"), 3)
+        round(graph.dispersion("U", "V"), 3), round(graph.dispersion("V", "U"), 3)
         ```
 
-        Ties inside a densely knit group have low dispersion. In a complete graph every pair of
-        shared neighbors is directly linked, so the score is `0.0`:
+        ### Spotting a couple
+
+        `friends()` holds the friendships among 24 members of two clubs. Ranking every friendship
+        by dispersion, one stands far above the rest:
 
         ```{python}
-        clique = ec.Graph(directed=False).add_full_graph(5)
+        import polars as pl
 
-        clique.dispersion(1, 2)
+        friends = ec.friends()
+        label = friends.get_label_from_id
+
+        pl.DataFrame(
+            [
+                {"friend_1": label(u), "friend_2": label(v), "dispersion": friends.dispersion(u, v)}
+                for _, u, v in friends.get_edges_as_tuples()
+            ]
+        ).sort("dispersion", descending=True).head(4)
+        ```
+
+        Hugo, from the chess club, and Tara, from the climbing club, are a couple. They share
+        four friends, two from each club, and no two of the four know each other, so all six pairs
+        are dispersed:
+
+        ```{python}
+        shared = set(friends.get_neighbors("Hugo")) & set(friends.get_neighbors("Tara"))
+
+        friends.plot(
+            color_by="club",
+            highlight={"accent": ["Hugo", "Tara"], "soft": list(shared)},
+            label_by="label",
+            seed=1,
+        )
         ```
         """
         from edgecase._core import dispersion
