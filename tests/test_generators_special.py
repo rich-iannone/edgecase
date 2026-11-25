@@ -38,6 +38,10 @@ def node_attr(g, attr):
     return [values.get(nid) for nid in sorted(g.get_node_ids(limit=None))]
 
 
+def largest_degree(g):
+    return max(g.degrees(return_dict=True).values())
+
+
 def flat_kernel(c):
     return dict(kernel_integral=lambda u, w, z: c * (z - w), kernel_root=lambda u, w, r: w + r / c)
 
@@ -749,3 +753,267 @@ class TestNonisomorphicTrees:
             ec.Graph.count_nonisomorphic_trees(order)
         with pytest.raises(ValueError):
             next(ec.Graph.iter_nonisomorphic_trees(order))
+
+
+class TestDocstringScenarios:
+    """The seeded values quoted in the generator docstrings."""
+
+    def test_bipartite_configuration_model(self):
+        graph = ec.Graph().add_bipartite_configuration_model([2, 2, 2], [3, 3], seed=1)
+        assert (graph.count_nodes(), graph.count_edges()) == (5, 6)
+        assert degrees_in_order(graph) == [2, 2, 2, 3, 3]
+        assert node_attr(graph, "part") == [0, 0, 0, 1, 1]
+        assert graph.is_bipartite() and not graph.is_simple()
+
+        first, second = [3, 2, 2, 1], [2, 2, 2, 2]
+        shuffled = ec.Graph().add_bipartite_configuration_model(first, second, seed=1)
+        fixed = ec.Graph().add_bipartite_havel_hakimi_graph(first, second)
+        assert shuffled.get_edges_str_repr().count("1--8") == 2
+        assert not shuffled.is_simple() and fixed.is_simple()
+        assert degrees_in_order(shuffled) == degrees_in_order(fixed) == first + second
+
+    def test_bipartite_havel_hakimi_variants(self):
+        graph = ec.Graph().add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1])
+        assert degrees_in_order(graph) == [3, 2, 1, 2, 2, 1, 1]
+        edges = {
+            v: ec.Graph()
+            .add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1], variant=v)
+            .get_edges_str_repr()
+            for v in ("largest", "smallest", "alternating")
+        }
+        assert edges == {
+            "largest": ["1--7", "1--4", "1--5", "2--5", "2--6", "3--4"],
+            "smallest": ["1--6", "1--7", "1--4", "2--4", "2--5", "3--5"],
+            "alternating": ["1--4", "1--6", "1--5", "2--7", "2--4", "3--5"],
+        }
+        with pytest.raises(ValueError, match="node 0 needs 3 neighbors"):
+            ec.Graph().add_bipartite_havel_hakimi_graph([3, 1], [2, 2])
+
+    def test_bipartite_preferential_attachment(self):
+        graph = ec.Graph().add_bipartite_preferential_attachment_graph([3] * 50, p=0.3, seed=2)
+        parts = node_attr(graph, "part")
+        assert (parts.count(0), parts.count(1), graph.count_edges()) == (50, 41, 150)
+
+        def second_degrees(g):
+            nodes = g.get_node_df()
+            return nodes.filter(nodes["part"] == 1)["degree"].sort(descending=True).to_list()
+
+        assert second_degrees(graph)[:8] == [56, 11, 8, 7, 6, 4, 4, 4]
+        low = ec.Graph().add_bipartite_preferential_attachment_graph([2] * 8, p=0.2, seed=1)
+        high = ec.Graph().add_bipartite_preferential_attachment_graph([2] * 8, p=0.8, seed=1)
+        assert second_degrees(low) == [10, 2, 1, 1, 1, 1]
+        assert second_degrees(high) == [2, 2, 2] + [1] * 10
+
+    def test_bipartite_gnp_and_gnm(self):
+        graph = ec.Graph().add_bipartite_gnp_graph(20, 30, p=0.1, seed=3)
+        assert (graph.count_nodes(), graph.count_edges()) == (50, 64)
+        assert graph.is_bipartite()
+        directed = ec.Graph(directed=True).add_bipartite_gnp_graph(20, 30, p=0.1, seed=3)
+        assert directed.count_edges() == 140
+        sparse = ec.Graph().add_bipartite_gnp_graph(5, 6, p=0.2, seed=1)
+        dense = ec.Graph().add_bipartite_gnp_graph(5, 6, p=0.5, seed=1)
+        assert (sparse.count_edges(), dense.count_edges()) == (8, 16)
+        # Two second-part nodes have no edges in the sparse graph
+        assert degrees_in_order(sparse).count(0) == 2
+
+        graph = ec.Graph().add_bipartite_gnm_graph(4, 5, m=10, seed=1)
+        assert (graph.count_nodes(), graph.count_edges()) == (9, 10)
+        assert graph.is_simple()
+        complete = ec.Graph().add_bipartite_gnm_graph(4, 5, m=100)
+        assert complete.count_edges() == 20
+        assert complete.is_isomorphic(ec.Graph().add_complete_bipartite_graph(n1=4, n2=5))
+
+    def test_margulis_gabber_galil(self):
+        graph = ec.Graph().add_margulis_gabber_galil_graph(n=5)
+        assert (graph.count_nodes(), graph.count_edges()) == (25, 100)
+        assert set(graph.degrees(return_dict=True).values()) == {8}
+        origin = graph.get_id_from_label("(0,0)")
+        edges = graph.get_edges_as_tuples()
+        targets = [graph.get_label_from_id(t) for _, s, t in edges if s == origin]
+        assert targets == ["(0,0)", "(1,0)", "(0,0)", "(0,1)"]
+        torus = ec.Graph().add_grid_graph(dims=[5, 5], periodic=True)
+        assert (graph.diameter(), torus.diameter()) == (3, 4)
+
+    def test_chordal_cycle(self):
+        graph = ec.Graph().add_chordal_cycle_graph(p=11)
+        assert (graph.count_nodes(), graph.count_edges()) == (11, 18)
+        edges = graph.get_edges_str_repr()
+        assert edges[11:] == ["1--1", "2--2", "3--7", "4--5", "6--10", "8--9", "11--11"]
+        diameters = [ec.Graph().add_chordal_cycle_graph(p).diameter() for p in (11, 101, 1009)]
+        assert diameters == [4, 10, 16]
+        bigger = ec.Graph().add_chordal_cycle_graph(p=23)
+        assert (bigger.diameter(), ec.Graph().add_cycle_graph(23).diameter()) == (5, 11)
+
+    def test_paley(self):
+        graph = ec.Graph().add_paley_graph(p=13)
+        assert graph.count_edges() == 39
+        assert set(graph.degrees(return_dict=True).values()) == {6}
+        complement = graph.complement()
+        assert graph.is_isomorphic(complement)
+        steps = sorted(int(graph.get_label_from_id(n)) - 1 for n in graph.get_neighbors("1"))
+        assert steps == [1, 3, 4, 9, 10, 12]
+        # Doubling modulo 13 maps the graph onto its complement
+        doubled = {
+            frozenset(str(2 * (int(x) - 1) % 13 + 1) for x in edge.split("--"))
+            for edge in graph.get_edges_str_repr()
+        }
+        assert doubled == {frozenset(e.split("--")) for e in complement.get_edges_str_repr()}
+        assert ec.Graph().add_paley_graph(p=5).is_isomorphic(ec.Graph().add_cycle_graph(5))
+        tournament = ec.Graph(directed=True).add_paley_graph(p=7)
+        wins = [len(tournament.get_neighbors(v)) for v in tournament.get_node_ids()]
+        assert (tournament.count_edges(), wins) == (21, [3] * 7)
+
+    def test_regular_expanders(self):
+        graph = ec.Graph().add_maybe_regular_expander(n=50, d=4, seed=1)
+        assert graph.count_edges() == 100 and graph.is_simple()
+        assert graph.is_regular_expander()
+        one = ec.Graph().add_maybe_regular_expander(n=30, d=2, seed=1)
+        two = ec.Graph().add_maybe_regular_expander(n=30, d=4, seed=1)
+        assert [(g.diameter(), g.is_regular_expander()) for g in (one, two)] == [
+            (15, False),
+            (4, True),
+        ]
+
+        graph = ec.Graph().add_random_regular_expander_graph(n=100, d=6, seed=2)
+        assert (graph.count_edges(), graph.diameter()) == (300, 5)
+        assert graph.is_regular_expander()
+        expander = ec.Graph().add_random_regular_expander_graph(n=30, d=4, seed=1)
+        ring = ec.Graph().add_smallworld_graph(n=30, k=4, p=0.0)
+        assert [(g.diameter(), g.is_regular_expander()) for g in (expander, ring)] == [
+            (4, True),
+            (8, False),
+        ]
+
+    def test_is_regular_expander(self):
+        assert ec.Graph().add_named_graph("petersen").is_regular_expander()
+        assert not ec.Graph().add_cycle_graph(20).is_regular_expander()
+        assert not ec.Graph().add_star_graph(5).is_regular_expander()
+        assert ec.Graph().add_random_regular_graph(n=200, d=5, seed=1).is_regular_expander()
+        prism = ec.Graph().add_generalized_petersen_graph(19, 1)
+        random_graph = ec.Graph().add_random_regular_graph(n=38, d=3, seed=1)
+        assert [(g.is_regular_expander(), g.diameter()) for g in (prism, random_graph)] == [
+            (False, 10),
+            (True, 7),
+        ]
+
+    def test_atlas(self):
+        assert [ec.Graph().add_atlas_graph(i).count_edges() for i in range(8, 19)] == [
+            0, 1, 2, 2, 3, 3, 3, 4, 4, 5, 6,
+        ]  # fmt: skip
+        atlas = ec.Graph.atlas_graphs()
+        sevens = [g for g in atlas if g.count_nodes() == 7]
+        assert (len(sevens), sum(g.is_planar() for g in sevens)) == (1044, 822)
+        assert all(
+            g.is_connected() or g.complement().is_connected() for g in atlas if g.count_nodes() > 0
+        )
+
+    def test_tree_enumeration(self):
+        octanes = [
+            t
+            for t in ec.Graph.iter_nonisomorphic_trees(8)
+            if max(t.degrees(return_dict=True).values()) <= 4
+        ]
+        assert len(octanes) == 18
+        assert ec.Graph.count_nonisomorphic_trees(100) == nx.number_of_nonisomorphic_trees(100)
+        assert [ec.Graph.count_nonisomorphic_trees(n) for n in (5, 10, 15)] == [3, 106, 7741]
+
+    def test_tree_degree_sequences(self):
+        sequences = ([3, 1, 1, 1], [1, 2, 2, 1], [2, 2, 2, 2], [3, 3, 0, 1, 1])
+        valid = [ec.Graph.is_valid_tree_degree_sequence(s) for s in sequences]
+        assert valid == [True, True, False, False]
+        leaves = [
+            k for k in range(4, 9) if ec.Graph.is_valid_tree_degree_sequence([4, 3, 3] + [1] * k)
+        ]
+        assert leaves == [6]
+
+    def test_random_kernel(self):
+        graph = ec.Graph().add_random_kernel_graph(
+            n=400, kernel_integral=lambda u, w, z: 5 * (z - w), seed=4
+        )
+        assert round(graph.average_degree(), 1) == 4.7
+
+        def kernel_graph(integral):
+            return ec.Graph().add_random_kernel_graph(n=60, kernel_integral=integral, seed=1)
+
+        even = kernel_graph(lambda u, w, z: 3 * (z - w))
+        skewed = kernel_graph(lambda u, w, z: 1.5 * (z**0.5 - w**0.5) / u**0.5)
+        profiles = [
+            (g.count_edges(), largest_degree(g), g.count_weakly_connected_components())
+            for g in (even, skewed)
+        ]
+        assert profiles == [(87, 7, 5), (68, 11, 10)]
+
+    def test_random_clustered(self):
+        graph = ec.Graph().add_random_clustered_graph([(1, 2)] * 60, seed=7)
+        triangles = sum(graph.count_triangles().values()) // 3
+        assert (graph.count_nodes(), graph.count_edges(), triangles) == (60, 150, 45)
+
+        def triangle_edges(g):
+            nbrs = {v: set(g.get_neighbors(v)) for v in g.get_node_ids()}
+            edges = [(s, t) for _, s, t in g.get_edges_as_tuples()]
+            return [(s, t) for s, t in edges if nbrs[s] & nbrs[t]]
+
+        planted = ec.Graph().add_random_clustered_graph([(1, 1)] * 30, seed=2)
+        shuffled = ec.Graph().configuration_model([3] * 30, seed=2)
+        assert [(g.count_edges(), len(triangle_edges(g))) for g in (planted, shuffled)] == [
+            (45, 30),
+            (45, 3),
+        ]
+        assert shuffled.is_simple()
+
+    def test_duplication_divergence(self):
+        sparse, dense = (
+            ec.Graph().add_duplication_divergence_graph(n=40, p=p, seed=1) for p in (0.2, 0.6)
+        )
+        profiles = [(g.count_edges(), largest_degree(g), g.transitivity()) for g in (sparse, dense)]
+        assert profiles == [(45, 10, 0.0), (70, 17, 0.0)]
+
+    def test_partial_duplication(self):
+        graph = ec.Graph().add_partial_duplication_graph(n=100, n_initial=3, p=0.5, q=0.5, seed=2)
+        assert graph.count_edges() == 370
+        apart, together = (
+            ec.Graph().add_partial_duplication_graph(n=30, n_initial=3, p=0.3, q=q, seed=1)
+            for q in (0, 1)
+        )
+        pieces = [g.count_weakly_connected_components() for g in (apart, together)]
+        assert (apart.count_edges(), together.count_edges(), pieces) == (13, 51, [21, 1])
+
+    def test_visibility(self):
+        valley = ec.Graph().add_visibility_graph([7, 4, 2, 1, 2, 4, 7])
+        hill = ec.Graph().add_visibility_graph([1, 4, 6, 7, 6, 4, 1])
+        assert (valley.count_edges(), hill.count_edges()) == (21, 6)
+        assert hill.is_isomorphic(ec.Graph().add_path_graph(7))
+
+    def test_interval_rooms(self):
+        chain = [(9.0, 10.0), (9.5, 11.0), (10.5, 12.0), (11.5, 13.0), (12.5, 14.0)]
+        crowded = chain[:2] + [(9.5, 13.0)] + chain[3:]
+        rooms = [
+            len(set(ec.Graph().add_interval_graph(m).greedy_color().values()))
+            for m in (chain, crowded)
+        ]
+        assert rooms == [2, 3]
+        assert ec.Graph().add_interval_graph(chain).is_isomorphic(ec.Graph().add_path_graph(5))
+
+    def test_internet_as_core(self):
+        small = ec.Graph().add_random_internet_as_graph(n=60, seed=1)
+        types = small.get_node_attrs("type")
+        core = small.subgraph([v for v in types if types[v] != "C"])
+        assert (core.count_nodes(), core.count_edges(), small.count_edges()) == (17, 42, 86)
+        assert core.is_connected()
+
+    def test_sudoku_and_rook(self):
+        small = ec.Graph().add_sudoku_graph(n=2)
+        k4 = ec.Graph().add_full_graph(4)
+        rook = k4.cartesian_product(k4)
+        assert (small.count_edges(), rook.count_edges()) == (56, 48)
+
+        # Both number the cells row by row, so the rook's edges are a subset
+        def pairs(g):
+            return {frozenset(e.split("--")) for e in g.get_edges_str_repr()}
+
+        assert pairs(rook) < pairs(small)
+
+    def test_prefix_tree_sharing(self):
+        shared = ec.Graph(directed=True).add_prefix_tree(["cat", "car", "cab", "cow"])
+        apart = ec.Graph(directed=True).add_prefix_tree(["cat", "dog", "emu", "fox"])
+        assert (shared.count_nodes(), apart.count_nodes()) == (9, 14)
