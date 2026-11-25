@@ -21443,6 +21443,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         from edgecase._core import generate_stochastic_block_model as _generate_sbm
 
