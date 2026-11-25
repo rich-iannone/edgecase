@@ -65420,6 +65420,21 @@ class Graph:
         {label(n): k for n, k in graph.coreness(return_dict=True).items()}
         ```
 
+        Without `return_dict=True`, the values go in the `coreness` node attribute:
+
+        ```{python}
+        spots = {
+            "A": (1, 1), "B": (3, 1), "C": (0, 2.6), "D": (4, 2.6), "E": (5, 1),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.coreness().plot(
+            layout="pos", color_by="coreness", label_by="label", height=280
+        )
+        ```
+
         ### The center of a novel
 
         `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
@@ -65445,6 +65460,9 @@ class Graph:
             seed=1,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) colors the
+        karate club by coreness to show where its core sits.
         """
         if attr_name is None:
             attr_name = "coreness"
