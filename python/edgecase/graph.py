@@ -14479,6 +14479,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#degree-sequences) compares the generators
+        that realize a given degree sequence.
         """
         self._check_non_negative(tries=tries)
 
