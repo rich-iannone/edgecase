@@ -72690,6 +72690,9 @@ class Graph:
         near = metro.dfs_edges("Central", depth_limit=4)
         metro.plot(layout="pos", highlight=near, label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) explains the tree
+        that a search builds, and lists the methods that expose its parts.
         """
         self._check_traversal_args(depth_limit, mode)
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
