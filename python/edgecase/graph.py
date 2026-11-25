@@ -22509,6 +22509,12 @@ class Graph:
         TypeError
             If `source=` or `target=` is neither an `int` nor a `str`.
 
+        See Also
+        --------
+        has_edge : Check only whether such an edge exists.
+        get_node_ids_by_edge_id : Go the other way, from an edge ID to its endpoints.
+        count_multiple : Count the parallel edges for each node pair.
+
         Examples
         --------
         Because multigraphs allow more than one edge between the same pair of nodes,
