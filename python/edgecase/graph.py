@@ -46506,6 +46506,22 @@ class Graph:
         graph.cmty_leiden(seed=1).get_node_df().select("label", "cmty_leiden")
         ```
 
+        Colored by community, the split falls at the edge between the triangles:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3, 1.4), "E": (5, 1.4), "F": (4, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", color_by="cmty_leiden", label_by="label", height=240
+        )
+        ```
+
         ### Conferences in college football
 
         `football()` links two college football teams when they played each other in the 2000
@@ -46584,6 +46600,10 @@ class Graph:
         finely: the Mid-American's two divisions, East and West, become communities of their own,
         and six teams listed in the Sun Belt, the Western Athletic or no conference come together
         as the Big West, the conference they played in that season.
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) divides the 7,115 users of
+        Wikipedia's administrator elections into communities, and compares Leiden with the other
+        algorithms.
         """
         membership = rust.leiden(
             self._graph, resolution=resolution, seed=seed, objective=objective, theta=theta
