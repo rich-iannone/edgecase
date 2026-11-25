@@ -35260,6 +35260,9 @@ class Graph:
 
         graph.get_edge_attrs("rel")
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-edges) lists it with the other
+        methods that act on selected edges.
         """
         selected = self.get_selected_edge_ids()
 
