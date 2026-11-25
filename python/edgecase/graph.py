@@ -50191,28 +50191,41 @@ class Graph:
         self-loops make the two coincide). The eigenvalues of the product are all products of an
         eigenvalue of each factor. Results match NetworkX's `tensor_product`.
 
+        See Also
+        --------
+        cartesian_product : Join pairs that move in one graph at a time.
+        strong_product : Combine the Cartesian and tensor products.
+        is_bipartite : Check whether the graph is bipartite.
+
         Examples
         --------
-        The tensor product of a triangle with a single edge is a 6-cycle, the bipartite double
-        cover of the triangle:
+        Two pairs `(a, b)` and `(c, d)` are joined when `a--c` is an edge of the first graph and
+        `b--d` an edge of the second, so both parts move at once. A triangle times a single edge is
+        a 6-cycle, the bipartite double cover of the triangle, and the odd cycle becomes even:
 
         ```{python}
         import edgecase as ec
 
-        triangle = ec.Graph().add_nodes(["A", "B", "C"])
-        triangle.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        edge = ec.Graph().add_nodes(["0", "1"]).add_edge("0", "1")
+        triangle = ec.Graph().add_cycle_graph(3)
+        edge = ec.Graph().add_path_graph(2)
 
         cover = triangle.tensor_product(edge)
-        cover.count_edges(), cover.is_isomorphic(ec.Graph().add_cycle_graph(6))
+        cover.is_isomorphic(ec.Graph().add_cycle_graph(6)), cover.is_bipartite()
+        ```
+
+        ```{python}
+        cover.layout_circular().plot(layout="pos", label_by="label")
         ```
 
         With weights, every product edge carries the product of its two factor weights:
 
         ```{python}
-        a = ec.Graph(weighted=True).add_nodes(["A", "B"]).add_edge("A", "B", weight=2.0)
-        b = ec.Graph(weighted=True).add_nodes(["x", "y"]).add_edge("x", "y", weight=3.0)
-        [a.tensor_product(b).get_edge(e).weight for e in a.tensor_product(b).get_edge_ids()]
+        a = ec.Graph(weighted=True).add_nodes(["A", "B"])
+        a.add_edge("A", "B", weight=2.0)
+        b = ec.Graph(weighted=True).add_nodes(["x", "y"])
+        b.add_edge("x", "y", weight=3.0)
+
+        a.tensor_product(b).get_edge_df()["weight"].to_list()
         ```
         """
         return self._product(other, "tensor", "tensor_product")
