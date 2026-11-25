@@ -74192,6 +74192,50 @@ class Graph:
             layout="pos", color_by="dept", label_by="label", height=420,
         )
         ```
+
+        ### Generations or trophic levels
+
+        `food_web()` is a made-up woodland food web, with an edge from each food to each species
+        that eats it. A generation is the earliest a species can come once all its foods are in,
+        which isn't the same as how high up the web it feeds. On the left, the species are laid
+        out by generation, and on the right by trophic level. The Jay eats acorns and
+        caterpillars, so it has to wait a generation for the caterpillars, while feeding only
+        half a level above them:
+
+        ```{python}
+        web = ec.food_web()
+        generations = web.topological_generations()
+        levels = web.trophic_levels(return_dict=True)
+
+        jay = web.get_id_from_label("Jay")
+        generation = next(i for i, g in enumerate(generations, 1) if jay in g)
+
+        generation, levels[jay]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        web.layout_multipartite(
+            subset_key=dict(enumerate(generations)), align="horizontal",
+            attr_name="by_generation",
+        ).plot(
+            layout="by_generation", color_by="kind", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        web.plot(
+            layout="pos", color_by="kind", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#ordering) finds which tasks of building a
+        house can proceed at the same time.
         """
         gens = rust.topological_generations(self._graph)
 
