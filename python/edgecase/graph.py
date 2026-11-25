@@ -28559,39 +28559,60 @@ class Graph:
             Sorted list of node IDs that are not neighbors of `node=` (in either direction) and are
             not `node=` itself. Empty if the node is adjacent to every other node.
 
+        See Also
+        --------
+        get_neighbors : The nodes a node has an edge to.
+        get_common_neighbors : The neighbors two nodes share, for ranking candidate links.
+        jaccard_coefficient : Shared neighbors as a fraction of all neighbors, for link prediction.
+
         Examples
         --------
-        In this 5-node directed path, node `2` connects only to `1` (incoming) and `3`
-        (outgoing), so everything else -- `4` and `5` -- comes back as a non-neighbor:
+        The non-neighbors of a node are the other nodes it has no edge to. In the path
+        "A -- B -- C -- D", "A" is joined only to "B":
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_path_graph(5)  # 1 -> 2 -> 3 -> 4 -> 5
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
-        graph.get_non_neighbors(2)
+        [path.get_label_from_id(n) for n in path.get_non_neighbors("A")]
         ```
 
-        This makes a useful candidate pool for recommending new connections -- for example,
-        ranking candidates by how many neighbors they already share with the target node.
-        "C" shares neighbor "B" with "A", while "D" is isolated and shares none:
+        ### Who might Lou befriend next?
+
+        In a network of friendships among the members of two clubs, Lou has 3 friends and 20
+        non-neighbors. The non-neighbors are the people Lou could still befriend, and ranking them
+        by friends in common is the simplest way to guess who's next. Iris shares all 3 of Lou's
+        friends, and no one else shares more than 1:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        friends = ec.friends()
+        name = friends.get_label_from_id
 
-        candidates = graph.get_non_neighbors("A")
+        def shared(other):
+            return len(friends.get_common_neighbors("Lou", other))
 
-        [
-            (graph.get_label_from_id(c), len(graph.get_common_neighbors("A", c)))
-            for c in candidates
-        ]
+        strangers = friends.get_non_neighbors("Lou")
+        ranked = sorted(strangers, key=shared, reverse=True)
+        [(name(other), shared(other)) for other in ranked[:4]]
         ```
 
+        A year later, Lou and Iris are friends:
+
+        ```{python}
+        ec.friends(snapshot=2).has_edge("Lou", "Iris")
+        ```
+
+        Lou is in the accent color and Iris in the soft one, with the three friends they share,
+        Gwen, Jules and Kemal, around them:
+
+        ```{python}
+        friends.layout_kamada_kawai()
+        friends.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": ["Lou"], "soft": ["Iris"]},
+        )
+        ```
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
