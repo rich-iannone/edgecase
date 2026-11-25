@@ -33753,6 +33753,12 @@ class Graph:
         same `None`-for-missing semantics. If nothing is selected, an empty DataFrame comes
         back, so remember to run one of the `select_nodes...` methods first.
 
+        See Also
+        --------
+        get_node_df : Read every node, not only the selected ones.
+        select_nodes : Select the nodes to read.
+        get_edge_df_ws : Read the selected edges in the same way.
+
         Examples
         --------
         Only nodes in the current selection appear in the DataFrame. Here the two people over
