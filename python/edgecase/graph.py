@@ -13084,6 +13084,12 @@ class Graph:
             If `m1=` or `m2=` is less than `1` or not less than `n=`, or `p=` is not between `0`
             and `1`.
 
+        See Also
+        --------
+        add_extended_barabasi_albert_graph : Grow a graph where new nodes bring the same edge count.
+        add_powerlaw_cluster_graph : Grow a preferential attachment graph with triangle steps.
+        average_degree : Measure the mean degree that `p=` controls.
+
         Examples
         --------
         New nodes bring one edge or four, with equal chance:
@@ -13091,7 +13097,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_dual_barabasi_albert_graph(n=200, m1=1, m2=4, p=0.5, seed=6)
+        graph = ec.Graph().add_dual_barabasi_albert_graph(
+            n=200, m1=1, m2=4, p=0.5, seed=6
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -13109,6 +13117,46 @@ class Graph:
             for p in (0.0, 0.5, 1.0)
         ]
         ```
+
+        ### Two edge counts or one
+
+        Forty nodes each. On the left, new nodes bring one edge or three with equal chance, an
+        average of two. On the right, `add_extended_barabasi_albert_graph()` with `p=0` and
+        `q=0` gives every new node exactly two. The edge counts are close, but only the mixture
+        has leaves, nodes with a single edge, and its largest hub is bigger:
+
+        ```{python}
+        dual = ec.Graph().add_dual_barabasi_albert_graph(
+            n=40, m1=1, m2=3, p=0.5, seed=1
+        )
+        single = ec.Graph().add_extended_barabasi_albert_graph(
+            n=40, m=2, p=0, q=0, seed=1
+        )
+
+        def profile(g):
+            degrees = list(g.degrees(return_dict=True).values())
+            return g.count_edges(), degrees.count(1), max(degrees)
+
+        profile(dual), profile(single)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        dual.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        single.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, m1=m1, m2=m2)
 
