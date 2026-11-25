@@ -75384,6 +75384,31 @@ class Graph:
         dag.get_node_df().select("label", "members", "size")
         ```
 
+        The graph on the left and its condensation on the right, where each cycle has become a
+        single node:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        def placed(g, spots):
+            pos = {g.get_id_from_label(v): p for v, p in spots.items()}
+            return g.set_node_attrs("pos", pos)
+
+        spots = {"A": (0, 2), "B": (0, 0), "C": (2, 2), "D": (2, 0), "E": (4, 1)}
+        placed(graph, spots).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        spots = {"{A,B}": (0, 1), "{C,D}": (2, 1), "E": (4, 1)}
+        placed(dag, spots).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         The condensation is acyclic, so DAG methods apply:
 
         ```{python}
@@ -75407,6 +75432,9 @@ class Graph:
         ```{python}
         flow.plot(size_by="size", label_by="label", height=360)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) finds the bow tie
+        of Wikipedia's administrator elections around its strongly connected core.
         """
         components, edges = rust.condensation(self._graph)
         labels = [[self._node_label(n) for n in comp] for comp in components]
