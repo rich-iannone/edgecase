@@ -50595,10 +50595,22 @@ class Graph:
         (g_k, h_k)\}$ maps $g_i \mapsto h_i$ isomorphically between the induced subgraphs
         (Barrow and Burstall, 1976). Matches NetworkX's `modular_product`.
 
+        See Also
+        --------
+        maximum_clique : Find a largest clique.
+        tensor_product : Join pairs that move in both graphs at once.
+        is_isomorphic : Check whether two graphs are isomorphic.
+
         Examples
         --------
-        The largest common induced subgraph of a triangle-with-tail and a 4-cycle has 3 nodes
-        (a path), the size of the modular product's largest clique:
+        Two pairs `(a, b)` and `(c, d)` are joined when `a--c` and `b--d` are both edges or both
+        non-edges. A clique in the product matches nodes of the two graphs with the same edges
+        among them, so the largest clique gives the largest induced subgraph the graphs share.
+
+        ### A triangle with a tail, inside a square
+
+        A triangle with a tail and a 4-cycle share no triangle, but they share a path of three
+        nodes. The product's largest clique has 3 nodes, and its pairs say which nodes match:
 
         ```{python}
         import edgecase as ec
@@ -50608,7 +50620,19 @@ class Graph:
         square = ec.Graph().add_cycle_graph(4)
 
         product = paw.modular_product(square)
-        len(product.maximum_clique())
+        clique = product.maximum_clique()
+
+        sorted(product.get_label_from_id(n) for n in clique)
+        ```
+
+        `B--C--D` in the first graph matches `3--2--1` in the square. In the drawing of the product,
+        the clique is highlighted:
+
+        ```{python}
+        product.plot(
+            label_by="label", highlight=clique, seed=1,
+            highlight_edges=[(u, v) for u in clique for v in clique if u < v],
+        )
         ```
         """
         return self._product(other, "modular", "modular_product")
