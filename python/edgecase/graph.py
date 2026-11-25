@@ -3999,6 +3999,13 @@ class Graph:
         run, can be layered on via `describe_hook=`. Because that hook is opt-in per call, you can
         opt into more expensive computations whenever needed and keep routine inspection quick.
 
+        See Also
+        --------
+        get_node_df : Every node and its attributes as a DataFrame.
+        get_edge_df : Every edge and its attributes as a DataFrame.
+        steps : The log of what has been done to the graph.
+        plot : Draw the graph.
+
         Examples
         --------
         Calling `describe()` prints a structured summary to the console. For this undirected
@@ -4051,6 +4058,9 @@ class Graph:
         ```{python}
         graph.betweenness_centrality().describe()
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#the-graph-summary) explains each field of
+        the summary.
         """
         info_dict = self._create_describe_info_dict()
 
