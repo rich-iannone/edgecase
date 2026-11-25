@@ -26583,6 +26583,9 @@ class Graph:
         ```
 
         :::
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) shows that the
+        Petersen graph is the Kneser graph K(5, 2).
         """
         if self.is_directed() != other.is_directed():
             value = False
