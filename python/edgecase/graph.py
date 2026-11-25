@@ -55251,46 +55251,50 @@ class Graph:
 
         Examples
         --------
-        Every edge has exactly one source, so in a random directed graph with 20 nodes and 35
-        edges the mean out-degree is `35 / 20`, or `1.75`, the same as the mean in-degree:
+        Every edge has one source and one target, so the mean out-degree of a graph equals its mean
+        in-degree. In a random directed graph with 20 nodes and 35 edges, both are `1.75`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
+        graph = ec.Graph(directed=True).add_gnm_graph(20, 35, seed=23)
 
-        graph.aggregate_out_degree('mean')
+        graph.aggregate_out_degree("mean"), graph.aggregate_in_degree("mean")
         ```
 
-        The median can differ from the mean when out-degrees are uneven:
+        ### Who spends
+
+        In a month of payments between bank accounts, an account's out-degree is the number of
+        payments it made. The median business makes none, and the four businesses make 4 payments
+        between them, all of them Acme's wages:
 
         ```{python}
-        graph.aggregate_out_degree('median')
+        payments = ec.payments()
+
+        def is_business(node):
+            return node.attributes["kind"] == "business"
+
+        (
+            payments.aggregate_out_degree("median", conditions=is_business),
+            payments.aggregate_out_degree("sum", conditions=is_business),
+        )
         ```
 
-        Passing `conditions=` restricts the aggregation to a subset of nodes. In this small
-        citation network, `"cs"` papers cite other papers more often on average than `"bio"`
-        papers do:
+        The 14 people make the other 31, about 2.2 each:
 
         ```{python}
-        papers = ec.Graph(directed=True)
-        for label, field in [
-            ("P1", "bio"), ("P2", "bio"), ("P3", "cs"), ("P4", "cs"), ("P5", "bio"), ("P6", "cs")
-        ]:
-            papers.add_node(label=label, field=field)
-        for citing, cited in [
-            ("P2", "P1"), ("P3", "P1"), ("P4", "P1"), ("P4", "P2"),
-            ("P5", "P3"), ("P6", "P5"), ("P6", "P1"),
-        ]:
-            papers.add_edge(citing, cited)
+        payments.aggregate_out_degree(
+            "mean", conditions=lambda n: not is_business(n)
+        )
+        ```
 
-        {
-            field: papers.aggregate_out_degree(
-                "mean", conditions=lambda n: n.attributes["field"] == field
-            )
-            for field in ["bio", "cs"]
-        }
+        Sized by the payments they made, the Grocer, the Cafe and the Landlord all shrink to the
+        smallest size:
+
+        ```{python}
+        made = {v: payments.get_out_degree(v) for v in payments.get_node_ids()}
+        payments.set_node_attrs("made", made)
+        payments.plot(color_by="kind", size_by="made", label_by="label", seed=3)
         ```
         """
         if not self._graph.is_directed:
