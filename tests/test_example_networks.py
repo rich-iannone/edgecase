@@ -21,6 +21,8 @@ from edgecase.example_networks import (
     _TOWNS,
 )
 
+from .test_planarity import assert_crossing_free
+
 
 def labels(graph, ids):
     return sorted(graph.get_label_from_id(i) for i in ids)
@@ -57,6 +59,9 @@ def top(scores, graph):
         (ec.causal, 8, 10, True, False),
         (ec.konigsberg, 4, 7, False, False),
         (ec.org_chart, 20, 19, True, False),
+        (ec.proteins, 31, 56, False, False),
+        (ec.food_web, 16, 21, True, False),
+        (ec.control_flow, 11, 14, True, False),
     ],
 )
 def test_shape(loader, nodes, edges, directed, weighted):
@@ -89,6 +94,9 @@ def test_shape(loader, nodes, edges, directed, weighted):
         ec.causal,
         ec.konigsberg,
         ec.org_chart,
+        ec.proteins,
+        ec.food_web,
+        ec.control_flow,
     ],
 )
 def test_loaded_as_one_step(loader):
@@ -164,6 +172,37 @@ class TestMetro:
         for _, u, v, minutes in _METRO_SEGMENTS:
             (x1, y1, _), (x2, y2, _) = _METRO_STATIONS[u], _METRO_STATIONS[v]
             assert math.dist((x1, y1), (x2, y2)) <= minutes
+
+    def test_closing_stations(self):
+        metro = ec.metro()
+        curves = {
+            strategy: [
+                share
+                for _, share in metro.network_robustness(
+                    strategy=strategy, steps=5, seed=1, return_dict=True
+                )
+            ]
+            for strategy in ["random", "degree", "betweenness"]
+        }
+        assert curves == {
+            "random": pytest.approx([1.0, 0.95, 0.9, 0.85, 0.75, 0.7]),
+            "degree": pytest.approx([1.0, 0.95, 0.9, 0.65, 0.5, 0.5]),
+            "betweenness": pytest.approx([1.0, 0.8, 0.75, 0.6, 0.55, 0.55]),
+        }
+        # the attack counts stops, not minutes
+        stops = metro.betweenness_centrality(weighted=False, return_dict=True)
+        ranked = sorted(stops, key=lambda node: (-stops[node], node))
+        closed = [metro.get_label_from_id(node) for node in ranked[:4]]
+        assert closed == ["Riverside", "Market", "Eastfield", "Old Town"]
+        damaged = ec.metro()
+        damaged.delete_node("Riverside")
+        cut_off = min(damaged.weakly_connected_components(), key=len)
+        assert labels(damaged, cut_off) == ["Docks", "Harbor", "Shipyard"]
+        for station in closed[1:]:
+            damaged.delete_node(station)
+        pieces = sorted(damaged.weakly_connected_components(), key=len, reverse=True)
+        assert [len(piece) for piece in pieces] == [11, 3, 2]
+        assert "Northpark" in labels(damaged, pieces[0])
 
 
 class TestPayments:
@@ -425,7 +464,33 @@ class TestFriends:
         }
         best = max(scores, key=scores.get)
         assert best == ("Hugo", "Tara")
-        assert sorted(scores.values())[-2] < scores[best]
+        assert scores[best] == 1.5 and friends.dispersion("Tara", "Hugo") == 1.5
+        assert sorted(scores.values())[-2] == 0.5
+        shared = set(friends.get_neighbors("Hugo")) & set(friends.get_neighbors("Tara"))
+        assert set(labels(friends, shared)) == {"Ben", "Jules", "Oona", "Wes"}
+        clubs = friends.get_node_attrs("club")
+        assert sorted(clubs[node] for node in shared) == ["Chess"] * 2 + ["Climbing"] * 2
+        assert friends.dispersion("Hugo", "Tara", normalized=False) == 6.0
+
+    def test_seeds_come_from_every_circle(self):
+        friends = ec.friends().cmty_louvain(attr_name="circle")
+        seeds = friends.influence_maximization(
+            k=4, probability=0.2, n_simulations=500, seed=1, return_dict=True
+        )
+        assert [friends.get_label_from_id(node) for node, _ in seeds] == [
+            "Tara",
+            "Kemal",
+            "Vik",
+            "Dev",
+        ]
+        assert sum(gain for _, gain in seeds) == pytest.approx(9.6, abs=0.05)
+        circle = friends.get_node_attrs("circle")
+        assert len({circle[node] for node, _ in seeds}) == 4
+        nodes = friends.get_node_df()
+        popular = nodes.filter(nodes["degree"] == nodes["degree"].max())["label"].to_list()
+        assert sorted(popular) == ["Ben", "Hugo", "Jules", "Oona", "Tara"]
+        by_label = dict(zip(nodes["label"], nodes["circle"]))
+        assert by_label["Tara"] == by_label["Oona"] == by_label["Hugo"]
 
     def test_new_ties_close_triangles(self):
         friends, later = ec.friends(), ec.friends(snapshot=2)
@@ -445,6 +510,38 @@ class TestFriends:
         assert ("Femi", "Vik") in new and ("Femi", "Vik") not in top_eight
         common = set(friends.get_neighbors("Femi")) & set(friends.get_neighbors("Vik"))
         assert not common
+
+    def test_a_year_of_changes(self):
+        friends, later = ec.friends(), ec.friends(snapshot=2)
+        changes = friends.differential_edges(later)
+        assert changes["removed"] == []
+        assert len(changes["added"]) == 8
+        assert len({person for pair in changes["added"] for person in pair}) == 16
+        club = dict(zip(*friends.get_node_df().select("label", "club")))
+        assert [pair for pair in changes["added"] if club[pair[0]] != club[pair[1]]] == [
+            ("Femi", "Vik")
+        ]
+        assert friends.edge_overlap(later)["overlap"] == 43
+        assert friends.edge_overlap(later)["union_size"] == 51
+        result = friends.graph_edit_distance(later)
+        assert result["distance"] == 8
+        assert result["edge_insertions"] == 8
+
+    def test_rosa_circle_changed_most(self):
+        friends, later = ec.friends(), ec.friends(snapshot=2)
+        rosa = friends.ego_graph("Rosa").differential_edges(later.ego_graph("Rosa"))
+        assert rosa == {
+            "added": [("Mara", "Nico"), ("Mara", "Pablo"), ("Nico", "Pablo"), ("Nico", "Rosa")],
+            "removed": [],
+        }
+        kept = {}
+        for person in friends.get_node_df()["label"]:
+            overlap = friends.ego_graph(person).edge_overlap(later.ego_graph(person))
+            kept[person] = round(overlap["jaccard"], 2)
+        ranked = sorted(kept.items(), key=lambda item: item[1])
+        assert ranked[:4] == [("Rosa", 0.43), ("Ada", 0.44), ("Mara", 0.44), ("Pablo", 0.44)]
+        assert kept["Femi"] == 0.8
+        assert min(kept.values()) == 0.43 and max(kept.values()) == 1.0
 
 
 class TestCitations:
@@ -822,7 +919,9 @@ class TestMolecules:
         assert not ethanol.is_isomorphic(ether, node_attr="element")
         benzene, cyclohexane = molecules["benzene"], molecules["cyclohexane"]
         assert benzene.is_isomorphic(cyclohexane)
+        assert benzene.is_isomorphic(cyclohexane, node_attr="element")
         assert not benzene.is_isomorphic(cyclohexane, edge_attr="bond")
+        assert not benzene.is_isomorphic(cyclohexane, node_attr="element", edge_attr="bond")
 
     def test_same_atoms_different_shape(self):
         molecules = ec.molecules()
@@ -838,6 +937,242 @@ class TestMolecules:
         assert sorted(map(len, caffeine.minimum_cycle_basis())) == [5, 6]
         assert len(caffeine.cycle_basis()) == 2
         assert caffeine.girth() == 5
+
+    @staticmethod
+    def _purine_caffeine():
+        # Caffeine with its ring atoms numbered by the scheme for purines, as in the
+        # isomorphism docstrings
+        purine = ec.Graph.from_edges(
+            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"),
+             ("C6", "N1"), ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
+             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+        )  # fmt: skip
+        purine.set_node_attrs("element", {a: a[0] for a in purine.get_node_df()["label"]})
+        purine.set_edge_attrs("bond", "single")
+        purine.set_edge_attrs(
+            "bond", "double", edges=[("C4", "C5"), ("N9", "C8"), ("C2", "O10"), ("C6", "O11")]
+        )
+        return purine
+
+    def test_caffeine_numberings_match(self):
+        caffeine = ec.molecules()["caffeine"]
+        purine = self._purine_caffeine()
+        mapping = caffeine.find_isomorphism(purine, node_attr="element", edge_attr="bond")
+        named = {
+            caffeine.get_label_from_id(k): purine.get_label_from_id(v) for k, v in mapping.items()
+        }
+        assert named == {
+            "C1": "C14", "N1": "N7", "C2": "C8", "N2": "N9", "C3": "C4", "C4": "C5",
+            "C5": "C6", "O1": "O11", "N3": "N1", "C6": "C2", "O2": "O10", "N4": "N3",
+            "C7": "C13", "C8": "C12",
+        }  # fmt: skip
+        assert len(caffeine.subgraph_isomorphisms(purine, node_attr="element")) == 1
+
+        def form(graph):
+            number = graph.canonical_labeling(node_attr="element")
+            return sorted(
+                tuple(sorted((number[s], number[t]))) for _, s, t in graph.get_edges_as_tuples()
+            )
+
+        assert form(caffeine) == form(purine)
+        c1, c14 = caffeine.get_id_from_label("C1"), purine.get_id_from_label("C14")
+        assert caffeine.canonical_labeling(node_attr="element")[c1] == 3
+        assert purine.canonical_labeling(node_attr="element")[c14] == 3
+
+    def test_ethanol_maps_onto_ether_by_shape_only(self):
+        molecules = ec.molecules()
+        ethanol, ether = molecules["ethanol"], molecules["dimethyl_ether"]
+        mapping = ethanol.find_isomorphism(ether)
+        named = {
+            ethanol.get_label_from_id(k): ether.get_label_from_id(v) for k, v in mapping.items()
+        }
+        assert named == {"C1": "C1", "C2": "O1", "O1": "C2"}
+        assert ethanol.find_isomorphism(ether, node_attr="element") is None
+
+    def test_caffeine_carbonyls_and_rings(self):
+        caffeine = ec.molecules()["caffeine"]
+        label = caffeine.get_label_from_id
+        carbonyl = ec.Graph.from_edges([("C", "O")])
+        carbonyl.set_node_attrs("element", {"C": "C", "O": "O"})
+        carbonyl.set_edge_attrs("bond", {1: "double"})
+        matches = caffeine.subgraph_isomorphisms(carbonyl, node_attr="element", edge_attr="bond")
+        assert sorted(tuple(map(label, m.values())) for m in matches) == [
+            ("C5", "O1"),
+            ("C6", "O2"),
+        ]
+        rings = {
+            n: caffeine.subgraph_isomorphisms(ec.Graph().add_cycle_graph(n), symmetry=True)
+            for n in [5, 6, 9]
+        }
+        assert {n: len(found) for n, found in rings.items()} == {5: 1, 6: 1, 9: 0}
+        outer = ec.Graph().add_cycle_graph(9)
+        assert len(caffeine.subgraph_isomorphisms(outer, induced=False, symmetry=True)) == 1
+        five = set(map(label, rings[5][0].values()))
+        six = set(map(label, rings[6][0].values()))
+        assert five & six == {"C3", "C4"}
+        assert six == {"C3", "C4", "C5", "C6", "N3", "N4"}
+
+    def test_screening_pairs(self):
+        molecules = ec.molecules()
+        passing = [
+            (a, b)
+            for a, b in itertools.combinations(molecules, 2)
+            if molecules[a].could_be_isomorphic(molecules[b])
+        ]
+        assert passing == [("benzene", "cyclohexane"), ("ethanol", "dimethyl_ether")]
+        assert all(molecules[a].is_isomorphic(molecules[b]) for a, b in passing)
+        assert not molecules["butane"].could_be_isomorphic(molecules["isobutane"])
+
+    def test_benzene_ring_search(self):
+        molecules = ec.molecules()
+        benzene = molecules["benzene"]
+
+        def containing(**kwargs):
+            return {n for n, g in molecules.items() if g.is_subgraph_isomorphic(benzene, **kwargs)}
+
+        assert containing() == {"benzene", "cyclohexane", "caffeine"}
+        assert containing(node_attr="element") == {"benzene", "cyclohexane"}
+        assert containing(node_attr="element", edge_attr="bond") == {"benzene"}
+
+    def test_common_subgraph_with_benzene(self):
+        molecules = ec.molecules()
+        caffeine, benzene = molecules["caffeine"], molecules["benzene"]
+        found = caffeine.largest_common_subgraph(benzene)
+        assert len(found) == 1
+        assert sorted(map(caffeine.get_label_from_id, found[0].values())) == [
+            "C3", "C4", "C5", "C6", "N3", "N4"
+        ]  # fmt: skip
+        found = caffeine.largest_common_subgraph(benzene, node_attr="element")
+        assert len(found) == 7
+        carbons = list(found[0].values())
+        assert [caffeine.get_label_from_id(n) for n in carbons] == ["C3", "C4", "C5", "C6"]
+        bonds = {
+            tuple(sorted(map(caffeine.get_label_from_id, (u, v))))
+            for _, u, v in caffeine.get_edges_as_tuples()
+            if u in carbons and v in carbons
+        }
+        assert bonds == {("C3", "C4"), ("C4", "C5")}
+
+    def test_symmetry_counts(self):
+        molecules = ec.molecules()
+
+        def symmetries(g, **kwargs):
+            return math.prod(len(c) for c in g.automorphism_cosets(**kwargs).values())
+
+        counts = {
+            n: (symmetries(g), symmetries(g, node_attr="element")) for n, g in molecules.items()
+        }
+        assert counts == {
+            "benzene": (12, 12),
+            "cyclohexane": (12, 12),
+            "ethanol": (2, 1),
+            "dimethyl_ether": (2, 2),
+            "butane": (2, 2),
+            "isobutane": (6, 6),
+            "caffeine": (1, 1),
+        }
+        isobutane = molecules["isobutane"]
+        coset = isobutane.automorphism_cosets()[isobutane.get_id_from_label("C1")]
+        assert sorted(map(isobutane.get_label_from_id, coset)) == ["C1", "C3", "C4"]
+
+    def test_hash_finds_duplicates(self):
+        molecules = ec.molecules()
+        molecules["caffeine_purine"] = self._purine_caffeine()
+
+        def duplicates(**kwargs):
+            groups = {}
+            for name, g in molecules.items():
+                groups.setdefault(g.weisfeiler_lehman_graph_hash(**kwargs), []).append(name)
+            return [names for names in groups.values() if len(names) > 1]
+
+        assert duplicates() == [
+            ["benzene", "cyclohexane"],
+            ["ethanol", "dimethyl_ether"],
+            ["caffeine", "caffeine_purine"],
+        ]
+        assert duplicates(node_attr="element") == [
+            ["benzene", "cyclohexane"],
+            ["caffeine", "caffeine_purine"],
+        ]
+        assert duplicates(node_attr="element", edge_attr="bond") == [
+            ["caffeine", "caffeine_purine"]
+        ]
+
+    def test_methyl_carbons_look_alike(self):
+        caffeine = ec.molecules()["caffeine"]
+        hashes = caffeine.weisfeiler_lehman_subgraph_hashes(node_attr="element")
+        assert [len({h[i] for h in hashes.values()}) for i in range(3)] == [9, 12, 14]
+        label = caffeine.get_label_from_id
+
+        def shared(i):
+            values = [h[i] for h in hashes.values()]
+            return {label(n) for n, h in hashes.items() if values.count(h[i]) > 1}
+
+        assert shared(1) == {"C1", "C7", "C8"}
+        assert shared(0) == {"C1", "C7", "C8", "N1", "N3", "N4", "O1", "O2"}
+
+    @staticmethod
+    def _same_element(x, y):
+        return x["element"] == y["element"]
+
+    def test_caffeine_relatives_are_two_edits_apart(self):
+        caffeine = ec.molecules()["caffeine"]
+        relatives = [caffeine] + [
+            ec.molecules()["caffeine"].delete_node(methyl) for methyl in ["C1", "C7", "C8"]
+        ]
+        for a, b in itertools.combinations(relatives, 2):
+            result = a.graph_edit_distance(b, exact=True, node_match=self._same_element)
+            assert result["distance"] == 2
+
+    def test_butane_to_isobutane_paths(self):
+        molecules = ec.molecules()
+        butane, isobutane = molecules["butane"], molecules["isobutane"]
+        paths, cost = butane.optimal_edit_paths(isobutane)
+        assert (len(paths), cost) == (12, 2.0)
+
+        def ends(graph, edge):
+            return tuple(map(graph.get_label_from_id, graph.get_node_ids_by_edge_id(edge)))
+
+        for node_path, edge_path in paths:
+            deleted = [e for e, f in edge_path if f is None]
+            inserted = [f for e, f in edge_path if e is None]
+            assert len(deleted) == len(inserted) == 1
+        node_path, edge_path = paths[0]
+        assert all(
+            butane.get_label_from_id(u) == isobutane.get_label_from_id(v) for u, v in node_path
+        )
+        assert [ends(butane, e) for e, f in edge_path if f is None] == [("C3", "C4")]
+        assert [ends(isobutane, f) for e, f in edge_path if e is None] == [("C2", "C4")]
+
+    def test_caffeine_to_benzene_estimates(self):
+        molecules = ec.molecules()
+        caffeine, benzene = molecules["caffeine"], molecules["benzene"]
+        assert list(caffeine.optimize_graph_edit_distance(benzene)) == [21, 19, 17]
+        by_element = list(
+            caffeine.optimize_graph_edit_distance(benzene, node_match=self._same_element)
+        )
+        assert by_element == [27, 26, 24, 23, 22, 21, 19]
+        ring = caffeine.subgraph_isomorphisms(benzene, limit=1)[0].values()
+        elements = caffeine.get_node_attrs("element")
+        assert sorted(elements[n] for n in ring) == ["C", "C", "C", "C", "N", "N"]
+
+    def test_finding_the_missing_methyl(self):
+        caffeine = ec.molecules()["caffeine"]
+        theobromine = ec.molecules()["caffeine"].delete_node("C8")
+        found = list(caffeine.optimize_edit_paths(theobromine, node_match=self._same_element))
+        assert [cost for _, _, cost in found] == [4.0, 2.0]
+        node_path, edge_path, _ = found[-1]
+        label = caffeine.get_label_from_id
+        assert [label(u) for u, v in node_path if v is None] == ["C8"]
+        assert [
+            tuple(map(label, caffeine.get_node_ids_by_edge_id(e)))
+            for e, f in edge_path
+            if f is None
+        ] == [("N3", "C8")]
+        rooted = caffeine.optimize_edit_paths(
+            theobromine, node_match=self._same_element, roots=("C8", "C1")
+        )
+        assert [cost for _, _, cost in rooted] == [22, 20, 18, 14, 10, 4]
 
 
 class TestKonigsberg:
@@ -902,3 +1237,282 @@ class TestOrgChart:
                 xs = [pos[r][0] for r in reports]
                 assert pos[n][0] == (min(xs) + max(xs)) / 2
                 assert all(pos[r][1] == pos[n][1] - 1 for r in reports)
+
+
+class TestProteins:
+    SEEDS = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
+
+    def test_attributes(self):
+        proteins = ec.proteins()
+        df = proteins.get_node_df()
+        assert df.filter(pl.col("disease_gene"))["label"].sort().to_list() == sorted(self.SEEDS)
+        unannotated = df.filter(pl.col("pathway").is_null())["label"].to_list()
+        assert unannotated == ["ORF1", "ORF2", "ORF3"]
+        targets = df.filter(pl.col("drug_target").is_not_null())
+        assert dict(zip(targets["label"], targets["drug_target"])) == {
+            "REP6": "Drug A",
+            "CYC3": "Drug A",
+            "SIG4": "Drug B",
+            "ENZ2": "Drug B",
+        }
+        assert proteins.is_connected()
+
+    def test_drawing_has_no_crossings(self):
+        proteins = ec.proteins()
+        pos = {n: tuple(p) for n, p in proteins.get_node_attrs("pos").items()}
+        assert_crossing_free(proteins, pos)
+
+    def test_disease_module(self):
+        proteins = ec.proteins()
+        module = proteins.expand_seed_set(self.SEEDS[:4], max_size=12, min_score=0.5)
+        expected = ["CYC2", "ORF1", "REP1", "REP2", "REP3", "REP4", "REP5", "REP6"]
+        assert labels(proteins, module) == expected
+        result = proteins.subgraph_enrichment(module, "pathway", "DNA repair")
+        assert (result["k"], result["K"], result["n"], result["N"]) == (6, 6, 8, 31)
+        assert result["p_value"] == pytest.approx(3.8e-5, rel=0.01)
+
+    def test_lone_disease_gene(self):
+        proteins = ec.proteins()
+        prizes = {s: 3.0 for s in self.SEEDS}
+        tree = proteins.prize_collecting_steiner_tree(prizes)
+        assert sorted(tree.get_node_df()["label"]) == ["CYC2", "REP1", "REP2", "REP3", "REP5"]
+        cheaper = proteins.prize_collecting_steiner_tree(prizes, edge_penalty=0.5)
+        assert {"TRN3", "HSP1"} <= set(cheaper.get_node_df()["label"])
+        assert proteins.shortest_path_length("TRN3", "REP1") == 3
+
+    def test_sticky_hub(self):
+        proteins = ec.proteins()
+        degree = {
+            proteins.get_label_from_id(n): len(proteins.get_neighbors(n))
+            for n in proteins.get_node_ids()
+        }
+        assert degree["HSP1"] == 9 and sorted(degree.values())[-2] == 5
+        rwr = proteins.random_walk_with_restart({s: 1.0 for s in self.SEEDS}, return_dict=True)
+        others = sorted(
+            (n for n in rwr if proteins.get_label_from_id(n) not in self.SEEDS),
+            key=rwr.get,
+            reverse=True,
+        )
+        assert labels(proteins, others[:2]) == ["HSP1", "REP4"]
+        assert proteins.get_label_from_id(others[0]) == "REP4"
+        module = proteins.expand_seed_set(self.SEEDS[:4], max_size=12, min_score=0.5)
+        assert proteins.get_id_from_label("HSP1") not in module
+
+    def test_smoothing(self):
+        proteins = ec.proteins()
+        smoothed = proteins.network_smooth(proteins.get_node_attrs("expression"), return_dict=True)
+        by_label = {proteins.get_label_from_id(n): v for n, v in smoothed.items()}
+        assert by_label["REP3"] == pytest.approx(1.08, abs=0.005)
+        assert by_label["ENZ3"] == pytest.approx(1.35, abs=0.005)
+        ranked = sorted(by_label, key=by_label.get, reverse=True)
+        assert ranked[:6] == ["REP5", "REP4", "REP2", "REP1", "REP6", "CYC2"]
+        assert ranked[6] == "ENZ3"
+        raw = proteins.get_node_df().sort("expression", descending=True)["label"].to_list()
+        assert raw[:2] == ["REP5", "ENZ3"]
+
+    def test_uncharacterized_proteins(self):
+        proteins = ec.proteins()
+        pathways = proteins.get_node_attrs("pathway")
+        names = sorted(set(pathways.values()))
+        known = {n: names.index(p) for n, p in pathways.items()}
+        result = proteins.label_propagation(known, return_dict=True)
+        assert {
+            proteins.get_label_from_id(n): names[c] for n, c in result.items() if n not in known
+        } == {"ORF1": "DNA repair", "ORF2": "Signaling", "ORF3": "Transport"}
+
+    def test_drug_proximity(self):
+        proteins = ec.proteins()
+        drug_a, drug_b = ["REP6", "CYC3"], ["SIG4", "ENZ2"]
+        closest = [proteins.network_proximity(d, self.SEEDS)["proximity"] for d in (drug_a, drug_b)]
+        assert closest == [1.0, 3.0]
+        separation = [
+            proteins.network_proximity(d, self.SEEDS, method="separation")["separation"]
+            for d in (drug_a, drug_b)
+        ]
+        assert separation == pytest.approx([-0.05, 0.25])
+        means = [
+            [
+                proteins.network_proximity(d, self.SEEDS, method=m)["proximity"]
+                for d in (drug_a, drug_b)
+            ]
+            for m in ("shortest", "kernel")
+        ]
+        assert means[0] == pytest.approx([2.3, 3.6])
+        assert means[1] == pytest.approx([0.152, 0.035], abs=5e-4)
+
+    def test_module_from_every_seed(self):
+        proteins = ec.proteins()
+        module = proteins.expand_seed_set(self.SEEDS, min_score=0.5)
+        added = [n for n in labels(proteins, module) if n not in self.SEEDS]
+        assert sorted(added) == ["ORF1", "REP3", "REP4", "REP6"]
+        hsp1 = proteins.get_neighbors("HSP1")
+        assert len(hsp1) == 9 and len(set(hsp1) & set(module)) < 9 / 2
+        grown = labels(proteins, proteins.expand_seed_set(self.SEEDS))
+        assert len(grown) == 15 and "HSP1" not in grown
+        assert {"CYC1", "CYC3", "CYC4", "CYC5", "TRN4", "ORF3"} <= set(grown)
+
+    def test_steiner_tree_edges(self):
+        proteins = ec.proteins()
+        prizes = {s: 3.0 for s in self.SEEDS}
+        assert proteins.prize_collecting_steiner_tree(prizes).count_edges() == 4
+        cheaper = proteins.prize_collecting_steiner_tree(prizes, edge_penalty=0.5)
+        assert sorted(cheaper.get_node_df()["label"]) == [
+            "CYC2",
+            "HSP1",
+            "REP1",
+            "REP2",
+            "REP3",
+            "REP5",
+            "TRN2",
+            "TRN3",
+        ]
+
+    def test_smoothing_moves_rep3_and_enz3_most(self):
+        proteins = ec.proteins()
+        expression = proteins.get_node_attrs("expression")
+        smoothed = proteins.network_smooth(expression, return_dict=True)
+        moved = {proteins.get_label_from_id(n): smoothed[n] - expression[n] for n in expression}
+        assert max(moved, key=moved.get) == "REP3"
+        assert min(moved, key=moved.get) == "ENZ3"
+
+    def test_module_pathway_enrichment(self):
+        proteins = ec.proteins()
+        module = proteins.expand_seed_set(self.SEEDS[:4], min_score=0.5)
+        cell_cycle = proteins.subgraph_enrichment(module, "pathway", "Cell cycle")
+        assert (cell_cycle["k"], cell_cycle["K"]) == (1, 5)
+        assert cell_cycle["fold_enrichment"] == pytest.approx(0.775)
+        communities = proteins.cmty_louvain(return_dict=True)
+        assert len(set(communities.values())) == 5
+        results = proteins.module_annotation_enrichment(communities, "pathway")
+        assert sum(len(by_value) for by_value in results.values()) == 30
+        best = {
+            value: (r["k"], r["n"], r["p_adjusted"])
+            for by_value in results.values()
+            for value, r in by_value.items()
+            if r["fold_enrichment"] > 1 and r["k"] > 1
+        }
+        assert set(best) == {"DNA repair", "Cell cycle", "Signaling", "Transport", "Metabolism"}
+        assert best["Transport"][:2] == (4, 6)
+        assert sorted(v for v in best if best[v][2] < 0.05) == [
+            "Cell cycle",
+            "DNA repair",
+            "Metabolism",
+            "Signaling",
+        ]
+        assert best["Transport"][2] == pytest.approx(0.0673, abs=5e-5)
+        transport = [
+            proteins.get_label_from_id(n)
+            for n, c in communities.items()
+            if c == communities[proteins.get_id_from_label("TRN2")]
+        ]
+        assert sorted(transport) == ["HSP1", "ORF3", "TRN2", "TRN3", "TRN4", "TRN5"]
+
+    def test_gwas_pipeline(self):
+        proteins = ec.proteins()
+        result = proteins.gwas_pipeline(
+            proteins.get_node_attrs("expression"), enrichment_attr="disease_gene"
+        )
+        ranked = list(result["module_scores"])
+        top = labels(proteins, result["communities"][ranked[0]])
+        assert sorted(top) == ["ORF1", "REP1", "REP2", "REP3", "REP4", "REP5", "REP6"]
+        assert result["module_scores"][ranked[0]] == pytest.approx(1.631, abs=5e-4)
+        assert result["enrichment"][ranked[0]] == pytest.approx(3 / (5 * 7 / 31))
+        last = labels(proteins, result["communities"][ranked[-1]])
+        assert "SIG2" in last and not set(last) & set(self.SEEDS)
+        assert result["module_scores"][ranked[-1]] == pytest.approx(-0.012, abs=5e-4)
+
+
+class TestFoodWeb:
+    def test_trophic_levels(self):
+        web = ec.food_web()
+        levels = {
+            web.get_label_from_id(n): v for n, v in web.trophic_levels(return_dict=True).items()
+        }
+        kinds = dict(zip(web.get_node_df()["label"], web.get_node_df()["kind"]))
+        assert all(levels[s] == 1 for s in kinds if kinds[s] == "plant")
+        assert all(levels[s] == 2 for s in kinds if kinds[s] == "herbivore")
+        assert levels["Jay"] == pytest.approx(2.5)
+        assert levels["Fox"] == pytest.approx(11 / 3)
+        assert levels["Hawk"] == pytest.approx(3.5)
+        assert web.trophic_incoherence_parameter() == pytest.approx(0.28, abs=0.005)
+
+    def test_drawn_by_trophic_level_without_crossings(self):
+        web = ec.food_web()
+        pos = {n: tuple(p) for n, p in web.get_node_attrs("pos").items()}
+        levels = web.trophic_levels(return_dict=True)
+        assert all(pos[n][1] == pytest.approx(2 * levels[n], abs=0.001) for n in pos)
+        assert_crossing_free(web, pos)
+
+    def test_top_predators(self):
+        web = ec.food_web()
+        tops = sorted(labels(web, c) for c in web.attracting_components())
+        assert tops == [["Fox"], ["Hawk"], ["Marten"]]
+
+    def test_keystone_plant(self):
+        web = ec.food_web()
+        kinds = dict(zip(web.get_node_df()["label"], web.get_node_df()["kind"]))
+        food = {s: set(labels(web, web.get_predecessors(s))) for s in kinds}
+
+        def starved(lost):
+            alive = set(kinds) - {lost}
+            while True:
+                gone = {s for s in alive if kinds[s] != "plant" and not food[s] & alive}
+                if not gone:
+                    return sorted(set(kinds) - alive - {lost})
+                alive -= gone
+
+        assert starved("Oak") == ["Caterpillar", "Jay", "Marten", "Squirrel"]
+        assert all(starved(p) == [] for p in ["Clover", "Grass", "Bramble"])
+
+    def test_plants_that_feed_the_most(self):
+        web = ec.food_web()
+        reach = web.local_reaching_centrality(return_dict=True)
+        best = max(reach.values())
+        assert best == pytest.approx(7 / 15)
+        assert labels(web, [n for n, v in reach.items() if v == best]) == ["Grass", "Oak"]
+
+
+class TestControlFlow:
+    def test_one_entry_one_exit(self):
+        cfg = ec.control_flow()
+        sources = [n for n in cfg.get_node_ids() if not cfg.get_predecessors(n)]
+        sinks = [n for n in cfg.get_node_ids() if not cfg.get_successors(n)]
+        assert labels(cfg, sources) == ["entry"] and labels(cfg, sinks) == ["exit"]
+        branches = cfg.get_edge_df()["branch"].drop_nulls().to_list()
+        assert sorted(branches) == [
+            "done",
+            "false",
+            "false",
+            "false",
+            "next",
+            "true",
+            "true",
+            "true",
+        ]
+
+    def test_drawn_without_crossings(self):
+        cfg = ec.control_flow()
+        assert_crossing_free(cfg, {n: tuple(p) for n, p in cfg.get_node_attrs("pos").items()})
+
+    def test_one_loop(self):
+        cfg = ec.control_flow()
+        loops = [labels(cfg, c) for c in cfg.strongly_connected_components() if len(c) > 1]
+        assert loops == [["add", "limit test", "loop", "negate", "sign test"]]
+
+    def test_dominators(self):
+        cfg = ec.control_flow()
+        label = cfg.get_label_from_id
+        idom = {label(k): label(v) for k, v in cfg.immediate_dominators("entry").items()}
+        assert idom["add"] == "sign test"
+        assert idom["exit"] == "empty test"
+        assert idom["empty test"] == "loop"
+
+    def test_dominance_frontiers(self):
+        cfg = ec.control_flow()
+        frontiers = {
+            cfg.get_label_from_id(k): labels(cfg, v)
+            for k, v in cfg.dominance_frontiers("entry").items()
+        }
+        assert frontiers["negate"] == ["add"]
+        assert frontiers["loop"] == ["loop"]
+        assert frontiers["break"] == ["empty test"]
