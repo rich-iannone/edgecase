@@ -9297,10 +9297,17 @@ class Graph:
         ValueError
             If `m1=` is less than `2` or `m2=` is negative.
 
+        See Also
+        --------
+        add_lollipop_graph : Add a clique with a path hanging from it.
+        articulation_points : Find the nodes whose removal disconnects the graph.
+        bridges : Find the edges whose removal disconnects the graph.
+
         Examples
         --------
-        Two four-node bells joined by a two-node bar give `10` nodes; each bell has `6` edges
-        and the bar adds `3` more:
+        A barbell graph is two complete graphs of `m1` nodes, the bells, joined by a path of `m2`
+        nodes, the bar. Two bells of four and a bar of two give `10` nodes: each bell has `6`
+        edges, and the bar adds `3` more:
 
         ```{python}
         import edgecase as ec
@@ -9310,25 +9317,51 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The bar carries every shortest path between the bells, so its two nodes, `"5"` and `"6"`,
-        have the highest betweenness, just ahead of the bell nodes it attaches to:
+        Every shortest path from one bell to the other runs along the bar, so the bar nodes, `"5"`
+        and `"6"`, have the highest betweenness, just ahead of the bell nodes they hang from, `"4"`
+        and `"7"`. The other bell nodes, such as `"3"`, are on no shortest path between others:
 
         ```{python}
         scores = graph.betweenness_centrality(return_dict=True)
+        labels = ["3", "4", "5", "6", "7"]
 
-        {graph.get_label_from_id(nid): round(s, 2) for nid, s in scores.items() if s > 0}
+        {x: round(scores[graph.get_id_from_label(x)], 2) for x in labels}
         ```
 
-        With `m2=0` the bells are joined by a single bridge edge, whose two ends are the only
-        nodes whose removal disconnects the graph:
+        ### A bridge or a bar
+
+        With `m2=0` on the left, the bells are joined by a single bridge, and its two ends are the
+        only cut nodes, the nodes whose removal splits the graph. With a bar of two on the right,
+        every node on the way from one bell to the other is a cut node, and every edge along it a
+        bridge:
 
         ```{python}
-        joined = ec.Graph().add_barbell_graph(m1=3, m2=0)
+        bridge = ec.Graph().add_barbell_graph(m1=4, m2=0)
 
-        cut_nodes = [joined.get_label_from_id(nid) for nid in joined.articulation_points()]
-
-        len(joined.bridges()), cut_nodes
+        (
+            len(bridge.articulation_points()),
+            len(graph.articulation_points()),
+            len(graph.bridges()),
+        )
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        bridge.layout_kamada_kawai().plot(
+            layout="pos", node_size=10, highlight=bridge.articulation_points(),
+            label_by="label", width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        graph.layout_kamada_kawai().plot(
+            layout="pos", node_size=10, highlight=graph.articulation_points(),
+            label_by="label", width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if m1 < 2:
             raise ValueError("Each bell must have at least 2 nodes")
