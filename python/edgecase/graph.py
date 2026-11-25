@@ -86193,6 +86193,30 @@ class Graph:
         total(exact), total(greedy)
         ```
 
+        The exact matching on the left, and the greedy one on the right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1)}
+        pos = {g.get_id_from_label(v): p for v, p in spots.items()}
+        g.set_node_attrs("pos", pos)
+
+        g.plot(
+            layout="pos", highlight_edges=exact, edge_label_by="weight",
+            label_by="label", width=320, height=240, legend=False,
+        )
+        ```
+
+        ```{python}
+        g.plot(
+            layout="pos", highlight_edges=greedy, edge_label_by="weight",
+            label_by="label", width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
         With `maxcardinality=True`, the matching first takes as many edges as it can. Here the
         heavy edge `A`-`B` alone outweighs the two light ones, but only the light pair matches
         every node:
@@ -86229,6 +86253,10 @@ class Graph:
         ```{python}
         friends.plot(highlight_edges=pairs, label_by="label", seed=2)
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes) pairs
+        the characters of *Les Misérables* by the strength of their ties, and explains what
+        `maxcardinality=True` changes.
         """
         use = self._use_weights(weighted)
         if method == "greedy":
