@@ -36906,6 +36906,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#link-prediction) finds the
+        karate club's most likely missing friendships, and tests the predictors on the jazz network.
         """
         from edgecase._core import resource_allocation_index
 
