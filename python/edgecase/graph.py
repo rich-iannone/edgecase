@@ -14268,9 +14268,17 @@ class Graph:
             multiple of its degree, an odd diagonal entry, or more edges between two degree
             classes than they can hold.
 
+        See Also
+        --------
+        degree_mixing_dict : Count the edges between each pair of degrees.
+        degree_pearson_correlation_coefficient : Measure the degree assortativity.
+        add_random_degree_sequence_graph : Draw a random graph that keeps only the degrees.
+
         Examples
         --------
-        Take the joint degrees of one graph:
+        Take the joint degrees of one graph: for each pair of degrees, the number of edges that
+        join a node of the first degree to a node of the second. Here, the edges from nodes of
+        degree `2`:
 
         ```{python}
         import edgecase as ec
@@ -14293,6 +14301,38 @@ class Graph:
             == round(original.degree_pearson_correlation_coefficient(), 4),
         )
         ```
+
+        ### What the joint degrees don't keep
+
+        The original graph on the left and the graph drawn from its joint degrees on the right.
+        Both have `76` edges, and the same counts of edges between each pair of degrees, but the
+        triangles that `add_powerlaw_cluster_graph()` builds aren't part of the joint degrees,
+        and about half of the clustering is lost:
+
+        ```{python}
+        (
+            round(original.average_clustering_coefficient(), 2),
+            round(graph.average_clustering_coefficient(), 2),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        original.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        graph.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if not isinstance(joint_degrees, dict) or not all(
             isinstance(row, dict) for row in joint_degrees.values()
