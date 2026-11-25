@@ -430,6 +430,22 @@ class TestRandomWalkIntegration:
 
         assert unique_vertices > 10  # Should explore the graph
 
+    def test_karate_short_and_long_walks(self):
+        """The random_walk() docs example: 100 steps vs 10,000 on the karate club."""
+        from collections import Counter
+
+        from edgecase import karate_club
+
+        karate = karate_club()
+        short = Counter(karate.random_walk(1, steps=100, seed=1, return_list=True))
+        assert len(short) == 29
+        assert short.most_common(4) == [(1, 11), (34, 11), (2, 10), (33, 9)]
+        assert karate.get_degree(2) == 9
+        visits = Counter(karate.random_walk(1, steps=10_000, seed=1, return_list=True))
+        assert len(visits) == 34
+        assert visits.most_common(3) == [(1, 1064), (34, 1035), (33, 744)]
+        assert karate.get_label_from_id(34) == "33"
+
 
 class TestRandomWalkUnlabelledAndMissing:
     """Regression: TypeError for an unlabelled start node or a nonexistent integer ID."""
