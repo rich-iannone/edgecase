@@ -92027,6 +92027,9 @@ class Graph:
         # Returns 1 (the Processing -> Processing wait state)
         len(fsm.which_loops())
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#cleaning-up) finds the self-loops and
+        parallel edges of a messy graph before removing them.
         """
         return self._graph.which_loops()
 
