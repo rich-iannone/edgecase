@@ -17572,15 +17572,23 @@ class Graph:
         ValueError
             If an entry of `aseq=` is negative or `p=` is outside `0` to `1`.
 
+        See Also
+        --------
+        add_pa_graph : Add a scale-free graph by preferential attachment.
+        add_bipartite_configuration_model : Build a random bipartite graph with given degrees.
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+
         Examples
         --------
-        Fifty first-part nodes with three edges each. About `p = 0.3` of the 150 edges open a
-        new second-part node:
+        Fifty first-part nodes with three edges each. Each edge opens a new second-part node
+        with probability `p = 0.3`, so about `0.3 * 150 = 45` second-part nodes are expected:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_bipartite_preferential_attachment_graph([3] * 50, p=0.3, seed=2)
+        graph = ec.Graph().add_bipartite_preferential_attachment_graph(
+            [3] * 50, p=0.3, seed=2
+        )
         parts = graph.get_node_df()["part"]
 
         (parts == 0).sum(), (parts == 1).sum(), graph.count_edges()
@@ -17590,10 +17598,52 @@ class Graph:
         early ones collect many:
 
         ```{python}
-        df = graph.get_node_df()
+        nodes = graph.get_node_df()
+        second = nodes.filter(nodes["part"] == 1)
 
-        sorted(df.filter(df["part"] == 1)["degree"].to_list(), reverse=True)[:8]
+        second["degree"].sort(descending=True).to_list()[:8]
         ```
+
+        ### Few new nodes or many
+
+        Eight first-part nodes with two edges each. With `p=0.2` on the left, most edges go to
+        nodes that already exist, so a few second-part nodes collect most of the edges and one of
+        them takes ten. With `p=0.8` on the right, most edges open a new node, and no
+        second-part node has more than two edges:
+
+        ```{python}
+        low = ec.Graph().add_bipartite_preferential_attachment_graph(
+            [2] * 8, p=0.2, seed=1
+        )
+        high = ec.Graph().add_bipartite_preferential_attachment_graph(
+            [2] * 8, p=0.8, seed=1
+        )
+
+        def second_degrees(g):
+            nodes = g.get_node_df()
+            second = nodes.filter(nodes["part"] == 1)
+            return second["degree"].sort(descending=True).to_list()
+
+        second_degrees(low), second_degrees(high)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        low.layout_bipartite().plot(
+            layout="pos", color_by="part", show_labels=False,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        high.layout_bipartite().plot(
+            layout="pos", color_by="part", show_labels=False,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import bipartite_preferential_attachment_edges as _edges
 
