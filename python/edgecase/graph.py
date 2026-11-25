@@ -59068,7 +59068,9 @@ class Graph:
         administrator = club.get_id_from_label("33")
 
         lean = {
-            club.get_label_from_id(n): math.log(row[administrator] / row[instructor])
+            club.get_label_from_id(n): math.log(
+                row[administrator] / row[instructor]
+            )
             for n, row in comm.items()
         }
         club = club.set_node_attrs("lean", lean)
