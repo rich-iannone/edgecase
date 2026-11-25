@@ -8922,30 +8922,54 @@ class Graph:
         ValueError
             If `n=` is less than `4`.
 
+        See Also
+        --------
+        add_star_graph : Add a star graph.
+        add_cycle_graph : Add a cycle graph.
+        layout_shell : Place the nodes on concentric circles.
+
         Examples
         --------
-        A wheel with six nodes has a hub and a five-node rim, for `5` spokes plus `5` rim edges:
+        A wheel of `n` nodes has a hub, the first node, and a rim cycle of the other `n - 1`, with a
+        spoke from the hub to each node of the rim. The hub's degree is `n - 1`, and each rim node
+        has its two rim neighbors and the hub:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_wheel_graph(n=6)
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_edges(), graph.get_node_df()["degree"].to_list()
         ```
 
-        The hub (node `"1"`) touches every rim node, while each rim node has its two rim
-        neighbors plus the hub:
+        ### The smallest wheel and a larger one
+
+        The smallest wheel, with `n=4` on the left, is the complete graph on four nodes. With `n=9`
+        on the right, the rim has eight nodes:
 
         ```{python}
-        graph.get_node_df()["degree"].to_list()
+        small = ec.Graph().add_wheel_graph(n=4)
+
+        small.is_isomorphic(ec.Graph().add_full_graph(n=4))
         ```
 
-        The smallest wheel, `n=4`, is the complete graph on four nodes:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        ec.Graph().add_wheel_graph(n=4).is_isomorphic(ec.Graph().add_full_graph(n=4))
+        small.layout_shell(nlist=[[1], [2, 3, 4]]).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        ```{python}
+        ec.Graph().add_wheel_graph(n=9).layout_shell(
+            nlist=[[1], list(range(2, 10))]
+        ).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if n < 4:
             raise ValueError("Wheel must have at least 4 nodes")
