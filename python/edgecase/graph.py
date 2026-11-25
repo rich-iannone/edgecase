@@ -53667,41 +53667,36 @@ class Graph:
             New Graph object containing the subgraph, with the same directedness and weighting as
             the original graph. Empty if nothing is selected.
 
+        See Also
+        --------
+        select_nodes : Select the nodes that pass a test.
+        select_edges : Select the edges that pass a test.
+        subgraph : Extract the induced subgraph on a set of nodes.
+
         Examples
         --------
-        Extract a node-induced subgraph:
+        The selected nodes and the edges among them become a new graph. `ec.friends()` is a
+        network of friendships among the members of a chess club and a climbing club, and the
+        12 climbers have 18 friendships among them:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True).add_path_graph(n=6)
+        friends = ec.friends()
+        friends.select_nodes(lambda n: n.attributes["club"] == "Climbing")
 
-        # Get node IDs for nodes at positions 2, 3, 4
-        all_node_ids = list(graph.get_node_ids(limit=None))
-        node_ids_to_select = [all_node_ids[2], all_node_ids[3], all_node_ids[4]]
-        graph.select_nodes_by_id(node_ids=node_ids_to_select)
-
-        subgraph = graph.transform_to_subgraph_ws()
-
-        # Returns 3
-        subgraph.count_nodes()
+        climbing = friends.transform_to_subgraph_ws()
+        climbing.count_nodes(), climbing.count_edges()
         ```
 
-        ```{python}
-        # Returns 2 (edges between selected nodes)
-        subgraph.count_edges()
-        ```
-
-        Extract an edge-induced subgraph instead by selecting edges rather than nodes:
+        With an edge selection, the selected edges and their endpoints are kept instead. The 10
+        friendships made since 2022 involve 17 people:
 
         ```{python}
-        graph = ec.Graph().add_cycle_graph(5)
+        friends.select_edges(lambda e: e.attributes["since"] >= 2022)
 
-        edges = graph.get_edge_ids()[:2]
-        graph.select_edges_by_id(edges)
-
-        subgraph = graph.transform_to_subgraph_ws()
-        subgraph.count_nodes(), subgraph.count_edges()
+        recent = friends.transform_to_subgraph_ws()
+        recent.count_nodes(), recent.count_edges()
         ```
         """
         from edgecase._core import edge_subgraph, subgraph
