@@ -25631,8 +25631,8 @@ class Graph:
 
         Examples
         --------
-        In a planar embedding of a wheel, the neighbors of the hub (node `1`) come around it in
-        the order of the rim, `2` to `6`:
+        In a planar embedding of a wheel, the neighbors of the hub (node `1`) come around it in the
+        order of the rim, `2` to `6`:
 
         ```{python}
         import edgecase as ec
@@ -25643,15 +25643,43 @@ class Graph:
         planar, embedding[1]
         ```
 
-        The Petersen graph is not planar; the counterexample is a subdivision of `K_{3,3}` on
-        nine of its ten nodes (six of them branch nodes of degree 3, three of them in the
-        middle of a subdivided edge):
+        ### Roads that have to cross
+
+        Twelve towns are joined by 26 roads. They can't all be drawn without two of them crossing,
+        and the counterexample shows why: 8 of the towns and 11 of the roads form `K_{3,3}`, with
+        two of its edges stretched through Halston and Larkhill:
 
         ```{python}
-        petersen = ec.Graph().add_named_graph("petersen")
+        towns = ec.towns()
 
-        planar, kuratowski = petersen.check_planarity(counterexample=True)
-        planar, kuratowski.count_nodes(), kuratowski.count_edges()
+        planar, kuratowski = towns.check_planarity(counterexample=True)
+        labels = {
+            n: kuratowski.get_label_from_id(n) for n in kuratowski.get_node_ids()
+        }
+        degrees = kuratowski.degrees(return_dict=True)
+
+        (
+            planar,
+            kuratowski.count_nodes(),
+            kuratowski.count_edges(),
+            sorted(labels[n] for n, d in degrees.items() if d == 2),
+        )
+        ```
+
+        On the map, the counterexample is highlighted. Here the road from Elmwick to Greyford
+        crosses the one from Calder to Fenmoor, and however the towns are placed, one of these roads
+        would have to bridge another:
+
+        ```{python}
+        towns.plot(
+            layout="pos",
+            highlight=list(labels.values()),
+            highlight_edges=[
+                (labels[s], labels[t])
+                for _, s, t in kuratowski.get_edges_as_tuples()
+            ],
+            label_by="label",
+        )
         ```
         """
         ids, pairs, eids = self._planarity_input()
