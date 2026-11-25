@@ -61983,7 +61983,9 @@ class Graph:
 
         [
             metro.group_closeness_centrality(group)
-            for group in (["Central"], ["Central", "Market"], ["Central", "Northpark"])
+            for group in (
+                ["Central"], ["Central", "Market"], ["Central", "Northpark"],
+            )
         ]
         ```
 
@@ -61994,6 +61996,9 @@ class Graph:
         ```
 
         Pass `weighted=False` to count stops instead of minutes.
+
+        [Centrality](../user-guide/centrality.qmd#groups-of-nodes) compares the measures for groups
+        of nodes.
         """
         ids = self._group_ids(group)
         value = rust.group_closeness_centrality(self._graph, ids, self._use_weights(weighted))
