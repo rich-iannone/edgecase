@@ -42996,17 +42996,24 @@ class Graph:
         ::: {layout-ncol="2"}
 
         ```{python}
-        graph.layout_circular(order="id").plot(layout="pos", width=320, height=320)
+        graph.layout_circular(order="id").plot(
+            layout="pos", width=320, height=320
+        )
         ```
 
         ```{python}
-        lattice.layout_circular(order="id").plot(layout="pos", width=320, height=320)
+        lattice.layout_circular(order="id").plot(
+            layout="pos", width=320, height=320
+        )
         ```
 
         :::
 
         The more `iterations=`, the closer the result comes to a lattice. It is the ordered
         baseline of `small_world_omega()`, as `random_reference()` is the random one.
+
+        [Structural properties](../user-guide/structure.qmd#small-worlds) explains how the
+        small-world indices compare a graph against random and lattice references.
         """
         result = Graph._from_rust(
             rust.reference_graph(self._graph, iterations, True, connectivity, seed)
