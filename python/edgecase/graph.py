@@ -58832,6 +58832,9 @@ class Graph:
 
         For scores as shares of the node pairs, use `edge_betweenness_centrality()`, which
         normalizes by default.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         if cutoff is not None and cutoff < 1:
             raise ValueError("cutoff must be at least 1")
