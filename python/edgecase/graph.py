@@ -53881,47 +53881,73 @@ class Graph:
             If the node does not exist, `mode=` is invalid, `radius=` is negative, or weights
             are used and one is negative.
 
+        See Also
+        --------
+        subgraph : Extract the induced subgraph on a set of nodes.
+        select_nodes_in_neighborhood : Select all nodes within k hops of seed nodes.
+        power : Join every pair of nodes within k steps.
+
         Examples
         --------
-        The radius-1 ego network of C holds C, its three neighbors, and the edges among them,
-        including B-D, which does not touch C:
+        The ego graph of a node holds the node, its neighbors and every edge among them, including
+        `B--D`, which doesn't touch `C`. A larger `radius=` reaches further out, and `center=False`
+        leaves the node out:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D"),
-                        ("C", "E"), ("E", "F")])
-        )
+        graph = ec.Graph().add_nodes(["A", "B", "C", "D", "E", "F"])
+        graph.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("B", "D")])
+        graph.add_edges([("C", "E"), ("E", "F")])
 
         ego = graph.ego_graph("C")
         sorted(ego.get_edges_str_repr(use_labels=True))
         ```
 
-        A larger radius reaches further out, and `center=False` leaves the ego out:
-
         ```{python}
-        wider = graph.ego_graph("C", radius=2)
-        around = graph.ego_graph("C", center=False)
-        sorted(wider.get_node_df()["label"]), sorted(around.get_node_df()["label"])
-        ```
-
-        On a directed graph, `mode=` decides between followers and followees:
-
-        ```{python}
-        follows = (
-            ec.Graph(directed=True)
-            .add_nodes(["me", "a", "b", "c"])
-            .add_edges([("me", "a"), ("me", "b"), ("c", "me")])
-        )
+        labels = lambda g: sorted(g.get_node_df()["label"])
 
         (
-            sorted(follows.ego_graph("me", mode="out").get_node_df()["label"]),
-            sorted(follows.ego_graph("me", mode="in").get_node_df()["label"]),
+            labels(graph.ego_graph("C", radius=2)),
+            labels(graph.ego_graph("C", center=False)),
         )
         ```
+
+        ### Hugo's circle
+
+        `ec.friends()` is a network of friendships among the members of a chess club and a
+        climbing club. Hugo plays chess, but three of his five friends are climbers. His ego graph
+        has the 6 of them and the 9 friendships among them, highlighted in the whole network:
+
+        ```{python}
+        friends = ec.friends()
+        hugo = friends.ego_graph("Hugo")
+
+        hugo.count_nodes(), hugo.count_edges()
+        ```
+
+        ```{python}
+        friends.layout_kamada_kawai().plot(
+            layout="pos", color_by="club", label_by="label",
+            highlight=hugo.get_node_df()["label"].to_list(),
+            highlight_edges=[(s, t) for _, s, t in hugo.get_edges_as_tuples()],
+        )
+        ```
+
+        Of the 9 edges, five are Hugo's and four are Tara's: Tara is friends with all of Hugo's
+        other friends, and no two of those four are friends with each other:
+
+        ```{python}
+        hugo.plot(color_by="club", label_by="label", seed=1)
+        ```
+
+        At `radius=2` the circle takes in 17 of the 24 members:
+
+        ```{python}
+        friends.ego_graph("Hugo", radius=2).count_nodes()
+        ```
+
+        On a directed graph, `mode=` decides between followers (`"in"`) and followees (`"out"`).
         """
         if radius < 0:
             raise ValueError(f"radius must be non-negative, got {radius}")
