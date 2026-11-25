@@ -1172,6 +1172,9 @@ reference:
         - org_chart
         - molecules
         - konigsberg
+        - proteins
+        - food_web
+        - control_flow
 
     - title: Tables
       desc: Functions for creating summary tables
