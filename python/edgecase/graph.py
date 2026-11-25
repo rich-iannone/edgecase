@@ -52006,6 +52006,9 @@ class Graph:
 
         comb.set_node_attrs("pos", pos).plot(layout="pos", label_by="label")
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "rooted", "rooted_product", root=root)
 
