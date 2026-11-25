@@ -88102,6 +88102,9 @@ class Graph:
 
         weighted.maximum_cut(seed=1)[0], edges["shared"].sum()
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#maximum-cut) compares
+        the karate club's maximum cut with the split into its factions.
         """
         init = (
             None
