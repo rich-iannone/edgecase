@@ -38611,6 +38611,9 @@ class Graph:
 
         friends.plot(color_by="like_hugo", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity)
+        compares the topological overlap with the overlap coefficient.
         """
         from edgecase._core import topological_overlap_matrix as _topological_overlap_matrix
 
