@@ -55120,46 +55120,45 @@ class Graph:
 
         Examples
         --------
-        A random directed graph with 20 nodes and 35 edges has a mean in-degree of `35 / 20`,
-        or `1.75`:
+        Every edge has one target, so the in-degrees of a graph add up to its number of edges. In a
+        random directed graph with 20 nodes and 35 edges, the mean in-degree is `35 / 20`, or
+        `1.75`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_gnm_graph(20, 35, seed=23)
+        graph = ec.Graph(directed=True).add_gnm_graph(20, 35, seed=23)
 
-        graph.aggregate_in_degree('mean')
+        graph.aggregate_in_degree("sum"), graph.aggregate_in_degree("mean")
         ```
 
-        The median is less sensitive to a few heavily linked nodes:
+        ### Where the money goes
+
+        In a month of payments between bank accounts, an account's in-degree is the number of
+        payments it received. With `conditions=`, the mean is taken over one kind of account at a
+        time. The four businesses are paid 3 times each on average, the 14 people fewer than twice:
 
         ```{python}
-        graph.aggregate_in_degree('median')
-        ```
-
-        Passing `conditions=` restricts the aggregation to a subset of nodes. In this small
-        citation network, papers in the `"bio"` field are cited `2.0` times on average, while
-        `"cs"` papers are cited far less often:
-
-        ```{python}
-        papers = ec.Graph(directed=True)
-        for label, field in [
-            ("P1", "bio"), ("P2", "bio"), ("P3", "cs"), ("P4", "cs"), ("P5", "bio"), ("P6", "cs")
-        ]:
-            papers.add_node(label=label, field=field)
-        for citing, cited in [
-            ("P2", "P1"), ("P3", "P1"), ("P4", "P1"), ("P4", "P2"),
-            ("P5", "P3"), ("P6", "P5"), ("P6", "P1"),
-        ]:
-            papers.add_edge(citing, cited)
+        payments = ec.payments()
 
         {
-            field: papers.aggregate_in_degree(
-                "mean", conditions=lambda n: n.attributes["field"] == field
+            kind: payments.aggregate_in_degree(
+                "mean", conditions=lambda n: n.attributes["kind"] == kind
             )
-            for field in ["bio", "cs"]
+            for kind in ["business", "person"]
         }
+        ```
+
+        The business average hides a wide spread. The Grocer is paid 8 times, the most of any
+        account, and Acme, the employer, never. Here the accounts are sized by the payments they
+        received:
+
+        ```{python}
+        received = {v: payments.get_in_degree(v) for v in payments.get_node_ids()}
+        payments.set_node_attrs("received", received)
+        payments.plot(
+            color_by="kind", size_by="received", label_by="label", seed=3
+        )
         ```
         """
         if not self._graph.is_directed:
