@@ -71989,6 +71989,9 @@ class Graph:
         ```{python}
         courses.plot(highlight=chain, label_by="label", seed=2)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) explains the tree
+        that a search builds, and lists the methods that expose its parts.
         """
         with self._no_recording():
             edges = self.dfs_edges(source, depth_limit=depth_limit, mode=mode)
