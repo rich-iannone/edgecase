@@ -2,6 +2,7 @@
 pub mod algorithms;
 pub mod force_directed;
 pub mod overlap;
+pub mod packing;
 pub mod routing;
 
 pub use force_directed::{ForceDirectedLayout, LayoutConfig};
