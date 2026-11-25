@@ -21279,6 +21279,12 @@ class Graph:
             List of node IDs in internal storage order, containing at most `limit=` entries.
             Empty if the graph has no nodes.
 
+        See Also
+        --------
+        get_edge_ids : List the edge IDs instead.
+        get_label_from_id : Turn a node ID into its label.
+        get_node_creation_order : List the node IDs in the order they were added.
+
         Examples
         --------
         By default, `get_node_ids()` returns up to `1000` IDs -- plenty for typical graphs.
@@ -21299,7 +21305,7 @@ class Graph:
         Sorting the IDs and mapping them to labels gives a readable overview of the nodes:
 
         ```{python}
-        {nid: graph.get_label_from_id(nid) for nid in sorted(graph.get_node_ids())}
+        {v: graph.get_label_from_id(v) for v in sorted(graph.get_node_ids())}
         ```
 
         Passing `limit=` caps the result, which is useful for a quick preview on larger
@@ -21321,7 +21327,6 @@ class Graph:
 
         len(big.get_node_ids()), len(big.get_node_ids(limit=None))
         ```
-
         """
         ids = self._graph.get_node_ids()
         return ids if limit is None else ids[:limit]
