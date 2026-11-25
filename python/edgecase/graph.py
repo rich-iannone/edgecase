@@ -86065,6 +86065,9 @@ class Graph:
             label_by="label", seed=2,
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes)
+        compares maximal and maximum matchings on the karate club.
         """
         from edgecase._core import maximal_matching
 
