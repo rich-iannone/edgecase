@@ -68669,6 +68669,9 @@ class Graph:
         steps = [step for route in routes for step in zip(route, route[1:])]
         metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#ties) finds the four routes, all equally
+        short, from a karate club member with one friend to the administrator.
         """
         if max_paths is not None and max_paths < 1:
             raise ValueError(f"max_paths must be at least 1, got {max_paths}")
