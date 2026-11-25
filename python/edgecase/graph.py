@@ -68425,6 +68425,9 @@ class Graph:
         needs_math101 = [n for n in courses.get_node_ids() if index("MATH101", n)]
         courses.plot(highlight=needs_math101, label_by="label", seed=2)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#everything-upstream-and-downstream) answers
+        prerequisite questions from an index built once.
         """
         table = rust.reachability_index(self._graph)
         resolve = self._resolve_node_id
