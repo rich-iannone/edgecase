@@ -37818,6 +37818,9 @@ class Graph:
 
         friends.plot(color_by="like_mara", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#similarity-from-paths)
+        explains which weakness of SimRank the variant corrects.
         """
         from edgecase._core import simrank_star_similarity
 
