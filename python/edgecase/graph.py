@@ -44013,6 +44013,9 @@ class Graph:
         ```{python}
         books.plot(color_by="leaning", edge_color_by="leaning", seed=1)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) counts the friendships
+        within and between the karate club's two factions.
         """
         return self._mixing_matrix(self._attribute_counts(attribute), normalized)
 
