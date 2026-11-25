@@ -28300,6 +28300,9 @@ class Graph:
         ```
 
         :::
+
+        [Structural properties](../user-guide/structure.qmd#properties) lists every `is_*` test by
+        category.
         """
         from edgecase._core import is_regular
 
