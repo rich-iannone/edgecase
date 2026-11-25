@@ -10722,9 +10722,16 @@ class Graph:
         ValueError
             If `order=` is negative.
 
+        See Also
+        --------
+        add_balanced_tree : Add a balanced tree.
+        add_full_rary_tree : Add a full r-ary tree.
+
         Examples
         --------
-        `B(3)` has `8` nodes, and its root has three children:
+        The binomial tree `B(k)` is built by taking two copies of `B(k - 1)` and making the root of
+        one a child of the root of the other, starting from a single node. `B(3)` has `2^3 = 8`
+        nodes, and its root has three children:
 
         ```{python}
         import edgecase as ec
@@ -10734,13 +10741,48 @@ class Graph:
         graph.count_nodes(), graph.get_out_degree("1")
         ```
 
-        The number of nodes at each depth follows the binomial coefficients `1, 3, 3, 1`:
+        The number of nodes at each depth follows the binomial coefficients `1, 3, 3, 1`, which
+        gives the tree its name:
 
         ```{python}
         depths = graph.single_source_shortest_path_length("1", return_dict=True)
 
         [sum(1 for d in depths.values() if d == level) for level in range(4)]
         ```
+
+        ### Two copies of B(3)
+
+        `B(3)` on the left and `B(4)` on the right, with nodes `"9"` to `"16"` highlighted: they
+        form the second copy of `B(3)`, hung from the root of the first. The children of `B(4)`'s
+        root are the roots of `B(0)`, `B(1)`, `B(2)` and `B(3)`:
+
+        ```{python}
+        bigger = ec.Graph(directed=True).add_binomial_tree(order=4)
+        copy = [bigger.get_id_from_label(str(i)) for i in range(9, 17)]
+        children = bigger.get_successors("1")
+
+        (
+            sorted(bigger.get_label_from_id(n) for n in children),
+            bigger.subgraph(copy).is_isomorphic(graph),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        bigger.layout_kamada_kawai().plot(
+            layout="pos", highlight=copy, label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if order < 0:
             raise ValueError("Binomial tree order must be non-negative")
