@@ -88426,6 +88426,20 @@ class Graph:
         [star.get_label_from_id(n) for n in star.maximum_independent_set()]
         ```
 
+        The three leaves picked out. No edge joins two of them:
+
+        ```{python}
+        spots = {"A": (1, 1), "B": (0, 2), "C": (0, 0), "D": (2, 1)}
+        star.set_node_attrs(
+            "pos", {star.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        star.plot(
+            layout="pos", highlight=star.maximum_independent_set(),
+            label_by="label", height=240,
+        )
+        ```
+
         ### The biggest slot
 
         `exams()` joins two of the 14 courses at a made-up college when some student takes both,
@@ -88443,6 +88457,10 @@ class Graph:
         ```{python}
         exams.plot(highlight=biggest, label_by="label", seed=5)
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) finds a
+        smaller cover of the karate club from an independent set than directly.
         """
         from edgecase._core import maximum_independent_set
 
