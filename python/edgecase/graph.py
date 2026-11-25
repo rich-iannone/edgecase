@@ -78471,6 +78471,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight_edges=new_track, label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) finds the weak points
+        of the karate club and the power grid.
         """
         from edgecase._core import has_bridges
 
