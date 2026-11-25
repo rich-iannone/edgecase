@@ -28114,7 +28114,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
 
         hashes = path.weisfeiler_lehman_subgraph_hashes(iterations=2)
         second = {path.get_label_from_id(n): h[1][:6] for n, h in hashes.items()}
@@ -28145,6 +28147,9 @@ class Graph:
 
         caffeine.plot(highlight=alike, label_by="label", seed=1)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) compares the
+        methods that test whether two graphs are the same.
         """
         import hashlib
 
