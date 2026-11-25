@@ -51832,6 +51832,9 @@ class Graph:
             highlight_edges=[(center, n) for n in moves],
         )
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "strong", "strong_product")
 
