@@ -3520,77 +3520,75 @@ class Graph:
         about to lose first, `which_loops()` returns the offending edge IDs and
         `count_loops()` gives their per-node totals.
 
+        See Also
+        --------
+        which_loops : The IDs of the self-loops.
+        remove_duplicate_edges : Remove parallel edges.
+        simplify : Remove both self-loops and parallel edges.
+
         Examples
         --------
         A self-loop connects a node to itself; here two of the three edges are self-loops on
-        "A" and "B", which `which_loops()` reports by edge ID:
+        "A" and "B", which `which_loops()` reports by edge ID. `remove_selfloops()` strips both:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges(
-                [
-                    ("A", "B"),
-                    ("A", "A"),  # self-loop
-                    ("B", "B"),  # self-loop
-                ]
-            )
-        )
-
-        g.count_edges(), g.which_loops()
-        ```
-
-        Calling `remove_selfloops()` strips both self-loops, leaving only the genuine
-        connection between the two nodes:
-
-        ```{python}
+        g = ec.Graph.from_edges([("A", "B"), ("A", "A"), ("B", "B")])
+        loops = g.which_loops()
         g.remove_selfloops()
 
-        g.count_edges(), g.which_loops()
-        ```
-
-        This is a common cleanup step before algorithms that assume a simple graph. As long as
-        no multi-edges remain, `is_simple()` now returns `True`:
-
-        ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["X", "Y", "Z"])
-            .add_edges(
-                [
-                    ("X", "Y"),
-                    ("Y", "Z"),
-                    ("X", "X"),  # self-loop
-                ]
-            )
-            .remove_selfloops()
-        )
-
-        g.is_simple()
+        loops, g.count_edges(), g.which_loops()
         ```
 
         Parallel edges between different nodes are not affected. Here the duplicated X-Y edge
         survives, so the graph is still not simple; `simplify()` would remove both kinds:
 
         ```{python}
-        g = (
-            ec.Graph()
-            .add_nodes(["X", "Y"])
-            .add_edges(
-                [
-                    ("X", "Y"),
-                    ("X", "Y"),  # parallel edge
-                    ("Y", "Y"),  # self-loop
-                ]
-            )
-            .remove_selfloops()
-        )
+        g = ec.Graph.from_edges([("X", "Y"), ("X", "Y"), ("Y", "Y")])
+        g.remove_selfloops()
 
         g.count_edges(), g.is_simple()
         ```
+
+        ### Transfers between one's own accounts
+
+        In a bank's export, money that a customer moves between their own accounts has the same
+        payer and payee, and becomes a self-loop. Each self-loop adds 2 to its node's degree, so
+        Dee and Eve look busier than they are:
+
+        ```{python}
+        export = [
+            ("Acme", "Dee", 2600),
+            ("Acme", "Eve", 2700),
+            ("Dee", "Grocer", 64),
+            ("Dee", "Dee", 500),
+            ("Eve", "Grocer", 38),
+            ("Eve", "Eve", 300),
+            ("Dee", "Eve", 80),
+        ]
+
+        bank = ec.Graph.from_edges(export, directed=True)
+        before = bank.get_degree("Dee"), bank.get_degree("Eve")
+
+        bank.remove_selfloops()
+
+        before, (bank.get_degree("Dee"), bank.get_degree("Eve"))
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        ec.Graph.from_edges(export, directed=True).plot(
+            label_by="label", seed=1, width=360, height=360
+        )
+        ```
+
+        ```{python}
+        bank.plot(label_by="label", seed=1, width=360, height=360)
+        ```
+
+        :::
         """
         before = self._snapshot_state() if self._recording_depth == 0 else None
         self._graph.remove_selfloops()
