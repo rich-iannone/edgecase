@@ -32669,17 +32669,35 @@ class Graph:
         graph = ec.Graph.from_edges(
             [("A", "B"), ("A", "C"), ("B", "D"), ("D", "A")], directed=True
         )
-        graph.select_nodes_by_id([graph.get_id_from_label("A")]).trav_out()
+        label = graph.get_label_from_id
+        start = graph.get_id_from_label("A")
 
-        sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
+        graph.select_nodes_by_id([start])
+        first = graph.trav_out().get_selected_node_ids()
+        sorted(label(n) for n in first)
         ```
 
         Each call takes one more step. A second one goes on to `D`, the only node that `B` or
         `C` points to:
 
         ```{python}
-        graph.trav_out()
-        [graph.get_label_from_id(n) for n in graph.get_selected_node_ids()]
+        second = graph.trav_out().get_selected_node_ids()
+        [label(n) for n in second]
+        ```
+
+        Each node colored by the step that reached it. A third step would follow the arrow from
+        `D` back to `A`:
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 2), "C": (1, 0), "D": (2, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        step = {start: 0} | {n: 1 for n in first} | {n: 2 for n in second}
+
+        graph.set_node_attrs("step", step).plot(
+            layout="pos", color_by="step", label_by="label", height=240
+        )
         ```
 
         ### Following the money
@@ -32706,6 +32724,9 @@ class Graph:
             highlight={"accent": second, "soft": first}, label_by="label", seed=3
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#traversing-selections) walks a selection two steps
+        forward through a graph of course prerequisites.
         """
         self._graph.trav_out()
 
