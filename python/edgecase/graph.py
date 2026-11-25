@@ -80998,29 +80998,73 @@ class Graph:
             If any prize node doesn't exist in the graph, or `weight_attr=` names an attribute that
             an edge lacks or holds as a non-number.
 
+        See Also
+        --------
+        steiner_tree : The cheapest tree that connects every one of a set of nodes.
+        expand_seed_set : Grow a module from seeds by how tightly candidates link to it.
+
         Examples
         --------
+        `BRCA1`, `TP53` and `CHEK2` carry prizes. The tree collects all three, since each prize is
+        worth more than the edges that reach it, and passes through the prize-less `ATM`. `MDM2`
+        has no prize, so it is left out:
+
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(weighted=True)
-            .add_nodes(["BRCA1", "TP53", "ATM", "CHEK2", "MDM2"])
-            .add_edges(
-                [
-                    ("BRCA1", "ATM", 1.0),
-                    ("ATM", "CHEK2", 1.0),
-                    ("TP53", "MDM2", 1.0),
-                    ("ATM", "TP53", 2.0),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("BRCA1", "ATM", 1.0), ("ATM", "CHEK2", 1.0), ("ATM", "TP53", 2.0),
+             ("TP53", "MDM2", 1.0)]
         )
 
-        tree = graph.prize_collecting_steiner_tree(
-            prizes={"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0}
-        )
-        tree.count_nodes(), tree.count_edges()
+        tree = graph.prize_collecting_steiner_tree({"BRCA1": 5.0, "TP53": 3.0, "CHEK2": 4.0})
+        tree.get_edges_str_repr(use_labels=True)
         ```
+
+        ### Connecting disease genes
+
+        `proteins()` is a small protein interaction network with five known disease genes. With a
+        prize of `3` for each disease gene and a cost of `1` for each edge, the tree links four of
+        them through REP3, collecting `12` for a cost of `4`:
+
+        ```{python}
+        proteins = ec.proteins()
+        disease = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
+
+        tree = proteins.prize_collecting_steiner_tree({gene: 3.0 for gene in disease})
+        tree.get_edges_str_repr(use_labels=True)
+        ```
+
+        TRN3, on the far side of the network, is left out: it is three edges from the rest, and
+        reaching it would cost as much as its prize:
+
+        ```{python}
+        proteins.plot(
+            layout="pos",
+            highlight={"accent": disease},
+            highlight_edges={"soft": tree.get_edge_ids()},
+            label_by="label",
+        )
+        ```
+
+        Halving the cost of an edge with `edge_penalty=0.5` makes TRN3 worth reaching, through
+        the chaperone HSP1 and TRN2:
+
+        ```{python}
+        tree = proteins.prize_collecting_steiner_tree(
+            {gene: 3.0 for gene in disease}, edge_penalty=0.5
+        )
+
+        proteins.plot(
+            layout="pos",
+            highlight={"accent": disease},
+            highlight_edges={"soft": tree.get_edge_ids()},
+            label_by="label",
+        )
+        ```
+
+        [Network biology](../user-guide/network-biology.qmd#connecting-high-scoring-genes) connects
+        high-scoring genes on a larger simulated network.
         """
         from edgecase._core import prize_collecting_steiner_tree as _pcst
 
