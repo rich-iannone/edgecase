@@ -7325,15 +7325,43 @@ class Graph:
             negative, an initial position is not a pair of finite numbers, or `scale=` or
             `center=` is invalid.
 
+        See Also
+        --------
+        layout_spring : Place nodes with a force-directed spring model.
+        layout_forceatlas2 : Place nodes with the ForceAtlas2 model.
+
         Examples
         --------
-        Two cliques joined by a path, with a large `a=` to keep the cliques tight:
+        The attractive and repulsive forces layout (ARF) joins every pair of nodes with a spring,
+        and `a=` sets how much stronger the springs along edges are than the others.
+
+        ### Tight and loose cliques
+
+        A barbell graph is two cliques of 6 joined by a path of 3. With the default `a=1.1` on the
+        left, the cliques spread out. With `a=3` on the right, each clique pulls tight and the path
+        between them stands out:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_barbell_graph(6, 3).layout_arf(a=3, seed=5).plot(layout="pos")
+        barbell = ec.Graph().add_barbell_graph(6, 3)
+
+        barbell.layout_arf(seed=5).plot(
+            layout="pos", width=320, height=320, legend=False
+        )
         ```
+
+        ```{python}
+        barbell.layout_arf(a=3, seed=5).plot(
+            layout="pos", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
+
+        The result depends on `seed=`.
         """
         scale, center = self._layout_frame(scale, center)
         raw = rust.arf_layout(
