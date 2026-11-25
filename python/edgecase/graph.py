@@ -40168,6 +40168,10 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#chordal-graphs-and-treewidth) explains how
+        treewidth measures the distance from a tree.
         """
         cliques = rust.chordal_graph_cliques(self._graph)
         return max((len(c) for c in cliques), default=0) - 1
