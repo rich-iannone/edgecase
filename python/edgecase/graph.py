@@ -61881,11 +61881,15 @@ class Graph:
 
         ```{python}
         club.plot(
-            layout="pos", color_by="faction", label_by="label", highlight=["0", "33"]
+            layout="pos", color_by="faction", label_by="label",
+            highlight=["0", "33"],
         )
         ```
 
         To find the best group of a given size, use `prominent_group()`.
+
+        [Centrality](../user-guide/centrality.qmd#groups-of-nodes) finds the share of the karate
+        club's shortest paths that pass through its two leaders.
 
         Notes
         -----
