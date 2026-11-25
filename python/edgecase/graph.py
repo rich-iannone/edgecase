@@ -52602,6 +52602,9 @@ class Graph:
         ```
 
         As with `union()`, the first graph's values win where the graphs disagree.
+
+        [Transforming graphs](../user-guide/transforming.qmd#set-operations) compares the set
+        operations, and explains why the graphs must number their nodes alike.
         """
         return Graph._fold(graphs, "union")
 
