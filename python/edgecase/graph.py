@@ -54546,54 +54546,84 @@ class Graph:
             If `return_dict=` is `True`: dictionary mapping node IDs to degree values. If
             `return_dict=` is `False` (default): returns self for method chaining.
 
+        See Also
+        --------
+        get_degree : The degree of a single node.
+        degree_distribution : How many nodes have each degree.
+        degree_centrality : Degree divided by the largest possible, for comparing graphs.
+
         Examples
         --------
-        `A` is connected to both other nodes and has degree `2`, while `B` and `C` each have
-        degree `1`. The values are stored on the nodes and shown in the node DataFrame:
+        A node's degree is its number of edges. "A" is joined to both other nodes, and "B" and "C"
+        to one each. With `return_dict=True` the degrees come back keyed by node ID, and "A" is
+        node `1`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("A", "C")])
-            .degrees(return_dict=False)
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C")])
 
-        graph.get_node_df().select(["id", "degree"])
+        dict(sorted(graph.degrees(return_dict=True).items()))
         ```
 
-        In a directed graph, in- and out-edges are added together. Every node in this
-        three-node graph has degree `2`, even though `A` only sends edges and `C` only receives
-        them:
+        In a directed graph, edges in and out are added together. "A" only sends edges and "C"
+        only receives them, but all three nodes have degree `2`:
 
         ```{python}
-        directed = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("A", "C"), ("B", "C")])
+        directed = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "C")], directed=True
         )
 
-        degs = directed.degrees(return_dict=True)
-        {directed.get_label_from_id(nid): d for nid, d in sorted(degs.items())}
+        dict(sorted(directed.degrees(return_dict=True).items()))
         ```
 
-        Because it stores results as a node attribute, `degrees()` chains directly into
-        other attribute-driven methods like `rescale_node_attrs()` -- handy for sizing
-        nodes by degree in a visualization:
+        ### Who appears with whom
+
+        In the Les Misérables network, two characters are joined when they appear in the same
+        chapter, so a character's degree is the number of others they meet. Valjean meets 36, far
+        more than anyone else:
 
         ```{python}
-        graph = (
-            ec.karate_club()
-            .degrees(return_dict=False)
-            .rescale_node_attrs(
-                node_attr_from="degree",
-                node_attr_to="size",
-                range=[0.5, 2.0],
-            )
+        novel = ec.les_miserables()
+        met = novel.degrees(return_dict=True)
+
+        top = sorted(met, key=met.get, reverse=True)[:5]
+        [(novel.get_label_from_id(v), met[v]) for v in top]
+        ```
+
+        The node DataFrame always has a live `degree` column that follows every edit, so storing
+        the degrees under another name keeps a snapshot. Here they're stored as `"met"` before
+        Valjean is taken out of the story. The layout is computed first, so that the drawings below
+        put every character in the same place:
+
+        ```{python}
+        novel.layout_kamada_kawai()
+        novel.degrees(attr_name="met")
+        novel.plot(
+            layout="pos", size_by="met", color_by="met",
+            color_scale="sequential", show_labels=False,
         )
-        graph.describe()
+        ```
+
+        Without Valjean, everyone he met has one fewer, and 5 characters, who appear with no one
+        else, are left with none:
+
+        ```{python}
+        import polars as pl
+
+        novel.delete_node("Valjean")
+        alone = novel.get_node_df().filter(pl.col("degree") == 0)
+
+        alone.select("label", "met", "degree")
+        ```
+
+        Highlighted, they sit where Valjean was, with no edges left, while the rest of the novel
+        holds together without him:
+
+        ```{python}
+        novel.plot(
+            layout="pos", highlight=alone["label"].to_list(), show_labels=False
+        )
         ```
         """
         # Total degree of every node in one pass (in + out on directed graphs), keyed in
