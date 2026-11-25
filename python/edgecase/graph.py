@@ -69023,6 +69023,9 @@ class Graph:
 
         metro.plot(layout="pos", color_by="depot", label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#the-nearest-of-several-sources) finds which of
+        three warehouses should serve each city on a road network.
         """
         source_ids = [self._resolve_node_id(s, auto_create=False) for s in sources]
         paths = rust.multi_source_paths(self._graph, source_ids, cutoff)
