@@ -42914,6 +42914,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#null-models-from-an-existing-graph) tests
+        whether the dolphins' clustering is more than their degrees alone would produce.
         """
         result = Graph._from_rust(
             rust.reference_graph(self._graph, iterations, False, connectivity, seed)
