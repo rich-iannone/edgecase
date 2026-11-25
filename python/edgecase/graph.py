@@ -42379,10 +42379,26 @@ class Graph:
             [("A", "B"), ("B", "C"), ("C", "A")], directed=True
         )
         flow = ec.Graph.from_edges(
-            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
+            [("D", "E"), ("E", "F"), ("D", "F")], directed=True
         )
 
         cycle.triadic_census()["030C"], flow.triadic_census()["030T"]
+        ```
+
+        The cycle on the left goes around. In the triad on the right, `D` reaches `F` both
+        directly and through `E`:
+
+        ```{python}
+        both = cycle.disjoint_union(flow)
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3.5, 0), "E": (4.5, 1.4), "F": (5.5, 0),
+        }
+        both.set_node_attrs(
+            "pos", {both.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        both.plot(layout="pos", label_by="label", height=240)
         ```
 
         ### Rings among the payments
@@ -42423,6 +42439,9 @@ class Graph:
 
         census["030T"], census["030C"]
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#triads-in-directed-graphs)
+        finds the signature of a status hierarchy in Wikipedia's administrator elections.
         """
         census = dict(rust.triadic_census(self._graph))
 
