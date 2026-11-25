@@ -22910,6 +22910,9 @@ class Graph:
 
         graph.has_edge_id(edge_id=1), graph.get_edge_ids()
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#edges) explains how edges are numbered, and
+        what each edge holds besides its endpoints.
         """
         if isinstance(edge_id, int) and edge_id < 0:
             return False  # IDs are unsigned in Rust; pyo3 would raise OverflowError
