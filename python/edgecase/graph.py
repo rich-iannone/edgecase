@@ -55014,26 +55014,50 @@ class Graph:
 
         Examples
         --------
-        Every node in a 4-cycle has exactly two neighbors, so the average degree comes
-        out to exactly `2.0`:
+        Every node in a 4-cycle has two neighbors, so the average degree is `2.0`:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")])
+        cycle = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "A")]
         )
 
-        graph.average_degree()
+        cycle.average_degree()
         ```
 
-        A five-node star has four edges, so its average degree is `2 * 4 / 5 = 1.6`, even though
-        the hub has degree `4` and every other node has degree `1`:
+        The average is twice the number of edges over the number of nodes, since each edge adds one
+        to the degree of both its ends. A five-node star has 4 edges, so its average degree is
+        `2 * 4 / 5`, or `1.6`, though no node has that degree: the hub has `4` and the others `1`:
 
         ```{python}
         ec.Graph().add_star_graph(5).average_degree()
+        ```
+
+        ### The tightest circle
+
+        In the Les Misérables network, characters are joined when they appear in the same chapter,
+        and on average each character appears with 6.6 others. The nine students of the ABC society
+        all appear with one another, so on their own they average 8, the most possible for 9 nodes:
+
+        ```{python}
+        novel = ec.les_miserables()
+        students = [
+            "Enjolras", "Combeferre", "Prouvaire", "Feuilly", "Courfeyrac",
+            "Bahorel", "Bossuet", "Joly", "Grantaire",
+        ]
+        society = novel.subgraph([novel.get_id_from_label(s) for s in students])
+
+        novel.average_degree(), society.average_degree()
+        ```
+
+        The society is highlighted in the novel. Its members meet each other and few others, apart
+        from Gavroche, Marius, Mabeuf and MmeHucheloup, whose tavern they meet in:
+
+        ```{python}
+        novel.plot(
+            highlight=students, size_by="degree", show_labels=False, seed=1
+        )
         ```
         """
         return self._graph.average_degree()
