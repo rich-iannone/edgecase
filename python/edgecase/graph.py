@@ -12010,68 +12010,63 @@ class Graph:
         `C(n,k)` grows very quickly (e.g. `C(20,10)` is 184,756), so keep `n=` modest when `k=`
         is near `n / 2`.
 
+        See Also
+        --------
+        add_kneser_graph : Add a Kneser graph.
+        is_k_regular : Check whether every node has degree k.
+
         Examples
         --------
-        `J(4,2)` has one node per 2-element subset of `{0,1,2,3}`, and `C(4,2) = 6` such
-        subsets exist:
+        The Johnson graph `J(n, k)` has a node for each `k`-element subset of `{0, ..., n - 1}`
+        and joins two subsets that differ in one element, which you get by swapping one element
+        for another. `J(4, 2)` has `C(4, 2) = 6` nodes, and each node has `k(n - k) = 4`
+        neighbors, for `12` edges:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False).add_johnson_graph(n=4, k=2)
+        graph = ec.Graph().add_johnson_graph(n=4, k=2)
 
-        graph.count_nodes()
+        graph.count_nodes(), graph.count_edges(), graph.is_k_regular(4)
         ```
 
-        Each pair of subsets that differ by exactly one element gets an edge, giving `12`
-        edges here:
+        The labels are the subsets. The neighbors of `"0,1"` are the four pairs that share one
+        element with it, and only its complement, `"2,3"`, is missing:
 
         ```{python}
-        graph.count_edges()
+        sorted(graph.get_label_from_id(n) for n in graph.get_neighbors("0,1"))
         ```
 
-        Node labels spell out the subsets themselves, so you can read off which elements
-        each node represents:
+        ### Pairs from four and from five
+
+        `J(4, 2)` on the left is the octahedron: drawn with each pair opposite its complement,
+        every node is joined to all the others except the one across from it. `J(5, 2)` on the
+        right has `10` nodes of degree `2 * 3 = 6`:
 
         ```{python}
-        nodes = [graph.get_label_from_id(nid) for nid in sorted(graph.get_node_ids(limit=None))]
-        nodes
+        five = ec.Graph().add_johnson_graph(n=5, k=2)
+        octahedron = ec.Graph().add_named_graph("octahedral")
+
+        graph.is_isomorphic(octahedron), five.count_edges(), five.is_k_regular(6)
         ```
 
-        Since nodes are labelled by their subsets, you can look them up directly. The neighbors
-        of `"0,1"` are the four pairs that share exactly one element with it; only its
-        complement `"2,3"` is missing:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_neighbors("0,1"))
-        ```
+        order = ["0,1", "0,2", "0,3", "2,3", "1,3", "1,2"]
 
-        Every node touches the same number of neighbors, since Johnson graphs are regular
-        with degree `k(n-k)`. For `k=2, n=4` that's `2*2 = 4`, so every node should report
-        the same degree:
+        graph.layout_circular(order=order).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
 
         ```{python}
-        degrees = [graph.get_degree(nid) for nid in graph.get_node_ids(limit=None)]
-        set(degrees)
+        five.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
 
-        `J(5,2)` has `C(5,2) = 10` nodes, and its degree formula gives `2*(5-2) = 6`, for
-        `10*6/2 = 30` edges:
-
-        ```{python}
-        johnson_5_2 = ec.Graph(directed=False).add_johnson_graph(n=5, k=2)
-
-        johnson_5_2.count_nodes(), johnson_5_2.count_edges()
-        ```
-
-        Note that despite looking similar on paper, `J(5,2)` is not the Petersen graph --
-        that's actually the Kneser graph `K(5,2)`, which is the complement of `J(5,2)`. `J(5,2)`
-        has 10 nodes and is 6-regular, while the Petersen graph has 10 nodes but is only
-        3-regular:
-
-        ```{python}
-        {johnson_5_2.get_degree(nid) for nid in johnson_5_2.get_node_ids(limit=None)}
-        ```
+        :::
         """
         self._check_non_negative(n=n, k=k)
         with self._compound("add_johnson_graph", f"G.add_johnson_graph(n={n}, k={k})"):
