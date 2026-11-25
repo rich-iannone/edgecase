@@ -56307,6 +56307,9 @@ class Graph:
             layout="pos", highlight=alone["label"].to_list(), show_labels=False
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#degrees) compares the degree
+        distributions of the karate club and the power grid.
         """
         # Total degree of every node in one pass (in + out on directed graphs), keyed in
         # get_node_ids() order as before
