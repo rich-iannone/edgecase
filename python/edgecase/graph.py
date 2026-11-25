@@ -37653,6 +37653,8 @@ class Graph:
         ```{python}
         friends.plot(highlight=paths[0], label_by="label", seed=8)
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#walks) compares the kinds of random walk.
         """
         if isinstance(sample_size, bool) or not isinstance(sample_size, int) or sample_size < 0:
             raise ValueError(f"sample_size must be a non-negative integer, got {sample_size!r}")
