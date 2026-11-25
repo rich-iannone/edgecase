@@ -30031,6 +30031,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-nodes) lists the node selectors and what
+        each one selects.
         """
         try:
             self._select(
