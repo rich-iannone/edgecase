@@ -72471,6 +72471,9 @@ class Graph:
             layout="pos", highlight_edges=[e for _, _, e in red], label_by="label"
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) explains the tree
+        that a search builds, and lists the methods that expose its parts.
         """
         if edges is None:
             out, _ = self._edge_tables()
