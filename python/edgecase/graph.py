@@ -12777,6 +12777,12 @@ class Graph:
             less than `1`, or no connected graph turns up in `tries=` draws (always the case for
             `k=0` with more than one node).
 
+        See Also
+        --------
+        add_smallworld_graph : Draw a single rewired lattice, connected or not.
+        add_newman_watts_strogatz_graph : Add shortcuts to the lattice, which stays connected.
+        is_connected : Check whether every node can reach every other.
+
         Examples
         --------
         Even with heavy rewiring, the graph comes out connected:
@@ -12784,7 +12790,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_connected_watts_strogatz_graph(n=40, k=2, p=0.6, seed=1)
+        graph = ec.Graph().add_connected_watts_strogatz_graph(
+            n=40, k=2, p=0.6, seed=1
+        )
 
         graph.count_edges(), graph.is_connected()
         ```
@@ -12795,6 +12803,35 @@ class Graph:
         ```{python}
         ec.Graph().add_smallworld_graph(n=40, k=2, p=0.6, seed=1).is_connected()
         ```
+
+        ### Redrawn or not
+
+        The graph above on the left, and the first draw from `add_smallworld_graph()` on the
+        right. Both have `40` edges, one per node, but the first draw splits into two pieces:
+
+        ```{python}
+        first_draw = ec.Graph().add_smallworld_graph(n=40, k=2, p=0.6, seed=1)
+
+        first_draw.count_edges(), first_draw.count_weakly_connected_components()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        first_draw.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, k=k, tries=tries)
 
