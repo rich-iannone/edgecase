@@ -23654,6 +23654,9 @@ class Graph:
         ```
 
         :::
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#a-project-as-a-dag) builds the plan for a
+        house as a DAG of tasks.
         """
         return self._graph.is_dag()
 
