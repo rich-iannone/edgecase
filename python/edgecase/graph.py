@@ -10302,10 +10302,17 @@ class Graph:
         ValueError
             If `rows=` or `cols=` is less than `1`.
 
+        See Also
+        --------
+        add_triangular_lattice_graph : Add a triangular lattice.
+        add_grid_2d : Add a two-dimensional grid graph.
+        girth : Compute the length of a shortest cycle.
+
         Examples
         --------
-        One row of two hexagons has ten nodes and eleven edges, since the hexagons share an
-        edge. The shortest cycle has six edges:
+        A hexagonal lattice, or honeycomb, tiles the plane with hexagons, and `rows=` and `cols=`
+        count them. A row of two hexagons has `10` nodes and `11` edges, since the hexagons share
+        an edge, and its shortest cycle has length `6`:
 
         ```{python}
         import edgecase as ec
@@ -10315,13 +10322,39 @@ class Graph:
         graph.count_nodes(), graph.count_edges(), graph.girth()
         ```
 
-        A larger honeycomb has no triangles at all, and no node has more than three neighbors:
+        ### Hexagons and triangles
+
+        The honeycomb and the triangular lattice are duals: putting a node in each hexagon and
+        joining the nodes of neighboring hexagons gives a triangular lattice. A honeycomb of three
+        by three on the left has no triangles, and no node has more than three neighbors. In the
+        triangular lattice on the right, inner nodes have six:
 
         ```{python}
-        honeycomb = ec.Graph().add_hexagonal_lattice_graph(rows=4, cols=5)
+        honeycomb = ec.Graph().add_hexagonal_lattice_graph(rows=3, cols=3)
+        triangles = ec.Graph().add_triangular_lattice_graph(rows=4, cols=8)
 
-        len(honeycomb.list_triangles()), honeycomb.get_node_df()["degree"].max()
+        (
+            len(honeycomb.list_triangles()),
+            honeycomb.get_node_df()["degree"].max(),
+            triangles.get_node_df()["degree"].max(),
+        )
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        honeycomb.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        triangles.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if rows < 1 or cols < 1:
             raise ValueError("Lattice must have at least 1 row and 1 column")
