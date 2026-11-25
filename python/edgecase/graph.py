@@ -64097,11 +64097,16 @@ class Graph:
         which cite nothing, have only their baseline:
 
         ```{python}
-        citations.plot(layout="pos", color_by="alpha_centrality", label_by="label")
+        citations.plot(
+            layout="pos", color_by="alpha_centrality", label_by="label"
+        )
         ```
 
         An `alpha=` close to `1 / lambda_max`, the reciprocal of the largest adjacency eigenvalue,
         makes the ranking approach `eigen_centrality()`; on an acyclic graph, any value converges.
+
+        [Centrality](../user-guide/centrality.qmd#spectral-centrality) compares the spectral
+        measures.
         """
         centrality, converged = self._graph.get_alpha_centrality(alpha, max_iter, tol)
         if not converged:
