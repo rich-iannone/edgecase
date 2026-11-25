@@ -7954,6 +7954,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-common-pattern) puts two cycles side by
+        side in one graph, and explains how generators label their nodes.
         """
         if n < 3:
             raise ValueError("Cycle must have at least 3 nodes")
