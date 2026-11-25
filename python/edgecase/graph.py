@@ -21931,6 +21931,8 @@ class Graph:
         directed.get_label_from_id(source), directed.get_label_from_id(target)
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#edges) explains how edges are numbered, and
+        what each edge holds besides its endpoints.
         """
         if isinstance(edge_id, int) and edge_id < 0:
             return None  # pyo3 would raise OverflowError
