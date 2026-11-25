@@ -21798,6 +21798,11 @@ class Graph:
         sparse graphs. NetworkX's `could_be_isomorphic` compares the same three properties,
         except that it does not check node and edge counts first.
 
+        See Also
+        --------
+        is_isomorphic : Decide isomorphism exactly.
+        weisfeiler_lehman_graph_hash : A finer check, and a key for grouping many graphs.
+
         Examples
         --------
         A six-node cycle and two triangles have the same degrees, but each triangle node lies
@@ -21819,6 +21824,39 @@ class Graph:
         `properties="dt"`, yet they are not isomorphic: their maximal cliques differ (the
         rook's graph is built from 4-cliques, the Shrikhande graph only has triangles), which
         `"c"` detects, and `is_isomorphic()` confirms.
+
+        ### Screening molecules
+
+        `molecules()` holds seven molecules, 21 pairs. The quick checks rule out all but two
+        pairs, which then need the full test of `is_isomorphic()`:
+
+        ```{python}
+        from itertools import combinations
+
+        molecules = ec.molecules()
+
+        [
+            (a, b)
+            for a, b in combinations(molecules, 2)
+            if molecules[a].could_be_isomorphic(molecules[b])
+        ]
+        ```
+
+        Both pairs are isomorphic: benzene and cyclohexane are rings of six atoms, and ethanol
+        and dimethyl ether chains of three. Butane and isobutane have the same numbers of atoms
+        and bonds, but the degrees rule them out, since isobutane has an atom with three bonds:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        molecules["butane"].plot(label_by="degree", seed=1, width=360, height=360)
+        ```
+
+        ```{python}
+        molecules["isobutane"].plot(label_by="degree", seed=1, width=360, height=360)
+        ```
+
+        :::
         """
         if set(properties) - set("dtc"):
             raise ValueError("properties= may only contain the letters 'd', 't' and 'c'")
