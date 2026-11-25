@@ -31462,6 +31462,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=zone_1, label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) compares the ways of
+        looking at a selection.
         """
         return self._graph.get_selected_node_ids()
 
