@@ -22727,6 +22727,9 @@ class Graph:
         ```{python}
         graph.has_node(1), graph.has_node("1")
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#errors) shows the errors raised for a node
+        or edge that doesn't exist.
         """
         # bool is an int subclass, but True/False aren't node identifiers
         if isinstance(node, bool):
