@@ -7440,6 +7440,12 @@ class Graph:
             If `scale=` is not a positive number, `center=` is not a pair of numbers, no node
             has the `pos=` attribute, or a position is not a pair of finite numbers.
 
+        See Also
+        --------
+        layout_random : Place nodes at random.
+        set_node_attrs : Store values on nodes.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
         Positions placed by hand are centered on the origin and fit into the unit square:
@@ -7449,16 +7455,40 @@ class Graph:
 
         graph = ec.Graph().add_path_graph(3)
 
-        graph.rescale_layout(pos={1: (0, 0), 2: (10, 5), 3: (20, 10)}, return_dict=True)
+        graph.rescale_layout(
+            pos={1: (0, 0), 2: (10, 5), 3: (20, 10)}, return_dict=True
+        )
         ```
 
-        Positions stored in a node attribute are rescaled in place:
+        ### Two floors side by side
+
+        The rooms of a two-story office have positions on the plan, in meters, with the second floor
+        drawn above the first. Rescaling each floor's positions separately, with its own `center=`,
+        puts the floors side by side instead:
 
         ```{python}
-        graph.set_node_attrs("xy", {1: [0, 0], 2: [6, 0], 3: [6, 3]})
+        offices = ec.offices()
+        pos = offices.get_node_attrs("pos")
+        floor = offices.get_node_attrs("floor")
 
-        graph.rescale_layout(scale=2, pos="xy").get_node_attrs("xy")
+
+        def floor_plan(level, center):
+            rooms = {n: p for n, p in pos.items() if floor[n] == level}
+            return offices.rescale_layout(
+                pos=rooms, center=center, return_dict=True
+            )
+
+
+        side = floor_plan(1, (-1.25, 0)) | floor_plan(2, (1.25, 0))
+        offices.set_node_attrs("side", side)
+
+        offices.plot(
+            layout="side", color_by="floor", label_by="label", height=320
+        )
         ```
+
+        Each floor keeps its own shape, and the staircase joins Stairs 1 and Stairs 2 at the right
+        end of each.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         values = self._layout_node_map(pos, "pos=")
