@@ -2161,6 +2161,9 @@ class Graph:
 
         The wages flow out of Acme and the card payments into the Grocer and the Cafe, and the
         rent is the one large payment that doesn't come from Acme.
+
+        [Building graphs](../user-guide/building-graphs.qmd#many-at-once-1) mixes the four shapes of
+        edge in one list of flights, with shared attributes that each edge can override.
         """
         # Validate every item before adding anything, so a malformed list adds no edges
         parsed = [_parse_edge_item(item) for item in edges]
