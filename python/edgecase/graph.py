@@ -59184,7 +59184,9 @@ class Graph:
             path.communicability_betweenness_centrality()
             .betweenness_centrality()
             .get_node_df()
-            .select("label", "betweenness_centrality", "communicability_betweenness")
+            .select(
+                "label", "betweenness_centrality", "communicability_betweenness"
+            )
         )
         ```
 
@@ -59231,6 +59233,9 @@ class Graph:
 
         Each node needs its own matrix exponential, so the cost grows as `n^4`; keep to graphs of
         a few hundred nodes.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         from edgecase._core import communicability_betweenness_centrality as rust_cbc
 
