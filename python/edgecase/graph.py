@@ -46756,9 +46756,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
-        triangle = ec.Graph().add_nodes(["X", "Y", "Z"])
-        triangle.add_edges([("X", "Y"), ("Y", "Z"), ("Z", "X")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        triangle = ec.Graph.from_edges([("X", "Y"), ("Y", "Z"), ("Z", "X")])
 
         paths, cost = path.optimal_edit_paths(triangle)
         len(paths), cost
@@ -46771,6 +46770,49 @@ class Graph:
         node_path, edge_path = paths[0]
         node_path, edge_path
         ```
+
+        ### From butane to isobutane
+
+        Butane and isobutane both have four carbons, in a chain and in a branch. Two edits turn
+        one into the other, and 12 edit paths do it:
+
+        ```{python}
+        molecules = ec.molecules()
+        butane, isobutane = molecules["butane"], molecules["isobutane"]
+
+        paths, cost = butane.optimal_edit_paths(isobutane)
+        len(paths), cost
+        ```
+
+        Every path moves one bond: it deletes a bond of butane and inserts one of isobutane. In
+        the first, each atom keeps its label, and C4 moves its bond from C3 to C2:
+
+        ```{python}
+        def ends(graph, edge):
+            return tuple(map(graph.get_label_from_id, graph.get_node_ids_by_edge_id(edge)))
+
+
+        node_path, edge_path = paths[0]
+        deleted = [e for e, f in edge_path if f is None]
+        inserted = [f for e, f in edge_path if e is None]
+
+        [ends(butane, e) for e in deleted], [ends(isobutane, f) for f in inserted]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        butane.plot(highlight_edges=deleted, label_by="label", seed=1, width=360, height=360)
+        ```
+
+        ```{python}
+        isobutane.plot(highlight_edges=inserted, label_by="label", seed=1, width=360, height=360)
+        ```
+
+        :::
+
+        The 12 paths are this one combined with the symmetries of the two molecules: butane's
+        2 (reversing the chain) times isobutane's 6 (permuting its three outer carbons).
         """
         results = self._edit_path_search(
             other,
