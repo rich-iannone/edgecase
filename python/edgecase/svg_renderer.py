@@ -13,6 +13,7 @@ import json
 import math
 import random
 import re
+import sys
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any, Dict, List, Optional, Tuple, Union
@@ -665,38 +666,30 @@ def _pack_components(
         raw = _turn_to_fill(raw, width, height)
         xs = [p[0] for p in raw.values()]
         ys = [p[1] for p in raw.values()]
-        extent = max(max(xs) - min(xs), max(ys) - min(ys)) or 1.0
+        min_x, min_y = min(xs), min(ys)
+        extent = max(max(xs) - min_x, max(ys) - min_y) or 1.0
         size = 1.2 * math.sqrt(len(comp))
         f = size / extent
-        rel = {comp[j]: ((x - min(xs)) * f, (y - min(ys)) * f) for j, (x, y) in raw.items()}
-        pieces.append((rel, (max(xs) - min(xs)) * f, (max(ys) - min(ys)) * f))
+        rel = {comp[j]: ((x - min_x) * f, (y - min_y) * f) for j, (x, y) in raw.items()}
+        pieces.append((rel, (max(xs) - min_x) * f, (max(ys) - min_y) * f))
 
-    def shelve(row_width: float):
-        rows: List[List[int]] = [[]]
-        used = 0.0
-        for k, (_, w, _h) in enumerate(pieces):
-            if rows[-1] and used + gap + w > row_width:
-                rows.append([])
-                used = 0.0
-            used += (gap if rows[-1] else 0.0) + w
-            rows[-1].append(k)
-        return rows
+    from edgecase._core import shelve_pieces
 
-    def extent_of(rows):
-        total_w = max(sum(pieces[k][1] for k in row) + gap * (len(row) - 1) for row in rows)
-        total_h = sum(max(pieces[k][2] for k in row) for row in rows) + gap * (len(rows) - 1)
-        return total_w, total_h
-
-    best_rows, best_scale = None, -1.0
-    widths = sorted({sum(p[1] for p in pieces[: k + 1]) + gap * k for k in range(len(pieces))})
-    for row_width in widths:
-        rows = shelve(row_width)
-        total_w, total_h = extent_of(rows)
-        scale = min(width / max(total_w, 1e-9), height / max(total_h, 1e-9))
-        if scale > best_scale * (1 + 1e-9):
-            best_rows, best_scale = rows, scale
-
-    total_w, _ = extent_of(best_rows)
+    # The rows to shelve the pieces in, in order, and the width of the widest
+    best_rows = []
+    lengths = shelve_pieces(
+        [p[1] for p in pieces],
+        [p[2] for p in pieces],
+        gap,
+        width,
+        height,
+        # The rows are chosen by comparing totals that have to agree with the sums below
+        compensated=sys.version_info >= (3, 12),
+    )
+    for length in lengths:
+        start = best_rows[-1][-1] + 1 if best_rows else 0
+        best_rows.append(list(range(start, start + length)))
+    total_w = max(sum(pieces[k][1] for k in row) + gap * (len(row) - 1) for row in best_rows)
     out: Dict[int, Tuple[float, float]] = {}
     y0 = 0.0
     for row in best_rows:
