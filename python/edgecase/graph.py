@@ -20626,6 +20626,12 @@ class Graph:
         Graph
             A new graph with the same degree sequence but randomized edge wiring.
 
+        See Also
+        --------
+        configuration_model : Build a random graph with a given degree sequence.
+        random_reference : Build a randomized reference graph for comparison.
+        average_clustering_coefficient : Compute the mean clustering coefficient.
+
         Examples
         --------
         Start with a small ladder-shaped graph in which `"B"` and `"E"` have degree `3` and the
@@ -20637,9 +20643,10 @@ class Graph:
         graph = (
             ec.Graph()
             .add_nodes(["A", "B", "C", "D", "E", "F"])
-            .add_edges(
-                [("A", "B"), ("B", "C"), ("D", "E"), ("E", "F"), ("A", "D"), ("B", "E"), ("C", "F")]
-            )
+            .add_edges([
+                ("A", "B"), ("B", "C"), ("D", "E"), ("E", "F"),
+                ("A", "D"), ("B", "E"), ("C", "F"),
+            ])
         )
 
         graph.get_edges_str_repr(use_labels=True)
@@ -20649,31 +20656,23 @@ class Graph:
         third entries), leaving every other edge in place:
 
         ```{python}
-        graph.degree_preserving_rewire(n_swaps=1, seed=3).get_edges_str_repr(use_labels=True)
-        ```
+        once = graph.degree_preserving_rewire(n_swaps=1, seed=3)
 
-        With the default number of swaps the wiring is thoroughly shuffled, yet every node keeps
-        its original degree:
-
-        ```{python}
-        rewired = graph.degree_preserving_rewire(seed=3)
-
-        def degrees(g):
-            return {g.get_label_from_id(nid): g.get_degree(nid) for nid in sorted(g.get_node_ids())}
-
-        rewired.get_edges_str_repr(use_labels=True), degrees(graph) == degrees(rewired)
+        once.get_edges_str_repr(use_labels=True)
         ```
 
         As a null model: ten six-node cliques joined in a ring are highly clustered. Rewiring
-        keeps all degrees and the edge count but destroys the cliques, and the average
-        clustering coefficient collapses -- evidence that the clustering is a property of the
-        wiring, not of the degrees. The rewired graph is still simple:
+        keeps all degrees and the edge count but breaks up the cliques, and the average clustering
+        coefficient collapses, which shows that the clustering is a property of the wiring and
+        not of the degrees. The rewired graph is still simple:
 
         ```{python}
         observed = ec.Graph()
         for _ in range(10):
             observed.add_full_graph(n=6)
-        observed.add_edges([(str(c * 6 + 1), str((c + 1) % 10 * 6 + 2)) for c in range(10)])
+        observed.add_edges(
+            [(str(c * 6 + 1), str((c + 1) % 10 * 6 + 2)) for c in range(10)]
+        )
 
         null = observed.degree_preserving_rewire(seed=23)
 
@@ -20683,6 +20682,39 @@ class Graph:
             null.is_simple(),
         )
         ```
+
+        ### Same degrees, new wiring
+
+        With the default number of swaps the wiring is thoroughly shuffled. The ladder on the
+        left and the rewired graph on the right, with the nodes in the same places: the edges are
+        different, but every node keeps its number of edges:
+
+        ```{python}
+        rewired = graph.degree_preserving_rewire(seed=3)
+
+        def degrees(g):
+            return g.get_node_df().select("label", "degree").rows()
+
+        edges = rewired.get_edges_str_repr(use_labels=True)
+
+        edges, degrees(graph) == degrees(rewired)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        rewired.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         from edgecase._core import degree_preserving_rewire as _degree_preserving_rewire
 
