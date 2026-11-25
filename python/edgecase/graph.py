@@ -82748,6 +82748,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) finds the least
+        self-contained of the karate club's communities.
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
         smaller = min(p[1], p[2])
