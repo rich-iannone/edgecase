@@ -10588,9 +10588,18 @@ class Graph:
         ValueError
             If `n=` is less than `1`.
 
+        See Also
+        --------
+        greedy_color : Color the nodes so that no edge joins two of the same color.
+        clique_number : Compute the size of a largest clique.
+        list_triangles : List the triangles in the graph.
+
         Examples
         --------
-        `M(4)`, the Grötzsch graph, has `11` nodes and `20` edges:
+        The Mycielski graphs are built one from the next: each step adds a shadow of every node,
+        joined to that node's neighbors, and one more node joined to all the shadows. This keeps
+        the graph free of triangles but adds a color to every coloring. `M(4)`, the Grötzsch
+        graph, has `11` nodes and `20` edges:
 
         ```{python}
         import edgecase as ec
@@ -10600,11 +10609,49 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        It contains no triangles, so its largest clique is a single edge, yet it needs four colors:
+        It contains no triangles, so its largest clique is a single edge:
 
         ```{python}
         len(graph.list_triangles()), graph.clique_number()
         ```
+
+        ### Three colors and four
+
+        `M(3)` on the left is the 5-cycle, which needs three colors. `M(4)` on the right is drawn
+        with the 5-cycle on the outside, the shadows inside it, and the extra node, `"11"`, at the
+        center. A greedy coloring uses four colors, and no coloring can do with three:
+
+        ```{python}
+        cycle = ec.Graph().add_mycielski_graph(n=3)
+
+        cycle.set_node_attrs("color", cycle.greedy_color())
+        graph.set_node_attrs("color", graph.greedy_color())
+
+        (
+            cycle.get_node_df()["color"].n_unique(),
+            graph.get_node_df()["color"].n_unique(),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        cycle.layout_circular().plot(
+            layout="pos", color_by="color", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        rings = [[11], [6, 7, 8, 10, 9], [1, 2, 3, 5, 4]]
+
+        graph.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", color_by="color", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Mycielski index n must be at least 1")
