@@ -90793,6 +90793,9 @@ class Graph:
             height=360,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) covers spanning
+        trees, and lists the minimum and maximum spanning arborescences.
         """
         trees = rust.ArborescenceIter(
             self._graph,
