@@ -78175,6 +78175,21 @@ class Graph:
         doubled.count_edges(), doubled.is_eulerian()
         ```
 
+        The copies picked out. A walk can now go out along the path and come back on them:
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0)}
+        doubled.set_node_attrs(
+            "pos", {doubled.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        edges = doubled.get_edge_df().select("id", "eulerize_added")
+        copies = [edge for edge, copy in edges.iter_rows() if copy]
+
+        doubled.plot(
+            layout="pos", highlight_edges=copies, label_by="label", height=240
+        )
+        ```
+
         ### Two more bridges
 
         `konigsberg()` is the city of Königsberg as Euler studied it in 1736, with seven bridges
@@ -78194,6 +78209,9 @@ class Graph:
         ```{python}
         konigsberg.plot(layout="pos", highlight_edges=added, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) doubles the
+        fewest bridges of Königsberg so that a walk can cross each one.
         """
         result_rust, added = rust.eulerize(self._graph, self._use_weights(weighted))
         result = Graph._from_rust(result_rust)
