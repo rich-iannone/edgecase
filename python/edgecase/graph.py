@@ -62660,17 +62660,19 @@ class Graph:
         coherent, chain.trophic_incoherence_parameter()
         ```
 
-        ### Prerequisites and citations
+        ### Food webs, prerequisites and citations
 
-        The prerequisites in `courses()` mostly climb one level at a time, so `q` is fairly low.
-        Citations are far less orderly: a paper can cite last year's work and a classic from
-        twenty years before. Here `citations()` is reversed, so that its edges point from a paper
-        to the later papers that build on it:
+        Most of the feeding links in `food_web()` climb one level, and so do most of the
+        prerequisites in `courses()`, so `q` is low for both. Citations are far less orderly: a
+        paper can cite last year's work and a classic from twenty years before. Here
+        `citations()` is reversed, so that its edges point from a paper to the later papers that
+        build on it:
 
         ```{python}
         cited = ec.citations().reverse()
 
         (
+            ec.food_web().trophic_incoherence_parameter(),
             ec.courses().trophic_incoherence_parameter(),
             cited.trophic_incoherence_parameter(),
         )
