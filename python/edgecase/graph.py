@@ -13273,6 +13273,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-classic-models) compares the classic
+        random models and the feature of real networks that each explains.
         """
         self._check_non_negative(n=n, m=m)
 
