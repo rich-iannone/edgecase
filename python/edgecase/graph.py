@@ -34539,6 +34539,9 @@ class Graph:
 
         graph.get_edge_attrs_by_id("type", edges=graph.get_selected_edge_ids())
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#reading-attributes) compares the
+        ways of reading node and edge attributes.
         """
         if edges is None:
             edges = self.get_edge_ids()
