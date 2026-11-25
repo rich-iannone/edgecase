@@ -66908,6 +66908,9 @@ class Graph:
             curved_edges=True, seed=4,
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#negative-cycles) adds a mispriced quote to a
+        currency graph and finds the arbitrage it creates.
         """
         value = rust.negative_edge_cycle(self._graph, self._use_weights(weighted))
         if self._recording_depth == 0:
