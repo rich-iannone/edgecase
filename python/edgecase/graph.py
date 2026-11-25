@@ -25489,38 +25489,71 @@ class Graph:
 
         Examples
         --------
-        `K_4` is planar: draw one node inside the triangle of the other three.
+        `K_4` is planar: draw one node inside the triangle of the other three. `K_5` is not; its 10
+        edges are already more than `3 * 5 - 6 = 9`. `K_{3,3}` is not planar either, although it is
+        well inside the edge bound:
 
         ```{python}
         import edgecase as ec
 
-        ec.Graph().add_full_graph(n=4).is_planar()
+        (
+            ec.Graph().add_full_graph(n=4).is_planar(),
+            ec.Graph().add_full_graph(n=5).is_planar(),
+            ec.Graph().add_complete_bipartite_graph(3, 3).is_planar(),
+        )
         ```
 
-        `K_5` is not; its 10 edges are already more than `3 * 5 - 6 = 9`:
+        ### A floor plan
+
+        The rooms of a two-story office, joined where a door leads from one to the other, can be
+        drawn as they're laid out in the building, with no two doors crossing:
 
         ```{python}
-        ec.Graph().add_full_graph(n=5).is_planar()
+        offices = ec.offices()
+
+        offices.is_planar()
         ```
 
-        `K_{3,3}` is not planar either, although it is well inside the edge bound:
+        Drawn at the rooms' positions on the plan, the second floor above the first:
 
         ```{python}
-        ec.Graph().add_complete_bipartite_graph(3, 3).is_planar()
+        offices.plot(
+            layout="pos", color_by="kind", label_by="label", width=700, height=520
+        )
         ```
 
-        The Petersen graph contains a subdivision of `K_{3,3}`, so it is not planar:
+        ### The smallest non-planar graphs
+
+        `K_5` and `K_{3,3}` are the two smallest graphs that aren't planar, and every non-planar
+        graph contains a copy of one of them, with its edges perhaps stretched into paths. `K_5` is
+        on the left and `K_{3,3}` on the right. However their nodes are placed, the drawing has at
+        least one crossing:
 
         ```{python}
-        ec.Graph().add_named_graph("petersen").is_planar()
+        k5 = ec.Graph().add_full_graph(n=5)
+        k33 = ec.Graph().add_complete_bipartite_graph(3, 3)
+        k33.layout_bipartite(nodes=[1, 2, 3])
         ```
 
-        Trees and grids are planar at any size:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        grid = ec.Graph().add_grid_2d(rows=20, cols=20)
+        k5.plot(layout="circular", width=320, height=320, legend=False)
+        ```
 
-        grid.is_planar()
+        ```{python}
+        k33.plot(layout="pos", width=320, height=320, legend=False)
+        ```
+
+        :::
+
+        They're only just non-planar: deleting any one edge makes either planar:
+
+        ```{python}
+        k5.delete_edge(1, 2)
+        k33.delete_edge(1, 4)
+
+        k5.is_planar(), k33.is_planar()
         ```
         """
         return self._graph.is_planar()
