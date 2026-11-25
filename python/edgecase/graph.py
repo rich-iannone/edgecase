@@ -53000,23 +53000,22 @@ class Graph:
         A five-gene network in two conditions. In the second condition the interaction between
         `G4` and `G5` is lost and a new one between `G3` and `G5` appears, so each list holds a
         single edge. Note that the new edge was added as `G5`, `G3` but is reported in sorted
-        order as `("G3", "G5")`:
+        order as `("G3", "G5")`. Reversing the comparison (second) swaps the roles of the two
+        lists:
 
         ```{python}
         import edgecase as ec
 
-        ring = [("G1", "G2"), ("G2", "G3"), ("G3", "G4"), ("G4", "G5"), ("G5", "G1"), ("G1", "G3")]
+        ring = [
+            ("G1", "G2"), ("G2", "G3"), ("G3", "G4"),
+            ("G4", "G5"), ("G5", "G1"), ("G1", "G3"),
+        ]
+        kept = [e for e in ring if e != ("G4", "G5")]
 
         healthy = ec.Graph.from_edges(ring)
-        disease = ec.Graph.from_edges([e for e in ring if e != ("G4", "G5")] + [("G5", "G3")])
+        disease = ec.Graph.from_edges(kept + [("G5", "G3")])
 
-        healthy.differential_edges(disease)
-        ```
-
-        Reversing the comparison swaps the roles of the two lists:
-
-        ```{python}
-        disease.differential_edges(healthy)
+        healthy.differential_edges(disease), disease.differential_edges(healthy)
         ```
 
         ### A year among friends
@@ -53038,7 +53037,10 @@ class Graph:
         people in their club colors:
 
         ```{python}
-        later.plot(color_by="club", highlight_edges=changes["added"], label_by="label", seed=1)
+        later.plot(
+            color_by="club", highlight_edges=changes["added"],
+            label_by="label", seed=1,
+        )
         ```
 
         Comparing one person's circle, the person with their friends and the friendships among
@@ -53069,6 +53071,9 @@ class Graph:
         ```
 
         :::
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#measuring-differences)
+        compares the karate club with a copy that has lost two friendships and gained one.
         """
         from edgecase._core import differential_edges as _differential_edges
 
