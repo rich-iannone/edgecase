@@ -78717,6 +78717,9 @@ class Graph:
             layout="pos", highlight=["Harbor", *reached], label_by="label"
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#everything-upstream-and-downstream) compares the
+        ways of asking what a node can reach.
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
