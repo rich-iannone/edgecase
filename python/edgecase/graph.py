@@ -76210,6 +76210,9 @@ class Graph:
             layout="pos", label_by="course", height=360,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         self._require_dag("dag_to_branching")
         ids, succ, pred = self._arc_sets()
