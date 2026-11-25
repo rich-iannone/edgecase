@@ -9568,9 +9568,16 @@ class Graph:
         ValueError
             If `m=` is less than `3` or `n=` is negative.
 
+        See Also
+        --------
+        add_lollipop_graph : Add a clique with a path hanging from it.
+        add_cycle_graph : Add a cycle graph.
+        girth : Compute the length of a shortest cycle.
+
         Examples
         --------
-        A five-node cycle with a two-node tail has as many edges as nodes:
+        A tadpole graph is a cycle of `m` nodes with a path of `n` nodes, the tail, hanging from
+        it. A cycle of five with a tail of two has as many edges as nodes:
 
         ```{python}
         import edgecase as ec
@@ -9580,12 +9587,49 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The tail hangs from node `"5"`, which therefore has degree `3`, and the graph contains
-        exactly one cycle, of length `m=5`:
+        The tail hangs from node `"5"`, which therefore has degree `3`, and the graph's only cycle
+        has length `m=5`:
 
         ```{python}
         graph.get_degree("5"), graph.girth()
         ```
+
+        ### A ring or a clique
+
+        A tadpole and a lollipop differ only in their heads. With a head of four and a tail of
+        three, the tadpole on the left has `7` edges and its shortest cycle is the whole ring of
+        four. The lollipop on the right has two more edges, the diagonals of the square, which make
+        triangles:
+
+        ```{python}
+        lollipop = ec.Graph().add_lollipop_graph(m=4, n=3)
+        tadpole = ec.Graph().add_tadpole_graph(m=4, n=3)
+
+        (
+            tadpole.count_edges(),
+            lollipop.count_edges(),
+            tadpole.girth(),
+            lollipop.girth(),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        tadpole.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        lollipop.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if m < 3:
             raise ValueError("Tadpole cycle must have at least 3 nodes")
