@@ -81258,6 +81258,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) compares the
+        measures of connectivity and minimum cuts.
         """
         ids = (
             None if nodes is None else [self._resolve_node_id(n, auto_create=False) for n in nodes]
