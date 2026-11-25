@@ -20564,6 +20564,9 @@ class Graph:
         ```{python}
         atlas[7].get_graph_name(), atlas[7].count_edges()
         ```
+
+        [Graph generators](../user-guide/generators.qmd#every-small-graph) compares the methods that
+        enumerate small graphs.
         """
         from edgecase._generators import atlas_entries
 
