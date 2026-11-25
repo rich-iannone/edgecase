@@ -6529,15 +6529,47 @@ class Graph:
             If `weighted=True` and an edge weight is negative or not finite, or `scale=` or
             `center=` is invalid.
 
+        See Also
+        --------
+        fiedler_vector : Compute the Laplacian eigenvector used to split a graph.
+        laplacian_matrix : Build the graph's Laplacian matrix.
+        layout_spring : Place nodes with a force-directed spring model.
+
         Examples
         --------
-        A grid comes out as a grid:
+        The positions come from eigenvectors of the graph's Laplacian, which place nodes with many
+        edges between them close together. A grid comes out as a grid:
 
         ```{python}
         import edgecase as ec
 
         ec.Graph().add_grid_graph([6, 6]).layout_spectral().plot(layout="pos")
         ```
+
+        ### Two planted groups
+
+        A planted partition graph has 30 nodes in two groups of 15, with each pair in the same group
+        joined with probability 0.4 and each pair across the groups with probability 0.03. The first
+        coordinate of the spectral layout splits the nodes into the two groups exactly:
+
+        ```{python}
+        graph = ec.Graph().add_planted_partition_graph(2, 15, 0.4, 0.03, seed=1)
+        pos = graph.layout_spectral(return_dict=True)
+        group = graph.get_node_attrs("community")
+
+        left = {group[n] for n, (x, y) in pos.items() if x < 0}
+        right = {group[n] for n, (x, y) in pos.items() if x > 0}
+        left, right
+        ```
+
+        ```{python}
+        graph.layout_spectral().plot(
+            layout="pos", color_by="community", show_labels=False, height=400
+        )
+        ```
+
+        The layout needs no seed. It is quick for sparse graphs, but it can crowd nodes that the
+        eigenvectors don't tell apart, as in the tight group on the right.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
