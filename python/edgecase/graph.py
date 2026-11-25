@@ -13661,6 +13661,13 @@ class Graph:
         ValueError
             If `degree_sequence=` contains a negative entry or is not graphical.
 
+        See Also
+        --------
+        add_random_degree_sequence_graph : Draw a random simple graph with the same degrees.
+        configuration_model : Pair edge ends at random, allowing loops and repeated edges.
+        add_directed_havel_hakimi_graph : Build a directed graph from in- and out-degrees.
+        add_bipartite_havel_hakimi_graph : Build a bipartite graph from the degrees of each part.
+
         Examples
         --------
         Each node gets the degree at its position in the sequence:
@@ -13670,10 +13677,11 @@ class Graph:
 
         graph = ec.Graph().add_havel_hakimi_graph([3, 3, 2, 2, 1, 1])
 
-        [graph.get_degree(v) for v in sorted(graph.get_node_ids())]
+        graph.get_node_df()["degree"].to_list()
         ```
 
-        The highest-degree nodes are joined to each other first:
+        The Havel–Hakimi construction repeatedly joins the node with the most edges still to place
+        to the next-highest nodes, so the high-degree nodes are joined to each other first:
 
         ```{python}
         graph.get_edges_str_repr()
@@ -13689,6 +13697,47 @@ class Graph:
         except ValueError as err:
             print(err)
         ```
+
+        ### Hubs together or spread out
+
+        Two graphs with the same eleven degrees, and the three nodes of degree `4` colored. On the
+        left, the Havel–Hakimi graph packs the hubs and the two nodes of degree `3` into one dense
+        cluster, which leaves nodes `"10"` and `"11"` joined only to each other, and its degree
+        correlation is strongly positive. On the right, `add_random_degree_sequence_graph()`
+        spreads the hubs through a single connected graph, with no correlation:
+
+        ```{python}
+        degrees = [4, 4, 4, 3, 3, 2, 2, 2, 2, 1, 1]
+        spread = ec.Graph().add_random_degree_sequence_graph(degrees, seed=5)
+        packed = ec.Graph().add_havel_hakimi_graph(degrees)
+
+        for g in (packed, spread):
+            rows = g.get_node_df().select("id", "degree").rows()
+            g.set_node_attrs("hub", {n: d == 4 for n, d in rows})
+
+        def mixing(g):
+            return round(g.degree_pearson_correlation_coefficient(), 2)
+
+        [(g.is_connected(), mixing(g)) for g in (packed, spread)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        packed.plot(
+            color_by="hub", label_by="label",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        spread.plot(
+            color_by="hub", label_by="label",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import havel_hakimi_edges as _havel_hakimi_edges
 
