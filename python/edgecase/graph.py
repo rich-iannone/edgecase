@@ -47059,6 +47059,51 @@ class Graph:
         ```{python}
         [cost for _, _, cost in star.optimize_edit_paths(star, roots=(2, 1))][-1]
         ```
+
+        ### Which methyl group is missing
+
+        Theobromine, found in chocolate, is caffeine without one of its three methyl groups: the
+        carbon C8, bonded to N3. The search ignores labels, yet finds the missing atom from the
+        bonds and elements. It accepts two paths, and the last, at cost 2, deletes C8 and its bond:
+
+        ```{python}
+        caffeine = ec.molecules()["caffeine"]
+        theobromine = ec.molecules()["caffeine"].delete_node("C8")
+
+
+        def same_element(x, y):
+            return x["element"] == y["element"]
+
+
+        found = list(caffeine.optimize_edit_paths(theobromine, node_match=same_element))
+        node_path, edge_path, cost = found[-1]
+        label = caffeine.get_label_from_id
+
+        (
+            [cost for _, _, cost in found],
+            [label(u) for u, v in node_path if v is None],
+            [
+                tuple(map(label, caffeine.get_node_ids_by_edge_id(e)))
+                for e, f in edge_path
+                if f is None
+            ],
+        )
+        ```
+
+        ```{python}
+        caffeine.plot(color_by="element", highlight=[("N3", "C8")], label_by="label", seed=1)
+        ```
+
+        With `roots=`, the methyl C8 is forced to stand for theobromine's C1, bonded to N1. The
+        cheapest path then costs 4: caffeine's own C1 is deleted with its bond, and C8 moves its
+        bond from N3 to N1:
+
+        ```{python}
+        rooted = list(
+            caffeine.optimize_edit_paths(theobromine, node_match=same_element, roots=("C8", "C1"))
+        )
+        [cost for _, _, cost in rooted]
+        ```
         """
         results = self._edit_path_search(
             other,
