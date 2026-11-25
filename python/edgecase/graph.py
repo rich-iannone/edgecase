@@ -2901,26 +2901,21 @@ class Graph:
             It is a subclass of `KeyError` (which this method has always raised) and of
             `ValueError`.
 
+        See Also
+        --------
+        delete_nodes_ws : Delete the selected nodes.
+        delete_edge : Remove an edge, keeping its nodes.
+        add_node : Add a node.
+
         Examples
         --------
         Deleting a node also removes every edge incident to it. Here, "B" is the middle of a
-        three-node path with two edges:
+        three-node path, and deleting it leaves "A" and "C" with no edges at all:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.count_nodes(), graph.count_edges()
-        ```
-
-        After deleting "B", both of its edges are gone, leaving "A" and "C" disconnected:
-
-        ```{python}
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
         graph.delete_node(node="B")
 
         graph.count_nodes(), graph.count_edges(), graph.has_node(node="B")
@@ -2945,6 +2940,29 @@ class Graph:
             print(e)
         ```
 
+        ### Closing an account
+
+        In `payments()`, Max is paid by Acme and by his flatmate Nia, and pays Nia, the Grocer
+        and the Landlord. Closing Max's account takes those five payments with it, and the graph
+        falls into two pieces:
+
+        ```{python}
+        payments = ec.payments()
+        before = payments.count_edges()
+
+        payments.delete_node("Max")
+
+        lost = before - payments.count_edges()
+
+        lost, payments.count_weakly_connected_components()
+        ```
+
+        Max was the only account that paid the Landlord, which is now left with no payments at
+        all:
+
+        ```{python}
+        payments.plot(highlight="Landlord", label_by="label", seed=3)
+        ```
         """
         # NodeNotFoundError is also a KeyError, which this method has always raised
         node_id = self._resolve_node_id(node, auto_create=False)
