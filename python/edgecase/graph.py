@@ -21539,6 +21539,11 @@ class Graph:
         int | None
             The u64 node ID if found, or `None` if the label doesn't exist.
 
+        See Also
+        --------
+        get_label_from_id : Go the other way, from an ID to a label.
+        has_node : Check whether a node exists before looking it up.
+
         Examples
         --------
         Node IDs are auto-assigned starting at `1`, so the first node added gets ID `1`:
