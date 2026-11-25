@@ -33248,6 +33248,26 @@ class Graph:
         sorted(label(n) for n in graph.get_selected_node_ids())
         ```
 
+        Each node labeled with its value, and the two where the walk stopped in a second color:
+
+        ```{python}
+        spots = {
+            "A": (0, 1), "B": (1, 1), "C": (2, 2),
+            "D": (3, 2), "E": (2, 0), "F": (3, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        nodes = graph.get_node_ids()
+        chosen = set(graph.get_selected_node_ids())
+        graph.set_node_attrs("stopped", {n: n in chosen for n in nodes})
+        graph.set_node_attrs(
+            "tag", {n: f"{label(n)} ({values[label(n)]})" for n in nodes}
+        )
+
+        graph.plot(layout="pos", color_by="stopped", label_by="tag", height=240)
+        ```
+
         With `max_steps=1`, the walk only gets as far as `B`, which doesn't match.
         `exclude_unmatched=False` keeps `B`, where it stopped, instead of selecting nothing:
 
@@ -33297,6 +33317,9 @@ class Graph:
         )
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#traversing-until-a-condition-holds) finds the
+        first upper-level course on each path, then selects a whole route.
         """
         selected = self.get_selected_node_ids()
         if not selected:
