@@ -11595,6 +11595,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#named-graphs) builds the Petersen graph and
+        explains what the Krackhardt kite is for.
         """
         from edgecase.named_graphs import NAMED_GRAPHS
 
