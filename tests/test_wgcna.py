@@ -171,3 +171,61 @@ class TestSoftThresholdEdgeCases:
         result = g.soft_threshold_power(return_dict=True)
 
         assert "powers" in result
+
+
+# ---------------------------------------------------------------------------
+# Values quoted in the docstring
+# ---------------------------------------------------------------------------
+
+
+class TestSoftThresholdDocstring:
+    def test_eight_genes(self):
+        g = ec.Graph.from_edges(
+            [("G1", "G2", 0.4), ("G1", "G3", 0.2), ("G2", "G3", 0.8), ("G2", "G4", 0.5)]
+            + [("G3", "G4", 0.8), ("G4", "G5", 0.5), ("G5", "G6", 0.2), ("G5", "G7", 0.3)]
+            + [("G6", "G7", 0.3), ("G6", "G8", 0.2), ("G7", "G8", 0.2)]
+        )
+        fit = g.soft_threshold_power(powers=[1, 2, 3, 4, 5, 6], return_dict=True)
+        assert [round(r, 2) for r in fit["signed_r_squared"]] == [
+            -0.35,
+            0.1,
+            0.67,
+            0.9,
+            0.93,
+            0.93,
+        ]
+        assert fit["slope"][0] > 0
+        assert fit["recommended_power"] == 4.0
+
+    def test_simulated_coexpression(self):
+        np = pytest.importorskip("numpy")
+        rng = np.random.default_rng(1)
+        factors = rng.normal(size=(3, 40))
+        module = [0] * 20 + [1] * 15 + [2] * 10 + [-1] * 15
+        expression = np.array(
+            [
+                (factors[m] * rng.uniform(0.6, 1.5) if m >= 0 else 0) + rng.normal(size=40)
+                for m in module
+            ]
+        )
+        correlation = np.abs(np.corrcoef(expression))
+        correlation = (correlation + correlation.T) / 2
+        np.fill_diagonal(correlation, 0)
+        fit = ec.from_numpy_array(correlation).soft_threshold_power(return_dict=True)
+        assert fit["recommended_power"] == 4.0
+        assert round(fit["mean_connectivity"][0]) == 11
+        assert round(fit["mean_connectivity"][3], 1) == 0.7
+
+        unrelated = np.array(module) == -1
+
+        def ratio(weights):
+            connectivity = weights.sum(axis=1)
+            return round(float(connectivity[unrelated].mean() / connectivity[~unrelated].mean()), 2)
+
+        assert ratio(correlation) == 0.63
+        assert ratio(correlation**4) == 0.1
+
+        weights = correlation**4
+        links = (weights > 0.01).sum(axis=1)
+        assert links[unrelated].max() == 5
+        assert round(links[~unrelated].mean()) == 12
