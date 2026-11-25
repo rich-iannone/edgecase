@@ -81821,6 +81821,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) finds the
+        structurally cohesive core of the Florentine marriage network with `k_components()`.
         """
         return self._graph.cohesive_blocks()
 
