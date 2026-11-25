@@ -28828,6 +28828,9 @@ class Graph:
         asymmetric = follows.count_asymmetric_node_pairs()
         mutual, asymmetric, mutual / (mutual + asymmetric)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#reciprocity) measures reciprocity in
+        Wikipedia's administrator elections.
         """
         return self._graph.count_mutual_node_pairs()
 
