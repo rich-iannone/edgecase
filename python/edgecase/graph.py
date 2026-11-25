@@ -75288,6 +75288,9 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#causal-diagrams-and-d-separation) explains
+        why a minimal separator isn't always the smallest one.
         """
         x, y, included, restricted = self._dsep_sets(x, y, included, restricted)
         succ, pred = self._dag_adjacency()
