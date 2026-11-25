@@ -62342,6 +62342,9 @@ class Graph:
             highlight={"accent": spreaders, "soft": busiest},
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#spreaders) picks four spreaders in the karate
+        club.
         """
         if count is not None and count < 0:
             raise ValueError(f"count must be non-negative, got {count}")
