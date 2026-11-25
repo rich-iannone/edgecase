@@ -65906,6 +65906,9 @@ class Graph:
             layout="pos", highlight_edges=truss.get_edge_ids(), label_by="label"
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cores-and-dense-regions) compares the
+        karate club's 4-truss with its 4-core and densest subgraph.
         """
         self._check_non_negative(k=k)
         from edgecase._core import k_truss
