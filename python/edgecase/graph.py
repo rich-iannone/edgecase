@@ -23441,6 +23441,9 @@ class Graph:
         ```
 
         :::
+
+        [The graph model](../user-guide/graph-model.qmd#weighted-graphs) puts the same three edges
+        in an unweighted and a weighted graph, where the shortest route differs.
         """
         return self._graph.is_weighted
 
