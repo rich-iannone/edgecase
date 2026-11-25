@@ -70035,6 +70035,9 @@ class Graph:
         tied = [n for n, found in routes.items() if len(found) > 1]
         metro.plot(layout="pos", highlight=tied, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#from-one-node-to-many) compares the methods
+        that measure from one node to every other.
         """
         s = self._resolve_node_id(source, auto_create=False)
         use = self._use_weights(weighted)
