@@ -41462,6 +41462,9 @@ class Graph:
             height=420,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) compares the methods that find
+        cliques.
         """
         return self._graph.clique_number()
 
