@@ -74100,6 +74100,9 @@ class Graph:
             label_by="label", height=420,
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#everything-upstream-and-downstream) finds what a
+        course opens up and what it requires.
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         result = rust.descendants(self._graph, node_id)
