@@ -69291,9 +69291,30 @@ class Graph:
         [metro.get_label_from_id(n) for n in route]
         ```
 
+        ### Fastest or fewest stops
+
+        To Lakeside, the fastest route runs through the center in 18 minutes:
+
         ```{python}
-        metro.plot(layout="pos", highlight=route, label_by="label")
+        fastest = metro.astar_path(
+            "Westgate", "Lakeside", heuristic=straight_line
+        )
+
+        metro.plot(layout="pos", highlight=fastest, label_by="label")
         ```
+
+        With `weighted=False`, A* counts stops instead, and the route takes the Green line around
+        the north: four stops rather than six, but 22 minutes. The heuristic is left out here,
+        since a distance in minutes can overestimate a count of stops:
+
+        ```{python}
+        fewest = metro.astar_path("Westgate", "Lakeside", weighted=False)
+
+        metro.plot(layout="pos", highlight=fewest, label_by="label")
+        ```
+
+        [Paths and distances](../user-guide/paths.qmd#a-search) steers A* across a road network with
+        the straight-line distance between cities.
         """
         found = self._astar(source, target, heuristic, weighted)
         return None if found is None else found[1]
