@@ -34389,80 +34389,64 @@ class Graph:
             name or an empty list, or `alpha=` is outside `0`-`100` or used with a color that
             isn't a hex string.
 
+        See Also
+        --------
+        rescale_node_attrs : Map numeric values onto a range, for node sizes.
+        plot_vis : The interactive view, which fills nodes with their `color`.
+        plot : Color a static plot by an attribute directly, with `color_by=`.
+
         Examples
         --------
-        Any categorical attribute can drive the colors. The two distinct `type` values are
-        sorted (`"organization"` before `"person"`) and given the first two `"tableau"`
-        colors, so `A` and `B` share a color while `C` gets another:
+        Each distinct value gets the next color of the palette, in sorted order, so nodes that share
+        a value share a color:
 
         ```{python}
         import edgecase as ec
 
-        G = (
-            ec.Graph()
-            .add_nodes(
-                {"A": {"type": "person"}, "B": {"type": "person"}, "C": {"type": "organization"}}
-            )
-            .add_edges([("A", "B"), ("B", "C")])
+        graph = ec.Graph().add_nodes(
+            {
+                "A": {"kind": "person"},
+                "B": {"kind": "person"},
+                "C": {"kind": "org"},
+            }
+        )
+        graph.colorize_node_attrs("kind", palette=["#1b9e77", "#d95f02"])
+
+        graph.get_node_df()
+        ```
+
+        `values=` colors by data that isn't stored on the graph, and `node_attr_to=` writes the
+        colors somewhere other than `color`:
+
+        ```{python}
+        graph.colorize_node_attrs(
+            values={"A": "north", "C": "south"}, node_attr_to="fill"
         )
 
-        G.colorize_node_attrs(node_attr_from="type", palette="tableau")
-        G.get_node_attrs("color")
+        graph.get_node_df().select("label", "kind", "color", "fill")
         ```
 
-        Detecting communities first and then colorizing by that attribute gives each
-        community a visually distinct color:
+        ### Communities for the interactive view
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Louvain finds four communities in the club's ties, and
+        coloring by them stores one color per community:
 
         ```{python}
-        G = ec.Graph(directed=False)
+        karate = ec.karate_club()
+        karate.cmty_louvain(attr_name="community")
+        karate.colorize_node_attrs("community", palette="Set2")
 
-        G.add_nodes(range(6))
-
-        # Two separate triangles
-        G.add_edges([("0", "1"), ("1", "2"), ("0", "2"), ("3", "4"), ("4", "5"), ("3", "5")])
-
-        G.cmty_louvain(attr_name="community")
-        G.colorize_node_attrs(node_attr_from="community", palette="Set1")
-
-        G.get_node_df().select("label", "community", "color")
+        counts = karate.get_node_df().group_by("community", "color").len()
+        counts.sort("community")
         ```
 
-        A plain list of colors can be passed instead of a named palette. Colors are assigned
-        to the sorted values, so `"active"` gets the first color and `"inactive"` the second;
-        writing to `node_attr_to="fill"` leaves any existing `color` attribute alone:
+        The `color` attribute is what `plot_vis()` fills nodes with. Three of the communities lie
+        within one faction, and the fourth adds member 9, who joined John A.'s side, to 11 members
+        of Mr. Hi's. Click a node to see its attributes:
 
         ```{python}
-        G = (
-            ec.Graph()
-            .add_node(label="A", status="inactive")
-            .add_node(label="B", status="active")
-            .add_edge(source="A", target="B")
-        )
-
-        G.colorize_node_attrs(
-            node_attr_from="status",
-            palette=["#2ca02c", "#d62728"],
-            node_attr_to="fill",
-        )
-
-        G.get_node_attrs("fill")
-        ```
-
-        A `values=` dict colors nodes by data that isn't stored on the graph. Keys can be
-        labels, and nodes not in the dict (here `B`) are left uncolored:
-
-        ```{python}
-        G = ec.Graph().add_nodes(["A", "B", "C"])
-
-        G.colorize_node_attrs(values={"A": "north", "C": "south"}, palette="Dark2")
-        G.get_node_attrs("color")
-        ```
-
-        `alpha=` makes the colors semi-transparent by appending an alpha channel:
-
-        ```{python}
-        G.colorize_node_attrs(values={"A": "north", "C": "south"}, palette="Dark2", alpha=50)
-        G.get_node_attrs("color")
+        karate.plot_vis(width=600, height=420, static=True)
         ```
         """
         from edgecase.colors import get_palette
