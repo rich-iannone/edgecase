@@ -74328,6 +74328,9 @@ class Graph:
         ```{python}
         len(cafe.all_topological_sorts(max_sorts=3))
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#ordering) counts the 64 orders in which a
+        house could be built.
         """
         if max_sorts is not None and max_sorts < 1:
             raise ValueError(f"max_sorts must be at least 1, got {max_sorts}")
