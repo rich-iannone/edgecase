@@ -30579,6 +30579,22 @@ class Graph:
         sorted(graph.get_label_from_id(n) for n in graph.get_selected_node_ids())
         ```
 
+        The selection reaches two steps each way along the path, stopping short of `F`:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (1, 1), "C": (2, 0),
+            "D": (3, 1), "E": (4, 0), "F": (5, 1),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight="selection", label_by="label", height=240
+        )
+        ```
+
         In a directed graph, `mode=` sets which way to follow the edges. From `B`, `"out"`
         reaches `C`, and `"in"` reaches `A`:
 
@@ -30612,6 +30628,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#by-structure) selects the karate club
+        administrator and all of their friends.
         """
         # Convert single value to list
         if isinstance(nodes, (str, int)):
