@@ -47738,39 +47738,87 @@ class Graph:
         ValueError
             If `alpha=` is outside `[0, 1]`.
 
+        See Also
+        --------
+        random_walk_with_restart : Score nodes by a walk that keeps returning to the seeds.
+        heat_diffusion : Spread a signal from the seeds by diffusion.
+        gwas_pipeline : Smooth scores, find modules and rank them in one call.
+
         Examples
         --------
-        A single score of `1.0` on the end of a five-node path leaks along the path, fading with
-        each step away from `A`:
+        A score of `1.0` at one end of a path leaks along it, fading with each step from `A`. A
+        higher `alpha=` trusts the neighbors more, so `A` keeps less and the far end gets more:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
 
-        scores = {g.get_id_from_label("A"): 1.0}
-        smoothed = g.network_smooth(scores, alpha=0.5, return_dict=True)
-        {g.get_label_from_id(nid): round(s, 3) for nid, s in sorted(smoothed.items())}
+        (
+            path.network_smooth({"A": 1.0})
+            .network_smooth({"A": 1.0}, alpha=0.8, attr_name="alpha_08")
+            .get_node_df()
+            .select("label", "network_smooth", "alpha_08")
+        )
         ```
 
-        A higher `alpha=` trusts the neighborhood more: `A` keeps less of its own score and the
-        far end of the path receives noticeably more:
+        ### Denoising changes in expression
+
+        Each protein in `proteins()` has a measured change in expression in diseased tissue, as a
+        log2 fold change. Single measurements are noisy. REP3 barely changed though all four of its
+        partners went up, and ENZ3 went up more than any protein but REP5 though none of its
+        partners did. Smoothing pulls each measurement toward its partners':
 
         ```{python}
-        smoothed = g.network_smooth(scores, alpha=0.8, return_dict=True)
-        {g.get_label_from_id(nid): round(s, 3) for nid, s in sorted(smoothed.items())}
+        import polars as pl
+
+        proteins = ec.proteins()
+        proteins.network_smooth(proteins.get_node_attrs("expression"), attr_name="smoothed")
+
+        (
+            proteins.get_node_df()
+            .filter(pl.col("label").is_in(["REP3", "ENZ3"]))
+            .select("label", "expression", "smoothed")
+        )
         ```
 
-        With `attr_name=` the scores are stored on the nodes instead. Scoring both ends of the
-        path gives a symmetric profile, with the middle node `C` lowest:
+        REP3 rises from `0.3` to `1.08` and ENZ3 nearly halves, from `2.5` to `1.35`. Ranked by
+        smoothed change, ENZ3 now comes after six proteins of the disease module around REP1:
 
         ```{python}
-        scores = {g.get_id_from_label("A"): 1.0, g.get_id_from_label("E"): 1.0}
-        g.network_smooth(scores, attr_name="smoothed")
-        g.get_node_df().select(["label", "smoothed"])
+        (
+            proteins.get_node_df()
+            .sort("smoothed", descending=True)
+            .select("label", "pathway", "expression", "smoothed")
+            .head(8)
+        )
         ```
+
+        Drawn by measured change, the DNA repair cluster at the top left is dark, but so is ENZ3,
+        among the metabolism proteins at the left:
+
+        ```{python}
+        proteins.plot(layout="pos", color_by="expression", label_by="label")
+        ```
+
+        Drawn by how far smoothing moved each protein, REP3 is raised the most (red) and ENZ3
+        lowered the most (blue):
+
+        ```{python}
+        expression = proteins.get_node_attrs("expression")
+        smoothed = proteins.get_node_attrs("smoothed")
+        proteins.set_node_attrs(
+            "moved", {node: smoothed[node] - expression[node] for node in expression}
+        )
+
+        proteins.plot(
+            layout="pos", color_by="moved", color_scale="diverging", color_midpoint=0,
+            label_by="label",
+        )
+        ```
+
+        [Network biology](../user-guide/network-biology.qmd#smoothing-association-scores) smooths
+        simulated GWAS scores, in a network where the true disease genes are known.
         """
         from edgecase._core import network_smooth as _network_smooth
 
