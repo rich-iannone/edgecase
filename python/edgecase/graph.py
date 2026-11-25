@@ -22214,6 +22214,9 @@ class Graph:
             highlight={"accent": ["Mr. Hi", "John A."]}, label_by="label", seed=4
         )
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#labels) explains how labels work, and that
+        relabeling leaves the IDs alone.
         """
         if callable(mapping) and not isinstance(mapping, dict):
             pairs = [(n, mapping(self._node_label(n))) for n in self.get_node_ids(limit=None)]
