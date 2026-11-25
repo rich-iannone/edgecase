@@ -93157,6 +93157,9 @@ class Graph:
             layout="pos", highlight="CS102", label_by="label", height=420
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) rebuilds
+        the Laplacian from the oriented incidence matrix.
         """
         matrix, ids, eids = rust.incidence_matrix(
             self._graph, oriented, self._use_weights(weighted)
