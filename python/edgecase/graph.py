@@ -26992,7 +26992,10 @@ class Graph:
         triangle = ec.Graph().add_cycle_graph(3)
         path = ec.Graph().add_path_graph(3)
 
-        triangle.is_subgraph_isomorphic(path), triangle.is_subgraph_isomorphic(path, induced=False)
+        (
+            triangle.is_subgraph_isomorphic(path),
+            triangle.is_subgraph_isomorphic(path, induced=False),
+        )
         ```
 
         A square does contain the path as an induced subgraph:
@@ -27018,7 +27021,9 @@ class Graph:
                 {
                     "molecule": name,
                     "six_ring": molecule.is_subgraph_isomorphic(benzene),
-                    "carbons": molecule.is_subgraph_isomorphic(benzene, node_attr="element"),
+                    "carbons": molecule.is_subgraph_isomorphic(
+                        benzene, node_attr="element"
+                    ),
                     "aromatic": molecule.is_subgraph_isomorphic(
                         benzene, node_attr="element", edge_attr="bond"
                     ),
@@ -27035,8 +27040,14 @@ class Graph:
         caffeine = molecules["caffeine"]
         ring = list(caffeine.subgraph_isomorphisms(benzene, limit=1)[0].values())
 
-        caffeine.plot(color_by="element", highlight=ring + ring[:1], label_by="label", seed=1)
+        caffeine.plot(
+            color_by="element", highlight=ring + ring[:1], label_by="label",
+            seed=1,
+        )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#finding-patterns) compares the
+        methods that search for a pattern.
         """
         found = self._match_pattern(pattern, induced, node_attr, edge_attr, limit=1)
         value = bool(found)
