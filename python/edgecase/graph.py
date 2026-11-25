@@ -91478,6 +91478,9 @@ class Graph:
             == tree.to_nested_tuple("A", canonical_form=True)
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) encodes a binary tree as a Prüfer
+        sequence and a nested tuple, and names the methods that rebuild it.
         """
         if self.is_directed():
             raise ValueError("to_nested_tuple() requires an undirected tree")
