@@ -39264,6 +39264,9 @@ class Graph:
         ```{python}
         len(payments.minimum_feedback_edge_set(weighted=False))
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#ordering) finds the mistaken dependency
+        that keeps a plan from being a DAG.
         """
         use = self._use_weights(weighted)
         found = rust.feedback_edge_set(self._graph, use)
