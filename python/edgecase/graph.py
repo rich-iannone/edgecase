@@ -17732,29 +17732,71 @@ class Graph:
         ValueError
             If `n1=` or `n2=` is negative or `p=` is outside `0` to `1`.
 
+        See Also
+        --------
+        add_bipartite_gnm_graph : Add a random bipartite graph with exactly `m` edges.
+        add_gnp_graph : Add a random graph with independent edge probabilities.
+        add_complete_bipartite_graph : Add a complete bipartite graph.
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+
         Examples
         --------
-        Twenty by thirty nodes at `p=0.1` give about `0.1 * 20 * 30 = 60` edges:
+        Each pair of nodes across the two parts is joined with probability `p`, and no edge
+        runs inside a part. Twenty by thirty nodes at `p=0.1` give about `0.1 * 20 * 30 = 60`
+        edges, and the graph is bipartite whatever the seed:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_bipartite_gnp_graph(20, 30, p=0.1, seed=3)
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_nodes(), graph.count_edges(), graph.is_bipartite()
         ```
 
-        No edge joins two nodes of the same part:
+        In a directed graph each pair is tried in both directions, so about twice as many edges
+        result:
 
         ```{python}
-        graph.is_bipartite()
+        directed = ec.Graph(directed=True).add_bipartite_gnp_graph(
+            20, 30, p=0.1, seed=3
+        )
+
+        directed.count_edges()
         ```
 
-        In a directed graph each pair is tried in both directions:
+        ### A low probability and a higher one
+
+        Five nodes in one part and six in the other give `30` pairs across the parts. With
+        `p=0.2` on the left about `6` of them are expected to be edges, and with `p=0.5` on the
+        right about `15`. Passing the first part's nodes to `layout_bipartite()` keeps the nodes
+        left without an edge on their own side:
 
         ```{python}
-        ec.Graph(directed=True).add_bipartite_gnp_graph(20, 30, p=0.1, seed=3).count_edges()
+        sparse = ec.Graph().add_bipartite_gnp_graph(5, 6, p=0.2, seed=1)
+        dense = ec.Graph().add_bipartite_gnp_graph(5, 6, p=0.5, seed=1)
+
+        first = [1, 2, 3, 4, 5]
+
+        sparse.count_edges(), dense.count_edges()
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        sparse.layout_bipartite(nodes=first, align="horizontal").plot(
+            layout="pos", color_by="part", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        dense.layout_bipartite(nodes=first, align="horizontal").plot(
+            layout="pos", color_by="part", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n1=n1, n2=n2)
 
