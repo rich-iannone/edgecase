@@ -22429,6 +22429,11 @@ class Graph:
         bool
             `True` if an edge with this ID exists, `False` otherwise.
 
+        See Also
+        --------
+        has_edge : Check for an edge by its endpoints.
+        get_edge_ids : List every edge ID.
+
         Examples
         --------
         A valid edge ID returns `True`; an ID that was never assigned returns `False`:
