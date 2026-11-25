@@ -95461,6 +95461,19 @@ class Graph:
         )
         ```
 
+        The two routes from `A` to `B` make a square, and `D` hangs off it by one edge:
+
+        ```{python}
+        spots = {
+            "A": (0, 1), "C": (1, 2), "E": (1, 0), "B": (2, 1), "D": (3, 2),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(layout="pos", label_by="label", height=240)
+        ```
+
         ### Alternative routes
 
         `metro()` is a made-up city's metro network, each station placed at its `pos` on the map.
@@ -95485,6 +95498,10 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#resistance-distance) compares the resistance
+        between two pairs of karate club members, one joined by many routes and one by a single
+        friendship.
         """
         from edgecase._core import resistance_distance
 
