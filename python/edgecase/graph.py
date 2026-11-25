@@ -1515,6 +1515,9 @@ class Graph:
         ```{python}
         bank.play(seed=1)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#one-at-a-time) builds a small graph of
+        scientists one node at a time, and shows which way `from_node=` and `to_node=` point.
         """
         # Resolve the nodes to connect first, so a missing one raises before anything is added
         from_id = self._resolve_node_id(from_node) if from_node is not None else None
