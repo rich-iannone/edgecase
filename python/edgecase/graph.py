@@ -23355,16 +23355,23 @@ class Graph:
         [team.get_label_from_id(n) for n in tasks]
         ```
 
+        `layout_bipartite()` puts the workers in one row and the tasks in the other, so every edge
+        crosses between the rows:
+
+        ```{python}
+        team.layout_bipartite(align="horizontal", aspect_ratio=0.4)
+
+        team.plot(layout="pos", color_by="side", label_by="label", height=320)
+        ```
+
         ### One edge breaks it
 
         An edge between two workers closes an odd cycle if they can do a task in common. Priya and
         Tom can both do the backend, so when Priya starts mentoring Tom the graph is no longer
         bipartite. `is_bipartite()` records its answer in the step log, so `play()` shows the odd
-        cycle it found on its last step, with the workers and tasks drawn in two rows:
+        cycle it found on its last step:
 
         ```{python}
-        team.layout_bipartite(align="horizontal", aspect_ratio=0.4)
-
         team.note("Priya starts mentoring Tom.").add_edge("Priya", "Tom")
         team.is_bipartite()
 
