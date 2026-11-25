@@ -28371,38 +28371,56 @@ class Graph:
         ValueError
             If the graph is undirected, or if `node=` is an ID or label not found in the graph.
 
+        See Also
+        --------
+        get_successors : The nodes a node's edges point to.
+        ancestors : Every node with a path to a node, not just the direct predecessors.
+        get_in_degree : The number of edges pointing to a node.
+
         Examples
         --------
-        `get_predecessors()` is a convenience wrapper around `neighbors(mode="in")`,
-        restricted to directed graphs -- here both "A" and "B" have an edge pointing into
-        "C", while "D" is a successor of "C" and is therefore not returned:
+        The predecessors of a node are the nodes with an edge pointing to it. Both "A" and "B"
+        point to "C", while "D" is pointed to by "C", so it isn't one:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=True)
-        graph.add_nodes(["A", "B", "C", "D"])
-        graph.add_edges([("A", "C"), ("B", "C"), ("C", "D")])
-
-        predecessors = graph.get_predecessors("C")
-
-        [graph.get_label_from_id(nid) for nid in predecessors]
-        ```
-
-        In a small task-dependency graph, the predecessors of a task are the tasks that must
-        finish before it can start. "deploy" depends directly on "test" and "build_docs", but
-        not on "compile", which is two steps upstream:
-
-        ```{python}
-        tasks = (
-            ec.Graph(directed=True)
-            .add_nodes(["compile", "test", "build_docs", "deploy"])
-            .add_edges([("compile", "test"), ("test", "deploy"), ("build_docs", "deploy")])
+        graph = ec.Graph.from_edges(
+            [("A", "C"), ("B", "C"), ("C", "D")], directed=True
         )
 
-        [tasks.get_label_from_id(nid) for nid in tasks.get_predecessors("deploy")]
+        [graph.get_label_from_id(n) for n in graph.get_predecessors("C")]
         ```
 
+        ### What to take first
+
+        In a prerequisite graph, each edge runs from a course to a course that requires it, so the
+        predecessors of a course are its prerequisites. CS360 needs CS201 and STAT201:
+
+        ```{python}
+        courses = ec.courses()
+        before = courses.get_predecessors("CS360")
+
+        [courses.get_label_from_id(n) for n in before]
+        ```
+
+        Those are only the direct prerequisites. CS201 and STAT201 have their own, and all the
+        courses that come before CS360 are its ancestors, 8 in total:
+
+        ```{python}
+        sorted(courses.get_label_from_id(n) for n in courses.ancestors("CS360"))
+        ```
+
+        The courses are laid out by level, from 100 at the bottom to 400 at the top. CS360 is in the
+        accent color, its prerequisites in the soft one:
+
+        ```{python}
+        courses.layout_multipartite(subset_key="level", align="horizontal")
+        courses.plot(
+            layout="pos", label_by="label",
+            highlight={"accent": ["CS360"], "soft": before},
+        )
+        ```
         """
         if not self._graph.is_directed:
             raise ValueError("get_predecessors only available for directed graphs")
