@@ -3794,6 +3794,9 @@ class Graph:
         ```
 
         :::
+
+        [Building graphs](../user-guide/building-graphs.qmd#cleaning-up) compares the three ways of
+        making a graph simple.
         """
         before_count = self.count_edges() if self._recording_depth == 0 else 0
         self._graph.remove_duplicate_edges(keep_distinct_attributes)
