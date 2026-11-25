@@ -56409,6 +56409,9 @@ class Graph:
 
         graph.get_degree("A")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#degrees) covers the degree distribution,
+        and the friendship paradox of neighbor degrees.
         """
         node_id = self._resolve_node_id(node)
         if self._graph.is_directed:
