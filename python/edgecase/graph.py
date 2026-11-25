@@ -71816,6 +71816,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=route, label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) lists it with the
+        other methods that expose the parts of a search.
         """
         with self._no_recording():
             edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
