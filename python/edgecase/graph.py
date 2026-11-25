@@ -64655,6 +64655,9 @@ class Graph:
             color_midpoint=0, label_by="label",
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         centrality = self._graph.get_leverage_centrality()
 
