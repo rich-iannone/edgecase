@@ -6060,9 +6060,16 @@ class Graph:
             If `nodes=` is `None` and the graph is not bipartite, `align=` is unknown,
             `aspect_ratio=` is not positive, or `scale=` or `center=` is invalid.
 
+        See Also
+        --------
+        bipartite_sets : Split a bipartite graph into its two sides.
+        layout_multipartite : Place nodes in parallel lines, one per layer.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
-        The two sides of a complete bipartite graph are found by two-coloring:
+        The two sides of a complete bipartite graph are found by two-coloring, and placed in two
+        columns:
 
         ```{python}
         import edgecase as ec
@@ -6070,15 +6077,40 @@ class Graph:
         graph = ec.Graph().add_complete_bipartite_graph(2, 3)
 
         pos = graph.layout_bipartite(return_dict=True)
-        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        {n: (round(x, 3), round(y, 3)) for n, (x, y) in pos.items()}
         ```
 
+        ### Women and events
+
+        In the 1930s, Davis, Gardner and Gardner recorded which of 18 women in a Southern town
+        attended which of 14 social events. Passing the women as `nodes=` puts them in the left
+        column, in order, and the events, numbered by date, in the right:
+
         ```{python}
-        (
-            ec.Graph()
-            .add_complete_bipartite_graph(3, 5)
-            .layout_bipartite(align="horizontal")
-            .plot(layout="pos")
+        davis = ec.davis_southern_women()
+        women = davis.get_node_df().filter(bipartite=0)["id"].to_list()
+
+        davis.layout_bipartite(nodes=women, aspect_ratio=0.75).plot(
+            layout="pos", color_by="bipartite", label_by="label",
+            node_size=10, width=640, height=720, legend=False,
+        )
+        ```
+
+        The edges form a band. The first women in the list went mostly to the early events and the
+        last ones mostly to the late events, so the women fall into two groups. The middle events
+        drew from both: E8 was attended by 14 of the 18 women, highlighted here:
+
+        ```{python}
+        at_e8 = davis.get_neighbors("E8")
+
+        davis.plot(
+            layout="pos",
+            highlight=["E8"] + [davis.get_label_from_id(n) for n in at_e8],
+            highlight_edges=[(davis.get_label_from_id(n), "E8") for n in at_e8],
+            label_by="label",
+            node_size=10,
+            width=640,
+            height=720,
         )
         ```
         """
