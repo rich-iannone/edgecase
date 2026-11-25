@@ -84976,6 +84976,9 @@ class Graph:
         ```{python}
         payments.plot(highlight=chain, label_by="label", seed=3)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) compares weak and
+        strong connectivity in Wikipedia's administrator elections.
         """
         if not self.is_directed():
             raise ValueError("is_semiconnected() requires a directed graph")
