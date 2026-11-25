@@ -42701,12 +42701,8 @@ class Graph:
         graph.get_node_df().select("label", "local_clustering_coefficient")
         ```
 
-        With `return_dict=True`, nothing is stored and the values come back keyed by node ID,
-        with `None` for the undefined ones:
-
-        ```{python}
-        graph.local_clustering_coefficient(return_dict=True)
-        ```
+        With `return_dict=True`, nothing is stored and the values come back as a dictionary keyed
+        by node ID, with `None` for the undefined ones.
 
         ### Friends of friends
 
@@ -42774,6 +42770,10 @@ class Graph:
         ```
 
         :::
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#clustering-coefficients)
+        explains how it differs from `clustering_coefficient()` for nodes with fewer than two
+        neighbors.
         """
         if attr_name is None:
             attr_name = "local_clustering_coefficient"
