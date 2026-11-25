@@ -193,6 +193,21 @@ class TestMinimumSpanningTree:
         assert mst.count_edges() == 9
         assert mst.count_nodes() == 10
 
+    def test_forced_diagonal_costs_more(self):
+        """The docs example: the lightest tree weighs 6, and keeping the diagonal makes it 9."""
+        graph = ec.Graph.from_edges(
+            [("A", "B", 1.0), ("B", "C", 2.0), ("C", "D", 3.0), ("D", "A", 4.0), ("A", "C", 5.0)]
+        )
+
+        def total(tree):
+            return sum(tree.get_edge(e).weight for e in tree.get_edge_ids())
+
+        lightest = graph.minimum_spanning_tree()
+        forced = graph.minimum_spanning_tree(include=[("A", "C")])
+        assert (total(lightest), total(forced)) == (6.0, 9.0)
+        assert set(lightest.get_edge_ids()) <= set(graph.get_edge_ids())
+        assert set(forced.get_edge_ids()) <= set(graph.get_edge_ids())
+
 
 class TestMaximumSpanningTree:
     """Test maximum_spanning_tree() using Kruskal's algorithm."""
