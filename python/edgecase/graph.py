@@ -36403,6 +36403,9 @@ class Graph:
         ```{python}
         friends.plot(color_by="community", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#using-communities) explains
+        why it scores zero for every pair that spans two communities.
         """
         return self._link_scores("ra_sh", ebunch, community)
 
