@@ -23,11 +23,11 @@ jobs:
       CARGO_PROFILE_RELEASE_LTO: "off"
       CARGO_PROFILE_RELEASE_CODEGEN_UNITS: "16"
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
         with:
           fetch-depth: 0 # Full history for accurate page timestamps
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -99,7 +99,7 @@ jobs:
       name: github-pages
       url: ${{ steps.deployment.outputs.page_url }}
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           name: docs-html
           path: great-docs/_site

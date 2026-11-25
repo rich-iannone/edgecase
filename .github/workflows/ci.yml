@@ -23,9 +23,9 @@ jobs:
     name: Lint
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -54,11 +54,11 @@ jobs:
       matrix:
         os: [ubuntu-latest, macos-latest, windows-latest]
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
       # The Rust unit tests embed a Python interpreter (pyo3 `auto-initialize`), so the test
       # binary links the libpython of the interpreter pyo3 finds on PATH
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -73,9 +73,9 @@ jobs:
     name: Rust 1.82 (MSRV)
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -99,9 +99,9 @@ jobs:
       run:
         shell: bash
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: ${{ matrix.python-version }}
 
@@ -130,9 +130,9 @@ jobs:
     name: Minimum dependency versions
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.10"
 
@@ -162,9 +162,9 @@ jobs:
     name: Source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 

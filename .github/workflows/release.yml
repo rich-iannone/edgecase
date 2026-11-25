@@ -19,9 +19,9 @@ jobs:
     name: Check the version
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -58,9 +58,9 @@ jobs:
           - { name: macos-arm64, runner: macos-latest, target: aarch64, test: true }
           - { name: windows-x86_64, runner: windows-latest, target: x64, test: true }
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -89,9 +89,9 @@ jobs:
     name: Source distribution
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v6
+      - uses: actions/checkout@v7
 
-      - uses: actions/setup-python@v6
+      - uses: actions/setup-python@v7
         with:
           python-version: "3.12"
 
@@ -120,7 +120,7 @@ jobs:
       name: pypi
       url: https://pypi.org/p/edgecase
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           path: dist
@@ -140,7 +140,7 @@ jobs:
       name: testpypi
       url: https://test.pypi.org/p/edgecase
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           path: dist
@@ -161,7 +161,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v7
+      - uses: actions/download-artifact@v8
         with:
           pattern: dist-*
           path: dist
