@@ -47567,38 +47567,71 @@ class Graph:
             If `model=` is not `"independent_cascade"`, `probability=` is outside `[0, 1]`, or
             `n_simulations=` is `0`.
 
+        See Also
+        --------
+        voterank : Spreaders chosen by voting, much faster than simulating.
+        percolation_centrality : Node importance for spreading from given sources.
+        betweenness_centrality : Nodes that lie between groups.
+
         Examples
         --------
-        This graph has a four-spoke star around `Hub` and a separate three-node path. With
-        `k=2`, the greedy search first picks `Hub`, then picks the middle of the path rather than
-        a spoke, since a spoke would mostly reach nodes `Hub` already covers:
+        A four-spoke star around `Hub` and a separate three-node path. With `k=2`, the greedy
+        search picks `Hub` first, then the middle of the path rather than a spoke, since a spoke
+        would mostly reach people `Hub` already reaches:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["Hub", "A", "B", "C", "D", "E", "F", "G"])
-        g.add_edges(
+        graph = ec.Graph.from_edges(
             [("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D"), ("E", "F"), ("F", "G")]
         )
 
-        seeds = g.influence_maximization(
+        seeds = graph.influence_maximization(
             k=2, probability=0.5, n_simulations=500, seed=42, return_dict=True
         )
-        [(g.get_label_from_id(node_id), round(gain, 2)) for node_id, gain in seeds]
+        [(graph.get_label_from_id(node), round(gain, 2)) for node, gain in seeds]
         ```
 
-        In a directed chain, influence can only flow forward. With `probability=1.0` every
-        activation succeeds, so the start of the chain reaches all four nodes:
+        ### Spreading news among friends
+
+        `friends()` holds the friendships among 24 members of two clubs. Louvain finds four
+        circles of friends in it. If each person who hears some news passes it to each friend
+        with a chance of `0.2`, the four people to tell first come one from each circle, and
+        their gains add up to an expected reach of about 10 of the 24:
 
         ```{python}
-        d = ec.Graph(directed=True)
-        d.add_nodes(["A", "B", "C", "D"])
-        d.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        import polars as pl
 
-        seeds = d.influence_maximization(k=1, probability=1.0, seed=1, return_dict=True)
-        [(d.get_label_from_id(node_id), gain) for node_id, gain in seeds]
+        friends = ec.friends().cmty_louvain(attr_name="circle")
+        seeds = friends.influence_maximization(
+            k=4, probability=0.2, n_simulations=500, seed=1, return_dict=True
+        )
+
+        [(friends.get_label_from_id(node), round(gain, 2)) for node, gain in seeds]
         ```
+
+        Drawn by circle, with the chosen four in their circle's color:
+
+        ```{python}
+        chosen = [node for node, gain in seeds]
+
+        friends.plot(color_by="circle", highlight=chosen, label_by="label", seed=1)
+        ```
+
+        The five people with the most friends, five each, would be a worse choice: Tara, Oona
+        and Hugo sit in the same circle, where telling one reaches much the same people as
+        telling the others:
+
+        ```{python}
+        popular = (
+            friends.get_node_df().filter(pl.col("degree") == pl.col("degree").max())["label"]
+        )
+
+        friends.plot(color_by="circle", highlight=popular.to_list(), label_by="label", seed=1)
+        ```
+
+        [Spreading](../user-guide/spreading.qmd#influential-spreaders) compares the greedy seeds
+        with those of `voterank()` and of degree on a larger network.
         """
         self._check_non_negative(k=k, n_simulations=n_simulations)
         from edgecase._core import influence_maximization as _influence_maximization
