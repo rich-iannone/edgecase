@@ -70490,6 +70490,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=detour, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#alternative-routes) finds the best drive from
+        Paris to Milan that avoids Geneva.
         """
         s = self._resolve_node_id(source, auto_create=False)
         t = self._resolve_node_id(target, auto_create=False)
