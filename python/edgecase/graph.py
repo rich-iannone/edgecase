@@ -80216,6 +80216,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) finds the karate club's
+        one bridge and one articulation point.
         """
         root_id = None if root is None else self._resolve_node_id(root, auto_create=False)
         chains = rust.chain_decomposition(self._graph, root_id)
