@@ -2486,6 +2486,9 @@ class Graph:
 
         payments.plot(highlight_edges="selection", label_by="label", seed=6)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#edges-between-node-ids) joins four nodes
+        into a ring by their IDs.
         """
         edges_added = []
         # All the edges go in or none do
