@@ -14571,6 +14571,12 @@ class Graph:
         ValueError
             If `n=` is negative, or `p=` is not between `0` and `1`.
 
+        See Also
+        --------
+        add_gn_graph : Grow a tree with an explicit degree kernel.
+        add_gnc_graph : Grow a denser graph in which new nodes copy links.
+        add_scale_free_graph : Grow a directed graph with power-law in- and out-degrees.
+
         Examples
         --------
         Two hundred nodes joined by `199` edges into one weakly connected piece make a tree,
@@ -14584,17 +14590,52 @@ class Graph:
         graph.count_edges(), graph.is_weakly_connected()
         ```
 
-        More redirection makes bigger hubs, measured by the largest in-degree:
+        Each new node picks an existing node at random and, with probability `p`, redirects its
+        link to that node's target instead. Nodes with many links are the target of many
+        redirections, so more redirection makes bigger hubs, measured by the largest in-degree:
 
         ```{python}
+        def largest_in_degree(g):
+            return max(g.get_in_degree(v) for v in g.get_node_ids())
+
         [
-            max(
-                ec.Graph(directed=True).add_gnr_graph(n=200, p=p, seed=3).get_in_degree(v)
-                for v in range(1, 201)
+            largest_in_degree(
+                ec.Graph(directed=True).add_gnr_graph(n=200, p=p, seed=3)
             )
             for p in (0.0, 0.5, 0.9)
         ]
         ```
+
+        ### No redirection or a lot
+
+        Forty nodes with `p=0.0` on the left, where each node links to a uniformly random older
+        node, and `p=0.9` on the right, where most links are redirected and one node collects
+        most of them:
+
+        ```{python}
+        uniform = ec.Graph(directed=True).add_gnr_graph(n=40, p=0.0, seed=1)
+        redirected = ec.Graph(directed=True).add_gnr_graph(n=40, p=0.9, seed=1)
+
+        largest_in_degree(uniform), largest_in_degree(redirected)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        uniform.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        redirected.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
