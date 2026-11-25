@@ -43170,7 +43170,7 @@ class Graph:
 
     def module_annotation_enrichment(
         self,
-        communities: dict[int, int],
+        communities: dict[Union[int, str], int],
         attribute: str,
         correction: str = "bonferroni",
     ) -> dict[int, dict]:
@@ -43198,9 +43198,9 @@ class Graph:
         Parameters
         ----------
         communities
-            Dictionary mapping node IDs to community IDs (as returned by
-            `cmty_louvain(return_dict=True)` etc.). Any hashable community IDs work, and they
-            become the top-level keys of the result.
+            Dictionary mapping nodes (IDs or string labels) to community IDs, as returned by
+            `cmty_louvain(return_dict=True)` and the other community methods. Any hashable
+            community IDs work, and they become the top-level keys of the result.
         attribute
             Name of the categorical node attribute to test (e.g., `"pathway"` or `"department"`).
             Every distinct value of the attribute is tested in every community, so the total
@@ -43226,68 +43226,74 @@ class Graph:
         ValueError
             If `correction=` is not `"bonferroni"` or `"fdr"`.
 
+        See Also
+        --------
+        subgraph_enrichment : Test one set of nodes.
+        cmty_louvain : Split the network into communities to test.
+        gwas_pipeline : Rank modules by smoothed scores.
+
         Examples
         --------
-        Eight genes form two modules joined by the edge "G4"-"G5". Genes "G1" to "G3" belong to
-        gene set "X" and "G6" to "G8" to set "Y". Passing the module membership explicitly, each
-        module is two-fold enriched for its own gene set. The raw p-value is `0.071`, and after
-        Bonferroni correction over the four tests (2 modules x 2 sets) it becomes `0.286`:
+        Eight genes form two modules joined by the edge `G4`–`G5`. `G1` to `G3` are in gene set
+        `X` and `G6` to `G8` in set `Y`. Each module holds all three genes of one set, a raw
+        p-value of `0.071`, and Bonferroni's correction over the four tests makes it `0.286`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_nodes([f"G{i}" for i in range(1, 9)])
-        graph.add_edges([
-            ("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G1", "G4"), ("G2", "G4"),
-            ("G4", "G5"),
-            ("G5", "G6"), ("G6", "G7"), ("G7", "G8"), ("G8", "G5"), ("G5", "G7"), ("G6", "G8"),
-        ])
-
-        gene_sets = {"G1": "X", "G2": "X", "G3": "X", "G6": "Y", "G7": "Y", "G8": "Y"}
-        graph.set_node_attrs(
-            "gene_set", {graph.get_id_from_label(g): s for g, s in gene_sets.items()}
+        graph = ec.Graph.from_edges(
+            [("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G1", "G4"), ("G2", "G4"),
+             ("G4", "G5"),
+             ("G5", "G6"), ("G6", "G7"), ("G7", "G8"), ("G8", "G5"), ("G5", "G7"), ("G6", "G8")]
         )
+        graph.set_node_attrs("gene_set", {1: "X", 2: "X", 3: "X", 6: "Y", 7: "Y", 8: "Y"})
 
-        modules = {
-            graph.get_id_from_label(f"G{i}"): ("left" if i <= 4 else "right")
-            for i in range(1, 9)
-        }
-
+        modules = {"G1": 0, "G2": 0, "G3": 0, "G4": 0, "G5": 1, "G6": 1, "G7": 1, "G8": 1}
         results = graph.module_annotation_enrichment(modules, "gene_set")
 
-        {
-            (module, value): (r["k"], r["fold_enrichment"], round(r["p_value"], 3),
-                              round(r["p_adjusted"], 3))
-            for module, by_value in results.items()
-            for value, r in by_value.items()
-        }
+        results[0]["X"]["p_value"], results[0]["X"]["p_adjusted"]
         ```
 
-        The Benjamini-Hochberg correction (`correction="fdr"`) is less strict, so the same two
-        enrichments get a smaller adjusted p-value of about `0.143`:
+        ### What each module is about
+
+        `proteins()` is a small protein interaction network, with most proteins in one of five
+        pathways. Louvain splits it into five modules:
 
         ```{python}
-        results = graph.module_annotation_enrichment(modules, "gene_set", correction="fdr")
-        round(results["left"]["X"]["p_adjusted"], 3), round(results["right"]["Y"]["p_adjusted"], 3)
+        proteins = ec.proteins().cmty_louvain(attr_name="module")
+
+        proteins.plot(layout="pos", color_by="module", label_by="label")
         ```
 
-        In practice the communities usually come straight from a community-detection method.
-        Here Louvain recovers the same two modules, and each is enriched for one gene set:
+        Testing every module against every pathway, 30 tests in all, four modules are enriched for
+        a pathway each. The transport module holds only four of the five transport proteins,
+        along with the chaperone HSP1 and the uncharacterized ORF3, so its adjusted p-value of
+        `0.067` falls short of `0.05`:
 
         ```{python}
-        communities = graph.cmty_louvain(return_dict=True)
-        results = graph.module_annotation_enrichment(communities, "gene_set")
+        import polars as pl
 
-        {
-            cmty: max(by_value, key=lambda v: by_value[v]["fold_enrichment"])
-            for cmty, by_value in results.items()
-        }
+        results = proteins.module_annotation_enrichment(
+            proteins.get_node_attrs("module"), "pathway"
+        )
+
+        pl.DataFrame(
+            [
+                {"module": module, "pathway": value, "k": r["k"], "n": r["n"],
+                 "p_adjusted": round(r["p_adjusted"], 4)}
+                for module, by_value in results.items()
+                for value, r in by_value.items()
+                if r["fold_enrichment"] > 1 and r["k"] > 1
+            ]
+        ).sort("p_adjusted")
         ```
+
+        [Network biology](../user-guide/network-biology.qmd#interpreting-modules-with-annotations)
+        interprets the modules of a larger simulated network.
         """
         # Group nodes by community
         community_groups: dict[int, list[int]] = {}
-        for node_id, cmty_id in communities.items():
+        for node_id, cmty_id in self._seed_ids(communities).items():
             community_groups.setdefault(cmty_id, []).append(node_id)
 
         # Run enrichment for each community
