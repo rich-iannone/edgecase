@@ -69146,6 +69146,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#the-nearest-of-several-sources) finds which of
+        three warehouses should serve each city on a road network.
         """
         source_ids = [self._resolve_node_id(s, auto_create=False) for s in sources]
         dist = self._distances_out(rust.multi_source_distances(self._graph, source_ids, cutoff))
