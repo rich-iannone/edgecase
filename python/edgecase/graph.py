@@ -39865,6 +39865,9 @@ class Graph:
         ```{python}
         firm.is_split_graph()
         ```
+
+        [Structural properties](../user-guide/structure.qmd#properties) lists it with the other
+        tests of graph classes, which are useful as guards.
         """
         _, deg = self._simple_degrees()
         d = sorted(deg.values(), reverse=True)
