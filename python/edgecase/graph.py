@@ -87135,6 +87135,10 @@ class Graph:
             layout="pos", highlight_edges=paired, label_by="label", height=300
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) explains
+        how the karate club's edge cover follows from its matching.
         """
         covered: set[int] = set()
         for e in edges:
