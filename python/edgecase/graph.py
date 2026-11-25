@@ -77466,6 +77466,9 @@ class Graph:
             konigsberg.count_trails("North Bank", "South Bank", max_trails=100),
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#every-simple-path) compares the methods that
+        list every path between two nodes.
         """
         # Convert string node IDs to internal IDs
         source_id = self._resolve_node_id(source)
