@@ -82272,6 +82272,23 @@ class Graph:
         value, [label(n) for n in left], [label(n) for n in right]
         ```
 
+        Each node colored by its side of the cut. Only the edge from C to D crosses it:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3, 1.4), "E": (5, 1.4), "F": (4, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        side = {n: "A side" if n in left else "F side" for n in left + right}
+
+        graph.set_node_attrs("side", side).plot(
+            layout="pos", color_by="side", label_by="label", height=240
+        )
+        ```
+
         Capacities change where the bottleneck is. Here the pipe out of the source is the
         narrowest point:
 
@@ -82314,6 +82331,9 @@ class Graph:
             layout="pos", color_by="side", label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#flows) finds the bottleneck of a
+        network of pipes, and explains which methods read capacities without being told.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         sink_id = self._resolve_node_id(target, auto_create=False)
