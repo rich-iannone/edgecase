@@ -34650,6 +34650,9 @@ class Graph:
             size_by="betweenness", color_by="faction", label_by="label", seed=4
         )
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#the-node-and-edge-tables)
+        describes the columns of both tables and how mixed types are reconciled.
         """
         return self._node_df(self.get_node_ids(limit=None))
 
