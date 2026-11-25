@@ -8122,42 +8122,53 @@ class Graph:
         ValueError
             If `k=` is less than `1` or `h=` is negative.
 
+        See Also
+        --------
+        add_full_rary_tree : Add a full r-ary tree.
+        add_binomial_tree : Add a binomial tree.
+        layout_bfs : Place the nodes in layers by distance from a start node.
+
         Examples
         --------
-        A balanced tree with branching factor `k` and height `h` has
-        `(k^(h+1) - 1) / (k - 1)` nodes in total. A binary tree (`k=2`) of height `3`
-        therefore has `1 + 2 + 4 + 8 = 15` nodes -- one root, two children, four
-        grandchildren, and eight leaves:
+        In a balanced tree every node but the leaves has `k` children, and every leaf is `h` levels
+        below the root. A binary tree (`k=2`) of height `3` has `1 + 2 + 4 + 8 = 15` nodes. The
+        nodes are numbered level by level, and in a directed graph the edges point down the tree:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_balanced_tree(k=2, h=3)
+        tree = ec.Graph(directed=True).add_balanced_tree(k=2, h=3)
+
+        tree.count_nodes(), tree.get_edges_str_repr(use_labels=True)[:4]
+        ```
+
+        With `k=1`, every node has one child, so the tree is a path of `h + 1` nodes:
+
+        ```{python}
+        ec.Graph().add_balanced_tree(k=1, h=3).get_edges_str_repr(use_labels=True)
+        ```
+
+        ### Wide or deep
+
+        A binary tree of height `3` on the left and a tree with three children per node and height
+        `2` on the right, each with its root, node `1`, in the middle. They have almost the same
+        number of nodes, 15 and 13, but the wider tree is one level shallower:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        ec.Graph().add_balanced_tree(k=2, h=3).layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
         )
-
-        graph.count_nodes()
         ```
-
-        Because nodes are numbered breadth-first, a smaller tree makes the parent-child structure
-        easy to read: node `"1"` is the root, `"2"` and `"3"` are its children, and `"4"` to `"7"`
-        are the leaves. In a directed graph the edges point down the hierarchy:
 
         ```{python}
-        tree = ec.Graph(directed=True).add_balanced_tree(k=2, h=2)
-
-        tree.get_edges_str_repr(use_labels=True)
+        ec.Graph().add_balanced_tree(k=3, h=2).layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
 
-        With `k=1`, every node has a single child, so the "tree" is just a path of `h + 1`
-        nodes:
-
-        ```{python}
-        chain = ec.Graph().add_balanced_tree(k=1, h=3)
-
-        chain.get_edges_str_repr(use_labels=True)
-        ```
+        :::
         """
         if k < 1:
             raise ValueError("Branching factor k must be at least 1")
