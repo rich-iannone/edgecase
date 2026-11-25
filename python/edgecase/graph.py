@@ -8536,32 +8536,55 @@ class Graph:
         ValueError
             If `n1=` or `n2=` is negative.
 
+        See Also
+        --------
+        add_complete_multipartite_graph : Add a complete multipartite graph.
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+        is_planar : Check whether the graph is planar.
+
         Examples
         --------
-        `K(2, 3)` has `2 + 3 = 5` nodes and `2 * 3 = 6` edges:
+        `K(n1, n2)` has two sides of `n1` and `n2` nodes, with every node joined to every node of
+        the other side and to none of its own. `K(2, 3)` has `2 * 3 = 6` edges, and the `part`
+        column records each node's side:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_complete_bipartite_graph(n1=2, n2=3)
 
-        graph.count_nodes(), graph.count_edges()
-        ```
-
-        The `part` column records which side each node is on. Nodes on the first side have one
-        neighbor for every node of the second side, and vice versa:
-
-        ```{python}
         graph.get_node_df().select("label", "part", "degree")
         ```
 
-        `K(3, 3)` is bipartite but not planar:
+        ### Planar or not
+
+        `K(2, 3)` on the left can be drawn with no crossings. `K(3, 3)` on the right, the three
+        utilities problem, can't: every way of joining three houses to three utilities has two
+        lines crossing:
 
         ```{python}
         utility = ec.Graph().add_complete_bipartite_graph(n1=3, n2=3)
 
-        utility.is_bipartite(), utility.is_planar()
+        graph.is_planar(), utility.is_planar()
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        utility.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if n1 < 0 or n2 < 0:
             raise ValueError("Group sizes n1 and n2 must be non-negative")
