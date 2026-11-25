@@ -43167,6 +43167,9 @@ class Graph:
             ec.karate_club().small_world_sigma(seed=1),
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#small-worlds) compares the two
+        small-world indices, and how `iterations=` and `nrand=` trade accuracy for speed.
         """
         value, parts = rust.small_world(self._graph, "sigma", iterations, nrand, seed)
         if self._recording_depth == 0:
