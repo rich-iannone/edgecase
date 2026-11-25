@@ -48849,6 +48849,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#a-fixed-number-of-groups) explains how blocks
+        differ from communities, and why to try several seeds.
         """
         import math as _math
         import random as _random
