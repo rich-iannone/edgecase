@@ -94278,6 +94278,29 @@ class Graph:
         round(path.algebraic_connectivity(), 3), cycle.algebraic_connectivity()
         ```
 
+        Removing any one edge cuts the path on the left in two, while the cycle on the right
+        needs two removed:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        def place(graph, spots):
+            pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+            return graph.set_node_attrs("pos", pos)
+
+        place(path, {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1)}).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        place(cycle, {"A": (0, 1), "B": (1, 2), "C": (2, 1), "D": (1, 0)}).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         ### One more friendship
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -94303,6 +94326,10 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#algebraic-connectivity) compares the
+        power grid, the dolphins, the karate club and a road network, and explains why the road
+        network's weights are left out.
         """
         value = rust.algebraic_connectivity(self._graph, normalized, self._use_weights(weighted))
         if self._recording_depth == 0:
