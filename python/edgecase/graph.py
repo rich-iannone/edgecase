@@ -21085,6 +21085,12 @@ class Graph:
         TypeError
             If `node=` is neither an `int` nor a `str`.
 
+        See Also
+        --------
+        get_node_attrs : Read one attribute for every node.
+        get_node_df : Read every node and its attributes as a data frame.
+        get_edge : Read a single edge in the same way.
+
         Examples
         --------
         `get_node()` accepts either a label or an internal ID, and returns the underlying
@@ -21093,7 +21099,11 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_node(label="A", color="red", size=10).add_node(label="B")
+        graph = (
+            ec.Graph()
+            .add_node(label="A", color="red", size=10)
+            .add_node(label="B")
+        )
         node = graph.get_node("A")
 
         node.id
@@ -21124,7 +21134,6 @@ class Graph:
         ```{python}
         graph.has_node(99)
         ```
-
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
