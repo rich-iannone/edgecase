@@ -49373,63 +49373,28 @@ class Graph:
         undirected graph without losing information. If either operand is weighted, so is
         the result. Use `disjoint_union()` when you want to keep node IDs strictly separate.
 
+        See Also
+        --------
+        compose : Combine two graphs, letting the other graph's values win.
+        disjoint_union : Combine two graphs, keeping their nodes apart.
+        union_all : Combine any number of graphs.
+
         Examples
         --------
-        Nodes are matched by **ID**, not by label. Here both graphs number their nodes 1, 2, 3; `g2`
-        adds an edge between nodes 2 and 3 that `g1` lacks, so the union has all three nodes and
-        both edges:
+        Nodes are matched by ID, not by label. When both graphs have the same node or edge, this
+        graph's values win and the other graph only fills gaps. Node "A" keeps `team="red"` from
+        `g1` but gains `city="Oslo"` from `g2`, and the shared edge keeps `g1`'s weight of `1.0`:
 
         ```{python}
         import edgecase as ec
 
-        g1 = ec.Graph(directed=False)
-        g1.add_nodes(["A", "B", "C"])
-        g1.add_edge("A", "B")
-
-        g2 = ec.Graph(directed=False)
-        g2.add_nodes(["A", "B", "C"])
-        g2.add_edge("B", "C")
-
-        result = g1.union(g2)
-        result.count_nodes()
-        ```
-
-        ```{python}
-        result.count_edges()
-        ```
-
-        This makes union a natural way to combine two snapshots of the same network
-        taken at different times, folding in whatever new nodes or edges appeared:
-
-        ```{python}
-        t1 = ec.Graph(directed=False)
-        t1.add_path_graph(3)  # 1-2-3
-
-        t2 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            t2.add_node()
-        t2.add_edge(1, 3)  # a new direct connection
-
-        combined = t1.union(t2)
-        combined.count_edges()
-        ```
-
-        When both graphs describe the same node or edge, this graph's values win and the other
-        graph only fills gaps. Node "A" keeps `team="red"` from `g1` but gains `city="Oslo"`
-        from `g2`, and the shared edge keeps `g1`'s weight of `1.0`:
-
-        ```{python}
-        g1 = ec.Graph(directed=False)
-        g1.add_node(label="A", team="red")
-        g1.add_node(label="B")
+        g1 = ec.Graph()
+        g1.add_nodes([("A", {"team": "red"}), "B"])
         g1.add_edge("A", "B", weight=1.0)
 
-        g2 = ec.Graph(directed=False)
-        g2.add_node(label="A", team="blue", city="Oslo")
-        g2.add_node(label="B")
-        g2.add_node(label="C")
-        g2.add_edge("A", "B", weight=5.0)
-        g2.add_edge("B", "C")
+        g2 = ec.Graph()
+        g2.add_nodes([("A", {"team": "blue", "city": "Oslo"}), "B", "C"])
+        g2.add_edges([("A", "B", 5.0), ("B", "C")])
 
         merged = g1.union(g2)
         merged.get_node_df().select("label", "team", "city")
@@ -49437,6 +49402,31 @@ class Graph:
 
         ```{python}
         merged.get_edge_df().select("source", "target", "weight")
+        ```
+
+        ### Two club lists
+
+        In a network of friendships among the members of a chess club and a climbing club, each club
+        keeps a list of the friendships among its own members. `subgraph()` keeps the network's node
+        IDs, which is what lets `union()` match the two lists up. Their union has all 24 members and
+        the 38 friendships within a club, but not the 5 between the clubs, which neither list holds:
+
+        ```{python}
+        friends = ec.friends()
+        nodes = friends.get_node_df()
+
+
+        def club(name):
+            ids = nodes.filter(club=name)["id"].to_list()
+            return friends.subgraph(ids)
+
+
+        lists = club("Chess").union(club("Climbing"))
+        lists.count_edges(), friends.count_edges() - lists.count_edges()
+        ```
+
+        ```{python}
+        lists.plot(color_by="club", label_by="label", seed=2)
         ```
         """
         from edgecase._core import graph_union
