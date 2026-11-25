@@ -18004,6 +18004,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#bipartite-models) compares the random
+        bipartite models.
         """
         from edgecase._core import bipartite_preferential_attachment_edges as _edges
 
