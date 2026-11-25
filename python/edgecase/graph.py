@@ -50794,6 +50794,9 @@ class Graph:
             seed=1,
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#a-network-of-communities) collapses the
+        communities of *Les Misérables* into a network of storylines.
         """
         from edgecase._core import quotient_graph as _quotient_graph
 
