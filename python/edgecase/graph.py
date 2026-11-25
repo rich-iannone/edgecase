@@ -3505,6 +3505,9 @@ class Graph:
         ```{python}
         payments.plot(layout="pos", edge_width_by="weight", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-edges) deletes the single encounters of
+        *Les Misérables*, which splits the network into 20 pieces.
         """
         selected = self.get_selected_edge_ids()
 
