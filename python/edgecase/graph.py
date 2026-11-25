@@ -60995,7 +60995,10 @@ class Graph:
         (
             club.get_node_df()
             .with_columns(
-                pl.col("current_flow_betweenness_centrality", "betweenness_centrality")
+                pl.col(
+                    "current_flow_betweenness_centrality",
+                    "betweenness_centrality",
+                )
                 .rank("min", descending=True)
                 .name.suffix("_rank")
             )
@@ -61021,6 +61024,9 @@ class Graph:
         measures a cost or a distance, such as the travel times in `metro()`, has the opposite
         meaning; pass `weighted=False` for such graphs. For large graphs,
         `approximate_current_flow_betweenness_centrality()` estimates the scores from a sample.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         scores = rust.current_flow_betweenness_centrality(
             self._graph, normalized=normalized, weighted=self._use_weights(weighted)
