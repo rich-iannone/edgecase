@@ -70588,6 +70588,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#every-simple-path) compares the methods that
+        list every path between two nodes.
         """
         s = self._resolve_node_id(source, auto_create=False)
         t = self._resolve_node_id(target, auto_create=False)
