@@ -92539,6 +92539,17 @@ class Graph:
         round(graph.assortativity_nominal("team"), 3)
         ```
 
+        Each node colored by its team. Only the middle link crosses between them:
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(layout="pos", color_by="team", label_by="label", height=240)
+        ```
+
         ### Clubs, not ages
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -92562,6 +92573,9 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) measures how strongly
+        the karate club's two factions keep to themselves.
         """
         return self._graph.get_assortativity_nominal(attribute)
 
