@@ -861,8 +861,9 @@ class TestDocstringScenarios:
         groups = ec.Graph().add_random_partition_graph(
             sizes=[10, 20, 40], p_in=0.4, p_out=0.02, seed=3
         )
-        means = groups.get_node_df().group_by("community").agg(pl.col("degree").mean().round(1))
-        assert means.sort("community")["degree"].to_list() == [4.7, 9.2, 16.4]
+        # unrounded: 9.25 is a tie, which older polars rounds up and newer polars to even
+        means = groups.get_node_df().group_by("community").agg(pl.col("degree").mean())
+        assert means.sort("community")["degree"].to_list() == pytest.approx([4.7, 9.25, 16.4])
         unequal = ec.Graph().add_random_partition_graph(
             sizes=[6, 12, 24], p_in=0.4, p_out=0.02, seed=3
         )
