@@ -95043,6 +95043,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) explains global efficiency,
+        which this method computes within each node's neighborhood.
         """
         from edgecase._core import local_efficiency
 
