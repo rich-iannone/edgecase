@@ -81379,6 +81379,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) compares the
+        measures of connectivity and minimum cuts.
         """
         cuts = rust.all_node_cuts(self._graph)
         if self._recording_depth == 0:
