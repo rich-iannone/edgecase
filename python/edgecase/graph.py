@@ -38115,6 +38115,9 @@ class Graph:
         ```{python}
         friends.plot(highlight=people, color_by="club", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity)
+        compares four karate club members in a matrix that has two blocks.
         """
         if nodes is None:
             nodes = []
