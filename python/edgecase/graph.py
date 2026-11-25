@@ -84895,6 +84895,9 @@ class Graph:
             highlight=["USD", "CAD"], label_by="label", curved_edges=True, seed=4
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) explains attracting
+        components, which a random walk can enter but never leave.
         """
         with self._no_recording():
             comps = self.attracting_components()
