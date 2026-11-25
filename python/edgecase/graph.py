@@ -59566,6 +59566,9 @@ class Graph:
 
         These are random failures. A targeted attack does far more damage: deleting the seven
         members with the most friends, 20% of the club, leaves a largest piece of only six.
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#robustness) compares how networks
+        fall apart under failure and attack.
         """
         from edgecase._core import node_percolation as rust_np
 
