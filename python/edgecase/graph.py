@@ -1921,6 +1921,10 @@ class Graph:
         ```{python}
         bank.play(seed=2)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#one-at-a-time-1) adds edges with a
+        relationship type and a weight, and creates a missing endpoint with
+        `auto_create_nodes=True`.
         """
         # Handle direct Rust Edge objects (internal/advanced use only)
         if isinstance(source, rust.Edge):
