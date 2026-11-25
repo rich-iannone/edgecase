@@ -10985,28 +10985,54 @@ class Graph:
         ValueError
             If `n=` is less than `3` or `repeats=` is negative.
 
+        See Also
+        --------
+        add_generalized_petersen_graph : Add a generalized Petersen graph.
+        add_named_graph : Add a well-known graph by name.
+        layout_circular : Place the nodes evenly around a circle.
+
         Examples
         --------
-        `[5, -5]^7` is the Heawood graph: 14 nodes, every node of degree `3`, and shortest cycle
-        of length `6`:
+        LCF notation describes a cubic graph as a ring of `n` nodes in which each node has one
+        more edge, a chord to the node `shift` steps further round (or back, if negative). The
+        `shifts=` list is repeated `repeats=` times around the ring. `[5, -5]^7` is the Heawood
+        graph: `14` nodes of degree `3`, and shortest cycle of length `6`:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_lcf_graph(n=14, shifts=[5, -5], repeats=7)
+        heawood = ec.Graph().add_named_graph("heawood")
 
-        graph.count_edges(), graph.girth(), graph.is_isomorphic(
-            ec.Graph().add_named_graph("heawood")
-        )
+        graph.count_edges(), graph.girth(), graph.is_isomorphic(heawood)
         ```
 
-        `[3, -3]^4` on eight nodes gives the cube:
+        ### Chords around a ring
+
+        Drawn with the ring as a circle, each chord can be read off the notation. `[3, -3]^4` on
+        the left is the cube, and the Heawood graph is on the right:
 
         ```{python}
         cube = ec.Graph().add_lcf_graph(n=8, shifts=[3, -3], repeats=4)
 
         cube.is_isomorphic(ec.Graph().add_hypercube_graph(d=3))
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        cube.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         shifts = list(shifts)
         if n < 3:
