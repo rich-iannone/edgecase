@@ -62476,35 +62476,36 @@ class Graph:
         )
         ```
 
-        With the courses in columns by number, STAT201 is the darkest of the 200-level column:
+        With the courses in columns by number, STAT201 is colored like the 300-level courses:
 
         ```{python}
         courses.plot(layout="pos", color_by="trophic_levels", label_by="label")
         ```
 
-        ### Layers of citations
+        ### Levels in a food web
 
-        `citations()` points each paper to the papers it cites. Reversed, the edges point from a
-        paper to the later papers that build on it, and the two oldest papers, which cite
-        nothing, are the basal ones. Osei 2021 sits highest. The survey, Hughes 2020, is the
-        second-newest paper but only fifth: it cites papers from every layer, back to both of
-        the oldest, and they pull its average down:
+        `food_web()` is a made-up woodland food web, with an edge from each food to each species
+        that eats it. The plants are at level 1 and the animals that eat only plants at level 2.
+        The Fox eats frogs and shrews (level 3) and rabbits (level 2), so it sits at 3.67, above
+        the Hawk at 3.5:
 
         ```{python}
-        cited = ec.citations().reverse().trophic_levels()
+        web = ec.food_web().trophic_levels()
 
         (
-            cited.get_node_df()
-            .select("label", "year", "trophic_levels")
+            web.get_node_df()
+            .select("label", "kind", "trophic_levels")
             .sort("trophic_levels", descending=True)
             .head(5)
         )
         ```
 
-        On the timeline, the levels mostly rise with the years:
+        The web's own drawing puts each species at the height of its level:
 
         ```{python}
-        cited.plot(layout="pos", color_by="trophic_levels", label_by="label")
+        web.plot(
+            layout="pos", color_by="trophic_levels", label_by="label", height=360
+        )
         ```
         """
         scores = rust.trophic_levels(self._graph, weighted=self._use_weights(weighted))
