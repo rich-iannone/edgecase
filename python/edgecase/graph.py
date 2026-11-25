@@ -73972,6 +73972,43 @@ class Graph:
             label_by="label", height=420,
         )
         ```
+
+        ### What each predator lives on
+
+        `food_web()` is a made-up woodland food web, with an edge from each food to each species
+        that eats it. A predator's ancestors are every species its food comes from, directly or
+        not. The Hawk on the left lives on 8 species and the Fox on the right on 7, and only the
+        Bramble, the Grass and the Rabbit feed both. The Hawk depends on the Oak, and the Fox
+        doesn't:
+
+        ```{python}
+        web = ec.food_web()
+        hawk, fox = web.ancestors("Hawk"), web.ancestors("Fox")
+
+        shared = sorted(web.get_label_from_id(n) for n in set(hawk) & set(fox))
+        len(hawk), len(fox), shared
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        web.plot(
+            layout="pos", highlight={"accent": "Hawk", "soft": hawk},
+            label_by="label", width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        web.plot(
+            layout="pos", highlight={"accent": "Fox", "soft": fox},
+            label_by="label", width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
+
+        [Traversals](../user-guide/traversals.qmd#everything-upstream-and-downstream) finds what a
+        course opens up and what it requires.
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         result = rust.ancestors(self._graph, node_id)
