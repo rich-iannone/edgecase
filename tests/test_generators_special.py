@@ -914,7 +914,9 @@ class TestDocstringScenarios:
             if max(t.degrees(return_dict=True).values()) <= 4
         ]
         assert len(octanes) == 18
-        assert ec.Graph.count_nonisomorphic_trees(100) == nx.number_of_nonisomorphic_trees(100)
+        # OEIS A000055; NetworkX 3.4 (the last release for Python 3.10) counts by enumerating
+        # every tree, which never finishes at this size
+        assert ec.Graph.count_nonisomorphic_trees(100) == 630134658347465720563607281977639527019590
         assert [ec.Graph.count_nonisomorphic_trees(n) for n in (5, 10, 15)] == [3, 106, 7741]
 
     def test_tree_degree_sequences(self):

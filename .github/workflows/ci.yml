@@ -90,6 +90,8 @@ jobs:
   python-test:
     name: Python ${{ matrix.python-version }} (${{ matrix.os }})
     runs-on: ${{ matrix.os }}
+    # the tests take under 10 minutes; a hung test should fail the job, not hold it for hours
+    timeout-minutes: 30
     strategy:
       fail-fast: false
       matrix:
@@ -129,6 +131,7 @@ jobs:
   minimum-deps:
     name: Minimum dependency versions
     runs-on: ubuntu-latest
+    timeout-minutes: 30
     steps:
       - uses: actions/checkout@v7
 
