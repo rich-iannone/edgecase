@@ -10855,9 +10855,17 @@ class Graph:
         ValueError
             If `r=` or `n=` is less than `1`.
 
+        See Also
+        --------
+        add_balanced_tree : Add a balanced tree.
+        add_binomial_tree : Add a binomial tree.
+        is_tree : Check whether the graph is a tree.
+
         Examples
         --------
-        A binary tree of six nodes fills the first two levels and starts the third:
+        A full `r`-ary tree of `n` nodes fills each level, every node with `r` children, before it
+        starts the next one. A binary tree of six nodes fills the first two levels and starts the
+        third:
 
         ```{python}
         import edgecase as ec
@@ -10867,11 +10875,41 @@ class Graph:
         graph.get_edges_str_repr(use_labels=True)
         ```
 
-        As in a heap, node `i`'s children are nodes `2i` and `2i + 1` (counting from `1`):
+        As in a heap, the children of node `i` are nodes `2i` and `2i + 1`:
 
         ```{python}
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_successors("2"))
+        sorted(graph.get_label_from_id(n) for n in graph.get_successors("2"))
         ```
+
+        ### Two children or three
+
+        A binary tree on the left and a ternary tree on the right, with `13` nodes and `12` edges
+        each. The binary tree needs three levels below the root, and its farthest leaves are `6`
+        steps apart. The ternary tree's two levels are full, and its leaves are at most `4` steps
+        apart:
+
+        ```{python}
+        binary = ec.Graph().add_full_rary_tree(r=2, n=13)
+        ternary = ec.Graph().add_full_rary_tree(r=3, n=13)
+
+        binary.diameter(), ternary.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        binary.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        ternary.layout_kamada_kawai().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if r < 1:
             raise ValueError("Branching factor r must be at least 1")
