@@ -208,3 +208,38 @@ class TestRobustnessEdgeCases:
         curve = g.network_robustness(strategy="degree", return_dict=True)
         # Initially largest component is 2/4 = 0.5
         assert curve[0][1] == 0.5
+
+
+# ===========================================================================
+# network_robustness — values quoted in the docstring
+# ===========================================================================
+
+
+class TestRobustnessDocstring:
+    def test_two_diamonds(self):
+        g = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D")]
+            + [("D", "E"), ("D", "F"), ("E", "G"), ("F", "G")]
+        )
+        degree = g.network_robustness(strategy="degree", steps=3, return_dict=True)
+        random = g.network_robustness(strategy="random", steps=3, seed=1, return_dict=True)
+        assert [round(share, 2) for _, share in degree] == [1.0, 0.43, 0.43, 0.43]
+        assert [round(share, 2) for _, share in random] == [1.0, 0.86, 0.71, 0.43]
+
+    def test_power_grid(self):
+        grid = ec.power_grid()
+        n = grid.count_nodes()
+        assert n == 4941
+        shares = {
+            strategy: [
+                round(curve[n * pct // 100][1], 3)
+                for curve in [
+                    grid.network_robustness(
+                        strategy=strategy, steps=n // 10, seed=1, return_dict=True
+                    )
+                ]
+                for pct in [1, 5, 10]
+            ]
+            for strategy in ["random", "degree"]
+        }
+        assert shares == {"random": [0.985, 0.923, 0.812], "degree": [0.941, 0.518, 0.136]}
