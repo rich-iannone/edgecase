@@ -59396,7 +59396,8 @@ class Graph:
                 .name.suffix("_rank")
             )
             .select(
-                "label", "percolation_centrality_rank", "betweenness_centrality_rank"
+                "label", "percolation_centrality_rank",
+                "betweenness_centrality_rank",
             )
             .sort("percolation_centrality_rank")
             .head(5)
@@ -59408,10 +59409,15 @@ class Graph:
         administrator (member 33):
 
         ```{python}
-        club.plot(layout="pos", color_by="percolation_centrality", label_by="label")
+        club.plot(
+            layout="pos", color_by="percolation_centrality", label_by="label"
+        )
         ```
 
         Recompute with updated states as the outbreak spreads.
+
+        [Centrality](../user-guide/centrality.qmd#spreaders) compares the measures designed for
+        spreading processes.
         """
         from edgecase._core import percolation_centrality as rust_pc
 
