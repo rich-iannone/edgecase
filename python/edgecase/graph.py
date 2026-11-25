@@ -85608,6 +85608,20 @@ class Graph:
         rounds
         ```
 
+        Each game colored by its round. The three colors meet at every player:
+
+        ```{python}
+        spots = {"Ann": (0, 0), "Bob": (3, 0), "Cy": (2, 1.5), "Dee": (1, 1.5)}
+        tour.set_node_attrs(
+            "pos", {tour.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        tour.set_edge_attrs("round", tour.edge_coloring()).plot(
+            layout="pos", edge_color_by="round", edge_width=4, edge_opacity=1,
+            label_by="label", height=240,
+        )
+        ```
+
         ### A league schedule
 
         A league of six clubs plays a round robin, 15 games in all. Each club plays five, so the
@@ -85635,6 +85649,9 @@ class Graph:
         ```
 
         `is_valid_edge_coloring()` checks a five-round schedule built by hand.
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#edge-coloring)
+        schedules a round-robin tournament of five teams.
         """
         from edgecase._core import edge_coloring as rust_edge_coloring
 
