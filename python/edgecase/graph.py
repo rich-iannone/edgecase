@@ -9701,6 +9701,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if m < 2:
             raise ValueError("Lollipop clique must have at least 2 nodes")
