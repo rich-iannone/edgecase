@@ -680,9 +680,11 @@ def _remove_overlaps(
                                 angle = rng.uniform(0, 2 * math.pi)
                                 dx, dy = math.cos(angle), math.sin(angle)
                                 dist = 0.01
+                                ux, uy = dx, dy
+                            else:
+                                ux, uy = dx / dist, dy / dist
                             overlap = min_dist - dist
                             push = overlap * 0.55
-                            ux, uy = dx / dist, dy / dist
                             px[nid] += ux * push
                             py[nid] += uy * push
                             px[other] -= ux * push
