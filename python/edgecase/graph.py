@@ -87521,11 +87521,23 @@ class Graph:
         {method: km(route) for method, route in routes.items()}
         ```
 
+        The greedy route reaches Dunholt with Millbrook still to visit, so it goes back through
+        Elmwick and Fenmoor, and comes home over Calder and Bramford a second time:
+
+        ```{python}
+        towns.plot(layout="pos", highlight=routes["greedy"], label_by="label")
+        ```
+
+        The shortest round trip visits each town once, coming home from Dunholt to Ashby:
+
         ```{python}
         best = routes["threshold_accepting"]
 
         towns.plot(layout="pos", highlight=best, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#the-traveling-salesperson-problem) plans a
+        sales trip from Paris, and compares the methods on a tour of all fourteen cities.
         """
         if method is None:
             method = "threshold_accepting" if self.is_directed() else "christofides"
