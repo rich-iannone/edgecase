@@ -57352,6 +57352,9 @@ class Graph:
 
         citations.plot(layout="pos", color_by="pagerank", label_by="label")
         ```
+
+        [Centrality](../user-guide/centrality.qmd#pagerank) compares PageRank with the votes
+        received in Wikipedia's administrator elections.
         """
         result_ids = rust.pagerank(
             self._graph,
