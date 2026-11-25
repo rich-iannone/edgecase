@@ -2999,6 +2999,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="Landlord", label_by="label", seed=3)
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#deleting-nodes-and-edges) deletes a
+        station from a transit graph along with its edges.
         """
         # NodeNotFoundError is also a KeyError, which this method has always raised
         node_id = self._resolve_node_id(node, auto_create=False)
