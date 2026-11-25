@@ -21957,6 +21957,12 @@ class Graph:
         `GraphMatcher(G, pattern).subgraph_is_isomorphic()` and `subgraph_is_monomorphic()`
         answer the same questions.
 
+        See Also
+        --------
+        subgraph_isomorphisms : List the occurrences rather than test for one.
+        largest_common_subgraph : The largest part of a pattern that does occur.
+        is_isomorphic : Compare two whole graphs.
+
         Examples
         --------
         A triangle contains a path of three nodes as a subgraph, but not as an *induced*
@@ -21975,6 +21981,43 @@ class Graph:
 
         ```{python}
         ec.Graph().add_cycle_graph(4).is_subgraph_isomorphic(path)
+        ```
+
+        ### Which molecules contain a benzene ring
+
+        With benzene itself as the pattern, each of `molecules()` is checked for a ring of six
+        atoms, then for a ring of six carbons (`node_attr="element"`), then for a ring of six
+        carbons with aromatic bonds (adding `edge_attr="bond"`):
+
+        ```{python}
+        import polars as pl
+
+        molecules = ec.molecules()
+        benzene = molecules["benzene"]
+
+        pl.DataFrame(
+            [
+                {
+                    "molecule": name,
+                    "six_ring": molecule.is_subgraph_isomorphic(benzene),
+                    "carbons": molecule.is_subgraph_isomorphic(benzene, node_attr="element"),
+                    "aromatic": molecule.is_subgraph_isomorphic(
+                        benzene, node_attr="element", edge_attr="bond"
+                    ),
+                }
+                for name, molecule in molecules.items()
+            ]
+        )
+        ```
+
+        Cyclohexane has the ring of carbons, but with single bonds. Caffeine has a ring of six,
+        but two of its atoms are nitrogens:
+
+        ```{python}
+        caffeine = molecules["caffeine"]
+        ring = list(caffeine.subgraph_isomorphisms(benzene, limit=1)[0].values())
+
+        caffeine.plot(color_by="element", highlight=ring + ring[:1], label_by="label", seed=1)
         ```
         """
         found = self._match_pattern(pattern, induced, node_attr, edge_attr, limit=1)
