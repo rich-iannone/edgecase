@@ -93342,6 +93342,9 @@ class Graph:
             label_by="label", seed=1,
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) compares
+        the matrices of a graph and the methods each suits.
         """
         matrix, ids = rust.laplacian_matrix(self._graph, True, self._use_weights(weighted))
         self._record_matrix_step(
