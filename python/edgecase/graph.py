@@ -6574,6 +6574,9 @@ class Graph:
 
         ties.plot(layout="pos", label_by="label", width=820, height=480)
         ```
+
+        [Layouts](../user-guide/layouts.qmd#layered-layouts) draws a small organization in layers
+        from the top down.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         swap = self._layout_align(align)
