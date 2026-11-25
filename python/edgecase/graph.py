@@ -6244,6 +6244,9 @@ class Graph:
             height=720,
         )
         ```
+
+        [Layouts](../user-guide/layouts.qmd#layered-layouts) draws the Southern Women network with
+        the women on one side and the events on the other.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         swap = self._layout_align(align)
