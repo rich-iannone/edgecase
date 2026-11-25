@@ -21551,6 +21551,9 @@ class Graph:
         ```{python}
         graph.has_node(99)
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#referring-to-nodes) fetches the same node by
+        its ID and by its label.
         """
         node_id = self._resolve_node_id(node, auto_create=False)
         return self._graph.get_node(node_id)
