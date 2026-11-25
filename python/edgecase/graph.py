@@ -71322,6 +71322,9 @@ class Graph:
 
         metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) lists it with the
+        other methods that expose the parts of a search.
         """
         self._check_traversal_args(None, mode)
         if width is not None and (
