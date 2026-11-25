@@ -47997,13 +47997,13 @@ class Graph:
 
     def gwas_pipeline(
         self,
-        scores: dict[int, float],
+        scores: dict[Union[int, str], float],
         smooth_alpha: float = 0.5,
         smooth_max_iter: int = 100,
         community_method: str = "louvain",
         community_resolution: float = 1.0,
         enrichment_attr: str | None = None,
-        enrichment_labels: list[int] | None = None,
+        enrichment_labels: list[Union[int, str]] | None = None,
     ) -> dict:
         """
         Run a GWAS-style network analysis pipeline.
@@ -48043,9 +48043,10 @@ class Graph:
         Parameters
         ----------
         scores
-            Dictionary mapping node IDs to raw scores (e.g., GWAS -log10(p-value) or differential
-            expression fold change). Nodes not in the dictionary start at `0.0`. Higher scores
-            should mean stronger signal, because modules are ranked by descending mean score.
+            Dictionary mapping nodes (IDs or string labels) to raw scores (e.g., GWAS
+            -log10(p-value) or differential expression fold change). Nodes not in the dictionary
+            start at `0.0`. Higher scores should mean stronger signal, because modules are ranked
+            by descending mean score.
         smooth_alpha
             Smoothing strength between `0` and `1`, as in `network_smooth()`. The default is
             `0.5`. Higher values give more weight to network neighbors; `0` skips smoothing and
@@ -48066,8 +48067,9 @@ class Graph:
             lacking the attribute are not. Giving it switches on the enrichment step. The
             default, `None`, skips it unless `enrichment_labels=` is given.
         enrichment_labels
-            Alternatively, an explicit list of node IDs to use as the positive set. Giving it
-            switches on the enrichment step. Use either this or `enrichment_attr=`, not both.
+            Alternatively, an explicit list of nodes (IDs or string labels) to use as the
+            positive set. Giving it switches on the enrichment step. Use either this or
+            `enrichment_attr=`, not both.
 
         Returns
         -------
@@ -48090,63 +48092,83 @@ class Graph:
             If `community_method=` is not `"louvain"` or `"walktrap"`, if `smooth_alpha=` is
             outside `[0, 1]`, or if both `enrichment_attr=` and `enrichment_labels=` are given.
 
+        See Also
+        --------
+        network_smooth : The smoothing step on its own.
+        cmty_louvain : The community detection step on its own.
+        module_annotation_enrichment : Test each module for an annotation, with p-values.
+
         Examples
         --------
-        Three four-gene cliques are joined in a chain. Only the first clique (`g0` to `g3`) has
-        strong scores. Louvain recovers the three cliques as modules, and the module containing
-        the scored genes comes first in `module_scores` with a far higher mean:
+        Three four-gene cliques are joined in a chain, and only the first has strong scores.
+        Louvain finds the three cliques as modules, and the module of the scored genes comes first
+        with a far higher mean:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes([f"g{i}" for i in range(12)])
-        for block in [range(0, 4), range(4, 8), range(8, 12)]:
-            for x in block:
-                for y in block:
-                    if x < y:
-                        g.add_edge(f"g{x}", f"g{y}")
-        g.add_edge("g3", "g4").add_edge("g7", "g8")
+        from itertools import combinations
 
-        scores = {g.get_id_from_label(f"g{i}"): (5.0 if i < 4 else 0.5) for i in range(12)}
+        cliques = [pair for block in ["abcd", "efgh", "ijkl"] for pair in combinations(block, 2)]
+        graph = ec.Graph.from_edges(cliques + [("d", "e"), ("h", "i")])
 
-        result = g.gwas_pipeline(scores)
-        {cid: round(s, 3) for cid, s in result["module_scores"].items()}
-        ```
+        scores = {gene: 5.0 if gene in "abcd" else 0.5 for gene in "abcdefghijkl"}
+        result = graph.gwas_pipeline(scores)
 
-        The module that comes second is the middle clique: it is next to the scored clique,
-        so a little of their signal leaks into it. Each module's members are listed in
-        `communities`:
-
-        ```{python}
         {
-            cid: sorted(g.get_label_from_id(nid) for nid in members)
-            for cid, members in result["communities"].items()
+            module: (sorted(graph.get_label_from_id(n) for n in result["communities"][module]),
+                     round(score, 3))
+            for module, score in result["module_scores"].items()
         }
         ```
 
-        Supplying a set of known genes adds a fold-enrichment value per module. Two of the
-        three known genes fall in the first clique, twice what an even spread would put there:
+        ### Which modules carry the signal
+
+        `proteins()` is a small protein interaction network, with each protein's change in
+        expression in diseased tissue and five known disease genes. The pipeline smooths the
+        changes, splits the network into modules and ranks the modules by their mean smoothed
+        change. With `enrichment_attr=` it also gives the fold enrichment of disease genes in each:
 
         ```{python}
-        known = [g.get_id_from_label(label) for label in ["g0", "g1", "g5"]]
-        result = g.gwas_pipeline(scores, enrichment_labels=known)
-        result["enrichment"]
+        proteins = ec.proteins()
+        result = proteins.gwas_pipeline(
+            proteins.get_node_attrs("expression"), enrichment_attr="disease_gene"
+        )
+
+        {
+            module: (round(score, 3), round(result["enrichment"][module], 2))
+            for module, score in result["module_scores"].items()
+        }
         ```
 
-        The same positive set can come from a node attribute instead, here a `known` flag:
+        The top module is the DNA repair cluster, with three of the five disease genes among its
+        seven proteins, 2.66 times what an even spread would put there. The signaling module,
+        with no disease gene, comes last. Drawn with each protein shaded by its module's score:
 
         ```{python}
-        g.set_node_attrs("known", {nid: True for nid in known})
-        g.gwas_pipeline(scores, enrichment_attr="known")["enrichment"]
+        proteins.set_node_attrs(
+            "module_score",
+            {
+                node: result["module_scores"][module]
+                for module, nodes in result["communities"].items()
+                for node in nodes
+            },
+        )
+
+        proteins.plot(layout="pos", color_by="module_score", label_by="label")
         ```
+
+        [Network biology](../user-guide/network-biology.qmd#a-complete-pipeline) runs the pipeline
+        on simulated association scores.
         """
         from edgecase._core import network_smooth as _network_smooth
 
         if enrichment_attr is not None and enrichment_labels is not None:
             raise ValueError("Give either enrichment_attr= or enrichment_labels=, not both")
 
-        smoothed = _network_smooth(self._graph, scores, smooth_alpha, smooth_max_iter, 1e-6)
+        smoothed = _network_smooth(
+            self._graph, self._seed_ids(scores), smooth_alpha, smooth_max_iter, 1e-6
+        )
 
         if community_method == "louvain":
             community_result = self.cmty_louvain(resolution=community_resolution, return_dict=True)
@@ -48183,7 +48205,7 @@ class Graph:
                     nid for nid, value in self.get_node_attrs(enrichment_attr).items() if value
                 }
             else:
-                positive_set = set(enrichment_labels)
+                positive_set = {self._node_id_or_raise(n) for n in enrichment_labels}
             total_positive = len(positive_set)
             total_nodes = len(smoothed)
             for comm_id, members in communities.items():
