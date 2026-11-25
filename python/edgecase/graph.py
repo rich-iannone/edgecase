@@ -50904,9 +50904,16 @@ class Graph:
         NetworkX's `full_join` requires disjoint node names (or a `rename=` prefix); EdgeCase
         renumbers automatically.
 
+        See Also
+        --------
+        disjoint_union : Combine two graphs, keeping their nodes apart.
+        corona_product : Join each node to its own copy of another graph.
+        add_complete_bipartite_graph : Add a complete bipartite graph.
+
         Examples
         --------
-        A wheel with five spokes is a 5-cycle joined with a single hub:
+        A full join is a disjoint union plus an edge from every node of one graph to every node of
+        the other. Joining a 5-cycle to a single hub gives a wheel:
 
         ```{python}
         import edgecase as ec
@@ -50918,12 +50925,31 @@ class Graph:
         wheel.count_edges(), wheel.get_degree("hub")
         ```
 
-        Joining two edgeless graphs gives a complete bipartite graph:
+        ### A coach for the climbers
+
+        `ec.friends()` is a network of friendships among the members of a chess club and a climbing
+        club. The climbing club's 12 members have 18 friendships among them. A new coach who
+        befriends every climber is a full join with a one-node graph, which adds 12 edges:
 
         ```{python}
-        left = ec.Graph().add_nodes(["a", "b"])
-        right = ec.Graph().add_nodes(["x", "y", "z"])
-        left.full_join(right).count_edges(), left.full_join(right).is_bipartite()
+        friends = ec.friends()
+        nodes = friends.get_node_df()
+        climbers = nodes.filter(club="Climbing")["id"].to_list()
+
+        climbing = friends.subgraph(climbers)
+        coach = ec.Graph().add_nodes(["Coach"])
+
+        team = climbing.full_join(coach)
+        team.count_edges(), team.get_degree("Coach")
+        ```
+
+        ```{python}
+        coach_id = team.get_id_from_label("Coach")
+
+        team.plot(
+            label_by="label", highlight=["Coach"], seed=1,
+            highlight_edges=[(coach_id, n) for n in team.get_neighbors(coach_id)],
+        )
         ```
         """
         if self.is_directed() != other.is_directed():
