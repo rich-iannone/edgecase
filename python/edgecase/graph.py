@@ -23958,6 +23958,20 @@ class Graph:
         [label(n) for n in people], [label(n) for n in clubs]
         ```
 
+        Each node colored by its side, with the first set in the bottom row. Every edge runs
+        between the two rows:
+
+        ```{python}
+        side = {n: "first" for n in people} | {n: "second" for n in clubs}
+        graph.set_node_attrs("side", side)
+
+        graph.layout_bipartite(
+            nodes=people, align="horizontal", aspect_ratio=0.5
+        ).plot(
+            layout="pos", color_by="side", label_by="label", height=240
+        )
+        ```
+
         ### Women and events
 
         `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
@@ -23981,6 +23995,9 @@ class Graph:
             layout="pos", color_by="bipartite", label_by="label", height=900
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#bipartite-graphs)
+        splits the Southern Women network into women and events.
         """
         return rust.bipartite_sets(self._graph)
 
