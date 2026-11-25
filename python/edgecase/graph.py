@@ -28143,6 +28143,11 @@ class Graph:
         ValueError
             If graph is undirected.
 
+        See Also
+        --------
+        count_mutual_node_pairs : Count the pairs joined in both directions.
+        reciprocity : Give the share of edges that are returned.
+
         Examples
         --------
         This is the complement of `count_mutual_node_pairs()`: here `A -> C` is the only
