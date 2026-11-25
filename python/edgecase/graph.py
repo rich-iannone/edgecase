@@ -28734,6 +28734,9 @@ class Graph:
         extras = flights.count_multi_edges()
         extras, flights.count_edges() - extras
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#parallel-edges-and-self-loops) counts the
+        parallel edges and self-loops of a payments graph, and names the methods that remove them.
         """
         return self._graph.count_multi_edges()
 
