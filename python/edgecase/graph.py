@@ -90886,6 +90886,9 @@ class Graph:
             layout="pos", highlight=heads, label_by="label", width=820, height=640
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the tests and encodings for
+        trees.
         """
         value = rust.is_branching(self._graph)
         if self._recording_depth == 0:
