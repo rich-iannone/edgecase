@@ -54842,34 +54842,37 @@ class Graph:
 
         Examples
         --------
-        `A` points to both `B` and `C`, so its out-degree is `2`:
+        "A" points to both "B" and "C", so its out-degree is `2`, and "B" has none:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("A", "C")])
+        graph = ec.Graph.from_edges([("A", "B"), ("A", "C")], directed=True)
+
+        graph.get_out_degree("A"), graph.get_out_degree("B")
+        ```
+
+        ### Who pays
+
+        In a month of payments between bank accounts, each edge runs from payer to payee, so an
+        account's out-degree is the number of payments it made. Acme, the employer, pays wages to
+        4 people:
+
+        ```{python}
+        payments = ec.payments()
+
+        payments.get_out_degree("Acme")
+        ```
+
+        The accounts that make no payments at all are where money stops. Here they're three of the
+        four businesses:
+
+        ```{python}
+        sorted(
+            payments.get_label_from_id(account)
+            for account in payments.get_node_ids()
+            if payments.get_out_degree(account) == 0
         )
-
-        graph.get_out_degree("A")
-        ```
-
-        "B" has no outgoing edges at all:
-
-        ```{python}
-        graph.get_out_degree("B")
-        ```
-
-        Collecting the nodes with out-degree `0` gives the sinks of the graph:
-
-        ```{python}
-        [
-            graph.get_label_from_id(nid)
-            for nid in graph.get_node_ids()
-            if graph.get_out_degree(nid) == 0
-        ]
         ```
         """
         if not self._graph.is_directed:
