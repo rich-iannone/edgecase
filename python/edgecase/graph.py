@@ -8243,39 +8243,80 @@ class Graph:
         ValueError
             If `rows=` or `cols=` is less than `1`.
 
+        See Also
+        --------
+        add_grid_graph : Add a grid graph in any number of dimensions.
+        add_ladder_graph : Add a ladder graph.
+        cartesian_product : Join pairs that move in one graph at a time.
+
         Examples
         --------
-        Edge count depends on both dimensions rather than a simple node-count formula: a
-        3x4 grid has 9 horizontal edges (3 rows x 3 links per row) plus 8 vertical edges
-        (4 columns x 2 links per column), for 17 edges in total:
+        A grid of `rows` by `cols` nodes joins each node to the nodes beside it. Each row has
+        `cols - 1` edges and each column `rows - 1`, so a 3 x 4 grid has `9 + 8 = 17`. The corners
+        have degree `2`, the other nodes on the border `3`, and the inner nodes `4`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_grid_2d(3, 4)  # 3x4 grid
+        grid = ec.Graph().add_grid_2d(rows=3, cols=4)
 
-        graph.count_nodes(), graph.count_edges()
+        grid.count_edges(), sorted(grid.get_node_df()["degree"].to_list())
         ```
 
-        The `"(row,col)"` labels make each cell's position easy to read. In a 3x3 grid the
-        corners have degree `2`, the middle of each side degree `3`, and the center `"(1,1)"`
-        degree `4`:
-
-        ```{python}
-        grid = ec.Graph().add_grid_2d(rows=3, cols=3)
-
-        {grid.get_label_from_id(nid): grid.get_degree(nid) for nid in sorted(grid.get_node_ids())}
-        ```
-
-        In a directed graph each edge points right or down, so the top-left corner `"(0,0)"` is
+        In a directed graph each edge points right or down, so the top-left corner, `"(0,0)"`, is
         the only node with no incoming edges:
 
         ```{python}
-        directed = ec.Graph(directed=True).add_grid_2d(rows=2, cols=3)
-
-        directed.get_edges_str_repr(use_labels=True)
+        ec.Graph(directed=True).add_grid_2d(rows=2, cols=2).get_edges_str_repr(
+            use_labels=True
+        )
         ```
+
+        ### Square or long
+
+        A 4 x 4 grid and a 2 x 8 grid have 16 nodes each, but the long grid has fewer edges, 22
+        against 24, and its far corners are further apart, 8 edges against 6. Each node's position
+        comes from its `"(row,col)"` label, so the plots need no labels:
+
+        ```{python}
+        square = ec.Graph().add_grid_2d(rows=4, cols=4)
+        long = ec.Graph().add_grid_2d(rows=2, cols=8)
+
+        for grid in (square, long):
+            cells = grid.get_node_df()
+            pos = {
+                n: (int(label[3]), -int(label[1]))
+                for n, label in zip(cells["id"], cells["label"])
+            }
+            grid.set_node_attrs("pos", pos)
+
+        (
+            square.count_edges(),
+            long.count_edges(),
+            square.diameter(),
+            long.diameter(),
+        )
+        ```
+
+        The square grid on the left and the long one on the right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        square.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        long.plot(
+            layout="pos", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if rows < 1 or cols < 1:
             raise ValueError("Grid must have at least 1 row and 1 column")
