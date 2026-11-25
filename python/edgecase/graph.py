@@ -95258,6 +95258,9 @@ class Graph:
             color_by="element", label_by="label", seed=1
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#distance-based-indices) adds up the distances
+        on a road network in hops and in kilometers.
         """
         from edgecase._core import hyper_wiener_index
 
