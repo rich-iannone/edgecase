@@ -49644,6 +49644,9 @@ class Graph:
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#changing-direction) explains which of
+        two opposite edges is kept, and why their weights aren't added.
         """
         result = Graph._from_rust(self._graph.to_undirected())
 
