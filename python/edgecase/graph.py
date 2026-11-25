@@ -39977,6 +39977,9 @@ class Graph:
         ```{python}
         routes.is_complete_split_graph(), routes.is_split_graph()
         ```
+
+        [Structural properties](../user-guide/structure.qmd#properties) lists `is_split_graph()`
+        with the other tests of graph classes, which are useful as guards.
         """
         nbrs, deg = self._simple_degrees()
         n = len(nbrs)
