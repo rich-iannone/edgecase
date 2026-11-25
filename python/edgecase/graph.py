@@ -61407,7 +61407,9 @@ class Graph:
         (
             graph.edge_current_flow_betweenness_centrality()
             .get_edge_df(labels=True)
-            .select("source", "target", "edge_current_flow_betweenness_centrality")
+            .select(
+                "source", "target", "edge_current_flow_betweenness_centrality"
+            )
             .sort("edge_current_flow_betweenness_centrality", descending=True)
         )
         ```
@@ -61440,7 +61442,8 @@ class Graph:
                 .name.suffix("_rank")
             )
             .select(
-                "source", "target", "edge_current_flow_betweenness_centrality_rank",
+                "source", "target",
+                "edge_current_flow_betweenness_centrality_rank",
                 "edge_betweenness_centrality_rank",
             )
             .sort("edge_current_flow_betweenness_centrality_rank")
@@ -61458,6 +61461,9 @@ class Graph:
             edge_color_by="edge_current_flow_betweenness_centrality",
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         scores = rust.edge_current_flow_betweenness_centrality(
             self._graph, normalized, self._use_weights(weighted)
