@@ -74440,9 +74440,20 @@ class Graph:
 
         ```{python}
         courses = ec.courses()
+        chain = courses.dag_longest_path()
 
-        [courses.get_label_from_id(n) for n in courses.dag_longest_path()]
+        [courses.get_label_from_id(n) for n in chain]
         ```
+
+        ```{python}
+        stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages).plot(
+            layout="pos", highlight=chain, label_by="label", height=420,
+        )
+        ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#the-critical-path) finds the critical path
+        of building a house, and the slack of every task.
         """
         path, length = rust.dag_longest_path(self._graph)
 
