@@ -83993,6 +83993,9 @@ class Graph:
             edge_width_by="loss", width=700, height=360,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#flows) finds the maximum flow
+        through a network of pipes and the bottleneck that limits it.
         """
         from edgecase._core import max_flow_value as _max_flow_value
 
