@@ -89985,7 +89985,8 @@ class Graph:
 
         ```{python}
         proteins.plot(
-            layout="pos", highlight={"accent": disease, "soft": added}, label_by="label"
+            layout="pos", highlight={"accent": disease, "soft": added},
+            label_by="label",
         )
         ```
 
@@ -90001,7 +90002,8 @@ class Graph:
         ]
 
         proteins.plot(
-            layout="pos", highlight={"accent": disease, "soft": added}, label_by="label"
+            layout="pos", highlight={"accent": disease, "soft": added},
+            label_by="label",
         )
         ```
 
