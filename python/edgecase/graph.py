@@ -6849,6 +6849,9 @@ class Graph:
         :::
 
         A graph that isn't planar raises an error; check first with `is_planar()`.
+
+        [Layouts](../user-guide/layouts.qmd#layouts-from-structure) explains why a force-directed
+        layout often draws a planar graph better.
         """
         scale, center = self._layout_frame(scale, center)
         ids, pairs, _ = self._planarity_input()
