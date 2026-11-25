@@ -76603,6 +76603,9 @@ class Graph:
             ),
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#lowest-common-ancestors) finds the merge
+        base of two branches in a version history.
         """
         id_1 = self._resolve_node_id(node_1, auto_create=False)
         id_2 = self._resolve_node_id(node_2, auto_create=False)
