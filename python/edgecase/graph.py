@@ -8768,6 +8768,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) explains how the
+        bipartite and multipartite generators record each node's part.
         """
         if n1 < 0 or n2 < 0:
             raise ValueError("Group sizes n1 and n2 must be non-negative")
