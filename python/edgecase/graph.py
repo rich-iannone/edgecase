@@ -87239,6 +87239,10 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=cameras, label_by="label")
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) finds a
+        smaller cover of the karate club from an independent set than directly.
         """
         cover = rust.min_weighted_vertex_cover(self._graph, node_weight_attr)
         if self._recording_depth == 0:
