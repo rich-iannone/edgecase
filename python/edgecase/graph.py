@@ -91019,6 +91019,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) explains why
+        `weighted=False` is needed to count the trees of a weighted graph.
         """
         root_id = None
         if root is not None and self.is_directed():
