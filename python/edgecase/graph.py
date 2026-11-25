@@ -13371,6 +13371,13 @@ class Graph:
         ValueError
             If `n=` is less than `1`.
 
+        See Also
+        --------
+        from_prufer_sequence : Build the tree for a given Prüfer sequence.
+        to_prufer_sequence : Recover the Prüfer sequence of a tree.
+        add_random_powerlaw_tree : Draw a tree with power-law degrees.
+        add_random_lobster : Draw a tree with a long spine and short branches.
+
         Examples
         --------
         A tree on `n` nodes always has `n - 1` edges:
@@ -13394,6 +13401,45 @@ class Graph:
         ```{python}
         graph.diameter()
         ```
+
+        ### Uniform or grown by degree
+
+        Two trees on `30` nodes. On the left, a tree drawn uniformly from all labeled trees: no
+        node has more than `4` neighbors, and the longest path is `16` edges. On the right, a
+        tree grown by `add_extended_barabasi_albert_graph()` with `m=1`, where each new node
+        joins a node chosen by degree: it has a hub of `8`, `19` leaves, and a diameter of
+        only `7`:
+
+        ```{python}
+        uniform = ec.Graph().add_random_labeled_tree(n=30, seed=1)
+        grown = ec.Graph().add_extended_barabasi_albert_graph(
+            n=30, m=1, p=0, q=0, seed=1
+        )
+
+        def shape(g):
+            degrees = list(g.degrees(return_dict=True).values())
+            return max(degrees), degrees.count(1), g.diameter()
+
+        shape(uniform), shape(grown)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        uniform.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        grown.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError(f"a tree needs at least 1 node, got n={n}")
