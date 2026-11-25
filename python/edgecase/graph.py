@@ -25307,57 +25307,24 @@ class Graph:
         drops straight out of applying $|E| = n_i - 1$ to each of the $k$ component trees and
         summing over $i$; combined with acyclicity this is what the check actually verifies.
 
+        See Also
+        --------
+        is_tree : Whether the graph is a single tree.
+        is_branching : The directed version of a forest.
+        weakly_connected_components : List the connected pieces of the graph.
+
         Examples
         --------
-        A single tree already satisfies the forest definition, since a tree is just a forest
-        with one component:
+        Unlike `is_tree()`, this doesn't require one connected component. Several disjoint trees
+        together form a forest, and so does a single tree. A cycle is neither:
 
         ```{python}
         import edgecase as ec
 
-        tree = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        forest = ec.Graph.from_edges([("A", "B"), ("C", "D")])
+        cycle = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A")])
 
-        tree.is_forest()
-        ```
-
-        Unlike `is_tree()`, this doesn't require a single connected component -- several
-        disjoint trees together still form a forest:
-
-        ```{python}
-        forest = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B"),  # first tree
-                    ("C", "D"),  # second, disjoint tree
-                ]
-            )
-        )
-
-        forest.is_forest(), forest.is_tree()
-        ```
-
-        A cycle breaks the "acyclic" requirement, so it's neither a forest nor a tree:
-
-        ```{python}
-        cycle = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
-        )
-
-        cycle.is_forest()
-        ```
-
-        An empty graph vacuously satisfies the definition too:
-
-        ```{python}
-        ec.Graph(directed=False).is_forest()
+        forest.is_forest(), forest.is_tree(), cycle.is_forest()
         ```
 
         A directed graph is never reported as a forest, even if its shape would qualify; use
@@ -25367,6 +25334,26 @@ class Graph:
         directed = ec.Graph(directed=True).add_path_graph(n=3)
 
         directed.is_forest(), directed.is_dag()
+        ```
+
+        ### A company without its head
+
+        A company's reporting lines, without directions, are a tree. Taking out the chief executive,
+        Mira, leaves the four departments that reported to her as four separate trees, which
+        together are a forest:
+
+        ```{python}
+        org = ec.org_chart().to_undirected().delete_node("Mira")
+
+        org.is_tree(), org.is_forest(), org.count_weakly_connected_components()
+        ```
+
+        The four trees, colored by department:
+
+        ```{python}
+        org.plot(
+            layout="pos", color_by="dept", label_by="label", width=820, height=640
+        )
         ```
         """
         return self._graph.is_forest()
