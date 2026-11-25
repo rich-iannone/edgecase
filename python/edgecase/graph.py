@@ -48014,6 +48014,9 @@ class Graph:
         ```
 
         :::
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         self._check_non_negative(max_size=max_size)
         clusters, value = rust.lukes_partitioning(
