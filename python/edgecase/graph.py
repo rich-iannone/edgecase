@@ -25455,6 +25455,9 @@ class Graph:
             label_by="label", height=900,
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         result_ids = rust.bipartite_degree_centrality(self._graph, which)
 
