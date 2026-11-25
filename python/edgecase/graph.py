@@ -50795,9 +50795,16 @@ class Graph:
         `nx.Graph`, NetworkX merges those parallel copies). The permutations come from
         EdgeCase's own generator, so a given seed draws a different lift than NetworkX does.
 
+        See Also
+        --------
+        is_k_regular : Check whether every node has degree k.
+        add_random_regular_graph : Add a random regular graph.
+
         Examples
         --------
-        A 4-lift of the complete graph $K_4$ is a 3-regular graph on 16 nodes:
+        A `k`-lift replaces each node with `k` copies and each edge with a matching between the
+        copies of its two ends, chosen at random. Every copy has the degree of its original, so a
+        4-lift of $K_4$ is a 3-regular graph on 16 nodes:
 
         ```{python}
         import edgecase as ec
@@ -50808,18 +50815,27 @@ class Graph:
         lift.count_nodes(), lift.count_edges(), lift.is_k_regular(3)
         ```
 
-        Each node of the lift is a copy of a node of the original graph:
+        Lifting a triangle twice either keeps two separate triangles or unwinds them into a
+        hexagon, depending on the matchings. `seed=0` on the left gives the triangles and `seed=1`
+        on the right the hexagon:
 
-        ```{python}
-        lift.get_node_df().select(["id", "label"]).head(6)
-        ```
-
-        Lifting a triangle twice either keeps two triangles or unwinds them into a hexagon:
+        ::: {layout-ncol="2"}
 
         ```{python}
         triangle = ec.Graph().add_cycle_graph(3)
-        [triangle.random_k_lift(2, seed=s).count_weakly_connected_components() for s in range(6)]
+
+        triangle.random_k_lift(2, seed=0).plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
         ```
+
+        ```{python}
+        triangle.random_k_lift(2, seed=1).plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        :::
         """
         if k < 1:
             raise ValueError(f"k must be a positive integer, got {k}")
