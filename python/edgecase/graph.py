@@ -86667,6 +86667,19 @@ class Graph:
         [tuple(label(n) for n in g.get_node_ids_by_edge_id(e)) for e in matching]
         ```
 
+        The applicants in the bottom row and the jobs above, with the matching picked out. QA is
+        left open, since Cy can only take one of Ops and QA:
+
+        ```{python}
+        g.layout_bipartite(
+            nodes=["Ann", "Bob", "Cy"], align="horizontal", aspect_ratio=0.5
+        )
+
+        g.plot(
+            layout="pos", highlight_edges=matching, label_by="label", height=240
+        )
+        ```
+
         ### One task too many
 
         `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
@@ -86687,6 +86700,10 @@ class Graph:
             layout="pos", highlight_edges=matched, label_by="label", height=300
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#why-a-matching-cant-be-larger) places students
+        on projects, and uses a vertex cover to show why no more can be placed.
         """
         eids = rust.hopcroft_karp_matching(self._graph, self._top_ids(top_nodes))
         self._record_matching_step(
