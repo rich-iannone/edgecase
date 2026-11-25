@@ -27519,41 +27519,29 @@ class Graph:
         behind many spectral shortcuts: the adjacency eigenvalue $\lambda_1$ equals the shared
         degree, and expander bounds like Cheeger's inequality assume it.
 
+        See Also
+        --------
+        is_k_regular : Whether every node has degree k.
+        degrees : Get the degree of every node.
+        degree_distribution : Count the nodes of each degree.
+
         Examples
         --------
-        Every node in a cycle has exactly two neighbors, so cycles are always regular:
+        Every node in a cycle has exactly two neighbors, so cycles are always regular. A star's hub
+        connects to every other node while each spoke connects only to the hub, so it isn't:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_cycle_graph(5)
+        cycle = ec.Graph().add_cycle_graph(5)
+        star = ec.Graph().add_star_graph(4)
 
-        graph.is_regular()
+        cycle.is_regular(), star.is_regular()
         ```
 
-        A star's hub connects to every other node while each spoke connects only to the
-        hub, so their degrees differ and the graph isn't regular:
-
-        ```{python}
-        graph = ec.Graph()
-        graph.add_star_graph(4)
-
-        graph.is_regular()
-        ```
-
-        In a complete graph, every node connects to all `n - 1` others, so all degrees
-        match:
-
-        ```{python}
-        graph = ec.Graph().add_full_graph(n=5)
-
-        graph.is_regular()
-        ```
-
-        In a directed cycle every node has one incoming and one outgoing edge, so it is
-        regular. A directed path is not: its first node has no incoming edge and its last node
-        no outgoing edge:
+        In a directed cycle every node has one incoming and one outgoing edge, so it is regular. A
+        directed path is not: its first node has no incoming edge and its last node no outgoing
+        edge:
 
         ```{python}
         directed_cycle = ec.Graph(directed=True).add_cycle_graph(n=4)
@@ -27561,6 +27549,49 @@ class Graph:
 
         directed_cycle.is_regular(), directed_path.is_regular()
         ```
+
+        ### Rings of atoms
+
+        In a molecule's graph, with the hydrogens left out, each carbon in benzene's ring has two
+        neighbors, so the graph is regular. Caffeine's atoms have one, two or three:
+
+        ```{python}
+        molecules = ec.molecules()
+        benzene, caffeine = molecules["benzene"], molecules["caffeine"]
+
+
+        def degrees(graph):
+            return sorted(set(graph.degrees(return_dict=True).values()))
+
+
+        (
+            (benzene.is_regular(), degrees(benzene)),
+            (caffeine.is_regular(), degrees(caffeine)),
+        )
+        ```
+
+        Benzene on the left and caffeine on the right, colored by element:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        benzene.plot(
+            color_by="element",
+            label_by="label",
+            seed=1,
+            width=320,
+            height=320,
+            legend=False,
+        )
+        ```
+
+        ```{python}
+        caffeine.plot(
+            color_by="element", label_by="label", seed=1, width=320, height=320
+        )
+        ```
+
+        :::
         """
         from edgecase._core import is_regular
 
