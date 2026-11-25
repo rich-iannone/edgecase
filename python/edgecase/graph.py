@@ -88538,6 +88538,11 @@ class Graph:
         before analysis is a common preprocessing step: `count_loops()` gives the per-node
         totals, and `remove_selfloops()` clears them in a single pass.
 
+        See Also
+        --------
+        count_loops : Count the self-loops at each node.
+        remove_selfloops : Delete every self-loop.
+
         Examples
         --------
         In a directed graph, a self-loop is any edge whose source and target are the same node:
