@@ -56671,6 +56671,9 @@ class Graph:
         ```
 
         :::
+
+        [Structural properties](../user-guide/structure.qmd#degrees) compares the skewed degree
+        distribution of the karate club with the power grid's.
         """
         return self._graph.degree_distribution()
 
