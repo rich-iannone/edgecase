@@ -8799,9 +8799,16 @@ class Graph:
         ValueError
             If `n=` is less than `1`, or `r=` is not between `1` and `n=`.
 
+        See Also
+        --------
+        add_complete_multipartite_graph : Add a complete multipartite graph.
+        add_full_graph : Add a complete graph.
+        clique_number : Compute the size of a largest clique.
+
         Examples
         --------
-        `T(7, 3)` splits seven nodes into groups of `2`, `2`, and `3`:
+        The Turán graph `T(n, r)` splits `n` nodes into `r` groups as equal in size as possible and
+        joins every two nodes in different groups. `T(7, 3)` has groups of `2`, `2` and `3`:
 
         ```{python}
         import edgecase as ec
@@ -8811,12 +8818,42 @@ class Graph:
         graph.get_node_df()["part"].value_counts().sort("part")
         ```
 
-        It has the most edges a seven-node graph can have without containing four mutually
-        joined nodes, and its largest clique has exactly `r=3` nodes:
+        Of all graphs on `n` nodes with no clique of `r + 1` nodes, the Turán graph has the most
+        edges. For 7 nodes and no four nodes all joined to each other, that's 16:
 
         ```{python}
         graph.count_edges(), graph.clique_number()
         ```
+
+        ### Two groups and four
+
+        `T(8, 2)` on the left is `K(4, 4)`, with 16 edges and no triangle. `T(8, 4)` on the right
+        has four groups of two and 24 edges, and its largest cliques have four nodes:
+
+        ```{python}
+        two = ec.Graph().add_turan_graph(n=8, r=2)
+        four = ec.Graph().add_turan_graph(n=8, r=4)
+
+        two.count_edges(), four.count_edges(), four.clique_number()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        two.layout_circular().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        four.layout_circular().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Turán graph must have at least 1 node")
