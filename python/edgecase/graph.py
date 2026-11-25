@@ -88201,7 +88201,10 @@ class Graph:
 
         graph = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
 
-        graph.is_independent_set(["A", "C"]), graph.is_independent_set(["A", "C", "D"])
+        (
+            graph.is_independent_set(["A", "C"]),
+            graph.is_independent_set(["A", "C", "D"]),
+        )
         ```
 
         ### Checking a time slot
@@ -88239,6 +88242,10 @@ class Graph:
             label_by="label", seed=5,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) compares
+        two heuristics for covering the karate club.
         """
         from edgecase._core import is_independent_set
 
