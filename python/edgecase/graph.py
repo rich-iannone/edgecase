@@ -22097,6 +22097,8 @@ class Graph:
         random_graph.get_label_from_id(1), random_graph.has_node(1)
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#referring-to-nodes) explains why the integer
+        `1` and the string `"1"` are different members of the karate club.
         """
         # None means "exists but unlabelled"; an unknown ID raises like everywhere else
         if isinstance(node_id, bool) or not isinstance(node_id, int):
