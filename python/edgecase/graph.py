@@ -77336,6 +77336,9 @@ class Graph:
             size_by="triangles", color_by="faction", label_by="label", seed=1
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#walks) counts the walks between the karate
+        club's two leaders through their common friends.
         """
         if walk_length < 0:
             raise ValueError("walk_length must be non-negative")
