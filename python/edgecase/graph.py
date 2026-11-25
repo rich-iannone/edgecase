@@ -93068,6 +93068,9 @@ class Graph:
             color_by="faction", label_by="label", seed=1,
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-adjacency-matrix) explains the
+        matrix's conventions, and counts walks with its powers.
         """
         matrix, ids = rust.adjacency_matrix(self._graph, self._use_weights(weighted))
         self._record_matrix_step("adjacency_matrix", "G.adjacency_matrix()", len(ids), len(ids))
