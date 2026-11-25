@@ -13964,6 +13964,12 @@ class Graph:
             If either sequence contains a negative entry, the two sums differ, or no simple
             directed graph has these degrees.
 
+        See Also
+        --------
+        add_directed_configuration_model : Pair edge ends at random, allowing loops and repeats.
+        add_havel_hakimi_graph : Build an undirected graph from a degree sequence.
+        is_dag : Check whether the graph has no directed cycles.
+
         Examples
         --------
         A source, two relays, and a sink:
@@ -13987,6 +13993,40 @@ class Graph:
         except ValueError as err:
             print(err)
         ```
+
+        ### A ranking or a balance
+
+        Both graphs have five nodes and `10` edges, one between every pair. On the left the
+        out-degrees run from `4` down to `0`, which forces a ranking: each node points to every
+        node after it, and there are no cycles. On the right every node has in- and out-degree
+        `2`, so each node points to two others and is pointed to by the remaining two:
+
+        ```{python}
+        ranked = ec.Graph(directed=True).add_directed_havel_hakimi_graph(
+            [0, 1, 2, 3, 4], [4, 3, 2, 1, 0]
+        )
+        balanced = ec.Graph(directed=True).add_directed_havel_hakimi_graph(
+            [2] * 5, [2] * 5
+        )
+
+        ranked.is_dag(), balanced.is_dag()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        ranked.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        balanced.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         from edgecase._core import directed_havel_hakimi_edges as _directed_havel_hakimi_edges
 
