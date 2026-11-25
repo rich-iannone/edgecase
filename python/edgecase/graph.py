@@ -93886,6 +93886,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#matrices-of-attributes) counts the
+        friendships within and between the karate club's factions.
         """
         node_ids = sorted(self.get_node_ids(limit=None))
         if node_attr is None:
