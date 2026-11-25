@@ -6093,6 +6093,9 @@ class Graph:
         ```
 
         :::
+
+        [Layouts](../user-guide/layouts.qmd#circles-and-shells) compares the layouts that place
+        nodes on circles.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         if (
