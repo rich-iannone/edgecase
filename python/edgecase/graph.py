@@ -24783,6 +24783,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#what-the-spectrum-reveals) compares the
+        karate club with the exactly bipartite Southern Women network.
         """
         ids, cosh, exp = rust.exp_cosh_diagonals(self._graph, self._use_weights(weighted))
         if nodes is None:
