@@ -82651,6 +82651,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) compares the
+        measures that score a single community.
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
         if p[1] == 0 or p[2] == 0:
