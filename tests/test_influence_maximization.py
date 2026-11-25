@@ -195,3 +195,19 @@ class TestInfluenceEdgeCases:
         g.add_node(label="B")
         result = g.influence_maximization(k=2, seed=23, return_dict=True)
         assert len(result) == 2
+
+
+# ===========================================================================
+# influence_maximization — values quoted in the docstring
+# ===========================================================================
+
+
+class TestInfluenceDocstring:
+    def test_star_and_path(self):
+        g = ec.Graph.from_edges(
+            [("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D"), ("E", "F"), ("F", "G")]
+        )
+        seeds = g.influence_maximization(
+            k=2, probability=0.5, n_simulations=500, seed=42, return_dict=True
+        )
+        assert [g.get_label_from_id(node) for node, _ in seeds] == ["Hub", "F"]
