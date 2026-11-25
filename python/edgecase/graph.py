@@ -38284,6 +38284,23 @@ class Graph:
         dict(sorted((label(n), s) for n, s in scores.items()))
         ```
 
+        `A` and `B` picked out, with the two nodes both of them know drawn pale:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (0.5, 1.5), "D": (1.5, 1.5),
+            "E": (3, 1.5),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight={"accent": {"A", "B"}, "soft": {"C", "D"}},
+            label_by="label", height=240,
+        )
+        ```
+
         ### People with the same friends
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -38317,6 +38334,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity) ranks
+        the karate club's members by how much they resemble the administrator.
         """
         return self._graph.get_jaccard_similarity()
 
