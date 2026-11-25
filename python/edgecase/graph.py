@@ -43927,6 +43927,9 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) counts the friendships
+        within and between the karate club's two factions.
         """
         return self._mixing_from_counts(self._attribute_counts(attribute), normalized)
 
