@@ -9408,6 +9408,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         offsets = list(offsets)
         if n < 2:
