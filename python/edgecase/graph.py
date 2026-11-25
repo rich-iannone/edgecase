@@ -82557,6 +82557,9 @@ class Graph:
             layout="pos", color_by="faction", size_by="degree", label_by="label"
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) compares the
+        measures that score a single community.
         """
         s_ids, _, p = self._cut(S, None, weighted)
         self._record_set_step("volume", s_ids, None, p[1])
