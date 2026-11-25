@@ -52741,6 +52741,9 @@ class Graph:
         ```{python}
         combined.get_node_df()["label"].to_list()
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#side-by-side) puts two graphs side by
+        side with `disjoint_union()`, and explains how their IDs and labels change.
         """
         return Graph._fold(graphs, "disjoint_union")
 
