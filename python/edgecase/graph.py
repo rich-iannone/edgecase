@@ -17065,16 +17065,29 @@ class Graph:
             the communities cannot hold the nodes' internal degrees. In that case raising
             `max_community=`, lowering `max_degree=`, or raising `mu=` usually helps.
 
+        See Also
+        --------
+        add_planted_partition_graph : Plant equal groups with uniform edge probabilities.
+        generate_stochastic_block_model : Set a separate edge probability for each pair of blocks.
+        cmty_louvain : Detect communities to compare with the planted ones.
+        partition_quality : Measure the coverage and performance of a partition.
+
         Examples
         --------
-        A 500-node benchmark with mean degree `10` and a mixing parameter of `0.2`:
+        The LFR benchmark plants communities in a graph whose degrees and community sizes both
+        follow power laws, as in many real networks. A 500-node benchmark with mean degree `10`
+        and a mixing parameter of `0.2`:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_lfr_graph(n=500, mu=0.2, average_degree=10, seed=4)
 
-        graph.count_nodes(), graph.count_edges(), graph.get_node_df()["community"].n_unique()
+        (
+            graph.count_nodes(),
+            graph.count_edges(),
+            graph.get_node_df()["community"].n_unique(),
+        )
         ```
 
         The degrees are heavy-tailed, from a minimum of a few edges up to `max_degree=` (here
@@ -17098,14 +17111,43 @@ class Graph:
         round(coverage, 2), round(planted, 2), round(detected, 2)
         ```
 
-        Raising `mu=` hides the communities: at `mu=0.6` most edges leave their community and
-        the planted partition's modularity falls sharply:
+        ### Mixing hides the communities
+
+        The mixing parameter `mu=` is the share of each node's edges that leave its community.
+        Two 100-node benchmarks with the same four communities, set by the seed and kept between
+        `20` and `40` nodes, and each node colored by its community. With `mu=0.1` on the left
+        the communities are clear; at `mu=0.5` on the right half the edges leave their community
+        and the planted partition's modularity falls from `0.65` to `0.25`:
 
         ```{python}
-        mixed = ec.Graph().add_lfr_graph(n=500, mu=0.6, average_degree=10, seed=4)
+        def lfr(mu):
+            return ec.Graph().add_lfr_graph(
+                n=100, mu=mu, average_degree=8,
+                min_community=20, max_community=40, seed=3,
+            )
 
-        round(mixed.modularity("community"), 2)
+        clear, mixed = lfr(0.1), lfr(0.5)
+
+        [round(g.modularity("community"), 2) for g in (clear, mixed)]
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        clear.plot(
+            color_by="community", show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        mixed.plot(
+            color_by="community", show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import lfr_benchmark as _lfr_benchmark
 
