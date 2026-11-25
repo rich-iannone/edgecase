@@ -433,6 +433,16 @@ impl Graph {
             .collect()
     }
 
+    /// The position of an edge in `edges`, from the edge index if it's built and by a scan if
+    /// not: building the index costs far more than one scan, and a lookup between two deletions
+    /// (as in a loop deleting edges by ID) would only build it to throw it away again
+    fn edge_position(&self, edge_id: u64) -> Option<usize> {
+        match self.edge_index.get() {
+            Some(index) => index.position_by_id.get(&edge_id).copied(),
+            None => self.edges.iter().position(|e| e.id == edge_id),
+        }
+    }
+
     /// Drop the edge lookup index after edges are removed or edited
     fn invalidate_edge_index(&mut self) {
         self.edge_index.take();
@@ -922,16 +932,14 @@ impl Graph {
 
     /// Get edge by ID
     pub fn get_edge_by_id(&self, edge_id: u64) -> Option<(u64, u64)> {
-        self.edges
-            .iter()
-            .find(|e| e.id == edge_id)
-            .map(|e| (e.source, e.target))
+        let edge = &self.edges[self.edge_position(edge_id)?];
+        Some((edge.source, edge.target))
     }
 
     /// Check if an edge exists by ID
     #[inline]
     pub fn has_edge_id(&self, edge_id: u64) -> bool {
-        self.edges.iter().any(|e| e.id == edge_id)
+        self.edge_position(edge_id).is_some()
     }
 
     /// Find edge IDs by from/to node IDs
