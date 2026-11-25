@@ -54772,34 +54772,29 @@ class Graph:
 
         Examples
         --------
-        Both `A` and `C` point to `B`, so `B` has an in-degree of `2`:
+        Both "A" and "C" point to "B", so "B" has an in-degree of `2`, and "A" has none:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("C", "B")])
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("C", "B")], directed=True)
 
-        graph.get_in_degree("B")
+        graph.get_in_degree("B"), graph.get_in_degree("A")
         ```
 
-        "A" has no incoming edges at all:
+        ### Who gets paid
+
+        In a month of payments between bank accounts, each edge runs from payer to payee, so an
+        account's in-degree is the number of payments it received. The Grocer is paid 8 times, more
+        than any other account, while Acme, the employer, receives nothing at all:
 
         ```{python}
-        graph.get_in_degree("A")
-        ```
+        payments = ec.payments()
 
-        A quick way to find all source nodes is to keep those with in-degree `0`:
-
-        ```{python}
-        [
-            graph.get_label_from_id(nid)
-            for nid in graph.get_node_ids()
-            if graph.get_in_degree(nid) == 0
-        ]
+        {
+            business: payments.get_in_degree(business)
+            for business in ["Grocer", "Cafe", "Landlord", "Acme"]
+        }
         ```
         """
         if not self._graph.is_directed:
