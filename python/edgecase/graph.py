@@ -60528,7 +60528,10 @@ class Graph:
         g = ec.Graph().add_path_graph(6)
         before = g.closeness_centrality(weighted=False, return_dict=True)
         after = g.incremental_closeness_centrality((1, 6), prev_cc=before)
-        {node: (round(before[node], 3), round(after[node], 3)) for node in sorted(after)}
+        {
+            node: (round(before[node], 3), round(after[node], 3))
+            for node in sorted(after)
+        }
         ```
 
         Nodes 3 and 4 sit in the middle, two hops from one end and three from the other, so
@@ -60538,6 +60541,9 @@ class Graph:
         ```{python}
         g.count_edges()
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         if self.is_directed():
             raise ValueError("incremental_closeness_centrality() requires an undirected graph")
