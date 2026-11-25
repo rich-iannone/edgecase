@@ -28804,58 +28804,63 @@ class Graph:
         $x_v = x_u$. Bounds are inclusive on both sides. Python `bool` values are a subclass of
         `int` and are therefore treated as numeric (`True == 1`).
 
+        See Also
+        --------
+        get_neighbors : Every neighbor of a node, whatever its attribute values.
+        get_node_attrs : The values of an attribute for every node.
+        assortativity : Whether neighbors have similar values across the whole graph.
+
         Examples
         --------
-        Only "B" falls within ±1.0 of "A"'s value of `5.0`; "C" at `10.0` is far outside
-        that range:
+        Of "A"'s neighbors, only "B" has a `value` within 1 of A's `5.0`:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph()
-        graph.add_nodes([("A", {"value": 5.0}), ("B", {"value": 5.5}), ("C", {"value": 10.0})])
+        graph.add_nodes(
+            [("A", {"value": 5.0}), ("B", {"value": 5.5}), ("C", {"value": 10.0})]
+        )
         graph.add_edges([("A", "B"), ("A", "C")])
 
-        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1.0, 1.0))
-        [graph.get_label_from_id(nid) for nid in similar]
+        similar = graph.get_similar_neighbors("A", "value", tol_abs=(1, 1))
+        [graph.get_label_from_id(n) for n in similar]
         ```
 
-        Percentage tolerance scales with the starting value instead of using a fixed range
-        -- here ±20% of `5.0` covers `4.0` to `6.0`, which includes "B" at `4.5` but still
-        excludes "C":
+        ### Neighbors of a similar size
+
+        Twelve towns are joined by the roads between them, and each has a population. Asking which
+        neighbors are within 25% of a town's size finds two pairs. Bramford and Halston find each
+        other, but Kestrel Bay finds Greyford, and Greyford doesn't find Kestrel Bay:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes([("A", {"value": 5.0}), ("B", {"value": 4.5}), ("C", {"value": 10.0})])
-            .add_edges([("A", "B"), ("A", "C")])
-        )
+        towns = ec.towns()
+        name = towns.get_label_from_id
 
-        similar_pct = graph.get_similar_neighbors("A", "value", tol_pct=(20, 20))
-        [graph.get_label_from_id(nid) for nid in similar_pct]
+        def similar(town):
+            found = towns.get_similar_neighbors(
+                town, "population", tol_pct=(25, 25)
+            )
+            return [name(n) for n in found]
+
+        checked = ["Bramford", "Halston", "Kestrel Bay", "Greyford", "Calder"]
+        {town: similar(town) for town in checked}
         ```
 
-        An asymmetric window looks in one direction only. In this small trade network,
-        `tol_abs=(0, 50)` asks for partners of "Acme" that are the same size or up to 50
-        larger -- "Big" (`140`) qualifies, while "Small" (`60`) is below the window, and
-        without any tolerance only the exact match "Twin" comes back:
+        The window is a percentage of the starting town's own population. Greyford's 15,800 is 75%
+        of Kestrel Bay's 21,000, inside its window, but Kestrel Bay is 133% of Greyford, outside
+        Greyford's. Calder, the largest town at 54,000, has no neighbor anywhere near its size.
+
+        Sized by population, with the roads between the similar pairs highlighted:
 
         ```{python}
-        trade = (
-            ec.Graph()
-            .add_node(label="Acme", revenue=100)
-            .add_node(label="Small", revenue=60)
-            .add_node(label="Big", revenue=140)
-            .add_node(label="Twin", revenue=100)
-            .add_edges([("Acme", "Small"), ("Acme", "Big"), ("Acme", "Twin")])
-        )
-
-        up = trade.get_similar_neighbors("Acme", "revenue", tol_abs=(0, 50))
-        exact = trade.get_similar_neighbors("Acme", "revenue")
-
-        (
-            sorted(trade.get_label_from_id(nid) for nid in up),
-            [trade.get_label_from_id(nid) for nid in exact],
+        towns.plot(
+            layout="pos",
+            size_by="population",
+            label_by="label",
+            highlight_edges=[
+                ("Bramford", "Halston"), ("Kestrel Bay", "Greyford")
+            ],
         )
         ```
         """
