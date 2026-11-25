@@ -33318,6 +33318,12 @@ class Graph:
         ValueError
             If a label passed in `nodes=` does not exist in the graph.
 
+        See Also
+        --------
+        get_node_df : Read every node attribute at once as a data frame.
+        set_node_attrs : Set the attribute.
+        get_edge_attrs : Read an edge attribute in the same way.
+
         Examples
         --------
         Only nodes that actually have the attribute set appear in the result. Node `C` has no
@@ -33356,7 +33362,8 @@ class Graph:
         Converting the keys back to labels gives a more readable mapping:
 
         ```{python}
-        {graph.get_label_from_id(nid): t for nid, t in graph.get_node_attrs("type").items()}
+        types = graph.get_node_attrs("type")
+        {graph.get_label_from_id(v): t for v, t in types.items()}
         ```
         """
 
