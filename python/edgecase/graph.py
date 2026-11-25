@@ -85525,6 +85525,10 @@ class Graph:
         ```{python}
         exams.is_valid_coloring({**slots, web: 2})
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#scheduling-with-colors) colors a graph of
+        conflicting exams into a timetable.
         """
         from edgecase._core import is_valid_coloring as rust_is_valid_coloring
 
