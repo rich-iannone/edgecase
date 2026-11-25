@@ -5815,6 +5815,12 @@ class Graph:
         ValueError
             If `scale=` is not a positive number or `center=` is not a pair of numbers.
 
+        See Also
+        --------
+        layout_spring : Place nodes with a force-directed spring model.
+        rescale_layout : Center and scale stored positions.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
         Every coordinate falls within `scale=` of the center:
@@ -5822,14 +5828,40 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        pos = ec.Graph().add_path_graph(100).layout_random(seed=3, return_dict=True)
+        graph = ec.Graph().add_path_graph(100)
+        pos = graph.layout_random(seed=3, return_dict=True)
 
         max(max(abs(x), abs(y)) for x, y in pos.values()) <= 1
         ```
 
+        ### A floor plan, scrambled
+
+        Random positions ignore the edges, so they show how much a layout does. The rooms of a
+        two-story office, joined where a door leads from one to the other, placed at random on the
+        left and on the plan on the right. Only the plan shows the halls and the rooms off them:
+
         ```{python}
-        ec.Graph().add_grid_graph([5, 5]).layout_random(seed=3).plot(layout="pos")
+        offices = ec.offices().layout_random(seed=3, attr_name="random")
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        offices.plot(
+            layout="random", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        ```{python}
+        offices.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        :::
+
+        The same `seed=` gives the same positions. A random layout is also a common starting point
+        for the force-directed layouts, through their `initial=` argument.
         """
         import random as _random
 
