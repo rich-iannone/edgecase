@@ -38501,6 +38501,9 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity)
+        explains why the overlap coefficient measures containment rather than resemblance.
         """
         return self._graph.get_overlap_similarity()
 
