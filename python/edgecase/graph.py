@@ -79196,6 +79196,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#local-bridges) finds the karate
+        club's weak ties, most of which join the two factions.
         """
         found = rust.local_bridges(self._graph, self._use_weights(weighted))
         use_hops = not self._use_weights(weighted)
