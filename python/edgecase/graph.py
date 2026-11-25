@@ -39353,6 +39353,29 @@ class Graph:
         [[graph.get_label_from_id(n) for n in clique] for clique in cliques]
         ```
 
+        Each edge colored by the maximal clique it belongs to:
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4), "D": (3, 1.4), "E": (4, 0),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        label = graph.get_label_from_id
+        clique_of = {}
+        for clique in cliques:
+            name = " ".join(sorted(label(n) for n in clique))
+            for e in graph.get_edge_ids():
+                if set(graph.get_node_ids_by_edge_id(e)) <= set(clique):
+                    clique_of[e] = name
+
+        graph.set_edge_attrs("clique", clique_of).plot(
+            layout="pos", edge_color_by="clique", edge_width=4, edge_opacity=1,
+            label_by="label", height=240,
+        )
+        ```
+
         ### Tight groups in the club
 
         `karate_club()` links the 34 members of a university karate club who met outside the
@@ -39386,6 +39409,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) counts the karate club's
+        maximal cliques and finds its largest.
         """
         return self._graph.find_cliques()
 
