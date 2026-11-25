@@ -17499,6 +17499,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         from edgecase._core import lfr_benchmark as _lfr_benchmark
 
