@@ -83651,6 +83651,9 @@ class Graph:
             layout="pos", highlight_edges=list(cut), label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) finds a
+        smallest set of friendships that separates the karate club's two leaders.
         """
         if capacity is not None:
             # Edges leaving the source side of the minimum (capacity) cut
