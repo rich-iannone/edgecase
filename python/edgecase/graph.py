@@ -61577,14 +61577,20 @@ class Graph:
         (
             club.get_edge_df(labels=True)
             .select(
-                "source", "target", "edge_current_flow_betweenness_centrality_subset"
+                "source", "target",
+                "edge_current_flow_betweenness_centrality_subset",
             )
-            .sort("edge_current_flow_betweenness_centrality_subset", descending=True)
+            .sort(
+                "edge_current_flow_betweenness_centrality_subset", descending=True
+            )
             .head(6)
         )
         ```
 
         For all pairs of nodes, use `edge_current_flow_betweenness_centrality()`.
+
+        [Centrality](../user-guide/centrality.qmd#variants) lists `betweenness_centrality_subset()`
+        with the other variants of betweenness and what each counts.
         """
         src = [self._resolve_node_id(s, auto_create=False) for s in sources]
         tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
