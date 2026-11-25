@@ -20,9 +20,11 @@ from edgecase.io import _build_graph
 __all__ = [
     "causal",
     "citations",
+    "control_flow",
     "courses",
     "currency",
     "exams",
+    "food_web",
     "friends",
     "konigsberg",
     "metro",
@@ -32,6 +34,7 @@ __all__ = [
     "payments",
     "pipeline",
     "project",
+    "proteins",
     "teams",
     "towns",
 ]
@@ -2102,3 +2105,447 @@ def org_chart() -> Graph:
     ]
     edges = [(manager, name, None, {}) for name, (_, _, manager) in _STAFF.items() if manager]
     return _build_graph(nodes, edges, True, False, "Org Chart", "org_chart()")
+
+
+# Proteins as name: (pathway, expression, disease gene, drug target, x, y). Expression is a log2
+# fold change, diseased against healthy tissue; the uncharacterized ORFs have no pathway
+_PROTEINS = {
+    "REP1": ("DNA repair", 2.4, True, None, -1.3, 1.1),
+    "REP2": ("DNA repair", 2.1, True, None, -2.5, 1.0),
+    "REP3": ("DNA repair", 0.3, False, None, -1.5, 2.2),
+    "REP4": ("DNA repair", 1.9, False, None, -2.7, 2.2),
+    "REP5": ("DNA repair", 2.6, True, None, -1.9, 3.3),
+    "REP6": ("DNA repair", 1.7, False, "Drug A", -3.1, 3.5),
+    "ORF1": (None, 1.4, False, None, -3.8, 1.5),
+    "CYC1": ("Cell cycle", 1.2, False, None, 0.4, 4.0),
+    "CYC2": ("Cell cycle", 1.8, True, None, -0.2, 2.8),
+    "CYC3": ("Cell cycle", 0.4, False, "Drug A", 0.9, 1.9),
+    "CYC4": ("Cell cycle", -0.2, False, None, 2.0, 2.5),
+    "CYC5": ("Cell cycle", 0.1, False, None, 1.8, 3.7),
+    "SIG1": ("Signaling", 0.2, False, None, 2.8, 1.5),
+    "SIG2": ("Signaling", -0.3, False, None, 1.7, 0.6),
+    "SIG3": ("Signaling", 0.1, False, None, 3.1, 0.4),
+    "SIG4": ("Signaling", -0.1, False, "Drug B", 3.1, -0.7),
+    "SIG5": ("Signaling", 0.3, False, None, 1.7, -0.7),
+    "SIG6": ("Signaling", -0.4, False, None, 2.5, -1.8),
+    "ORF2": (None, 0.0, False, None, 4.2, -0.1),
+    "TRN1": ("Transport", 0.0, False, None, 1.6, -2.6),
+    "TRN2": ("Transport", -0.2, False, None, 0.6, -1.6),
+    "TRN3": ("Transport", 0.6, True, None, 0.7, -3.3),
+    "TRN4": ("Transport", 0.2, False, None, -0.5, -3.3),
+    "TRN5": ("Transport", -0.1, False, None, -0.4, -1.8),
+    "ORF3": (None, -0.1, False, None, 0.1, -4.3),
+    "ENZ1": ("Metabolism", 0.1, False, None, -1.4, -1.5),
+    "ENZ2": ("Metabolism", -0.3, False, "Drug B", -2.4, -2.2),
+    "ENZ3": ("Metabolism", 2.5, False, None, -3.5, -1.3),
+    "ENZ4": ("Metabolism", 0.0, False, None, -2.5, -0.9),
+    "ENZ5": ("Metabolism", -0.2, False, None, -1.9, 0.0),
+    "HSP1": ("Protein folding", 0.5, False, None, 0.0, 0.0),
+}
+
+# Interactions as (protein, protein)
+_INTERACTIONS = [
+    # DNA repair, with ORF1
+    ("REP1", "REP2"),
+    ("REP1", "REP3"),
+    ("REP2", "REP3"),
+    ("REP2", "REP4"),
+    ("REP3", "REP4"),
+    ("REP3", "REP5"),
+    ("REP4", "REP5"),
+    ("REP5", "REP6"),
+    ("REP4", "REP6"),
+    ("ORF1", "REP2"),
+    ("ORF1", "REP4"),
+    # The cell cycle, and its links to DNA repair
+    ("CYC1", "CYC2"),
+    ("CYC2", "CYC3"),
+    ("CYC1", "CYC3"),
+    ("CYC3", "CYC4"),
+    ("CYC4", "CYC5"),
+    ("CYC1", "CYC5"),
+    ("REP6", "CYC1"),
+    ("REP5", "CYC2"),
+    # Signaling, with ORF2
+    ("SIG1", "SIG2"),
+    ("SIG2", "SIG3"),
+    ("SIG3", "SIG4"),
+    ("SIG1", "SIG3"),
+    ("SIG4", "SIG5"),
+    ("SIG5", "SIG6"),
+    ("SIG4", "SIG6"),
+    ("SIG2", "SIG5"),
+    ("SIG1", "CYC4"),
+    ("ORF2", "SIG3"),
+    ("ORF2", "SIG4"),
+    # Transport, with ORF3
+    ("TRN1", "TRN2"),
+    ("TRN2", "TRN3"),
+    ("TRN1", "TRN3"),
+    ("TRN3", "TRN4"),
+    ("TRN4", "TRN5"),
+    ("TRN2", "TRN5"),
+    ("TRN1", "SIG6"),
+    ("ORF3", "TRN3"),
+    ("ORF3", "TRN4"),
+    # Metabolism
+    ("ENZ1", "ENZ2"),
+    ("ENZ2", "ENZ4"),
+    ("ENZ1", "ENZ4"),
+    ("ENZ4", "ENZ5"),
+    ("ENZ3", "ENZ5"),
+    ("ENZ3", "ENZ4"),
+    ("ENZ3", "ENZ2"),
+    ("ENZ1", "TRN4"),
+    # The chaperone HSP1 binds proteins in every pathway
+    ("HSP1", "REP1"),
+    ("HSP1", "REP2"),
+    ("HSP1", "CYC3"),
+    ("HSP1", "SIG2"),
+    ("HSP1", "SIG5"),
+    ("HSP1", "TRN2"),
+    ("HSP1", "TRN5"),
+    ("HSP1", "ENZ1"),
+    ("HSP1", "ENZ5"),
+]
+
+
+def proteins() -> Graph:
+    """
+    A small protein interaction network, with a disease module.
+
+    An invented interactome of 31 proteins, with an edge for each pair known to bind. Most
+    belong to one of five pathways and are named for it: REP for DNA repair, CYC for the cell
+    cycle, SIG for signaling, TRN for transport and ENZ for metabolism. HSP1 is a chaperone that
+    binds proteins in every pathway, and ORF1 to ORF3 are uncharacterized. Five proteins are
+    known disease genes, and each protein has a measured change in expression in diseased
+    tissue. It's the example for network medicine: growing a disease module from the known
+    genes, testing the module for pathway enrichment, smoothing noisy measurements over the
+    network, predicting the pathway of an uncharacterized protein, and measuring how close a
+    drug's targets sit to a disease. The proteins, the disease and the drugs are made up.
+
+    Network Properties:
+
+    - 31 nodes (proteins, labeled by name)
+    - 56 edges (interactions)
+    - Undirected, unweighted
+    - Connected
+
+    Node Attributes:
+
+    - `pathway`: `"DNA repair"`, `"Cell cycle"`, `"Signaling"`, `"Transport"`,
+      `"Metabolism"` or (for HSP1) `"Protein folding"`; missing for ORF1, ORF2 and ORF3
+    - `disease_gene`: `True` for the five known disease genes, REP1, REP2, REP5, CYC2 and
+      TRN3, and `False` for the rest
+    - `expression`: the change in expression in diseased tissue, against healthy tissue, as a
+      log2 fold change (`1.0` is twice as much, `-1.0` half as much)
+    - `drug_target`: `"Drug A"` or `"Drug B"` for the two proteins each drug binds, and missing
+      for the rest
+    - `pos`: an `(x, y)` position for drawing the network, with each pathway in a cluster of
+      its own around HSP1
+
+    What to Look For:
+
+    - **A disease module.** Four of the five disease genes sit together, among the DNA repair
+      proteins. With `min_score=0.5`, `expand_seed_set()` grows those four into a module of 8:
+      all six DNA repair proteins, CYC2 and ORF1. Against 6 DNA repair proteins in the whole
+      network, `subgraph_enrichment()` puts the chance of that at 4 in 100,000.
+    - **A lone disease gene.** TRN3 is three steps from the other four. With a prize of 3
+      for each disease gene and a cost of 1 for each edge, `prize_collecting_steiner_tree()`
+      connects the four through REP3 and leaves TRN3 out; it joins when edges cost 0.5.
+    - **A sticky hub.** HSP1 has 9 partners, the most in the network, two of them disease
+      genes. Random walks from the disease genes pass through it often, so
+      `random_walk_with_restart()` ranks it above every protein but REP4 that isn't a disease
+      gene itself. `expand_seed_set()` scores a protein by the share of its partners inside the
+      module, and leaves HSP1 out.
+    - **Noisy measurements.** REP3 barely changed (`0.3`), though its four partners all went
+      up, and ENZ3 changed more than any protein but REP5 (`2.5`), though none of its partners
+      did. `network_smooth()` raises REP3 to `1.08` and nearly halves ENZ3, to `1.35`, below six
+      proteins of the module.
+    - **Uncharacterized proteins.** From the pathways of the other proteins,
+      `label_propagation()` puts ORF1 in DNA repair, ORF2 in signaling and ORF3 in transport:
+      the pathways of their partners.
+    - **A drug near the disease, and one far from it.** Drug A binds REP6 and CYC3, each next
+      to a disease gene. Drug B binds SIG4 and ENZ2, three steps from the nearest one, and
+      `network_proximity()` gives it a positive separation from the disease genes (`0.25`)
+      where Drug A's is negative (`-0.05`).
+
+    Returns
+    -------
+    Graph
+        The protein interaction network.
+
+    Examples
+    --------
+    Draw the network, colored by pathway:
+
+    ```{python}
+    import edgecase as ec
+
+    proteins = ec.proteins()
+
+    proteins.plot(layout="pos", color_by="pathway", label_by="label")
+    ```
+
+    The disease genes, with their changes in expression:
+
+    ```{python}
+    import polars as pl
+
+    (
+        proteins.get_node_df()
+        .filter(pl.col("disease_gene"))
+        .select("label", "pathway", "expression")
+    )
+    ```
+    """
+    nodes = []
+    for name, (pathway, expression, disease_gene, drug, x, y) in _PROTEINS.items():
+        attrs = {"expression": expression, "disease_gene": disease_gene, "pos": (x, y)}
+        if pathway is not None:
+            attrs["pathway"] = pathway
+        if drug is not None:
+            attrs["drug_target"] = drug
+        nodes.append((name, name, attrs))
+    edges = [(u, v, None, {}) for u, v in _INTERACTIONS]
+    return _build_graph(nodes, edges, False, False, "Proteins", "proteins()")
+
+
+# Species as name: (kind, x, y), drawn with y at twice the trophic level
+_SPECIES = {
+    "Clover": ("plant", 0.0, 2.0),
+    "Grass": ("plant", 1.8, 2.0),
+    "Bramble": ("plant", 4.0, 2.0),
+    "Oak": ("plant", 6.0, 2.0),
+    "Grasshopper": ("herbivore", 0.8, 4.0),
+    "Rabbit": ("herbivore", 2.8, 4.0),
+    "Vole": ("herbivore", 4.6, 4.0),
+    "Caterpillar": ("herbivore", 6.0, 4.0),
+    "Squirrel": ("herbivore", 8.0, 4.0),
+    "Jay": ("omnivore", 7.0, 5.0),
+    "Frog": ("predator", -0.6, 6.0),
+    "Shrew": ("predator", 0.8, 6.0),
+    "Weasel": ("predator", 3.8, 6.0),
+    "Marten": ("predator", 8.0, 6.0),
+    "Hawk": ("predator", 5.0, 7.0),
+    "Fox": ("predator", 0.2, 7.333),
+}
+
+# Who eats whom, as (food, eater)
+_FEEDING = [
+    ("Clover", "Grasshopper"),
+    ("Grass", "Grasshopper"),
+    ("Grass", "Rabbit"),
+    ("Bramble", "Rabbit"),
+    ("Bramble", "Vole"),
+    ("Oak", "Vole"),
+    ("Oak", "Caterpillar"),
+    ("Oak", "Squirrel"),
+    ("Oak", "Jay"),
+    ("Caterpillar", "Jay"),
+    ("Grasshopper", "Frog"),
+    ("Grasshopper", "Shrew"),
+    ("Rabbit", "Weasel"),
+    ("Vole", "Weasel"),
+    ("Squirrel", "Marten"),
+    ("Frog", "Fox"),
+    ("Shrew", "Fox"),
+    ("Rabbit", "Fox"),
+    ("Vole", "Hawk"),
+    ("Weasel", "Hawk"),
+    ("Jay", "Hawk"),
+]
+
+
+def food_web() -> Graph:
+    """
+    A woodland food web: who eats whom.
+
+    Sixteen species of a made-up woodland, with an edge from each food to each species that
+    eats it, so energy flows along the edges from the plants at the bottom to the predators at
+    the top. It's the example for the ecology of networks: trophic levels and how coherent they
+    are, the species that reach the most of the web, and what a web loses when one species goes.
+
+    Network Properties:
+
+    - 16 nodes (species, labeled by name)
+    - 21 edges (from a food to the species that eats it)
+    - Directed, acyclic, unweighted
+
+    Node Attributes:
+
+    - `kind`: `"plant"`, `"herbivore"`, `"omnivore"` (the jay, which eats acorns and
+      caterpillars) or `"predator"`
+    - `pos`: an `(x, y)` position for drawing the web, with the plants at the bottom and each
+      animal at a height set by its trophic level
+
+    What to Look For:
+
+    - **Fractional trophic levels.** The plants are at level 1 and the herbivores at level 2.
+      Each other species sits one level above the average of what it eats, so the Jay, eating
+      acorns and caterpillars, is at 2.5, and the Fox, eating frogs, shrews and rabbits, is at
+      3.67, above the Hawk at 3.5.
+    - **Top predators.** Nothing eats the Fox, the Hawk or the Marten, so each is an attracting
+      component of its own: once energy reaches one, it goes no further.
+    - **A keystone plant.** The Caterpillar and the Squirrel eat nothing but the Oak, the
+      Marten nothing but squirrels, and the Jay only acorns and caterpillars, so losing the Oak
+      starves four more species. Every animal that eats one of the other plants has something
+      else to eat.
+    - **Plants that feed the most.** The Grass and the Oak each feed 7 of the other 15
+      species, directly or through what eats them, so their local reaching centrality is
+      `0.467`, the highest in the web.
+    - **A tidy hierarchy.** Most feeding links climb one level, but some climb more (the Fox
+      eats rabbits, 1.67 levels down), and the trophic incoherence is `0.28`; a web where every
+      link climbs exactly one level scores `0`.
+
+    Returns
+    -------
+    Graph
+        The food web.
+
+    Examples
+    --------
+    Draw the web from the plants up, colored by kind:
+
+    ```{python}
+    import edgecase as ec
+
+    web = ec.food_web()
+
+    web.plot(layout="pos", color_by="kind", label_by="label")
+    ```
+
+    Each species' trophic level, highest first:
+
+    ```{python}
+    (
+        web.trophic_levels()
+        .get_node_df()
+        .select("label", "kind", "trophic_levels")
+        .sort("trophic_levels", descending=True)
+    )
+    ```
+    """
+    nodes = [(name, name, {"kind": kind, "pos": (x, y)}) for name, (kind, x, y) in _SPECIES.items()]
+    edges = [(u, v, None, {}) for u, v in _FEEDING]
+    return _build_graph(nodes, edges, True, False, "Food web", "food_web()")
+
+
+# Basic blocks as name: (code, x, y), drawn left to right from the entry to the exit
+_BLOCKS = {
+    "entry": ("total, n = 0, 0", -0.4, 0.0),
+    "loop": ("for x in values:", 1.0, 0.0),
+    "sign test": ("if x < 0:", 2.0, 2.0),
+    "negate": ("x = -x", 3.0, 4.0),
+    "add": ("total += x\nn += 1", 4.0, 2.0),
+    "limit test": ("if total > limit:", 5.0, 0.6),
+    "break": ("break", 6.0, 2.0),
+    "empty test": ("if n == 0:", 7.0, -1.6),
+    "return None": ("return None", 8.0, -3.2),
+    "return mean": ("return total / n", 8.0, 0.0),
+    "exit": ("", 9.0, -1.6),
+}
+
+# Jumps between blocks as (from, to, branch); the branch is missing where control just falls
+# through to the next block
+_JUMPS = [
+    ("entry", "loop", None),
+    ("loop", "sign test", "next"),
+    ("loop", "empty test", "done"),
+    ("sign test", "negate", "true"),
+    ("sign test", "add", "false"),
+    ("negate", "add", None),
+    ("add", "limit test", None),
+    ("limit test", "break", "true"),
+    ("limit test", "loop", "false"),
+    ("break", "empty test", None),
+    ("empty test", "return None", "true"),
+    ("empty test", "return mean", "false"),
+    ("return None", "exit", None),
+    ("return mean", "exit", None),
+]
+
+
+def control_flow() -> Graph:
+    """
+    The control flow graph of a short function.
+
+    The control flow graph a compiler would build for this Python function, which averages the
+    absolute values of a list, stopping early once the running total passes a limit:
+
+    ```python
+    def mean_abs(values, limit):
+        total, n = 0, 0
+        for x in values:
+            if x < 0:
+                x = -x
+            total += x
+            n += 1
+            if total > limit:
+                break
+        if n == 0:
+            return None
+        return total / n
+    ```
+
+    Each node is a basic block, a run of code that always executes from start to finish, and
+    each edge a possible jump from one block to the next. Every run of the function follows a
+    path from `entry` to `exit`. It's the example for the analyses compilers do: dominators,
+    dominance frontiers, loops and depth-first edge types.
+
+    Network Properties:
+
+    - 11 nodes (basic blocks, labeled by a name for what they do)
+    - 14 edges (possible jumps)
+    - Directed, unweighted, with one cycle (the loop)
+
+    Node Attributes:
+
+    - `code`: the block's source code, such as `"if x < 0:"`; empty for `exit`
+    - `pos`: an `(x, y)` position for drawing the graph, left to right from `entry` to `exit`
+
+    Edge Attributes:
+
+    - `branch`: which way a test went to take the jump, `"true"` or `"false"` for an `if`,
+      and `"next"` or `"done"` for the `for` loop; missing where control falls through
+
+    What to Look For:
+
+    - **One loop.** The five blocks from `loop` to `limit test` form the only strongly
+      connected component of more than one block, and the jump from `limit test` back to
+      `loop` is what closes it.
+    - **Dominators.** Every path from `entry` to `add` passes through `sign test`, but not
+      through `negate`, which only runs for negative values, so `sign test` is the immediate
+      dominator of `add`. And every path to `exit` passes through `empty test`.
+    - **Where paths merge.** The dominance frontier of `negate` is `add`, where the paths with
+      and without `x = -x` meet again: the place a compiler in SSA form puts a φ-function for
+      `x`. The frontier of `loop` is `loop` itself, the sign of a loop header.
+    - **Two ways out of the loop.** The loop ends when the values run out (`done`) or at the
+      `break`, and both paths lead to `empty test`, which `loop` dominates.
+
+    Returns
+    -------
+    Graph
+        The control flow graph.
+
+    Examples
+    --------
+    Draw the graph from `entry` to `exit`, with the branch on each jump:
+
+    ```{python}
+    import edgecase as ec
+
+    cfg = ec.control_flow()
+
+    cfg.plot(layout="pos", label_by="label", edge_label_by="branch")
+    ```
+
+    The code of each block:
+
+    ```{python}
+    cfg.get_node_df().select("label", "code")
+    ```
+    """
+    nodes = [(name, name, {"code": code, "pos": (x, y)}) for name, (code, x, y) in _BLOCKS.items()]
+    edges = [(u, v, None, {"branch": b} if b else {}) for u, v, b in _JUMPS]
+    return _build_graph(nodes, edges, True, False, "Control flow", "control_flow()")
