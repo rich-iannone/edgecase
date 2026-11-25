@@ -73213,6 +73213,18 @@ class Graph:
             label_by="label",
         )
         ```
+
+        Together the 26 routes use 22 of the 25 stretches of track. The three left out lead to the
+        harbor stations: a route that went in would have to pass Harbor twice to get out:
+
+        ```{python}
+        used = {pair for route in routes for pair in zip(route, route[1:])}
+
+        metro.plot(layout="pos", highlight=list(used), label_by="label")
+        ```
+
+        [Paths and distances](../user-guide/paths.qmd#every-simple-path) counts the 119 routes from
+        Paris to Milan, and keeps the short ones with `cutoff=`.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
