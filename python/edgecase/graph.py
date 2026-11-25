@@ -4558,8 +4558,8 @@ class Graph:
             on a circle in depth-first order (see `layout_circular()`), and `"random"` scatters
             them uniformly over the canvas. Any other string names a node attribute holding
             `(x, y)` positions, such as the `"pos"` attribute the `layout_*()` methods set; the
-            positions are fitted to the canvas with `y` pointing up. `ValueError` is raised if some node lacks the attribute or doesn't
-            hold two numbers.
+            positions are fitted to the canvas with `y` pointing up. `ValueError` is raised if
+            some node lacks the attribute or doesn't hold two numbers.
         color_by
             Node attribute to map to colors (e.g., `"community"`, `"type"` or `"pagerank"`). How
             values become colors is set by `color_scale=`: by default, an attribute holding
@@ -4634,8 +4634,8 @@ class Graph:
             Ignored unless `edge_color_by=` is set.
         node_overlap
             Node overlap handling: `"remove"` (default) pushes overlapping nodes apart with a
-            padding of 2 pixels (force/random layouts only), `"allow"` keeps raw layout positions,
-            or a number specifying the minimum padding (in px) between node circles.
+            padding of 2 pixels (every layout but `"circular"`), `"allow"` keeps raw layout
+            positions, or a number specifying the minimum padding (in px) between node circles.
         edge_routing
             Edge routing for straight edges: `"around"` (default) bends edges around intermediate
             nodes with a 3 pixel clearance, `"straight"` draws direct lines, or a number specifying
@@ -4712,6 +4712,14 @@ class Graph:
             `edge_color_by=` is set, or `highlight=` or `highlight_edges=` names a node, edge or
             attribute the graph doesn't have.
 
+        See Also
+        --------
+        play : Replay the step log as an animation.
+        plot_traversal : Step through a BFS or DFS one node at a time.
+        record_traversal : Record a chain of traversals to step through.
+        colorize_node_attrs : Store colors in a node attribute.
+        describe : Print a summary of the graph.
+
         Examples
         --------
         Coloring by a community attribute is the most common use. Here Louvain communities are
@@ -4721,7 +4729,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        ec.karate_club().cmty_louvain(attr_name="community").plot(color_by="community")
+        ec.karate_club().cmty_louvain(attr_name="community").plot(
+            color_by="community"
+        )
         ```
 
         Sizing by a centrality score makes the most important nodes stand out. In the karate club,
@@ -4732,7 +4742,10 @@ class Graph:
         (
             ec.karate_club()
             .betweenness_centrality()
-            .plot(size_by="betweenness_centrality", color_by="faction", show_labels=False)
+            .plot(
+                size_by="betweenness_centrality", color_by="faction",
+                show_labels=False,
+            )
         )
         ```
 
@@ -4742,7 +4755,12 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True)
-            .add_nodes([("a", {"name": "Ana"}), ("b", {"name": "Ben"}), ("c", {"name": "Cy"})])
+            .add_nodes(
+                [
+                    ("a", {"name": "Ana"}), ("b", {"name": "Ben"}),
+                    ("c", {"name": "Cy"}),
+                ]
+            )
             .add_edges(
                 [
                     ("a", "b", {"rel": "manages"}),
@@ -4773,7 +4791,9 @@ class Graph:
         right. Here PageRank both colors and sizes the characters of *Les Misérables*:
 
         ```{python}
-        ec.les_miserables().pagerank().plot(color_by="pagerank", size_by="pagerank", seed=1)
+        ec.les_miserables().pagerank().plot(
+            color_by="pagerank", size_by="pagerank", seed=1
+        )
         ```
 
         `highlight=` picks out part of the graph and mutes the rest. Given the attribute that
@@ -4792,6 +4812,9 @@ class Graph:
         ```{python}
         ec.dolphins().plot(layout="force", curved_edges=True, theme="dark")
         ```
+
+        [Static plots](../user-guide/plotting.qmd#a-first-plot) draws the karate club, and then
+        covers saving, labels, layouts, curved edges, themes and larger graphs.
         """
         from edgecase.svg_renderer import render_plot
 
