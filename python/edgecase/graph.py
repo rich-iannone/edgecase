@@ -2710,6 +2710,9 @@ class Graph:
             label_by="label", seed=4,
         )
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#building-a-graph-from-an-edge-list)
+        builds a small citation graph, and uses `nodes=` to add a node that has no edges.
         """
         items = []
         for item in edges:
