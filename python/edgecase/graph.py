@@ -61728,6 +61728,9 @@ class Graph:
         ```
 
         On small graphs, use `current_flow_betweenness_centrality()` for the exact scores.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         scores = rust.approximate_current_flow_betweenness_centrality(
             self._graph,
