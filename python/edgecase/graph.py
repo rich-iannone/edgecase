@@ -77195,14 +77195,29 @@ class Graph:
         )
         ```
 
+        The program on the left, with the redundant arrow picked out, and its reduction on the
+        right, drawn in the same place:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
         stages = dict(enumerate(courses.topological_generations()))
+        courses.layout_multipartite(subset_key=stages)
+        reduced.set_node_attrs("pos", courses.get_node_attrs("pos"))
 
-        courses.layout_multipartite(subset_key=stages).plot(
-            layout="pos", highlight=[("CS101", "CS201")],
-            label_by="label", height=420,
+        courses.plot(
+            layout="pos", highlight=[("CS101", "CS201")], label_by="label",
+            width=320, height=320, legend=False,
         )
         ```
+
+        ```{python}
+        reduced.plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
 
         So the two chains of prerequisites from CS101 to CS460 become one:
 
@@ -77211,6 +77226,9 @@ class Graph:
             reduced.all_simple_paths("CS101", "CS460")
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#closure-and-reduction) removes the
+        redundant dependencies from the plan for a house.
         """
         from edgecase._core import transitive_reduction
 
