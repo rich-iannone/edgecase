@@ -42316,6 +42316,9 @@ class Graph:
             label_by="label", edge_label_by="amount", width=320, height=300
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#triads-in-directed-graphs)
+        names the 16 triad types, and counts them in the Wikipedia election network.
         """
         return (
             self.is_directed()
