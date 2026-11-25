@@ -50390,21 +50390,20 @@ class Graph:
         Examples
         --------
         Contracting the edge "A -- B" in a three-node path merges its endpoints into "A", and the
-        edge itself becomes a self-loop:
+        edge itself becomes a self-loop. With `self_loops=False` (second), the contracted edge is
+        dropped instead:
 
         ```{python}
         import edgecase as ec
 
         path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
-
-        path.contracted_edge("A", "B").get_edges_str_repr(use_labels=True)
-        ```
-
-        With `self_loops=False`, the contracted edge is dropped instead:
-
-        ```{python}
+        looped = path.contracted_edge("A", "B")
         merged = path.contracted_edge("A", "B", self_loops=False)
-        merged.get_edges_str_repr(use_labels=True)
+
+        (
+            looped.get_edges_str_repr(use_labels=True),
+            merged.get_edges_str_repr(use_labels=True),
+        )
         ```
 
         Unlike `contract_nodes()`, the edge has to exist, and on a directed graph in the stated
@@ -50469,6 +50468,9 @@ class Graph:
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#merging-nodes) compares the methods
+        that merge nodes.
         """
         from edgecase._core import contracted_edge as _contracted_edge
 
