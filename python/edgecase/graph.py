@@ -63062,6 +63062,9 @@ class Graph:
         ```
 
         For all pairs of nodes, use `betweenness_centrality()`.
+
+        [Centrality](../user-guide/centrality.qmd#variants) compares the variants of betweenness and
+        what each counts as a route.
         """
         src = [self._resolve_node_id(s, auto_create=False) for s in sources]
         tgt = [self._resolve_node_id(t, auto_create=False) for t in targets]
