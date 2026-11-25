@@ -17409,16 +17409,25 @@ class Graph:
             one of the three names, or the construction runs out of second-part nodes (for
             `"largest"`, exactly when no simple bipartite graph has these degrees).
 
+        See Also
+        --------
+        add_bipartite_configuration_model : Build a random bipartite graph with given degrees.
+        add_havel_hakimi_graph : Build a deterministic graph with a given degree sequence.
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+
         Examples
         --------
-        Each node gets the degree at its position, first part then second:
+        Each node gets the degree at its position, first part then second. The first part's
+        three nodes are `"1"` to `"3"`, and the second part's four are `"4"` to `"7"`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1])
+        graph = ec.Graph().add_bipartite_havel_hakimi_graph(
+            [3, 2, 1], [2, 2, 1, 1]
+        )
 
-        [graph.get_degree(v) for v in sorted(graph.get_node_ids())]
+        graph.get_node_df()["degree"].to_list()
         ```
 
         The variants realize the same degrees with different edges. With `"largest"` the
@@ -17426,13 +17435,17 @@ class Graph:
         `"smallest"` it starts with `"6"` and `"7"`, of degree `1`:
 
         ```{python}
+        edges = {}
         for variant in ("largest", "smallest", "alternating"):
-            g = ec.Graph().add_bipartite_havel_hakimi_graph([3, 2, 1], [2, 2, 1, 1], variant=variant)
-            print(variant, g.get_edges_str_repr())
+            g = ec.Graph().add_bipartite_havel_hakimi_graph(
+                [3, 2, 1], [2, 2, 1, 1], variant=variant
+            )
+            edges[variant] = g.get_edges_str_repr()
+
+        edges
         ```
 
-        One first-part node can't have three neighbors when the other side has only two
-        nodes:
+        One first-part node can't have three neighbors when the other side has only two nodes:
 
         ```{python}
         try:
@@ -17440,6 +17453,34 @@ class Graph:
         except ValueError as err:
             print(err)
         ```
+
+        ### Largest first or smallest first
+
+        The `"largest"` variant on the left and `"smallest"` on the right. Both give every node
+        its degree, but on the left the busiest nodes on each side are joined to each other,
+        while on the right they're joined to the quietest ones:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        smallest = ec.Graph().add_bipartite_havel_hakimi_graph(
+            [3, 2, 1], [2, 2, 1, 1], variant="smallest"
+        )
+
+        smallest.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import bipartite_havel_hakimi_edges as _edges
 
