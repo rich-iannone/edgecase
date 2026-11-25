@@ -33135,6 +33135,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#from-nodes-to-edges) explains how reversed edges
+        find reciprocated relationships.
         """
         self._graph.trav_reverse_edge(add_to_selection)
 
