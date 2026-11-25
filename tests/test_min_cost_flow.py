@@ -103,6 +103,22 @@ class TestMinCostFlowWithDemand:
         assert flow == 5.0
         assert cost == 10.0  # 5 * (1 + 1)
 
+    def test_demand_spills_over_to_the_dearer_path(self):
+        """The docs example: 15 units fill the route through A and send 5 through B."""
+        graph = ec.Graph.from_edges(
+            [
+                ("S", "A", 10.0, {"cost": 1.0}),
+                ("S", "B", 10.0, {"cost": 2.0}),
+                ("A", "T", 10.0, {"cost": 1.0}),
+                ("B", "T", 10.0, {"cost": 1.0}),
+            ],
+            directed=True,
+        )
+        sent, cost, flow = graph.minimum_cost_flow("S", "T", demand=15.0)
+        assert (sent, cost) == (15.0, 35.0)
+        assert sorted(flow.values()) == [5.0, 5.0, 10.0, 10.0]
+        assert len(flow) == graph.count_edges()
+
     def test_unsatisfiable_demand_raises(self):
         """Should raise error if demand cannot be satisfied."""
         graph = (
