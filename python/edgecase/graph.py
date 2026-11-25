@@ -42062,6 +42062,9 @@ class Graph:
             label_by="label", seed=11, height=420,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#triads-in-directed-graphs)
+        explains the codes for the 16 triads of a directed graph.
         """
         if not self.is_directed():
             raise ValueError("triad_type() requires a directed graph")
