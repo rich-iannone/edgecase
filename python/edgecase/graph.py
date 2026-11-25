@@ -22237,6 +22237,11 @@ class Graph:
         bool
             `True` if the node exists, `False` otherwise.
 
+        See Also
+        --------
+        has_edge : Check for an edge between two nodes.
+        get_id_from_label : Look up the ID of a labeled node.
+
         Examples
         --------
         Both node IDs and labels work as lookups, and unknown identifiers return `False`
