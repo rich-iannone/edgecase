@@ -66604,6 +66604,9 @@ class Graph:
         ]
         metro.plot(layout="pos", highlight=edges, label_by="label")
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) compares the methods
+        that find and count cycles.
         """
         return self._graph.get_girth()
 
