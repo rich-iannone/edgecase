@@ -87050,6 +87050,10 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight_edges=rides, label_by="label")
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) explains
+        how the karate club's edge cover follows from its matching.
         """
         eids = rust.min_edge_cover(self._graph)
         self._record_matching_step(
