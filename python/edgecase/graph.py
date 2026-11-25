@@ -31599,6 +31599,9 @@ class Graph:
         metro.select_nodes_in_neighborhood("Central", k=3, set_op="replace")
         metro.plot(layout="pos", highlight="selection", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) compares the ways of
+        looking at a selection.
         """
         return self._graph.count_selected_nodes()
 
