@@ -44527,6 +44527,10 @@ class Graph:
             label_by="label", seed=2, height=600,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#two-global-measures)
+        explains why the karate club's average clustering is more than double its transitivity, and
+        compares several networks with randomized versions.
         """
         return self._graph.get_avg_clustering_coefficient()
 
