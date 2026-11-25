@@ -27969,6 +27969,12 @@ class Graph:
             Number of duplicate edges (beyond first edge per pair). `0` if no pair has more than
             one edge.
 
+        See Also
+        --------
+        count_multiple : Count the parallel edges for each node pair.
+        remove_duplicate_edges : Keep one edge of each parallel group.
+        is_simple : Check for loops and parallel edges together.
+
         Examples
         --------
         Only edges beyond the first between a given pair count as "multi" -- here two of
@@ -28002,7 +28008,10 @@ class Graph:
             ec.Graph(directed=True)
             .add_nodes(["NYC", "LAX", "SFO"])
             .add_edges(
-                [("NYC", "LAX"), ("NYC", "LAX"), ("NYC", "LAX"), ("LAX", "SFO"), ("SFO", "NYC")]
+                [
+                    ("NYC", "LAX"), ("NYC", "LAX"), ("NYC", "LAX"),
+                    ("LAX", "SFO"), ("SFO", "NYC"),
+                ]
             )
         )
 
