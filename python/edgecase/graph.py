@@ -48649,6 +48649,9 @@ class Graph:
 
         At `k=3`, 57 of the 77 characters are in some community, and one community holds 46 of
         them. From `k=4` on, the large community breaks into the story's groups.
+
+        [Communities](../user-guide/communities.qmd#overlapping-communities) finds the karate club's
+        overlapping communities of four-member cliques.
         """
         if k < 2:
             raise ValueError(f"k must be at least 2, got {k}")
