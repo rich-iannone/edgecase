@@ -9563,6 +9563,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) explains why the
+        barbell graph is a stress test for algorithms that rely on short paths.
         """
         if m1 < 2:
             raise ValueError("Each bell must have at least 2 nodes")
