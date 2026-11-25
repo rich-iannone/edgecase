@@ -11440,24 +11440,28 @@ class Graph:
         ValueError
             If `p=` is outside `[0.0, 1.0]`.
 
+        See Also
+        --------
+        add_gnm_graph : Fix the number of edges instead of the chance of each.
+        add_random_kernel_graph : Let the chance of an edge depend on the two nodes.
+        add_random_partition_graph : Use a different chance within and between groups.
+
         Examples
         --------
-        Each of the `n(n-1)/2` possible edges is included independently with probability `p`,
-        so the expected edge count is `n(n-1)/2 * p` -- for `n=50` and `p=0.1` that's `122.5`
-        edges on average, and the exact count varies with the random seed. The density lands
-        close to `p`:
+        In the Erdős–Rényi model `G(n, p)` each of the `n(n - 1) / 2` possible edges is included
+        independently with probability `p`, so the edge count varies with the seed. For `n=50`
+        and `p=0.1` about `122.5` edges are expected, and the density lands close to `p`:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_gnp_graph(n=50, p=0.1, seed=23)
+        graph = ec.Graph().add_gnp_graph(n=50, p=0.1, seed=23)
 
         graph.count_nodes(), graph.count_edges(), round(graph.density(), 3)
         ```
 
         In a directed graph both orientations of every pair are drawn separately, so there are
-        twice as many candidate edges and roughly twice as many edges result:
+        twice as many candidate edges and roughly twice as many edges:
 
         ```{python}
         directed = ec.Graph(directed=True).add_gnp_graph(n=50, p=0.1, seed=23)
@@ -11465,9 +11469,9 @@ class Graph:
         directed.count_edges()
         ```
 
-        The connectivity threshold for `n=100` is about `ln(100) / 100`, or roughly `0.046`.
-        Below it the random graph typically falls apart into pieces, while above it the graph is
-        usually connected:
+        The graph becomes connected around `p = ln(n) / n`, about `0.046` for `100` nodes. Below
+        it the random graph typically falls apart into pieces, and above it it's usually in one
+        piece:
 
         ```{python}
         [
@@ -11475,6 +11479,31 @@ class Graph:
             for p in (0.02, 0.05, 0.1)
         ]
         ```
+
+        ### Below and above the threshold
+
+        For `30` nodes the threshold is about `0.11`. With `p=0.05` on the left, the graph is in
+        eight pieces, several of them single nodes. With `p=0.15` on the right, every node is
+        reachable from every other:
+
+        ```{python}
+        sparse = ec.Graph().add_gnp_graph(n=30, p=0.05, seed=23)
+        dense = ec.Graph().add_gnp_graph(n=30, p=0.15, seed=23)
+
+        sparse.count_weakly_connected_components(), dense.is_connected()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        sparse.plot(width=320, height=320, legend=False, seed=1)
+        ```
+
+        ```{python}
+        dense.plot(width=320, height=320, legend=False, seed=1)
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
         with self._compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})"):
