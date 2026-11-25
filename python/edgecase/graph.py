@@ -41620,6 +41620,9 @@ class Graph:
             color_by="club", highlight_edges=edges, label_by="label", seed=8
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#triangles) counts the karate
+        club's 45 triangles and the instructor's share of them.
         """
         return self._graph.list_triangles()
 
