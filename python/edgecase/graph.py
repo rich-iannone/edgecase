@@ -15023,6 +15023,12 @@ class Graph:
             If `n=` or `k=` is negative, `alpha=` is not positive, or `self_loops=False` with a
             single node and `k=` above `0`.
 
+        See Also
+        --------
+        add_scale_free_graph : Grow a directed graph with power-law in- and out-degrees.
+        add_gnm_graph : Add a uniform random graph with a fixed edge count.
+        add_directed_configuration_model : Fix both the in- and the out-degree of every node.
+
         Examples
         --------
         Every node has the same out-degree:
@@ -15033,23 +15039,62 @@ class Graph:
         graph = ec.Graph(directed=True).add_random_k_out_graph(
             n=100, k=3, alpha=0.5, self_loops=False, seed=4
         )
+        out_degrees = {graph.get_out_degree(v) for v in graph.get_node_ids()}
 
-        graph.count_edges(), {graph.get_out_degree(v) for v in graph.get_node_ids()}
+        graph.count_edges(), out_degrees
         ```
 
-        A smaller `alpha=` lets the most popular node attract more of the edges:
+        Targets are chosen in proportion to their in-degree plus `alpha=`, so a smaller `alpha=`
+        lets the most popular node attract more of the edges:
 
         ```{python}
+        def largest_in_degree(g):
+            return max(g.get_in_degree(v) for v in g.get_node_ids())
+
         [
-            max(
-                ec.Graph(directed=True)
-                .add_random_k_out_graph(n=100, k=3, alpha=alpha, seed=4)
-                .get_in_degree(v)
-                for v in range(1, 101)
+            largest_in_degree(
+                ec.Graph(directed=True).add_random_k_out_graph(
+                    n=100, k=3, alpha=alpha, seed=4
+                )
             )
             for alpha in (10.0, 1.0, 0.1)
         ]
         ```
+
+        ### Close to uniform or strongly preferential
+
+        Thirty nodes with two out-edges each. With `alpha=10.0` on the left the targets are close
+        to uniform, and no node has more than five in-edges. With `alpha=0.1` on the right, one
+        node collects `23` of the `60` edges:
+
+        ```{python}
+        uniform = ec.Graph(directed=True).add_random_k_out_graph(
+            n=30, k=2, alpha=10.0, seed=1
+        )
+        popular = ec.Graph(directed=True).add_random_k_out_graph(
+            n=30, k=2, alpha=0.1, seed=1
+        )
+
+        largest_in_degree(uniform), largest_in_degree(popular)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        uniform.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        popular.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, k=k)
 
