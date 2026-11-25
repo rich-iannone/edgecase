@@ -31676,6 +31676,9 @@ class Graph:
         )
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) lists it with the other
+        methods that report on a selection.
         """
         return self._graph.count_selected_edges()
 
