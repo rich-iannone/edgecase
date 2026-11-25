@@ -83350,6 +83350,9 @@ class Graph:
             layout="pos", highlight=alone, label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) explains why
+        the global minimum cut usually just cuts off a node of the lowest degree.
         """
         value, side_a, side_b = rust.stoer_wagner(self._graph, capacity)
 
