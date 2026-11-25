@@ -35630,6 +35630,9 @@ class Graph:
             size_by="score", color_by="faction", label_by="label", seed=4
         )
         ```
+
+        [Aesthetics](../user-guide/aesthetics.qmd#visual-attributes-for-the-interactive-views)
+        explains why the interactive views need stored sizes, and why `plot()` ignores them.
         """
         # Default range
         if range is None:
