@@ -44825,6 +44825,9 @@ class Graph:
 
         `cmty_girvan_newman()` runs the same algorithm, and its `n_communities=` returns the other
         levels of the hierarchy, such as the first split.
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) compares the detection
+        algorithms, what each can handle and how far each scales.
         """
         communities = self._graph.get_cmty_edge_btwns()
 
