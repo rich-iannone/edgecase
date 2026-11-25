@@ -38214,6 +38214,9 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity)
+        compares the neighborhood measures and how each normalizes the count of shared neighbors.
         """
         return self._graph.get_dice_similarity()
 
