@@ -39038,6 +39038,9 @@ class Graph:
             label_by="label", seed=11, height=420,
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) compares the methods
+        that find and count cycles.
         """
         from edgecase._core import directed_cycle_basis as rust_directed_cycle_basis
 
