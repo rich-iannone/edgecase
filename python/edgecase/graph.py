@@ -4335,6 +4335,9 @@ class Graph:
         Each view carries the vis-network library (about 670 KB), so for figures in a report or on a
         web page `plot()` is lighter, and it can draw the results of an analysis through `color_by=`,
         `size_by=` and `highlight=`. For graphs of many thousands of nodes, use `plot_cosmo()`.
+
+        [Interactive widgets](../user-guide/interactive.qmd#live-physics-with-plot_vis) explains
+        where the view takes its colors, what the click panel lists, and how many nodes it suits.
         """
         from edgecase.viz import plot_graph
 
