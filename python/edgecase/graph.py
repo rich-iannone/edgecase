@@ -46748,6 +46748,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#randomness) shows how much the karate club's
+        communities change from one seed to the next.
         """
         if max_iter < 1:
             raise ValueError(f"max_iter must be at least 1, got {max_iter}")
