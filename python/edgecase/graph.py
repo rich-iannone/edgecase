@@ -34089,6 +34089,12 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        set_node_attrs_ws : Set a fixed value on the selected nodes.
+        select_nodes : Select the nodes to change.
+        mutate_edge_attrs_ws : Change the selected edges in the same way.
+
         Examples
         --------
         The function receives each selected node's current value and returns the replacement.
@@ -34098,9 +34104,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes({"A": {"score": 10}, "B": {"score": 20}, "C": {"score": 30}})
+        graph = ec.Graph().add_nodes(
+            {"A": {"score": 10}, "B": {"score": 20}, "C": {"score": 30}}
         )
 
         id_a = graph.get_id_from_label("A")
@@ -34118,9 +34123,8 @@ class Graph:
         matching a condition (here, discounting prices above `100` by 10%):
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes({"A": {"price": 80}, "B": {"price": 120}, "C": {"price": 150}})
+        graph = ec.Graph().add_nodes(
+            {"A": {"price": 80}, "B": {"price": 120}, "C": {"price": 150}}
         )
 
         (
