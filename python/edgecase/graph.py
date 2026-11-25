@@ -26389,6 +26389,9 @@ class Graph:
             height=520,
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#planar-graphs) lists
+        the faces of the cube and checks Euler's formula.
         """
         ids, pairs, _ = self._planarity_input()
         faces = rust.planar_faces(len(ids), pairs)
