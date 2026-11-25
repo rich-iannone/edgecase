@@ -12928,6 +12928,12 @@ class Graph:
             If `m=` is less than `1` or not less than `n=`, `p=` or `q=` is not between `0` and
             `1`, or `p + q` is not less than `1`.
 
+        See Also
+        --------
+        add_dual_barabasi_albert_graph : Grow a graph where new nodes bring one of two edge counts.
+        add_powerlaw_cluster_graph : Grow a preferential attachment graph with triangle steps.
+        add_scale_free_graph : Grow a directed scale-free graph.
+
         Examples
         --------
         With `p=0` and `q=0`, each of the `98` added nodes brings two edges:
@@ -12935,12 +12941,14 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_extended_barabasi_albert_graph(n=100, m=2, p=0, q=0, seed=4)
+        graph = ec.Graph().add_extended_barabasi_albert_graph(
+            n=100, m=2, p=0, q=0, seed=4
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
 
-        Steps that add edges between existing nodes make the graph denser:
+        Steps that add edges between existing nodes make the graph dense:
 
         ```{python}
         [
@@ -12950,6 +12958,45 @@ class Graph:
             for p in (0.0, 0.2, 0.4, 0.6)
         ]
         ```
+
+        ### A tree or a graph with cycles
+
+        Forty nodes with `m=1`. With `p=0` and `q=0` on the left, each new node brings a single
+        edge, and the result is a tree. With `p=0.4` on the right, many steps add an edge
+        between existing nodes instead, chosen by degree, which closes cycles and makes the
+        hubs bigger:
+
+        ```{python}
+        def extended(p):
+            return ec.Graph().add_extended_barabasi_albert_graph(
+                n=40, m=1, p=p, q=0, seed=1
+            )
+
+        def largest_degree(g):
+            return max(g.degrees(return_dict=True).values())
+
+        tree, dense = extended(0), extended(0.4)
+
+        [(g.count_edges(), g.is_tree(), largest_degree(g)) for g in (tree, dense)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        tree.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        dense.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, m=m)
 
