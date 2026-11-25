@@ -22834,6 +22834,9 @@ class Graph:
 
         graph.count_edges()
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#edges) finds the edges between two nodes
+        with `find_edge_ids()`, which returns their IDs as well.
         """
         # Like has_node(), an unknown ID or label is simply not connected
         try:
