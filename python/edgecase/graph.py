@@ -22281,6 +22281,12 @@ class Graph:
         number of subsets grows exponentially as the common part shrinks, so this suits small
         graphs, or graphs that share most of their structure.
 
+        See Also
+        --------
+        subgraph_isomorphisms : List the occurrences of a whole pattern.
+        is_subgraph_isomorphic : Check whether a whole pattern occurs.
+        graph_edit_distance : Measure how far apart two graphs are.
+
         Examples
         --------
         A square and a triangle with a pendant share a path of three nodes, and nothing larger:
@@ -22288,10 +22294,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        square = ec.Graph().add_nodes(["a", "b", "c", "d"])
-        square.add_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
-        paw = ec.Graph().add_nodes(["x", "y", "z", "w"])
-        paw.add_edges([("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")])
+        square = ec.Graph.from_edges([("a", "b"), ("b", "c"), ("c", "d"), ("d", "a")])
+        paw = ec.Graph.from_edges([("x", "y"), ("y", "z"), ("z", "x"), ("z", "w")])
 
         found = square.largest_common_subgraph(paw)
         len(found)
@@ -22302,6 +22306,39 @@ class Graph:
 
         ```{python}
         {paw.get_label_from_id(k): square.get_label_from_id(v) for k, v in found[0].items()}
+        ```
+
+        ### What caffeine shares with benzene
+
+        By shape alone, all of benzene fits in caffeine, as its ring of six atoms:
+
+        ```{python}
+        molecules = ec.molecules()
+        caffeine, benzene = molecules["caffeine"], molecules["benzene"]
+
+        found = caffeine.largest_common_subgraph(benzene)
+        len(found), sorted(caffeine.get_label_from_id(n) for n in found[0].values())
+        ```
+
+        Matching elements, the six carbons of benzene have to land on carbons. The most that
+        fit is four, in seven ways. The largest common subgraph doesn't have to be connected:
+        the first match is the chain C3–C4–C5 plus C6, which is bonded to none of them, just as
+        the fourth carbon of benzene is bonded to none of the other three:
+
+        ```{python}
+        found = caffeine.largest_common_subgraph(benzene, node_attr="element")
+        carbons = list(found[0].values())
+        len(found), [caffeine.get_label_from_id(n) for n in carbons]
+        ```
+
+        ```{python}
+        bonds = [
+            (u, v) for _, u, v in caffeine.get_edges_as_tuples() if u in carbons and v in carbons
+        ]
+
+        caffeine.plot(
+            color_by="element", highlight=carbons, highlight_edges=bonds, label_by="label", seed=1
+        )
         ```
         """
         (nc_t, ec_t), (nc_p, ec_p) = self._match_colors(other, node_attr, edge_attr)
