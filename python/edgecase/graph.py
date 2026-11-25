@@ -73717,6 +73717,8 @@ class Graph:
 
         min(crossings.values()), max(crossings.values())
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#walks) compares the kinds of random walk.
         """
         self._check_non_negative(steps=steps)
         # An int is an ID and a str a label, as everywhere else (so label "10" isn't node 10)
