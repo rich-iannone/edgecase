@@ -39483,6 +39483,25 @@ class Graph:
         [graph.get_label_from_id(n) for n in clique]
         ```
 
+        All six of the clique's edges picked out. `E` would need edges to `C` and `D` to join:
+
+        ```{python}
+        from itertools import combinations
+
+        spots = {
+            "A": (1, 1), "B": (3, 1), "C": (0, 2.6), "D": (4, 2.6),
+            "E": (2, -0.4),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight=list(combinations(clique, 2)),
+            label_by="label", height=320,
+        )
+        ```
+
         ### Exams that need their own slots
 
         `exams()` joins two of a made-up college's courses when some student takes both, so
@@ -39524,6 +39543,9 @@ class Graph:
             [[label(n) for n in c] for c in towns.find_cliques() if len(c) == 4],
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) finds the karate club's largest
+        clique, the instructor and four of their closest friends.
         """
         return self._graph.max_clique()
 
