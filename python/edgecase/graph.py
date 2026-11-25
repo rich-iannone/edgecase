@@ -92261,6 +92261,24 @@ class Graph:
         round(graph.reciprocity(), 3), graph.reciprocity(mode="ratio")
         ```
 
+        The mutual pair picked out. The edge from Ana to Cruz has no edge back:
+
+        ```{python}
+        def mutual_edges(g):
+            edges = g.get_edge_df()
+            pairs = set(zip(edges["source"], edges["target"]))
+            return [
+                e
+                for e, s, t in zip(edges["id"], edges["source"], edges["target"])
+                if (t, s) in pairs
+            ]
+
+        graph.plot(
+            highlight_edges=mutual_edges(graph), label_by="label",
+            curved_edges=True, height=240, seed=1,
+        )
+        ```
+
         ### More than chance
 
         `payments()` is a month of payments between 18 accounts at a made-up bank, each directed
@@ -92291,6 +92309,21 @@ class Graph:
             }
         )
         ```
+
+        The returned payments picked out. Only two pairs of accounts paid each other, Dee and
+        Eve, and Max and Nia:
+
+        ```{python}
+        payments = networks["payments"]
+
+        payments.plot(
+            highlight_edges=mutual_edges(payments), label_by="label",
+            curved_edges=True, seed=3,
+        )
+        ```
+
+        [Structural properties](../user-guide/structure.qmd#reciprocity) finds how rarely votes are
+        returned in Wikipedia's administrator elections.
         """
         return self._graph.reciprocity(mode)
 
