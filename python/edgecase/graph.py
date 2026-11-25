@@ -39630,6 +39630,10 @@ class Graph:
             highlight=[*hole, hole[0]], label_by="label", seed=3, height=420
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#chordal-graphs-and-treewidth) explains what
+        chordal graphs are and why they make hard problems easy.
         """
         value = rust.is_chordal(self._graph)
         if self._recording_depth == 0:
