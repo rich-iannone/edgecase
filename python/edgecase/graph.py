@@ -28057,6 +28057,11 @@ class Graph:
         ValueError
             If graph is undirected.
 
+        See Also
+        --------
+        count_asymmetric_node_pairs : Count the pairs joined in one direction only.
+        reciprocity : Give the share of edges that are returned.
+
         Examples
         --------
         Only the `A`/`B` pair has edges running both ways, so it's the only mutual pair
