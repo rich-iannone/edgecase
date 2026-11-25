@@ -54079,7 +54079,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
 
         (
             path.network_proximity(["A", "B"], ["D", "E"]),
@@ -54097,8 +54099,9 @@ class Graph:
 
         proteins = ec.proteins()
         disease = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
+        nodes = proteins.get_node_df()
         targets = {
-            drug: proteins.get_node_df().filter(pl.col("drug_target") == drug)["label"].to_list()
+            drug: nodes.filter(pl.col("drug_target") == drug)["label"].to_list()
             for drug in ["Drug A", "Drug B"]
         }
         targets
@@ -54109,12 +54112,14 @@ class Graph:
         targets sit inside the neighborhood of the disease genes:
 
         ```{python}
+        proximity = proteins.network_proximity
+
         pl.DataFrame(
             {
                 "method": ["closest", "shortest", "kernel"],
                 **{
                     drug: [
-                        proteins.network_proximity(t, disease, method=m)["proximity"]
+                        proximity(t, disease, method=m)["proximity"]
                         for m in ["closest", "shortest", "kernel"]
                     ]
                     for drug, t in targets.items()
@@ -54126,7 +54131,7 @@ class Graph:
         ```{python}
         {
             drug: round(
-                proteins.network_proximity(t, disease, method="separation")["separation"], 2
+                proximity(t, disease, method="separation")["separation"], 2
             )
             for drug, t in targets.items()
         }
@@ -54138,14 +54143,16 @@ class Graph:
 
         ```{python}
         proteins.plot(
-            layout="pos", highlight={"accent": disease, "soft": targets["Drug A"]},
+            layout="pos",
+            highlight={"accent": disease, "soft": targets["Drug A"]},
             label_by="label", width=360, height=360,
         )
         ```
 
         ```{python}
         proteins.plot(
-            layout="pos", highlight={"accent": disease, "soft": targets["Drug B"]},
+            layout="pos",
+            highlight={"accent": disease, "soft": targets["Drug B"]},
             label_by="label", width=360, height=360,
         )
         ```
