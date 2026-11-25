@@ -41139,6 +41139,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) compares the methods that find
+        cliques.
         """
         result = self._clique_stats(nodes, True)
         if self._recording_depth == 0:
