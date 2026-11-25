@@ -45852,6 +45852,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#measuring-the-quality-of-a-partition) explains
+        why coverage and performance are best read together.
         """
         membership = self._membership_from(communities)
         coverage, performance = rust.partition_quality(self._graph, membership)
