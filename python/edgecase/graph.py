@@ -85971,6 +85971,9 @@ class Graph:
             height=300,
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes)
+        compares the matching methods.
         """
         from edgecase._core import is_matching
 
