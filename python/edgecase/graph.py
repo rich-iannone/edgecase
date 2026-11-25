@@ -77680,6 +77680,9 @@ class Graph:
         ```{python}
         konigsberg.eulerize().is_eulerian()
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#eulerian-paths-and-circuits) tests the seven
+        bridges of Königsberg.
         """
         from edgecase._core import is_eulerian
 
