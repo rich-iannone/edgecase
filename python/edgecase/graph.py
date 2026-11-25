@@ -47694,6 +47694,9 @@ class Graph:
 
         Splitting each side again in the same way gives `cmty_l_eigenvec()`, and
         `greedy_node_swap_bipartition()` can refine the split by moving single nodes.
+
+        [Communities](../user-guide/communities.qmd#a-fixed-number-of-groups) splits the karate club
+        in two along its factions.
         """
         if self.is_directed():
             raise ValueError("spectral_modularity_bipartition() requires an undirected graph")
