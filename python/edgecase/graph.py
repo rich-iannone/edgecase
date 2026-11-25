@@ -66983,6 +66983,21 @@ class Graph:
         [fx.get_label_from_id(n) for n in fx.find_negative_cycle("USD")]
         ```
 
+        Each edge labeled by its weight. Going around the loop once adds up to less than zero, so
+        every lap makes the route cheaper:
+
+        ```{python}
+        spots = {"USD": (0, 0), "EUR": (2, 0), "GBP": (1, 1.5)}
+        fx.set_node_attrs(
+            "pos", {fx.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        fx.plot(
+            layout="pos", edge_label_by="weight", label_by="label",
+            height=240, legend=False,
+        )
+        ```
+
         ### Finding an arbitrage
 
         `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
@@ -67013,6 +67028,9 @@ class Graph:
         ```{python}
         fx.plot(highlight=steps, label_by="label", curved_edges=True, seed=4)
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#negative-cycles) adds a mispriced quote to a
+        currency graph and finds the arbitrage it creates.
         """
         sid = self._resolve_node_id(source, auto_create=False)
         cycle = rust.find_negative_cycle(self._graph, sid, self._use_weights(weighted))
