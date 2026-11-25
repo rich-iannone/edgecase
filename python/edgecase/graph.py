@@ -88630,6 +88630,11 @@ class Graph:
         the reported multiplicity reflects that. The complementary primitive is
         `which_loops()`, which returns the flat edge-ID list without grouping.
 
+        See Also
+        --------
+        which_loops : List the IDs of the self-loops.
+        count_all_loops : Count the self-loops in the whole graph.
+
         Examples
         --------
         Nodes can have more than one self-loop, so this groups the count by node rather than
@@ -88654,7 +88659,7 @@ class Graph:
         loop_counts = g.count_loops()
 
         # Returns {'A': 2, 'B': 1}
-        {g.get_label_from_id(nid): count for nid, count in sorted(loop_counts.items())}
+        {g.get_label_from_id(v): n for v, n in sorted(loop_counts.items())}
         ```
 
         In a chemical reaction network, this can highlight autocatalytic species -- ones that
@@ -88677,7 +88682,7 @@ class Graph:
         autocatalytic = rxn.count_loops()
 
         # Returns {'B': 2, 'C': 1}
-        {rxn.get_label_from_id(nid): count for nid, count in sorted(autocatalytic.items())}
+        {rxn.get_label_from_id(v): n for v, n in sorted(autocatalytic.items())}
         ```
         """
         return self._graph.count_loops()
