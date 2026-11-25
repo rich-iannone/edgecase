@@ -65343,6 +65343,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         if self._use_weights(weighted):
             vitality = rust.closeness_vitality_weighted(self._graph)
