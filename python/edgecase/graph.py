@@ -93754,6 +93754,9 @@ class Graph:
         ```{python}
         karate.plot(size_by="degree", label_by="label", seed=1)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) compares
+        the matrices of a graph and the methods each suits.
         """
         matrix, ids, _ = rust.bethe_hessian_matrix(self._graph, r, self._use_weights(weighted))
         self._record_matrix_step(
