@@ -24089,6 +24089,33 @@ class Graph:
         people.get_edge_df(labels=True).select("source", "target", "weight")
         ```
 
+        The memberships on the left, and their projection onto the people on the right, drawn in
+        the same place. Each club becomes an edge between its two members:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        person = graph.get_id_from_label
+        graph.layout_bipartite(
+            nodes=[person(p) for p in ["Ana", "Ben", "Cruz"]],
+            align="horizontal", aspect_ratio=0.5,
+        )
+        pos = graph.get_node_attrs("pos")
+        people.set_node_attrs("pos", {n: pos[n] for n in people.get_node_ids()})
+
+        graph.plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        people.plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         ### Who met whom
 
         `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
@@ -24118,6 +24145,9 @@ class Graph:
 
         women.plot(label_by="label", edge_width_by="weight", seed=1)
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#derived-graphs) projects the Southern
+        Women network onto its events.
         """
         edges = rust.bipartite_projection(self._graph, which)
 
