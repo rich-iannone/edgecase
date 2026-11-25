@@ -23014,6 +23014,9 @@ class Graph:
 
         graph.find_edge_ids(source="A", target="B")
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#edges) reads an edge's endpoints and
+        attributes, and finds edge IDs from their endpoints.
         """
         source_id = self._node_id_or_raise(source)
         target_id = self._node_id_or_raise(target)
