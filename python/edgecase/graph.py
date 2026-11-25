@@ -21937,6 +21937,11 @@ class Graph:
             Edge IDs in chronological creation order, oldest first. Empty if the graph has no
             edges.
 
+        See Also
+        --------
+        get_node_creation_order : List the node IDs in the order they were added.
+        get_edge_ids : List the edge IDs in no fixed order.
+
         Examples
         --------
         Each of the three edges added here appears in the order it was created:
