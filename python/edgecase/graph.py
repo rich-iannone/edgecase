@@ -36731,6 +36731,25 @@ class Graph:
         [(label(u), label(v), round(s, 3)) for u, v, s in scores]
         ```
 
+        Each node labeled with its number of neighbors. `B` and `C` each count `1 / ln 2` toward
+        the score of `A` and `D`. Toward `B` and `E`, `D` counts only `1 / ln 3`, since it has
+        three neighbors:
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 2), "C": (1, 0), "D": (2, 1), "E": (3, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        tag = {
+            n: f"{label(n)} ({graph.get_degree(n)})" for n in graph.get_node_ids()
+        }
+
+        graph.set_node_attrs("tag", tag).plot(
+            layout="pos", highlight={"accent": {"A", "D"}, "soft": {"B", "C"}},
+            label_by="tag", height=240,
+        )
+        ```
+
         ### Friends who know few people
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -36764,6 +36783,9 @@ class Graph:
             size_by="degree", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#link-prediction) compares the
+        six link predictors and tests them on the jazz network.
         """
         from edgecase._core import adamic_adar_index
 
