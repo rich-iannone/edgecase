@@ -48308,69 +48308,98 @@ class Graph:
         Graph
             A new Graph with reversed edge directions (same directedness as the original).
 
+        See Also
+        --------
+        ancestors : The nodes that can reach a node, without reversing.
+        descendants : The nodes a node can reach.
+        pagerank : A ranking that follows edges forward.
+        to_undirected : Drop the direction of every edge.
+
         Examples
         --------
-        Reversing a directed path flips each edge, while the original keeps its own edges:
+        Reversing a directed path flips each edge, while the original keeps its own:
 
         ```{python}
         import edgecase as ec
 
-        original = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        original = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        flipped = original.reverse()
+
+        (
+            original.has_edge("A", "B"),
+            flipped.has_edge("B", "A"),
+            flipped.has_edge("A", "B"),
         )
-
-        reversed_graph = original.reverse()
-        original.has_edge("A", "B")
-        ```
-
-        The original graph is untouched -- `reverse()` returns a new graph where every
-        edge now points the other way:
-
-        ```{python}
-        reversed_graph.has_edge("B", "A")
-        ```
-
-        This is handy for working out what depends on what: reversing a "provides"
-        relationship turns it into a "depends on" one:
-
-        ```{python}
-        deps = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")], label="provides")
-        )
-
-        dependents = deps.reverse()
-        dependents.get_edges_str_repr(use_labels=True)
-        ```
-
-        Some algorithms, like finding strongly connected components, need both a graph
-        and its transpose:
-
-        ```{python}
-        g = ec.Graph(directed=True)
-        g.add_nodes(["X", "Y", "Z"])
-        g.add_edges([("X", "Y"), ("Y", "Z")])
-
-        g_transpose = g.reverse()
-        g_transpose.get_edges_str_repr(use_labels=True)
         ```
 
         Weights and other edge attributes travel with their edges, so the reversed edge
         "B -> A" keeps the weight `4.0` of the original "A -> B":
 
         ```{python}
-        weighted = (
-            ec.Graph(directed=True)
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge("A", "B", weight=4.0)
-        )
+        weighted = ec.Graph.from_edges([("A", "B", 4.0)], directed=True)
 
-        weighted.reverse().get_edge_df()
+        weighted.reverse().get_edge_df().select("source", "target", "weight")
         ```
+
+        ### Cited by, instead of cites
+
+        In a citation network each edge runs from a paper to an older paper it cites, so the
+        arrows point back in time. Reversed, each edge runs from a paper to a newer one that cites
+        it, and the arrows follow ideas forward. Moreau 2000 cites nothing, but is cited by 9
+        papers, and 14 build on it directly or through other papers:
+
+        ```{python}
+        citations = ec.citations()
+        cited_by = citations.reverse()
+
+        direct = cited_by.get_successors("Moreau 2000")
+        indirect = cited_by.descendants("Moreau 2000")
+
+        len(direct), len(indirect)
+        ```
+
+        Any method that follows edges forward now runs the other way. PageRank on the citations
+        finds the work everything rests on, with Moreau 2000 on top. On the reversed graph, rank
+        flows to the papers that cite the most, and it collects at Osei 2021, which cites the
+        survey Hughes 2020, which cites 11 papers:
+
+        ```{python}
+        def top(graph):
+            scores = graph.pagerank(return_dict=True)
+            return graph.get_label_from_id(max(scores, key=scores.get))
+
+        top(citations), top(cited_by)
+        ```
+
+        The papers are drawn as a timeline, oldest on the left, and sized by PageRank, with the
+        citations first and the reversed graph second. The largest node moves from Moreau 2000, at
+        the far left, to Osei 2021, at the far right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        citations.pagerank().plot(
+            layout="pos",
+            size_by="pagerank",
+            color_by="field",
+            show_labels=False,
+            width=360,
+            height=360,
+        )
+        ```
+
+        ```{python}
+        cited_by.pagerank().plot(
+            layout="pos",
+            size_by="pagerank",
+            color_by="field",
+            show_labels=False,
+            width=360,
+            height=360,
+        )
+        ```
+
+        :::
         """
         result = Graph._from_rust(self._graph.reverse())
 
