@@ -3143,6 +3143,9 @@ class Graph:
             highlight=["Finn", "Gus", "Hal", "Finn"], label_by="label", seed=3
         )
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#deleting-nodes-and-edges) explains which
+        edge goes when parallel edges join the same two nodes.
         """
         if id is not None:
             # Delete by edge ID
