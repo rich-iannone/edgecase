@@ -89568,6 +89568,20 @@ class Graph:
         graph.steiner_tree(["A", "C"]).get_edges_str_repr(use_labels=True)
         ```
 
+        The tree picked out, with each edge labeled by its weight:
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1)}
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+        tree = graph.steiner_tree(["A", "C"])
+
+        graph.plot(
+            layout="pos", highlight_edges=tree.get_edge_ids(),
+            edge_label_by="weight", label_by="label", height=240,
+        )
+        ```
+
         ### Linking four stations
 
         `metro()` is a made-up city's metro network, with each track's travel time in minutes
@@ -89594,6 +89608,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#steiner-trees) connects four cities on a road
+        network, and compares the tree with the minimum spanning tree.
         """
         from edgecase._core import steiner_tree as _steiner_tree
 
