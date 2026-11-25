@@ -22752,6 +22752,11 @@ class Graph:
         str | None
             The graph's name, or `None` if no `graph_name=` was given when the graph was created.
 
+        See Also
+        --------
+        count_nodes : Report a named graph's size next to its name.
+        count_edges : Count the edges of a named graph.
+
         Examples
         --------
         The name passed to the constructor is returned unchanged:
