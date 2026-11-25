@@ -46168,17 +46168,10 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        genes = ["G1", "G2", "G3", "G4", "G5"]
         ring = [("G1", "G2"), ("G2", "G3"), ("G3", "G4"), ("G4", "G5"), ("G5", "G1"), ("G1", "G3")]
 
-        healthy = ec.Graph()
-        healthy.add_nodes(genes)
-        healthy.add_edges(ring)
-
-        disease = ec.Graph()
-        disease.add_nodes(genes)
-        disease.add_edges([(s, t) for s, t in ring if (s, t) != ("G4", "G5")])
-        disease.add_edge("G5", "G3")
+        healthy = ec.Graph.from_edges(ring)
+        disease = ec.Graph.from_edges([e for e in ring if e != ("G4", "G5")] + [("G5", "G3")])
 
         healthy.differential_edges(disease)
         ```
@@ -46188,6 +46181,57 @@ class Graph:
         ```{python}
         disease.differential_edges(healthy)
         ```
+
+        ### A year among friends
+
+        `friends()` links 24 members of two clubs, a chess club and a climbing club, who are
+        friends. `friends(snapshot=2)` is the same group a year later. No friendship ended, and
+        eight are new:
+
+        ```{python}
+        friends = ec.friends()
+        later = ec.friends(snapshot=2)
+
+        changes = friends.differential_edges(later)
+        changes
+        ```
+
+        The eight new pairs are 16 different people, and only one pair, Femi and Vik, crosses
+        between the clubs. Highlighting the new friendships in the second snapshot keeps those 16
+        people in their club colors:
+
+        ```{python}
+        later.plot(color_by="club", highlight_edges=changes["added"], label_by="label", seed=1)
+        ```
+
+        Comparing one person's circle, the person with their friends and the friendships among
+        them, shows what reached them. Rosa made one new friend, Nico, but four ties entered her
+        circle: Nico's own, his friendships with Mara and Pablo, which he brought with him, and
+        the new friendship between Mara and Pablo:
+
+        ```{python}
+        before, after = friends.ego_graph("Rosa"), later.ego_graph("Rosa")
+
+        before.differential_edges(after)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        before.plot(label_by="label", seed=1, width=360, height=360)
+        ```
+
+        ```{python}
+        after.plot(
+            highlight_edges=before.differential_edges(after)["added"],
+            label_by="label",
+            seed=1,
+            width=360,
+            height=360,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import differential_edges as _differential_edges
 
