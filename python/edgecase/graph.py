@@ -84379,6 +84379,9 @@ class Graph:
         payments.set_node_attrs("component_size", size)
         payments.plot(color_by="component_size", label_by="label", seed=3)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) finds 5,816
+        strongly connected components among the 7,115 users of the Wikipedia election network.
         """
         return self._graph.count_strongly_connected_components()
 
