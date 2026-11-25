@@ -43475,6 +43475,9 @@ class Graph:
             edge_width_by="triangles", edge_color_by="triangles",
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#other-coefficients) compares
+        the variants of clustering and the questions each suits.
         """
         result = {
             n: dict(sorted(counts.items()))
