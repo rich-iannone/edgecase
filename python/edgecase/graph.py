@@ -92676,6 +92676,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) compares assortativity
+        by degree, by category and by number.
         """
         return self._graph.assortativity(attribute)
 
