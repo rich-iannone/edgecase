@@ -20299,6 +20299,12 @@ class Graph:
         ValueError
             If `order=` is less than `2`.
 
+        See Also
+        --------
+        iter_nonisomorphic_trees : List the trees themselves.
+        is_valid_tree_degree_sequence : Check whether degrees can be realized by a tree.
+        add_random_labeled_tree : Draw a uniformly random labeled tree.
+
         Examples
         --------
         The counts grow roughly threefold with each node:
@@ -20313,6 +20319,17 @@ class Graph:
 
         ```{python}
         ec.Graph.count_nonisomorphic_trees(100)
+        ```
+
+        By Cayley's formula there are `n ** (n - 2)` labeled trees on `n` nodes, far more than
+        there are shapes. On ten nodes, `100,000,000` labeled trees share just `106` shapes,
+        nearly a million labelings for each shape on average:
+
+        ```{python}
+        [
+            (n, ec.Graph.count_nonisomorphic_trees(n), n ** (n - 2))
+            for n in (5, 10, 15)
+        ]
         ```
         """
         from edgecase._generators import count_nonisomorphic_trees
