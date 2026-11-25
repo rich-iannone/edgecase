@@ -165,6 +165,21 @@ class TestDispersion:
         assert graph.dispersion("a", "b") == 0.0
         assert graph.dispersion("b", "a") == 0.5  # x is not a neighbor of b
 
+    def test_docstring_friend_links_the_pair(self):
+        graph = Graph.from_edges(
+            [("U", "V"), ("U", "A"), ("U", "B"), ("U", "C"), ("V", "A"), ("V", "B"), ("V", "C")]
+            + [("A", "B")]
+        )
+        assert graph.dispersion("U", "V") == pytest.approx(2 / 3)
+        assert graph.dispersion("U", "V", normalized=False) == 2.0
+        graph.add_node(label="X")
+        graph.add_edge("B", "X").add_edge("C", "X")
+        # X is no neighbor of U, so B and C still count as dispersed
+        assert graph.dispersion("U", "V") == pytest.approx(2 / 3)
+        graph.add_edge("U", "X")
+        assert graph.dispersion("U", "V") == pytest.approx(1 / 3)
+        assert graph.dispersion("V", "U") == pytest.approx(2 / 3)
+
     def test_matches_networkx(self):
         import random
 
