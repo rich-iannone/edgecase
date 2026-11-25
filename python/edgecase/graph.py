@@ -44097,6 +44097,10 @@ class Graph:
 
         papers.plot(layout="pos", size_by="cited", label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) compares the degree
+        assortativity of several bundled networks, from physicists' collaborations to the karate
+        club.
         """
         triples = self._degree_pairs(source_mode, target_mode, weighted)
         n = sum(c for _, _, c in triples)
