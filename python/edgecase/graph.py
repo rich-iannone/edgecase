@@ -7853,36 +7853,29 @@ class Graph:
         ValueError
             If `n=` is less than `2`.
 
+        See Also
+        --------
+        add_wheel_graph : Add a wheel graph.
+        add_path_graph : Add a path graph.
+        add_complete_bipartite_graph : Add a complete bipartite graph.
+
         Examples
         --------
-        A star graph has one hub connected to every other node, with no edges between the
-        spokes themselves -- so `n` nodes always produce exactly `n - 1` edges:
+        A star graph has one hub, the first node, joined to every other node, with no edges between
+        the others, so `n` nodes have `n - 1` edges. `type=` and `rel=` tag the new nodes and
+        edges:
 
         ```{python}
         import edgecase as ec
-        graph = ec.Graph().add_star_graph(n=5)  # 1 hub + 4 spokes
 
-        graph.count_nodes(), graph.count_edges()
-        ```
+        graph = ec.Graph().add_star_graph(n=4, type="server", rel="link")
 
-        Listing the edges shows that every one of them starts at the hub, node `"1"`:
-
-        ```{python}
         graph.get_edges_str_repr(use_labels=True)
         ```
 
-        `type=` tags every new node (and `rel=` every new edge), so the node table gains a `type`
-        column. Its degree column confirms that the hub has degree `3` and each spoke degree `1`:
-
-        ```{python}
-        graph = ec.Graph().add_star_graph(n=4, type="server", rel="link")
-
-        graph.get_node_df()
-        ```
-
-        When the graph already has nodes, the numbering continues from them. Here the star's
-        hub is labelled `"2"` because `"Gateway"` is node `1`, and an extra edge then links the
-        gateway to the hub:
+        When the graph already has nodes, the numbering continues from them. Here the hub is
+        labelled `"2"`, since `"Gateway"` is node `1`, and an extra edge links the gateway to the
+        hub:
 
         ```{python}
         graph = (
@@ -7894,6 +7887,31 @@ class Graph:
 
         graph.get_edges_str_repr(use_labels=True)
         ```
+
+        ### A star and a path
+
+        A star and a path on seven nodes are both trees with six edges. In the star on the left
+        every two nodes are at most two edges apart. In the path on the right the ends are six
+        apart:
+
+        ```{python}
+        star = ec.Graph().add_star_graph(n=7)
+        path = ec.Graph().add_path_graph(n=7)
+
+        star.diameter(), path.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        star.plot(label_by="label", width=320, height=320, legend=False, seed=1)
+        ```
+
+        ```{python}
+        path.plot(label_by="label", width=320, height=320, legend=False, seed=1)
+        ```
+
+        :::
         """
         if n < 2:
             raise ValueError("Star must have at least 2 nodes")
