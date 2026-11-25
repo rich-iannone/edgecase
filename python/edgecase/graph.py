@@ -29246,6 +29246,9 @@ class Graph:
             highlight={"accent": ["CS102"], "soft": after},
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#neighbors) compares the neighbor lookups on a
+        graph of course prerequisites.
         """
         if not self._graph.is_directed:
             raise ValueError("get_successors only available for directed graphs")
