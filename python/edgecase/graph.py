@@ -14708,9 +14708,16 @@ class Graph:
         ValueError
             If `n=` is negative.
 
+        See Also
+        --------
+        add_gn_graph : Grow a tree in which each new node adds one link.
+        add_gnr_graph : Grow a tree by redirecting links.
+        add_partial_duplication_graph : Grow an undirected graph by copying neighborhoods.
+
         Examples
         --------
-        Copying links makes the graph much denser than a tree:
+        Each new node links to a random existing node and also copies all of that node's links,
+        so the graph is much denser than a tree:
 
         ```{python}
         import edgecase as ec
@@ -14720,7 +14727,8 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        Every node's successors include all of its successors' successors:
+        Because the links are copied, every node's successors include all of its successors'
+        successors:
 
         ```{python}
         all(
@@ -14729,6 +14737,35 @@ class Graph:
             for w in graph.get_successors(v)
         )
         ```
+
+        ### Copying links or not
+
+        Twelve nodes grown with copying on the left, and on the right `add_gn_graph()`, where
+        each new node adds a single link. Copying always includes the link to the first node, so
+        on the left every other node points to `"1"`, and there are `20` edges rather than `11`:
+
+        ```{python}
+        copied = ec.Graph(directed=True).add_gnc_graph(n=12, seed=2)
+        tree = ec.Graph(directed=True).add_gn_graph(n=12, seed=2)
+
+        copied.get_in_degree("1"), copied.count_edges(), tree.count_edges()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        copied.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        ```{python}
+        tree.plot(
+            label_by="label", width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
