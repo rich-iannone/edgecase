@@ -58561,6 +58561,9 @@ class Graph:
         ```{python}
         club.plot(layout="pos", label_by="label", highlight=core)
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         from edgecase._core import knotty_centrality as _knotty_centrality
 
