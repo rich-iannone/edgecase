@@ -47868,6 +47868,9 @@ class Graph:
             [books.get_label_from_id(n) for n in moved],
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#a-fixed-number-of-groups) compares the methods
+        that take the number of groups as an input.
         """
         if self.is_directed():
             raise ValueError("greedy_node_swap_bipartition() requires an undirected graph")
