@@ -20476,10 +20476,17 @@ class Graph:
             If the degree sequence contains a negative number, or if `directed=` is `False`
             and the sequence has an odd sum.
 
+        See Also
+        --------
+        expected_degree_graph : Build a random graph whose expected degrees match given weights.
+        degree_preserving_rewire : Shuffle the edges while keeping every degree.
+        add_havel_hakimi_graph : Build a deterministic graph with a given degree sequence.
+        simplify : Remove self-loops and repeated edges.
+
         Examples
         --------
         Every node gets exactly the degree asked for. Node labels are the positions in the
-        sequence, so `"0"` has degree `3`, `"1"`, `"2"`, and `"3"` have degree `2`, and `"4"` has
+        sequence, so `"0"` has degree `3`, `"1"`, `"2"` and `"3"` have degree `2`, and `"4"` has
         degree `1`:
 
         ```{python}
@@ -20487,58 +20494,70 @@ class Graph:
 
         graph = ec.Graph().configuration_model([3, 2, 2, 2, 1], seed=2)
 
-        {
-            graph.get_label_from_id(nid): graph.get_degree(nid)
-            for nid in sorted(graph.get_node_ids())
-        }
+        dict(graph.get_node_df().select("label", "degree").rows())
         ```
 
-        Random stub pairing can produce multi-edges: here `"0"` and `"2"` are joined twice, so
-        the graph is not simple:
+        The edges come from pairing the nodes' edge ends at random, which can produce repeated
+        edges: here `"0"` and `"2"` are joined twice, so the graph is not simple. `simplify()`
+        removes the repeat, at the cost of one unit of degree for `"0"` and `"2"`:
 
         ```{python}
-        graph.get_edges_str_repr(use_labels=True), graph.is_simple()
-        ```
+        edges = graph.get_edges_str_repr(use_labels=True)
 
-        Chaining `simplify()` removes the duplicate edge, but then node `"0"` and node `"2"` each
-        lose a unit of degree:
-
-        ```{python}
-        graph.simplify().get_edges_str_repr(use_labels=True)
-        ```
-
-        A typical use is building a null model for an observed network. Ten disjoint
-        six-node cliques have perfect clustering; a configuration model with the same degrees
-        (every node has degree `5`) has the same number of edges but almost no clustering,
-        showing that the clustering comes from the structure and not from the degrees:
-
-        ```{python}
-        observed = ec.Graph()
-        for _ in range(10):
-            observed.add_full_graph(n=6)
-
-        degrees = [observed.get_degree(nid) for nid in observed.get_node_creation_order()]
-        null = ec.Graph().configuration_model(degrees, seed=23)
-
-        (
-            (observed.count_edges(), round(observed.average_clustering_coefficient(), 3)),
-            (null.count_edges(), round(null.average_clustering_coefficient(), 3)),
-        )
+        edges, graph.is_simple(), graph.simplify().count_edges()
         ```
 
         With `directed=True`, each entry becomes both the in-degree and the out-degree of its
         node, shown here as `(in, out)` pairs:
 
         ```{python}
-        directed = ec.Graph().configuration_model([2, 1, 1, 0], directed=True, seed=4)
+        directed = ec.Graph().configuration_model(
+            [2, 1, 1, 0], directed=True, seed=4
+        )
 
         {
-            directed.get_label_from_id(nid): (
-                directed.get_in_degree(nid), directed.get_out_degree(nid)
+            directed.get_label_from_id(n): (
+                directed.get_in_degree(n), directed.get_out_degree(n)
             )
-            for nid in sorted(directed.get_node_ids())
+            for n in sorted(directed.get_node_ids())
         }
         ```
+
+        ### A null model
+
+        A configuration model with the degrees of an observed network keeps those degrees and
+        randomizes everything else, which tells you whether a pattern comes from the degrees
+        alone. Four separate complete graphs of four nodes, on the left, have perfect clustering.
+        The configuration model on the right has the same `24` edges, and every node still has
+        degree `3`, but the clustering is gone, so it came from the cliques and not the degrees:
+
+        ```{python}
+        observed = ec.Graph()
+        for _ in range(4):
+            observed.add_full_graph(n=4)
+
+        degrees = observed.get_node_df()["degree"].to_list()
+        null = ec.Graph().configuration_model(degrees, seed=23)
+
+        (
+            (observed.count_edges(), observed.average_clustering_coefficient()),
+            (null.count_edges(), round(null.average_clustering_coefficient(), 3)),
+        )
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        observed.plot(
+            show_labels=False, width=320, height=320, legend=False, seed=1
+        )
+        ```
+
+        ```{python}
+        null.plot(show_labels=False, width=320, height=320, legend=False, seed=1)
+        ```
+
+        :::
         """
         from edgecase._core import configuration_model as _configuration_model
 
