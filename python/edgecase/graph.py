@@ -51022,22 +51022,42 @@ class Graph:
         NetworkX's `union_all`, except that NetworkX requires disjoint node sets while EdgeCase
         merges by ID (use `disjoint_union_all()` to keep graphs apart).
 
+        See Also
+        --------
+        union : Combine two graphs, matching nodes by ID.
+        compose_all : Apply any number of graphs in order.
+        intersection_all : Keep the edges common to any number of graphs.
+
         Examples
         --------
-        Three snapshots of contacts among the same people, combined:
+        `ec.friends()` is a network of friendships among the same 24 people in 2024, and
+        `snapshot=2` gives the network a year later, with 8 new friendships. In 2026 three of the
+        2025 friendships ended. All three snapshots share their node IDs, so their union holds every
+        friendship of the three years:
 
         ```{python}
         import edgecase as ec
 
-        def snapshot(pairs):
-            g = ec.Graph()
-            for _ in range(4):
-                g.add_node()
-            return g.add_edges(pairs)
+        years = [
+            ec.friends(),
+            ec.friends(snapshot=2),
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven"),
+        ]
 
-        days = [snapshot([(1, 2)]), snapshot([(2, 3)]), snapshot([(3, 4), (1, 2)])]
-        ec.Graph.union_all(days).count_edges()
+        [year.count_edges() for year in years]
         ```
+
+        The three ties lost in 2026 were there in 2024, and the new ones were added in 2025, so the
+        union is the 51 friendships of 2025:
+
+        ```{python}
+        ec.Graph.union_all(years).count_edges()
+        ```
+
+        As with `union()`, the first graph's values win where the graphs disagree.
         """
         return Graph._fold(graphs, "union")
 
