@@ -16369,9 +16369,17 @@ class Graph:
             If `num_cliques=` or `clique_size=` is less than `1`, or `p=` is not between `0` and
             `1`.
 
+        See Also
+        --------
+        add_caveman_graph : Add the caves without rewiring.
+        add_connected_caveman_graph : Join the caves in a ring by rewiring one edge in each.
+        partition_quality : Measure how many edges stay inside the planted caves.
+
         Examples
         --------
-        Rewiring keeps the edge count of five caves of six nodes at `5 * 15 = 75`:
+        The graph starts as separate caves, complete graphs, and each edge is then moved, with
+        probability `p`, to a random node elsewhere. Rewiring keeps the edge count of five caves
+        of six nodes at `5 * 15 = 75`:
 
         ```{python}
         import edgecase as ec
@@ -16387,16 +16395,50 @@ class Graph:
         falls as `p=` grows:
 
         ```{python}
-        [
-            round(
-                ec.Graph()
-                .add_relaxed_caveman_graph(num_cliques=5, clique_size=6, p=p, seed=7)
-                .partition_quality("community")[0],
-                2,
+        coverage = []
+        for p in (0.0, 0.1, 0.3, 0.6):
+            g = ec.Graph().add_relaxed_caveman_graph(
+                num_cliques=5, clique_size=6, p=p, seed=7
             )
-            for p in (0.0, 0.1, 0.3, 0.6)
-        ]
+            coverage.append(round(g.partition_quality("community")[0], 2))
+
+        coverage
         ```
+
+        ### A little rewiring or a lot
+
+        With `p=0.1` on the left the caves are still clear, with a few edges between them. With
+        `p=0.6` on the right most edges have left their cave, and the colors, one per cave, are
+        mixed through the drawing:
+
+        ```{python}
+        light = ec.Graph().add_relaxed_caveman_graph(
+            num_cliques=5, clique_size=6, p=0.1, seed=7
+        )
+        heavy = ec.Graph().add_relaxed_caveman_graph(
+            num_cliques=5, clique_size=6, p=0.6, seed=7
+        )
+
+        [round(g.modularity("community"), 2) for g in (light, heavy)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        light.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        heavy.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if num_cliques < 1 or clique_size < 1:
             raise ValueError("num_cliques and clique_size must both be at least 1")
