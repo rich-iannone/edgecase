@@ -84568,15 +84568,49 @@ class Graph:
         [sorted(label(n) for n in c) for c in components if len(c) > 1]
         ```
 
+        ### One payment holds the circle together
+
+        Gus's payment to Dee is the second ring's only way back to the rest. Here are the eight
+        accounts of the large component, with the component holding Dee in the accent color. On
+        the left, the month as it was; on the right, without that payment, Finn, Gus and Hal
+        drop out and form a component of their own, in the soft color:
+
+        ::: {layout-ncol="2"}
+
         ```{python}
-        circle = max(components, key=len)
-        group = {
-            n: "circle" if c == circle else "Max and Nia"
-            for c in components if len(c) > 1 for n in c
+        spots = {
+            "Ana": (-2.6, 1), "Cruz": (-2.6, -1), "Ben": (-1.4, 0),
+            "Dee": (0, 1), "Eve": (0, -1),
+            "Gus": (1.4, 0.8), "Finn": (1.4, -0.8), "Hal": (2.6, 0),
         }
-        payments.set_node_attrs("component", group)
-        payments.plot(color_by="component", label_by="label", seed=3)
+        pos = {payments.get_id_from_label(v): p for v, p in spots.items()}
+        circle = payments.subgraph(list(pos)).set_node_attrs("pos", pos)
+        cut = payments.subgraph(list(pos)).set_node_attrs("pos", pos)
+        cut.delete_edge("Gus", "Dee")
+
+        def circles(g):
+            found = g.strongly_connected_components()
+            core = next(c for c in found if g.get_id_from_label("Dee") in c)
+            rest = [n for c in found if c != core for n in c]
+            return {"accent": set(core), "soft": set(rest)}
+
+        circle.plot(
+            layout="pos", highlight=circles(circle), label_by="label",
+            width=320, height=240, legend=False,
+        )
         ```
+
+        ```{python}
+        cut.plot(
+            layout="pos", highlight=circles(cut), label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) finds the bow tie
+        of Wikipedia's administrator elections around its strongly connected core.
         """
         # Convert list of lists to list of sets
         return [set(comp) for comp in self._graph.strongly_connected_components()]
