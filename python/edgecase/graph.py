@@ -5499,6 +5499,12 @@ class Graph:
             If `order=` is not `"dfs"`, `"id"` or a list of every node of the graph once,
             `scale=` is not a positive number, or `center=` is not a pair of numbers.
 
+        See Also
+        --------
+        layout_shell : Place nodes on concentric circles, grouped by attribute.
+        greedy_color : Color nodes so that no two neighbors share a color.
+        plot : Draw the graph using stored positions.
+
         Examples
         --------
         Four nodes sit at the four compass points of the unit circle:
@@ -5509,14 +5515,52 @@ class Graph:
         graph = ec.Graph().add_cycle_graph(4)
 
         pos = graph.layout_circular(return_dict=True)
-        {nid: (round(x, 3), round(y, 3)) for nid, (x, y) in pos.items()}
+        {n: (round(x, 3), round(y, 3)) for n, (x, y) in pos.items()}
         ```
 
-        Stored positions are what `plot(layout=...)` draws:
+        ### Exams by time slot
+
+        In an exam timetable, two exams are joined when a student takes both, so they need different
+        time slots. A coloring finds a slot for each exam, using 4 slots for the 14 exams:
 
         ```{python}
-        ec.Graph().add_wheel_graph(9).layout_circular().plot(layout="pos")
+        exams = ec.exams()
+        slots = exams.greedy_color(strategy="dsatur")
+        exams.set_node_attrs("slot", slots)
+
+        len(set(slots.values()))
         ```
+
+        `order=` sets the order of the nodes around the circle. The default order on the left
+        scatters the slots. Ordered by slot on the right, each slot is an arc of the circle, and
+        every edge runs across the circle from one arc to another, since no two exams in a slot
+        conflict:
+
+        ```{python}
+        by_slot = sorted(exams.get_node_ids(), key=slots.get)
+
+        [slots[n] for n in by_slot]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        exams.layout_circular().plot(
+            layout="pos", color_by="slot", label_by="label",
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        ```{python}
+        exams.layout_circular(order=by_slot).plot(
+            layout="pos", color_by="slot", label_by="label",
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        The layout needs no seed: the same order always gives the same drawing.
         """
         scale, center = self._layout_frame(scale, center, allow_none=False)
         ids = sorted(self.get_node_ids(limit=None))
