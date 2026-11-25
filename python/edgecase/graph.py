@@ -38791,6 +38791,18 @@ class Graph:
         [[graph.get_label_from_id(n) for n in c] for c in graph.simple_cycles()]
         ```
 
+        The two arrows between `A` and `B` make the short cycle, and the way back from `B`
+        through `C` makes the long one:
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (2, 0), "C": (1, 1.4)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(layout="pos", label_by="label", curved_edges=True, height=240)
+        ```
+
         ### Round trips between currencies
 
         `currency()` holds the exchange rates quoted between six currencies, each edge weighted by
@@ -38836,6 +38848,9 @@ class Graph:
         ```{python}
         len(fx.simple_cycles(length_bound=2))
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) explains why listing
+        every cycle is rarely practical, and how `length_bound=` keeps it manageable.
         """
         from edgecase._core import simple_cycles as rust_simple_cycles
 
