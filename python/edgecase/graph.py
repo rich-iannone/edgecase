@@ -9039,30 +9039,54 @@ class Graph:
         ValueError
             If `n=` is less than `1`.
 
+        See Also
+        --------
+        add_prism_graph : Add a prism graph.
+        add_grid_2d : Add a two-dimensional grid graph.
+
         Examples
         --------
-        A ladder with four rungs has `8` nodes and `4 + 3 + 3 = 10` edges:
+        A ladder with `n` rungs has two rails of `n` nodes, `"1"` to `"n"` and `"n+1"` to `"2n"`,
+        and a rung joining each pair, for `n` rungs and `2(n - 1)` rail edges. It's the same graph
+        as a grid with two rows:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_ladder_graph(n=4)
 
-        graph.count_nodes(), graph.count_edges()
+        (
+            graph.count_edges(),
+            graph.is_isomorphic(ec.Graph().add_grid_2d(rows=2, cols=4)),
+        )
         ```
 
-        The rails are nodes `"1"` to `"4"` and `"5"` to `"8"`; the last four edges are the
-        rungs:
+        ### A ladder and a ring
+
+        Closing each rail of a ladder into a cycle gives the prism graph, a circular ladder. A
+        ladder of six rungs on the left, and the prism of six on the right, with one more edge on
+        each rail:
+
+        ::: {layout-ncol="2"}
 
         ```{python}
-        graph.get_edges_str_repr(use_labels=True)
-        ```
+        ladder = ec.Graph().add_ladder_graph(n=6)
+        rails = {n: ((n - 1) % 6, (n - 1) // 6) for n in range(1, 13)}
 
-        A ladder is the same graph as a grid with two rows:
+        ladder.set_node_attrs("pos", rails).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
 
         ```{python}
-        graph.is_isomorphic(ec.Graph().add_grid_2d(rows=2, cols=4))
+        ec.Graph().add_prism_graph(n=6).layout_shell(
+            nlist=[list(range(1, 7)), list(range(7, 13))], rotate=0
+        ).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
         ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Ladder must have at least 1 rung")
