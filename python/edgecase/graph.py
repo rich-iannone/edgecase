@@ -85754,6 +85754,9 @@ class Graph:
         moved = {**rounds, game[frozenset(["Ash", "Oak"])]: 1}
         league.is_valid_edge_coloring(moved)
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#edge-coloring)
+        schedules a round-robin tournament of five teams.
         """
         seen: set[tuple[int, Any]] = set()
         for e, s, t in self.get_edges_as_tuples():
