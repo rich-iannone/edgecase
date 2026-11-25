@@ -63268,7 +63268,9 @@ class Graph:
              ("D", "E")]
         )
 
-        graph.effective_size().get_node_df().select("label", "degree", "effective_size")
+        graph.effective_size().get_node_df().select(
+            "label", "degree", "effective_size"
+        )
         ```
 
         ### Redundant in-laws
@@ -63301,6 +63303,9 @@ class Graph:
             seed=5,
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#brokerage) finds the karate club's least
+        constrained members, and their effective sizes.
 
         Notes
         -----
