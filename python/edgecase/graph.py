@@ -1810,28 +1810,21 @@ class Graph:
             If source or target node doesn't exist in the graph, or if a label cannot be resolved to
             a node ID (and `auto_create_nodes=` is `False`).
 
+        See Also
+        --------
+        add_edges : Add many edges at once.
+        add_edge_by_id : Add an edge between node IDs.
+        delete_edge : Remove an edge.
+
         Examples
         --------
-        Nodes can be referenced by the IDs returned when they were created:
+        If labels are unique, it's usually simplest to reference nodes by label. Since
+        `add_edge()` returns `self`, the whole graph can be assembled in one chain, and IDs and
+        labels can be mixed freely:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph()
-        graph.add_node(label="Alice")
-        graph.add_node(label="Bob")
-        alice_id = graph.get_id_from_label(label="Alice")
-        bob_id = graph.get_id_from_label(label="Bob")
-        graph.add_edge(source=alice_id, target=bob_id)
-
-        graph.has_edge(source="Alice", target="Bob")
-        ```
-
-        If labels are unique, it's usually simpler to reference nodes by label directly. Since
-        `add_edge()` also returns `self`, the whole graph can be assembled in one chain, and IDs and
-        labels can be mixed freely:
-
-        ```{python}
         graph = (
             ec.Graph()
             .add_node(label="Alice")
@@ -1841,7 +1834,7 @@ class Graph:
             .add_edge(source=2, target="Carol")  # node ID 2 is Bob
         )
 
-        graph.get_edge_df()
+        graph.get_edges_str_repr(use_labels=True)
         ```
 
         `weight=` stores a numeric cost or strength, `rel=` labels the kind of relationship the
@@ -1853,23 +1846,13 @@ class Graph:
             ec.Graph(weighted=True)
             .add_node(label="Alice")
             .add_node(label="Bob")
-            .add_edge(source="Alice", target="Bob", rel="friend", weight=0.75, since=2020)
+            .add_edge(
+                source="Alice", target="Bob",
+                rel="friend", weight=0.75, since=2020,
+            )
         )
 
         graph.get_edge_df()
-        ```
-
-        With `auto_create_nodes=True`, unknown labels are turned into new nodes, so a graph can be
-        built from edges alone:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_edge("Alice", "Bob", auto_create_nodes=True)
-            .add_edge("Bob", "Carol", auto_create_nodes=True)
-        )
-
-        graph.count_nodes(), graph.count_edges()
         ```
 
         Adding the same pair twice doesn't overwrite the first edge; it creates a parallel edge
@@ -1878,8 +1861,7 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
+            .add_nodes(["A", "B"])
             .add_edge("A", "B", rel="email")
             .add_edge("A", "B", rel="phone")
         )
@@ -1887,6 +1869,38 @@ class Graph:
         graph.get_edge_df()
         ```
 
+        ### Payments as they arrive
+
+        A bank records payments as they arrive. With `auto_create_nodes=True`, an account that
+        hasn't been seen before becomes a new node, so the graph grows from the payments alone:
+
+        ```{python}
+        incoming = [
+            ("Ana", "Ben", 9500, "2026-03-10"),
+            ("Ben", "Cruz", 9400, "2026-03-11"),
+            ("Cruz", "Ana", 9300, "2026-03-12"),
+            ("Cruz", "Ivy", 3000, "2026-03-13"),
+            ("Ivy", "Jo", 2950, "2026-03-14"),
+            ("Jo", "Kai", 2900, "2026-03-15"),
+        ]
+
+        bank = ec.Graph(directed=True, weighted=True)
+        for payer, payee, amount, date in incoming:
+            bank.add_edge(
+                payer, payee, weight=amount, date=date, auto_create_nodes=True
+            )
+
+        bank.count_nodes(), bank.count_edges()
+        ```
+
+        Each new account and each payment is a step in the graph's log, so `play()` shows them
+        arriving in order. The third payment closes a circle from Ana to Ben to Cruz and back,
+        and the money then leaves through Cruz and is passed along from Ivy to Jo to Kai, 50 less
+        each time:
+
+        ```{python}
+        bank.play(seed=2)
+        ```
         """
         # Handle direct Rust Edge objects (internal/advanced use only)
         if isinstance(source, rust.Edge):
