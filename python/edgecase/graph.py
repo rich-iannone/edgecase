@@ -23213,32 +23213,29 @@ class Graph:
             `True` if every node can reach every other node, `False` if the graph has more than
             one component. An empty graph and a single-node graph both count as connected.
 
+        See Also
+        --------
+        is_strongly_connected : Whether every node can reach every other along the edges.
+        weakly_connected_components : List the connected pieces of the graph.
+        count_weakly_connected_components : Count the connected pieces of the graph.
+
         Examples
         --------
-        A path `A -- B -- C` links every node to every other, so it's connected:
+        A path `A -- B -- C` links every node to every other, so it's connected. Adding a node with
+        no edges breaks that:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.is_connected()
-        ```
-
-        Adding a node with no edges gives it no path to the rest of the graph, breaking
-        connectivity:
-
-        ```{python}
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        before = graph.is_connected()
         graph.add_node(label="D")
-        graph.is_connected()
+
+        before, graph.is_connected()
         ```
 
-        In a directed graph, direction is ignored. Both edges point into "B", so "A" can't
-        reach "C" by following arrows, yet the graph still counts as (weakly) connected; the
+        In a directed graph, direction is ignored. Both edges point into "B", so "A" can't reach
+        "C" by following arrows, yet the graph still counts as (weakly) connected; the
         strong-connectivity check says otherwise:
 
         ```{python}
@@ -23250,6 +23247,53 @@ class Graph:
 
         directed.is_connected(), directed.is_strongly_connected()
         ```
+
+        ### Without the leaders
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). With both of them gone, the club's ties no longer hold it
+        together. It falls into 3 pieces: 26 members, a group of 5 who knew only the instructor
+        and each other, and member 11, whose only tie was to the instructor:
+
+        ```{python}
+        karate = ec.karate_club().layout_kamada_kawai()
+        members = ec.karate_club().layout_kamada_kawai()
+        members.delete_node("0").delete_node("33")
+
+        (
+            karate.is_connected(),
+            members.is_connected(),
+            sorted(len(c) for c in members.weakly_connected_components()),
+        )
+        ```
+
+        The whole club on the left, and the club without its leaders on the right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.plot(
+            layout="pos",
+            color_by="faction",
+            label_by="label",
+            width=360,
+            height=360,
+            legend=False,
+        )
+        ```
+
+        ```{python}
+        members.plot(
+            layout="pos",
+            color_by="faction",
+            label_by="label",
+            width=360,
+            height=360,
+            legend=False,
+        )
+        ```
+
+        :::
         """
         return self._graph.is_connected()
 
