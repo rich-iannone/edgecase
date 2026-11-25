@@ -47287,6 +47287,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#hierarchies-of-communities) follows the
+        communities of *Les Misérables* from one level to the next.
         """
         return self._levels(False, resolution, seed)
 
