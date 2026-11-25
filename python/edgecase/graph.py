@@ -33756,6 +33756,10 @@ class Graph:
             color_by="faction", size_by="crossing", label_by="label", seed=4
         )
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#writing-attributes) brings in the
+        Florentine families' wealth from a dictionary, and explains why a list of values needs
+        `nodes=`.
         """
         if nodes is None:
             nodes = self.get_node_ids(limit=None)
