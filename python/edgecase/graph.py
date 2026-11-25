@@ -1616,6 +1616,12 @@ class Graph:
             If an element is a tuple other than `(label, attrs_dict)`, is itself a dict, or (with
             the dict form) a node's attributes aren't a dict or `None`.
 
+        See Also
+        --------
+        add_node : Add one node.
+        add_edges : Add many edges at once.
+        from_edges : Build a graph straight from an edge list.
+
         Examples
         --------
         Add several nodes at once with a shared type. Every node gets `type="person"` and
@@ -1624,10 +1630,7 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_nodes(
-            ['Alice', 'Bob', 'Carol'],
-            type='person'
-        )
+        graph = ec.Graph().add_nodes(["Alice", "Bob", "Carol"], type="person")
 
         graph.get_node_df()
         ```
@@ -1638,12 +1641,12 @@ class Graph:
         ```{python}
         graph = ec.Graph().add_nodes(
             [
-                'Alice',
-                ('Bob', {'role': 'admin', 'team': 'blue'}),
-                ('Carol', {'type': 'bot'}),
+                "Alice",
+                ("Bob", {"role": "admin", "team": "blue"}),
+                ("Carol", {"type": "bot"}),
             ],
-            type='person',
-            team='red',
+            type="person",
+            team="red",
         )
 
         graph.get_node_df()
@@ -1654,26 +1657,11 @@ class Graph:
 
         ```{python}
         graph = ec.Graph().add_nodes(
-            {'Alice': {'age': 34}, 'Bob': {'age': 27}, 'Carol': None},
-            type='person',
+            {"Alice": {"age": 34}, "Bob": {"age": 27}, "Carol": None},
+            type="person",
         )
 
         graph.get_node_df()
-        ```
-
-        Chaining with `add_edges()` builds a complete graph in one expression:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(
-                ['A', 'B', 'C', 'D'],
-                type='router'
-            )
-            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
-        )
-
-        graph.count_nodes(), graph.count_edges()
         ```
 
         Use a range for numeric node labels. Note that the labels are stored as strings:
@@ -1684,6 +1672,42 @@ class Graph:
         graph.get_node_df()["label"].to_list()
         ```
 
+        ### Accounts before payments
+
+        A bank's accounts come from one table and its payments from another. Adding the accounts
+        first, as `(label, attrs)` tuples made from the table's rows, keeps an account that has
+        made no payments yet:
+
+        ```{python}
+        import polars as pl
+
+        accounts = pl.DataFrame(
+            {
+                "name": [
+                    "Acme", "Dee", "Eve", "Ana", "Grocer", "Cafe", "Landlord"
+                ],
+                "kind": ["business"] + ["person"] * 3 + ["business"] * 3,
+            }
+        )
+
+        nodes = [(name, {"kind": kind}) for name, kind in accounts.iter_rows()]
+        bank = (
+            ec.Graph(directed=True)
+            .add_nodes(nodes)
+            .add_edges(
+                [
+                    ("Acme", "Dee"), ("Acme", "Eve"), ("Dee", "Eve"),
+                    ("Ana", "Dee"), ("Dee", "Grocer"), ("Eve", "Grocer"),
+                    ("Ana", "Grocer"), ("Eve", "Cafe"),
+                ]
+            )
+        )
+
+        bank.plot(color_by="kind", label_by="label", seed=1)
+        ```
+
+        The Landlord has no payments this month, so it stands apart. Built from the payments
+        alone, the graph wouldn't have it at all.
         """
         # Read the input once (it may be a generator) and validate it before adding anything
         if isinstance(nodes, dict):
