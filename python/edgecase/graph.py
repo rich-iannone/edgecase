@@ -17237,15 +17237,23 @@ class Graph:
         ValueError
             If a degree is negative or the two sequences have different sums.
 
+        See Also
+        --------
+        add_bipartite_havel_hakimi_graph : Build a simple bipartite graph with given degrees.
+        configuration_model : Build a random graph with a given degree sequence.
+        layout_bipartite : Place the two sides of a bipartite graph in two lines.
+
         Examples
         --------
         Three first-part nodes of degree `2` and two second-part nodes of degree `3` share six
-        edges:
+        edges, since both sides must add up to the same total:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_bipartite_configuration_model([2, 2, 2], [3, 3], seed=1)
+        graph = ec.Graph().add_bipartite_configuration_model(
+            [2, 2, 2], [3, 3], seed=1
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -17256,12 +17264,48 @@ class Graph:
         graph.get_node_df().select("label", "part", "degree")
         ```
 
-        Edges only ever join the two parts, so the graph is bipartite even when stubs pair up
-        twice:
+        Edges only ever join the two parts, so the graph is bipartite even when the stubs pair up
+        twice, as they do here:
 
         ```{python}
         graph.is_bipartite(), graph.is_simple()
         ```
+
+        ### Random or deterministic wiring
+
+        With degrees `3, 2, 2, 1` on one side and four `2`s on the other, the stubs on the left
+        happen to pair `"1"` with `"8"` twice, drawn as a doubled edge. On the right,
+        `add_bipartite_havel_hakimi_graph()` builds a graph with the same degrees that never
+        repeats a pair:
+
+        ```{python}
+        first, second = [3, 2, 2, 1], [2, 2, 2, 2]
+
+        shuffled = ec.Graph().add_bipartite_configuration_model(
+            first, second, seed=1
+        )
+        fixed = ec.Graph().add_bipartite_havel_hakimi_graph(first, second)
+
+        shuffled.is_simple(), fixed.is_simple()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        shuffled.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        fixed.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import bipartite_configuration_edges as _edges
 
