@@ -81716,6 +81716,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", color_by="zone", label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) compares the
+        karate club's density with that of most real networks.
         """
         return self._graph.density()
 
