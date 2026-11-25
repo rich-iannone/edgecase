@@ -6,6 +6,7 @@ nodes, edges drawn shorter than random pairs), and every layout for argument val
 recording and `return_dict=`.
 """
 
+import itertools
 import math
 import random
 
@@ -666,6 +667,20 @@ class TestStoredLayoutPlotting:
         a, b = moved["1"], moved["2"]
         assert math.dist(a, b) >= 34.0 - 1e-6
         assert all(math.dist(p, (300.0, 200.0)) < 40.0 for p in (a, b))
+
+    def test_crowded_nodes_pushed_apart(self):
+        from edgecase.svg_renderer import _remove_overlaps
+
+        rng = random.Random(3)
+        pos = {str(i): (rng.uniform(0, 100), rng.uniform(0, 100)) for i in range(150)}
+        # Some at the same point, which a seeded random push separates
+        pos.update({"150": pos["0"], "151": pos["0"]})
+        radii = {nid: 5.0 for nid in pos}
+        moved = _remove_overlaps(pos, radii, padding=2.0, seed=1)
+        # No circles overlap, though the padding between some can be a little short
+        pairs = itertools.combinations(moved.values(), 2)
+        assert min(math.dist(p, q) for p, q in pairs) >= 10.0
+        assert moved == _remove_overlaps(pos, radii, padding=2.0, seed=1)
 
     def test_traversal_plot_with_stored_positions(self):
         g = ec.Graph().add_grid_graph([3, 3]).layout_spectral()
