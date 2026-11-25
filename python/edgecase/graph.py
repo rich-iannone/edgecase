@@ -7015,6 +7015,9 @@ class Graph:
 
         pos[1] == tuple(start[1]), pos[2] == tuple(start[2])
         ```
+
+        [Layouts](../user-guide/layouts.qmd#force-directed-layouts) compares the four force-directed
+        layouts on the dolphin network.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
