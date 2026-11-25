@@ -47027,6 +47027,9 @@ class Graph:
         ```{python}
         round(books.modularity("cmty_fast_label_propagation"), 3)
         ```
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) compares the detection
+        algorithms, what each can handle and how far each scales.
         """
         ids, labels = rust.fast_label_propagation(self._graph, self._use_weights(weighted), seed)
         params = {} if seed is None else {"seed": seed}
