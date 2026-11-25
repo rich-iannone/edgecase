@@ -48210,53 +48210,68 @@ class Graph:
             A new directed Graph with the same nodes. Edges are bidirectional pairs if the original
             was undirected, or unchanged copies if it was already directed.
 
+        See Also
+        --------
+        to_undirected : Drop the direction of every edge.
+        reverse : Flip the direction of every edge.
+        shortest_path_length : The length of a shortest path, which can differ each way.
+
         Examples
         --------
-        Converting a small undirected path gives a directed graph:
+        Each undirected edge becomes two directed edges, one in each direction:
 
         ```{python}
         import edgecase as ec
 
-        undirected = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        arcs = path.to_directed()
+
+        arcs.is_directed(), arcs.get_edges_str_repr(use_labels=True)
+        ```
+
+        Both arcs keep the original edge's weight and attributes:
+
+        ```{python}
+        roads = ec.Graph.from_edges([("A", "B", 5.0)])
+
+        roads.to_directed().get_edge_df().select("source", "target", "weight")
+        ```
+
+        ### Works on one track
+
+        A metro's tracks run both ways, so the network is undirected, and every trip takes as long
+        as the trip back. From Westgate to Eastfield, either way, is 14 minutes. Turning each track
+        into a pair of one-way tracks makes it possible to close just one of them:
+
+        ```{python}
+        metro = ec.metro()
+        lines = metro.to_directed()
+
+        metro.count_edges(), lines.count_edges()
+        ```
+
+        Works close the eastbound track from Central to Market. Trains still run west from Market
+        to Central, so the trip from Eastfield to Westgate is unchanged, but the trip the other
+        way now detours around the Ring line through Riverside and takes 2 minutes longer:
+
+        ```{python}
+        lines.delete_edge("Central", "Market")
+
+        (
+            lines.shortest_path_length("Westgate", "Eastfield"),
+            lines.shortest_path_length("Eastfield", "Westgate"),
         )
-
-        directed = undirected.to_directed()
-        directed.is_directed()
         ```
 
-        Each undirected edge becomes two directed edges, one for each direction:
-
         ```{python}
-        directed.count_edges()
-        ```
+        east = lines.shortest_path("Westgate", "Eastfield", return_list=True)
 
-        This is useful for preparing an undirected network for directional analysis,
-        such as comparing flow in each direction along a road. Each arc keeps the original
-        road's weight:
-
-        ```{python}
-        roads = ec.Graph(directed=False)
-        roads.add_nodes(["A", "B", "C"])
-        roads.add_edges([("A", "B", 5), ("B", "C", 3)])
-
-        traffic = roads.to_directed()
-        traffic.get_edge_df()
-        ```
-
-        It's also the standard way to prepare an undirected graph for algorithms that
-        only operate on directed graphs. Note that each undirected edge now forms a two-node
-        cycle of its own:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["X", "Y", "Z"])
-        g.add_edges([("X", "Y"), ("Y", "Z")])
-
-        g_dir = g.to_directed()
-        g_dir.simple_cycles()
+        lines.plot(
+            layout="pos",
+            label_by="label",
+            highlight=east,
+            highlight_edges=list(zip(east, east[1:])),
+        )
         ```
         """
         result = Graph._from_rust(self._graph.to_directed())
