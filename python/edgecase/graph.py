@@ -26033,6 +26033,9 @@ class Graph:
             height=640,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the tests and encodings for
+        trees.
         """
         return self._graph.is_arborescence()
 
