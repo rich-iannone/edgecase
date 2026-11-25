@@ -89039,9 +89039,37 @@ class Graph:
         it is left out instead:
 
         ```{python}
-        tree = graph.minimum_spanning_tree(include=[("A", "C")])
-        tree.get_edges_str_repr(use_labels=True)
+        forced = graph.minimum_spanning_tree(include=[("A", "C")])
+        forced.get_edges_str_repr(use_labels=True)
         ```
+
+        The lightest tree on the left, 6 in all, and the one forced to keep the diagonal on the
+        right, 9 in all:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 2), "C": (2, 1), "D": (1, 0)}
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+        lightest = graph.minimum_spanning_tree()
+
+        graph.plot(
+            layout="pos", highlight_edges=lightest.get_edge_ids(),
+            edge_label_by="weight", label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        ```{python}
+        graph.plot(
+            layout="pos", highlight_edges=forced.get_edge_ids(),
+            edge_label_by="weight", label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
 
         ### The fewest minutes of track that still reach every station
 
@@ -89065,6 +89093,9 @@ class Graph:
             layout="pos", highlight_edges=mst.get_edge_ids(), label_by="label"
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) connects the cities
+        of a road network, and shows how much longer the tree makes some journeys.
         """
         edge_ids = self._spanning_tree_ids(True, weight_attr, include, exclude)
         if self._recording_depth == 0:
