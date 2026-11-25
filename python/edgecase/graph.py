@@ -62208,7 +62208,9 @@ class Graph:
         (
             score,
             [metro.get_label_from_id(n) for n in group],
-            metro.group_betweenness_centrality(["Market", "Eastfield", "Riverside"]),
+            metro.group_betweenness_centrality(
+                ["Market", "Eastfield", "Riverside"]
+            ),
         )
         ```
 
@@ -62217,6 +62219,9 @@ class Graph:
         ```
 
         For large graphs, `greedy=True` builds the group one node at a time.
+
+        [Centrality](../user-guide/centrality.qmd#groups-of-nodes) finds the best group of three in
+        the karate club, and explains why it isn't always the three most central members.
 
         Notes
         -----
