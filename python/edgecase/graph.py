@@ -81133,42 +81133,77 @@ class Graph:
         ValueError
             If `seeds=` is empty or any seed node doesn't exist in the graph.
 
+        See Also
+        --------
+        prize_collecting_steiner_tree : Connect the high-scoring nodes worth reaching.
+        subgraph_enrichment : Test what a module is enriched for.
+        random_walk_with_restart : Rank every node by its closeness to the seeds.
+
         Examples
         --------
-        Two seeds share a tightly linked neighbor `T` (all of its edges go to the seeds) and a
-        `Hub` that is mostly connected to outside nodes. With `min_score=0.3`, `T` joins with a
-        score of `1.0`, but the hub's score of `1/4` is too low, so expansion stops there:
+        The seeds `S1` and `S2` share two neighbors. All of `T`'s edges lead to the seeds, a score
+        of `1.0`, but only one of `Hub`'s four does, a score of `0.25`. With `min_score=0.3`, `T`
+        joins and `Hub` doesn't:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["S1", "S2", "T", "Hub", "X", "Y", "Z"])
-            .add_edges(
-                [
-                    ("S1", "S2"),
-                    ("S1", "T"),
-                    ("S2", "T"),
-                    ("S1", "Hub"),
-                    ("Hub", "X"),
-                    ("Hub", "Y"),
-                    ("Hub", "Z"),
-                ]
-            )
+        graph = ec.Graph.from_edges(
+            [("S1", "S2"), ("S1", "T"), ("S2", "T"), ("S1", "Hub"),
+             ("Hub", "X"), ("Hub", "Y"), ("Hub", "Z")]
         )
 
-        module = graph.expand_seed_set(seeds=["S1", "S2"], min_score=0.3)
-        [graph.get_label_from_id(nid) for nid in module]
+        module = graph.expand_seed_set(["S1", "S2"], min_score=0.3)
+        [graph.get_label_from_id(node) for node in module]
         ```
 
-        With the default `min_score=0.0`, any neighbor is accepted and only `max_size=` limits
-        growth. Capping the module at 4 nodes adds `T` first (highest score) and then the hub:
+        ### Growing a disease module
+
+        `proteins()` is a small protein interaction network with five known disease genes. Four of
+        them sit among the DNA repair proteins, and TRN3 sits apart, among the transport ones.
+        Adding only proteins with more than half of their partners in the module grows the four
+        into a module of eight:
 
         ```{python}
-        module = graph.expand_seed_set(seeds=["S1", "S2"], max_size=4)
-        [graph.get_label_from_id(nid) for nid in module]
+        proteins = ec.proteins()
+        disease = ["REP1", "REP2", "REP5", "CYC2", "TRN3"]
+
+        module = proteins.expand_seed_set(disease, min_score=0.5)
+        added = [
+            proteins.get_label_from_id(node) for node in module
+            if proteins.get_label_from_id(node) not in disease
+        ]
+        added
         ```
+
+        The module takes in the rest of the DNA repair proteins and the uncharacterized ORF1, and
+        TRN3 gains no partners. HSP1, the chaperone with the most partners in the network, binds
+        two disease genes but is left out, since most of its partners are elsewhere:
+
+        ```{python}
+        proteins.plot(
+            layout="pos", highlight={"accent": disease, "soft": added}, label_by="label"
+        )
+        ```
+
+        With the default `min_score=0.0`, any neighbor can join, and the module grows to its
+        default limit of three times the seeds, 15 proteins, reaching into the cell cycle and
+        transport clusters:
+
+        ```{python}
+        module = proteins.expand_seed_set(disease)
+        added = [
+            proteins.get_label_from_id(node) for node in module
+            if proteins.get_label_from_id(node) not in disease
+        ]
+
+        proteins.plot(
+            layout="pos", highlight={"accent": disease, "soft": added}, label_by="label"
+        )
+        ```
+
+        [Network biology](../user-guide/network-biology.qmd#growing-a-module-from-seeds) grows a
+        module on a larger simulated network, where the true module is known.
         """
         from edgecase._core import expand_seed_set as _expand
 
