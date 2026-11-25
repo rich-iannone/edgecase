@@ -18926,6 +18926,12 @@ class Graph:
         ValueError
             If `n=` is negative.
 
+        See Also
+        --------
+        subgraph : Keep only the providers, or any other set of networks.
+        add_scale_free_graph : Grow a directed graph with heavy-tailed degrees.
+        get_node_df : Count the networks of each type.
+
         Examples
         --------
         A 1000-node internet has a few tier-1 providers and mostly customer networks:
@@ -18949,6 +18955,42 @@ class Graph:
         ```{python}
         graph.get_node_df().sort("degree", descending=True)["type"][:5].to_list()
         ```
+
+        ### The whole internet or its providers
+
+        A 60-node internet colored by type on the left, and on the right the same drawing with
+        the customers muted. The customers (`C`) hang off the edge of the drawing, while the
+        `17` tier-1 (`T`), mid-level (`M`) and content (`CP`) networks form a connected core
+        with `42` of the `86` edges:
+
+        ```{python}
+        small = ec.Graph().add_random_internet_as_graph(n=60, seed=1)
+        types = small.get_node_attrs("type")
+        providers = {v: t != "C" for v, t in types.items()}
+        core = small.subgraph([v for v in types if providers[v]])
+
+        sizes = core.count_nodes(), core.count_edges(), small.count_edges()
+
+        sizes, core.is_connected()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        small.plot(
+            color_by="type", show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        small.set_node_attrs("provider", providers).plot(
+            color_by="type", show_labels=False, node_size=7, highlight="provider",
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
