@@ -68089,6 +68089,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) compares the methods that
+        measure between every pair of nodes.
         """
         from edgecase._core import all_pairs_shortest_path
 
