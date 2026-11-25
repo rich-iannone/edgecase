@@ -12043,6 +12043,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-classic-models) compares the hubs of a
+        preferential attachment graph with those of an Erdős–Rényi graph.
         """
         self._check_non_negative(n=n, m=m)
         with self._compound("add_pa_graph", f"G.add_pa_graph(n={n}, m={m})"):
