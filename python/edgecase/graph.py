@@ -26659,12 +26659,18 @@ class Graph:
         import edgecase as ec
 
         a = ec.Graph.from_edges(
-            [("fetch", "build"), ("build", "test"), ("fetch", "test")], directed=True
+            [("fetch", "build"), ("build", "test"), ("fetch", "test")],
+            directed=True,
         )
-        b = ec.Graph.from_edges([("s2", "s3"), ("s1", "s3"), ("s1", "s2")], directed=True)
+        b = ec.Graph.from_edges(
+            [("s2", "s3"), ("s1", "s3"), ("s1", "s2")], directed=True
+        )
 
         mapping = a.find_isomorphism(b)
-        {a.get_label_from_id(k): b.get_label_from_id(v) for k, v in mapping.items()}
+        {
+            a.get_label_from_id(k): b.get_label_from_id(v)
+            for k, v in mapping.items()
+        }
         ```
 
         ### Two numberings of caffeine
@@ -26679,11 +26685,16 @@ class Graph:
 
         caffeine = ec.molecules()["caffeine"]
         purine = ec.Graph.from_edges(
-            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
-             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
-             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+            [
+                ("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"),
+                ("C5", "C6"), ("C6", "N1"), ("C4", "N9"), ("N9", "C8"),
+                ("C8", "N7"), ("N7", "C5"), ("C2", "O10"), ("C6", "O11"),
+                ("N1", "C12"), ("N3", "C13"), ("N7", "C14"),
+            ]
         )
-        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+        purine.set_node_attrs(
+            "element", {atom: atom[0] for atom in purine.get_node_df()["label"]}
+        )
 
         mapping = caffeine.find_isomorphism(purine, node_attr="element")
         pl.DataFrame(
@@ -26702,13 +26713,15 @@ class Graph:
 
         ```{python}
         caffeine.plot(
-            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+            color_by="element", label_by="label", legend=False, seed=1, width=360,
+            height=360,
         )
         ```
 
         ```{python}
         purine.plot(
-            color_by="element", label_by="label", legend=False, seed=4, width=360, height=360
+            color_by="element", label_by="label", legend=False, seed=4, width=360,
+            height=360,
         )
         ```
 
@@ -26724,10 +26737,16 @@ class Graph:
 
         mapping = ethanol.find_isomorphism(ether)
         (
-            {ethanol.get_label_from_id(k): ether.get_label_from_id(v) for k, v in mapping.items()},
+            {
+                ethanol.get_label_from_id(k): ether.get_label_from_id(v)
+                for k, v in mapping.items()
+            },
             ethanol.find_isomorphism(ether, node_attr="element"),
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#isomorphism) matches the nodes
+        of the Petersen graph with those of the Kneser graph K(5, 2).
         """
         if self.is_directed() != other.is_directed():
             found = []
