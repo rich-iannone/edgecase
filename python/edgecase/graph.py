@@ -13523,6 +13523,12 @@ class Graph:
             If `n=` is less than `1`, `gamma=` is not greater than `1`, `tries=` is negative,
             or no valid degree sequence turns up within `tries=` redraws.
 
+        See Also
+        --------
+        add_random_labeled_tree : Draw a tree uniformly from all labeled trees.
+        is_valid_tree_degree_sequence : Check whether degrees can be realized by a tree.
+        add_random_lobster : Draw a tree with a long spine and short branches.
+
         Examples
         --------
         A powerlaw tree on thirty nodes:
@@ -13540,6 +13546,40 @@ class Graph:
         ```{python}
         sorted(graph.degrees(return_dict=True).values(), reverse=True)
         ```
+
+        ### Power-law degrees or uniform ones
+
+        The tree above on the left and a uniformly random tree from `add_random_labeled_tree()`
+        on the right, both on `30` nodes. The power-law tree has a hub of `11` and `18` leaves;
+        in the uniform tree no node has more than `4` neighbors, and only `9` are leaves:
+
+        ```{python}
+        uniform = ec.Graph().add_random_labeled_tree(n=30, seed=1)
+
+        def shape(g):
+            degrees = list(g.degrees(return_dict=True).values())
+            return max(degrees), degrees.count(1)
+
+        shape(graph), shape(uniform)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        uniform.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError(f"a tree needs at least 1 node, got n={n}")
