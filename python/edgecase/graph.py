@@ -83757,7 +83757,10 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("S", "A", 10), ("S", "B", 5), ("A", "B", 15), ("A", "T", 10), ("B", "T", 10)],
+            [
+                ("S", "A", 10), ("S", "B", 5), ("A", "B", 15),
+                ("A", "T", 10), ("B", "T", 10),
+            ],
             directed=True,
         )
 
@@ -83768,7 +83771,23 @@ class Graph:
 
         Nodes are numbered in the order they first appear, so S is 1 and T is 4. Edge 3, from A
         to B, carries nothing (and so has no entry in the result), because A can send all it gets
-        straight to T.
+        straight to T. Each edge labeled by its flow and capacity:
+
+        ```{python}
+        spots = {"S": (0, 1), "A": (1.5, 2), "B": (2.5, 0), "T": (4, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+        weights = graph.get_edge_attrs("weight")
+        graph.set_edge_attrs("flow", {e: flow.get(e, 0) for e in weights})
+        graph.set_edge_attrs(
+            "load", {e: f"{flow.get(e, 0):g}/{w:g}" for e, w in weights.items()}
+        )
+
+        graph.plot(
+            layout="pos", edge_label_by="load", label_by="label", height=240
+        )
+        ```
 
         ### How much water reaches the city
 
@@ -83826,6 +83845,9 @@ class Graph:
 
         When only the total matters, `maximum_flow_value()` is quicker to read, and when pipes have
         a running cost, `minimum_cost_flow()` finds the cheapest way to deliver a given amount.
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#flows) finds the maximum flow
+        through a network of pipes and the bottleneck that limits it.
         """
         from edgecase._core import max_flow as _max_flow
 
