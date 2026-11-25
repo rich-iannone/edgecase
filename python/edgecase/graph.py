@@ -11270,6 +11270,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         shifts = list(shifts)
         if n < 3:
