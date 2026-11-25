@@ -44979,6 +44979,9 @@ class Graph:
             round(karate.modularity("cmty_girvan_newman"), 3),
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) compares the detection
+        algorithms, what each can handle and how far each scales.
         """
         from edgecase._core import girvan_newman
 
