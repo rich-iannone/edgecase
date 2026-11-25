@@ -245,6 +245,16 @@ class TestGwasPipelineEnrichmentAttr:
         result = g.gwas_pipeline(scores, enrichment_attr="flag")
         assert sum(v > 0 for v in result["enrichment"].values()) == 1
 
+    def test_accepts_labels(self):
+        g = make_three_cliques()
+        by_label = {str(i): (5.0 if i < 4 else 0.5) for i in range(12)}
+        by_id = {g.get_id_from_label(k): v for k, v in by_label.items()}
+        positive = ["0", "1", "5"]
+        expected = g.gwas_pipeline(
+            by_id, enrichment_labels=[g.get_id_from_label(k) for k in positive]
+        )
+        assert g.gwas_pipeline(by_label, enrichment_labels=positive) == expected
+
     def test_both_raise(self):
         g = make_three_cliques()
         with pytest.raises(ValueError, match="not both"):
