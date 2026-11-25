@@ -67290,13 +67290,17 @@ class Graph:
         ```
 
         With `return_list=False` (the default), each node on the path gets its position along it
-        as a node attribute, and the other nodes get a null value:
+        in the `bellman_ford_path_order` node attribute, and the other nodes get a null value.
+        `highlight=` can pick the path out by that attribute:
 
         ```{python}
-        (
-            graph.bellman_ford_shortest_path("A", "D")
-            .get_node_df()
-            .select("label", "bellman_ford_path_order")
+        spots = {"A": (0, 1), "B": (2, 1), "C": (1, 0), "D": (4, 1)}
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+
+        graph.bellman_ford_shortest_path("A", "D").plot(
+            layout="pos", highlight="bellman_ford_path_order",
+            edge_label_by="weight", label_by="label", height=240,
         )
         ```
 
@@ -67358,6 +67362,9 @@ class Graph:
         ```
 
         `find_negative_cycle()` finds the loop.
+
+        [Paths and distances](../user-guide/paths.qmd#negative-weights) finds the best chain of
+        conversions between currencies whose rates are stored as negative logs.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
