@@ -17282,6 +17282,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         if n < 0:
             raise ValueError("Number of nodes n must be non-negative")
