@@ -54281,13 +54281,18 @@ class Graph:
 
         metro = ec.metro()
         curves = {
-            strategy: metro.network_robustness(strategy=strategy, steps=5, seed=1, return_dict=True)
+            strategy: metro.network_robustness(
+                strategy=strategy, steps=5, seed=1, return_dict=True
+            )
             for strategy in ["random", "degree", "betweenness"]
         }
 
         pl.DataFrame(
             {"closed": range(6)}
-            | {strategy: [share for removed, share in curve] for strategy, curve in curves.items()}
+            | {
+                strategy: [share for removed, share in curve]
+                for strategy, curve in curves.items()
+            }
         )
         ```
 
@@ -54329,15 +54334,18 @@ class Graph:
         n = grid.count_nodes()
 
         curves = {
-            strategy: grid.network_robustness(strategy=strategy, steps=n // 10, seed=1,
-                                              return_dict=True)
+            strategy: grid.network_robustness(
+                strategy=strategy, steps=n // 10, seed=1, return_dict=True
+            )
             for strategy in ["random", "degree"]
         }
 
         pl.DataFrame(
             {"removed": ["1%", "5%", "10%"]}
             | {
-                strategy: [round(curve[n * pct // 100][1], 3) for pct in [1, 5, 10]]
+                strategy: [
+                    round(curve[n * pct // 100][1], 3) for pct in [1, 5, 10]
+                ]
                 for strategy, curve in curves.items()
             }
         )
