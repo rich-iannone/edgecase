@@ -37966,6 +37966,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#similarity-from-paths)
+        explains how SimRank* corrects SimRank's habit of scoring zero for some pairs.
         """
         from edgecase._core import simrank_star_similarity_pair
 
