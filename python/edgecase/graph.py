@@ -52492,6 +52492,9 @@ class Graph:
             highlight_edges=[(coach_id, n) for n in team.get_neighbors(coach_id)],
         )
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#side-by-side) makes a wheel by joining
+        a cycle to a single node.
         """
         if self.is_directed() != other.is_directed():
             raise ValueError("full_join() requires graphs with the same directedness")
