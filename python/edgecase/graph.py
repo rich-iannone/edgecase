@@ -93570,6 +93570,9 @@ class Graph:
         ```{python}
         payments.plot(highlight=real, label_by="label", seed=3)
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#directed-graphs) compares the two
+        symmetric matrices for directed graphs.
         """
         if not self.is_directed():
             raise ValueError("magnetic_laplacian_matrix() requires a directed graph")
