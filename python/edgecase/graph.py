@@ -88365,6 +88365,10 @@ class Graph:
         ```{python}
         exams.plot(highlight=slot, label_by="label", seed=5)
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) shows how
+        much maximal independent sets vary from one random order to the next.
         """
         from edgecase._core import maximal_independent_set
 
