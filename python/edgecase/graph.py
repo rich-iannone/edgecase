@@ -67480,7 +67480,10 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("A", "B", 1), ("B", "C", 2), ("C", "F", 1), ("A", "D", 3), ("D", "F", 3)],
+            [
+                ("A", "B", 1), ("B", "C", 2), ("C", "F", 1), ("A", "D", 3),
+                ("D", "F", 3),
+            ],
             directed=True,
         )
 
@@ -67491,7 +67494,9 @@ class Graph:
         and every other node gets a null:
 
         ```{python}
-        graph.shortest_path("A", "F").get_node_df().select("label", "shortest_path_order")
+        graph.shortest_path("A", "F").get_node_df().select(
+            "label", "shortest_path_order"
+        )
         ```
 
         ### Fastest isn't fewest stops
@@ -67524,7 +67529,9 @@ class Graph:
         ```
 
         ```{python}
-        metro.shortest_path("Westgate", "Lakeside", attr_name="fewest", weighted=False)
+        metro.shortest_path(
+            "Westgate", "Lakeside", attr_name="fewest", weighted=False
+        )
         metro.plot(
             layout="pos", highlight="fewest", label_by="label",
             width=340, height=300,
@@ -67537,6 +67544,10 @@ class Graph:
         `k_shortest_paths()`, and when several routes tie for shortest, `all_shortest_paths()` lists
         them all. On a large map, `astar_path()` finds the same route faster with a distance
         estimate to steer it.
+
+        [Paths and distances](../user-guide/paths.qmd#storing-a-path) stores a route on a road
+        network and draws it, and explains why `shortest_path(a, b).plot()` fails when `b` can't be
+        reached.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
