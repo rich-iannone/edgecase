@@ -91929,6 +91929,9 @@ class Graph:
             for (id1, id2), count in transport.count_multiple().items()
         }
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#parallel-edges-and-self-loops) counts the
+        parallel edges and self-loops of a payments graph, and names the methods that remove them.
         """
         return self._graph.count_multiple()
 
