@@ -86788,6 +86788,31 @@ class Graph:
         [(label(g.get_edge(e).source), label(g.get_edge(e).target)) for e in plan]
         ```
 
+        Giving each courier in turn the nearest free delivery, on the left, sends Ana to `d1`
+        (2), Ben to `d2` (7) and Cho to `d3` (5), 14 in all. The quickest plan, on the right,
+        swaps the first two deliveries, for 3 + 3 + 5 = 11:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        g.layout_bipartite(nodes=couriers, align="horizontal", aspect_ratio=0.5)
+        nearest = [("Ana", "d1"), ("Ben", "d2"), ("Cho", "d3")]
+
+        g.plot(
+            layout="pos", highlight_edges=nearest, label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        ```{python}
+        g.plot(
+            layout="pos", highlight_edges=plan, label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
         ### Hiring a contractor
 
         `teams()` links the 8 workers of a made-up software team to the 8 tasks of a release that
@@ -86813,6 +86838,10 @@ class Graph:
             layout="pos", highlight_edges=matched, label_by="label", height=300
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#assignment) assigns
+        translators to the parts of a project at the least cost, and explains why the graph must be
+        weighted.
         """
         eids = rust.min_weight_full_matching(
             self._graph, self._top_ids(top_nodes), self._use_weights(weighted)
