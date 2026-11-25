@@ -8909,6 +8909,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) explains how the
+        bipartite and multipartite generators record each node's part.
         """
         sizes = list(sizes)
         if any(size < 0 for size in sizes):
