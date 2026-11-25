@@ -27655,6 +27655,13 @@ class Graph:
         eigenvalue $-2$ sits exactly on the bound; a small margin keeps rounding error from
         passing it, as NetworkX's floating-point comparison sometimes does.
 
+        See Also
+        --------
+        is_regular : Check whether every node has the same degree.
+        adjacency_spectrum : Return the adjacency eigenvalues the check is based on.
+        add_random_regular_expander_graph : Draw a random regular graph that passes the check.
+        add_margulis_gabber_galil_graph : Build an explicit 8-regular expander.
+
         Examples
         --------
         The Petersen graph is 3-regular with eigenvalues `3`, `1` and `-2`, so it is Ramanujan
@@ -27666,17 +27673,57 @@ class Graph:
         ec.Graph().add_named_graph("petersen").is_regular_expander()
         ```
 
-        A long cycle is 2-regular but mixes slowly, and a star isn't regular at all:
+        A cycle of even length is bipartite, so `-2` is one of its eigenvalues and the bound of
+        `2` for degree `2` fails. A star isn't regular at all:
 
         ```{python}
-        ec.Graph().add_cycle_graph(20).is_regular_expander(), ec.Graph().add_star_graph(5).is_regular_expander()
+        cycle = ec.Graph().add_cycle_graph(20)
+        star = ec.Graph().add_star_graph(5)
+
+        cycle.is_regular_expander(), star.is_regular_expander()
         ```
 
         Random regular graphs are almost always expanders:
 
         ```{python}
-        ec.Graph().add_random_regular_graph(n=200, d=5, seed=1).is_regular_expander()
+        regular = ec.Graph().add_random_regular_graph(n=200, d=5, seed=1)
+
+        regular.is_regular_expander()
         ```
+
+        ### A long prism or a random graph
+
+        Two 3-regular graphs on `38` nodes. The prism on the left, two 19-node cycles joined by
+        spokes, has a second eigenvalue of `1 + 2 cos(2π / 19) ≈ 2.89`, just past the bound of
+        `2.83`, and its farthest nodes are `10` steps apart. The random 3-regular graph on the
+        right passes, with a diameter of `7`:
+
+        ```{python}
+        prism = ec.Graph().add_generalized_petersen_graph(19, 1)
+        random_graph = ec.Graph().add_random_regular_graph(n=38, d=3, seed=1)
+
+        [(g.is_regular_expander(), g.diameter()) for g in (prism, random_graph)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        rings = [list(range(20, 39)), list(range(1, 20))]
+
+        prism.layout_shell(nlist=rings, rotate=0).plot(
+            layout="pos", show_labels=False, node_size=6,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        random_graph.plot(
+            show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if self.is_directed():
             raise ValueError("is_regular_expander() requires an undirected graph")
