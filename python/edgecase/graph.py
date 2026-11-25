@@ -48582,71 +48582,116 @@ class Graph:
         useful for edge clustering, edge-community analysis, and modeling transfer points
         in transportation networks.
 
+        See Also
+        --------
+        edge_coloring : Color edges directly.
+        greedy_color : Color nodes, such as the nodes of a line graph.
+        is_valid_edge_coloring : Check that no two edges at a node share a color.
+        clique_graph : The graph of which maximal cliques overlap.
+
         Examples
         --------
-        The path "A -- B -- C" has two edges, so its line graph has two nodes. They are joined by
-        one edge because both original edges meet at "B":
+        The path "A -- B -- C" has two edges, so its line graph has two nodes. They are joined
+        because both edges meet at "B":
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("B", "C")])
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        lines = path.line_graph()
 
-        lg = g.line_graph()
-        lg.count_nodes(), lg.count_edges()
+        lines.count_nodes(), lines.count_edges()
         ```
 
-        The line graph of a triangle is again a triangle: three edges, each sharing an endpoint
-        with the other two:
+        All four spokes of a star meet at the center, so every pair of them is joined and the line
+        graph is the complete graph on four nodes, with 6 edges:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        star = ec.Graph.from_edges(
+            [("C", "L1"), ("C", "L2"), ("C", "L3"), ("C", "L4")]
+        )
 
-        lg = g.line_graph()
-        lg.count_nodes(), lg.count_edges()
+        star.line_graph().count_edges()
         ```
 
-        In a directed graph, line-graph edges follow the direction of travel. In the chain
-        "A -> B -> C", edge "A -> B" leads into edge "B -> C", giving one directed line-graph
-        edge (shown here with the `"<source>-<target>"` node labels, which use node IDs):
+        Each line-graph node records the edge it came from, so results on the line graph can be
+        mapped back:
 
         ```{python}
-        g = ec.Graph(directed=True)
-        g.add_nodes(["A", "B", "C"])
-        g.add_edges([("A", "B"), ("B", "C")])
+        weighted = ec.Graph.from_edges([("X", "Y", 2.0), ("Y", "Z", 3.0)])
 
-        lg = g.line_graph()
-        lg.get_edges_str_repr(use_labels=True)
-        ```
-
-        Each line-graph node records which original edge it came from, including that edge's
-        endpoints and weight, so results computed on the line graph can be mapped back:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["X", "Y", "Z"])
-        g.add_edges([("X", "Y", 2.0), ("Y", "Z", 3.0)])
-
-        lg = g.line_graph()
-        lg.get_node_df().select(
-            "label", "original_edge_id", "original_source", "original_target", "original_weight"
+        weighted.line_graph().get_node_df().select(
+            "label",
+            "original_edge_id",
+            "original_source",
+            "original_target",
+            "original_weight",
         )
         ```
 
-        All four spokes of a star meet at the center, so every pair of them is connected and
-        the line graph is the complete graph on four nodes (`6` edges):
+        ### Scheduling handover sessions
+
+        Each edge of the teams network joins a worker to a task they're qualified for. Before the
+        assignment is made, every worker spends an hour with each of those tasks' teams. A worker
+        can only be in one session at a time, and each team can host only one, so two sessions
+        clash when they share a worker or a task.
+
+        Clashing sessions are edges that share an endpoint, which are exactly the nodes joined in
+        the line graph. Giving sessions hours so that no two clash is coloring the edges of the
+        network, and that's the same as coloring the nodes of its line graph:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["C", "L0", "L1", "L2", "L3"])
-        g.add_edges([("C", "L0"), ("C", "L1"), ("C", "L2"), ("C", "L3")])
+        teams = ec.teams()
+        sessions = teams.line_graph()
 
-        lg = g.line_graph()
-        lg.count_nodes(), lg.count_edges()
+        hours = sessions.greedy_color()
+        len(set(hours.values()))
+        ```
+
+        Four hours is the fewest possible, since Omar is qualified for four tasks and Testing has
+        four qualified workers. Mapped back to the edges, the hours are a valid edge coloring:
+
+        ```{python}
+        origins = sessions.get_node_df().select("id", "original_edge_id")
+        edge_of = dict(origins.iter_rows())
+        schedule = {edge_of[session]: hour for session, hour in hours.items()}
+
+        teams.is_valid_edge_coloring(schedule)
+        ```
+
+        Here each session is an edge colored by its hour, with the tasks along the top and the
+        workers along the bottom. No worker or task has two edges of one color:
+
+        ```{python}
+        teams.set_edge_attrs("hour", schedule)
+        teams.layout_bipartite(align="horizontal", aspect_ratio=0.25)
+        teams.plot(
+            layout="pos",
+            label_by="label",
+            edge_color_by="hour",
+            edge_width=3,
+            edge_opacity=1,
+            height=300,
+        )
+        ```
+
+        In the line graph, each session is a node, colored the same way, and no two joined nodes
+        share a color:
+
+        ```{python}
+        name = teams.get_label_from_id
+        sessions.set_node_attrs("hour", hours)
+        sessions.set_node_attrs(
+            "session",
+            {
+                session: f"{name(u)}: {name(v)}"
+                for session, u, v in sessions.get_node_df()
+                .select("id", "original_source", "original_target")
+                .iter_rows()
+            },
+        )
+        sessions.layout_kamada_kawai()
+        sessions.plot(layout="pos", color_by="hour", label_by="session")
         ```
         """
         result = Graph._from_rust(rust.line_graph(self._graph, create_using_directed))
