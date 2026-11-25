@@ -59794,6 +59794,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#connected-components) compares the
+        methods that find and count components.
         """
         from edgecase._core import largest_component_size as rust_lcs
 
