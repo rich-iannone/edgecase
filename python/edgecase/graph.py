@@ -9161,37 +9161,55 @@ class Graph:
         ValueError
             If `n=` is less than `2`, `offsets=` is empty, or an offset is a multiple of `n=`.
 
+        See Also
+        --------
+        add_cycle_graph : Add a cycle graph.
+        add_lcf_graph : Add a cubic graph from LCF notation.
+        is_k_regular : Check whether every node has degree k.
+
         Examples
         --------
-        With offsets `1` and `3`, each of the eight nodes is joined to the nodes one and three
-        steps away in both directions, so every node has degree `4`:
+        The nodes sit on a ring, and each node is joined to the nodes `offsets=` steps away in both
+        directions. With offsets `1` and `3`, each of eight nodes has degree `4`. In a directed
+        graph each offset gives one edge per node, all pointing the same way round:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_circulant_graph(n=8, offsets=[1, 3])
+        arrows = ec.Graph(directed=True).add_circulant_graph(n=4, offsets=[1])
 
-        graph.count_edges(), {graph.get_degree(nid) for nid in graph.get_node_ids()}
+        graph.is_k_regular(4), arrows.get_edges_str_repr(use_labels=True)
         ```
 
-        The offset `4` in an eight-node ring joins opposite nodes, so each pair appears once and
-        adds only one to every degree. Together with offset `1` this gives the Möbius ladder on
-        eight nodes (the Wagner graph):
+        ### Offsets 1 and 3, 1 and 4
+
+        On a ring of eight, offset `4` joins each node to the node opposite, and each such pair is
+        joined only once, so it adds one to every degree. Offsets `1` and `3` on the left give a
+        4-regular graph, and `1` and `4` on the right the Möbius ladder on eight nodes, the Wagner
+        graph, which is 3-regular:
 
         ```{python}
         wagner = ec.Graph().add_circulant_graph(n=8, offsets=[1, 4])
 
-        wagner.count_edges(), {wagner.get_degree(nid) for nid in wagner.get_node_ids()}
+        graph.count_edges(), wagner.count_edges(), wagner.is_k_regular(3)
         ```
 
-        In a directed graph each offset gives one edge per node, all pointing the same way
-        around the ring:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        ec.Graph(directed=True).add_circulant_graph(n=4, offsets=[1]).get_edges_str_repr(
-            use_labels=True
+        graph.layout_circular(order=list(range(1, 9))).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
         )
         ```
+
+        ```{python}
+        wagner.layout_circular(order=list(range(1, 9))).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         offsets = list(offsets)
         if n < 2:
