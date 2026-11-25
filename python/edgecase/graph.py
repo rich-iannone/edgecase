@@ -52169,6 +52169,9 @@ class Graph:
             highlight_edges=[(u, v) for u in clique for v in clique if u < v],
         )
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "modular", "modular_product")
 
