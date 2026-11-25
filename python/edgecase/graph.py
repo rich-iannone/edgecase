@@ -9837,6 +9837,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if m < 3:
             raise ValueError("Tadpole cycle must have at least 3 nodes")
