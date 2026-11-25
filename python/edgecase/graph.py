@@ -85079,6 +85079,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=list(harbor), label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#connected-components) compares the
+        methods that find and count components.
         """
         start = self._resolve_node_id(node, auto_create=False)
         nbrs: dict[int, list[int]] = {}
