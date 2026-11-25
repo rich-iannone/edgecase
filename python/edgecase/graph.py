@@ -66694,6 +66694,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=closer, label_by="label")
         ```
+
+        [Structural properties](../user-guide/structure.qmd#distances) compares the measures that
+        sum up a graph's distances.
         """
         if attr_name is None:
             attr_name = "eccentricity"
