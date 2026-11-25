@@ -42874,50 +42874,95 @@ class Graph:
         ValueError
             If `known_labels=` is empty or contains a node ID not present in the graph.
 
+        See Also
+        --------
+        cmty_label_propagation : Find communities by label propagation, with no seed labels.
+        network_smooth : Spread numeric scores over the network instead of classes.
+        random_walk_with_restart : Score nodes by their closeness to a set of seeds.
+
         Examples
         --------
-        Two dense groups, a triangle "A", "B", "C" and a four-node clique "D" to "G", are joined
-        by the edge "C"-"D". Seeding only "A" with label `0` and "G" with label `1` is enough to
-        classify every node by the group it belongs to:
+        A triangle and a four-node clique are joined by the edge `C`–`D`. Seeding `A` with class
+        `0` and `G` with class `1` is enough to classify every node by the group it belongs to:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-        g.add_edges([
-            ("A", "B"), ("B", "C"), ("C", "A"),
-            ("C", "D"),
-            ("D", "E"), ("D", "F"), ("D", "G"), ("E", "F"), ("E", "G"), ("F", "G"),
-        ])
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+             ("D", "E"), ("D", "F"), ("D", "G"), ("E", "F"), ("E", "G"), ("F", "G")]
+        )
 
-        seeds = {g.get_id_from_label("A"): 0, g.get_id_from_label("G"): 1}
-
-        result = g.label_propagation(seeds, return_dict=True)
-        {g.get_label_from_id(nid): lbl for nid, lbl in sorted(result.items())}
+        (
+            graph.label_propagation({"A": 0, "G": 1})
+            .get_node_df()
+            .select("label", "label_propagation")
+        )
         ```
 
-        Edge weights decide close votes. "Xena" is linked to seed "Alice" (label `0`) with weight
-        `3.0` and to seed "Bob" (label `1`) with weight `1.0`, so she takes Alice's label. A
-        node "Zed" with no connections to any seed keeps `-1`:
+        Edge weights decide close votes. `Xena` is tied to `Alice` (class `0`) by a weight of `3`
+        and to `Bob` (class `1`) by a weight of `1`, so she takes Alice's class. `Zed`, with no
+        path to a seed, keeps `-1`:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["Alice", "Bob", "Xena", "Zed"])
-        g.add_edges([("Xena", "Alice", 3.0), ("Xena", "Bob", 1.0)])
+        graph = ec.Graph.from_edges([("Xena", "Alice", 3.0), ("Xena", "Bob", 1.0)])
+        graph.add_node(label="Zed")
 
-        seeds = {g.get_id_from_label("Alice"): 0, g.get_id_from_label("Bob"): 1}
-
-        result = g.label_propagation(seeds, return_dict=True)
-        {g.get_label_from_id(nid): lbl for nid, lbl in sorted(result.items())}
+        (
+            graph.label_propagation({"Alice": 0, "Bob": 1})
+            .get_node_df()
+            .select("label", "label_propagation")
+        )
         ```
 
-        Leaving `return_dict=` at its default stores the labels in the node DataFrame under
-        `attr_name=`, ready for further analysis or for coloring nodes:
+        ### Predicting what a protein does
+
+        `proteins()` is a small protein interaction network. Every protein but three has a known
+        pathway; ORF1, ORF2 and ORF3 are uncharacterized. Since proteins that bind tend to work
+        together, the known pathways, numbered as classes, can be spread to the unknown ones:
 
         ```{python}
-        g.label_propagation(seeds, attr_name="group").get_node_df().select("label", "group")
+        import polars as pl
+
+        proteins = ec.proteins()
+        pathway = proteins.get_node_attrs("pathway")
+        names = sorted(set(pathway.values()))
+
+        classes = proteins.label_propagation(
+            {node: names.index(p) for node, p in pathway.items()}, return_dict=True
+        )
+        proteins.set_node_attrs(
+            "predicted", {node: names[c] for node, c in classes.items()}
+        )
+
+        (
+            proteins.get_node_df()
+            .filter(pl.col("pathway").is_null())
+            .select("label", "predicted")
+        )
         ```
+
+        Each takes the pathway of most of its partners: ORF1 sits among the DNA repair proteins,
+        ORF2 among the signaling ones and ORF3 among the transport ones. Drawn by pathway before
+        and after, the three gray proteins take their neighbors' colors:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        proteins.plot(
+            layout="pos", color_by="pathway", label_by="label", legend=False,
+            width=360, height=360,
+        )
+        ```
+
+        ```{python}
+        proteins.plot(
+            layout="pos", color_by="predicted", label_by="label", legend=False,
+            width=360, height=360,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import label_propagation as _label_propagation
 
