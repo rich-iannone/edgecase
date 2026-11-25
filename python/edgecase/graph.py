@@ -36060,6 +36060,9 @@ class Graph:
             color_by="club", label_by="label", seed=1,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#link-prediction) compares the
+        six link predictors and tests them on the jazz network.
         """
         from edgecase._core import common_neighbors
 
