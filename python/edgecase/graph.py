@@ -9969,9 +9969,16 @@ class Graph:
             If `dims=` is empty or has a size below `1`, or if a list given for `periodic=` does
             not have one entry per dimension.
 
+        See Also
+        --------
+        add_grid_2d : Add a two-dimensional grid graph.
+        add_hypercube_graph : Add a hypercube graph.
+        add_triangular_lattice_graph : Add a triangular lattice.
+
         Examples
         --------
-        A `2 x 3 x 4` lattice has `24` nodes; each axis contributes one edge per step between
+        `dims=` gives the number of points along each axis, in any number of dimensions. A
+        `2 x 3 x 4` lattice has `24` nodes, and each axis contributes one edge per step between
         neighboring points, for `12 + 16 + 18 = 46` edges:
 
         ```{python}
@@ -9982,20 +9989,61 @@ class Graph:
         graph.count_nodes(), graph.count_edges()
         ```
 
-        The labels give each node's coordinates, so specific points are easy to find:
+        The labels give each node's coordinates, and a node's neighbors differ from it by one step
+        along one axis:
 
         ```{python}
-        sorted(graph.get_label_from_id(nid) for nid in graph.get_neighbors("(1,1,1)"))
+        neighbors = graph.get_neighbors("(1,1,1)")
+
+        sorted(graph.get_label_from_id(n) for n in neighbors)
         ```
 
-        Wrapping a `4 x 4` grid into a torus gives every node exactly four neighbors, with no
-        corners or borders:
+        `periodic=True` wraps every axis around. A `4 x 4` grid becomes a torus, in which every
+        node has four neighbors and there are no corners or borders:
 
         ```{python}
         torus = ec.Graph().add_grid_graph(dims=[4, 4], periodic=True)
 
-        torus.count_edges(), {torus.get_degree(nid) for nid in torus.get_node_ids()}
+        torus.count_edges(), torus.is_k_regular(4)
         ```
+
+        ### Flat or wrapped
+
+        `periodic=` also takes one flag per axis. Wrapping only the second axis of a `3 x 6` grid
+        joins each row's ends and rolls the grid into a tube. The flat grid on the left, with its
+        positions taken from the labels, and the tube on the right, one ring per row. Wrapping adds
+        three edges and brings the far corners closer, from `7` steps to `5`:
+
+        ```{python}
+        flat = ec.Graph().add_grid_graph(dims=[3, 6])
+        tube = ec.Graph().add_grid_graph(dims=[3, 6], periodic=[False, True])
+
+        flat.count_edges(), tube.count_edges(), flat.diameter(), tube.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        cells = flat.get_node_df()
+        pos = {
+            n: (int(label[3]), -int(label[1]))
+            for n, label in zip(cells["id"], cells["label"])
+        }
+
+        flat.set_node_attrs("pos", pos).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        rows = [[f"({r},{c})" for c in range(6)] for r in range(3)]
+
+        tube.layout_shell(nlist=rows, rotate=0).plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         dims = list(dims)
         if not dims or any(size < 1 for size in dims):
