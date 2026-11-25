@@ -7987,35 +7987,54 @@ class Graph:
         ValueError
             If `n=` is less than `1`.
 
+        See Also
+        --------
+        add_complete_multipartite_graph : Add a complete multipartite graph.
+        add_turan_graph : Add a Turán graph.
+        clique_number : Compute the size of a largest clique.
+
         Examples
         --------
-        A complete graph connects every pair of nodes, so `n` nodes produce `n(n-1)/2` edges --
-        here, `4 * 3 / 2 = 6`:
+        A complete graph joins every pair of nodes, so `n` nodes have `n(n - 1) / 2` edges. In a
+        directed graph each pair is joined both ways, which doubles the count:
 
         ```{python}
         import edgecase as ec
-        graph = ec.Graph().add_full_graph(n=4)
 
-        graph.count_nodes(), graph.count_edges()
+        (
+            ec.Graph().add_full_graph(n=4).count_edges(),
+            ec.Graph(directed=True).add_full_graph(n=4).count_edges(),
+        )
         ```
 
-        In a directed graph each pair is joined in both directions, so the same `n=3` clique
-        has `6` edges instead of `3`:
-
-        ```{python}
-        directed = ec.Graph(directed=True).add_full_graph(n=3)
-
-        directed.get_edges_str_repr(use_labels=True)
-        ```
-
-        `keep_loops=True` adds a self-loop on every node -- the `"1--1"`, `"2--2"`, and `"3--3"`
-        entries below -- so the graph is no longer simple:
+        `keep_loops=True` adds a self-loop on every node, so the graph is no longer simple:
 
         ```{python}
         looped = ec.Graph().add_full_graph(n=3, keep_loops=True)
 
         looped.get_edges_str_repr(use_labels=True), looped.is_simple()
         ```
+
+        ### Four nodes and eight
+
+        The number of edges grows with the square of the number of nodes: 6 edges for the 4 nodes
+        on the left, 28 for the 8 on the right:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        ec.Graph().add_full_graph(n=4).layout_circular().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        ec.Graph().add_full_graph(n=8).layout_circular().plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         if n < 1:
             raise ValueError("Complete graph must have at least 1 node")
