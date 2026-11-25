@@ -64778,7 +64778,9 @@ class Graph:
 
         (
             club.get_node_df()
-            .select("label", "degree", "betweenness_centrality", "bridging_centrality")
+            .select(
+                "label", "degree", "betweenness_centrality", "bridging_centrality"
+            )
             .sort("bridging_centrality", descending=True)
             .head(5)
         )
@@ -64790,6 +64792,9 @@ class Graph:
         ```{python}
         club.plot(layout="pos", color_by="bridging_centrality", label_by="label")
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         from edgecase._core import bridging_centrality
 
