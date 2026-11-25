@@ -77099,6 +77099,9 @@ class Graph:
             label_by="label", height=420,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#closure-and-reduction) makes every indirect
+        dependency in the plan for a house explicit.
         """
         from edgecase._core import transitive_closure
 
