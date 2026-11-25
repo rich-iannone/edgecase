@@ -72573,6 +72573,9 @@ class Graph:
 
         len(later)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) lists it with the
+        other methods that expose the parts of a search.
         """
         result = self._edge_traversal(source, orientation, depth_first=True)
         self._record_edge_traversal("edge_dfs", result)
