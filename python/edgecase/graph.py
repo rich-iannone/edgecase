@@ -37023,6 +37023,9 @@ class Graph:
             size_by="degree", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#link-prediction) compares the
+        six link predictors and tests them on the jazz network.
         """
         from edgecase._core import preferential_attachment
 
