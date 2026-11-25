@@ -21511,43 +21511,88 @@ class Graph:
         has no known polynomial algorithm), but typical graphs, including large random,
         regular and grid graphs, are decided in milliseconds.
 
+        See Also
+        --------
+        could_be_isomorphic : Quick checks that can rule isomorphism out.
+        find_isomorphism : The correspondence between the nodes, not just whether one exists.
+        canonical_labeling : Number the nodes so that isomorphic graphs become identical.
+        weisfeiler_lehman_graph_hash : A key for grouping many graphs into likely duplicates.
+
         Examples
         --------
-        A path drawn with different labels is still the same path:
+        A path drawn with different labels, and its edges added in a different order, is still
+        the same path:
 
         ```{python}
         import edgecase as ec
 
-        g1 = ec.Graph().add_nodes(["A", "B", "C"]).add_edges([("A", "B"), ("B", "C")])
-        g2 = ec.Graph().add_nodes(["X", "Y", "Z"]).add_edges([("Y", "X"), ("Z", "Y")])
+        g = ec.Graph.from_edges([("A", "B"), ("B", "C")])
+        h = ec.Graph.from_edges([("Z", "Y"), ("Y", "X")])
 
-        g1.is_isomorphic(g2)
+        g.is_isomorphic(h)
         ```
 
         A six-node cycle and two separate triangles have the same degrees (six nodes, six
-        edges, every degree 2), but they are not isomorphic, since one is connected and the
-        other is not:
+        edges, every degree 2), so they pass the degree check of `could_be_isomorphic()`, but
+        they are not isomorphic, since one is connected and the other is not:
 
         ```{python}
         hexagon = ec.Graph().add_cycle_graph(6)
         two_triangles = ec.Graph().add_cycle_graph(3).add_cycle_graph(3)
 
-        hexagon.could_be_isomorphic(two_triangles, properties="d"), hexagon.is_isomorphic(
-            two_triangles
+        (
+            hexagon.could_be_isomorphic(two_triangles, properties="d"),
+            hexagon.is_isomorphic(two_triangles),
         )
         ```
 
-        With `node_attr=`, matched nodes must also agree on an attribute. Both molecules below
-        are a chain of three atoms, but the central atom differs:
+        ### Telling molecules apart
+
+        `molecules()` holds three pairs that are easy to confuse. With `node_attr="element"`,
+        matched atoms must be the same element, and with `edge_attr="bond"` as well, matched
+        bonds must be the same kind:
 
         ```{python}
-        water = ec.Graph().add_nodes([("H1", {"el": "H"}), ("O", {"el": "O"}), ("H2", {"el": "H"})])
-        water.add_edges([("H1", "O"), ("O", "H2")])
-        other = ec.Graph().add_nodes([("O1", {"el": "O"}), ("H", {"el": "H"}), ("O2", {"el": "O"})])
-        other.add_edges([("O1", "H"), ("H", "O2")])
+        import polars as pl
 
-        water.is_isomorphic(other), water.is_isomorphic(other, node_attr="el")
+        molecules = ec.molecules()
+        pairs = [("benzene", "cyclohexane"), ("ethanol", "dimethyl_ether"), ("butane", "isobutane")]
+
+        pl.DataFrame(
+            [
+                {
+                    "pair": f"{a} / {b}",
+                    "shape": molecules[a].is_isomorphic(molecules[b]),
+                    "elements": molecules[a].is_isomorphic(molecules[b], node_attr="element"),
+                    "bonds": molecules[a].is_isomorphic(
+                        molecules[b], node_attr="element", edge_attr="bond"
+                    ),
+                }
+                for a, b in pairs
+            ]
+        )
         ```
+
+        Benzene and cyclohexane are both rings of six carbons and differ only in their bonds.
+        Butane and isobutane have the same atoms but a different shape, so they fail even the
+        first test. Ethanol and dimethyl ether are both chains of three atoms, two carbons and
+        an oxygen, but the oxygen sits at the end of one chain and in the middle of the other:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        molecules["ethanol"].plot(
+            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+        )
+        ```
+
+        ```{python}
+        molecules["dimethyl_ether"].plot(
+            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+        )
+        ```
+
+        :::
         """
         if self.is_directed() != other.is_directed():
             value = False
