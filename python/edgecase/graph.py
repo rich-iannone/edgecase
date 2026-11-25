@@ -87683,6 +87683,9 @@ class Graph:
             layout="pos", highlight="shortest_path_order", label_by="label"
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) compares the methods that
+        measure between every pair of nodes.
         """
         result = Graph._from_rust(rust.metric_closure(self._graph, self._use_weights(weighted)))
         if self._recording_depth == 0:
