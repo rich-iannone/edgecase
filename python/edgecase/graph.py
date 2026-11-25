@@ -49055,54 +49055,65 @@ class Graph:
         building block for community-quotienting workflows where an entire cluster collapses
         to a single representative before further analysis.
 
+        See Also
+        --------
+        contract_nodes : Merge just two nodes.
+        quotient_graph : Collapse every block of a partition at once.
+        cmty_louvain : Find communities to collapse.
+
         Examples
         --------
-        Contracting three consecutive nodes of a six-node path leaves four nodes:
-
-        ```{python}
-        import edgecase as ec
-
-        g = ec.Graph(directed=False)
-        g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
-
-        result = g.contract_nodes_multi([2, 3, 4])
-        result.count_nodes()
-        ```
-
         A triangle "A", "B", "C" with a tail to "D" collapses into a single node "A". The three
         triangle edges become one self-loop, and the link to "D" is kept:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+        import edgecase as ec
 
-        g.contract_nodes_multi(["A", "B", "C"]).get_edges_str_repr(use_labels=True)
+        g = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D")])
+
+        merged = g.contract_nodes_multi(["A", "B", "C"])
+        merged.get_edges_str_repr(use_labels=True)
         ```
 
         With `self_loops=False`, the group's internal edges are discarded:
 
         ```{python}
-        g.contract_nodes_multi(["A", "B", "C"], self_loops=False).get_edges_str_repr(
-            use_labels=True
-        )
+        merged = g.contract_nodes_multi(["A", "B", "C"], self_loops=False)
+        merged.get_edges_str_repr(use_labels=True)
         ```
 
-        This is especially useful for collapsing a detected community down to a single
-        representative node. Here the first community found by Louvain in two triangles joined
-        by a bridge is merged into one node, leaving the other triangle intact:
+        ### One community as one node
+
+        Louvain finds four communities in the karate club. Collapsing the administrator's
+        community into a single node keeps every other member as they were, and shows how that
+        community connects to the rest of the club:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
-                     ("D", "E"), ("E", "F"), ("F", "D")])
+        karate = ec.karate_club()
+        membership = karate.cmty_louvain(return_dict=True)
+        karate.set_node_attrs("community", membership)
 
-        membership = g.cmty_louvain(return_dict=True)
-        community = sorted(n for n, c in membership.items() if c == membership[1])
+        home = membership[karate.get_id_from_label("33")]
+        community = [node for node, c in membership.items() if c == home]
 
-        simplified = g.contract_nodes_multi(community, self_loops=False)
-        simplified.get_edges_str_repr(use_labels=True)
+        club = karate.contract_nodes_multi(community, self_loops=False)
+        len(community), club.count_nodes()
+        ```
+
+        The 11 members become one node, which takes the label of the lowest-numbered member, 8.
+        It's tied to 10 members outside the community:
+
+        ```{python}
+        merged = sorted(community)[0]
+
+        club.get_label_from_id(merged), club.get_degree(merged)
+        ```
+
+        Colored by the original communities, the merged node is the only one left of its
+        community, and sits between the instructor's community and the six members of the fourth:
+
+        ```{python}
+        club.plot(color_by="community", label_by="label", seed=2)
         ```
         """
         from edgecase._core import contract_nodes_multi as _contract_nodes_multi
