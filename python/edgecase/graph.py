@@ -63745,6 +63745,9 @@ class Graph:
 
         So HITS settles on the networks papers, and citing the learning ones earns almost
         nothing. For the papers' side of the scores, see `authority_centrality()`.
+
+        [Centrality](../user-guide/centrality.qmd#hubs-and-authorities) finds the hubs and
+        authorities of Wikipedia's administrator elections.
         """
         centrality = self._graph.get_hub_centrality(max_iter, tol, self._use_weights(weighted))
 
