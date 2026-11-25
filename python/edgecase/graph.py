@@ -83427,6 +83427,35 @@ class Graph:
         tree.get_edge_df(labels=True).select("source", "target", "weight")
         ```
 
+        The graph on the left and its tree on the right, drawn in the same place. The tree is
+        not a subgraph: it has no edge from B to C, but links both to A, since separating B from
+        C takes the same two cuts as separating either from A:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {
+            "A": (0, 0), "B": (2, 0), "C": (1, 1.4),
+            "D": (3, 1.4), "E": (5, 1.4), "F": (4, 0),
+        }
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+        tree.set_node_attrs("pos", pos)
+
+        graph.plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        tree.plot(
+            layout="pos", edge_label_by="weight", label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
         The minimum cut between A and F is the lightest edge on their tree path, which matches
         a direct computation:
 
@@ -83475,6 +83504,9 @@ class Graph:
         pairs = combinations(tree.get_node_ids(), 2)
         Counter(cut_between(u, v) for u, v in pairs)
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) reads the
+        most robustly connected pairs of the karate club from the tree.
         """
         edges = rust.gomory_hu(self._graph, capacity)
         result = Graph._from_rust(rust.weighted_tree_graph(self._graph, edges))
