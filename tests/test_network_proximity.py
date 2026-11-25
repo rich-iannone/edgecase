@@ -201,8 +201,15 @@ class TestProximityErrors:
 
     def test_invalid_node(self):
         g = make_chain()
-        with pytest.raises(ValueError, match="not found"):
+        with pytest.raises(ValueError, match="does not exist"):
             g.network_proximity([99999], [ids(g, "A")[0]])
+        with pytest.raises(ValueError, match="not found"):
+            g.network_proximity([ids(g, "A")[0]], ["nobody"])
+
+    def test_accepts_labels(self):
+        g = make_chain()
+        by_id = g.network_proximity(ids(g, "A", "B"), ids(g, "D"), method="shortest")
+        assert g.network_proximity(["A", "B"], ["D"], method="shortest") == by_id
 
     def test_invalid_method(self):
         g = make_chain()
