@@ -86498,6 +86498,9 @@ class Graph:
             height=300,
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes)
+        explains how a maximal matching differs from a maximum one, which can be larger.
         """
         ends = self._matching_ends(edges)
         if ends is None:
