@@ -43822,6 +43822,9 @@ class Graph:
         ```{python}
         friends.plot(color_by="degree", label_by="label", seed=8)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#mixing-patterns) shows the mixing matrix
+        behind an assortativity coefficient.
         """
         counts = self.degree_mixing_dict(source_mode, target_mode, weighted, normalized=False)
         return self._mixing_matrix(counts, normalized)
