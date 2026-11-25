@@ -37351,6 +37351,9 @@ class Graph:
 
         friends.plot(color_by="like_hugo", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#similarity-from-paths)
+        explains how Panther estimates similarity on large networks, and why to set `seed=`.
         """
         s = self._resolve_node_id(source, auto_create=False)
         if isinstance(k, bool) or not isinstance(k, int) or k < 1:
