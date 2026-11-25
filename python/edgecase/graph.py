@@ -22561,14 +22561,12 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph().add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "D")])
-        h = ec.Graph().add_nodes(["w", "x", "y", "z"])
-        h.add_edges([("y", "w"), ("x", "z"), ("w", "x")])
+        g = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        h = ec.Graph.from_edges([("y", "w"), ("x", "z"), ("w", "x")])
 
 
-        def canonical_form(graph):
-            number = graph.canonical_labeling()
+        def canonical_form(graph, **kwargs):
+            number = graph.canonical_labeling(**kwargs)
             return sorted(
                 tuple(sorted((number[e.source], number[e.target])))
                 for e in map(graph.get_edge, graph.get_edge_ids(limit=None))
@@ -22598,6 +22596,47 @@ class Graph:
 
         canonical_form(hexagon) == canonical_form(two_triangles)
         ```
+
+        ### Recognizing a molecule
+
+        Chemists number the ring atoms of caffeine 1 to 9, by the scheme for purines.
+        `molecules()["caffeine"]` numbers the atoms of each element in turn instead. With the
+        elements taken into account, both get the same canonical form, so they're the same
+        molecule:
+
+        ```{python}
+        caffeine = ec.molecules()["caffeine"]
+        purine = ec.Graph.from_edges(
+            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
+             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
+             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+        )
+        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+
+        canonical_form(caffeine, node_attr="element") == canonical_form(purine, node_attr="element")
+        ```
+
+        Labeled with their canonical numbers, matching atoms carry the same number in both
+        drawings, such as `3` for the methyl carbon that is C1 in one and C14 in the other:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        for molecule in [caffeine, purine]:
+            molecule.set_node_attrs("canonical", molecule.canonical_labeling(node_attr="element"))
+
+        caffeine.plot(
+            color_by="element", label_by="canonical", legend=False, seed=1, width=360, height=360
+        )
+        ```
+
+        ```{python}
+        purine.plot(
+            color_by="element", label_by="canonical", legend=False, seed=4, width=360, height=360
+        )
+        ```
+
+        :::
         """
 
         def names(spec):
