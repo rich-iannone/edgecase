@@ -45521,6 +45521,9 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) compares the detection
+        algorithms, what each can handle and how far each scales.
         """
         communities = self._graph.get_cmty_walktrap(steps)
 
