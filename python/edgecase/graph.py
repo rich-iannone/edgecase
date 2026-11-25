@@ -2036,6 +2036,12 @@ class Graph:
             source or target can't be resolved to an existing node (and `auto_create_nodes=` is
             `False`).
 
+        See Also
+        --------
+        add_edge : Add one edge.
+        add_edges_by_id : Add edges between node IDs.
+        from_edges : Build a new graph from an edge list.
+
         Examples
         --------
         Add several edges at once between existing nodes:
@@ -2045,23 +2051,8 @@ class Graph:
 
         graph = (
             ec.Graph(directed=True)
-            .add_nodes(['A', 'B', 'C', 'D'])
-            .add_edges([('A', 'B'), ('B', 'C'), ('C', 'D')])
-        )
-
-        graph.get_edge_df()
-        ```
-
-        A shared relationship type is applied to every edge in the list:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(['Alice', 'Bob', 'Carol'])
-            .add_edges(
-                [('Alice', 'Bob'), ('Bob', 'Carol')],
-                rel='follows'
-            )
+            .add_nodes(["A", "B", "C", "D"])
+            .add_edges([("A", "B"), ("B", "C"), ("C", "D")])
         )
 
         graph.get_edge_df()
@@ -2073,11 +2064,11 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(weighted=True)
-            .add_nodes(['A', 'B', 'C'])
-            .add_edges([('A', 'B', 2.0), ('B', 'C', 0.5), ('A', 'C', 3.0)])
+            .add_nodes(["A", "B", "C"])
+            .add_edges([("A", "B", 2.0), ("B", "C", 0.5), ("A", "C", 3.0)])
         )
 
-        graph.get_edge_df().select(['source', 'target', 'weight'])
+        graph.get_edge_df().select(["source", "target", "weight"])
         ```
 
         A dict as the third tuple element overrides the shared values for that edge only. Here the
@@ -2086,14 +2077,14 @@ class Graph:
         ```{python}
         graph = (
             ec.Graph(directed=True, weighted=True)
-            .add_nodes(['A', 'B', 'C'])
+            .add_nodes(["A", "B", "C"])
             .add_edges(
                 [
-                    ('A', 'B'),
-                    ('A', 'C', {'weight': 2.0, 'rel': 'strong'}),
+                    ("A", "B"),
+                    ("A", "C", {"weight": 2.0, "rel": "strong"}),
                 ],
-                rel='weak',
-                weight=1.0
+                rel="weak",
+                weight=1.0,
             )
         )
 
@@ -2104,22 +2095,48 @@ class Graph:
         people are created as nodes on the fly:
 
         ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_edges(
-                [
-                    ('Alice', 'Bob'),
-                    ('Bob', 'Carol'),
-                    ('Carol', 'Alice'),
-                ],
-                rel='knows',
-                auto_create_nodes=True
-            )
+        graph = ec.Graph(directed=True).add_edges(
+            [("Alice", "Bob"), ("Bob", "Carol"), ("Carol", "Alice")],
+            rel="knows",
+            auto_create_nodes=True,
         )
 
         graph.count_nodes(), graph.count_edges()
         ```
 
+        ### Payments in batches
+
+        A bank's payments arrive in batches, and a shared `rel=` tags each batch with what it
+        was for: the payroll, the rent and the card payments. Every edge in a batch gets the
+        same `rel`, while its amount is its own:
+
+        ```{python}
+        bank = ec.Graph(directed=True, weighted=True)
+
+        bank.add_edges(
+            [("Acme", "Dee", 2600), ("Acme", "Eve", 2700), ("Acme", "Max", 2400)],
+            rel="wages",
+            auto_create_nodes=True,
+        )
+        bank.add_edges(
+            [("Max", "Landlord", 1800)], rel="rent", auto_create_nodes=True
+        )
+        bank.add_edges(
+            [
+                ("Dee", "Grocer", 64), ("Eve", "Grocer", 38),
+                ("Max", "Grocer", 82), ("Dee", "Cafe", 12), ("Eve", "Cafe", 15),
+            ],
+            rel="card",
+            auto_create_nodes=True,
+        )
+
+        bank.plot(
+            edge_color_by="rel", edge_width_by="weight", label_by="label", seed=1
+        )
+        ```
+
+        The wages flow out of Acme and the card payments into the Grocer and the Cafe, and the
+        rent is the one large payment that doesn't come from Acme.
         """
         # Validate every item before adding anything, so a malformed list adds no edges
         parsed = [_parse_edge_item(item) for item in edges]
