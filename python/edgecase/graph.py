@@ -25220,6 +25220,9 @@ class Graph:
 
         davis.is_bipartite_node_set(others)
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#bipartite-graphs)
+        splits the Southern Women network into its two sides with `bipartite_sets()`.
         """
         ids = [self._resolve_node_id(n, auto_create=False) for n in nodes]
         chosen = set(ids)
