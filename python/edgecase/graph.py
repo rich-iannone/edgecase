@@ -64303,6 +64303,9 @@ class Graph:
 
         Keep `|beta|` below `1 / lambda_max`, the reciprocal of the largest adjacency eigenvalue
         (about `0.15` for the karate club), where the system becomes singular.
+
+        [Centrality](../user-guide/centrality.qmd#spectral-centrality) compares the spectral
+        measures.
         """
         result = self._graph.get_bonacich_power_centrality(beta, normalized)
         # Empty result indicates singular matrix error
