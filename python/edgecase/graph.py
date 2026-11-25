@@ -34202,6 +34202,9 @@ class Graph:
 
         graph.get_edge_attrs("weight")
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-edges) reverses and tags the
+        misrecorded edges of a dependency graph.
         """
         selected = self.get_selected_edge_ids()
 
