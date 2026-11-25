@@ -84785,6 +84785,29 @@ class Graph:
             highlight=[n for c in sinks for n in c], label_by="label", seed=3
         )
         ```
+
+        ### The top of a food chain
+
+        `food_web()` is a made-up woodland food web, with an edge from each food to each species
+        that eats it. Energy flowing up the web ends at the three species that nothing eats, the
+        Fox, the Hawk and the Marten, so each is an attracting component of its own:
+
+        ```{python}
+        web = ec.food_web()
+        tops = web.attracting_components()
+
+        sorted(web.get_label_from_id(n) for c in tops for n in c)
+        ```
+
+        ```{python}
+        web.plot(
+            layout="pos", highlight=[n for c in tops for n in c],
+            label_by="label", height=360,
+        )
+        ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#directed-graphs) explains why a
+        random walk that enters an attracting component never leaves.
         """
         if not self.is_directed():
             raise ValueError("attracting_components() requires a directed graph")
