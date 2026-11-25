@@ -23247,6 +23247,9 @@ class Graph:
 
         {g.get_graph_name(): g.count_nodes() for g in graphs}
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#creating-a-graph) sets a graph's name, and
+        its kind, when the graph is created.
         """
         return self._graph_name
 
