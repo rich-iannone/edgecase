@@ -13242,6 +13242,12 @@ class Graph:
         ValueError
             If `n=` is negative, or `p1=` or `p2=` is not at least `0` and less than `1`.
 
+        See Also
+        --------
+        add_random_labeled_tree : Draw a tree uniformly from all labeled trees.
+        add_random_powerlaw_tree : Draw a tree with power-law degrees.
+        is_tree : Check whether a graph is a tree.
+
         Examples
         --------
         A lobster is always a tree, whatever its size:
@@ -13260,6 +13266,40 @@ class Graph:
         ```{python}
         sorted(graph.degrees(return_dict=True).values(), reverse=True)[:8]
         ```
+
+        ### Few legs or many
+
+        Two lobsters on the same five-node backbone, with `p2=0.5`. Each backbone node keeps
+        adding legs while a draw falls below `p1`, so with `p1=0.3` on the left there are only a
+        few legs, and with `p1=0.8` on the right there are about four per backbone node, each
+        with its own leaves:
+
+        ```{python}
+        def lobster(p1):
+            return ec.Graph().add_random_lobster(n=6, p1=p1, p2=0.5, seed=1)
+
+        few, many = lobster(0.3), lobster(0.8)
+
+        few.count_nodes(), many.count_nodes()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        few.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        many.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
