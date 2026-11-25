@@ -73047,6 +73047,9 @@ class Graph:
             color_by="taken", color_scale="sequential", label_by="label", seed=2
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) lists it with the
+        other methods that expose the parts of a search.
         """
         self._check_traversal_args(depth_limit, mode)
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
