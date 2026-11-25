@@ -69820,6 +69820,9 @@ class Graph:
         ]
         papers.plot(layout="pos", highlight=tree, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#from-one-node-to-many) compares the methods
+        that measure from one node to every other.
         """
         t, use, nxt, dist = self._target_search(target, cutoff, weighted)
         paths = {}
