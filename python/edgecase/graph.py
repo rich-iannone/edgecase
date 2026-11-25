@@ -49486,68 +49486,65 @@ class Graph:
         what the calling graph lacks, which is worth knowing when weights differ. A common
         use is identifying the stable core of a network observed at multiple time points.
 
+        See Also
+        --------
+        difference : Keep the edges that the other graph lacks.
+        symmetric_difference : Keep the edges in exactly one of two graphs.
+        intersection_all : Keep the edges common to any number of graphs.
+
         Examples
         --------
-        Only the edges present in both graphs survive -- here, both graphs share edges
-        `1-2` and `2-3`, but the triangle's closing edge and the square's extra edges
-        don't overlap:
+        Only the edges in both graphs are kept. A triangle and a square share the edges `1--2` and
+        `2--3`. Node `4` is only in the square, so it's dropped:
 
         ```{python}
         import edgecase as ec
 
-        # Triangle
-        g1 = ec.Graph(directed=False)
-        for i in range(1, 4):
-            g1.add_node()
-        g1.add_edge(1, 2)
-        g1.add_edge(2, 3)
-        g1.add_edge(3, 1)
+        triangle = ec.Graph().add_cycle_graph(3)
+        square = ec.Graph().add_cycle_graph(4)
 
-        # Square with diagonal
-        g2 = ec.Graph(directed=False)
-        for i in range(1, 5):
-            g2.add_node()
-        g2.add_edge(1, 2)
-        g2.add_edge(2, 3)
-        g2.add_edge(3, 4)
-        g2.add_edge(4, 1)
-
-        common = g1.intersection(g2)
-        common.count_edges()
+        common = triangle.intersection(square)
+        common.get_edges_str_repr(), sorted(common.get_node_ids())
         ```
 
-        Node `4` exists only in the square and touches no shared edge, so it is not part of the
-        intersection:
+        ### Friendships that lasted
+
+        `ec.friends()` is a network of friendships in 2024, and `snapshot=2` gives the same people
+        a year later, with 8 new friendships. Three of the 2025 friendships then ended in 2026.
+        The snapshots share their node IDs, so the intersection of 2024 and 2026 holds the
+        friendships that lasted, 40 of the 43:
 
         ```{python}
-        sorted(common.get_node_ids())
+        y2024 = ec.friends()
+        y2026 = (
+            ec.friends(snapshot=2)
+            .delete_edge("Dev", "Femi")
+            .delete_edge("Gwen", "Lou")
+            .delete_edge("Rosa", "Sven")
+        )
+
+        lasted = y2024.intersection(y2026)
+        lasted.count_nodes(), lasted.count_edges()
         ```
 
-        This is useful for finding stable connections that exist at multiple time points or
-        in multiple network versions. Two yearly snapshots of a friendship network, built with
-        the same people in the same order (so they get the same IDs), share three friendships:
+        In the 2024 network, the friendships that lasted are highlighted. The three faint ones
+        ended: Dev and Femi, Gwen and Lou, and Rosa and Sven:
 
         ```{python}
-        def snapshot(friendships):
-            g = ec.Graph(directed=False)
-            g.add_nodes(["Ann", "Bob", "Cat", "Dan", "Eve"])
-            g.add_edges(friendships)
-            return g
-
-        year1 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Cat", "Dan"), ("Dan", "Eve")])
-        year2 = snapshot([("Ann", "Bob"), ("Bob", "Cat"), ("Ann", "Cat"), ("Dan", "Eve")])
-
-        year1.intersection(year2).get_edges_str_repr(use_labels=True)
+        y2024.plot(
+            color_by="club", label_by="label", seed=2,
+            highlight_edges=[(s, t) for _, s, t in lasted.get_edges_as_tuples()],
+        )
         ```
 
-        In directed graphs direction matters: `A -> B` and `B -> A` are different edges, so
-        these two graphs have nothing in common:
+        In a directed graph, `A -> B` and `B -> A` are different edges, so these two graphs have
+        nothing in common:
 
         ```{python}
-        d1 = ec.Graph(directed=True).add_node(label="A").add_node(label="B").add_edge("A", "B")
-        d2 = ec.Graph(directed=True).add_node(label="A").add_node(label="B").add_edge("B", "A")
+        a = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("A", "B")
+        b = ec.Graph(directed=True).add_nodes(["A", "B"]).add_edge("B", "A")
 
-        d1.intersection(d2).count_edges()
+        a.intersection(b).count_edges()
         ```
         """
         from edgecase._core import graph_intersection
