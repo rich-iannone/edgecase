@@ -12155,78 +12155,87 @@ class Graph:
         - Time: `O(n²)` for distance comparisons (naive algorithm)
         - Space: `O(n × dim)` for positions plus O(edges) for graph
 
+        See Also
+        --------
+        add_soft_random_geometric_graph : Add a geometric graph with soft distance cutoffs.
+        add_gnp_graph : Add a random graph with independent edge probabilities.
+        layout_random : Place nodes at random positions.
+
         Examples
         --------
-        Nodes are scattered uniformly at random in the unit square, and only those within
-        `radius=` of each other get connected:
+        Nodes are scattered uniformly at random in the unit square, and two nodes are joined when
+        they are within `radius=` of each other. Each node's label records its coordinates:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=100, radius=0.2, seed=23
-        )
+        graph = ec.Graph().add_random_geometric_graph(n=100, radius=0.2, seed=23)
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_nodes(), graph.count_edges(), graph.get_label_from_id(1)
         ```
 
-        Each node's label records its coordinates, so the spatial layout stays inspectable
-        after construction. Here is the position of the first node:
+        Raising `dim=` places the nodes in the unit cube instead, which suits physical or
+        volumetric proximity. Each label then holds three coordinates:
 
         ```{python}
-        graph.get_label_from_id(1)
+        spatial = ec.Graph().add_random_geometric_graph(
+            n=50, radius=0.3, dim=3, seed=123
+        )
+
+        spatial.count_edges(), spatial.get_label_from_id(1)
         ```
 
-        The labels are JSON arrays, so `json.loads()` turns them back into coordinates, e.g.
-        to compute positions for plotting:
+        `p_norm=1.0` measures distance with the Manhattan (taxicab) metric instead of the
+        Euclidean one. With the same seed, and so the same positions, and the same radius, the
+        Manhattan neighborhood is a diamond that fits inside the Euclidean circle, so fewer pairs
+        are joined:
+
+        ```{python}
+        manhattan = ec.Graph().add_random_geometric_graph(
+            n=100, radius=0.2, p_norm=1.0, seed=23
+        )
+
+        manhattan.count_edges(), graph.count_edges()
+        ```
+
+        ### A small radius and a larger one
+
+        The labels are JSON arrays, so `json.loads()` turns them back into positions for
+        plotting. With the same seed, the `60` nodes sit in the same places on both sides. A
+        radius of `0.1` on the left leaves the graph in `24` pieces; doubling it on the right
+        joins all but three nodes, which form a small piece of their own:
 
         ```{python}
         import json
 
-        positions = {
-            nid: json.loads(graph.get_label_from_id(nid))
-            for nid in graph.get_node_ids(limit=None)
-        }
-        positions[1]
+        near = ec.Graph().add_random_geometric_graph(n=60, radius=0.1, seed=23)
+        far = ec.Graph().add_random_geometric_graph(n=60, radius=0.2, seed=23)
+
+        for g in (near, far):
+            nodes = g.get_node_df()
+            pos = {n: json.loads(p) for n, p in zip(nodes["id"], nodes["label"])}
+            g.set_node_attrs("pos", pos)
+
+        [g.count_weakly_connected_components() for g in (near, far)]
         ```
 
-        The graph's connectivity has a sharp threshold. With `100` nodes, small radii leave the
-        graph split into pieces, and somewhere between `0.2` and `0.25` it becomes connected:
+        ::: {layout-ncol="2"}
 
         ```{python}
-        [
-            (r, ec.Graph().add_random_geometric_graph(n=100, radius=r, seed=23).is_connected())
-            for r in (0.1, 0.15, 0.2, 0.25)
-        ]
+        near.plot(
+            layout="pos", show_labels=False, node_size=4,
+            width=320, height=320, legend=False,
+        )
         ```
-
-        Raising `dim=` embeds nodes in 3D space instead of 2D, which is useful for modeling
-        physical or volumetric proximity. Each label then holds three coordinates:
 
         ```{python}
-        spatial_graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=50, radius=0.3, dim=3, seed=123
+        far.plot(
+            layout="pos", show_labels=False, node_size=4,
+            width=320, height=320, legend=False,
         )
-
-        spatial_graph.count_edges(), spatial_graph.get_label_from_id(1)
         ```
 
-        Switching to `p_norm=1.0` measures distance with the Manhattan (taxicab) metric
-        instead of Euclidean distance. With the same seed (so the same node positions) and the
-        same radius, the Manhattan neighborhood is a diamond that fits inside the Euclidean
-        circle, so fewer pairs are connected:
-
-        ```{python}
-        manhattan_graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=100, radius=0.25, p_norm=1.0, seed=23
-        )
-        euclidean_graph = ec.Graph(directed=False).add_random_geometric_graph(
-            n=100, radius=0.25, seed=23
-        )
-
-        manhattan_graph.count_edges(), euclidean_graph.count_edges()
-        ```
-
+        :::
         """
         self._check_non_negative(n=n, dim=dim)
         with self._compound(
