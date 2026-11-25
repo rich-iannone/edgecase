@@ -93254,6 +93254,9 @@ class Graph:
             highlight=cross, color_by="club", label_by="label", seed=8
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#the-laplacian-and-its-relatives) relates
+        the Laplacian to the incidence matrix, and compares the other matrices.
         """
         matrix, ids = rust.laplacian_matrix(self._graph, False, self._use_weights(weighted))
         self._record_matrix_step("laplacian_matrix", "G.laplacian_matrix()", len(ids), len(ids))
