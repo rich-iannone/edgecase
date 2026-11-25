@@ -22340,6 +22340,8 @@ class Graph:
         sorted(graph.get_selected_node_ids())
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#ids) explains why IDs follow the order in
+        which nodes were added, and why they are never reused.
         """
         return self._graph.get_node_creation_order()
 
