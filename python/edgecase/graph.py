@@ -71590,6 +71590,9 @@ class Graph:
             layout="layers", label_by="label"
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) builds the tree of a
+        search over course prerequisites, and explains which edge it keeps.
         """
         self._check_traversal_args(depth_limit, mode)
         source_id = self._resolve_node_id(source, auto_create=False)
