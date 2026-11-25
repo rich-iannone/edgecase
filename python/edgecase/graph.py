@@ -25944,21 +25944,24 @@ class Graph:
         import polars as pl
 
         molecules = ec.molecules()
-        pairs = [("benzene", "cyclohexane"), ("ethanol", "dimethyl_ether"), ("butane", "isobutane")]
+        pairs = [
+            ("benzene", "cyclohexane"),
+            ("ethanol", "dimethyl_ether"),
+            ("butane", "isobutane"),
+        ]
 
-        pl.DataFrame(
-            [
-                {
-                    "pair": f"{a} / {b}",
-                    "shape": molecules[a].is_isomorphic(molecules[b]),
-                    "elements": molecules[a].is_isomorphic(molecules[b], node_attr="element"),
-                    "bonds": molecules[a].is_isomorphic(
-                        molecules[b], node_attr="element", edge_attr="bond"
-                    ),
-                }
-                for a, b in pairs
-            ]
-        )
+        def compare(a, b):
+            first, second = molecules[a], molecules[b]
+            return {
+                "pair": f"{a} / {b}",
+                "shape": first.is_isomorphic(second),
+                "elements": first.is_isomorphic(second, node_attr="element"),
+                "bonds": first.is_isomorphic(
+                    second, node_attr="element", edge_attr="bond"
+                ),
+            }
+
+        pl.DataFrame([compare(a, b) for a, b in pairs])
         ```
 
         Benzene and cyclohexane are both rings of six carbons and differ only in their bonds.
@@ -25970,13 +25973,15 @@ class Graph:
 
         ```{python}
         molecules["ethanol"].plot(
-            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+            color_by="element", label_by="label", legend=False, seed=1,
+            width=360, height=360,
         )
         ```
 
         ```{python}
         molecules["dimethyl_ether"].plot(
-            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+            color_by="element", label_by="label", legend=False, seed=1,
+            width=360, height=360,
         )
         ```
 
