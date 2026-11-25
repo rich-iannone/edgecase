@@ -46,9 +46,11 @@ from edgecase.errors import EdgeNotFoundError, NodeNotFoundError
 from edgecase.example_networks import (
     causal,
     citations,
+    control_flow,
     courses,
     currency,
     exams,
+    food_web,
     friends,
     konigsberg,
     metro,
@@ -58,6 +60,7 @@ from edgecase.example_networks import (
     payments,
     pipeline,
     project,
+    proteins,
     teams,
     towns,
 )
@@ -256,9 +259,11 @@ __all__ = [
     # Example networks
     "causal",
     "citations",
+    "control_flow",
     "courses",
     "currency",
     "exams",
+    "food_web",
     "friends",
     "konigsberg",
     "metro",
@@ -268,6 +273,7 @@ __all__ = [
     "payments",
     "pipeline",
     "project",
+    "proteins",
     "teams",
     "towns",
 ]
