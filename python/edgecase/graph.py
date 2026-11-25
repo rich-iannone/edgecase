@@ -53635,7 +53635,9 @@ class Graph:
 
         ```{python}
         def ends(graph, edge):
-            return tuple(map(graph.get_label_from_id, graph.get_node_ids_by_edge_id(edge)))
+            return tuple(
+                map(graph.get_label_from_id, graph.get_node_ids_by_edge_id(edge))
+            )
 
 
         node_path, edge_path = paths[0]
@@ -53648,17 +53650,26 @@ class Graph:
         ::: {layout-ncol="2"}
 
         ```{python}
-        butane.plot(highlight_edges=deleted, label_by="label", seed=1, width=360, height=360)
+        butane.plot(
+            highlight_edges=deleted, label_by="label", seed=1, width=360,
+            height=360,
+        )
         ```
 
         ```{python}
-        isobutane.plot(highlight_edges=inserted, label_by="label", seed=1, width=360, height=360)
+        isobutane.plot(
+            highlight_edges=inserted, label_by="label", seed=1, width=360,
+            height=360,
+        )
         ```
 
         :::
 
         The 12 paths are this one combined with the symmetries of the two molecules: butane's
         2 (reversing the chain) times isobutane's 6 (permuting its three outer carbons).
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#measuring-differences)
+        compares the methods that measure how much two graphs differ.
         """
         results = self._edit_path_search(
             other,
