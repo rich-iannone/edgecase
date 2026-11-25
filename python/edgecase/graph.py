@@ -22006,6 +22006,8 @@ class Graph:
         scores[graph.get_id_from_label("Bob")]
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#referring-to-nodes) explains why the integer
+        `1` and the string `"1"` are different members of the karate club.
         """
         try:
             return self._graph.id_from_label(label)
