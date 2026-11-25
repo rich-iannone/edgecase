@@ -39741,6 +39741,10 @@ class Graph:
             seed=3, height=420,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#perfect-graphs-and-cographs) tests a graph of
+        meetings, the cube and the Grötzsch graph.
         """
         value = rust.is_perfect_graph(self._graph)
         if self._recording_depth == 0:
