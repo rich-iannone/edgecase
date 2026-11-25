@@ -32321,7 +32321,8 @@ class Graph:
 
         Examples
         --------
-        The movie graph from `match()`, with three people and two movies:
+        The movie graph from `match()`, with three people and two movies. Selecting the people who
+        acted in a movie, and tagging them:
 
         ```{python}
         import edgecase as ec
@@ -32337,11 +32338,7 @@ class Graph:
                (keanu)-[:ACTED_IN {roles: ['John Wick']}]->(wick),
                (lana)-[:DIRECTED]->(matrix)
         \"\"\")
-        ```
 
-        Selecting the people who acted in a movie, and tagging them:
-
-        ```{python}
         (
             graph
             .select_match("MATCH (p:Person)-[:ACTED_IN]->(:Movie)", select="p")
@@ -32361,6 +32358,22 @@ class Graph:
             set_op="replace",
         )
         sorted(graph.get_label_from_id(i) for i in graph.get_selected_node_ids())
+        ```
+
+        Only John Wick is left out, since Keanu Reeves is the one link between the two movies:
+
+        ```{python}
+        spots = {
+            "Carrie-Anne Moss": (0, 2), "Keanu Reeves": (3, 2),
+            "Lana Wachowski": (0, 0), "matrix": (1.5, 1), "wick": (4.5, 1),
+        }
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight="selection", label_by="label", height=240
+        )
         ```
 
         A relationship variable selects edges. Here, the acting credits in movies released
@@ -32398,6 +32411,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Cypher queries](../user-guide/cypher.qmd#acting-on-the-matches) feeds the matches of a
+        movie graph to the `_ws` methods, and explains what a selection loses of each match.
         """
         _check_set_op(set_op)
         if select is None:
