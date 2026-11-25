@@ -89741,6 +89741,9 @@ class Graph:
             height=360,
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#steiner-trees) explains the Steiner problem
+        and its variants.
         """
         from edgecase._core import directed_steiner_tree as _directed_steiner_tree
 
