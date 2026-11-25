@@ -3293,50 +3293,59 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        select_nodes : Select nodes with a predicate.
+        delete_node : Remove one node.
+        delete_edges_ws : Delete the selected edges.
+        transform_to_subgraph_ws : Keep only the selected nodes.
+
         Examples
         --------
         Deletion acts on whatever nodes are currently selected, so select the nodes to remove
-        first. Here, the two middle nodes of a five-node path are selected and deleted, leaving
-        three nodes. Because deleting a node also removes its incident edges, only the edge
-        between the first two surviving nodes remains:
+        first. Deleting the middle node of a five-node path removes its two edges too, and
+        `delete_nodes_ws()` empties the selection, so calling it again does nothing:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_path_graph(5)  # path: 1-2-3-4-5
 
-        graph.select_nodes_by_id([graph.get_id_from_label("3"), graph.get_id_from_label("4")])
+        graph.select_nodes_by_id([graph.get_id_from_label("3")])
+        graph.delete_nodes_ws()
         graph.delete_nodes_ws()
 
-        graph.count_nodes(), graph.count_edges()
+        graph.count_nodes(), graph.count_edges(), graph.get_selected_node_ids()
         ```
 
-        The node selection is emptied by the deletion, so calling `delete_nodes_ws()` again
-        without a new selection is a no-op:
+        ### Payments between people
+
+        `payments()` has two kinds of account, people and businesses. Selecting the businesses
+        with a predicate on their `kind` and deleting them leaves the payments between people.
+        Laying out the whole network first, with `layout_kamada_kawai()`, keeps every person
+        where they were in it:
 
         ```{python}
-        graph.delete_nodes_ws()
+        payments = ec.payments()
+        payments.layout_kamada_kawai(weighted=False)
 
-        graph.get_selected_node_ids(), graph.count_nodes()
+
+        def is_business(node):
+            return node.attributes["kind"] == "business"
+
+
+        payments.select_nodes(is_business)
+        payments.delete_nodes_ws()
+
+        payments.count_nodes(), payments.count_edges()
         ```
 
-        Selection also accepts a predicate, which is convenient for deleting nodes based on
-        their attributes rather than their IDs:
+        Without the wages, the shopping and the rent, what remains is the two circles of large
+        payments, the chain from Cruz to Lena and the pairs who pay each other:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes([("A", {"value": 10}), ("B", {"value": 25}), ("C", {"value": 30})])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
-
-        graph.select_nodes(lambda n: n.attributes.get("value", 0) > 20)
-        graph.delete_nodes_ws()
-
-        # only "A", whose value is 20 or below, survives
-        graph.get_node_df()
+        payments.plot(layout="pos", edge_width_by="weight", label_by="label")
         ```
-
         """
         selected = self.get_selected_node_ids()
 
