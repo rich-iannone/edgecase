@@ -45719,6 +45719,9 @@ class Graph:
             for r in (0.5, 1.0, 2.0)
         ])
         ```
+
+        [Communities](../user-guide/communities.qmd#measuring-the-quality-of-a-partition) explains
+        why a higher modularity doesn't mean a partition is closer to the truth.
         """
         membership = self._membership_from(communities)
         q = rust.modularity(self._graph, membership, resolution)
