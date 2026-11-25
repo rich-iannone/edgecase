@@ -66158,6 +66158,9 @@ class Graph:
             layout="pos", highlight=["0", "32", "33"], label_by="label"
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#rich-clubs) explains how
+        `normalized=True` compares the hubs with randomized graphs.
         """
         from edgecase._core import rich_club_coefficient
 
