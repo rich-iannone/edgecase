@@ -11750,6 +11750,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-classic-models) compares the degrees of
+        an Erdős–Rényi graph with those of a preferential attachment graph.
         """
         self._check_non_negative(n=n)
         with self._compound("add_gnp_graph", f"G.add_gnp_graph(n={n}, p={p})"):
