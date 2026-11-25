@@ -31303,6 +31303,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight="selection", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#combining-selections) combines selectors with
+        `set_op=` and adjusts a selection directly.
         """
         self._graph.invert_node_selection()
 
