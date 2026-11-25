@@ -19768,6 +19768,12 @@ class Graph:
         ValueError
             If `n=` is negative.
 
+        See Also
+        --------
+        clique_number : Find the size of the largest clique, nine for a 9 x 9 grid.
+        greedy_color : Color the cells so that no two neighbors share a digit.
+        cartesian_product : Build the rook's graph, the Sudoku graph without its boxes.
+
         Examples
         --------
         The standard Sudoku graph has 81 cells, each with 20 neighbors:
@@ -19776,8 +19782,9 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph().add_sudoku_graph()
+        degrees = set(graph.degrees(return_dict=True).values())
 
-        graph.count_nodes(), graph.count_edges(), set(graph.degrees(return_dict=True).values())
+        graph.count_nodes(), graph.count_edges(), degrees
         ```
 
         Each row, column and box is a clique of nine cells, so at least nine digits are needed,
@@ -19795,6 +19802,44 @@ class Graph:
 
         sorted(small.get_label_from_id(v) for v in small.get_neighbors("(0,0)"))
         ```
+
+        ### With boxes or without
+
+        The 4 x 4 Sudoku graph on the left and the rook's graph on the right, the product of two
+        complete graphs on four nodes, where cells are joined only along rows and columns. Both
+        are drawn as the grid, with the top-left cell's edges picked out. The Sudoku graph adds
+        one diagonal inside each box, `8` edges in all:
+
+        ```{python}
+        k4 = ec.Graph().add_full_graph(4)
+        rook = k4.cartesian_product(k4)
+
+        def on_grid(g):
+            pos = {v: ((v - 1) % 4, -((v - 1) // 4)) for v in g.get_node_ids()}
+            return g.set_node_attrs("pos", pos)
+
+        small.count_edges(), rook.count_edges()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        on_grid(small).plot(
+            layout="pos", show_labels=False, node_size=7,
+            highlight=[(1, v) for v in small.get_neighbors(1)],
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        on_grid(rook).plot(
+            layout="pos", show_labels=False, node_size=7,
+            highlight=[(1, v) for v in rook.get_neighbors(1)],
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
