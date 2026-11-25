@@ -28648,6 +28648,8 @@ class Graph:
         graph.count_all_loops()
         ```
 
+        [The graph model](../user-guide/graph-model.qmd#parallel-edges-and-self-loops) counts the
+        parallel edges and self-loops of a payments graph, and names the methods that remove them.
         """
         return self._graph.count_all_loops()
 
