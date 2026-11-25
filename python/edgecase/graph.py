@@ -78855,6 +78855,9 @@ class Graph:
         - network vulnerability analysis: critical infrastructure nodes
         - social networks: key influencers whose removal fragments communities
         - communication networks: single points of failure
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#weak-points) finds the karate club's
+        one articulation point, and the many in the power grid.
         """
         return self._graph.get_articulation_points()
 
