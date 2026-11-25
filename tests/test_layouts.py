@@ -656,6 +656,17 @@ class TestStoredLayoutPlotting:
         with pytest.raises(ValueError):
             g.plot(layout="pos")
 
+    def test_coincident_nodes_pushed_apart_gently(self):
+        # A pair at the same point used to be pushed 100 times too far, off the canvas
+        from edgecase.svg_renderer import _remove_overlaps
+
+        pos = {"1": (300.0, 200.0), "2": (300.0, 200.0), "3": (500.0, 300.0)}
+        radii = {nid: 16.0 for nid in pos}
+        moved = _remove_overlaps(pos, radii, padding=2.0, seed=1)
+        a, b = moved["1"], moved["2"]
+        assert math.dist(a, b) >= 34.0 - 1e-6
+        assert all(math.dist(p, (300.0, 200.0)) < 40.0 for p in (a, b))
+
     def test_traversal_plot_with_stored_positions(self):
         g = ec.Graph().add_grid_graph([3, 3]).layout_spectral()
         order = g.bfs(1, return_list=True)
