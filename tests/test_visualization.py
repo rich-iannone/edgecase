@@ -3,6 +3,7 @@
 import html
 import json
 import math
+import random
 import re
 
 import pytest
@@ -137,6 +138,52 @@ class TestPlotNodeValues:
         g = ec.Graph(directed=True).add_nodes(list("ABCD")).add_edges([("A", "B"), ("B", "A")])
         g.add_edges([("C", "C"), ("A", "D")])
         assert len(self._edge_tooltips(g.plot(seed=1, **opts).svg)) == 4
+
+    def test_routed_edge_goes_around_a_node(self):
+        # A is drawn between B and C, so the B-C edge bends around it unless asked not to
+        g = ec.Graph().add_nodes(list("ABC"))
+        g.add_edges([("B", "C"), ("A", "B")])
+        g.set_node_attrs("pos", {"A": (0.0, 0.0), "B": (-1.0, 0.0), "C": (1.0, 0.0)})
+        curve = re.compile(r'<path d="M[^"]* C')
+        opts = {"layout": "pos", "node_overlap": "allow"}
+        assert curve.search(g.plot(**opts).svg)
+        assert not curve.search(g.plot(**opts, edge_routing="straight").svg)
+
+    def test_route_edges_finds_every_node_in_the_way(self):
+        """The grid that finds the nodes near an edge misses none that checking them all finds."""
+        from edgecase._core import route_edges
+
+        rng = random.Random(1)
+        n = 400
+        xs = [rng.uniform(0, 500) for _ in range(n)]
+        ys = [rng.uniform(0, 300) for _ in range(n)]
+        radii = [rng.uniform(1, 12) for _ in range(n)]
+        edges = [(rng.randrange(n), rng.randrange(n)) for _ in range(600)]
+        margin = 3.0
+
+        def in_the_way(s, t):
+            (ax, ay), (bx, by) = (xs[s], ys[s]), (xs[t], ys[t])
+            dx, dy = bx - ax, by - ay
+            found = []
+            for i in range(n):
+                if i in (s, t) or dx * dx + dy * dy < 1e-12:
+                    continue
+                u = ((xs[i] - ax) * dx + (ys[i] - ay) * dy) / (dx * dx + dy * dy)
+                u = min(max(u, 0.0), 1.0)
+                dist = math.dist((xs[i], ys[i]), (ax + u * dx, ay + u * dy))
+                if 0 < u < 1 and dist < radii[i] + margin:
+                    found.append(i)
+            return found
+
+        routes = route_edges(xs, ys, radii, edges, margin=margin)
+        for (s, t), route in zip(edges, routes):
+            expected = in_the_way(s, t)
+            if not expected:
+                assert route is None
+            else:
+                # The ends, and a waypoint for each node in the way
+                assert len(route) == len(expected) + 2
+                assert (route[0], route[-1]) == ((xs[s], ys[s]), (xs[t], ys[t]))
 
     def test_unknown_attribute_raises(self):
         with pytest.raises(ValueError, match="no node has an attribute 'nope'"):
