@@ -94808,6 +94808,9 @@ class Graph:
             .plot(layout="pos", highlight=links, label_by="label")
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#random-walks-and-diffusion) compares how
+        long random walks take to cross the dolphins and *Les Misérables*.
         """
         value = rust.kemeny_constant(self._graph, self._use_weights(weighted))
         if self._recording_depth == 0:
