@@ -73832,6 +73832,40 @@ class Graph:
         [graph.get_label_from_id(n) for n in graph.topological_sort()]
         ```
 
+        Nothing decides between `B` and `C`, so the graph has two topological orders, numbered
+        on the left and the right. `topological_sort()` returns one of them:
+
+        ```{python}
+        orders = graph.all_topological_sorts()
+
+        [[graph.get_label_from_id(n) for n in order] for order in orders]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {"A": (1, 2), "B": (0, 1), "C": (2, 1), "D": (1, 0)}
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+
+        def numbered(order):
+            label = graph.get_label_from_id
+            step = {n: f"{i + 1}. {label(n)}" for i, n in enumerate(order)}
+            return graph.set_node_attrs("step", step)
+
+        numbered(orders[0]).plot(
+            layout="pos", label_by="step", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        numbered(orders[1]).plot(
+            layout="pos", label_by="step", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         ### An order to take the courses
 
         `courses()` holds the courses of a made-up computer science program, with an arrow from
@@ -73859,6 +73893,9 @@ class Graph:
             layout="pos", color_by="dept", label_by="step", height=420
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#ordering) orders the tasks of building a
+        house, and explains what happens when the plan has a cycle.
         """
         return self._graph.get_topological_sort_order()
 
