@@ -91813,6 +91813,9 @@ class Graph:
         # Returns True: no duplicate edges
         len(g.which_multiple()) == 0
         ```
+
+        [Building graphs](../user-guide/building-graphs.qmd#cleaning-up) finds the parallel edges
+        and self-loops of a messy graph before removing them.
         """
         return self._graph.which_multiple()
 
