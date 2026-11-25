@@ -16535,10 +16535,17 @@ class Graph:
             If `num_groups=` or `group_size=` is less than `1`, or `p_in=` or `p_out=` is not
             between `0` and `1`.
 
+        See Also
+        --------
+        add_random_partition_graph : Plant groups of different sizes.
+        generate_stochastic_block_model : Set a separate edge probability for each pair of blocks.
+        cmty_louvain : Detect communities without knowing the planted groups.
+
         Examples
         --------
-        Four groups of 25 nodes, with edges ten times as likely inside a group as between
-        groups:
+        Edges inside a group appear with probability `p_in=` and edges between groups with
+        `p_out=`. Four groups of 25 nodes, with edges ten times as likely inside a group as
+        between groups:
 
         ```{python}
         import edgecase as ec
@@ -16567,6 +16574,44 @@ class Graph:
 
         len(set(found.values())), round(graph.modularity(found), 2)
         ```
+
+        ### Clear groups or blurred ones
+
+        Four groups of ten, colored by group, with `p_in=0.6`. With `p_out=0.02` on the left the
+        groups stand apart, with `89%` of the edges inside a group. With `p_out=0.15` on the right
+        nearly half the edges run between groups, and the groups run together:
+
+        ```{python}
+        clear = ec.Graph().add_planted_partition_graph(
+            num_groups=4, group_size=10, p_in=0.6, p_out=0.02, seed=1
+        )
+        blurred = ec.Graph().add_planted_partition_graph(
+            num_groups=4, group_size=10, p_in=0.6, p_out=0.15, seed=1
+        )
+
+        def coverage(g):
+            return round(g.partition_quality("community")[0], 2)
+
+        coverage(clear), coverage(blurred)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        clear.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        blurred.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if num_groups < 1 or group_size < 1:
             raise ValueError("num_groups and group_size must both be at least 1")
