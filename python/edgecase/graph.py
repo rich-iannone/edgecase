@@ -55614,6 +55614,9 @@ class Graph:
         ```
 
         On a directed graph, `mode=` decides between followers (`"in"`) and followees (`"out"`).
+
+        [Transforming graphs](../user-guide/transforming.qmd#ego-networks) finds who among the
+        administrator's friends would be cut off without the administrator.
         """
         if radius < 0:
             raise ValueError(f"radius must be non-negative, got {radius}")
