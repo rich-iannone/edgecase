@@ -13725,6 +13725,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-classic-models) compares the classic
+        random models and the feature of real networks that each explains.
         """
         if n < 1:
             raise ValueError(f"a tree needs at least 1 node, got n={n}")
