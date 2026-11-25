@@ -21123,6 +21123,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#null-models-from-an-existing-graph) explains
+        how it differs from `random_reference()`.
         """
         from edgecase._core import degree_preserving_rewire as _degree_preserving_rewire
 
