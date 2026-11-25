@@ -713,3 +713,110 @@ class TestComponentPacking:
         a = _force_directed_layout(ids, edges, 600.0, 400.0, seed=5)
         b = _force_directed_layout(ids, edges, 600.0, 400.0, seed=5)
         assert a == b
+
+
+def _crossings(g, pos):
+    # Count pairs of edges with no shared end whose straight segments cross
+    edges = [(s, t) for _, s, t in g.get_edges_as_tuples()]
+
+    def turn(a, b, c):
+        return (c[1] - a[1]) * (b[0] - a[0]) - (b[1] - a[1]) * (c[0] - a[0])
+
+    count = 0
+    for i, (a, b) in enumerate(edges):
+        for c, d in edges[i + 1 :]:
+            if len({a, b, c, d}) < 4:
+                continue
+            A, B, C, D = pos[a], pos[b], pos[c], pos[d]
+            if turn(A, B, C) * turn(A, B, D) < 0 and turn(C, D, A) * turn(C, D, B) < 0:
+                count += 1
+    return count
+
+
+class TestDocstringScenarios:
+    # Values quoted in the layout method docstrings
+
+    def test_exams_by_slot(self):
+        exams = ec.exams()
+        slots = exams.greedy_color(strategy="dsatur")
+        by_slot = sorted(exams.get_node_ids(), key=slots.get)
+        assert [slots[n] for n in by_slot] == [0] * 3 + [1] * 7 + [2] * 3 + [3]
+        # No two exams in a slot conflict, so no edge joins two nodes of one arc
+        for _, s, t in exams.get_edges_as_tuples():
+            assert slots[s] != slots[t]
+
+    def test_karate_shells(self):
+        core = ec.karate_club().coreness(return_dict=True)
+        counts = {k: list(core.values()).count(k) for k in set(core.values())}
+        assert counts == {1: 1, 2: 11, 3: 12, 4: 10}
+        karate = ec.karate_club()
+        assert [karate.get_label_from_id(n) for n, k in core.items() if k == 1] == ["11"]
+        assert core[karate.get_id_from_label("0")] == 4
+        assert core[karate.get_id_from_label("33")] == 4
+
+    def test_davis_e8(self):
+        davis = ec.davis_southern_women()
+        assert len(davis.get_neighbors("E8")) == 14
+
+    def test_courses_by_level_and_term(self):
+        courses = ec.courses()
+        assert len(courses.topological_generations()) == 6
+        level = courses.get_node_attrs("level")
+        name = courses.get_label_from_id
+        within = [
+            (name(s), name(t)) for _, s, t in courses.get_edges_as_tuples() if level[s] == level[t]
+        ]
+        assert len(within) == 3
+        assert ("CS101", "CS102") in within
+
+    def test_org_chart_from_the_intern(self):
+        with pytest.raises(ValueError):
+            ec.org_chart().layout_bfs(source="Noor")
+        ties = ec.org_chart().to_undirected()
+        pos = ties.layout_bfs(source="Noor", return_dict=True)
+        columns = sorted({round(x, 9) for x, _ in pos.values()})
+        assert len(columns) == 10
+        far = [ties.get_label_from_id(n) for n, (x, _) in pos.items() if round(x, 9) == columns[-1]]
+        assert far == ["Ada"]
+
+    def test_spectral_splits_planted_groups(self):
+        graph = ec.Graph().add_planted_partition_graph(2, 15, 0.4, 0.03, seed=1)
+        pos = graph.layout_spectral(return_dict=True)
+        group = graph.get_node_attrs("community")
+        left = {group[n] for n, (x, y) in pos.items() if x < 0}
+        right = {group[n] for n, (x, y) in pos.items() if x > 0}
+        assert (left, right) == ({1}, {0})
+
+    def test_icosahedron_flattened(self):
+        icosa = ec.Graph().add_named_graph("icosahedral")
+        assert (icosa.count_nodes(), icosa.count_edges()) == (12, 30)
+        assert len(icosa.planar_faces()) == 20
+        assert _crossings(icosa, icosa.layout_planar(return_dict=True)) == 0
+        assert _crossings(icosa, icosa.layout_spring(seed=1, return_dict=True)) > 0
+
+    def test_grid_unfolded(self):
+        grid = ec.Graph().add_grid_graph([8, 8])
+        assert _crossings(grid, grid.layout_kamada_kawai(return_dict=True)) == 0
+        assert _crossings(grid, grid.layout_spring(seed=1, return_dict=True)) > 0
+
+    def test_fixed_node_stays(self):
+        graph = ec.Graph().add_lollipop_graph(6, 4)
+        graph.layout_circular(attr_name="start")
+        pos = graph.layout_spring(initial="start", fixed=[1], seed=2, return_dict=True)
+        start = graph.get_node_attrs("start")
+        assert (pos[1] == tuple(start[1]), pos[2] == tuple(start[2])) == (True, False)
+
+    def test_floors_side_by_side(self):
+        offices = ec.offices()
+        pos = offices.get_node_attrs("pos")
+        floor = offices.get_node_attrs("floor")
+
+        def floor_plan(level, center):
+            rooms = {n: p for n, p in pos.items() if floor[n] == level}
+            return offices.rescale_layout(pos=rooms, center=center, return_dict=True)
+
+        side = floor_plan(1, (-1.25, 0)) | floor_plan(2, (1.25, 0))
+        assert all((x < 0) == (floor[n] == 1) for n, (x, _) in side.items())
+        stairs = [side[offices.get_id_from_label(s)] for s in ("Stairs 1", "Stairs 2")]
+        assert stairs[0][0] == max(x for n, (x, _) in side.items() if floor[n] == 1)
+        assert stairs[1][0] == max(x for n, (x, _) in side.items() if floor[n] == 2)
