@@ -79695,6 +79695,22 @@ class Graph:
             layout="pos", highlight=["Old Town", "Northpark"], label_by="label"
         )
         ```
+
+        With both closed, the core falls into two pieces, colored apart:
+
+        ```{python}
+        split = metro.subgraph(core)
+        split.delete_node("Old Town").delete_node("Northpark")
+        pieces = sorted(split.weakly_connected_components(), key=len)
+        piece = {n: i for i, nodes in enumerate(pieces) for n in nodes}
+
+        split.set_node_attrs("piece", piece).plot(
+            layout="pos", color_by="piece", label_by="label", legend=False
+        )
+        ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) explains why
+        the connectivity of a whole network says little, and what is more informative.
         """
         return self._graph.node_connectivity()
 
