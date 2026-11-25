@@ -53564,50 +53564,66 @@ class Graph:
         approximate distance queries, and they make an excellent preprocessing step before running
         an expensive shortest-path or diameter computation.
 
+        See Also
+        --------
+        shortest_path_length : Compute the length of a shortest path.
+        minimum_spanning_tree : Find a spanning tree of least total weight.
+        edge_subgraph : Extract specific edges and their endpoints.
+
         Examples
         --------
-        On a 5-cycle, a 2-spanner can skip some edges while still guaranteeing every
-        shortest path stretches by at most a factor of `2`:
+        A spanner keeps only some of the edges, while no shortest path grows by more than a factor
+        of `stretch=`. On a weighted graph, a long direct edge can go if a shorter route remains:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(range(5))
-
-        # Create a cycle
-        g.add_edges([(str(i), str((i+1) % 5)) for i in range(5)])
-
-        spanner = g.transform_with_spanner(stretch=2.0)
-        spanner.count_edges() < g.count_edges()
-        ```
-
-        Weighted graphs work the same way -- here a costly direct edge can be dropped if
-        a cheaper indirect route still satisfies the stretch bound:
-
-        ```{python}
-        g = ec.Graph(weighted=True)
-        g.add_nodes(["A", "B", "C"])
+        g = ec.Graph(weighted=True).add_nodes(["A", "B", "C"])
         g.add_edges([("A", "B", 1.0), ("B", "C", 1.0), ("A", "C", 5.0)])
 
-        spanner = g.transform_with_spanner(stretch=3.0)
-        spanner.count_edges()
+        g.transform_with_spanner(stretch=3.0).get_edges_str_repr(use_labels=True)
         ```
 
-        Raising `stretch=` trades approximation accuracy for sparsity -- on a random
-        graph, a looser stretch bound consistently produces fewer edges:
+        ### Fewer roads
+
+        `ec.towns()` is a road network of 12 towns, with each road's length in km as its weight.
+        Allowing every trip to be up to 50% longer, a spanner keeps 20 of the 26 roads. A larger
+        stretch keeps fewer:
 
         ```{python}
-        g = ec.Graph()
-        g.add_gnp_graph(n=50, p=0.1, seed=23)
+        towns = ec.towns()
 
-        original_edges = g.count_edges()
-        spanner2 = g.transform_with_spanner(stretch=2.0, seed=23)
-        spanner3 = g.transform_with_spanner(stretch=3.0, seed=23)
-
-        spanner3.count_edges() < spanner2.count_edges() < original_edges
+        [
+            towns.transform_with_spanner(stretch=s).count_edges()
+            for s in (1.5, 2, 3)
+        ]
         ```
 
+        All the roads on the left, the 20 the spanner keeps on the right. The roads it drops all
+        have a detour within the bound. The worst is Bramford to Halston, 47 km by road and 64 km
+        without it:
+
+        ```{python}
+        kept = towns.transform_with_spanner(stretch=1.5)
+
+        kept.shortest_path_length("Bramford", "Halston", weighted=True)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        towns.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        ```{python}
+        kept.plot(
+            layout="pos", label_by="label", width=360, height=360, legend=False
+        )
+        ```
+
+        :::
         """
         if stretch < 1.0:
             raise ValueError("stretch must be at least 1.0")
