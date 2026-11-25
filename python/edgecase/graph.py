@@ -47319,8 +47319,9 @@ class Graph:
         - comparing the resilience of different networks of similar size
 
         Edge direction is ignored when measuring components (they are weakly connected
-        components), and degree counts every incident edge. The graph itself is not modified;
-        removal is simulated on a copy of its structure.
+        components), and degree counts every incident edge. Edge weights are ignored, so
+        betweenness counts shortest paths by their number of edges. The graph itself is not
+        modified; removal is simulated on a copy of its structure.
 
         Parameters
         ----------
@@ -47359,35 +47360,111 @@ class Graph:
         ValueError
             If `strategy=` is not `"degree"`, `"betweenness"`, or `"random"`.
 
+        See Also
+        --------
+        node_percolation : Largest component as nodes fail at random, over many trials.
+        articulation_points : Nodes whose removal alone splits a component.
+        betweenness_centrality : The ranking that the `"betweenness"` strategy removes by.
+
         Examples
         --------
-        Two diamonds share the hub `D`, the only node of degree 4. A degree-based attack removes
-        `D` first, which immediately splits the network into two three-node pieces: the largest
-        component falls from `1.0` to `0.43` (3 of 7 nodes) after a single removal:
+        Two diamonds share the hub `D`, the only node of degree 4. An attack on the nodes of
+        highest degree removes `D` first, and the largest component falls from all 7 nodes to 3
+        of them at once. Removing nodes at random does less damage early on:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph()
-        g.add_nodes(["A", "B", "C", "D", "E", "F", "G"])
-        g.add_edges(
-            [
-                ("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
-                ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G"),
-            ]
+        graph = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("B", "D"), ("C", "D"),
+             ("D", "E"), ("D", "F"), ("E", "G"), ("F", "G")]
         )
 
-        curve = g.network_robustness(strategy="degree", return_dict=True)
-        [(round(removed, 2), round(lcc, 2)) for removed, lcc in curve]
+        {
+            strategy: [
+                round(share, 2)
+                for removed, share in graph.network_robustness(
+                    strategy=strategy, steps=3, seed=1, return_dict=True
+                )
+            ]
+            for strategy in ["degree", "random"]
+        }
         ```
 
-        Random failure of the same number of nodes typically does far less damage early on.
-        Here `steps=3` stops after three removals and `seed=` makes the order reproducible:
+        ### Closing metro stations
+
+        `metro()` is a made-up city's metro network of 20 stations. Each curve gives the share of
+        stations still in the largest connected piece as stations close, one at a time:
 
         ```{python}
-        curve = g.network_robustness(strategy="random", steps=3, seed=1, return_dict=True)
-        [(round(removed, 2), round(lcc, 2)) for removed, lcc in curve]
+        import polars as pl
+
+        metro = ec.metro()
+        curves = {
+            strategy: metro.network_robustness(strategy=strategy, steps=5, seed=1, return_dict=True)
+            for strategy in ["random", "degree", "betweenness"]
+        }
+
+        pl.DataFrame(
+            {"closed": range(6)}
+            | {strategy: [share for removed, share in curve] for strategy, curve in curves.items()}
+        )
         ```
+
+        The attack on betweenness closes first the stations that the most journeys pass through,
+        counting stops rather than minutes. Closing Riverside cuts off the harbor branch of
+        Harbor, Docks and Shipyard. After four closures the largest piece holds 11 of the 20
+        stations, where four random closures leave 15 together:
+
+        ```{python}
+        closed = ["Riverside", "Market", "Eastfield", "Old Town"]
+
+        metro.plot(layout="pos", highlight=closed, label_by="label")
+        ```
+
+        Without the four stations, the metro falls into three pieces. The largest holds together
+        only by the long way round, through Northpark:
+
+        ```{python}
+        damaged = ec.metro()
+        for station in closed:
+            damaged.delete_node(station)
+
+        pieces = damaged.weakly_connected_components()
+        damaged.set_node_attrs(
+            "piece", {node: i for i, piece in enumerate(pieces) for node in piece}
+        )
+
+        damaged.plot(layout="pos", color_by="piece", label_by="label")
+        ```
+
+        ### A power grid
+
+        `power_grid()` is the power grid of the western United States, with 4,941 nodes.
+        Removing the best-connected 5% of them leaves about half the grid in one piece, and
+        removing 10% leaves 14%, while random failures of as many nodes leave 81% connected:
+
+        ```{python}
+        grid = ec.power_grid()
+        n = grid.count_nodes()
+
+        curves = {
+            strategy: grid.network_robustness(strategy=strategy, steps=n // 10, seed=1,
+                                              return_dict=True)
+            for strategy in ["random", "degree"]
+        }
+
+        pl.DataFrame(
+            {"removed": ["1%", "5%", "10%"]}
+            | {
+                strategy: [round(curve[n * pct // 100][1], 3) for pct in [1, 5, 10]]
+                for strategy, curve in curves.items()
+            }
+        )
+        ```
+
+        [Spreading](../user-guide/spreading.qmd#robustness) sums each curve up as a robustness
+        index and compares networks with and without hubs.
         """
         from edgecase._core import network_robustness as _network_robustness
 
