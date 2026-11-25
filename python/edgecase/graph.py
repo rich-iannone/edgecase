@@ -19223,6 +19223,9 @@ class Graph:
         ```
 
         :::
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#coloring-intervals)
+        finds how many rooms a day of meetings needs.
         """
         from collections.abc import Sequence
 
