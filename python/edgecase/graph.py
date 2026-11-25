@@ -35019,6 +35019,9 @@ class Graph:
 
         graph.get_edge_df_ws()
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) lists it with the other
+        methods that report on a selection.
         """
         return self._edge_df(self.get_selected_edge_ids())
 
