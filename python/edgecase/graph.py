@@ -5987,6 +5987,9 @@ class Graph:
 
         The same `seed=` gives the same positions. A random layout is also a common starting point
         for the force-directed layouts, through their `initial=` argument.
+
+        [Layouts](../user-guide/layouts.qmd#layouts-from-structure) explains why a random layout
+        makes a useful baseline.
         """
         import random as _random
 
