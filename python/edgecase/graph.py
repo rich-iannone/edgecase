@@ -88677,6 +88677,9 @@ class Graph:
         ```{python}
         offices.plot(layout="pos", highlight=halls[:3], label_by="label")
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#dominating-sets)
+        finds four karate club members who can reach everyone else in one step.
         """
         from edgecase._core import is_dominating_set
 
