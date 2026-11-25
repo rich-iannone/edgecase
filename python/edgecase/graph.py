@@ -58954,6 +58954,9 @@ class Graph:
             layout="pos", color_by="second_order_centrality", label_by="label"
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         if self.is_directed():
             raise ValueError(
