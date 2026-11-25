@@ -165,6 +165,27 @@ class TestSubgraphEnrichment:
         assert result["k"] == 8
         assert result["K"] == 10
 
+    def test_accepts_labels_and_counts_a_node_once(self, annotated_graph):
+        g = annotated_graph
+        by_id = g.subgraph_enrichment(
+            [g.get_id_from_label(label) for label in ["G1", "G2", "G3"]], "pathway", "apoptosis"
+        )
+        assert g.subgraph_enrichment(["G1", "G2", "G3"], "pathway", "apoptosis") == by_id
+        assert g.subgraph_enrichment(["G1", "G2", "G3", "G1"], "pathway", "apoptosis") == by_id
+
+    def test_unknown_node_raises(self, annotated_graph):
+        with pytest.raises(ValueError, match="not found"):
+            annotated_graph.subgraph_enrichment(["G1", "G9"], "pathway")
+        with pytest.raises(ValueError, match="does not exist"):
+            annotated_graph.subgraph_enrichment([99999], "pathway")
+
+    def test_background_counts_every_node(self):
+        # More nodes than get_node_ids() returns by default
+        g = ec.Graph().add_nodes([f"N{i}" for i in range(1500)])
+        g.set_node_attrs("tag", {g.get_id_from_label(f"N{i}"): "A" for i in range(1200, 1500)})
+        result = g.subgraph_enrichment(["N1300", "N1400"], "tag", "A")
+        assert (result["N"], result["K"]) == (1500, 300)
+
 
 # =============================================================================
 # Module Annotation Enrichment
@@ -172,6 +193,14 @@ class TestSubgraphEnrichment:
 
 
 class TestModuleAnnotationEnrichment:
+    def test_communities_keyed_by_labels(self, annotated_graph):
+        g = annotated_graph
+        by_label = {f"G{i}": (0 if i <= 3 else 1) for i in range(1, 7)}
+        by_id = {g.get_id_from_label(k): v for k, v in by_label.items()}
+        assert g.module_annotation_enrichment(by_label, "pathway") == (
+            g.module_annotation_enrichment(by_id, "pathway")
+        )
+
     def test_returns_results_per_community(self, annotated_graph):
         g = annotated_graph
         communities = g.cmty_louvain(return_dict=True)
