@@ -6809,28 +6809,64 @@ class Graph:
             `weighted=True` and an edge weight is negative, or `scale=` or `center=` is
             invalid.
 
+        See Also
+        --------
+        layout_kamada_kawai : Place nodes to match their graph distances.
+        layout_forceatlas2 : Place nodes with the ForceAtlas2 model.
+        layout_random : Place nodes at random.
+
         Examples
         --------
-        The two communities of the karate club pull apart:
+        The spring layout pulls joined nodes together and pushes all nodes apart. Zachary's karate
+        club split in two after a dispute between its instructor (member 0) and its administrator
+        (member 33), and the two factions pull apart:
 
         ```{python}
         import edgecase as ec
 
-        (
-            ec.karate_club()
-            .layout_spring(seed=1)
-            .plot(layout="pos", color_by="faction")
+        karate = ec.karate_club().layout_spring(seed=1)
+
+        karate.plot(layout="pos", color_by="faction", label_by="label")
+        ```
+
+        ### Spacing and seeds
+
+        `k=` is the distance the nodes settle at, by default `1 / sqrt(n)`, or about 0.17 for the
+        club's 34 members. A small `k` packs each faction into a tight clump on the left, and a
+        large one spreads the members out evenly on the right. The result also depends on `seed=`,
+        so the same seed is needed to get the same drawing again:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        karate.layout_spring(k=0.02, seed=1).plot(
+            layout="pos", color_by="faction", show_labels=False,
+            width=360, height=360, legend=False,
         )
         ```
 
-        Positions from one layout can seed another. Here a spring layout refines a circular
-        one while node `1` stays put:
+        ```{python}
+        karate.layout_spring(k=1, seed=1).plot(
+            layout="pos", color_by="faction", show_labels=False,
+            width=360, height=360, legend=False,
+        )
+        ```
+
+        :::
+
+        Positions from one layout can seed another. Here a spring layout refines a circular one
+        while node `1` stays put:
 
         ```{python}
-        graph = ec.Graph().add_lollipop_graph(6, 4).layout_circular(attr_name="start")
+        graph = ec.Graph().add_lollipop_graph(6, 4)
+        graph.layout_circular(attr_name="start")
 
-        pos = graph.layout_spring(initial="start", fixed=[1], seed=2, return_dict=True)
-        pos[1]
+        pos = graph.layout_spring(
+            initial="start", fixed=[1], seed=2, return_dict=True
+        )
+        start = graph.get_node_attrs("start")
+
+        pos[1] == tuple(start[1]), pos[2] == tuple(start[2])
         ```
         """
         scale, center = self._layout_frame(scale, center)
