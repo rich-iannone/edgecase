@@ -1,3 +1,5 @@
+import time
+
 import pytest
 import polars as pl
 import edgecase as ec
@@ -284,6 +286,31 @@ class TestGetEdgeDF:
 
         assert isinstance(df, pl.DataFrame)
         assert len(df) == 0
+
+    def test_get_edge_df_large_graph_is_fast(self):
+        # Each edge's endpoints used to be found by scanning every edge, so 200k edges took ~10 s
+        G = ec.Graph.from_edges([(i, i + 1) for i in range(200_000)])
+        start = time.perf_counter()
+        df = G.get_edge_df()
+        elapsed = time.perf_counter() - start
+        assert len(df) == 200_000
+        assert df.row(0)[:3] == (1, 1, 2)
+        assert elapsed < 5.0
+
+    def test_edge_lookups_after_deletions(self):
+        # The lookups use the edge index when it's built and a scan when it isn't; both must
+        # agree with the edges that remain
+        for build_index in (False, True):
+            G = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+            ids = G.get_edge_ids()
+            G.delete_edge_by_id(ids[1])
+            if build_index:
+                G.get_edge(ids[0])
+            assert not G.has_edge_id(ids[1])
+            assert G.get_node_ids_by_edge_id(ids[1]) is None
+            assert G.has_edge_id(ids[2])
+            source, target = G.get_node_ids_by_edge_id(ids[2])
+            assert (G.get_label_from_id(source), G.get_label_from_id(target)) == ("C", "D")
 
 
 class TestGetDFWithSelection:
