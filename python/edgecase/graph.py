@@ -22411,6 +22411,12 @@ class Graph:
         gives `[1, 4]` for node 1 where the coset is `[1, 4, 5]`), so the product there can fall
         short of the group order.
 
+        See Also
+        --------
+        subgraph_isomorphisms : List every symmetry, by matching the graph against itself.
+        canonical_labeling : Number the nodes consistently across symmetric graphs.
+        weisfeiler_lehman_subgraph_hashes : Find nodes that look alike, without a search.
+
         Examples
         --------
         A square has 8 symmetries: node 1 can go to any corner (4 ways), and with it fixed,
@@ -22420,6 +22426,47 @@ class Graph:
         import edgecase as ec
 
         ec.Graph().add_cycle_graph(4).automorphism_cosets()
+        ```
+
+        ### Symmetries of molecules
+
+        The product of the coset sizes counts the symmetries. With `node_attr="element"`, only
+        those that keep each atom's element count:
+
+        ```{python}
+        import math
+
+        import polars as pl
+
+        molecules = ec.molecules()
+
+
+        def symmetries(molecule, **kwargs):
+            return math.prod(len(c) for c in molecule.automorphism_cosets(**kwargs).values())
+
+
+        pl.DataFrame(
+            [
+                {
+                    "molecule": name,
+                    "shape": symmetries(molecule),
+                    "elements": symmetries(molecule, node_attr="element"),
+                }
+                for name, molecule in molecules.items()
+            ]
+        )
+        ```
+
+        A ring of six has 12 symmetries, six rotations, each with or without a flip. Ethanol
+        loses its one flip to the elements, since it would swap a carbon and the oxygen, while
+        dimethyl ether keeps it. Caffeine has no symmetry at all, even by shape. In isobutane,
+        the coset of C1 is the three outer carbons, which any symmetry may permute:
+
+        ```{python}
+        isobutane = molecules["isobutane"]
+        outer = isobutane.automorphism_cosets()[isobutane.get_id_from_label("C1")]
+
+        isobutane.plot(highlight=outer, label_by="label", seed=1)
         ```
         """
         (nc, ec_), _ = self._match_colors(self, node_attr, edge_attr)
