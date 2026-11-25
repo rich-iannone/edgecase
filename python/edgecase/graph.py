@@ -36199,6 +36199,9 @@ class Graph:
         ```{python}
         friends.plot(highlight=path, color_by="club", label_by="label", seed=8)
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#link-prediction) compares the
+        six link predictors and tests them on the jazz network.
         """
         return self._link_scores("ccpa", ebunch, None, alpha=alpha)
 
