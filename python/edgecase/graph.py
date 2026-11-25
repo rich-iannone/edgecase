@@ -21460,6 +21460,11 @@ class Graph:
         tuple[int, int] | None
             A tuple of (`source_node_id`, `target_node_id`) if the edge exists, `None` otherwise.
 
+        See Also
+        --------
+        get_edges_as_tuples : List every edge ID with its endpoints at once.
+        find_edge_ids : Go the other way, from two nodes to their edge IDs.
+
         Examples
         --------
         Given an edge ID, this returns the `(source, target)` node IDs it connects:
