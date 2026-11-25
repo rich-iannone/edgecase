@@ -32963,6 +32963,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges="salary", label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#from-nodes-to-edges) moves a selection from nodes
+        to their edges.
         """
         self._graph.trav_out_edge()
 
