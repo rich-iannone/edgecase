@@ -34581,58 +34581,69 @@ class Graph:
             If neither `node_attr_from=` nor `values=` is provided, or if `range=` does not
             contain exactly two values.
 
+        See Also
+        --------
+        colorize_node_attrs : Map categorical values to colors.
+        plot : Size a static plot by an attribute directly, with `size_by=`.
+
         Examples
         --------
-        Rescaling a stored attribute with the default settings writes values between `0.5`
-        and `1.0` to `size`. The lowest score (`B`, 2) maps to `0.5`, the highest (`C`, 10)
-        maps to `1.0`, and `A` (6) lands halfway:
+        By default the values are mapped linearly onto 0.5 to 1.0 and written to `size`. The lowest
+        score maps to 0.5, the highest to 1.0, and the one halfway between to 0.75:
 
         ```{python}
         import edgecase as ec
 
-        G = (
-            ec.Graph()
-            .add_nodes({"A": {"score": 6}, "B": {"score": 2}, "C": {"score": 10}})
+        graph = ec.Graph().add_nodes(
+            {"A": {"score": 6}, "B": {"score": 2}, "C": {"score": 10}}
+        )
+        graph.rescale_node_attrs("score")
+
+        graph.get_node_df()
+        ```
+
+        A reversed `range=` inverts the scale, so the largest value gets the smallest result:
+
+        ```{python}
+        graph.rescale_node_attrs("score", node_attr_to="rank", range=[3, 1])
+
+        graph.get_node_df().select("label", "score", "size", "rank")
+        ```
+
+        ### One score from two measures
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Degree counts a member's ties, and betweenness measures how
+        often a member lies on the shortest paths between others. Degrees run to 17 and betweenness
+        only to 0.44, so adding them as they are would rank by degree alone. Rescaling both onto 0
+        to 1 lets them count equally:
+
+        ```{python}
+        import polars as pl
+
+        karate = ec.karate_club()
+        ties = karate.degrees(return_dict=True)
+        between = karate.betweenness_centrality(return_dict=True)
+        karate.rescale_node_attrs(values=ties, node_attr_to="ties", range=[0, 1])
+        karate.rescale_node_attrs(
+            values=between, node_attr_to="between", range=[0, 1]
         )
 
-        G.rescale_node_attrs(node_attr_from="score")
-
-        G.get_node_df().select("label", "score", "size")
+        score = (pl.col("ties") + pl.col("between")) / 2
+        nodes = karate.get_node_df().with_columns(score=score)
+        nodes.sort("score", descending=True).head(6).select(
+            "label", "degree", "ties", "between", "score"
+        )
         ```
 
-        Results returned by analysis methods can be passed via `values=`. Rescaling
-        betweenness centrality on a 5-node path into `[5, 20]` makes the middle node the
-        largest and the two endpoints the smallest:
+        Member 31 comes fifth, ahead of member 1, who has more ties (9 to 6) but lies on fewer
+        paths. Sized by the combined score:
 
         ```{python}
-        G = ec.Graph()
-
-        G.add_nodes(range(5))
-
-        G.add_edges([("0", "1"), ("1", "2"), ("2", "3"), ("3", "4")])
-
-        betweenness = G.betweenness_centrality(return_dict=True)
-
-        G.rescale_node_attrs(values=betweenness, node_attr_to="size", range=[5, 20])
-
-        G.get_node_attrs("size")
-        ```
-
-        A reversed range inverts the scale. Here the node with the most neighbors (the hub,
-        `0`) gets the smallest `width`, and the three leaves get the largest:
-
-        ```{python}
-        G = ec.Graph()
-
-        G.add_nodes(range(4))
-
-        G.add_edges([("0", "1"), ("0", "2"), ("0", "3")])
-
-        degrees = {n: len(G.get_neighbors(node=n)) for n in G.get_node_ids(limit=None)}
-
-        G.rescale_node_attrs(values=degrees, node_attr_to="width", range=[10, 1])
-
-        G.get_node_attrs("width")
+        karate.set_node_attrs("score", dict(nodes.select("id", "score").rows()))
+        karate.plot(
+            size_by="score", color_by="faction", label_by="label", seed=4
+        )
         ```
         """
         # Default range
