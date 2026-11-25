@@ -3034,6 +3034,12 @@ class Graph:
         ValueError
             If neither (`source`, `target`) nor `id` is provided.
 
+        See Also
+        --------
+        delete_edge_by_id : Remove one edge by its ID.
+        delete_edges_ws : Delete the selected edges.
+        delete_node : Remove a node and its edges.
+
         Examples
         --------
         Providing both `source` and `target` deletes the first matching edge between them. The
@@ -3042,12 +3048,8 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-            .delete_edge(source="A", target="B")
-        )
+        graph = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
+        graph.delete_edge(source="A", target="B")
 
         graph.has_edge(source="A", target="B"), graph.count_nodes()
         ```
@@ -3062,37 +3064,46 @@ class Graph:
             print(e)
         ```
 
-        When the edge ID is already known, deleting by `id=` skips the source/target lookup
-        entirely:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_node(label="A")
-            .add_node(label="B")
-            .add_edge(source="A", target="B")
-        )
-        edge_id = graph.get_edge_ids()[0]
-
-        graph.delete_edge(id=edge_id)
-
-        graph.has_edge(source="A", target="B")
-        ```
-
         With parallel edges, each call removes only one of them, so the second edge (weight
         `2.0`) survives:
 
         ```{python}
-        graph = (
-            ec.Graph()
-            .add_nodes(["A", "B"])
-            .add_edges([("A", "B", 1.0), ("A", "B", 2.0)])
-            .delete_edge(source="A", target="B")
-        )
+        graph = ec.Graph.from_edges([("A", "B", 1.0), ("A", "B", 2.0)])
+        graph.delete_edge(source="A", target="B")
 
         graph.get_edge_df()
         ```
 
+        ### A payment reversed
+
+        In `payments()`, eight accounts can all reach each other by following payments: the two
+        circles of large payments, Ana, Ben and Cruz, and Finn, Gus and Hal, together with Dee
+        and Eve. Strongly connected components find them, and the flatmates Max and Nia, who pay
+        each other:
+
+        ```{python}
+        payments = ec.payments()
+
+        cycles = payments.strongly_connected_components()
+        sorted(len(c) for c in cycles if len(c) > 1)
+        ```
+
+        Eve's payment of 2,000 to Finn was the only way for money to reach Finn's circle. If the
+        bank reverses it, Finn, Gus and Hal can still pay the others (Gus pays Dee), but nothing
+        comes back, and the eight split into a group of five and Finn's circle of three:
+
+        ```{python}
+        payments.delete_edge("Eve", "Finn")
+
+        cycles = payments.strongly_connected_components()
+        sorted(len(c) for c in cycles if len(c) > 1)
+        ```
+
+        ```{python}
+        payments.plot(
+            highlight=["Finn", "Gus", "Hal", "Finn"], label_by="label", seed=3
+        )
+        ```
         """
         if id is not None:
             # Delete by edge ID
