@@ -38724,6 +38724,9 @@ class Graph:
         ```
 
         :::
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) compares the methods
+        that find and count cycles.
         """
         return self._graph.has_cycles()
 
