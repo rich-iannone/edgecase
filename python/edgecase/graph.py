@@ -24372,6 +24372,29 @@ class Graph:
         square.robins_alexander_clustering(), chain.robins_alexander_clustering()
         ```
 
+        The square on the left, and the chain on the right, with the people in the bottom row:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        people = ["Ana", "Ben", "Cruz"]
+        square.layout_bipartite(
+            nodes=people[:2], align="horizontal", aspect_ratio=0.5
+        ).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        chain.layout_bipartite(
+            nodes=people, align="horizontal", aspect_ratio=0.5
+        ).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         ### Meeting again
 
         `davis_southern_women()` links 18 women in a town of the US South in the 1930s to the 14
@@ -24398,6 +24421,9 @@ class Graph:
             [round(c, 3) for c in random],
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#other-coefficients) compares
+        the variants of clustering and the questions each suits.
         """
         nbrs = self._neighbor_sets()
         edges = {frozenset((s, t)) for _, s, t in self.get_edges_as_tuples()}
