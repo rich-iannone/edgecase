@@ -416,6 +416,203 @@ class TestLabeledClassics:
         with pytest.raises(ValueError, match="ties must be"):
             ec.florentine_families(ties="kinship")
 
+    def test_karate_leaders_contracted(self):
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        leaders = karate.contract_nodes("0", "33")
+        assert (karate.get_degree("0"), karate.get_degree("33")) == (16, 17)
+        assert leaders.get_degree("0") == 29
+        merged = leaders.get_id_from_label("0")
+        reach = set(leaders.get_neighbors(merged)) | {merged}
+        outside = [leaders.get_label_from_id(n) for n in leaders.get_node_ids() if n not in reach]
+        assert sorted(outside) == ["16", "24", "25"]
+
+    def test_karate_communities_contracted(self):
+        from collections import Counter
+
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        faction = karate.get_node_attrs("faction")
+        assert sum(faction[u] != faction[v] for _, u, v in karate.get_edges_as_tuples()) == 10
+
+        membership = karate.cmty_louvain(return_dict=True)
+        partition = [
+            [node for node, c in membership.items() if c == community]
+            for community in sorted(set(membership.values()))
+        ]
+        assert [len(block) for block in partition] == [12, 5, 11, 6]
+        assert karate.get_id_from_label("0") in partition[0]
+        assert karate.get_id_from_label("33") in partition[2]
+
+        # The administrator's community as one node
+        club = karate.contract_nodes_multi(partition[2], self_loops=False)
+        merged = sorted(partition[2])[0]
+        assert club.count_nodes() == 24
+        assert (club.get_label_from_id(merged), club.get_degree(merged)) == ("8", 10)
+
+        # Friendships between communities
+        block = {node: i for i, members in enumerate(partition) for node in members}
+        crossing = Counter(
+            frozenset((block[u], block[v]))
+            for _, u, v in karate.get_edges_as_tuples()
+            if block[u] != block[v]
+        )
+        assert crossing == {
+            frozenset((0, 1)): 4,
+            frozenset((0, 2)): 7,
+            frozenset((0, 3)): 3,
+            frozenset((2, 3)): 7,
+        }
+        assert karate.quotient_graph(partition).count_edges() == 4
+
+    def test_karate_degree_summaries(self):
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        assert karate.aggregate_degree("mean") == pytest.approx(78 * 2 / 34)
+        others = karate.aggregate_degree("mean", conditions=lambda n: n.label not in {"0", "33"})
+        assert others == pytest.approx((78 * 2 - 16 - 17) / 32)
+        medians = {
+            f: karate.aggregate_degree("median", conditions=lambda n: n.attributes["faction"] == f)
+            for f in [1, 2]
+        }
+        assert medians == {1: 3.5, 2: 3.0}
+        assert ec.Graph().add_gnm_graph(20, 35, seed=23).aggregate_degree("mean") == 3.5
+
+    def test_karate_leaders_renamed(self):
+        import polars as pl
+
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        degrees = karate.degrees(return_dict=True)
+        karate.relabel_nodes({"0": "Mr. Hi", "33": "John A."})
+        leaders = karate.get_node_df().filter(pl.col("role") != "Member")
+        assert leaders["label"].to_list() == ["Mr. Hi", "John A."]
+        assert leaders["role"].to_list() == ["Instructor", "Administrator"]
+        assert karate.get_label_from_id(max(degrees, key=degrees.get)) == "John A."
+        with pytest.raises(ValueError, match="already used"):
+            karate.relabel_nodes({"1": "Mr. Hi"})
+        assert karate.get_label_from_id(2) == "1"
+
+        n = karate.count_nodes()
+        assert (n, n * (n - 1) // 2, karate.count_edges()) == (34, 561, 78)
+        assert karate.density() == pytest.approx(78 / 561)
+
+    def test_karate_data_frames(self):
+        import polars as pl
+
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        sides = karate.get_node_df().select("label", "faction")
+        crossing = (
+            karate.get_edge_df(labels=True)
+            .join(sides.rename({"label": "source", "faction": "from"}), on="source")
+            .join(sides.rename({"label": "target", "faction": "to"}), on="target")
+            .filter(pl.col("from") != pl.col("to"))
+        )
+        assert crossing.height == 10 and karate.count_edges() == 78
+        per_member = dict(pl.concat([crossing["source"], crossing["target"]]).value_counts().rows())
+        assert per_member.pop("2") == 5 and max(per_member.values()) == 2
+
+        karate.betweenness_centrality(attr_name="betweenness")
+        karate.pagerank(attr_name="pagerank")
+        top = karate.get_node_df().sort("betweenness", descending=True).head(5)
+        assert top["label"].to_list() == ["0", "33", "32", "2", "31"]
+        member_31 = top.row(4, named=True)
+        assert member_31["degree"] == 6
+        assert member_31["pagerank"] < 0.4 * top["pagerank"].head(2).min()
+
+        karate.cmty_louvain(attr_name="community")
+        karate.colorize_node_attrs("community", palette="Set2")
+        nodes = karate.get_node_df()
+        assert (
+            nodes.group_by("community").agg(pl.col("color").n_unique())["color"].to_list()
+            == [1] * 4
+        )
+        assert sorted(nodes.group_by("community").len()["len"].to_list()) == [5, 6, 11, 12]
+        mixed = nodes.group_by("community").agg(pl.col("faction").n_unique() > 1)
+        assert mixed["faction"].sum() == 1
+        mixed_id = mixed.filter(pl.col("faction"))["community"].item()
+        mixed_members = nodes.filter(pl.col("community") == mixed_id)
+        assert mixed_members.filter(pl.col("faction") == 2)["label"].to_list() == ["9"]
+        assert (mixed_members["faction"] == 1).sum() == 11
+
+    def test_karate_combined_score(self):
+        import polars as pl
+
+        import edgecase as ec
+
+        karate = ec.karate_club()
+        ties = karate.degrees(return_dict=True)
+        between = karate.betweenness_centrality(return_dict=True)
+        assert max(ties.values()) == 17 and round(max(between.values()), 2) == 0.44
+        karate.rescale_node_attrs(values=ties, node_attr_to="ties", range=[0, 1])
+        karate.rescale_node_attrs(values=between, node_attr_to="between", range=[0, 1])
+        nodes = karate.get_node_df().with_columns(score=(pl.col("ties") + pl.col("between")) / 2)
+        ranked = nodes.sort("score", descending=True)["label"].to_list()
+        assert ranked[:6] == ["0", "33", "32", "2", "31", "1"]
+        degree = dict(nodes.select("label", "degree").rows())
+        assert (degree["1"], degree["31"]) == (9, 6)
+
+    def test_karate_without_leaders(self):
+        import edgecase as ec
+
+        members = ec.karate_club().delete_node("0").delete_node("33")
+        assert not members.is_connected()
+        pieces = sorted(members.weakly_connected_components(), key=len)
+        assert [sorted(members.get_label_from_id(n) for n in c) for c in pieces[:2]] == [
+            ["11"],
+            ["10", "16", "4", "5", "6"],
+        ]
+        assert len(pieces[2]) == 26
+
+    def test_les_miserables_degrees(self):
+        import polars as pl
+
+        import edgecase as ec
+
+        novel = ec.les_miserables()
+        met = novel.degrees(return_dict=True)
+        top = sorted(met, key=met.get, reverse=True)[:5]
+        assert [(novel.get_label_from_id(c), met[c]) for c in top] == [
+            ("Valjean", 36),
+            ("Gavroche", 22),
+            ("Marius", 19),
+            ("Javert", 17),
+            ("Thenardier", 16),
+        ]
+
+        # The stored snapshot keeps the old degrees; the live column follows the edit
+        novel.degrees(attr_name="met")
+        novel.delete_node("Valjean")
+        alone = novel.get_node_df().filter(pl.col("degree") == 0)
+        assert sorted(alone["label"]) == ["Gervais", "Isabeau", "Labarre", "MmeDeR", "Scaufflaire"]
+        assert alone["met"].to_list() == [1] * 5
+
+    def test_les_miserables_degree_distribution(self):
+        import edgecase as ec
+
+        novel = ec.les_miserables()
+        chance = ec.Graph().add_gnm_graph(77, 254, seed=2)
+        counts = novel.degree_distribution()
+        assert (counts[1], max(counts), counts[36]) == (17, 36, 1)
+        assert sum(n for d, n in counts.items() if d > 13) == 7
+        random_counts = chance.degree_distribution()
+        assert (min(random_counts), max(random_counts)) == (2, 13)
+        assert novel.average_degree() == pytest.approx(chance.average_degree())
+
+        students = [
+            "Enjolras", "Combeferre", "Prouvaire", "Feuilly", "Courfeyrac",
+            "Bahorel", "Bossuet", "Joly", "Grantaire",
+        ]  # fmt: skip
+        society = novel.subgraph([novel.get_id_from_label(s) for s in students])
+        assert novel.average_degree() == pytest.approx(6.597, abs=1e-3)
+        assert society.average_degree() == 8.0
+
 
 class TestMatrixMarketSizeLine:
     """The size line is the first line after the comments, whatever its shape."""
