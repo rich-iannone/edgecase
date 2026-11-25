@@ -19496,6 +19496,12 @@ class Graph:
             If `n=` is not positive, `d=` is odd or less than `2`, `n - 1` is less than `d=`, or a
             cycle disjoint from the others isn't found in `max_tries=` draws.
 
+        See Also
+        --------
+        add_random_regular_expander_graph : Draw regular graphs until one is an expander.
+        add_random_regular_graph : Draw a uniform random regular graph.
+        is_regular_expander : Check the spectral expansion of a regular graph.
+
         Examples
         --------
         A 4-regular graph on 50 nodes, from two disjoint Hamiltonian cycles:
@@ -19504,8 +19510,9 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph().add_maybe_regular_expander(n=50, d=4, seed=1)
+        degrees = set(graph.degrees(return_dict=True).values())
 
-        graph.count_edges(), set(graph.degrees(return_dict=True).values()), graph.is_simple()
+        graph.count_edges(), degrees, graph.is_simple()
         ```
 
         It is (almost always) an expander:
@@ -19513,6 +19520,38 @@ class Graph:
         ```{python}
         graph.is_regular_expander()
         ```
+
+        ### One cycle or two
+
+        Thirty nodes with `d=2` on the left, a single random Hamiltonian cycle, and with `d=4` on
+        the right, two of them. A cycle of `30` nodes has nodes `15` steps apart, and being
+        bipartite it fails the expander check; adding the second cycle brings the diameter down
+        to `4`:
+
+        ```{python}
+        one = ec.Graph().add_maybe_regular_expander(n=30, d=2, seed=1)
+        two = ec.Graph().add_maybe_regular_expander(n=30, d=4, seed=1)
+
+        [(g.diameter(), g.is_regular_expander()) for g in (one, two)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        one.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        two.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, d=d, max_tries=max_tries)
 
