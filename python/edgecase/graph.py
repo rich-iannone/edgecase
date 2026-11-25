@@ -35878,7 +35878,10 @@ class Graph:
              ("V", "A"), ("V", "B"), ("V", "C"), ("A", "B")]
         )
 
-        round(graph.dispersion("U", "V"), 3), graph.dispersion("U", "V", normalized=False)
+        (
+            round(graph.dispersion("U", "V"), 3),
+            graph.dispersion("U", "V", normalized=False),
+        )
         ```
 
         Pairs are judged among the neighbors of the first node. A friend `X` of `U` who knows
@@ -35906,7 +35909,10 @@ class Graph:
 
         pl.DataFrame(
             [
-                {"friend_1": label(u), "friend_2": label(v), "dispersion": friends.dispersion(u, v)}
+                {
+                    "friend_1": label(u), "friend_2": label(v),
+                    "dispersion": friends.dispersion(u, v),
+                }
                 for _, u, v in friends.get_edges_as_tuples()
             ]
         ).sort("dispersion", descending=True).head(4)
@@ -35917,7 +35923,8 @@ class Graph:
         are dispersed:
 
         ```{python}
-        shared = set(friends.get_neighbors("Hugo")) & set(friends.get_neighbors("Tara"))
+        hugo, tara = friends.get_neighbors("Hugo"), friends.get_neighbors("Tara")
+        shared = set(hugo) & set(tara)
 
         friends.plot(
             color_by="club",
@@ -35926,6 +35933,8 @@ class Graph:
             seed=1,
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#brokerage) compares the measures of brokerage.
         """
         from edgecase._core import dispersion
 
