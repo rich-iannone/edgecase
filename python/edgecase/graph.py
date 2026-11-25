@@ -23771,6 +23771,9 @@ class Graph:
         ```
 
         :::
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#connected-components) finds the
+        giant component of a co-authorship network and the fragments around it.
         """
         return self._graph.is_connected()
 
