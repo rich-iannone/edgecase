@@ -13820,6 +13820,12 @@ class Graph:
         ValueError
             If either sequence contains a negative entry, or the two sums differ.
 
+        See Also
+        --------
+        add_directed_havel_hakimi_graph : Build a simple directed graph with the same degrees.
+        configuration_model : Pair edge ends at random in an undirected graph.
+        simplify : Remove the self-loops and repeated edges.
+
         Examples
         --------
         Every node gets exactly the in-degree and out-degree it was given:
@@ -13833,16 +13839,50 @@ class Graph:
             in_degrees, out_degrees, seed=9
         )
 
-        nodes = sorted(graph.get_node_ids())
+        nodes = graph.get_node_df()["id"].to_list()
 
-        [graph.get_in_degree(v) for v in nodes], [graph.get_out_degree(v) for v in nodes]
+        (
+            [graph.get_in_degree(v) for v in nodes],
+            [graph.get_out_degree(v) for v in nodes],
+        )
         ```
 
-        The random pairing can make self-loops and parallel edges:
+        The random pairing can make self-loops and parallel edges. Here node `"4"` points to
+        itself:
 
         ```{python}
-        graph.count_all_loops(), graph.count_multi_edges()
+        graph.get_edges_str_repr(use_labels=True), graph.count_all_loops()
         ```
+
+        ### Random or deterministic wiring
+
+        The graph above on the left, with its self-loop on `"4"`, and on the right
+        `add_directed_havel_hakimi_graph()` with the same sequences, which always gives a simple
+        graph. Both give every node the same in- and out-degree:
+
+        ```{python}
+        fixed = ec.Graph(directed=True).add_directed_havel_hakimi_graph(
+            in_degrees, out_degrees
+        )
+
+        graph.is_simple(), fixed.is_simple()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        fixed.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         from edgecase._core import directed_configuration_edges as _directed_configuration_edges
 
