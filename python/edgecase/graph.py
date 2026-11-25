@@ -10104,6 +10104,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if d < 1:
             raise ValueError("Hypercube dimension d must be at least 1")
