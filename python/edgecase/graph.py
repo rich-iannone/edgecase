@@ -21275,6 +21275,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#degree-sequences) compares the generators
+        that realize a given degree sequence.
         """
         from edgecase._core import expected_degree_graph as _expected_degree_graph
 
