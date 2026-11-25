@@ -72933,6 +72933,9 @@ class Graph:
         ```{python}
         tree.plot(layout="pos", label_by="label")
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) turns a search into
+        a tree, and lists the other methods that expose its parts.
         """
         self._check_traversal_args(depth_limit, mode)
         source_id = None if source is None else self._resolve_node_id(source, auto_create=False)
