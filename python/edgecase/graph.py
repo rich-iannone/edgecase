@@ -31147,6 +31147,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges="review", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#combining-selections) explains how selections
+        combine, and names the methods that adjust one directly.
         """
         edge_ids = list(edge_ids)
         self._graph.deselect_edges(edge_ids)
