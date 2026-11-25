@@ -95115,6 +95115,29 @@ class Graph:
         path.wiener_index(), star.wiener_index()
         ```
 
+        In the star on the right, every leaf is one hop from the center and two from the others,
+        so no distance is more than `2`:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        def place(graph, spots):
+            pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+            return graph.set_node_attrs("pos", pos)
+
+        place(path, {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1)}).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        ```{python}
+        place(star, {"A": (1, 1), "B": (0, 2), "C": (0, 0), "D": (2, 1)}).plot(
+            layout="pos", label_by="label", width=320, height=240, legend=False
+        )
+        ```
+
+        :::
+
         ### Boiling points
 
         `molecules()` holds the graphs of seven small molecules, one node per atom (leaving out
@@ -95135,6 +95158,9 @@ class Graph:
             label_by="element", seed=1, height=300
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#distance-based-indices) adds up the distances
+        on a road network in hops and in kilometers.
         """
         from edgecase._core import wiener_index
 
