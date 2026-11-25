@@ -87429,6 +87429,12 @@ class Graph:
         already connected (which includes self-loops and parallel edges), rules out a
         branching. It runs in nearly $O(V + E)$ time.
 
+        See Also
+        --------
+        is_arborescence : Whether the graph is a single directed tree.
+        is_forest : The undirected version of a branching.
+        get_in_degree : Count a node's incoming edges.
+
         Examples
         --------
         Two separate trees, each rooted at its own node, form a branching:
@@ -87436,11 +87442,10 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=True)
-        g.add_nodes(["A", "B", "C", "D", "E"])
-        g.add_edges([("A", "B"), ("A", "C"), ("D", "E")])
+        g = ec.Graph.from_edges(
+            [("A", "B"), ("A", "C"), ("D", "E")], directed=True
+        )
 
-        # Returns (True, False): a branching, but not a single arborescence
         g.is_branching(), g.is_arborescence()
         ```
 
@@ -87449,6 +87454,32 @@ class Graph:
         ```{python}
         g.add_edge("D", "C")
         g.is_branching()
+        ```
+
+        ### Four departments
+
+        In a company's reporting lines, each edge runs from a manager to someone who reports to
+        them. Without the chief executive, Mira, the four department heads have no manager, so the
+        chart is four arborescences: a branching, but no longer an arborescence. A second manager
+        for anyone, such as Owen also reporting to Hiro, would break the branching too:
+
+        ```{python}
+        org = ec.org_chart().delete_node("Mira")
+        heads = [
+            org.get_label_from_id(n)
+            for n in org.get_node_ids()
+            if org.get_in_degree(n) == 0
+        ]
+
+        org.is_branching(), org.is_arborescence(), sorted(heads)
+        ```
+
+        The four department heads, the roots of the branching, are highlighted:
+
+        ```{python}
+        org.plot(
+            layout="pos", highlight=heads, label_by="label", width=820, height=640
+        )
         ```
         """
         value = rust.is_branching(self._graph)
