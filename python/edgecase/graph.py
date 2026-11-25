@@ -1362,6 +1362,9 @@ class Graph:
         ```
 
         For the full table of steps, with their narration, use `steps.to_polars()`.
+
+        [The step log](../user-guide/step-log.qmd#reading-the-log) follows the log of a small book
+        club, and explains which calls are recorded.
         """
         if not self._steps:
             print("No steps recorded.")
