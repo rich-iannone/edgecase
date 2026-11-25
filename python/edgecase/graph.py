@@ -33436,6 +33436,12 @@ class Graph:
         ValueError
             If a node given in `sources=` or `targets=` does not exist in the graph.
 
+        See Also
+        --------
+        get_edge_df : Read every edge attribute at once as a data frame.
+        set_edge_attrs : Set the attribute.
+        get_edge_attrs_by_id : Read the attribute for chosen edge IDs.
+
         Examples
         --------
         Without filters, every edge that has the attribute is returned. Here all three edges
