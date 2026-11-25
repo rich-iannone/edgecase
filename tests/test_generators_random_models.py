@@ -177,6 +177,13 @@ class TestRandomRegular:
         with pytest.raises(ValueError):
             ec.Graph().add_random_regular_graph(n=n, d=d)
 
+    def test_against_gnm_with_the_same_size(self):
+        regular = ec.Graph().add_random_regular_graph(n=12, d=3, seed=1)
+        chance = ec.Graph().add_gnm_graph(n=12, m=18, seed=2)
+        assert regular.is_k_regular(3) and regular.count_edges() == 18
+        assert not chance.is_k_regular(3)
+        assert sorted(degrees_in_order(chance)) == [1, 1, 1, 2, 2, 2, 3, 3, 4, 5, 5, 7]
+
 
 class TestPowerlawCluster:
     def test_edge_count_and_clustering(self):
@@ -654,3 +661,264 @@ class TestNavigableSmallWorld:
     def test_invalid(self, kwargs):
         with pytest.raises(ValueError):
             ec.Graph().add_navigable_small_world_graph(**kwargs)
+
+
+class TestDocstringScenarios:
+    """The seeded values quoted in the generator docstrings."""
+
+    def test_havel_hakimi_packs_hubs(self):
+        degrees = [4, 4, 4, 3, 3, 2, 2, 2, 2, 1, 1]
+        packed = ec.Graph().add_havel_hakimi_graph(degrees)
+        spread = ec.Graph().add_random_degree_sequence_graph(degrees, seed=5)
+        assert not packed.is_connected() and spread.is_connected()
+        assert ["10--11"] == [e for e in packed.get_edges_str_repr() if e.startswith("10")]
+        assert round(packed.degree_pearson_correlation_coefficient(), 2) == 0.57
+        assert round(spread.degree_pearson_correlation_coefficient(), 2) == 0.0
+
+        degrees = [5] * 10 + [2] * 40
+        shuffled = ec.Graph().add_random_degree_sequence_graph(degrees, seed=3)
+        packed = ec.Graph().add_havel_hakimi_graph(degrees)
+        assert round(shuffled.degree_pearson_correlation_coefficient(), 2) == -0.3
+        assert round(packed.degree_pearson_correlation_coefficient(), 2) == 1.0
+
+    def test_directed_degree_sequences(self):
+        in_degrees, out_degrees = [0, 1, 1, 2, 3], [2, 2, 1, 1, 1]
+        graph = ec.Graph(directed=True).add_directed_configuration_model(
+            in_degrees, out_degrees, seed=9
+        )
+        assert graph.get_edges_str_repr(use_labels=True)[0] == "4->4"
+        assert graph.count_all_loops() == 1
+        fixed = ec.Graph(directed=True).add_directed_havel_hakimi_graph(in_degrees, out_degrees)
+        assert fixed.is_simple() and not graph.is_simple()
+
+        ranked = ec.Graph(directed=True).add_directed_havel_hakimi_graph(
+            [0, 1, 2, 3, 4], [4, 3, 2, 1, 0]
+        )
+        balanced = ec.Graph(directed=True).add_directed_havel_hakimi_graph([2] * 5, [2] * 5)
+        for g in (ranked, balanced):
+            assert g.count_edges() == 10 and g.count_mutual_node_pairs() == 0
+        assert ranked.is_dag() and not balanced.is_dag()
+
+    def test_random_degree_sequence_seeds(self):
+        def realize(seed):
+            g = ec.Graph().add_random_degree_sequence_graph([4, 3, 3, 2, 2, 2, 1, 1], seed=seed)
+            return g.get_edges_str_repr()
+
+        assert realize(3) == [
+            "1--2", "1--3", "1--4", "1--5", "2--6", "2--7", "3--5", "3--8", "4--6"
+        ]  # fmt: skip
+        assert realize(4) == [
+            "1--2", "1--3", "1--4", "1--7", "2--5", "2--8", "3--5", "3--6", "4--6"
+        ]  # fmt: skip
+
+    def test_joint_degree_loses_clustering(self):
+        original = ec.Graph().add_powerlaw_cluster_graph(n=40, m=2, p=0.3, seed=5)
+        joint = original.degree_mixing_dict()
+        assert joint[2] == {3: 8, 4: 7, 5: 4, 6: 4, 7: 3, 10: 3, 11: 1}
+        graph = ec.Graph().add_joint_degree_graph(joint, seed=5)
+        assert original.count_edges() == graph.count_edges() == 76
+        assert round(original.average_clustering_coefficient(), 2) == 0.29
+        assert round(graph.average_clustering_coefficient(), 2) == 0.16
+
+    def test_growing_networks(self):
+        def directed():
+            return ec.Graph(directed=True)
+
+        def largest_in_degree(g):
+            return max(g.get_in_degree(v) for v in g.get_node_ids())
+
+        def largest_degree(kernel):
+            g = directed().add_gn_graph(n=100, kernel=kernel, seed=7)
+            return max(g.degrees(return_dict=True).values())
+
+        assert [largest_degree(k) for k in (lambda d: d**0.5, None, lambda d: d**2)] == [9, 23, 97]
+        linear = directed().add_gn_graph(n=30, seed=7)
+        squared = directed().add_gn_graph(n=30, kernel=lambda d: d**2, seed=7)
+        assert (largest_in_degree(linear), largest_in_degree(squared)) == (13, 28)
+
+        gnr = [directed().add_gnr_graph(n=200, p=p, seed=3) for p in (0.0, 0.5, 0.9)]
+        assert [largest_in_degree(g) for g in gnr] == [10, 30, 96]
+        uniform = directed().add_gnr_graph(n=40, p=0.0, seed=1)
+        redirected = directed().add_gnr_graph(n=40, p=0.9, seed=1)
+        assert (largest_in_degree(uniform), largest_in_degree(redirected)) == (4, 29)
+
+        assert directed().add_gnc_graph(n=50, seed=2).count_edges() == 137
+        copied = directed().add_gnc_graph(n=12, seed=2)
+        assert (copied.get_in_degree("1"), copied.count_edges()) == (11, 20)
+
+    def test_scale_free_and_k_out(self):
+        def top_in_degrees(g, k):
+            return sorted((g.get_in_degree(v) for v in g.get_node_ids()), reverse=True)[:k]
+
+        graph = ec.Graph(directed=True).add_scale_free_graph(n=200, seed=11)
+        assert graph.count_edges() == 427
+        assert top_in_degrees(graph, 5) == [111, 93, 80, 25, 9]
+        assert (graph.count_all_loops(), graph.count_multi_edges()) == (7, 85)
+        default = ec.Graph(directed=True).add_scale_free_graph(n=60, seed=2)
+        flat = ec.Graph(directed=True).add_scale_free_graph(n=60, delta_in=10.0, seed=2)
+        assert top_in_degrees(default, 4) == [36, 32, 11, 10]
+        assert top_in_degrees(flat, 4) == [15, 9, 8, 6]
+
+        def k_out(**kwargs):
+            g = ec.Graph(directed=True).add_random_k_out_graph(**kwargs)
+            return top_in_degrees(g, 1)[0]
+
+        assert [k_out(n=100, k=3, alpha=a, seed=4) for a in (10.0, 1.0, 0.1)] == [10, 16, 34]
+        assert [k_out(n=30, k=2, alpha=a, seed=1) for a in (10.0, 0.1)] == [5, 23]
+
+    def test_waxman_reach(self):
+        graph = ec.Graph().add_waxman_graph(n=60, beta=0.5, alpha=0.2, seed=13)
+        assert (graph.count_nodes(), graph.count_edges()) == (60, 155)
+        assert [round(x, 3) for x in graph.get_node_attrs("pos")[1]] == [0.338, 0.079]
+        counts = [
+            ec.Graph().add_waxman_graph(n=60, beta=0.5, alpha=a, seed=13).count_edges()
+            for a in (0.05, 0.1, 0.2, 0.4)
+        ]
+        assert counts == [18, 49, 155, 342]
+
+        def mean_length(g):
+            pos = g.get_node_attrs("pos")
+            lengths = [math.dist(pos[s], pos[t]) for _, s, t in g.get_edges_as_tuples()]
+            return round(sum(lengths) / len(lengths), 2)
+
+        short = ec.Graph().add_waxman_graph(n=40, beta=1.0, alpha=0.1, seed=1)
+        long = ec.Graph().add_waxman_graph(n=40, beta=0.1, alpha=1.0, seed=1)
+        assert short.get_node_attrs("pos") == long.get_node_attrs("pos")
+        assert [(g.count_edges(), mean_length(g)) for g in (short, long)] == [
+            (58, 0.18),
+            (60, 0.46),
+        ]
+        assert short.count_weakly_connected_components() == 3
+
+    def test_soft_random_geometric_fall_off(self):
+        def soft(**kwargs):
+            return ec.Graph().add_soft_random_geometric_graph(**kwargs)
+
+        assert soft(n=100, radius=0.2, seed=6).count_edges() == 454
+        fall_offs = (lambda d: 1, None, lambda d: 1 - 5 * d)
+        counts = [soft(n=100, radius=0.2, p_dist=f, seed=6).count_edges() for f in fall_offs]
+        assert counts == [519, 454, 169]
+        hard = soft(n=50, radius=0.25, p_dist=lambda d: 1, seed=1)
+        linear = soft(n=50, radius=0.25, p_dist=lambda d: 1 - 4 * d, seed=1)
+        assert hard.get_node_attrs("pos") == linear.get_node_attrs("pos")
+        assert (hard.count_edges(), linear.count_edges()) == (174, 61)
+        assert hard.count_weakly_connected_components() == 1
+        assert linear.count_weakly_connected_components() == 6
+
+    def test_geographical_threshold_weights(self):
+        def threshold(**kwargs):
+            return ec.Graph().add_geographical_threshold_graph(**kwargs)
+
+        graph = threshold(n=100, theta=100, seed=10)
+        assert graph.count_edges() == 311
+        weights = graph.get_node_attrs("weight")
+        heaviest, lightest = max(weights, key=weights.get), min(weights, key=weights.get)
+        assert (graph.get_degree(heaviest), graph.get_degree(lightest)) == (12, 6)
+        counts = [threshold(n=100, theta=t, seed=10).count_edges() for t in (25, 50, 100, 200)]
+        assert counts == [1090, 585, 311, 164]
+        low, high = threshold(n=40, theta=30, seed=1), threshold(n=40, theta=120, seed=1)
+        weights = low.get_node_attrs("weight")
+        assert weights == high.get_node_attrs("weight")
+        heaviest = max(weights, key=weights.get)
+        assert (low.count_edges(), low.get_degree(heaviest)) == (131, 19)
+        assert (high.count_edges(), high.get_degree(heaviest)) == (45, 5)
+        assert sum(d == 0 for d in high.degrees(return_dict=True).values()) == 9
+
+    def test_navigable_small_world_contacts(self):
+        def grid(**kwargs):
+            return ec.Graph(directed=True).add_navigable_small_world_graph(**kwargs)
+
+        graph = grid(n=10, seed=1)
+        assert (graph.count_nodes(), graph.count_edges()) == (100, 418)
+        pos = graph.get_node_attrs("pos")
+        assert [pos[v] for v in (1, 2, 11, 100)] == [[0, 0], [0, 1], [1, 0], [9, 9]]
+        assert [grid(n=10, r=r, seed=1).diameter() for r in (0.0, 2.0, 6.0)] == [6, 9, 18]
+        anywhere, nearby = grid(n=6, r=0.0, seed=1), grid(n=6, r=6.0, seed=1)
+        assert (anywhere.count_edges(), anywhere.diameter()) == (154, 5)
+        assert (nearby.count_edges(), nearby.diameter()) == (120, 10)
+
+    def test_regular_and_clustered_growth(self):
+        cycles = ec.Graph().add_random_regular_graph(n=20, d=2, seed=5)
+        cubic = ec.Graph().add_random_regular_graph(n=20, d=3, seed=5)
+        assert cycles.count_weakly_connected_components() == 2
+        assert (cubic.count_edges(), cubic.is_connected(), cubic.diameter()) == (30, True, 6)
+
+        def clustering(g):
+            return round(g.average_clustering_coefficient(), 3)
+
+        counts = [
+            clustering(ec.Graph().add_powerlaw_cluster_graph(n=300, m=3, p=p, seed=2))
+            for p in (0.0, 0.3, 0.6, 0.9)
+        ]
+        assert counts == [0.069, 0.219, 0.362, 0.559]
+        plain = ec.Graph().add_powerlaw_cluster_graph(n=40, m=2, p=0.0, seed=1)
+        clustered = ec.Graph().add_powerlaw_cluster_graph(n=40, m=2, p=0.9, seed=1)
+        assert plain.count_edges() == clustered.count_edges() == 76
+        assert (round(clustering(plain), 2), round(clustering(clustered), 2)) == (0.28, 0.62)
+
+    def test_watts_strogatz_variants(self):
+        def nws(n, p):
+            return ec.Graph().add_newman_watts_strogatz_graph(n=n, k=4, p=p, seed=3)
+
+        assert nws(30, 0.2).count_edges() == 68
+        assert [nws(60, p).diameter() for p in (0.0, 0.05, 0.2, 0.5)] == [15, 8, 6, 5]
+        assert (nws(30, 0.0).diameter(), nws(30, 0.2).diameter()) == (8, 5)
+
+        graph = ec.Graph().add_connected_watts_strogatz_graph(n=40, k=2, p=0.6, seed=1)
+        first_draw = ec.Graph().add_smallworld_graph(n=40, k=2, p=0.6, seed=1)
+        assert (graph.count_edges(), graph.is_connected()) == (40, True)
+        assert first_draw.count_edges() == 40
+        assert first_draw.count_weakly_connected_components() == 2
+
+    def test_barabasi_albert_variants(self):
+        def extended(**kwargs):
+            return ec.Graph().add_extended_barabasi_albert_graph(**kwargs)
+
+        def profile(g):
+            degrees = list(g.degrees(return_dict=True).values())
+            return g.count_edges(), degrees.count(1), max(degrees)
+
+        assert extended(n=100, m=2, p=0, q=0, seed=4).count_edges() == 196
+        counts = [
+            extended(n=100, m=2, p=p, q=0.1, seed=4).count_edges() for p in (0.0, 0.2, 0.4, 0.6)
+        ]
+        assert counts == [196, 262, 346, 476]
+        tree = extended(n=40, m=1, p=0, q=0, seed=1)
+        dense = extended(n=40, m=1, p=0.4, q=0, seed=1)
+        assert tree.is_tree() and not dense.is_tree()
+        assert (profile(tree)[::2], profile(dense)[::2]) == ((39, 10), (62, 17))
+
+        def dual(**kwargs):
+            return ec.Graph().add_dual_barabasi_albert_graph(**kwargs)
+
+        assert dual(n=200, m1=1, m2=4, p=0.5, seed=6).count_edges() == 511
+        degrees = [
+            round(dual(n=200, m1=1, m2=4, p=p, seed=6).average_degree(), 2) for p in (0.0, 0.5, 1.0)
+        ]
+        assert degrees == [7.84, 5.11, 1.99]
+        mixed = dual(n=40, m1=1, m2=3, p=0.5, seed=1)
+        single = extended(n=40, m=2, p=0, q=0, seed=1)
+        assert (profile(mixed), profile(single)) == ((81, 9, 17), (76, 0, 10))
+
+    def test_random_trees(self):
+        def shape(g):
+            degrees = list(g.degrees(return_dict=True).values())
+            return max(degrees), degrees.count(1), g.diameter()
+
+        lobster = ec.Graph().add_random_lobster(n=8, p1=0.6, p2=0.4, seed=1)
+        assert (lobster.count_nodes(), lobster.is_tree()) == (25, True)
+        degrees = sorted(lobster.degrees(return_dict=True).values(), reverse=True)
+        assert degrees[:8] == [5, 5, 4, 4, 3, 3, 2, 2]
+        few = ec.Graph().add_random_lobster(n=6, p1=0.3, p2=0.5, seed=1)
+        many = ec.Graph().add_random_lobster(n=6, p1=0.8, p2=0.5, seed=1)
+        assert (few.count_nodes(), many.count_nodes()) == (13, 38)
+        # The backbone is drawn first, so both share its first four edges
+        assert few.get_edges_str_repr()[:4] == many.get_edges_str_repr()[:4]
+
+        tree = ec.Graph().add_random_labeled_tree(n=50, seed=12)
+        assert (tree.count_edges(), len(tree.to_prufer_sequence()), tree.diameter()) == (49, 48, 19)
+        uniform = ec.Graph().add_random_labeled_tree(n=30, seed=1)
+        grown = ec.Graph().add_extended_barabasi_albert_graph(n=30, m=1, p=0, q=0, seed=1)
+        powerlaw = ec.Graph().add_random_powerlaw_tree(n=30, seed=1)
+        assert (shape(uniform), shape(grown)) == ((4, 9, 16), (8, 19, 7))
+        assert shape(powerlaw)[:2] == (11, 18) and powerlaw.is_tree()
