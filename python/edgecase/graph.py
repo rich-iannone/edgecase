@@ -20368,17 +20368,24 @@ class Graph:
         ---------------
         The empty sequence is not a tree degree sequence (a tree has at least one node).
 
+        See Also
+        --------
+        add_random_powerlaw_tree : Draw a tree from a random valid degree sequence.
+        iter_nonisomorphic_trees : List every tree shape on a given number of nodes.
+        is_tree : Check whether a graph is a tree.
+
         Examples
         --------
-        A star on four nodes and a path on four nodes pass; a cycle's degrees fail the sum
-        condition and a sequence with a zero fails the positivity condition:
+        A star on four nodes and a path on four nodes pass. A cycle's degrees fail the sum
+        condition, and a sequence with a zero fails the positivity condition even though its
+        sum is right:
 
         ```{python}
         import edgecase as ec
 
         [
             ec.Graph.is_valid_tree_degree_sequence(seq)
-            for seq in ([3, 1, 1, 1], [1, 2, 2, 1], [2, 2, 2, 2], [2, 2, 0, 1, 1])
+            for seq in ([3, 1, 1, 1], [1, 2, 2, 1], [2, 2, 2, 2], [3, 3, 0, 1, 1])
         ]
         ```
 
@@ -20387,7 +20394,19 @@ class Graph:
         ```{python}
         tree = ec.Graph().add_random_labeled_tree(12, seed=3)
         degrees = [tree.get_degree(n) for n in tree.get_node_ids()]
+
         degrees, ec.Graph.is_valid_tree_degree_sequence(degrees)
+        ```
+
+        The sum condition fixes the number of leaves. A tree with one node of degree `4` and
+        two of degree `3` needs `2 + (4 - 2) + 2 * (3 - 2) = 6` leaves, no more and no fewer:
+
+        ```{python}
+        def has_tree(leaves):
+            sequence = [4, 3, 3] + [1] * leaves
+            return ec.Graph.is_valid_tree_degree_sequence(sequence)
+
+        [(leaves, has_tree(leaves)) for leaves in range(4, 9)]
         ```
         """
         seq = [int(d) for d in degree_sequence]
