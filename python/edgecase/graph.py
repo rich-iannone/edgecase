@@ -47152,6 +47152,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#detection-algorithms) compares the detection
+        algorithms, what each can handle and how far each scales.
         """
         ids, labels = rust.semi_synchronous_label_propagation(self._graph)
         return self._community_result(
