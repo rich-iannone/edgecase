@@ -49860,39 +49860,26 @@ class Graph:
         base graph without losing edges that were only in the base. Both operands must
         share the same directedness.
 
+        See Also
+        --------
+        union : Combine two graphs, keeping this graph's values.
+        compose_all : Apply any number of graphs in order.
+        set_node_attrs : Set an attribute on some or all nodes.
+
         Examples
         --------
-        `compose()` behaves like `union()`, but lets the second graph's attributes
-        overwrite the first's -- useful for applying an update to a base graph. Node `1` is
-        "Alice" in `g1` but "Robert" in `g2`, so the composed graph uses "Robert":
+        `compose()` is `union()` with the other graph's values winning, which makes it the way to
+        apply an update. Node "A" takes `team="blue"` from `g2` and keeps `rank=1`, which `g2`
+        lacks. The shared edge takes `g2`'s weight of `5.0`, and the edge `B--C` is added:
 
         ```{python}
         import edgecase as ec
 
-        # Original graph
-        g1 = ec.Graph(directed=False)
-        g1.add_node(label="Alice")
-        g1.add_node(label="Bob")
-        g1.add_edge("Alice", "Bob")
-
-        # Update: same node ID as "Alice", but a new label
-        g2 = ec.Graph(directed=False)
-        g2.add_node(label="Robert")
-
-        result = g1.compose(g2)
-        result.get_node(1).label
-        ```
-
-        Attributes and weights are overridden key by key. Node "A" takes `team="blue"` from
-        `g2`, keeps `g1`'s `rank` (which `g2` lacks), and the shared edge takes `g2`'s weight
-        of `5.0`. The edge "B"-"C" that only `g2` has is added as well:
-
-        ```{python}
-        g1 = ec.Graph(directed=False)
+        g1 = ec.Graph()
         g1.add_nodes([("A", {"team": "red", "rank": 1}), "B"])
         g1.add_edge("A", "B", weight=1.0)
 
-        g2 = ec.Graph(directed=False)
+        g2 = ec.Graph()
         g2.add_nodes([("A", {"team": "blue"}), "B", "C"])
         g2.add_edges([("A", "B", 5.0), ("B", "C")])
 
@@ -49904,10 +49891,31 @@ class Graph:
         updated.get_edge_df().select("source", "target", "weight")
         ```
 
-        For comparison, `union()` on the same pair keeps `g1`'s values:
+        ### A club update
+
+        `ec.friends()` is a network of friendships in 2024 among the members of a chess club and a
+        climbing club. A year later the club secretary sends a new list, `snapshot=2`, with 8 new
+        friendships and one change of club: Vik has moved to chess. Composing takes both from the
+        update. A union would add the friendships but keep Vik in climbing:
 
         ```{python}
-        g1.union(g2).get_edge_df().select("source", "target", "weight")
+        y2024 = ec.friends()
+        update = ec.friends(snapshot=2).set_node_attrs(
+            "club", "Chess", nodes=["Vik"]
+        )
+
+        vik = y2024.get_id_from_label("Vik")
+        (
+            y2024.compose(update).get_node_attrs("club")[vik],
+            y2024.union(update).get_node_attrs("club")[vik],
+        )
+        ```
+
+        Drawn by club, the composed graph shows Vik in the chess color, though three of Vik's four
+        friends are climbers:
+
+        ```{python}
+        y2024.compose(update).plot(color_by="club", label_by="label", seed=2)
         ```
         """
         from edgecase._core import graph_compose
