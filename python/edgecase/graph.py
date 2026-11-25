@@ -91606,6 +91606,9 @@ class Graph:
         code = (((), ()), (), ((),))
         ec.Graph.from_nested_tuple(code).to_nested_tuple("1") == code
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) encodes a binary tree as a Prüfer
+        sequence and as a nested tuple.
         """
         if not isinstance(sequence, (tuple, list)):
             raise TypeError(f"a nested tuple code must be a tuple, got {sequence!r}")
