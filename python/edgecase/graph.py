@@ -33850,58 +33850,64 @@ class Graph:
         endpoints, so an attribute with one of those names is left out of the table, and so
         is a `weight` attribute when any edge has a weight (`get_edge_attrs()` reads them).
 
+        See Also
+        --------
+        get_node_df : The nodes as a Polars DataFrame, for joining to the edges.
+        get_edge_attrs : One edge attribute as a dictionary keyed by edge ID.
+        get_edges_as_tuples : The edges as plain (id, source, target) tuples.
+
         Examples
         --------
-        Every edge DataFrame starts with `id`, `source`, `target`, and `rel`, followed by
-        `weight` and any other custom attributes:
+        The frame has a row per edge, sorted by ID. `id`, `source`, `target` and `rel` come first,
+        then `weight` and the other edge attributes. `labels=True` gives the endpoints by label:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C", "D"])
-            .add_edges(
-                [
-                    ("A", "B", 1.5, {"rel": "friend"}),
-                    ("B", "C", 2.0, {"rel": "colleague"}),
-                    ("C", "D", 1.0, {"rel": "friend"}),
-                ]
-            )
+        graph = ec.Graph(directed=True).add_nodes(["A", "B", "C"])
+        graph.add_edges(
+            [
+                ("A", "B", 1.5, {"rel": "friend"}),
+                ("B", "C", 2.0, {"rel": "colleague"}),
+            ]
         )
 
-        df = graph.get_edge_df()
-        df.columns
+        graph.get_edge_df(labels=True)
         ```
 
-        ```{python}
-        df.shape
-        ```
+        ### Ties across the split
 
-        Being a regular Polars DataFrame, it supports the usual filtering and
-        aggregation -- for example, isolating edges of a given relationship type:
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33), and the `faction` attribute records which side each member
+        joined. Joining each end of each edge to its faction finds the ties that cross the split:
 
         ```{python}
         import polars as pl
-        df.filter(pl.col("rel") == "friend")
+
+        karate = ec.karate_club()
+        sides = karate.get_node_df().select("label", "faction")
+
+        source_sides = sides.rename({"label": "source", "faction": "from"})
+        target_sides = sides.rename({"label": "target", "faction": "to"})
+        edges = (
+            karate.get_edge_df(labels=True)
+            .join(source_sides, on="source")
+            .join(target_sides, on="target")
+        )
+        crossing = edges.filter(pl.col("from") != pl.col("to"))
+
+        crossing.select("source", "target", "from", "to")
         ```
 
-        Or grouping to count how many edges fall into each relationship type:
+        Only 10 of the 78 ties cross, and 5 of those involve member 2. The crossing ties are
+        highlighted:
 
         ```{python}
-        df.group_by("rel").len().sort("rel")
-        ```
-
-        Aggregating `weight` per group works the same way as with any Polars DataFrame:
-
-        ```{python}
-        df.group_by("rel").agg(pl.col("weight").mean()).sort("rel")
-        ```
-
-        With `labels=True`, the endpoints are given by label rather than node ID:
-
-        ```{python}
-        graph.get_edge_df(labels=True).select("source", "target", "rel")
+        karate.plot(
+            highlight_edges=list(crossing.select("source", "target").iter_rows()),
+            label_by="label",
+            seed=4,
+        )
         ```
         """
         return self._edge_df(self.get_edge_ids(limit=None), labels=labels)
