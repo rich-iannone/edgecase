@@ -34216,6 +34216,12 @@ class Graph:
         Graph
             Self for method chaining.
 
+        See Also
+        --------
+        set_edge_attrs_ws : Set a fixed value on the selected edges.
+        select_edges : Select the edges to change.
+        mutate_node_attrs_ws : Change the selected nodes in the same way.
+
         Examples
         --------
         `"weight"` is handled directly on the edge's weight field rather than a generic
