@@ -18335,6 +18335,12 @@ class Graph:
             If `n=` is less than `2`, `p=` is outside `0` to `1`, `p=0` with `n > 2`, or a
             million copies in a row keep no edge.
 
+        See Also
+        --------
+        add_partial_duplication_graph : Copy nodes and optionally join each copy to its original.
+        add_extended_barabasi_albert_graph : Grow a graph by preferential attachment instead.
+        add_scale_free_graph : Grow a directed graph with heavy-tailed degrees.
+
         Examples
         --------
         A 200-node graph at `p=0.4` is connected and sparse:
@@ -18354,6 +18360,46 @@ class Graph:
 
         degrees.median(), degrees.max()
         ```
+
+        ### Edges kept rarely or often
+
+        Forty nodes each. With `p=0.2` on the left a copy keeps few of its original's edges, so
+        the graph stays close to a tree. With `p=0.6` on the right copies keep most of them, the
+        edges grow by half, and the hubs gather more neighbors. Neither graph has a triangle: a
+        copy only links to its original's neighbors, and those are never joined to each other:
+
+        ```{python}
+        def duplicated(p):
+            return ec.Graph().add_duplication_divergence_graph(n=40, p=p, seed=1)
+
+        sparse, dense = duplicated(0.2), duplicated(0.6)
+
+        def largest_degree(g):
+            return max(g.degrees(return_dict=True).values())
+
+        [
+            (g.count_edges(), largest_degree(g), g.transitivity())
+            for g in (sparse, dense)
+        ]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        sparse.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        dense.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
