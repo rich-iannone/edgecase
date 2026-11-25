@@ -81024,6 +81024,9 @@ class Graph:
         metro.plot(layout="pos", highlight=new_track, label_by="label")
         ```
 
+        [Connectivity and flows](../user-guide/connectivity.qmd#strengthening-a-network) finds the
+        one friendship that would leave the karate club without a bridge.
+
         Notes
         -----
         For `k = 2` with `avail=`, NetworkX uses an approximation based on minimum branchings,
