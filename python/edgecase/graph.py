@@ -5321,6 +5321,14 @@ class Graph:
             `height=`, `node_size=`, `edge_width=`, `node_overlap=`, `show_labels=`, `output=` and
             `seed=` (as in `plot_traversal()`), and returns a `StepPlayer`.
 
+        See Also
+        --------
+        plot_traversal : Step through a BFS or DFS one node at a time.
+        play : Replay the graph's step log as an animation.
+        steps : The graph's own log of operations.
+        trav_out : Move the selection along outgoing edges.
+        select_nodes : Select nodes that pass a test.
+
         Examples
         --------
         Record a short chain on a directed path: select "A", move to its out-neighbor, then
@@ -5359,7 +5367,10 @@ class Graph:
         )
 
         [
-            (step["op_display"], sorted(graph.get_label_from_id(i) for i in step["ids"]))
+            (
+                step["op_display"],
+                sorted(graph.get_label_from_id(i) for i in step["ids"]),
+            )
             for step in rec.steps
         ]
         ```
@@ -5370,6 +5381,9 @@ class Graph:
         ```{python}
         [graph.get_label_from_id(i) for i in graph.get_selected_node_ids()]
         ```
+
+        [Traversals](../user-guide/traversals.qmd#drawing-a-search) records three steps out of
+        Programming in a graph of course prerequisites and replays them.
         """
         from edgecase.svg_renderer import TraversalRecorder
 
