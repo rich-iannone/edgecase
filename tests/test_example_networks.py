@@ -198,11 +198,59 @@ class TestMetro:
         damaged.delete_node("Riverside")
         cut_off = min(damaged.weakly_connected_components(), key=len)
         assert labels(damaged, cut_off) == ["Docks", "Harbor", "Shipyard"]
+        assert len(metro.weakly_connected_components()) == 1
         for station in closed[1:]:
             damaged.delete_node(station)
         pieces = sorted(damaged.weakly_connected_components(), key=len, reverse=True)
         assert [len(piece) for piece in pieces] == [11, 3, 2]
         assert "Northpark" in labels(damaged, pieces[0])
+
+    def test_every_way_to_the_airport(self):
+        metro = ec.metro()
+        routes = metro.all_simple_paths("Westgate", "Airport")
+        assert len(routes) == 26
+        assert sorted({len(route) - 1 for route in routes}) == list(range(7, 15))
+        used = {frozenset(pair) for route in routes for pair in zip(route, route[1:])}
+        assert len(used) == 22
+        assert metro.count_edges() == 25
+        unused = {
+            tuple(sorted(metro.get_label_from_id(n) for n in pair))
+            for pair in map(frozenset, metro.get_edge_df().select("source", "target").iter_rows())
+            if pair not in used
+        }
+        assert unused == {("Harbor", "Riverside"), ("Docks", "Harbor"), ("Harbor", "Shipyard")}
+
+    def test_layers_from_the_ends_and_from_central(self):
+        metro = ec.metro()
+        nodes = metro.get_node_df()
+        ends = nodes.filter(nodes["degree"] == 1)["id"].to_list()
+        assert labels(metro, ends) == ["Airport", "Docks", "Shipyard"]
+        layers = metro.bfs_layers(ends)
+        assert len(layers) == 7
+        assert labels(metro, layers[-1]) == ["Hillcrest"]
+        from_central = metro.bfs_layers("Central")
+        assert len(from_central) == 5
+        assert labels(metro, from_central[-1]) == ["Airport", "Garden", "Hillcrest"]
+
+    def test_two_closures_split_the_core(self):
+        metro = ec.metro()
+        core = max(metro.biconnected_components(), key=len)
+        assert len(core) == 15
+        assert metro.node_connectivity() == 1
+        assert metro.subgraph(core).node_connectivity() == 2
+        split = metro.subgraph(core)
+        split.delete_node("Old Town").delete_node("Northpark")
+        pieces = sorted(split.weakly_connected_components(), key=len)
+        assert len(pieces) == 2
+        assert labels(split, pieces[0]) == ["Hillcrest", "Mill Lane", "Westgate"]
+
+    def test_backup_routes_to_the_airport(self):
+        metro = ec.metro()
+        routes = metro.k_shortest_paths("Westgate", "Airport", k=4)
+        assert [minutes for _, minutes in routes] == [23.0, 25.0, 26.0, 26.0]
+        assert "Central" in labels(metro, routes[0][0])
+        second = labels(metro, routes[1][0])
+        assert "Riverside" in second and "Central" not in second
 
     def test_one_way_closure(self):
         lines = ec.metro().to_directed()
@@ -277,7 +325,12 @@ class TestPayments:
         assert payments.get_out_degree("Grocer") == 0
 
     def test_reciprocity(self):
-        assert ec.payments().reciprocity() == pytest.approx(4 / 35)
+        payments = ec.payments()
+        assert payments.reciprocity() == pytest.approx(4 / 35)
+        edges = payments.get_edge_df()
+        pairs = set(zip(edges["source"], edges["target"]))
+        mutual = {frozenset(labels(payments, p)) for p in pairs if p[::-1] in pairs}
+        assert mutual == {frozenset({"Dee", "Eve"}), frozenset({"Max", "Nia"})}
 
     def test_strong_components(self):
         payments = ec.payments()
@@ -297,6 +350,41 @@ class TestPayments:
             ["Finn", "Gus", "Hal"],
             ["Ana", "Ben", "Cruz", "Dee", "Eve"],
         ]
+
+    def test_one_payment_lets_money_out_of_finns_ring(self):
+        payments = ec.payments()
+        payments.delete_edge("Gus", "Dee")
+        big = [labels(payments, c) for c in payments.strongly_connected_components() if len(c) > 1]
+        assert sorted(big, key=len) == [
+            ["Max", "Nia"],
+            ["Finn", "Gus", "Hal"],
+            ["Ana", "Ben", "Cruz", "Dee", "Eve"],
+        ]
+        # Ana's payment back to Dee isn't the only way back from the first ring
+        payments = ec.payments()
+        payments.delete_edge("Ana", "Dee")
+        assert max(len(c) for c in payments.strongly_connected_components()) == 8
+
+    def test_following_the_money(self):
+        payments = ec.payments()
+        payments.select_nodes_by_id([payments.get_id_from_label("Dee")])
+        first = payments.trav_out().get_selected_node_ids()
+        second = payments.trav_out().get_selected_node_ids()
+        assert labels(payments, first) == ["Ben", "Cafe", "Eve", "Grocer"]
+        assert labels(payments, second) == ["Cafe", "Cruz", "Dee", "Eve", "Finn", "Grocer"]
+
+        def is_business(node):
+            return payments.get_node(node).attributes["kind"] == "business"
+
+        cruz = payments.get_id_from_label("Cruz")
+        payments.select_nodes_by_id([cruz], set_op="replace").trav_out_until(is_business)
+        assert labels(payments, payments.get_selected_node_ids()) == ["Cafe", "Grocer"]
+        payments.select_nodes_by_id([cruz], set_op="replace").trav_out_until(
+            is_business, add_to_selection=True, exclude_unmatched=False
+        )
+        reached = set(labels(payments, payments.get_selected_node_ids()))
+        assert len(reached) == 14
+        assert reached.isdisjoint({"Acme", "Max", "Nia", "Landlord"})
 
     def test_only_max_pays_the_landlord(self):
         payments = ec.payments()
@@ -400,6 +488,9 @@ class TestCourses:
         }
         assert ("CS101", "CS201") not in kept
         assert ("CS102", "CS201") in kept
+        assert sorted(reduced.get_node_ids()) == sorted(courses.get_node_ids())
+        assert len(courses.all_simple_paths("CS101", "CS460")) == 2
+        assert len(reduced.all_simple_paths("CS101", "CS460")) == 1
 
     def test_two_independent_tracks(self):
         courses = ec.courses()
@@ -963,8 +1054,13 @@ class TestTowns:
         assert self.tour_length(towns, best) == 396
         # the best tour visits each town once
         assert len(best) == 13 and len(set(best)) == 12
-        # greedy doubles back
-        assert len(towns.traveling_salesman(method="greedy")) > 13
+        # greedy doubles back from Dunholt to reach Millbrook, then comes home the way it came
+        greedy = [towns.get_label_from_id(n) for n in towns.traveling_salesman(method="greedy")]
+        assert greedy[greedy.index("Dunholt") :] == [
+            "Dunholt", "Elmwick", "Fenmoor", "Millbrook", "Fenmoor", "Calder", "Bramford", "Ashby",
+        ]  # fmt: skip
+        assert greedy[:3] == ["Ashby", "Bramford", "Calder"]
+        assert towns.get_label_from_id(best[-2]) == "Dunholt"
 
     def test_straight_line_never_overestimates(self):
         for u, v, km in _ROADS:
@@ -1834,6 +1930,26 @@ class TestFoodWeb:
         tops = sorted(labels(web, c) for c in web.attracting_components())
         assert tops == [["Fox"], ["Hawk"], ["Marten"]]
 
+    def test_generations_differ_from_trophic_levels(self):
+        web = ec.food_web()
+        generations = [labels(web, g) for g in web.topological_generations()]
+        assert generations == [
+            ["Bramble", "Clover", "Grass", "Oak"],
+            ["Caterpillar", "Grasshopper", "Rabbit", "Squirrel", "Vole"],
+            ["Frog", "Jay", "Marten", "Shrew", "Weasel"],
+            ["Fox", "Hawk"],
+        ]
+        levels = web.trophic_levels(return_dict=True)
+        assert levels[web.get_id_from_label("Jay")] == pytest.approx(2.5)
+
+    def test_what_each_predator_lives_on(self):
+        web = ec.food_web()
+        hawk, fox = web.ancestors("Hawk"), web.ancestors("Fox")
+        assert (len(hawk), len(fox)) == (8, 7)
+        assert labels(web, set(hawk) & set(fox)) == ["Bramble", "Grass", "Rabbit"]
+        oak = web.get_id_from_label("Oak")
+        assert oak in hawk and oak not in fox
+
     def test_keystone_plant(self):
         web = ec.food_web()
         kinds = dict(zip(web.get_node_df()["label"], web.get_node_df()["kind"]))
@@ -1892,6 +2008,8 @@ class TestControlFlow:
         assert idom["add"] == "sign test"
         assert idom["exit"] == "empty test"
         assert idom["empty test"] == "loop"
+        assert idom["loop"] == "entry"
+        assert "negate" not in idom.values()
 
     def test_dominance_frontiers(self):
         cfg = ec.control_flow()
