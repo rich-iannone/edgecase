@@ -6710,6 +6710,10 @@ class Graph:
 
         The layout needs no seed. It is quick for sparse graphs, but it can crowd nodes that the
         eigenvectors don't tell apart, as in the tight group on the right.
+
+        [Matrices and spectra](../user-guide/spectral.qmd#spectral-layouts) recovers the geometry of
+        a grid from its edges alone, and explains why the layout suits meshes better than social
+        networks.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
