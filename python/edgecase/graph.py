@@ -66794,6 +66794,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         if attr_name is None:
             attr_name = "radiality"
