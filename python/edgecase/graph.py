@@ -16065,15 +16065,23 @@ class Graph:
         ValueError
             If `num_cliques=` is less than `2` or `clique_size=` is less than `3`.
 
+        See Also
+        --------
+        add_caveman_graph : Add the caves as separate complete graphs.
+        add_ring_of_cliques : Join complete cliques in a ring with added edges.
+        add_relaxed_caveman_graph : Rewire cave edges at random with a given probability.
+
         Examples
         --------
-        Four caves of five nodes keep all `4 * 10 = 40` edges, but now form a single connected
-        ring:
+        Four caves of five nodes keep all `4 * 10 = 40` edges of four separate complete graphs,
+        but now form a single connected ring:
 
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_connected_caveman_graph(num_cliques=4, clique_size=5)
+        graph = ec.Graph().add_connected_caveman_graph(
+            num_cliques=4, clique_size=5
+        )
 
         graph.count_edges(), graph.is_connected()
         ```
@@ -16091,6 +16099,36 @@ class Graph:
 
         coverage, graph.modularity("community")
         ```
+
+        ### Rewired or added
+
+        The connected caveman graph on the left, each node colored by its cave, and
+        `add_ring_of_cliques()` with the same caves on the right. The ring of cliques keeps every
+        cave complete and adds the ring edges on top, for four more edges:
+
+        ```{python}
+        ring = ec.Graph().add_ring_of_cliques(num_cliques=4, clique_size=5)
+
+        ring.count_edges()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        ring.plot(
+            color_by="community", show_labels=False,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         if num_cliques < 2:
             raise ValueError("Connected caveman graph needs at least 2 cliques")
