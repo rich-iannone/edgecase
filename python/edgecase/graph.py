@@ -56025,6 +56025,10 @@ class Graph:
         ```{python}
         graph.get_edge_df().select(["source", "target", "weight"])
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-edges) lists it with the other
+        methods that act on selected edges, which fix a dependency graph recorded the wrong way
+        round.
         """
         if not self.is_directed():
             raise ValueError("add_reverse_edges_ws() only works on directed graphs")
