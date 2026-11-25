@@ -76093,6 +76093,9 @@ class Graph:
             label_by="label", height=420,
         )
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#ordering) explains why the order from
+        `topological_sort()` depends on how the graph was built.
         """
         import heapq
 
