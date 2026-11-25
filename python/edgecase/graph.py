@@ -18486,6 +18486,12 @@ class Graph:
             If `n=` or `n_initial=` is negative, `n_initial=` exceeds `n=` (or is `0` while
             `n > 0`), or `p=` or `q=` is outside `0` to `1`.
 
+        See Also
+        --------
+        add_duplication_divergence_graph : Copy nodes without ever joining a copy to its original.
+        add_extended_barabasi_albert_graph : Grow a graph by preferential attachment instead.
+        is_connected : Check whether the copies stayed in one piece.
+
         Examples
         --------
         Growing a triangle to 100 nodes:
@@ -18493,7 +18499,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_partial_duplication_graph(n=100, n_initial=3, p=0.5, q=0.5, seed=2)
+        graph = ec.Graph().add_partial_duplication_graph(
+            n=100, n_initial=3, p=0.5, q=0.5, seed=2
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -18502,10 +18510,51 @@ class Graph:
         connected:
 
         ```{python}
-        joined = ec.Graph().add_partial_duplication_graph(n=100, n_initial=3, p=0.5, q=1, seed=2)
+        joined = ec.Graph().add_partial_duplication_graph(
+            n=100, n_initial=3, p=0.5, q=1, seed=2
+        )
 
         joined.is_connected()
         ```
+
+        ### Copies apart or joined
+
+        Thirty nodes grown from a triangle with `p=0.3`. With `q=0` on the left a copy is never
+        joined to its original, and one that keeps none of its neighbors is left on its own, so
+        the graph falls into many pieces. With `q=1` on the right every copy is joined to its
+        original, and the graph stays in one piece:
+
+        ```{python}
+        def duplicated(q):
+            return ec.Graph().add_partial_duplication_graph(
+                n=30, n_initial=3, p=0.3, q=q, seed=1
+            )
+
+        apart, together = duplicated(0), duplicated(1)
+
+        [
+            (g.count_edges(), g.count_weakly_connected_components())
+            for g in (apart, together)
+        ]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        apart.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        together.plot(
+            show_labels=False, node_size=7,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, n_initial=n_initial)
 
