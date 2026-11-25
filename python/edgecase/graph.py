@@ -49237,7 +49237,10 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G4", "G5"), ("G5", "G6"), ("G6", "G4")]
+            [
+                ("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G4", "G5"),
+                ("G5", "G6"), ("G6", "G4"),
+            ]
         )
         graph.set_node_attrs(
             "pathway",
@@ -49245,7 +49248,9 @@ class Graph:
              4: "signaling", 5: "signaling", 6: "apoptosis"},
         )
 
-        result = graph.subgraph_enrichment(["G1", "G2", "G3"], "pathway", "apoptosis")
+        result = graph.subgraph_enrichment(
+            ["G1", "G2", "G3"], "pathway", "apoptosis"
+        )
         result["fold_enrichment"], result["p_value"]
         ```
 
@@ -49256,7 +49261,9 @@ class Graph:
 
         ```{python}
         proteins = ec.proteins()
-        module = proteins.expand_seed_set(["REP1", "REP2", "REP5", "CYC2"], min_score=0.5)
+        module = proteins.expand_seed_set(
+            ["REP1", "REP2", "REP5", "CYC2"], min_score=0.5
+        )
 
         proteins.plot(
             layout="pos", color_by="pathway", highlight=module, label_by="label"
@@ -49271,7 +49278,9 @@ class Graph:
         import polars as pl
 
         results = proteins.subgraph_enrichment(module, "pathway")
-        pl.DataFrame(list(results.values())).select("value", "k", "K", "fold_enrichment", "p_value")
+        pl.DataFrame(list(results.values())).select(
+            "value", "k", "K", "fold_enrichment", "p_value"
+        )
         ```
 
         [Network biology](../user-guide/network-biology.qmd#growing-a-module-from-seeds) tests a
