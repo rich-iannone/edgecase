@@ -41546,6 +41546,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#triangles) counts the karate
+        club's 45 triangles and the instructor's share of them.
         """
         return self._graph.count_triangles()
 
