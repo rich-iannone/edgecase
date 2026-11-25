@@ -89221,6 +89221,21 @@ class Graph:
         graph.maximum_spanning_tree().get_edges_str_repr(use_labels=True)
         ```
 
+        The tree picked out, each edge labeled by its strength. Only `D`-`A`, the weakest, is
+        left out:
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 2), "C": (2, 1), "D": (1, 0)}
+        pos = {graph.get_id_from_label(v): p for v, p in spots.items()}
+        graph.set_node_attrs("pos", pos)
+        strongest = graph.maximum_spanning_tree()
+
+        graph.plot(
+            layout="pos", highlight_edges=strongest.get_edge_ids(),
+            edge_label_by="weight", label_by="label", height=240,
+        )
+        ```
+
         ### The backbone of a novel
 
         `les_miserables()` links two characters of Victor Hugo's novel when they appear in the
@@ -89245,6 +89260,9 @@ class Graph:
             layout="pos", size_by="degree", label_by="label", height=600
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) compares the
+        spanning-tree methods.
         """
         edge_ids = self._spanning_tree_ids(False, weight_attr, include, exclude)
 
