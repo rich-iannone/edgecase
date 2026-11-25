@@ -1430,6 +1430,12 @@ class Graph:
         ValueError
             If another node already has this label. Nothing is added.
 
+        See Also
+        --------
+        add_nodes : Add many nodes at once.
+        add_edge : Connect two nodes.
+        delete_node : Remove a node and its edges.
+
         Examples
         --------
         Calling `add_node()` with just a label creates an isolated node and returns the graph
@@ -1442,38 +1448,6 @@ class Graph:
         graph.add_node(label="Node1")
 
         graph.get_id_from_label("Node1")
-        ```
-
-        Because `add_node()` returns `self`, a whole graph can be assembled as one chained
-        expression:
-
-        ```{python}
-        graph = (
-            ec.Graph()
-            .add_node(label="Alice")
-            .add_node(label="Bob")
-            .add_node(label="Charlie")
-        )
-
-        graph
-        ```
-
-        Passing `from_node=` or `to_node=` connects the new node to an existing one in the same
-        call, saving a separate `add_edge()` step. The edge list (as source/target labels) shows
-        that `from_node=` makes the new node the source and `to_node=` makes it the target:
-
-        ```{python}
-        graph = (
-            ec.Graph(directed=True)
-            .add_node(label="Alice")
-            .add_node(label="Bob", from_node="Alice")     # edge: Bob -> Alice
-            .add_node(label="Charlie", to_node="Alice")   # edge: Alice -> Charlie
-        )
-
-        [
-            (graph.get_label_from_id(src), graph.get_label_from_id(tgt))
-            for src, tgt in zip(graph.get_edge_df()["source"], graph.get_edge_df()["target"])
-        ]
         ```
 
         `type=` and any other keyword arguments are stored as node attributes, each becoming a
@@ -1489,6 +1463,45 @@ class Graph:
         graph.get_node_df()
         ```
 
+        `from_node=` or `to_node=` connects the new node to an existing one in the same call.
+        `from_node=` makes the new node the source and `to_node=` makes it the target:
+
+        ```{python}
+        graph = (
+            ec.Graph(directed=True)
+            .add_node(label="Alice")
+            .add_node(label="Bob", from_node="Alice")
+            .add_node(label="Charlie", to_node="Alice")
+        )
+
+        graph.get_edges_str_repr(use_labels=True)
+        ```
+
+        ### Opening accounts
+
+        A bank opens accounts one at a time. Each new account gets its kind, and `to_node=` or
+        `from_node=` records its first payment: Acme pays wages to Dee and Eve, Dee pays the
+        Grocer, and Ana pays Dee:
+
+        ```{python}
+        bank = (
+            ec.Graph(directed=True)
+            .add_node(label="Acme", kind="business")
+            .add_node(label="Dee", kind="person", to_node="Acme")
+            .add_node(label="Eve", kind="person", to_node="Acme")
+            .add_node(label="Grocer", kind="business", to_node="Dee")
+            .add_node(label="Ana", kind="person", from_node="Dee")
+        )
+
+        bank.plot(color_by="kind", label_by="label", seed=1)
+        ```
+
+        Every call is a step in the graph's log, so `play()` replays the accounts opening in
+        order, each with its first payment:
+
+        ```{python}
+        bank.play(seed=1)
+        ```
         """
         # Resolve the nodes to connect first, so a missing one raises before anything is added
         from_id = self._resolve_node_id(from_node) if from_node is not None else None
