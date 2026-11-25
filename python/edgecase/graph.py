@@ -41325,6 +41325,9 @@ class Graph:
             color_by="clubs", label_by="label", seed=1, height=480
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#cliques) lists the karate club's 36
+        maximal cliques, and finds the largest of them.
         """
         with self._no_recording():
             cliques = [sorted(c) for c in self.find_cliques()]
