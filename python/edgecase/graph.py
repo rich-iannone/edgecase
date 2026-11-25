@@ -16462,6 +16462,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         if num_cliques < 2:
             raise ValueError("Connected caveman graph needs at least 2 cliques")
