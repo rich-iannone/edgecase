@@ -95357,6 +95357,9 @@ class Graph:
             label_by="label", seed=1,
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#what-the-spectrum-reveals) checks the
+        index against the spectrum.
         """
         from edgecase._core import estrada_index
 
