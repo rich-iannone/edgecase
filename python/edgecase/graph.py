@@ -88745,6 +88745,32 @@ class Graph:
         [graph.get_label_from_id(n) for n in graph.dominating_set()]
         ```
 
+        The sweep's three on the left, and the two that would do on the right. Either way, every
+        node is picked out or next to one that is:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        spots = {"A": (0, 0), "B": (1, 1), "C": (2, 0), "D": (3, 1), "E": (4, 0)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight=graph.dominating_set(), label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        ```{python}
+        graph.plot(
+            layout="pos", highlight=["B", "D"], label_by="label",
+            width=320, height=240, legend=False,
+        )
+        ```
+
+        :::
+
         ### A quick plan for Wi-Fi
 
         `offices()` is the floor plan of a made-up office, with its 20 rooms joined where a door
@@ -88764,6 +88790,9 @@ class Graph:
         ```{python}
         offices.plot(layout="pos", highlight=quick, label_by="label")
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#dominating-sets)
+        compares the simple sweep with a search for a small dominating set.
         """
         from edgecase._core import dominating_set
 
