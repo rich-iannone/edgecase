@@ -82046,6 +82046,10 @@ class Graph:
             width=700, height=360,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) measures how
+        many friendships it would take to separate the karate club's two leaders, and explains why
+        it counts edges unless `capacity=` names an attribute.
         """
         if capacity is not None:
             return self.minimum_cut(source, target, capacity=capacity)[0]
