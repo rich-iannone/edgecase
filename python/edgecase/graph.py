@@ -31533,6 +31533,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges=payday, label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#inspecting-a-selection) lists it with the other
+        methods that report on a selection.
         """
         return self._graph.get_selected_edge_ids()
 
