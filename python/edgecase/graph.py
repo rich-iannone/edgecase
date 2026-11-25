@@ -30769,6 +30769,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#by-structure) compares the selectors that work
+        from a graph's structure.
         """
         self._select(
             "nodes",
