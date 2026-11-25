@@ -95724,6 +95724,9 @@ class Graph:
             color_by="element", label_by="label", edge_label_by="bond", seed=1
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#resistance-distance) explains what resistance
+        distance adds to the shortest-path distance.
         """
         from edgecase._core import kirchhoff_index
 
