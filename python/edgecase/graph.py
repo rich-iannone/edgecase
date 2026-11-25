@@ -69535,6 +69535,9 @@ class Graph:
             metro.shortest_path_length("Westgate", "Airport"),
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#a-search) builds a landmark heuristic for the
+        power grid, which has no coordinates.
         """
         n = self.count_nodes()
         if n == 0:
