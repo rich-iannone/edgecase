@@ -33031,6 +33031,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#from-nodes-to-edges) tags every prerequisite link
+        into two advanced courses.
         """
         self._graph.trav_in_edge()
 
