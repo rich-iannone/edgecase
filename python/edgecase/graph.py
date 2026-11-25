@@ -49880,6 +49880,9 @@ class Graph:
         ```
 
         :::
+
+        [Transforming graphs](../user-guide/transforming.qmd#changing-direction) compares the
+        methods that change edge direction.
         """
         result = Graph._from_rust(self._graph.reverse())
 
