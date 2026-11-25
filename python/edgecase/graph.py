@@ -71897,6 +71897,9 @@ class Graph:
         steps = [(p, c) for p, cs in opens.items() for c in cs]
         courses.plot(highlight=steps, label_by="label", seed=2)
         ```
+
+        [Traversals](../user-guide/traversals.qmd#search-trees-and-edge-orders) lists it with the
+        other methods that expose the parts of a search.
         """
         with self._no_recording():
             edges = self.bfs_edges(source, depth_limit=depth_limit, mode=mode)
