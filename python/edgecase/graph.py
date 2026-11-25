@@ -56565,6 +56565,9 @@ class Graph:
             if payments.get_out_degree(account) == 0
         )
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) lists it with the
+        other one-line summaries of a graph.
         """
         if not self._graph.is_directed:
             raise ValueError("out_degree only available for directed graphs")
