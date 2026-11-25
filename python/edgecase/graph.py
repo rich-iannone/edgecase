@@ -48139,6 +48139,9 @@ class Graph:
         ```{python}
         sorted(int(karate.get_label_from_id(n)) for n in around_0 & around_33)
         ```
+
+        [Communities](../user-guide/communities.qmd#local-communities) grows a community from the
+        karate club's administrator.
         """
         start = self._resolve_node_id(source, auto_create=False)
         nbrs: dict[int, set[int]] = {n: set() for n in self.get_node_ids(limit=None)}
