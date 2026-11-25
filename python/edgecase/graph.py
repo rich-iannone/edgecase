@@ -21712,33 +21712,73 @@ class Graph:
         TypeError
             If a new label is not a string.
 
+        See Also
+        --------
+        get_label_from_id : The label of a node, given its ID.
+        get_id_from_label : The ID of a node, given its label.
+        set_node_attrs : Store other per-node values alongside the labels.
+
         Examples
         --------
-        Rename a couple of nodes by label:
+        A dictionary renames only the nodes it mentions:
 
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph()
-            .add_nodes(["a", "b", "c"])
-            .add_edges([("a", "b"), ("b", "c")])
-            .relabel_nodes({"a": "alpha", "b": "beta"})
-        )
+        graph = ec.Graph.from_edges([("a", "b"), ("b", "c")])
+        graph.relabel_nodes({"a": "alpha", "b": "beta"})
 
         graph.get_edges_str_repr(use_labels=True)
         ```
 
-        A function renames every node at once:
+        A function renames every node at once. All the renames happen together, so two labels can
+        be swapped:
 
         ```{python}
-        graph.relabel_nodes(str.upper).get_node_df().select(["id", "label"])
+        graph.relabel_nodes(str.upper)
+        graph.relabel_nodes({"ALPHA": "BETA", "BETA": "ALPHA"})
+
+        graph.get_edges_str_repr(use_labels=True)
         ```
 
-        Swapping two labels works because all renames happen together:
+        ### Names for the leaders
+
+        Zachary's karate club split in two after a dispute between its instructor (member 0) and
+        its administrator (member 33). Zachary's paper calls them "Mr. Hi" and "John A.", and the
+        dataset numbers them like everyone else. Degrees computed before the rename are keyed by
+        node ID:
 
         ```{python}
-        graph.relabel_nodes({"ALPHA": "BETA", "BETA": "ALPHA"}).get_edges_str_repr(use_labels=True)
+        karate = ec.karate_club()
+        degrees = karate.degrees(return_dict=True)
+
+        karate.relabel_nodes({"0": "Mr. Hi", "33": "John A."})
+        karate.get_node_df().filter(karate.get_node_df()["role"] != "Member")
+        ```
+
+        The IDs didn't change, so those degrees still point at the right people. The member with
+        the most ties is John A.:
+
+        ```{python}
+        karate.get_label_from_id(max(degrees, key=degrees.get))
+        ```
+
+        A rename that would give two nodes the same label is refused, and the graph is left as it
+        was:
+
+        ```{python}
+        try:
+            karate.relabel_nodes({"1": "Mr. Hi"})
+        except ValueError as error:
+            print(error)
+        ```
+
+        The leaders are in the accent color, under their new names:
+
+        ```{python}
+        karate.plot(
+            highlight={"accent": ["Mr. Hi", "John A."]}, label_by="label", seed=4
+        )
         ```
         """
         if callable(mapping) and not isinstance(mapping, dict):
