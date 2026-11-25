@@ -34320,6 +34320,9 @@ class Graph:
         types = graph.get_node_attrs("type")
         {graph.get_label_from_id(v): t for v, t in types.items()}
         ```
+
+        [Node and edge data](../user-guide/node-and-edge-data.qmd#reading-attributes) reads node and
+        edge attributes for some of the nodes or edges.
         """
 
         if nodes is None:
