@@ -54651,7 +54651,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")])
+        path = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("C", "D"), ("D", "E")]
+        )
 
         (
             path.network_smooth({"A": 1.0})
@@ -54672,7 +54674,9 @@ class Graph:
         import polars as pl
 
         proteins = ec.proteins()
-        proteins.network_smooth(proteins.get_node_attrs("expression"), attr_name="smoothed")
+        proteins.network_smooth(
+            proteins.get_node_attrs("expression"), attr_name="smoothed"
+        )
 
         (
             proteins.get_node_df()
@@ -54707,12 +54711,13 @@ class Graph:
         expression = proteins.get_node_attrs("expression")
         smoothed = proteins.get_node_attrs("smoothed")
         proteins.set_node_attrs(
-            "moved", {node: smoothed[node] - expression[node] for node in expression}
+            "moved",
+            {node: smoothed[node] - expression[node] for node in expression},
         )
 
         proteins.plot(
-            layout="pos", color_by="moved", color_scale="diverging", color_midpoint=0,
-            label_by="label",
+            layout="pos", color_by="moved", color_scale="diverging",
+            color_midpoint=0, label_by="label",
         )
         ```
 
