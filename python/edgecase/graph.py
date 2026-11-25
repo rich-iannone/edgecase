@@ -59939,6 +59939,9 @@ class Graph:
             .plot(layout="pos", color_by="faction", label_by="label")
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#robustness) compares how the power
+        grid and the Internet fall apart as nodes fail.
         """
         from edgecase._core import percolation_threshold_analysis as rust_pta
 
