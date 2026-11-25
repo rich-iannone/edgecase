@@ -17120,6 +17120,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#community-benchmarks) compares the benchmark
+        generators and the communities each plants.
         """
         sizes = list(sizes)
         if any(size < 0 for size in sizes):
