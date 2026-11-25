@@ -55358,6 +55358,9 @@ class Graph:
         recent = friends.transform_to_subgraph_ws()
         recent.count_nodes(), recent.count_edges()
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-nodes) extracts an ego network
+        from the karate club.
         """
         from edgecase._core import edge_subgraph, subgraph
 
