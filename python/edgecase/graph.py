@@ -7360,6 +7360,9 @@ class Graph:
         :::
 
         The result depends on `seed=`. `max_iter=` trades time for a more settled layout.
+
+        [Layouts](../user-guide/layouts.qmd#force-directed-layouts) compares the four force-directed
+        layouts on the dolphin network, and shows how `linlog=True` separates its communities.
         """
         scale, center = self._layout_frame(scale, center)
         use_w = self._use_weights(weighted)
