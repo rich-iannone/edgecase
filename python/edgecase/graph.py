@@ -12622,6 +12622,12 @@ class Graph:
             If `n=` or `k=` is negative, `k=` is greater than `n=`, or `p=` is not between `0`
             and `1`.
 
+        See Also
+        --------
+        add_smallworld_graph : Rewire the lattice edges instead of adding shortcuts.
+        add_connected_watts_strogatz_graph : Rewire the lattice, redrawing until connected.
+        diameter : Measure the longest shortest path.
+
         Examples
         --------
         The lattice of `30` nodes with `k=4` has `30 * 2 = 60` edges, and the shortcuts come on
@@ -12630,7 +12636,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_newman_watts_strogatz_graph(n=30, k=4, p=0.2, seed=3)
+        graph = ec.Graph().add_newman_watts_strogatz_graph(
+            n=30, k=4, p=0.2, seed=3
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -12648,6 +12656,38 @@ class Graph:
             for p in (0.0, 0.05, 0.2, 0.5)
         ]
         ```
+
+        ### The lattice and the shortcuts
+
+        The ring lattice with `p=0.0` on the left and the graph above on the right, with the
+        nodes in order around the circle. Every lattice edge is still there on the right, and
+        the `8` shortcuts across the ring cut the diameter from `8` to `5`:
+
+        ```{python}
+        lattice = ec.Graph().add_newman_watts_strogatz_graph(
+            n=30, k=4, p=0.0, seed=3
+        )
+
+        lattice.diameter(), graph.diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        lattice.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=6,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, node_size=6,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, k=k)
 
