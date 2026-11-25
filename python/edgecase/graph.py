@@ -23082,6 +23082,9 @@ class Graph:
 
         n, pairs, karate.count_edges() / pairs, karate.density()
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) lists the methods
+        that give a graph's summary values one at a time.
         """
         return self._graph.num_nodes()
 
