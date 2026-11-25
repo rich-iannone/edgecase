@@ -21367,6 +21367,12 @@ class Graph:
             List of edge IDs, containing at most `limit=` entries. Empty if the graph has no
             edges.
 
+        See Also
+        --------
+        get_node_ids : List the node IDs instead.
+        find_edge_ids : Find the IDs of the edges between two nodes.
+        get_edges_as_tuples : List each edge ID with its endpoints.
+
         Examples
         --------
         Like `get_node_ids()`, this returns up to `1000` edge IDs by default:
