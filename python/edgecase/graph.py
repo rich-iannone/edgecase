@@ -74791,6 +74791,40 @@ class Graph:
             label_by="label", height=360,
         )
         ```
+
+        ### Where paths merge in a function
+
+        `control_flow()` is the control flow graph of a short function, with a node for each
+        basic block of code and an edge for each possible jump. The frontier of `negate` is
+        `add`, where the paths with and without `x = -x` meet again: the place a compiler in SSA
+        form puts a φ-function for `x`. The two ways out of the loop meet at `empty test`, and
+        the frontier of `loop` is `loop` itself, the sign of a loop header:
+
+        ```{python}
+        cfg = ec.control_flow()
+        label = cfg.get_label_from_id
+        frontiers = cfg.dominance_frontiers("entry")
+
+        {
+            b: sorted(label(m) for m in frontiers[cfg.get_id_from_label(b)])
+            for b in ["negate", "break", "loop"]
+        }
+        ```
+
+        `negate` is drawn in full and its frontier pale:
+
+        ```{python}
+        negate = cfg.get_id_from_label("negate")
+
+        cfg.plot(
+            layout="pos",
+            highlight={"accent": {negate}, "soft": frontiers[negate]},
+            label_by="label", edge_label_by="branch",
+        )
+        ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#dominators) finds the dominator tree of a
+        loop's control flow.
         """
         sid = self._resolve_node_id(source, auto_create=False)
         _, fronts = rust.dominators(self._graph, sid)
