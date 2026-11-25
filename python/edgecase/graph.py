@@ -95608,6 +95608,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#resistance-distance) explains what resistance
+        distance adds to the shortest-path distance.
         """
         from edgecase._core import resistance_distance_matrix
 
