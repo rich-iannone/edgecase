@@ -62818,8 +62818,33 @@ class Graph:
         courses.plot(layout="pos", color_by="reach", label_by="label")
         ```
 
+        ### Plants that feed the most
+
+        In `food_web()`, each edge points from a food to a species that eats it, so a species'
+        local reaching centrality is the share of the other species its energy reaches. The four
+        plants lead, and the Grass and the Oak each feed 7 of the other 15 species, directly or
+        through what eats them:
+
+        ```{python}
+        web = ec.food_web().local_reaching_centrality(attr_name="reach")
+
+        (
+            web.get_node_df()
+            .select("label", "kind", "reach")
+            .sort("reach", descending=True)
+            .head(4)
+        )
+        ```
+
+        ```{python}
+        web.plot(layout="pos", color_by="reach", label_by="label", height=360)
+        ```
+
         Summing up how far every node falls short of the top score gives
         `global_reaching_centrality()`.
+
+        [Centrality](../user-guide/centrality.qmd#more-measures) sets it beside the other centrality
+        measures, with what each one measures.
         """
         scores = rust.local_reaching_centrality(
             self._graph, weighted=self._use_weights(weighted), normalized=normalized
