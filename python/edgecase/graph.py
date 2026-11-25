@@ -12183,6 +12183,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#the-classic-models) shows how a little
+        rewiring shortens paths while leaving the clustering intact.
         """
         self._check_non_negative(n=n, k=k)
         with self._compound("add_smallworld_graph", f"G.add_smallworld_graph(n={n}, k={k}, p={p})"):
