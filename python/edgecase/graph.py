@@ -4471,6 +4471,9 @@ class Graph:
         )
         widget
         ```
+
+        [Interactive widgets](../user-guide/interactive.qmd#large-graphs-with-plot_cosmo) draws the
+        power grid on the GPU, and explains what its four mapping arguments name.
         """
         from edgecase.viz import plot_cosmo
 
