@@ -19070,6 +19070,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#graphs-from-data) turns a time series into a
+        graph, and finds the point that sees every other.
         """
         from edgecase._core import visibility_edges as _edges
 
