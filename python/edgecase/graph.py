@@ -52085,6 +52085,9 @@ class Graph:
 
         sun.count_nodes(), sun.count_edges()
         ```
+
+        [Transforming graphs](../user-guide/transforming.qmd#products) compares the graph products
+        and the pairs each one links.
         """
         return self._product(other, "corona", "corona_product")
 
