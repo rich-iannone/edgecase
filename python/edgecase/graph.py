@@ -68312,6 +68312,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#everything-upstream-and-downstream) compares the
+        ways of asking what a node can reach.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         target_id = self._resolve_node_id(target, auto_create=False)
