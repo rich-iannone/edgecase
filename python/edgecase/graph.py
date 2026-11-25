@@ -21651,26 +21651,89 @@ class Graph:
         Uses the same search as `is_isomorphic()` (color refinement followed by a VF2++ style
         backtracking search) and stops at the first complete correspondence.
 
+        See Also
+        --------
+        is_isomorphic : Decide isomorphism without building the correspondence.
+        subgraph_isomorphisms : List every correspondence, or the occurrences of a pattern.
+        canonical_labeling : Number the nodes so that isomorphic graphs become identical.
+
         Examples
         --------
-        The same three-step workflow, exported twice with different names:
+        The same three-step workflow, exported twice with different names. The mapping pairs
+        each step of the first with its counterpart in the second:
 
         ```{python}
         import edgecase as ec
 
-        a = ec.Graph(directed=True).add_nodes(["fetch", "build", "test"])
-        a.add_edges([("fetch", "build"), ("build", "test"), ("fetch", "test")])
-        b = ec.Graph(directed=True).add_nodes(["s1", "s2", "s3"])
-        b.add_edges([("s2", "s3"), ("s1", "s3"), ("s1", "s2")])
+        a = ec.Graph.from_edges(
+            [("fetch", "build"), ("build", "test"), ("fetch", "test")], directed=True
+        )
+        b = ec.Graph.from_edges([("s2", "s3"), ("s1", "s3"), ("s1", "s2")], directed=True)
 
         mapping = a.find_isomorphism(b)
         {a.get_label_from_id(k): b.get_label_from_id(v) for k, v in mapping.items()}
         ```
 
-        Graphs with different structure have no correspondence:
+        ### Two numberings of caffeine
+
+        `molecules()["caffeine"]` numbers the atoms of each element in turn. Chemists number the
+        ring atoms of caffeine 1 to 9 by the scheme for purines, which is where its name,
+        1,3,7-trimethylxanthine, comes from. Here is the same molecule written that way, with the
+        two oxygens and three methyl carbons numbered after the rings:
 
         ```{python}
-        a.find_isomorphism(ec.Graph(directed=True).add_path_graph(3)) is None
+        import polars as pl
+
+        caffeine = ec.molecules()["caffeine"]
+        purine = ec.Graph.from_edges(
+            [("N1", "C2"), ("C2", "N3"), ("N3", "C4"), ("C4", "C5"), ("C5", "C6"), ("C6", "N1"),
+             ("C4", "N9"), ("N9", "C8"), ("C8", "N7"), ("N7", "C5"),
+             ("C2", "O10"), ("C6", "O11"), ("N1", "C12"), ("N3", "C13"), ("N7", "C14")]
+        )
+        purine.set_node_attrs("element", {atom: atom[0] for atom in purine.get_node_df()["label"]})
+
+        mapping = caffeine.find_isomorphism(purine, node_attr="element")
+        pl.DataFrame(
+            {
+                "caffeine": [caffeine.get_label_from_id(k) for k in mapping],
+                "purine": [purine.get_label_from_id(v) for v in mapping.values()],
+            }
+        )
+        ```
+
+        The three nitrogens with methyl groups, N1, N3 and N4 here, are N7, N1 and N3 in the
+        purine scheme. Caffeine has no symmetry, so this is the only mapping. Side by side, each
+        atom keeps its bonds under its new name: the methyl carbon C1 on N1 is C14 on N7:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        caffeine.plot(
+            color_by="element", label_by="label", legend=False, seed=1, width=360, height=360
+        )
+        ```
+
+        ```{python}
+        purine.plot(
+            color_by="element", label_by="label", legend=False, seed=4, width=360, height=360
+        )
+        ```
+
+        :::
+
+        Without `node_attr=`, only the shape has to match. Ethanol (C–C–O) and dimethyl ether
+        (C–O–C) are both three atoms in a row, so a mapping exists, but it puts an oxygen on a
+        carbon. Matching elements, there is none:
+
+        ```{python}
+        molecules = ec.molecules()
+        ethanol, ether = molecules["ethanol"], molecules["dimethyl_ether"]
+
+        mapping = ethanol.find_isomorphism(ether)
+        (
+            {ethanol.get_label_from_id(k): ether.get_label_from_id(v) for k, v in mapping.items()},
+            ethanol.find_isomorphism(ether, node_attr="element"),
+        )
         ```
         """
         if self.is_directed() != other.is_directed():
