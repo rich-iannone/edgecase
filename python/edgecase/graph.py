@@ -25390,58 +25390,63 @@ class Graph:
         compilers. The undirected analogue is `is_tree()`; in graph-theory literature this
         object is also called a directed rooted tree or an out-tree.
 
+        See Also
+        --------
+        is_branching : Whether the graph is a set of disjoint arborescences.
+        is_tree : The undirected version of an arborescence.
+        is_dag : Whether the graph has no directed cycles.
+
         Examples
         --------
-        A directed tree growing outward from one root -- where every non-root node has
-        exactly one incoming edge -- is an arborescence:
+        A directed tree growing outward from one root, where every other node has exactly one
+        incoming edge, is an arborescence. Two roots pointing into the same node give it in-degree
+        `2`, and a directed cycle has no root at all:
 
         ```{python}
         import edgecase as ec
 
-        arb = (
-            ec.Graph(directed=True)
-            .add_nodes(["root", "A", "B", "C"])
-            .add_edges([("root", "A"), ("root", "B"), ("A", "C")])
-        )
+        def tree(edges):
+            return ec.Graph.from_edges(edges, directed=True).is_arborescence()
 
-        arb.is_arborescence()
+
+        (
+            tree([("root", "A"), ("root", "B"), ("A", "C")]),
+            tree([("root1", "A"), ("root2", "A")]),
+            tree([("A", "B"), ("B", "C"), ("C", "A")]),
+        )
         ```
 
-        Two separate roots both pointing into the same node give it in-degree `2`, which
-        violates the "exactly one incoming edge" rule:
+        ### Two managers
+
+        In a company's reporting lines, each edge runs from a manager to someone who reports to
+        them. Everyone but the chief executive has one manager, so the chart is an arborescence
+        rooted at her. If Ada, an accountant, also reports to Jonas, the technology chief, she has
+        two managers and the chart stops being an arborescence, though it still has no cycles:
 
         ```{python}
-        multi_root = (
-            ec.Graph(directed=True)
-            .add_nodes(["root1", "root2", "A"])
-            .add_edges([("root1", "A"), ("root2", "A")])
-        )
+        org = ec.org_chart()
+        dual = ec.org_chart().add_edge("Jonas", "Ada")
 
-        multi_root.is_arborescence()
+        (
+            org.is_arborescence(),
+            dual.is_arborescence(),
+            dual.get_in_degree("Ada"),
+            dual.is_dag(),
+        )
         ```
 
-        A directed cycle has no root at all, since every node has in-degree exactly `1`:
+        Ada's two reporting lines are highlighted:
 
         ```{python}
-        cycle = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C"), ("C", "A")])
+        dual.plot(
+            layout="pos",
+            highlight={"accent": ["Ada"], "soft": ["Hiro", "Jonas"]},
+            highlight_edges=[("Hiro", "Ada"), ("Jonas", "Ada")],
+            label_by="label",
+            width=820,
+            height=640,
         )
-
-        cycle.is_arborescence()
         ```
-
-        Generated trees built with a single directed root, like `add_balanced_tree()`, are
-        arborescences by construction:
-
-        ```{python}
-        tree = ec.Graph(directed=True)
-        tree.add_balanced_tree(k=2, h=3)
-
-        tree.is_arborescence()
-        ```
-
         """
         return self._graph.is_arborescence()
 
