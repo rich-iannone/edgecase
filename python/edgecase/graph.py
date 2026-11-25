@@ -57729,6 +57729,9 @@ class Graph:
 
         books.plot(layout="pos", color_by="leaning", highlight=picks.to_list())
         ```
+
+        [Network biology](../user-guide/network-biology.qmd#random-walk-with-restart) ranks
+        candidate disease genes from six known ones, and explains the degree bias that favors hubs.
         """
         result_ids = rust.random_walk_with_restart(
             self._graph,
