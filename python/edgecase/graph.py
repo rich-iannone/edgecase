@@ -74647,6 +74647,43 @@ class Graph:
         )
         tree.plot(label_by="label", seed=2, height=420)
         ```
+
+        ### Blocks every run goes through
+
+        `control_flow()` is the control flow graph of a short function, with a node for each
+        basic block of code and an edge for each possible jump. Every path from `entry` to `add`
+        goes through `sign test`, whichever way the test goes, so `sign test` is the immediate
+        dominator of `add`. `negate` only runs for negative values, so it dominates no other
+        block:
+
+        ```{python}
+        cfg = ec.control_flow()
+        label = cfg.get_label_from_id
+        boss = cfg.immediate_dominators("entry")
+
+        {
+            label(n): label(d)
+            for n, d in boss.items() if label(n) in ["add", "exit"]
+        }
+        ```
+
+        Following the immediate dominators up from `exit` gives the blocks that every run of the
+        function goes through. None of the loop body is among them, since the loop can end
+        before it runs:
+
+        ```{python}
+        chain = [cfg.get_id_from_label("exit")]
+        while boss[chain[-1]] != chain[-1]:
+            chain.append(boss[chain[-1]])
+
+        cfg.plot(
+            layout="pos", highlight=set(chain), label_by="label",
+            edge_label_by="branch",
+        )
+        ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#dominators) finds the dominator tree of a
+        loop's control flow.
         """
         sid = self._resolve_node_id(source, auto_create=False)
         idoms, _ = rust.dominators(self._graph, sid)
