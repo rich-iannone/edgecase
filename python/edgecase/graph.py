@@ -49419,13 +49419,20 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G1", "G4"), ("G2", "G4"),
-             ("G4", "G5"),
-             ("G5", "G6"), ("G6", "G7"), ("G7", "G8"), ("G8", "G5"), ("G5", "G7"), ("G6", "G8")]
+            [
+                ("G1", "G2"), ("G2", "G3"), ("G3", "G1"), ("G1", "G4"),
+                ("G2", "G4"), ("G4", "G5"), ("G5", "G6"), ("G6", "G7"),
+                ("G7", "G8"), ("G8", "G5"), ("G5", "G7"), ("G6", "G8"),
+            ]
         )
-        graph.set_node_attrs("gene_set", {1: "X", 2: "X", 3: "X", 6: "Y", 7: "Y", 8: "Y"})
+        graph.set_node_attrs(
+            "gene_set", {1: "X", 2: "X", 3: "X", 6: "Y", 7: "Y", 8: "Y"}
+        )
 
-        modules = {"G1": 0, "G2": 0, "G3": 0, "G4": 0, "G5": 1, "G6": 1, "G7": 1, "G8": 1}
+        modules = {
+            "G1": 0, "G2": 0, "G3": 0, "G4": 0, "G5": 1, "G6": 1, "G7": 1,
+            "G8": 1,
+        }
         results = graph.module_annotation_enrichment(modules, "gene_set")
 
         results[0]["X"]["p_value"], results[0]["X"]["p_adjusted"]
