@@ -35430,6 +35430,9 @@ class Graph:
         ```{python}
         karate.plot_vis(width=600, height=420, static=True)
         ```
+
+        [Aesthetics](../user-guide/aesthetics.qmd#visual-attributes-for-the-interactive-views)
+        explains why the interactive views need stored colors, and why `plot()` ignores them.
         """
         from edgecase.colors import get_palette
 
