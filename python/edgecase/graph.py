@@ -70138,6 +70138,9 @@ class Graph:
         steps = [step for route in ties[pair] for step in zip(route, route[1:])]
         metro.plot(layout="pos", highlight=steps, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) compares the methods that
+        measure between every pair of nodes.
         """
         with self._no_recording():
             result = {
