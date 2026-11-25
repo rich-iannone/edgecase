@@ -49198,58 +49198,105 @@ class Graph:
         community-level analysis, hierarchical coarsening, and the algebraic view of graph
         homomorphisms.
 
+        See Also
+        --------
+        contract_nodes_multi : Collapse one group and keep the rest of the graph.
+        cmty_louvain : Find communities to use as the partition.
+        subgraph : Keep one block and drop the rest.
+
         Examples
         --------
-        Splitting a six-node path into two halves gives a quotient with two nodes, joined by a
-        single edge that comes from the original edge `3-4`:
+        Splitting a six-node path into two halves gives a quotient with two nodes, joined by the
+        single edge `3 -- 4` that runs between the halves:
 
         ```{python}
         import edgecase as ec
 
-        g = ec.Graph(directed=False)
-        g.add_path_graph(6)  # 1 -- 2 -- 3 -- 4 -- 5 -- 6
+        path = ec.Graph.from_edges([(1, 2), (2, 3), (3, 4), (4, 5), (5, 6)])
+        halves = path.quotient_graph([[1, 2, 3], [4, 5, 6]])
 
-        # Partition: {1,2,3} and {4,5,6}
-        partition = [[1, 2, 3], [4, 5, 6]]
-        quotient = g.quotient_graph(partition)
-
-        quotient.count_nodes(), quotient.count_edges()
+        halves.count_nodes(), halves.count_edges()
         ```
 
-        Labels work too. Here three groups are joined by several original edges, but each pair
-        of groups gets only one quotient edge, labelled by block:
+        Each pair of blocks gets one quotient edge however many edges run between them. Here
+        "A", "B", "C" and "D", "E" are joined by two edges, and the quotient has one:
 
         ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D", "E", "F"])
-        g.add_edges([("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"), ("B", "D"),
-                     ("D", "E"), ("E", "F"), ("C", "F")])
+        g = ec.Graph.from_edges(
+            [
+                ("A", "B"), ("B", "C"), ("C", "A"), ("C", "D"),
+                ("B", "D"), ("D", "E"), ("C", "F"),
+            ]
+        )
 
-        quotient = g.quotient_graph([["A", "B", "C"], ["D", "E"], ["F"]])
-        quotient.get_edges_str_repr(use_labels=True)
+        blocks = g.quotient_graph([["A", "B", "C"], ["D", "E"], ["F"]])
+        blocks.get_edges_str_repr(use_labels=True)
         ```
 
-        A typical workflow builds the partition from community detection. Grouping the
-        `cmty_louvain()` output by community ID yields one block per community, and the quotient
-        shows how the communities connect:
+        ### The club's communities, zoomed out
+
+        The karate club split into two factions, and only 10 of its 78 friendships crossed
+        between them. The quotient by faction is just two nodes and an edge, so a finer partition
+        says more. Louvain finds four communities:
 
         ```{python}
-        from collections import defaultdict
+        from collections import Counter
 
-        g = ec.Graph(directed=False)
-        g.add_path_graph(20)
+        karate = ec.karate_club()
+        membership = karate.cmty_louvain(return_dict=True)
 
-        membership = g.cmty_louvain(return_dict=True)
+        partition = [
+            [node for node, c in membership.items() if c == community]
+            for community in sorted(set(membership.values()))
+        ]
+        [len(block) for block in partition]
+        ```
 
-        communities = defaultdict(list)
-        for node, comm in membership.items():
-            communities[comm].append(node)
-        partition = list(communities.values())
+        ```{python}
+        karate.set_node_attrs("community", membership)
+        karate.plot(color_by="community", label_by="label", seed=2)
+        ```
 
-        quotient = g.quotient_graph(partition)
+        The quotient has one node per community. It doesn't count the friendships between two
+        communities, so count them from the original edges and store them on the quotient's edges:
 
-        # Number of communities and of community-to-community links
-        quotient.count_nodes(), quotient.count_edges()
+        ```{python}
+        summary = karate.quotient_graph(partition)
+
+        block = {
+            node: i + 1 for i, members in enumerate(partition) for node in members
+        }
+        crossing = Counter(
+            frozenset((block[u], block[v]))
+            for _, u, v in karate.get_edges_as_tuples()
+            if block[u] != block[v]
+        )
+        ties = {
+            e: crossing[frozenset((u, v))]
+            for e, u, v in summary.get_edges_as_tuples()
+        }
+        summary.set_edge_attrs("ties", ties)
+        sizes = {i + 1: len(members) for i, members in enumerate(partition)}
+        summary.set_node_attrs("size", sizes)
+        summary.set_node_attrs("community", {i + 1: i for i in range(len(sizes))})
+
+        summary.get_edge_df().select("source", "target", "ties")
+        ```
+
+        Of the 78 friendships, 21 run between communities. Each community keeps its color, and its
+        size is the number of members. The instructor's community, `block_0`,
+        is tied to all three others, and the administrator's, `block_2`, to two. The five members
+        of `block_1` have no friends outside their community except in the instructor's:
+
+        ```{python}
+        summary.plot(
+            color_by="community",
+            size_by="size",
+            edge_label_by="ties",
+            edge_width_by="ties",
+            label_by="label",
+            seed=1,
+        )
         ```
         """
         from edgecase._core import quotient_graph as _quotient_graph
