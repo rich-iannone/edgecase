@@ -85857,11 +85857,17 @@ class Graph:
         ```
 
         ```{python}
+        from itertools import combinations
+
         exams.set_node_attrs("slot", dsatur).plot(
-            color_by="slot", highlight=clique, label_by="label", seed=3,
-            height=420,
+            color_by="slot", highlight=list(combinations(clique, 2)),
+            label_by="label", seed=3, height=420,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#how-good-is-a-coloring) compares the upper
+        bound with a lower bound from cliques, and shows a graph where they differ.
         """
         if coloring is None:
             coloring = self.greedy_color()
