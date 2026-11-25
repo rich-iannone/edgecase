@@ -64510,6 +64510,9 @@ class Graph:
         ```
 
         To give some nodes a higher baseline than others, pass `beta=` as a dictionary.
+
+        [Centrality](../user-guide/centrality.qmd#spectral-centrality) explains when the calculation
+        converges, and how to choose `alpha=`.
         """
         # Expand beta to a baseline for every node: a scalar applies to all of them, a dict
         # (keyed by node ID or label) must give one for each node
