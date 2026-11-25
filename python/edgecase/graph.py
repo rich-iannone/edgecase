@@ -77591,6 +77591,9 @@ class Graph:
             label_by="label", edge_label_by="bridge",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#every-simple-path) compares the methods that
+        list every path between two nodes.
         """
         # Convert string node IDs to internal IDs
         source_id = self._resolve_node_id(source)
