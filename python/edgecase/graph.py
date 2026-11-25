@@ -33889,6 +33889,9 @@ class Graph:
 
         graph.get_node_attrs("category")
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-nodes) tags the karate club's
+        two leaders and scales down their PageRank.
         """
         selected = self.get_selected_node_ids()
 
