@@ -1132,6 +1132,7 @@ fn _core(m: &Bound<'_, PyModule>) -> PyResult<()> {
     m.add_function(wrap_pyfunction!(layout::algorithms::arf_layout, m)?)?;
     m.add_function(wrap_pyfunction!(layout::routing::route_edges, m)?)?;
     m.add_function(wrap_pyfunction!(layout::overlap::remove_overlaps, m)?)?;
+    m.add_function(wrap_pyfunction!(layout::packing::shelve_pieces, m)?)?;
 
     Ok(())
 }
