@@ -67821,6 +67821,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight=route, label_by="label")
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#choosing-an-algorithm) compares the
+        shortest-path algorithms and when to use each.
         """
         # Check if we should reuse existing planner
         planner_key = (source, target, weight_attr)
