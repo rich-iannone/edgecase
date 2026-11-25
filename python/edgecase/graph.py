@@ -54471,7 +54471,10 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D"), ("E", "F"), ("F", "G")]
+            [
+                ("Hub", "A"), ("Hub", "B"), ("Hub", "C"), ("Hub", "D"),
+                ("E", "F"), ("F", "G"),
+            ]
         )
 
         seeds = graph.influence_maximization(
@@ -54495,7 +54498,10 @@ class Graph:
             k=4, probability=0.2, n_simulations=500, seed=1, return_dict=True
         )
 
-        [(friends.get_label_from_id(node), round(gain, 2)) for node, gain in seeds]
+        [
+            (friends.get_label_from_id(node), round(gain, 2))
+            for node, gain in seeds
+        ]
         ```
 
         Drawn by circle, with the chosen four in their circle's color:
@@ -54503,7 +54509,9 @@ class Graph:
         ```{python}
         chosen = [node for node, gain in seeds]
 
-        friends.plot(color_by="circle", highlight=chosen, label_by="label", seed=1)
+        friends.plot(
+            color_by="circle", highlight=chosen, label_by="label", seed=1
+        )
         ```
 
         The five people with the most friends, five each, would be a worse choice: Tara, Oona
@@ -54511,11 +54519,14 @@ class Graph:
         telling the others:
 
         ```{python}
-        popular = (
-            friends.get_node_df().filter(pl.col("degree") == pl.col("degree").max())["label"]
-        )
+        popular = friends.get_node_df().filter(
+            pl.col("degree") == pl.col("degree").max()
+        )["label"]
 
-        friends.plot(color_by="circle", highlight=popular.to_list(), label_by="label", seed=1)
+        friends.plot(
+            color_by="circle", highlight=popular.to_list(), label_by="label",
+            seed=1,
+        )
         ```
 
         [Spreading](../user-guide/spreading.qmd#influential-spreaders) compares the greedy seeds
