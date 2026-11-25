@@ -18026,6 +18026,12 @@ class Graph:
         ValueError
             If `n=` is negative.
 
+        See Also
+        --------
+        add_gnp_graph : Join every pair with the same chance, the constant kernel.
+        expected_degree_graph : Give each node an expected degree, a rank-1 kernel.
+        add_random_partition_graph : Use a different chance within and between groups.
+
         Examples
         --------
         The constant kernel $\kappa = 5$ has integral `5 * (z - w)`, and gives a sparse
@@ -18038,7 +18044,7 @@ class Graph:
             n=400, kernel_integral=lambda u, w, z: 5 * (z - w), seed=4
         )
 
-        graph.count_nodes(), round(2 * graph.count_edges() / graph.count_nodes(), 1)
+        graph.count_nodes(), round(graph.average_degree(), 1)
         ```
 
         Passing the inverse avoids the numerical root finding:
@@ -18059,12 +18065,58 @@ class Graph:
 
         ```{python}
         hubs = ec.Graph().add_random_kernel_graph(
-            n=400, kernel_integral=lambda u, w, z: 2 * (z**0.5 - w**0.5) / u**0.5, seed=4
+            n=400,
+            kernel_integral=lambda u, w, z: 2 * (z**0.5 - w**0.5) / u**0.5,
+            seed=4,
         )
         degrees = [hubs.get_degree(v) for v in sorted(hubs.get_node_ids())]
 
         degrees[:5], degrees[-5:]
         ```
+
+        ### Even or skewed
+
+        Sixty nodes each, sized by degree, and both kernels scaled to a mean degree of `3`. The
+        constant kernel $\kappa = 3$ on the left spreads the edges evenly, and no node has more
+        than `7`. The rank-1 kernel $\kappa = 0.75 / \sqrt{xy}$ on the right gives most of them to
+        a few hubs, with a largest degree of `11`, and leaves more nodes stranded:
+
+        ```{python}
+        def kernel_graph(integral):
+            return ec.Graph().add_random_kernel_graph(
+                n=60, kernel_integral=integral, seed=1
+            )
+
+        even = kernel_graph(lambda u, w, z: 3 * (z - w))
+        skewed = kernel_graph(lambda u, w, z: 1.5 * (z**0.5 - w**0.5) / u**0.5)
+
+        def largest_degree(g):
+            return max(g.degrees(return_dict=True).values())
+
+        def profile(g):
+            pieces = g.count_weakly_connected_components()
+            return g.count_edges(), largest_degree(g), pieces
+
+        profile(even), profile(skewed)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        even.plot(
+            size_by="degree", show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        ```{python}
+        skewed.plot(
+            size_by="degree", show_labels=False, node_size=6,
+            width=320, height=320, legend=False, seed=1,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n)
 
