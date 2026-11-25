@@ -92122,6 +92122,9 @@ class Graph:
         # Returns {'B': 2, 'C': 1}
         {rxn.get_label_from_id(v): n for v, n in sorted(autocatalytic.items())}
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#parallel-edges-and-self-loops) counts the
+        parallel edges and self-loops of a payments graph, and names the methods that remove them.
         """
         return self._graph.count_loops()
 
