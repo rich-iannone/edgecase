@@ -91168,6 +91168,9 @@ class Graph:
             node_size=6, edge_width=8, edge_opacity=1, width=500, height=500,
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) compares the
+        spanning-tree methods.
         """
         use = self._use_weights(weighted)
         if use and not multiplicative:
