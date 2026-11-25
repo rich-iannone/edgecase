@@ -27143,31 +27143,32 @@ class Graph:
         import edgecase as ec
 
         graph = ec.Graph.from_edges(
-            [("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")], directed=True
+            [("x", "y"), ("y", "z"), ("x", "z"), ("z", "w"), ("y", "w")],
+            directed=True,
         )
-        loop = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("A", "C")], directed=True)
+        loop = ec.Graph.from_edges(
+            [("A", "B"), ("B", "C"), ("A", "C")], directed=True
+        )
 
         [
-            {loop.get_label_from_id(p): graph.get_label_from_id(t) for p, t in m.items()}
+            {loop.get_label_from_id(p): graph.get_label_from_id(t)
+             for p, t in m.items()}
             for m in graph.subgraph_isomorphisms(loop)
         ]
         ```
 
-        A square has 8 symmetries (4 rotations, each with or without a reflection):
+        A square matches itself in 8 ways, one for each of its symmetries (4 rotations, each with
+        or without a reflection). A complete graph on four nodes holds 4 triangles, and each is
+        found 6 times, once per way of matching its corners. With `symmetry=True`, each is found
+        once:
 
         ```{python}
         square = ec.Graph().add_cycle_graph(4)
-        len(square.subgraph_isomorphisms(square))
-        ```
-
-        A complete graph on four nodes holds 4 triangles, and each is found 6 times, once per
-        way of matching its corners. With `symmetry=True`, each is found once:
-
-        ```{python}
         k4 = ec.Graph().add_full_graph(4)
         triangle = ec.Graph().add_cycle_graph(3)
 
         (
+            len(square.subgraph_isomorphisms(square)),
             len(k4.subgraph_isomorphisms(triangle)),
             len(k4.subgraph_isomorphisms(triangle, symmetry=True)),
         )
@@ -27186,9 +27187,14 @@ class Graph:
         carbonyl.set_node_attrs("element", {"C": "C", "O": "O"})
         carbonyl.set_edge_attrs("bond", {1: "double"})
 
-        matches = caffeine.subgraph_isomorphisms(carbonyl, node_attr="element", edge_attr="bond")
-        [{carbonyl.get_label_from_id(p): caffeine.get_label_from_id(t) for p, t in m.items()}
-         for m in matches]
+        matches = caffeine.subgraph_isomorphisms(
+            carbonyl, node_attr="element", edge_attr="bond"
+        )
+        [
+            {carbonyl.get_label_from_id(p): caffeine.get_label_from_id(t)
+             for p, t in m.items()}
+            for m in matches
+        ]
         ```
 
         ```{python}
@@ -27206,12 +27212,15 @@ class Graph:
         `induced=False`, since the bond C3–C4 that the two rings share cuts across it:
 
         ```{python}
+        def ring(size):
+            return ec.Graph().add_cycle_graph(size)
+
         rings = {
-            size: caffeine.subgraph_isomorphisms(ec.Graph().add_cycle_graph(size), symmetry=True)
+            size: caffeine.subgraph_isomorphisms(ring(size), symmetry=True)
             for size in [5, 6, 9]
         }
         outer = caffeine.subgraph_isomorphisms(
-            ec.Graph().add_cycle_graph(9), induced=False, symmetry=True
+            ring(9), induced=False, symmetry=True
         )
 
         {size: len(found) for size, found in rings.items()}, len(outer)
@@ -27221,13 +27230,17 @@ class Graph:
         adds are ringed:
 
         ```{python}
-        five = list(rings[5][0].values())
-        six = [node for node in rings[6][0].values() if node not in five]
+        five = set(rings[5][0].values())
+        six = set(rings[6][0].values()) - five
 
         caffeine.plot(
-            color_by="element", highlight={"accent": five, "soft": six}, label_by="label", seed=1
+            color_by="element", highlight={"accent": five, "soft": six},
+            label_by="label", seed=1,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#finding-patterns) counts the
+        squares of four karate club members, with and without diagonals.
         """
         found = self._match_pattern(
             pattern, induced, node_attr, edge_attr, limit=limit, symmetry=symmetry
