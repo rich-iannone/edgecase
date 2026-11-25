@@ -31224,6 +31224,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#combining-selections) explains why a forgotten
+        selection lingers, and how to avoid leftovers.
         """
         self._graph.clear_selection()
 
