@@ -33999,6 +33999,12 @@ class Graph:
         selection. An empty selection returns an empty DataFrame, so one of the
         `select_edges...` methods needs to run first.
 
+        See Also
+        --------
+        get_edge_df : Read every edge, not only the selected ones.
+        select_edges : Select the edges to read.
+        get_node_df_ws : Read the selected nodes in the same way.
+
         Examples
         --------
         Selecting only the "friend" edges before exporting means the DataFrame contains just
@@ -34017,7 +34023,7 @@ class Graph:
                     ("C", "D", 2.0, {"rel": "friend"}),
                 ]
             )
-            .select_edges(lambda e: e.attributes and e.attributes.get("rel") == "friend")
+            .select_edges(lambda e: (e.attributes or {}).get("rel") == "friend")
         )
 
         graph.get_edge_df_ws()
