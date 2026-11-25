@@ -56484,6 +56484,9 @@ class Graph:
             for business in ["Grocer", "Cafe", "Landlord", "Acme"]
         }
         ```
+
+        [Structural properties](../user-guide/structure.qmd#the-graph-at-a-glance) lists it with the
+        other one-line summaries of a graph.
         """
         if not self._graph.is_directed:
             raise ValueError("in_degree only available for directed graphs")
