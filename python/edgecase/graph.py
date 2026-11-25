@@ -87349,6 +87349,10 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#vertex-covers-and-independent-sets) compares
+        two heuristics for covering the karate club.
         """
         ids = {self._resolve_node_id(n, auto_create=False) for n in nodes}
         return all(s in ids or t in ids for _, s, t in self.get_edges_as_tuples())
