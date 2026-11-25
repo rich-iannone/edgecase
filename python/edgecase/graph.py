@@ -36303,6 +36303,9 @@ class Graph:
             color_by="club", label_by="label", seed=8,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#using-communities) tests
+        whether communities improve link prediction on the jazz network.
         """
         return self._link_scores("cn_sh", ebunch, community)
 
