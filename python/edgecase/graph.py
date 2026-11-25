@@ -17884,8 +17884,16 @@ class Graph:
         ValueError
             If `n1=`, `n2=` or `m=` is negative.
 
+        See Also
+        --------
+        add_bipartite_gnp_graph : Add a random bipartite graph with independent edge probabilities.
+        add_gnm_graph : Add a random graph with a fixed number of edges.
+        add_complete_bipartite_graph : Add a complete bipartite graph.
+
         Examples
         --------
+        Unlike `add_bipartite_gnp_graph()`, which includes each pair with some probability, this
+        picks exactly `m` of the pairs across the parts, all equally likely, with no repeats.
         Ten edges between a part of four nodes and a part of five:
 
         ```{python}
@@ -17896,11 +17904,35 @@ class Graph:
         graph.count_nodes(), graph.count_edges(), graph.is_simple()
         ```
 
-        Asking for more edges than there are pairs gives the complete bipartite graph:
+        ### Half the pairs or all of them
+
+        The graph above on the left uses half of the `4 * 5 = 20` pairs. Asking for more edges
+        than there are pairs, as on the right, gives the complete bipartite graph:
 
         ```{python}
-        ec.Graph().add_bipartite_gnm_graph(4, 5, m=100).count_edges()
+        complete = ec.Graph().add_bipartite_gnm_graph(4, 5, m=100)
+        k45 = ec.Graph().add_complete_bipartite_graph(n1=4, n2=5)
+
+        complete.count_edges(), complete.is_isomorphic(k45)
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        complete.layout_bipartite().plot(
+            layout="pos", color_by="part", label_by="label", node_size=10,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n1=n1, n2=n2, m=m)
 
