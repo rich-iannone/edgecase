@@ -40684,6 +40684,10 @@ class Graph:
         ```{python}
         lab.is_cograph()
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#perfect-graphs-and-cographs) explains what
+        cographs and modules are.
         """
         if self.is_directed():
             raise ValueError("is_cograph() requires an undirected graph")
