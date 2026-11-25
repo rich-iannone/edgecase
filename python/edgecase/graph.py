@@ -46224,6 +46224,9 @@ class Graph:
             layout="pos", color_by="k_clique", label_by="label"
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#overlapping-communities) finds the karate club's
+        overlapping communities of four-member cliques.
         """
         cover = self._cover_from(communities)
         q = rust.overlapping_modularity(self._graph, cover, resolution)
