@@ -53231,7 +53231,9 @@ class Graph:
         Examples
         --------
         Turning `g` into `h` requires deleting node `C` and its edge `A--C`, then inserting node
-        `E` and the edge `D--E`. That is one edit of each kind, for a total distance of `4.0`:
+        `E` and the edge `D--E`. That is one edit of each kind, for a total distance of `4.0`.
+        The costs only change how the counts are weighted. With `node_cost=0.0` (second) the two
+        node edits are free, so only the two edge edits remain:
 
         ```{python}
         import edgecase as ec
@@ -53239,32 +53241,25 @@ class Graph:
         g = ec.Graph.from_edges([("A", "B"), ("B", "D"), ("A", "C")])
         h = ec.Graph.from_edges([("A", "B"), ("B", "D"), ("D", "E")])
 
-        g.graph_edit_distance(h)
-        ```
-
-        The costs only change how the counts are weighted. With `node_cost=0.0` the two node
-        edits are free, so only the two edge edits remain:
-
-        ```{python}
-        g.graph_edit_distance(h, node_cost=0.0)["distance"]
+        (
+            g.graph_edit_distance(h),
+            g.graph_edit_distance(h, node_cost=0.0)["distance"],
+        )
         ```
 
         Both graphs are in fact four-node paths (`C--A--B--D` and `A--B--D--E`). The exact mode
-        ignores the labels, and relabelling nodes is free, so every node and edge is
-        substituted and the distance is `0`:
-
-        ```{python}
-        g.graph_edit_distance(h, exact=True)
-        ```
-
-        The exact distance between a six-node cycle and a seven-node wheel is `7`: one node
-        (the hub) and its six spokes are inserted:
+        ignores the labels, and relabeling nodes is free, so every node and edge is substituted
+        and the distance is `0`. The exact distance between a six-node cycle and a seven-node
+        wheel is `7` (second): one node (the hub) and its six spokes are inserted:
 
         ```{python}
         cycle = ec.Graph().add_cycle_graph(6)
         wheel = ec.Graph().add_wheel_graph(7)
 
-        cycle.graph_edit_distance(wheel, exact=True)["distance"]
+        (
+            g.graph_edit_distance(h, exact=True),
+            cycle.graph_edit_distance(wheel, exact=True)["distance"],
+        )
         ```
 
         Attributes enter through the match and cost functions. Here substituting atoms of
@@ -53276,7 +53271,9 @@ class Graph:
         b = ec.Graph().add_nodes([("b1", {"el": "C"}), ("b2", {"el": "N"})])
         b.add_edges([("b1", "b2")])
 
-        a.graph_edit_distance(b, exact=True, node_match=lambda x, y: x["el"] == y["el"])
+        a.graph_edit_distance(
+            b, exact=True, node_match=lambda x, y: x["el"] == y["el"]
+        )
         ```
 
         ### A year among friends
@@ -53308,24 +53305,31 @@ class Graph:
         ```{python}
         import polars as pl
 
+        methyls = {
+            "theophylline": "C1", "paraxanthine": "C7", "theobromine": "C8"
+        }
         relatives = {"caffeine": caffeine}
-        for name, methyl in [("theophylline", "C1"), ("paraxanthine", "C7"), ("theobromine", "C8")]:
+        for name, methyl in methyls.items():
             relatives[name] = ec.molecules()["caffeine"].delete_node(methyl)
-
 
         def same_element(x, y):
             return x["element"] == y["element"]
 
-
         def distance(a, b):
-            return a.graph_edit_distance(b, exact=True, node_match=same_element)["distance"]
-
+            result = a.graph_edit_distance(b, exact=True, node_match=same_element)
+            return result["distance"]
 
         pl.DataFrame(
             {"molecule": list(relatives)}
-            | {b: [distance(relatives[a], relatives[b]) for a in relatives] for b in relatives}
+            | {
+                b: [distance(relatives[a], relatives[b]) for a in relatives]
+                for b in relatives
+            }
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#measuring-differences)
+        explains when to use `exact=True`, and how large a graph it can handle.
         """
         exact_options = {
             "node_match": node_match,
