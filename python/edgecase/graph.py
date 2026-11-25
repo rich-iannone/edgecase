@@ -10577,6 +10577,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#deterministic-structures) lists the
+        deterministic generators by family.
         """
         if rows < 1 or cols < 1:
             raise ValueError("Lattice must have at least 1 row and 1 column")
