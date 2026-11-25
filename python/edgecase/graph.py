@@ -15545,6 +15545,12 @@ class Graph:
             If `n=` is negative, `theta=` is NaN, `dim=` is less than `1`, or `p_norm=` is not
             positive.
 
+        See Also
+        --------
+        add_random_geometric_graph : Join points by distance alone.
+        add_soft_random_geometric_graph : Join points within a radius with a distance-based chance.
+        add_waxman_graph : Join any two points with a chance that decays with distance.
+
         Examples
         --------
         A hundred nodes with threshold `100`:
@@ -15552,7 +15558,9 @@ class Graph:
         ```{python}
         import edgecase as ec
 
-        graph = ec.Graph().add_geographical_threshold_graph(n=100, theta=100, seed=10)
+        graph = ec.Graph().add_geographical_threshold_graph(
+            n=100, theta=100, seed=10
+        )
 
         graph.count_nodes(), graph.count_edges()
         ```
@@ -15572,10 +15580,51 @@ class Graph:
 
         ```{python}
         [
-            ec.Graph().add_geographical_threshold_graph(n=100, theta=theta, seed=10).count_edges()
+            ec.Graph()
+            .add_geographical_threshold_graph(n=100, theta=theta, seed=10)
+            .count_edges()
             for theta in (25, 50, 100, 200)
         ]
         ```
+
+        ### A low threshold or a high one
+
+        Forty nodes at the same positions and with the same weights, drawn where they sit and
+        colored by weight, with `theta=30` on the left and `theta=120` on the right. Raising the
+        threshold cuts the edges to about a third, and the light nodes lose theirs first, so
+        that several are left with none. The heaviest node keeps `5` of its `19` neighbors:
+
+        ```{python}
+        def threshold(theta):
+            return ec.Graph().add_geographical_threshold_graph(
+                n=40, theta=theta, seed=1
+            )
+
+        low, high = threshold(30), threshold(120)
+
+        weights = low.get_node_attrs("weight")
+        heaviest = max(weights, key=weights.get)
+
+        [(g.count_edges(), g.get_degree(heaviest)) for g in (low, high)]
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        low.plot(
+            layout="pos", color_by="weight", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        high.plot(
+            layout="pos", color_by="weight", show_labels=False, node_size=7,
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(n=n, dim=dim)
 
