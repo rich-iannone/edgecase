@@ -48890,59 +48890,94 @@ class Graph:
         $u$ to $v$, so contracting along a $(v, u)$ edge requires swapping the arguments
         (which also swaps which node survives).
 
+        See Also
+        --------
+        contract_nodes : Merge two nodes whether or not they are joined.
+        contract_nodes_multi : Merge any number of nodes into one.
+        quotient_graph : Collapse every block of a partition at once.
+
         Examples
         --------
-        Contracting the edge "A"-"B" in a three-node path leaves two nodes:
+        Contracting the edge "A -- B" in a three-node path merges its endpoints into "A", and the
+        edge itself becomes a self-loop:
 
         ```{python}
         import edgecase as ec
 
-        g = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C")])
 
-        result = g.contracted_edge("A", "B")
-        result.count_nodes()
-        ```
-
-        "B"'s other connections carry over to "A", so the former `B-C` edge now appears
-        as `A-C`. The contracted edge itself survives as a self-loop on "A":
-
-        ```{python}
-        result.get_edges_str_repr(use_labels=True)
+        path.contracted_edge("A", "B").get_edges_str_repr(use_labels=True)
         ```
 
         With `self_loops=False`, the contracted edge is dropped instead:
 
         ```{python}
-        g.contracted_edge("A", "B", self_loops=False).get_edges_str_repr(use_labels=True)
+        merged = path.contracted_edge("A", "B", self_loops=False)
+        merged.get_edges_str_repr(use_labels=True)
         ```
 
-        The same works on directed graphs -- contracting `A->B` redirects `B`'s outgoing
-        edges to originate from `A` instead:
+        Unlike `contract_nodes()`, the edge has to exist, and on a directed graph in the stated
+        direction, so asking to contract "B" -> "A" here raises an error:
 
         ```{python}
-        g = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edges([("A", "B"), ("B", "C")])
-        )
+        one_way = ec.Graph.from_edges([("A", "B"), ("B", "C")], directed=True)
 
-        result = g.contracted_edge("A", "B")
-        result.has_edge("A", "C")
-        ```
-
-        On a directed graph the edge has to exist in the stated direction, so asking to contract
-        "B" -> "A" here raises an error:
-
-        ```{python}
         try:
-            g.contracted_edge("B", "A")
+            one_way.contracted_edge("B", "A")
         except ValueError as e:
             print(e)
         ```
+
+        ### Two towns become one
+
+        Calder, the county's largest town, annexes Fenmoor, its neighbor along a 42 km road.
+        Contracting that road merges the two towns into Calder, and Fenmoor's roads now leave
+        from Calder:
+
+        ```{python}
+        towns = ec.towns()
+        county = towns.contracted_edge("Calder", "Fenmoor", self_loops=False)
+
+        (
+            county.count_nodes(),
+            county.get_degree("Calder"),
+            county.get_degree("Greyford"),
+        )
+        ```
+
+        Greyford, which had 7 roads to Calder's 6, was the county's busiest junction. Both
+        towns had roads to Elmwick and Greyford, and each of those pairs merged into one, so
+        Calder now has 7 roads and Greyford 6. Where two roads merged, Calder's own was kept, even
+        though Fenmoor's were shorter (32 km to Elmwick and 28 km to Greyford), so distances
+        measured on the merged map can come out longer than they are:
+
+        ```{python}
+        import polars as pl
+
+        roads = [
+            *county.find_edge_ids("Calder", "Elmwick"),
+            *county.find_edge_ids("Calder", "Greyford"),
+        ]
+        county.get_edge_df().filter(pl.col("id").is_in(roads)).select("km")
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        towns.plot(
+            layout="pos", label_by="label", highlight=["Calder", "Fenmoor"],
+            width=360, height=360,
+        )
+        ```
+
+        ```{python}
+        county.plot(
+            layout="pos", label_by="label", highlight="Calder",
+            width=360, height=360,
+        )
+        ```
+
+        :::
         """
         from edgecase._core import contracted_edge as _contracted_edge
 
