@@ -38947,6 +38947,9 @@ class Graph:
         ```
 
         `minimum_cycle_basis()` finds the two rings instead.
+
+        [Clustering and motifs](../user-guide/clustering-and-motifs.qmd#cycles) explains what a
+        cycle basis is, and when to prefer a minimum one.
         """
         from edgecase._core import cycle_basis as rust_cycle_basis
 
