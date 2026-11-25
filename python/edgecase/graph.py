@@ -86596,6 +86596,9 @@ class Graph:
             highlight_edges=pairs, color_by="club", label_by="label", seed=2
         )
         ```
+
+        [Coloring, matching, and covering](../user-guide/coloring-matching.qmd#pairs-of-nodes)
+        explains why the karate club has no perfect matching.
         """
         ends = self._matching_ends(edges)
         return ends is not None and len(ends) == self.count_nodes()
