@@ -30379,6 +30379,9 @@ class Graph:
         ```{python}
         metro.plot(layout="pos", highlight="planned", label_by="label")
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-nodes) lists the node selectors and what
+        each one selects.
         """
         self._check_non_negative(n=n)
         self._select("nodes", set_op, lambda: self._graph.select_last_nodes_created(n))
