@@ -22112,6 +22112,11 @@ class Graph:
             Edge strings such as `"1->2"` (directed) or `"A--B"` (undirected, with
             `use_labels=True`), in edge insertion order and truncated to at most `limit=` items.
 
+        See Also
+        --------
+        get_edges_as_tuples : List the edges as (ID, source, target) tuples.
+        get_edge_df : Read the edges and their attributes as a data frame.
+
         Examples
         --------
         By default, edges are formatted using node IDs, with the arrow showing direction:
