@@ -21749,6 +21749,10 @@ class Graph:
 
         len(big.get_node_ids()), len(big.get_node_ids(limit=None))
         ```
+
+        [The graph model](../user-guide/graph-model.qmd#methods-modify-the-graph-in-place) copies a
+        whole graph with `subgraph(get_node_ids(limit=None))`, since the default `limit=` stops at
+        1,000 IDs.
         """
         ids = self._graph.get_node_ids()
         return ids if limit is None else ids[:limit]
