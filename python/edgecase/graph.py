@@ -30482,6 +30482,9 @@ class Graph:
         ```{python}
         payments.plot(highlight_edges="pending", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-edges) lists the edge selectors and what
+        each one selects.
         """
         self._check_non_negative(n=n)
         self._select("edges", set_op, lambda: self._graph.select_last_edges_created(n))
