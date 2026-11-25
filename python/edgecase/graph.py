@@ -43295,6 +43295,9 @@ class Graph:
         ```{python}
         round(ec.karate_club().small_world_omega(seed=1), 2)
         ```
+
+        [Structural properties](../user-guide/structure.qmd#small-worlds) compares the two
+        small-world indices, and how `iterations=` and `nrand=` trade accuracy for speed.
         """
         value, parts = rust.small_world(self._graph, "omega", iterations, nrand, seed)
         if self._recording_depth == 0:
