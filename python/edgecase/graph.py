@@ -14177,6 +14177,9 @@ class Graph:
         ```
 
         :::
+
+        [Graph generators](../user-guide/generators.qmd#degree-sequences) compares the generators
+        that realize a given degree sequence.
         """
         from edgecase._core import directed_configuration_edges as _directed_configuration_edges
 
