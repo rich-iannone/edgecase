@@ -68898,6 +68898,9 @@ class Graph:
             label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#from-one-node-to-many) finds the cities within
+        600 km of Paris on a road network.
         """
         source_id = self._resolve_node_id(source, auto_create=False)
         dist = self._distances_out(rust.multi_source_distances(self._graph, [source_id], cutoff))
