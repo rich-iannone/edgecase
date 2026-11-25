@@ -90150,6 +90150,9 @@ class Graph:
             highlight_edges=best.get_edge_ids(), label_by="label", seed=2
         )
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#spanning-trees) compares the
+        spanning-tree methods.
         """
         from edgecase._core import all_spanning_trees as _all_spanning_trees
 
