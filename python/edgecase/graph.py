@@ -75691,6 +75691,9 @@ class Graph:
         ```{python}
         cafe.plot(layout="pos", highlight=widest, label_by="label", height=360)
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#antichains) finds the most crews that could
+        ever work on a house at once.
         """
         value = rust.antichain_width(self._graph)
         if self._recording_depth == 0:
