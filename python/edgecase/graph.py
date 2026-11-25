@@ -30260,6 +30260,9 @@ class Graph:
         ```{python}
         payments.plot(highlight="selection", label_by="label", seed=3)
         ```
+
+        [Selections](../user-guide/selections.qmd#selecting-edges) lists the edge selectors and what
+        each one selects.
         """
         # Resolve labels to IDs; unknown IDs or labels raise before anything changes
         _check_set_op(set_op)
