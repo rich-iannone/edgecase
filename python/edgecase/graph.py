@@ -55892,6 +55892,9 @@ class Graph:
 
         graph_directed.get_edges_str_repr(use_labels=True)
         ```
+
+        [Selections](../user-guide/selections.qmd#acting-on-selected-nodes) lists it with the other
+        methods that act on selected nodes.
         """
         selected = list(self.get_selected_node_ids())
 
