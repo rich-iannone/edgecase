@@ -20659,6 +20659,9 @@ class Graph:
             for tree in ec.Graph.iter_nonisomorphic_trees(8)
         )
         ```
+
+        [Graph generators](../user-guide/generators.qmd#every-small-graph) lists the six trees on
+        six nodes, from the path to the star.
         """
         from edgecase._generators import nonisomorphic_tree_edges
 
