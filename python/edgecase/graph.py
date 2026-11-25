@@ -63183,6 +63183,9 @@ class Graph:
 
         For all pairs of nodes, use `edge_betweenness_centrality()`.
 
+        [Centrality](../user-guide/centrality.qmd#variants) lists `betweenness_centrality_subset()`
+        with the other variants of betweenness and what each counts.
+
         Notes
         -----
         NetworkX's `edge_betweenness_centrality_subset()` splits the flow arriving at a
