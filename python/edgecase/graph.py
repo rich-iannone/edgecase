@@ -29344,6 +29344,9 @@ class Graph:
             highlight={"accent": ["Lou"], "soft": ["Iris"]},
         )
         ```
+
+        [Traversals](../user-guide/traversals.qmd#neighbors) compares the neighbor lookups, and
+        where they lead in link prediction.
         """
         # Resolve node to integer ID
         node_id = self._resolve_node_id(node)
