@@ -82840,6 +82840,9 @@ class Graph:
             layout="pos", color_by="zone", edge_color_by="zone", label_by="label"
         )
         ```
+
+        [Communities](../user-guide/communities.qmd#scoring-single-communities) scores single
+        communities of the karate club by the edges that leave them.
         """
         s_ids, t_ids, p = self._cut(S, T, weighted)
         smaller = min(p[3], p[4])
