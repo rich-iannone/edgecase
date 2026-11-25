@@ -70256,6 +70256,9 @@ class Graph:
 
         [metro.get_label_from_id(n) for n in reversed(route)], dist[start][end]
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#between-every-pair) finds the best rate from
+        pounds to every other currency, once the arbitrage is removed.
         """
         use = self._use_weights(weighted)
         ids, dmat, pmat = rust.floyd_warshall(self._graph, use)
