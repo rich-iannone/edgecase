@@ -19343,16 +19343,24 @@ class Graph:
         ValueError
             If `p=` is negative.
 
+        See Also
+        --------
+        complement : Return the complement, which a Paley graph is isomorphic to.
+        add_chordal_cycle_graph : Build an expander from inverses modulo a prime.
+        is_regular_expander : Check the spectral expansion of a regular graph.
+
         Examples
         --------
-        The Paley graph of 13 is 6-regular and isomorphic to its own complement:
+        The Paley graph of 13 joins two numbers when their difference is a square modulo `13`.
+        It's 6-regular and isomorphic to its own complement:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_paley_graph(p=13)
+        degrees = set(graph.degrees(return_dict=True).values())
 
-        graph.count_edges(), set(graph.degrees(return_dict=True).values()), graph.is_isomorphic(graph.complement())
+        graph.count_edges(), degrees, graph.is_isomorphic(graph.complement())
         ```
 
         The Paley graph of 5 is the 5-cycle:
@@ -19368,9 +19376,43 @@ class Graph:
 
         ```{python}
         tournament = ec.Graph(directed=True).add_paley_graph(p=7)
+        nodes = tournament.get_node_ids()
 
-        tournament.count_edges(), [len(tournament.get_neighbors(v)) for v in tournament.get_node_ids()]
+        wins = [len(tournament.get_neighbors(v)) for v in nodes]
+
+        tournament.count_edges(), wins
         ```
+
+        ### The graph and its complement
+
+        The Paley graph of 13 on the left and its complement on the right, with the nodes in order
+        around a circle. The squares modulo `13` are `1, 3, 4, 9, 10, 12`, so on the left each
+        node is joined to the nodes `1`, `3` and `4` steps away; the complement takes the other
+        steps, `2`, `5` and `6`. The drawings differ, but doubling every number modulo `13`
+        turns one into the other:
+
+        ```{python}
+        complement = graph.complement()
+        neighbors = graph.get_neighbors("1")
+
+        sorted(int(graph.get_label_from_id(n)) - 1 for n in neighbors)
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        complement.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(p=p)
 
