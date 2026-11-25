@@ -36592,6 +36592,21 @@ class Graph:
         [(label(u), label(v), round(s, 3)) for u, v, s in scores]
         ```
 
+        `A` and `D` picked out, with the two friends they share drawn pale. `D` also knows `E`,
+        which `A` doesn't:
+
+        ```{python}
+        spots = {"A": (0, 1), "B": (1, 2), "C": (1, 0), "D": (2, 1), "E": (3, 1)}
+        graph.set_node_attrs(
+            "pos", {graph.get_id_from_label(v): p for v, p in spots.items()}
+        )
+
+        graph.plot(
+            layout="pos", highlight={"accent": {"A", "D"}, "soft": {"B", "C"}},
+            label_by="label", height=240,
+        )
+        ```
+
         ### Seven of eight
 
         `friends()` links 24 members of two clubs in a made-up town, a chess club and a climbing
@@ -36621,6 +36636,9 @@ class Graph:
             color_by="club", label_by="label", seed=1,
         )
         ```
+
+        [Similarity and link prediction](../user-guide/similarity.qmd#neighborhood-similarity)
+        compares how much three pairs of karate club members have in common.
         """
         from edgecase._core import jaccard_coefficient
 
