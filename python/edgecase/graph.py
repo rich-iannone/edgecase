@@ -48426,66 +48426,77 @@ class Graph:
         Graph
             A new Graph with complementary edge set.
 
+        See Also
+        --------
+        maximum_clique : The largest clique, an independent set of the original.
+        maximum_independent_set : The largest set of nodes with no edges between them.
+        line_graph : The graph of which edges share an endpoint.
+
         Examples
         --------
+        The complement joins every pair that wasn't joined and drops every pair that was. A
+        four-node path has 3 of the 6 possible edges, so its complement has the other 3:
+
         ```{python}
         import edgecase as ec
 
-        graph = (
-            ec.Graph(directed=False)
-            .add_nodes(["A", "B", "C"])
-            .add_edge("A", "B")
+        path = ec.Graph.from_edges([("A", "B"), ("B", "C"), ("C", "D")])
+        others = path.complement()
+
+        others.get_edges_str_repr(use_labels=True)
+        ```
+
+        Directed graphs are complemented per direction, so a missing `B -> A` is added even though
+        `A -> B` exists:
+
+        ```{python}
+        one_way = ec.Graph.from_edges([("A", "B")], directed=True)
+
+        one_way.complement().get_edges_str_repr(use_labels=True)
+        ```
+
+        ### Exams that can share a slot
+
+        An exam timetable starts from a conflict graph: 14 courses, joined when some student takes
+        both, so their exams can't be at the same time. Its complement joins the courses that share
+        no students, the pairs that can sit in the same slot. Of the 91 pairs, 62 can:
+
+        ```{python}
+        exams = ec.exams()
+        compatible = exams.complement()
+
+        exams.count_edges(), compatible.count_edges()
+        ```
+
+        A group of exams can all go in one slot when every pair in it is compatible, which makes
+        it a clique of the complement. The largest has 7 courses, half the timetable in a single
+        slot:
+
+        ```{python}
+        slot = compatible.maximum_clique()
+
+        [exams.get_label_from_id(course) for course in slot]
+        ```
+
+        The conflict graph is on the left and its complement on the right, with that group of 7
+        highlighted in both. In the conflict graph none of them are joined; in the complement they
+        all are:
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        exams.plot(
+            label_by="label", highlight=slot, seed=2, width=360, height=360
         )
-
-        comp = graph.complement()
-        comp.count_edges()
         ```
 
-        Every pair that wasn't connected in the original now is, and vice versa:
-
         ```{python}
-        comp.has_edge("A", "C"), comp.has_edge("A", "B")
-        ```
-
-        This makes it easy to find missing connections in a network -- for example,
-        spotting which pairs of people in a friend graph aren't yet friends:
-
-        ```{python}
-        friends = (
-            ec.Graph(directed=False)
-            .add_nodes(["Alice", "Bob", "Charlie", "Diana"])
-            .add_edges([("Alice", "Bob"), ("Bob", "Charlie")])
+        compatible.plot(
+            label_by="label", highlight=slot, seed=2, width=360, height=360
         )
-
-        non_friends = friends.complement()
-        non_friends.get_edges_str_repr(use_labels=True)
         ```
 
-        Comparing a graph to its own complement is one way to check for
-        self-complementary structure:
-
-        ```{python}
-        g = ec.Graph(directed=False)
-        g.add_nodes(["A", "B", "C", "D"])
-        g.add_edges([("A", "B"), ("C", "D")])
-
-        comp = g.complement()
-        comp.get_edges_str_repr(use_labels=True)
-        ```
-
-        Directed graphs are complemented per-direction, so a missing `A->B` doesn't
-        imply `B->A` was also missing:
-
-        ```{python}
-        g = (
-            ec.Graph(directed=True)
-            .add_nodes(["A", "B", "C"])
-            .add_edge("A", "B")
-        )
-
-        comp = g.complement()
-        comp.get_edges_str_repr(use_labels=True)
-        ```
+        :::
         """
         result = Graph._from_rust(self._graph.complement())
 
