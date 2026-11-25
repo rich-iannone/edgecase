@@ -589,6 +589,23 @@ class TestBipartiteMatching:
                 sum(B[u][v]["weight"] for u, v in ref.items() if u < a), abs=1e-7
             )
 
+    def test_couriers_beat_nearest_first(self):
+        """The docs example: nearest-first costs 14, the full matching 11 by swapping d1 and d2."""
+        g = ec.Graph.from_edges(
+            [
+                ("Ana", "d1", 2.0), ("Ana", "d2", 3.0), ("Ana", "d3", 8.0),
+                ("Ben", "d1", 3.0), ("Ben", "d2", 7.0), ("Ben", "d3", 9.0),
+                ("Cho", "d1", 6.0), ("Cho", "d2", 4.0), ("Cho", "d3", 5.0),
+            ]
+        )  # fmt: skip
+        plan = g.bipartite_minimum_weight_full_matching(top_nodes=["Ana", "Ben", "Cho"])
+        label = g.get_label_from_id
+        pairs = {(label(g.get_edge(e).source), label(g.get_edge(e).target)) for e in plan}
+        assert pairs == {("Ana", "d2"), ("Ben", "d1"), ("Cho", "d3")}
+        assert _total(g, plan) == 11.0
+        nearest = [g.find_edge_ids(*p)[0] for p in [("Ana", "d1"), ("Ben", "d2"), ("Cho", "d3")]]
+        assert _total(g, nearest) == 14.0
+
     def test_errors(self):
         tri = ec.Graph().add_nodes(["A", "B", "C"])
         tri.add_edges([("A", "B"), ("B", "C"), ("C", "A")])
