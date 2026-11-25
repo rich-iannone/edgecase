@@ -94559,6 +94559,10 @@ class Graph:
             label_by="label", seed=8,
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#ordering-nodes-with-the-fiedler-vector)
+        puts scrambled fragments of a DNA sequence back in order, and explains why the order can
+        come out reversed.
         """
         order = rust.spectral_ordering(self._graph, normalized, self._use_weights(weighted))
         if self._recording_depth == 0:
