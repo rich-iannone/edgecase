@@ -1724,6 +1724,10 @@ class Graph:
 
         The Landlord has no payments this month, so it stands apart. Built from the payments
         alone, the graph wouldn't have it at all.
+
+        [Building graphs](../user-guide/building-graphs.qmd#many-at-once) gives some nodes their own
+        attributes with `(label, attributes)` tuples, and adds nodes from a dictionary and a
+        `range`.
         """
         # Read the input once (it may be a generator) and validate it before adding anything
         if isinstance(nodes, dict):
