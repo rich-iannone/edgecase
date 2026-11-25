@@ -80092,6 +80092,9 @@ class Graph:
             edge_opacity=0.9, label_by="label",
         )
         ```
+
+        [Paths and distances](../user-guide/paths.qmd#disjoint-paths) finds the routes from Paris to
+        Vienna that share no city.
         """
         if max_paths is not None and max_paths < 1:
             raise ValueError(f"max_paths must be at least 1, got {max_paths}")
