@@ -94017,6 +94017,9 @@ class Graph:
             layout="pos", color_by="leaning", edge_color_by="leaning"
         )
         ```
+
+        [Matrices and spectra](../user-guide/spectral.qmd#how-many-communities) estimates the number
+        of communities from the spectrum.
         """
         return rust.modularity_spectrum(self._graph, self._use_weights(weighted))
 
