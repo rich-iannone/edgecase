@@ -40544,6 +40544,10 @@ class Graph:
             layout="pos", color_by="module", label_by="label", height=300,
         )
         ```
+
+        [Coloring, matching, and
+        covering](../user-guide/coloring-matching.qmd#perfect-graphs-and-cographs) explains what
+        cographs and modules are.
         """
         entries = rust.modular_decomposition(self._graph)
         leaves = {self._node_label(ids[0]) for kind, _, ids in entries if kind == "leaf"}
