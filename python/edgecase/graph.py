@@ -19209,6 +19209,13 @@ class Graph:
         ValueError
             If `p=` is negative.
 
+        See Also
+        --------
+        add_margulis_gabber_galil_graph : Build an explicit 8-regular expander on a torus.
+        add_paley_graph : Join numbers that differ by a square modulo a prime.
+        add_cycle_graph : Build the plain cycle, without chords.
+        is_regular_expander : Check the spectral expansion of a regular graph.
+
         Examples
         --------
         For `p = 11` there are 11 cycle edges, 4 chords and 3 self-loops:
@@ -19231,8 +19238,40 @@ class Graph:
         The diameter stays small as `p` grows:
 
         ```{python}
-        [ec.Graph().add_chordal_cycle_graph(p).diameter() for p in (11, 101, 1009)]
+        [
+            ec.Graph().add_chordal_cycle_graph(p).diameter()
+            for p in (11, 101, 1009)
+        ]
         ```
+
+        ### Eleven nodes and twenty-three
+
+        The graphs for `p = 11` and `p = 23`, with the nodes in order around the cycle. A
+        number's inverse is usually far from it around the cycle, so the chords make shortcuts.
+        The farthest of `23` nodes on a plain cycle are `11` steps apart, but the chords bring
+        that down to `5`:
+
+        ```{python}
+        bigger = ec.Graph().add_chordal_cycle_graph(p=23)
+
+        bigger.diameter(), ec.Graph().add_cycle_graph(23).diameter()
+        ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_circular(order="id").plot(
+            layout="pos", label_by="label", width=320, height=320, legend=False
+        )
+        ```
+
+        ```{python}
+        bigger.layout_circular(order="id").plot(
+            layout="pos", show_labels=False, width=320, height=320, legend=False
+        )
+        ```
+
+        :::
         """
         self._check_non_negative(p=p)
 
