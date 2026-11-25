@@ -46907,6 +46907,10 @@ class Graph:
         ```
 
         :::
+
+        [Communities](../user-guide/communities.qmd#comparing-with-known-groups) compares several
+        methods with the karate club's factions, which `cmty_fluid()` recovers exactly when told to
+        find two.
         """
         self._check_non_negative(k=k, max_iter=max_iter)
         ids, labels = rust.fluid_communities(self._graph, k, max_iter, seed)
