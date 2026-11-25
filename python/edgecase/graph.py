@@ -8675,32 +8675,54 @@ class Graph:
         ValueError
             If any entry of `sizes=` is negative.
 
+        See Also
+        --------
+        add_complete_bipartite_graph : Add a complete bipartite graph.
+        add_turan_graph : Add a Turán graph.
+        layout_multipartite : Place the nodes in layers by a node attribute.
+
         Examples
         --------
-        With groups of `1`, `2`, and `3` nodes, each node is joined to every node outside its own
-        group, giving `1*2 + 1*3 + 2*3 = 11` edges:
+        The nodes are split into groups of the given `sizes=`, and each node is joined to every node
+        outside its own group. Groups of `1`, `2` and `3` give `1*2 + 1*3 + 2*3 = 11` edges, and a
+        node's degree is the number of nodes outside its group:
 
         ```{python}
         import edgecase as ec
 
         graph = ec.Graph().add_complete_multipartite_graph(sizes=[1, 2, 3])
 
-        graph.count_nodes(), graph.count_edges()
-        ```
-
-        A node's degree is the number of nodes outside its group:
-
-        ```{python}
         graph.get_node_df().select("label", "part", "degree")
         ```
 
-        Three groups of two nodes form the octahedron, where every node misses only its partner:
+        ### Unequal and equal groups
+
+        Groups of `1`, `2` and `3` on the left and three groups of `2` on the right, one column per
+        group. The equal groups make the octahedron, in which each node misses only its partner:
 
         ```{python}
         octahedron = ec.Graph().add_complete_multipartite_graph(sizes=[2, 2, 2])
 
-        octahedron.count_edges(), octahedron.is_isomorphic(ec.Graph().add_named_graph("octahedral"))
+        octahedron.is_isomorphic(ec.Graph().add_named_graph("octahedral"))
         ```
+
+        ::: {layout-ncol="2"}
+
+        ```{python}
+        graph.layout_multipartite(subset_key="part").plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        ```{python}
+        octahedron.layout_multipartite(subset_key="part").plot(
+            layout="pos", color_by="part", label_by="label",
+            width=320, height=320, legend=False,
+        )
+        ```
+
+        :::
         """
         sizes = list(sizes)
         if any(size < 0 for size in sizes):
