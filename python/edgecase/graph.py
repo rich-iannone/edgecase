@@ -3902,6 +3902,9 @@ class Graph:
         ```
 
         :::
+
+        [Building graphs](../user-guide/building-graphs.qmd#cleaning-up) inspects a messy graph's
+        self-loops and parallel edges, then removes both.
         """
         if self._recording_depth == 0:
             before_snap = self._snapshot_state()
