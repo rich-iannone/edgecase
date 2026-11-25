@@ -91731,6 +91731,9 @@ class Graph:
 
         whole.to_nested_tuple("1") == ((((), ()), ((), ())), (((), ()), ((), ())))
         ```
+
+        [Directed acyclic graphs](../user-guide/dags.qmd#trees) compares the other methods for trees
+        and branchings.
         """
         graphs, roots = [], []
         for pair in rooted_trees:
