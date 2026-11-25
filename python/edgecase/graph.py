@@ -81151,6 +81151,9 @@ class Graph:
         metro.add_edge(*best)
         metro.plot(layout="pos", highlight=[best], label_by="label")
         ```
+
+        [Connectivity and flows](../user-guide/connectivity.qmd#measuring-connectivity) compares the
+        measures of connectivity and minimum cuts.
         """
         value = rust.average_node_connectivity(self._graph)
         if self._recording_depth == 0:
